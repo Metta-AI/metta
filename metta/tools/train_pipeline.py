@@ -35,7 +35,7 @@ from metta.common.wandb.wandb_context import WandbConfig, WandbRun
 from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.sweep.axiom import Ctx, Pipeline
+from metta.sweep.axiom import Context, Pipeline
 from metta.sweep.axiom.training_guards import (
     master_process_only,
     platform_specific,
@@ -101,10 +101,10 @@ class TrainJobPipeline(Tool):
 
     consumed_args: list[str] = ["run"]
 
-    def get_pipeline(self) -> Pipeline:
+    def get_pipeline(self, initial_state: TrainingState) -> Pipeline:
         """Build the training pipeline."""
         return (
-            Pipeline()
+            Pipeline(initial_state)
             .stage("initialize", self._initialize)
             .io("setup_logging", self._setup_logging)
             .io("setup_distributed", self._setup_distributed)
@@ -119,17 +119,15 @@ class TrainJobPipeline(Tool):
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         """Execute the training pipeline."""
-        ctx = Ctx()
-
         # Create initial state with typed configuration
         config = TrainingConfig(tool=self, args=args, overrides=overrides)
         initial_state = TrainingState(config=config)
 
-        # Set initial state in context
-        ctx.set_stage_output("initial", initial_state)
+        # Create context
+        ctx = Context()
 
-        # Run the pipeline
-        pipeline = self.get_pipeline()
+        # Build and run the pipeline
+        pipeline = self.get_pipeline(initial_state)
         pipeline.run(ctx)
 
         return 0
@@ -292,3 +290,5 @@ class TrainJobPipeline(Tool):
         if torch.distributed.is_initialized():
             torch.distributed.destroy_process_group()
         return state
+
+    # Below we summarize the intended workflow, as it pertains to Axiom.

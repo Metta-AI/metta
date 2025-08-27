@@ -1,56 +1,76 @@
-"""Core tAXIOM DSL components: Pipeline, Stage, and Context - MVP version."""
+"""Core tAXIOM DSL components: Stateful Pipeline with clean State/Context separation.
+
+Key design principles:
+1. State (Pydantic): Strongly-typed, mutable experiment data
+2. Context (TypedDict): Lightweight, read-only execution metadata
+3. Stages receive both: (state: State, ctx: Context) -> None
+4. Deep overrides preserved via pipeline_path in Context
+"""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from typing import Any, Optional, TypeVar
+
+from pydantic import BaseModel, Field
 
 from metta.sweep.axiom.types import infer_type
 
 T = TypeVar("T")
 
 
-class Ctx:
-    """Context object that flows through pipeline stages.
-
-    The Ctx object manages data flow between stages, maintaining:
-    - Input/output for each stage
-    - Metadata (seeds, hashes, etc.)
-    - Artifacts (checkpoints, logs)
+class PipelineState(BaseModel):
+    """Base class for pipeline state - subclass for specific pipelines.
+    
+    This uses Pydantic for type safety and validation while allowing flexibility.
+    Subclass this to define your pipeline's specific state structure.
     """
+    # Common fields all pipelines have
+    metadata: dict[str, Any] = Field(default_factory=dict, description="User metadata")
+    artifacts: dict[str, Any] = Field(default_factory=dict, description="Stored artifacts")
+    outputs: dict[str, Any] = Field(default_factory=dict, description="Stage outputs for compatibility")
+    
+    class Config:
+        extra = "allow"  # Allow dynamic fields when needed
+        arbitrary_types_allowed = True  # Allow Any types like models
 
-    def __init__(self):
-        self.stages: dict[str, dict[str, Any]] = {}
-        self.metadata: dict[str, Any] = {}
-        self.artifacts: dict[str, Any] = {}
+
+class Context(BaseModel):
+    """Read-only execution context - stages should NOT modify this.
+    
+    While this is a Pydantic model (for consistency and validation),
+    it's conceptually read-only - stages should treat it as immutable.
+    """
+    # Execution tracking
+    current_stage: str = ""
+    stage_history: list[str] = Field(default_factory=list)
+    
+    # Pipeline path for deep overrides (e.g., "parent.child.grandchild")
+    pipeline_path: str = ""
+    
+    # Override tracking
+    exposed_joins: set[str] = Field(default_factory=set)
+    active_overrides: dict[str, Any] = Field(default_factory=dict)
+    
+    # Run metadata
+    run_id: str = ""
+    timestamp: Optional[str] = None
+    trial_index: Optional[int] = None  # For sweep operations
+
+
+# Legacy Ctx class - deprecated, kept for backwards compatibility
+class Ctx:
+    """Legacy context object - DEPRECATED.
+    
+    This is kept for backwards compatibility but should not be used.
+    New code should use State and Context separately.
+    """
+    def __init__(self, state: PipelineState | None = None):
+        self.state = state or PipelineState()
+        self.metadata = self.state.metadata
+        self.artifacts = self.state.artifacts
         self._current_stage: str | None = None
-
-    def set_stage_input(self, stage_name: str, input_data: Any) -> None:
-        """Set input data for a stage."""
-        if stage_name not in self.stages:
-            self.stages[stage_name] = {}
-        self.stages[stage_name]["in"] = input_data
-
-    def set_stage_output(self, stage_name: str, output_data: Any) -> None:
-        """Set output data from a stage."""
-        if stage_name not in self.stages:
-            self.stages[stage_name] = {}
-        self.stages[stage_name]["out"] = output_data
-
-    def get_stage_input(self, stage_name: str) -> Any:
-        """Get input data for a stage."""
-        return self.stages.get(stage_name, {}).get("in")
-
-    def get_stage_output(self, stage_name: str) -> Any:
-        """Get output data from a stage."""
-        return self.stages.get(stage_name, {}).get("out")
-
-    def get_last_output(self) -> Any:
-        """Get output from the most recently executed stage."""
-        if self._current_stage:
-            return self.get_stage_output(self._current_stage)
-        return None
 
 
 @dataclass
@@ -83,106 +103,98 @@ class Stage:
         if not callable(self.func):
             raise TypeError(f"Stage '{self.name}' func must be callable")
 
-    def execute(self, ctx: Ctx, *args, **kwargs) -> Any:
-        """Execute the stage function.
+    def execute(self, state: PipelineState, ctx: Context) -> None:
+        """Execute the stage function with state and context.
         
-        Stage execution patterns:
-        1. Methods bound to objects with self.cfg:
-           - Called directly, can access self.cfg internally
-           
-        2. Lambdas and pure functions:
-           - Receive previous stage's output as first argument
-           - Config must be closed over in lambda or passed explicitly:
-             lambda data: process(data, config)
-           
-        3. Context-aware functions (deprecated in MVP):
-           - Would receive ctx directly (removed for simplicity)
+        Clean execution pattern:
+        - Stages receive both state (mutable) and context (read-only)
+        - They modify state directly, read context for execution info
+        - No return values needed
         """
-        # Get input from context if no args provided
-        if not args and not kwargs:
-            stage_input = ctx.get_stage_input(self.name)
-            # Always pass the stage input, even if it's None (first stage needs it)
-            args = (stage_input,)
-
         try:
-            # Execute the function
-            result = self.func(*args, **kwargs)
+            # Check function signature to determine calling convention
+            import inspect
+            sig = inspect.signature(self.func)
+            params = list(sig.parameters.keys())
+            
+            # Determine how to call the function based on its signature
+            if len(params) == 0:
+                # No-arg function (legacy or simple)
+                self.func()
+            elif len(params) == 1:
+                # Single arg - assume it wants state
+                self.func(state)
+            else:
+                # Two or more args - pass state and context
+                self.func(state, ctx)
+                
         except Exception as e:
             # Add context about which stage failed
             stage_type = "I/O operation" if self.stage_type == "io" else "Stage"
             error_msg = f"{stage_type} '{self.name}' failed: {str(e)}"
             
-            # Create a new exception with the stage context
-            # Use the same exception type if it's a standard one, otherwise use RuntimeError
+            # Re-raise with context
             if isinstance(e, (TypeError, ValueError, KeyError, AttributeError, IndexError)):
                 raise type(e)(error_msg) from e
             elif isinstance(e, IOError):
-                # IOError from I/O operations already has context, just re-raise
-                raise
+                raise  # IOError already has context
             else:
                 raise RuntimeError(error_msg) from e
 
-        # Store output in context
-        ctx.set_stage_output(self.name, result)
-        ctx._current_stage = self.name
-
-        return result
-
 
 class Pipeline:
-    """Pipeline for composing stages - MVP version with sequential execution only.
+    """Stateful Pipeline for composing stages that act on shared state.
 
-    Pipelines provide:
+    Key features:
+    - Initialized with a state object that all stages share
+    - Stages act directly on state (no explicit returns)
     - Method chaining API for building computation graphs
-    - Sequential execution
-    - Type documentation at membranes
-    - Hook attachment points
-    - Join points for swappable sub-pipelines
+    - Join points for variation and A/B testing
     
-    Usage patterns for accessing configuration:
+    Usage patterns:
     
-    1. Method-based (preferred for complex logic):
+    1. Class-based with state:
        ```python
-       class MyExperiment:
-           def __init__(self, cfg):
-               self.cfg = cfg
-           
-           def process_data(self, data):
-               # Can access self.cfg directly
-               return data * self.cfg.multiplier
+       class TrainingState(PipelineState):
+           model: Any = None
+           optimizer: str = "Adam"
        
-       pipeline.stage("process", self.process_data)
+       state = TrainingState()
+       pipeline = Pipeline(state)
+       pipeline.stage("train", lambda s: setattr(s, 'model', 'trained'))
        ```
        
-    2. Lambda with closed-over config:
+    2. Direct state manipulation:
        ```python
-       cfg = config  # Close over config in lambda scope
-       pipeline.stage("transform", lambda data: data * cfg.multiplier)
-       ```
+       def train_model(state: PipelineState):
+           state.metadata['epochs'] = 10
+           # Direct mutation, no return
        
-    3. External pure function with partial application:
-       ```python
-       from functools import partial
-       pipeline.stage("validate", partial(external_validator, threshold=cfg.threshold))
+       pipeline.stage("train", train_model)
        ```
-       
-    Note: The MVP removes context_aware decorators. All configuration access
-    must be explicit through one of the patterns above.
     """
 
-    def __init__(self, ctx: Ctx | None = None, name: str = ""):
+    def __init__(self, state: PipelineState | None = None, name: str = ""):
+        """Initialize pipeline with typed state.
+        
+        Args:
+            state: Typed state object (creates base PipelineState if None)
+            name: Optional pipeline name for identification
+        """
+        self.state = state or PipelineState()
         self.stages: list[Stage] = []
         self.stage_names: set[str] = set()
         self._built = False
-        self._ctx = ctx
         self.name = name
-        self._required_joins: dict[str, dict] = {}  # name -> {exit_checks, optional}
-        self._provided_joins: dict[str, Pipeline] = {}  # name -> sub-pipeline
         
-        # Exposure and override tracking
+        # Join point management
+        self._required_joins: dict[str, dict] = {}
+        self._provided_joins: dict[str, Pipeline] = {}
+        
+        # Override tracking for deep overrides
         self._exposed: set[str] = set()  # Components marked as overrideable
         self._overrides: dict[str, Callable | Pipeline] = {}  # Active overrides
-        self._parent_path: str = ""  # For nested pipeline paths
+        self._parent_path: str = ""  # For building pipeline paths
 
     def stage(self, name: str, func: Callable, expose: bool = False, infer_types: bool = True) -> Pipeline:
         """Add a stage to the pipeline.
@@ -451,11 +463,12 @@ class Pipeline:
                     raise ValueError(f"Required join '{name}' has no implementation")
         
         # Create a stage that executes the sub-pipeline
-        def execute_sub(data):
-            sub_ctx = Ctx()
-            sub_ctx.set_stage_input("_join_input", data)
-            result = sub.run(sub_ctx)
-            return result
+        def execute_sub(state: PipelineState, ctx: Context) -> None:
+            # Sub-pipeline shares state, gets nested context
+            sub_ctx = ctx.model_copy(deep=True)
+            sub_ctx.pipeline_path = f"{ctx.pipeline_path}.{name}"
+            sub.state = state  # Share state with sub-pipeline
+            sub.run(sub_ctx)
         
         stage_obj = Stage(name=f"join:{name}", func=execute_sub, stage_type="stage")
         self.stages.append(stage_obj)
@@ -577,94 +590,110 @@ class Pipeline:
         self._built = True
         return self
 
-    def run(self, ctx: Ctx | None = None) -> Any:
-        """Execute the pipeline sequentially.
+    def run(self, ctx: Context | None = None) -> PipelineState:
+        """Execute the pipeline with clean state/context separation.
 
         Args:
-            ctx: Context object (created if not provided)
+            ctx: Optional execution context (created if not provided)
 
         Returns:
-            Output from the last stage
+            The final state after all stages have executed
         """
         # Build if not already built
         if not self._built:
             self.build()
 
-        # Use provided context or create new one
+        # Create context if not provided
         if ctx is None:
-            ctx = self._ctx if self._ctx is not None else Ctx()
-        self._ctx = ctx
+            import datetime
+            ctx = Context(
+                current_stage="",
+                stage_history=[],
+                pipeline_path=self._parent_path or self.name,
+                exposed_joins=self._exposed.copy(),
+                active_overrides=self._overrides.copy(),
+                timestamp=datetime.datetime.utcnow().isoformat()
+            )
 
-        # Execute stages in sequence
-        last_result = None
-        for i, stage_obj in enumerate(self.stages):
-            # Set input from previous stage output
-            if i > 0 and last_result is not None:
-                ctx.set_stage_input(stage_obj.name, last_result)
-            elif i == 0:
-                # First stage gets None as input if nothing else is provided
-                ctx.set_stage_input(stage_obj.name, None)
-
-            # Check for override
+        # Execute stages in sequence with state and context
+        for stage_obj in self.stages:
             stage_name = stage_obj.name
             
-            # For join stages, extract the join name
+            # Update context for this stage
+            ctx.current_stage = stage_name
+            ctx.stage_history.append(stage_name)
+            
+            # Handle join stages with overrides
             if stage_name.startswith("join:"):
                 join_name = stage_name[5:]  # Remove "join:" prefix
                 if join_name in self._exposed and join_name in self._overrides:
-                    # Execute override instead
+                    # Execute override
                     override_func = self._overrides[join_name]
-                    stage_input = ctx.get_stage_input(stage_obj.name)
                     if isinstance(override_func, Pipeline):
-                        sub_ctx = Ctx()
-                        sub_ctx.set_stage_input("_join_input", stage_input)
-                        result = override_func.run(sub_ctx)
+                        # Sub-pipeline shares state, gets nested context
+                        sub_ctx = ctx.model_copy(deep=True)
+                        sub_ctx.pipeline_path = f"{ctx.pipeline_path}.{join_name}"
+                        override_func.state = self.state
+                        override_func.run(sub_ctx)
                     else:
-                        result = override_func(stage_input)
-                    ctx.set_stage_output(stage_obj.name, result)
-                    ctx._current_stage = stage_obj.name
+                        # Simple function override
+                        import inspect
+                        sig = inspect.signature(override_func)
+                        if len(sig.parameters) >= 2:
+                            override_func(self.state, ctx)
+                        else:
+                            override_func(self.state)
                 else:
-                    # Execute normally (join will handle its own overrides internally)
-                    result = stage_obj.execute(ctx)
+                    # Execute join normally
+                    stage_obj.execute(self.state, ctx)
             elif stage_name in self._exposed and stage_name in self._overrides:
                 # Execute override for regular stage
                 override_func = self._overrides[stage_name]
-                stage_input = ctx.get_stage_input(stage_obj.name)
-                result = override_func(stage_input)
-                ctx.set_stage_output(stage_obj.name, result)
-                ctx._current_stage = stage_obj.name
+                if isinstance(override_func, Pipeline):
+                    sub_ctx = ctx.model_copy(deep=True)
+                    sub_ctx.pipeline_path = f"{ctx.pipeline_path}.{stage_name}"
+                    override_func.state = self.state
+                    override_func.run(sub_ctx)
+                else:
+                    import inspect
+                    sig = inspect.signature(override_func)
+                    if len(sig.parameters) >= 2:
+                        override_func(self.state, ctx)
+                    else:
+                        override_func(self.state)
             else:
                 # Execute stage normally
-                result = stage_obj.execute(ctx)
+                stage_obj.execute(self.state, ctx)
 
-            # Run checks if present
-            if hasattr(stage_obj, 'checks'):
+            # Run checks if present - checks inspect state
+            if hasattr(stage_obj, 'checks') and stage_obj.checks:
                 from metta.sweep.axiom.checks import CheckLevel
                 
                 for check in stage_obj.checks:
-                    passed, error_msg = check.check(result)
+                    passed, error_msg = check.check(self.state)
                     if not passed:
                         if check.level == CheckLevel.FAIL:
                             raise ValueError(f"Check failed at stage '{stage_obj.name}': {error_msg}")
                         else:
-                            # Just warn for now (could use logging)
                             print(f"Warning at stage '{stage_obj.name}': {error_msg}")
 
-            # Run hooks (non-mutating, observational only)
-            for hook in stage_obj.hooks:
-                if callable(hook):
-                    try:
-                        # Hooks receive result and context
-                        hook(result, ctx)
-                    except Exception as e:
-                        # Hooks fail silently - log error and continue
-                        hook_name = getattr(hook, '__name__', str(hook))
-                        print(f"Warning: Hook '{hook_name}' at stage '{stage_obj.name}' failed: {e}")
-                        # Continue with pipeline execution - hooks are observational only
+            # Run hooks - receive state and context
+            if hasattr(stage_obj, 'hooks'):
+                for hook in stage_obj.hooks:
+                    if callable(hook):
+                        try:
+                            import inspect
+                            sig = inspect.signature(hook)
+                            if len(sig.parameters) >= 2:
+                                hook(self.state, ctx)
+                            else:
+                                hook(self.state)
+                        except Exception as e:
+                            hook_name = getattr(hook, '__name__', str(hook))
+                            print(f"Warning: Hook '{hook_name}' at stage '{stage_obj.name}' failed: {e}")
 
-            last_result = result
-
-        return last_result
+        # Return the final state
+        return self.state
     
     def override(self, path: str, replacement: Callable | Pipeline) -> Pipeline:
         """Override an exposed component at any depth.

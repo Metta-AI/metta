@@ -7,6 +7,7 @@ from typing import Any, Callable, TypeVar
 
 import torch
 
+from metta.common.util.lock import broadcast_state
 from metta.common.wandb.wandb_context import WandbContext
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -89,7 +90,11 @@ def distributed_only() -> Callable[[F], F]:
 
 
 def master_process_only() -> Callable[[F], F]:
-    """Guard that only runs function on the master process (rank 0)."""
+    """Guard that only runs function on the master process (rank 0).
+    
+    After the master process executes the function, the resulting state
+    is broadcast to all other processes to prevent state drift.
+    """
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(state, *args, **kwargs):
@@ -112,10 +117,17 @@ def master_process_only() -> Callable[[F], F]:
                 is_master = torch.distributed.get_rank() == 0
             
             if is_master:
-                return func(state, *args, **kwargs)
+                # Master process executes the function
+                result_state = func(state, *args, **kwargs)
+            else:
+                # Non-master processes don't execute
+                result_state = state
             
-            # Not master, just pass through the state
-            return state
+            # Broadcast the state from master to all workers to prevent drift
+            if torch.distributed.is_initialized():
+                result_state = broadcast_state(result_state, src=0)
+            
+            return result_state
         
         return wrapper
     return decorator
