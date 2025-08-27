@@ -170,7 +170,7 @@ def test_unknown_feature_handling():
 
     # Initialize in evaluation mode
     agent.eval()
-    agent.initialize_to_environment(new_features_with_unknown, action_names, action_max_params, "cpu")
+    agent.initialize_to_environment(new_features_with_unknown, action_names, action_max_params, "cpu", is_training=False)
 
     # Verify all remappings in a clear block
     # Known features should be remapped to their original IDs
@@ -261,7 +261,7 @@ def test_feature_mapping_persistence_via_metadata():
 
     # Initialize in eval mode - new features should map to 255
     eval_agent.eval()
-    eval_agent.initialize_to_environment(new_features, action_names, action_max_params, "cpu")
+    eval_agent.initialize_to_environment(new_features, action_names, action_max_params, "cpu", is_training=False)
 
     # Check the observation component's remap table
     obs_component = eval_agent.components["_obs_"]
