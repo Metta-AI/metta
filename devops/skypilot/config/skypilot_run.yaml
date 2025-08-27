@@ -65,7 +65,6 @@ run: |
   source "$METTA_ENV_FILE"
 
   echo "Starting skypilot run script..."
-
   uv run python ./devops/skypilot/config/test_exit.py
 
 envs:
