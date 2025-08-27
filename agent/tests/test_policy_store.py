@@ -37,9 +37,11 @@ def test_policy_save_load_without_pydantic():
     try:
         print(temp_path)
         # Create a policy record
-        pr = policy_store.create_empty_policy_record(
-            name=os.path.basename(temp_path), checkpoint_dir=os.path.dirname(temp_path)
-        )
+        name = os.path.basename(temp_path)
+        checkpoint_dir = os.path.dirname(temp_path)
+        path = os.path.join(checkpoint_dir, name)
+        pr_metadata = PolicyMetadata()
+        pr = PolicyRecord(policy_store, name, f"file://{path}", pr_metadata)
         pr.metadata = metadata
         pr.policy = policy
 
@@ -112,9 +114,11 @@ def test_policy_save_load_with_dict_metadata():
 
     try:
         # Create a policy record
-        pr = policy_store.create_empty_policy_record(
-            name=os.path.basename(temp_path), checkpoint_dir=os.path.dirname(temp_path)
-        )
+        name = os.path.basename(temp_path)
+        checkpoint_dir = os.path.dirname(temp_path)
+        path = os.path.join(checkpoint_dir, name)
+        pr_metadata = PolicyMetadata()
+        pr = PolicyRecord(policy_store, name, f"file://{path}", pr_metadata)
         pr.metadata = metadata
         pr.policy = policy
 
