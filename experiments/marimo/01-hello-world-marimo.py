@@ -810,7 +810,7 @@ def _(
 
     def train_agent():
         # Unique run name (so multiple notebook runs don't collide)
-        run_name2 = f"{username}.hello_world_train.mine.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_name = f"{username}.hello_world_train.mine.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         print(f"🚀 Starting training run: {run_name}")
 
         # Create trainer configuration to reach peak performance before unlearning
@@ -917,7 +917,6 @@ def _(
     MettaGridEnv,
     Path,
     PolicyStore,
-    TensorDict,
     WandbConfig,
     contextlib,
     display,
@@ -1055,8 +1054,9 @@ def _(
                     for _step in range(steps):
                         # Use proper observation processing pipeline that matches training
                         from metta.agent.utils import obs_to_td
+
                         td = obs_to_td(_obs, torch.device("cpu"))
-                        
+
                         # The dimension fix in simulation.py ensures proper tensor shapes automatically
 
                         trained_policy(td)
