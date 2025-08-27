@@ -223,9 +223,9 @@ All tools are now run through `./tools/run.py` with recipe functions:
 **Note**: These commands start development servers that run indefinitely. In Claude Code, they may hang without clear
 feedback. Consider running them in separate terminals outside of Claude Code.
 
-- **MettaScope**: Run `cd mettascope && npm run dev` for interactive replay viewer
-- **Observatory**: Run `cd observatory && npm run dev` for training dashboard
-- **GridWorks**: Run `cd gridworks && npm run dev` for web interface
+- **MettaScope**: Run `cd mettascope && pnpm run dev` for interactive replay viewer
+- **Observatory**: Run `cd observatory && pnpm run dev` for training dashboard
+- **GridWorks**: Run `cd gridworks && pnpm run dev` for web interface
 
 ### Common Commands
 
@@ -379,6 +379,7 @@ recipe files:
   - Tests can directly access `_private_method()` or `self._private_attribute`
   - Rationale: While private members indicate "internal use", tests need deep access to verify correctness
 - **Properties**: Use `@property` decorator to expose computed values or controlled access to private attributes
+
   ```python
   class Example:
       def __init__(self):
