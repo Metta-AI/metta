@@ -250,7 +250,7 @@ class BucketedTaskGenerator(TaskGenerator):
             return self
 
         @classmethod
-        def from_env(cls, env_config: MettaGridConfig) -> "BucketedTaskGenerator.Config":
+        def from_mg(cls, env_config: MettaGridConfig) -> "BucketedTaskGenerator.Config":
             """Create a BucketedTaskGenerator.Config from an MettaGridConfig."""
             return cls(child_generator_config=SingleTaskGenerator.Config(env=env_config))
 

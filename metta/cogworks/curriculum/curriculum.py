@@ -51,7 +51,7 @@ class CurriculumConfig(Config):
     )
 
     @classmethod
-    def from_env(cls, env_config: MettaGridConfig) -> CurriculumConfig:
+    def from_mg(cls, env_config: MettaGridConfig) -> CurriculumConfig:
         return cls(
             task_generator=SingleTaskGeneratorConfig(env=env_config),
         )

@@ -46,7 +46,7 @@ def single_task(env_config: MettaGridConfig) -> SingleTaskGeneratorConfig:
 
 def bucketed(env_config: MettaGridConfig) -> BucketedTaskGeneratorConfig:
     """Create a BucketedTaskGeneratorConfig from an MettaGridConfig."""
-    return BucketedTaskGeneratorConfig.from_env(env_config.model_copy(deep=True))
+    return BucketedTaskGeneratorConfig.from_mg(env_config.model_copy(deep=True))
 
 
 def multi_task(env_config: MettaGridConfig) -> TaskGeneratorSetConfig:
