@@ -165,7 +165,7 @@ type
     stats: seq[Stats]
 
 proc render*(env: Environment): string =
-  ## Render the environment as a string
+  ## Render the environment as a string.
   for y in 0 ..< MapHeight:
     for x in 0 ..< MapWidth:
       var cell = " "
