@@ -182,17 +182,6 @@ class TestGitRootAndReadmeHandling(unittest.TestCase):
     def tearDown(self):
         self.test_dir.cleanup()
 
-    def test_find_git_root(self):
-        """Test finding git repository root."""
-        # Note: gitta.find_root is tested in gitta's own test suite
-        # This test just verifies the integration point exists
-        from codebot.codeclip.file import Document
-
-        # Create a simple test to verify the module loads correctly
-        doc = Document(index=1, source="test.py", content="# test")
-        self.assertEqual(doc.source, "test.py")
-        self.assertFalse(doc.is_readme)
-
     def test_find_parent_readmes_in_git_repo(self):
         """Test finding parent READMEs up to git root."""
         # Create a git repo structure
