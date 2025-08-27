@@ -23,6 +23,7 @@ dependencies = [
   "metta-mettagrid",
   "metta-agent",
   "metta-common",
+  "codebot",
   "numpy>=1.26.4,<2",
   "omegaconf>=2.4.0.dev3",
   "pandas>=2.3.0",
