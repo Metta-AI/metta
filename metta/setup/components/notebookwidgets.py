@@ -114,6 +114,6 @@ class NotebookWidgetsSetup(SetupModule):
             warning(f"NotebookWidgets compilation failed: {e}")
             info("You can compile them manually:")
             for widget in self._widgets:
-                info(f"1. cd {self._widget_root}/{widget}")
+                info(f"1. cd {self._widget_root / widget}")
                 info("2. pnpm install && npx turbo run build")
                 info("---")
