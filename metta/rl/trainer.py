@@ -192,14 +192,11 @@ def train(
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
     policy = latest_saved_policy_record.policy
-    # Restore original_feature_mapping from metadata if available
-    if hasattr(policy, "restore_original_feature_mapping"):
-        if "original_feature_mapping" in latest_saved_policy_record.metadata:
-            policy.restore_original_feature_mapping(latest_saved_policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping")
-    # Initialize policy to environment
     features = metta_grid_env.get_observation_features()
-    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+    policy.initialize_to_environment(
+        features, metta_grid_env.action_names, metta_grid_env.max_action_args, device,
+        is_training=True, metadata=latest_saved_policy_record.metadata
+    )
 
     # Create kickstarter
     kickstarter = Kickstarter(

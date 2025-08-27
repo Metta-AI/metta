@@ -80,11 +80,10 @@ class Kickstarter:
             policy.value_loss_coef = teacher_cfg.value_loss_coef
             # Support both new and old initialization methods
             if hasattr(policy, "initialize_to_environment"):
-                # Note: We don't have features here, so we pass None
-                # The policy should handle this gracefully
                 features = self.metta_grid_env.get_observation_features()
                 policy.initialize_to_environment(
-                    features, self.metta_grid_env.action_names, self.metta_grid_env.max_action_args, self.device
+                    features, self.metta_grid_env.action_names, self.metta_grid_env.max_action_args, self.device,
+                    is_training=True, metadata=policy_record.metadata
                 )
             teacher = KickstartTeacher(
                 policy=policy,

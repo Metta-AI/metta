@@ -134,15 +134,25 @@ class MettaAgent(nn.Module):
         action_max_params: list[int],
         device,
         is_training: bool = True,
+        metadata: dict | None = None,
     ):
         """Initialize the agent to the current environment.
 
         This is the single entry point for environment initialization, combining
-        feature setup, action configuration, and all necessary mappings."""
+        feature setup, action configuration, and all necessary mappings.
+        
+        Args:
+            metadata: Optional policy metadata containing original_feature_mapping
+        """
         self.device = device
         self.training = is_training
 
         # === FEATURE SETUP ===
+        # Restore original feature mapping from metadata if available
+        if metadata and "original_feature_mapping" in metadata and not hasattr(self, "original_feature_mapping"):
+            self.original_feature_mapping = metadata["original_feature_mapping"].copy()
+            logger.info(f"Restored original feature mapping with {len(self.original_feature_mapping)} features from metadata")
+
         # Build feature mappings
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
         self.feature_normalizations = {
@@ -245,11 +255,6 @@ class MettaAgent(nn.Module):
         """Get the original feature mapping for saving in metadata."""
         return getattr(self, "original_feature_mapping", None)
 
-    def restore_original_feature_mapping(self, mapping: dict[str, int]) -> None:
-        """Restore the original feature mapping from metadata."""
-        # Make a copy to avoid shared state between agents
-        self.original_feature_mapping = mapping.copy()
-        log_on_master(f"Restored original feature mapping with {len(mapping)} features from metadata")
 
     @property
     def total_params(self):

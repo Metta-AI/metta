@@ -131,26 +131,20 @@ class Simulation:
 
         # Initialize policy to environment  
         policy = self._policy_pr.policy
-        # Restore original_feature_mapping from metadata if available
-        if hasattr(policy, "restore_original_feature_mapping"):
-            if "original_feature_mapping" in self._policy_pr.metadata:
-                policy.restore_original_feature_mapping(self._policy_pr.metadata["original_feature_mapping"])
-                logger.info("Restored original_feature_mapping")
-        # Initialize policy to environment
         features = metta_grid_env.get_observation_features()
-        policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device)
+        policy.initialize_to_environment(
+            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device,
+            is_training=False, metadata=self._policy_pr.metadata
+        )
 
         if self._npc_pr is not None:
             # Initialize NPC policy to environment
             npc_policy = self._npc_pr.policy
-            # Restore original_feature_mapping from metadata if available
-            if hasattr(npc_policy, "restore_original_feature_mapping"):
-                if "original_feature_mapping" in self._npc_pr.metadata:
-                    npc_policy.restore_original_feature_mapping(self._npc_pr.metadata["original_feature_mapping"])
-                    logger.info("Restored original_feature_mapping for NPC")
-            # Initialize NPC policy to environment
             features = metta_grid_env.get_observation_features()
-            npc_policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device)
+            npc_policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device,
+                is_training=False, metadata=self._npc_pr.metadata
+            )
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(

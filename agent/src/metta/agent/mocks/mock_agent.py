@@ -52,10 +52,6 @@ class MockAgent(MettaAgent):
         """Get the original feature mapping for persistence."""
         return self.original_feature_mapping.copy() if self.original_feature_mapping else None
 
-    def restore_original_feature_mapping(self, mapping: dict[str, int]):
-        """Restore the original feature mapping from metadata."""
-        self.original_feature_mapping = mapping.copy()
-
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:
         """
         Mock forward pass - always returns "do nothing" actions.
@@ -101,6 +97,7 @@ class MockAgent(MettaAgent):
         action_max_params: list[int],
         device,
         is_training: bool = True,
+        metadata: dict | None = None,
     ):
         """
         Initialize the agent to work with a specific environment.
@@ -115,6 +112,10 @@ class MockAgent(MettaAgent):
         # Store action configuration
         self.action_names = action_names
         self.action_max_params = action_max_params
+
+        # Restore original feature mapping from metadata if available
+        if metadata and "original_feature_mapping" in metadata and self.original_feature_mapping is None:
+            self.original_feature_mapping = metadata["original_feature_mapping"].copy()
 
         # Build feature mappings
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
