@@ -5,10 +5,8 @@ from typing import Optional
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.map.mapgen import MapGen
 from metta.map.terrain_from_numpy import TerrainFromNumpy
-from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -62,60 +60,43 @@ def make_env(num_agents: int = 4) -> EnvConfig:
     return nav
 
 
-def make_curriculum(
-    nav_env: Optional[EnvConfig] = None, use_learning_progress: bool = True
-) -> CurriculumConfig:
+def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     nav_env = nav_env or make_env()
 
     # make a set of training tasks for navigation
+    nav_tasks = cc.bucketed(nav_env)
+
+    # dense reward tasks
     dense_tasks = cc.bucketed(nav_env)
+    dense_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.5, 1.0])
+    dense_tasks.add_bucket("game.agent.rewards.inventory.heart_max", [1, 2])
 
-    maps = ["terrain_maps_nohearts"]
-    for size in ["large", "medium", "small"]:
-        for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
-            maps.append(f"varied_terrain/{terrain}_{size}")
-
-    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
-    dense_tasks.add_bucket(
-        "game.map_builder.instance_map.objects.altar", [vr.vr(3, 50)]
-    )
-
-    sparse_nav_env = nav_env.model_copy()
-    sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
-        agents=4,
-        objects={"altar": 10},
-    )
-    sparse_tasks = cc.bucketed(sparse_nav_env)
-    sparse_tasks.add_bucket("game.map_builder.width", [vr.vr(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.height", [vr.vr(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.objects.altar", [vr.vr(1, 10)])
+    # sparse reward tasks
+    sparse_tasks = cc.bucketed(nav_env)
+    sparse_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.0])
+    sparse_tasks.add_bucket("game.agent.rewards.inventory.heart_max", [1])
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return nav_tasks.to_curriculum(use_learning_progress=use_learning_progress)
+    return nav_tasks.to_curriculum()
 
 
 def train(
     run: Optional[str] = None,
     curriculum: Optional[CurriculumConfig] = None,
-    use_learning_progress: bool = True,
 ) -> TrainTool:
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name()
 
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum
-        or make_curriculum(use_learning_progress=use_learning_progress),
+        curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),
     )
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        run=run,
-    )
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[EnvConfig] = None) -> PlayTool:

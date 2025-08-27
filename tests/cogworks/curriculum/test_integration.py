@@ -6,13 +6,14 @@ from metta.cogworks.curriculum.curriculum import (
     DiscreteRandomCurriculum,
     DiscreteRandomHypers,
 )
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressHypers
 from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
 from metta.mettagrid.config.envs import make_arena
 
 
-def test_curriculum_with_algorithm():
-    """Test that curriculum works with algorithm integration."""
-    print("Testing curriculum with algorithm integration...")
+def test_curriculum_with_discrete_random_algorithm():
+    """Test that curriculum works with discrete random algorithm."""
+    print("Testing curriculum with discrete random algorithm...")
 
     # Create a proper arena environment configuration
     arena_env = make_arena(num_agents=4)
@@ -20,7 +21,7 @@ def test_curriculum_with_algorithm():
     # Create task generator configuration
     task_gen_config = SingleTaskGeneratorConfig(env=arena_env)
 
-    # Create curriculum config with algorithm
+    # Create curriculum config with discrete random algorithm
     curriculum_config = CurriculumConfig(
         task_generator=task_gen_config,
         num_active_tasks=4,
@@ -33,7 +34,7 @@ def test_curriculum_with_algorithm():
     # Test that algorithm is initialized
     assert curriculum._algorithm is not None, "Algorithm should be initialized"
     assert isinstance(curriculum._algorithm, DiscreteRandomCurriculum), "Should be DiscreteRandomCurriculum"
-    print("✅ Algorithm initialization works")
+    print("✅ Discrete random algorithm initialization works")
 
     # Test task creation and selection
     task = curriculum.get_task()
@@ -44,9 +45,9 @@ def test_curriculum_with_algorithm():
     # Test algorithm statistics
     stats = curriculum.stats()
     assert "num_active_tasks" in stats, "Should include basic statistics"
-    print("✅ Algorithm statistics integration works")
+    print("✅ Discrete random algorithm statistics integration works")
 
-    print("🎉 Curriculum with algorithm integration test passed!")
+    print("🎉 Curriculum with discrete random algorithm test passed!")
 
 
 def test_curriculum_without_algorithm():
@@ -87,41 +88,9 @@ def test_curriculum_without_algorithm():
     print("🎉 Curriculum without algorithm test passed!")
 
 
-def test_curriculum_task_performance_update():
-    """Test that curriculum can update task performance with algorithm."""
-    print("Testing curriculum task performance update...")
-
-    # Create a proper arena environment configuration
-    arena_env = make_arena(num_agents=4)
-
-    # Create task generator configuration
-    task_gen_config = SingleTaskGeneratorConfig(env=arena_env)
-
-    # Create curriculum config with algorithm
-    curriculum_config = CurriculumConfig(
-        task_generator=task_gen_config,
-        num_active_tasks=4,
-        algorithm_hypers=DiscreteRandomHypers(),
-    )
-
-    # Create curriculum
-    curriculum = curriculum_config.make()
-
-    # Get a task
-    task = curriculum.get_task()
-    task_id = task._task_id
-
-    # Update task performance
-    curriculum.update_task_performance(task_id, 0.8)
-
-    print("✅ Task performance update works")
-
-    print("🎉 Curriculum task performance update test passed!")
-
-
-def test_curriculum_with_learning_progress():
-    """Test that curriculum works with learning progress algorithm."""
-    print("Testing curriculum with learning progress...")
+def test_curriculum_with_learning_progress_integration():
+    """Test full curriculum integration with learning progress algorithm."""
+    print("Testing curriculum with learning progress integration...")
 
     # Create a proper arena environment configuration
     arena_env = make_arena(num_agents=4)
@@ -130,16 +99,11 @@ def test_curriculum_with_learning_progress():
     task_gen_config = SingleTaskGeneratorConfig(env=arena_env)
 
     # Create curriculum config with learning progress algorithm
-    from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressHypers
-
     lp_hypers = LearningProgressHypers(
-        type="learning_progress",
-        ema_timescale=0.001,
-        progress_smoothing=0.05,
-        num_active_tasks=4,
-        rand_task_rate=0.25,
-        sample_threshold=10,
-        memory=25,
+        ema_timescale=0.1,
+        pool_size=10,
+        sample_size=5,
+        max_samples=10,
     )
 
     curriculum_config = CurriculumConfig(
@@ -153,6 +117,7 @@ def test_curriculum_with_learning_progress():
 
     # Test that learning progress algorithm is initialized
     assert curriculum._algorithm is not None, "Learning progress algorithm should be initialized"
+    assert isinstance(curriculum._algorithm, LearningProgressAlgorithm), "Should be LearningProgressAlgorithm"
     print("✅ Learning progress algorithm initialization works")
 
     # Test task creation and selection
@@ -161,16 +126,20 @@ def test_curriculum_with_learning_progress():
     assert task.get_env_cfg() is not None, "Task should have environment config"
     print("✅ Task creation and selection works with learning progress")
 
+    # Complete the task and update performance
+    task.complete(0.8)
+    curriculum.update_task_performance(task._task_id, 0.8)
+
     # Test algorithm statistics
     stats = curriculum.stats()
     assert "num_active_tasks" in stats, "Should include basic statistics"
-    print("✅ Learning progress algorithm statistics work")
+    assert "algorithm/" in str(stats), "Stats should include algorithm information"
+    print("✅ Learning progress algorithm statistics and performance updates work")
 
-    print("🎉 Curriculum with learning progress test passed!")
+    print("🎉 Curriculum with learning progress integration test passed!")
 
 
 if __name__ == "__main__":
-    test_curriculum_with_algorithm()
+    test_curriculum_with_discrete_random_algorithm()
     test_curriculum_without_algorithm()
-    test_curriculum_task_performance_update()
-    test_curriculum_with_learning_progress()
+    test_curriculum_with_learning_progress_integration()

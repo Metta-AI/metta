@@ -5,20 +5,19 @@ from __future__ import annotations
 import abc
 import random
 from abc import ABC
-from typing import ClassVar, Dict, List, Optional, Tuple
+from typing import ClassVar, Optional
 
 import numpy as np
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig
 from metta.common.config import Config
-from metta.mettagrid.mettagrid_config import EnvConfig
 
 
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 
-    def __init__(self, task_id: int, env_cfg: EnvConfig):
+    def __init__(self, task_id: int, env_cfg):
         self._task_id = task_id
         self._env_cfg = env_cfg
         self._num_completions = 0
@@ -27,13 +26,13 @@ class CurriculumTask:
         self._num_scheduled = 0
 
     def complete(self, score: float):
-        """Notify curriculum that a task has been completed with given score."""
+        """Complete the task with a score."""
         self._num_completions += 1
         self._total_score += score
         self._mean_score = self._total_score / self._num_completions
 
-    def get_env_cfg(self) -> EnvConfig:
-        """Get the env_cfg for the task."""
+    def get_env_cfg(self):
+        """Get the environment configuration for this task."""
         return self._env_cfg
 
 
@@ -41,7 +40,7 @@ class CurriculumAlgorithmHypers(Config, ABC):
     """Hyperparameters for the CurriculumAlgorithm."""
 
     type: str = Field(description="Type of algorithm hyperparameters")
-    initial_weights: Optional[List[float]] = None
+    initial_weights: Optional[list[float]] = None
 
     @abc.abstractmethod
     def algorithm_type(self) -> str:
@@ -69,7 +68,6 @@ class CurriculumAlgorithmHypers(Config, ABC):
 
 class CurriculumAlgorithm(ABC):
     """
-
     Curriculum algorithms are responsible for:
     1. Maintaining weights for each child task (optional)
     2. Updating weights based on task completion feedback (optional)
@@ -134,6 +132,23 @@ class CurriculumAlgorithm(ABC):
         """Update weights based on task completion. Override in subclasses that use weights."""
         pass
 
+    def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
+        """Get a task from the pool. Default implementation creates a simple task."""
+
+        # Generate a task ID
+        task_id = rng.randint(0, 1000000)
+
+        # Get environment configuration
+        env_cfg = task_generator.get_task(task_id)
+
+        # Create and return task
+        return CurriculumTask(task_id, env_cfg)
+
+    @abc.abstractmethod
+    def update_task_performance(self, task_id: int, score: float):
+        """Update task performance. Override in subclasses that track performance."""
+        pass
+
     # Helper methods
 
     def _update_probabilities(self):
@@ -169,144 +184,16 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
     def _update_weights(self, child_idx: int, score: float) -> None:
         pass
 
-
-class LearningProgressHypers(CurriculumAlgorithmHypers):
-    """Hyperparameters for LearningProgressCurriculum."""
-
-    type: str = "learning_progress"
-    curriculum_size: int = Field(default=16, description="Number of tasks in the curriculum pool")
-    num_tasks: int = Field(default=1000, description="Number of tasks to maintain in memory")
-    sample_size: int = Field(default=10, description="Number of tasks to sample (K)")
-    max_samples: int = Field(default=20, description="Maximum samples before eviction (A)")
-    exploration_weight: float = Field(default=0.1, description="Weight for exploration vs exploitation")
-
-    def algorithm_type(self) -> str:
-        return "learning_progress"
-
-    def create(self, num_tasks: int) -> "CurriculumAlgorithm":
-        return LearningProgressCurriculum(num_tasks, self)
-
-
-class LearningProgressCurriculum(CurriculumAlgorithm):
-    """Learning progress curriculum with local task memory.
-
-    Maintains N tasks locally with seed, task family, sample count, and score.
-    Samples K tasks and balances exploration/exploitation for selection.
-    Evicts tasks sampled more than A times with low scores.
-    """
-
-    def __init__(self, num_tasks: int, hypers: Optional[CurriculumAlgorithmHypers] = None):
-        if hypers is None:
-            hypers = LearningProgressHypers()
-        # Don't initialize weights since this algorithm uses its own sampling strategy
-        super().__init__(num_tasks, hypers, initialize_weights=False)
-
-        # Local task memory: {task_id: (seed, family, sample_count, current_score, recent_score)}
-        self._task_memory: Dict[int, Tuple[int, str, int, float, float]] = {}
-        self._task_ids: List[int] = []
-        self._current_task_list: List = []
-
-    def add_task(self, task_id: int, seed: int, family: str):
-        """Add a new task to local memory."""
-        hypers = self.hypers
-        if not isinstance(hypers, LearningProgressHypers):
-            return
-
-        if len(self._task_memory) >= hypers.num_tasks:
-            # Evict oldest task if at capacity
-            oldest_id = self._task_ids.pop(0)
-            del self._task_memory[oldest_id]
-
-        self._task_memory[task_id] = (seed, family, 0, 0.0, 0.0)
-        self._task_ids.append(task_id)
-
-    def sample_task_id(self) -> int:
-        """Sample K tasks and select one using exploration/exploitation balance."""
-        if len(self._task_memory) == 0:
-            raise ValueError("No tasks in memory")
-
-        hypers = self.hypers
-        if not isinstance(hypers, LearningProgressHypers):
-            raise ValueError("Expected LearningProgressHypers")
-
-        # Sample K tasks
-        sample_size = min(hypers.sample_size, len(self._task_memory))
-        candidate_ids = np.random.choice(list(self._task_memory.keys()), size=sample_size, replace=False)
-
-        # Calculate scores balancing exploration and exploitation
-        scores = []
-        for task_id in candidate_ids:
-            seed, family, sample_count, current_score, recent_score = self._task_memory[task_id]
-
-            # Combined score: current + recent
-            combined_score = current_score + recent_score
-
-            # Exploration bonus for less sampled tasks
-            exploration_bonus = hypers.exploration_weight / (sample_count + 1)
-
-            scores.append(combined_score + exploration_bonus)
-
-        # Select task with highest score
-        best_idx = np.argmax(scores)
-        return candidate_ids[best_idx]
-
-    def should_evict(self, task_id: int) -> bool:
-        """Check if task should be evicted (sampled > A times with low score)."""
-        if task_id not in self._task_memory:
-            return False
-
-        hypers = self.hypers
-        if not isinstance(hypers, LearningProgressHypers):
-            return False
-
-        seed, family, sample_count, current_score, recent_score = self._task_memory[task_id]
-        combined_score = current_score + recent_score
-
-        return sample_count >= hypers.max_samples and combined_score < 0.5
-
-    def evict_task(self, task_id: int):
-        """Remove task from memory."""
-        if task_id in self._task_memory:
-            del self._task_memory[task_id]
-            self._task_ids.remove(task_id)
-
-    def _update_weights(self, child_idx: int, score: float) -> None:
-        """Update task scores in memory."""
-        # Find task by index in current task list
-        if hasattr(self, "_current_task_list") and self._current_task_list:
-            task_list = self._current_task_list
-            if child_idx < len(task_list):
-                task = task_list[child_idx]
-                task_id = task._task_id
-
-                if task_id in self._task_memory:
-                    seed, family, sample_count, current_score, recent_score = self._task_memory[task_id]
-
-                    # Update scores: recent becomes current, new score becomes recent
-                    self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score)
-
-    def stats(self, prefix: str = "") -> dict[str, float]:
-        """Return learning progress statistics."""
-        if not self._task_memory:
-            return {}
-
-        scores = [float(current + recent) for _, _, _, current, recent in self._task_memory.values()]
-        sample_counts = [float(count) for _, _, count, _, _ in self._task_memory.values()]
-
-        return {
-            f"{prefix}num_tasks_in_memory": float(len(self._task_memory)),
-            f"{prefix}avg_score": float(np.mean(scores)),
-            f"{prefix}avg_sample_count": float(np.mean(sample_counts)),
-            f"{prefix}max_sample_count": float(max(sample_counts)),
-        }
+    def update_task_performance(self, task_id: int, score: float):
+        """Update task performance - no-op for discrete random curriculum."""
+        pass
 
 
 class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
 
     task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
-    max_task_id: int = Field(default=1000000, gt=0, description="Maximum task id to generate")
-
+    max_task_id: int = Field(default=1000000, gt=0, description="Maximum task ID to generate")
     num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
     new_task_rate: float = Field(default=0.01, ge=0, le=1.0, description="Rate of new tasks to generate")
 
@@ -321,16 +208,8 @@ class CurriculumConfig(Config):
         populate_by_name=True,
     )
 
-    @field_validator("num_active_tasks")
-    @classmethod
-    def validate_num_active_tasks(cls, v, info):
-        max_task_id = info.data["max_task_id"]
-        if v > max_task_id:
-            raise ValueError("num_active_tasks must be less than max_task_id")
-        return v
-
-    def make(self) -> Curriculum:
-        """Make a Curriculum from this configuration."""
+    def make(self) -> "Curriculum":
+        """Create a Curriculum from this configuration."""
         return Curriculum(self)
 
 
@@ -358,37 +237,26 @@ class Curriculum:
 
     def get_task(self) -> CurriculumTask:
         """Sample a task from the population."""
-        if len(self._tasks) < self._config.num_active_tasks:
-            task = self._create_task()
-        elif self._rng.random() < self._config.new_task_rate:
-            self._evict_task()
-            task = self._create_task()
+        if self._algorithm is not None:
+            # Use algorithm's unified pool management
+            return self._algorithm.get_task_from_pool(self._task_generator, self._rng)
         else:
-            task = self._choose_task()
+            # Fallback to simple random selection
+            if len(self._tasks) < self._config.num_active_tasks:
+                task = self._create_task()
+            else:
+                task = self._choose_task()
+                if self._rng.random() < self._config.new_task_rate:
+                    self._evict_task()
+                    task = self._create_task()
 
-        task._num_scheduled += 1
-        return task
+            task._num_scheduled += 1
+            return task
 
     def _choose_task(self) -> CurriculumTask:
         """Choose a task from the population."""
-        if self._algorithm is not None and len(self._tasks) > 0:
-            # Use algorithm for task selection
-            task_list = list(self._tasks.values())
-
-            # Update algorithm's current task list for learning progress
-            if isinstance(self._algorithm, LearningProgressCurriculum):
-                self._algorithm._current_task_list = task_list
-
-            if len(task_list) == self._algorithm.num_tasks:
-                # Algorithm has correct number of tasks, use it
-                task_idx = self._algorithm.sample_idx()
-                return task_list[task_idx]
-            else:
-                # Algorithm doesn't match current task count, fall back to random
-                return self._tasks[self._rng.choice(list(self._tasks.keys()))]
-        else:
-            # No algorithm or no tasks, use random selection
-            return self._tasks[self._rng.choice(list(self._tasks.keys()))]
+        # Fallback to random selection when no algorithm
+        return self._tasks[self._rng.choice(list(self._tasks.keys()))]
 
     def _create_task(self) -> CurriculumTask:
         """Create a new task."""
@@ -397,32 +265,16 @@ class Curriculum:
             task_id = self._rng.randint(0, self._config.max_task_id)
         self._task_ids.add(task_id)
         env_cfg = self._task_generator.get_task(task_id)
+
         task = CurriculumTask(task_id, env_cfg)
         self._tasks[task_id] = task
         self._num_created += 1
-
-        # Add task to learning progress memory if using that algorithm
-        if isinstance(self._algorithm, LearningProgressCurriculum):
-            # Extract seed and family from task generator (this may need adjustment based on actual implementation)
-            seed = task_id  # Use task_id as seed for now
-            family = "default"  # Default family, could be extracted from env_cfg
-            self._algorithm.add_task(task_id, seed, family)
 
         return task
 
     def _evict_task(self):
         """Evict a task from the population."""
-        # Check if learning progress algorithm wants to evict specific tasks
-        if isinstance(self._algorithm, LearningProgressCurriculum):
-            for task_id in list(self._task_ids):
-                if self._algorithm.should_evict(task_id):
-                    self._task_ids.remove(task_id)
-                    self._tasks.pop(task_id)
-                    self._algorithm.evict_task(task_id)
-                    self._num_evicted += 1
-                    return
-
-        # Fall back to random eviction
+        # Fall back to random eviction when no algorithm
         task_id = self._rng.choice(list(self._task_ids))
         self._task_ids.remove(task_id)
         self._tasks.pop(task_id)
@@ -431,15 +283,11 @@ class Curriculum:
     def update_task_performance(self, task_id: int, score: float):
         """Update the curriculum algorithm with task performance."""
         if self._algorithm is not None:
-            # Find the task index in the algorithm's task list
-            task_list = list(self._tasks.values())
-            for i, task in enumerate(task_list):
-                if task._task_id == task_id:
-                    self._algorithm.update(i, score)
-                    break
+            self._algorithm.update_task_performance(task_id, score)
 
     def stats(self) -> dict:
         """Return curriculum statistics for logging purposes."""
+        # Always include basic curriculum stats
         base_stats = {
             "num_created": self._num_created,
             "num_evicted": self._num_evicted,
@@ -448,9 +296,11 @@ class Curriculum:
             "num_active_tasks": len(self._tasks),
         }
 
-        # Add algorithm statistics if available
         if self._algorithm is not None:
-            algorithm_stats = self._algorithm.stats(prefix="algorithm/")
-            base_stats = {**base_stats, **algorithm_stats}
-
-        return base_stats
+            # Add algorithm stats with prefix
+            algorithm_stats = self._algorithm.stats()
+            # Add algorithm prefix to avoid conflicts
+            prefixed_algorithm_stats = {f"algorithm/{k}": v for k, v in algorithm_stats.items()}
+            return {**base_stats, **prefixed_algorithm_stats}
+        else:
+            return base_stats

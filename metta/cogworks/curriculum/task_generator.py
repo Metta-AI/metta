@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
 
 from pydantic import (
     ConfigDict,
@@ -67,35 +67,29 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             )
         return cls._generator_cls
 
-    def to_curriculum(self, num_tasks: Optional[int] = None, use_learning_progress: bool = True) -> "CurriculumConfig":
+    def to_curriculum(self, num_tasks: Optional[int] = None) -> "CurriculumConfig":
         """Create a CurriculumConfig from this configuration.
 
         Args:
-            num_tasks: Number of active tasks to maintain
-            use_learning_progress: Whether to use learning progress curriculum (default: True)
+            num_tasks: Number of tasks to maintain in the unified pool
         """
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig, LearningProgressHypers
+        from metta.cogworks.curriculum.curriculum import CurriculumConfig
+        from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressHypers
 
-        if use_learning_progress:
-            # Create learning progress algorithm hyperparameters
-            lp_hypers = LearningProgressHypers(
-                curriculum_size=num_tasks or 16,  # Use provided num_tasks or default to 16
-                num_tasks=1000,  # N=1000 tasks in memory
-                sample_size=10,  # K=10 tasks to sample
-                max_samples=20,  # A=20 max samples before eviction
-                exploration_weight=0.1,  # Balance exploration vs exploitation
-            )
+        # Create learning progress algorithm hyperparameters
+        lp_hypers = LearningProgressHypers(
+            pool_size=num_tasks or 16,  # Use provided num_tasks or default to 16
+            sample_size=10,  # K=10 tasks to sample
+            max_samples=20,  # A=20 max samples before eviction
+            exploration_weight=0.1,  # Balance exploration vs exploitation
+        )
 
-            # Create curriculum with integrated learning progress algorithm
-            cc = CurriculumConfig(
-                task_generator=self,
-                num_active_tasks=lp_hypers.curriculum_size,
-                algorithm_hypers=lp_hypers,
-            )
-        else:
-            # Fall back to original random curriculum
-            cc = CurriculumConfig(task_generator=self)
-            cc.num_active_tasks = num_tasks or cast(int, cc.num_active_tasks)
+        # Create curriculum with integrated learning progress algorithm
+        cc = CurriculumConfig(
+            task_generator=self,
+            num_active_tasks=lp_hypers.pool_size,  # Use pool_size for compatibility
+            algorithm_hypers=lp_hypers,
+        )
 
         return cc
 

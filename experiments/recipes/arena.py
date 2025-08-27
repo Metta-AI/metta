@@ -20,9 +20,7 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     return arena_env
 
 
-def make_curriculum(
-    arena_env: Optional[EnvConfig] = None, use_learning_progress: bool = True
-) -> CurriculumConfig:
+def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     arena_env = arena_env or make_env()
 
     # make a set of training tasks for the arena
@@ -48,7 +46,7 @@ def make_curriculum(
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
     # Use the updated to_curriculum method that defaults to learning progress
-    return arena_tasks.to_curriculum(use_learning_progress=use_learning_progress)
+    return arena_tasks.to_curriculum()
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
@@ -67,11 +65,9 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
 def train(
     run: str,
     curriculum: Optional[CurriculumConfig] = None,
-    use_learning_progress: bool = True,
 ) -> TrainTool:
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum
-        or make_curriculum(use_learning_progress=use_learning_progress),
+        curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(

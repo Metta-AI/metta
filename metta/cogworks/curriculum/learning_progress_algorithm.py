@@ -3,116 +3,240 @@ Learning Progress Curriculum Algorithm for Curriculum.
 
 This module implements the learning progress algorithm as a CurriculumAlgorithm
 that can be used with Curriculum nodes to adaptively sample tasks based on
-bidirectional learning progress tracking.
+bidirectional learning progress tracking with local task memory pool.
 """
 
 import logging
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
-from gymnasium.spaces import Discrete
+from gym.spaces import Discrete
+from pydantic import ConfigDict, Field
 
-from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmHypers
+from metta.cogworks.curriculum.curriculum import CurriculumAlgorithm, CurriculumAlgorithmHypers, CurriculumTask
 
 logger = logging.getLogger(__name__)
 
-# Constants
-DEFAULT_SUCCESS_RATE = 0.0
-DEFAULT_WEIGHT = 1.0
-RANDOM_BASELINE_CAP = 0.75
+DEFAULT_SUCCESS_RATE = 0.5
 
 
 class LearningProgressHypers(CurriculumAlgorithmHypers):
     """Hyperparameters for LearningProgressAlgorithm."""
 
-    ema_timescale: float = 0.001
-    progress_smoothing: float = 0.05
-    num_active_tasks: int = 16
-    rand_task_rate: float = 0.25
-    sample_threshold: int = 10
-    memory: int = 25
+    type: str = "learning_progress"
+    ema_timescale: float = Field(default=0.001, description="EMA timescale for learning progress")
+    pool_size: int = Field(default=16, description="Size of the task pool")
+    sample_size: int = Field(default=8, description="Number of tasks to sample")
+    max_samples: int = Field(default=10, description="Maximum samples before eviction")
+    exploration_bonus: float = Field(default=0.1, description="Exploration bonus for sampling")
 
     def algorithm_type(self) -> str:
         return "learning_progress"
 
-    def create(self, num_tasks: int) -> CurriculumAlgorithm:
+    def create(self, num_tasks: int) -> "LearningProgressAlgorithm":
         return LearningProgressAlgorithm(num_tasks, self)
+
+    model_config: ConfigDict = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        populate_by_name=True,
+    )
 
 
 class LearningProgressAlgorithm(CurriculumAlgorithm):
-    """Curriculum algorithm that adaptively samples tasks based on learning progress.
-
-    Uses bidirectional learning progress with fast and slow exponential moving averages
-    to identify tasks with the highest learning potential.
-    """
+    """Learning progress algorithm that manages a unified pool of tasks."""
 
     def __init__(self, num_tasks: int, hypers: LearningProgressHypers):
-        """Initialize learning progress algorithm.
-
-        Args:
-            num_tasks: Number of tasks this algorithm will manage
-            hypers: Hyperparameters for this algorithm
-        """
         # Don't initialize weights since this algorithm uses its own sampling strategy
         super().__init__(num_tasks, hypers, initialize_weights=False)
+
+        self.hypers = hypers
+
+        # Initialize bidirectional learning progress tracker
         self._lp_tracker = BidirectionalLearningProgress(
             search_space=num_tasks,
             ema_timescale=hypers.ema_timescale,
-            progress_smoothing=hypers.progress_smoothing,
-            num_active_tasks=hypers.num_active_tasks,
-            rand_task_rate=hypers.rand_task_rate,
-            sample_threshold=hypers.sample_threshold,
-            memory=hypers.memory,
+            num_active_tasks=hypers.pool_size,
         )
 
-        # Reference to owning Curriculum (set by Curriculum during initialization)
-        self.curriculum = None
+        # Local task memory pool: {task_id: (seed, family, sample_count, current_score,
+        # recent_score, learning_progress_score)}
+        self._task_memory: Dict[int, Tuple[int, str, int, float, float, float]] = {}
+        self._task_ids: List[int] = []
+        self._task_objects: Dict[int, CurriculumTask] = {}  # Added for unified pool
+        self._task_id_to_index: Dict[int, int] = {}  # Map task_id to sequential index
+        self._next_index: int = 0  # Next available index
 
-    def _update_weights(self, child_idx: int, score: float) -> None:
-        """Update task weights based on learning progress.
+    def add_task(self, task_id: int, seed: int, family: str):
+        """Add a task to the pool."""
+        if task_id not in self._task_memory:
+            # Assign sequential index for BidirectionalLearningProgress
+            self._task_id_to_index[task_id] = self._next_index
+            self._next_index += 1
 
-        Args:
-            child_idx: Index of the child that completed a task
-            score: Score achieved (between 0 and 1)
+            # Add to memory pool
+            self._task_memory[task_id] = (seed, family, 0, 0.0, 0.0, 0.0)
+            self._task_ids.append(task_id)
 
-        Note:
-            The weights array is updated in-place. The Curriculum will handle
-            normalization automatically via its _update_probabilities() method.
-        """
-        # Convert score to success rate (assuming score is between 0 and 1)
-        success_rate = max(0.0, min(1.0, score))
+    def evict_task(self, task_id: int):
+        """Evict a task from the pool."""
+        if task_id in self._task_memory:
+            del self._task_memory[task_id]
+            self._task_ids.remove(task_id)
+            if task_id in self._task_objects:
+                del self._task_objects[task_id]
 
-        # Collect data for learning progress
-        self._lp_tracker.collect_data({f"tasks/{child_idx}": [success_rate]})
+    def _update_weights(self, child_idx: int, score: float):
+        """Update weights - not used in this implementation."""
+        pass
 
-        # Update task weights based on learning progress
-        lp_weights, _ = self._lp_tracker.calculate_dist()
-
-        # Initialize weights if not already done
-        if self.weights is None:
-            self.weights = np.ones(self.num_tasks, dtype=np.float32)
-
-        # Update weights based on learning progress
-        if len(lp_weights) >= self.num_tasks:
-            for i in range(self.num_tasks):
-                self.weights[i] = lp_weights[i]
+    def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
+        """Get a task from the unified pool, creating or evicting as needed."""
+        # Check if we need to create a new task
+        if len(self._task_memory) < self.hypers.pool_size:
+            # Create a new task
+            task_id = self._generate_task_id(rng)
+            env_cfg = task_generator.get_task(task_id)
+            task = CurriculumTask(task_id, env_cfg)
+            self._add_task_to_pool(task_id, task, env_cfg)
+            return task
         else:
-            # Fallback to uniform if not enough data
-            self.weights.fill(1.0)
+            # Sample from existing pool
+            selected_task_id = self._sample_from_pool()
+            if selected_task_id in self._task_objects:
+                return self._task_objects[selected_task_id]
+            else:
+                # Fallback: create new task and evict one
+                self._evict_from_pool()
+                task_id = self._generate_task_id(rng)
+                env_cfg = task_generator.get_task(task_id)
+                task = CurriculumTask(task_id, env_cfg)
+                self._add_task_to_pool(task_id, task, env_cfg)
+                return task
 
-    def stats(self, prefix: str = "") -> dict[str, float]:
-        """Return learning progress statistics for logging.
+    def _generate_task_id(self, rng) -> int:
+        """Generate a unique task ID."""
+        while True:
+            task_id = rng.randint(0, 1000000)
+            if task_id not in self._task_memory:
+                return task_id
 
-        Args:
-            prefix: Prefix to add to all stat keys
+    def _add_task_to_pool(self, task_id: int, task: CurriculumTask, env_cfg):
+        """Add a task to the unified pool."""
+        if len(self._task_memory) >= self.hypers.pool_size:
+            # Evict a task first
+            self._evict_from_pool()
 
-        Returns:
-            Dictionary of statistics with optional prefix
-        """
-        stats = self._lp_tracker.add_stats()
-        if prefix:
-            return {f"{prefix}{k}": v for k, v in stats.items()}
-        return stats
+        # Add to memory
+        self._task_memory[task_id] = (task_id, "default", 0, 0.0, 0.0, 0.0)
+        self._task_ids.append(task_id)
+        self._task_objects[task_id] = task
+
+    def _sample_from_pool(self) -> int:
+        """Sample a task from the pool based on learning progress scores."""
+        if not self._task_memory:
+            raise ValueError("No tasks in pool to sample from")
+
+        # Get learning progress scores
+        self._lp_tracker._update()
+        lp_scores = self._lp_tracker._learning_progress()
+
+        # Create sampling probabilities based on LP scores
+        task_ids = list(self._task_memory.keys())
+        if not task_ids:
+            raise ValueError("No task IDs available")
+
+        # Map task IDs to their indices in the LP tracker
+        task_probs = []
+        for task_id in task_ids:
+            task_index = self._task_id_to_index.get(task_id, 0)
+            if task_index < len(lp_scores):
+                lp_score = lp_scores[task_index]
+            else:
+                lp_score = 0.0
+
+            # Add exploration bonus to ensure all tasks have some probability
+            prob = lp_score + self.hypers.exploration_bonus
+            task_probs.append(prob)
+
+        # Normalize probabilities
+        total_prob = sum(task_probs)
+        if total_prob > 0:
+            task_probs = [p / total_prob for p in task_probs]
+        else:
+            # Uniform distribution if all probabilities are zero
+            task_probs = [1.0 / len(task_ids)] * len(task_ids)
+
+        # Sample based on probabilities
+        return np.random.choice(task_ids, p=task_probs)
+
+    def _evict_from_pool(self):
+        """Evict a task from the pool based on learning progress and sample count."""
+        if not self._task_memory:
+            return
+
+        # Find task with lowest LP score that has enough samples
+        worst_task_id = None
+        worst_score = float("inf")
+
+        for task_id, (
+            _seed,
+            _family,
+            sample_count,
+            _current_score,
+            _recent_score,
+            lp_score,
+        ) in self._task_memory.items():
+            if sample_count >= self.hypers.max_samples and lp_score < worst_score:
+                worst_score = lp_score
+                worst_task_id = task_id
+
+        if worst_task_id is not None:
+            self.evict_task(worst_task_id)
+
+    def update_task_performance(self, task_id: int, score: float):
+        """Update task performance and learning progress."""
+        if task_id not in self._task_memory:
+            return
+
+        # Update task memory
+        seed, family, sample_count, current_score, recent_score, lp_score = self._task_memory[task_id]
+        self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, lp_score)
+
+        # Update learning progress tracker
+        task_index = self._task_id_to_index.get(task_id, 0)
+        self._lp_tracker._outcomes[task_index].append(score)
+        self._lp_tracker._update()
+
+        # Update LP score in memory
+        raw_lp_scores = self._lp_tracker._learning_progress()
+        if task_index < len(raw_lp_scores):
+            new_lp_score = float(raw_lp_scores[task_index])
+            self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, new_lp_score)
+
+    def _get_task_lp_score(self, task_id: int) -> float:
+        """Get the learning progress score for a specific task."""
+        if task_id not in self._task_memory:
+            return 0.0
+
+        # Force update of learning progress calculation
+        self._lp_tracker._update()
+
+        # Get the raw learning progress score, not the distribution value
+        task_index = self._task_id_to_index.get(task_id, 0)
+        raw_lp_scores = self._lp_tracker._learning_progress()
+
+        if task_index < len(raw_lp_scores):
+            return float(raw_lp_scores[task_index])
+        else:
+            return 0.0
+
+    def stats(self) -> dict[str, float]:
+        """Return unified statistics for the pool."""
+        # Get base learning progress stats
+        base_stats = self._lp_tracker.add_stats()
+
+        return base_stats
 
 
 class BidirectionalLearningProgress:
@@ -180,48 +304,62 @@ class BidirectionalLearningProgress:
         return stats
 
     def _update(self):
-        """Update learning progress tracking with current task success rates."""
+        """Update learning progress tracking with current task outcome sequences."""
+        # Calculate learning progress for each task individually based on their outcome sequences
+        task_lp_scores = np.zeros(self._num_tasks)
+
+        for task_id in range(self._num_tasks):
+            outcomes = self._outcomes[task_id]
+            if len(outcomes) < 2:
+                task_lp_scores[task_id] = 0.0
+                continue
+
+            # Convert outcomes to numpy array
+            outcomes_array = np.array(outcomes)
+
+            # Calculate fast and slow EMAs for this task's outcome sequence
+            if self._p_fast is None:
+                # Initialize EMAs
+                if self._p_fast is None:
+                    self._p_fast = np.zeros(self._num_tasks)
+                    self._p_slow = np.zeros(self._num_tasks)
+                    self._p_true = np.zeros(self._num_tasks)
+
+                # Initialize with current outcome
+                self._p_fast[task_id] = outcomes_array[-1]
+                self._p_slow[task_id] = outcomes_array[-1]
+                self._p_true[task_id] = outcomes_array[-1]
+            else:
+                # Update EMAs for this task
+                current_outcome = outcomes_array[-1]
+                self._p_fast[task_id] = (current_outcome * self._ema_timescale) + (
+                    self._p_fast[task_id] * (1.0 - self._ema_timescale)
+                )
+                # Use a slower timescale for the slow EMA (e.g., 10x slower)
+                slow_timescale = self._ema_timescale * 0.1
+                self._p_slow[task_id] = (current_outcome * slow_timescale) + (
+                    self._p_slow[task_id] * (1.0 - slow_timescale)
+                )
+                self._p_true[task_id] = (current_outcome * self._ema_timescale) + (
+                    self._p_true[task_id] * (1.0 - self._ema_timescale)
+                )
+
+            # Calculate learning progress as the absolute difference between fast and slow EMAs
+            task_lp_scores[task_id] = abs(self._p_fast[task_id] - self._p_slow[task_id])
+
+        # Update task success rates for statistics
         task_success_rates = np.array(
             [
                 np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
                 for i in range(self._num_tasks)
             ]
         )
-        # Handle NaN values in task success rates (empty lists)
         task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
 
-        if self._random_baseline is None:
-            self._random_baseline = np.minimum(task_success_rates, RANDOM_BASELINE_CAP)
-
-        # Handle division by zero in normalization
-        denominator = 1.0 - self._random_baseline[self._update_mask]
-        denominator = np.where(denominator <= 0, 1.0, denominator)
-
-        normalized_task_success_rates = (
-            np.maximum(
-                task_success_rates[self._update_mask] - self._random_baseline[self._update_mask],
-                np.zeros(task_success_rates[self._update_mask].shape),
-            )
-            / denominator
-        )
-
-        if self._p_fast is None:
-            self._p_fast = normalized_task_success_rates[self._update_mask]
-            self._p_slow = normalized_task_success_rates[self._update_mask]
-            self._p_true = task_success_rates[self._update_mask]
-        else:
-            # Ensure arrays are properly sized before updating
-            if self._p_fast is not None and self._p_slow is not None:
-                self._p_fast[self._update_mask] = (normalized_task_success_rates * self._ema_timescale) + (
-                    self._p_fast[self._update_mask] * (1.0 - self._ema_timescale)
-                )
-                self._p_slow[self._update_mask] = (self._p_fast[self._update_mask] * self._ema_timescale) + (
-                    self._p_slow[self._update_mask] * (1.0 - self._ema_timescale)
-                )
-            if self._p_true is not None:
-                self._p_true[self._update_mask] = (task_success_rates[self._update_mask] * self._ema_timescale) + (
-                    self._p_true[self._update_mask] * (1.0 - self._ema_timescale)
-                )
+        # Update statistics
+        self._task_success_rate = task_success_rates
+        self._num_nans.append(sum(np.isnan(task_success_rates)))
+        self._mean_samples_per_eval.append(np.mean([len(self._outcomes[i]) for i in range(self._num_tasks)]))
 
         self._stale_dist = True
         self._task_dist = None
@@ -241,24 +379,37 @@ class BidirectionalLearningProgress:
                     if task_id in self._sample_levels:
                         self._counter[task_id] += 1
 
-    def _learning_progress(self, reweight: bool = True) -> np.ndarray:
-        """Calculate learning progress as the difference between fast and slow moving averages."""
+    def _learning_progress(self, reweight: bool = False) -> np.ndarray:
+        """Calculate learning progress as the difference between fast and slow moving averages for each task."""
         if self._p_fast is None or self._p_slow is None:
             return np.zeros(self._num_tasks)
-        fast = self._reweight(self._p_fast) if reweight else self._p_fast
-        slow = self._reweight(self._p_slow) if reweight else self._p_slow
-        return abs(fast - slow)
 
-    def _reweight(self, probs: np.ndarray) -> np.ndarray:
-        """Apply progress smoothing reweighting to probability values."""
-        numerator = probs * (1.0 - self.progress_smoothing)
-        denominator = probs + self.progress_smoothing * (1.0 - 2.0 * probs)
+        # Calculate learning progress for each task individually
+        lp_scores = np.zeros(self._num_tasks)
+        for task_id in range(self._num_tasks):
+            fast = self._p_fast[task_id]
+            slow = self._p_slow[task_id]
+
+            if reweight:
+                # Apply reweighting to individual task scores
+                fast_reweighted = self._reweight_single(fast)
+                slow_reweighted = self._reweight_single(slow)
+                lp_scores[task_id] = abs(fast_reweighted - slow_reweighted)
+            else:
+                lp_scores[task_id] = abs(fast - slow)
+
+        return lp_scores
+
+    def _reweight_single(self, prob: float) -> float:
+        """Apply progress smoothing reweighting to a single probability value."""
+        numerator = prob * (1.0 - self.progress_smoothing)
+        denominator = prob + self.progress_smoothing * (1.0 - 2.0 * prob)
 
         # Handle division by zero
-        denominator = np.where(denominator <= 0, 1.0, denominator)
-        result = numerator / denominator
+        if denominator <= 0:
+            return 1.0
 
-        return result
+        return numerator / denominator
 
     def _sigmoid(self, x: np.ndarray):
         """Apply sigmoid function to array values."""
@@ -268,23 +419,18 @@ class BidirectionalLearningProgress:
         task_dist = np.ones(self._num_tasks) / self._num_tasks
         learning_progress = self._learning_progress()
 
-        # Check if _p_true is available before using it
-        if self._p_true is not None:
-            posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0 or self._p_true[i] > 0]
-        else:
-            posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0]
+        # Only include tasks with actual learning progress (lp > 0)
+        # Remove the condition that includes tasks with _p_true > 0 but lp = 0
+        posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0]
 
         any_progress = len(posidxs) > 0
         subprobs = learning_progress[posidxs] if any_progress else learning_progress
 
-        std = np.std(subprobs)
-        if std > 0:
-            subprobs = (subprobs - np.mean(subprobs)) / std
-        else:
-            # If all values are the same, keep them as is
-            subprobs = subprobs - np.mean(subprobs)
-
-        subprobs = self._sigmoid(subprobs)
+        # Apply sigmoid with scaling to make it less heavy-handed
+        # Scale the learning progress scores to make sigmoid less aggressive
+        scale_factor = 100.0  # Increase this to make sigmoid less aggressive
+        scaled_probs = subprobs * scale_factor
+        subprobs = self._sigmoid(scaled_probs)
 
         # Normalize to sum to 1, handling zero sum case
         sum_probs = np.sum(subprobs)
@@ -303,15 +449,7 @@ class BidirectionalLearningProgress:
         self._task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
 
-        out_vec = [
-            np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
-            for i in range(self._num_tasks)
-        ]
-        out_vec = [DEFAULT_SUCCESS_RATE if np.isnan(x) else x for x in out_vec]  # Handle NaN in outcomes
-        self._num_nans.append(sum(np.isnan(out_vec)))
-        self._task_success_rate = np.array(out_vec)
-        self._mean_samples_per_eval.append(np.mean([len(self._outcomes[i]) for i in range(self._num_tasks)]))
-
+        # Truncate outcomes to respect memory limit
         for i in range(self._num_tasks):
             self._outcomes[i] = self._outcomes[i][-self._memory :]
         return self._task_dist
