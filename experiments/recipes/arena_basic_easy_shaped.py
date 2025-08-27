@@ -121,6 +121,26 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
             }
         )
 
+        # Set the same rewards on group config
+        env_cfg.game.groups["agent"].props.rewards.inventory.update(
+            {
+                "ore_red": 0.1,
+                "battery_red": 0.8,
+                "laser": 0.5,
+                "armor": 0.5,
+                "blueprint": 0.5,
+            }
+        )
+        env_cfg.game.groups["agent"].props.rewards.inventory_max.update(
+            {
+                "ore_red": 1,
+                "battery_red": 1,
+                "laser": 1,
+                "armor": 1,
+                "blueprint": 1,
+            }
+        )
+
     if converters:
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
 
