@@ -74,10 +74,10 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             num_tasks: Number of tasks to maintain in the unified pool
         """
         from metta.cogworks.curriculum.curriculum import CurriculumConfig
-        from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressHypers
+        from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
         # Create learning progress algorithm hyperparameters
-        lp_hypers = LearningProgressHypers(
+        lp_config = LearningProgressConfig(
             pool_size=num_tasks or 16,  # Use provided num_tasks or default to 16
             sample_size=10,  # K=10 tasks to sample
             max_samples=20,  # A=20 max samples before eviction
@@ -87,8 +87,8 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
         # Create curriculum with integrated learning progress algorithm
         cc = CurriculumConfig(
             task_generator=self,
-            num_active_tasks=lp_hypers.pool_size,  # Use pool_size for compatibility
-            algorithm_hypers=lp_hypers,
+            num_active_tasks=lp_config.pool_size,  # Use pool_size for compatibility
+            algorithm_config=lp_config,
         )
 
         return cc

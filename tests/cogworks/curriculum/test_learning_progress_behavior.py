@@ -9,7 +9,7 @@ import random
 
 import numpy as np
 
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressHypers
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
 
 
 class MockTaskGenerator:
@@ -21,13 +21,13 @@ class MockTaskGenerator:
 
 def setup_learning_progress_algorithm_with_tasks(num_tasks: int = 2, pool_size: int = 10):
     """Helper function to set up a learning progress algorithm with tasks."""
-    hypers = LearningProgressHypers(
+    config = LearningProgressConfig(
         ema_timescale=0.001,
         pool_size=pool_size,
         sample_size=5,
         max_samples=10,
     )
-    algorithm = LearningProgressAlgorithm(num_tasks=num_tasks, hypers=hypers)
+    algorithm = LearningProgressAlgorithm(num_tasks=num_tasks, hypers=config)
 
     # Add tasks to the pool
     rng = random.Random(42)

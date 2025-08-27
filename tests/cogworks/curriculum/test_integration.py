@@ -3,10 +3,10 @@
 
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
+    DiscreteRandomConfig,
     DiscreteRandomCurriculum,
-    DiscreteRandomHypers,
 )
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressHypers
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
 from metta.mettagrid.config.envs import make_arena
 
@@ -25,7 +25,7 @@ def test_curriculum_integration_with_discrete_random_algorithm():
     curriculum_config = CurriculumConfig(
         task_generator=task_gen_config,
         num_active_tasks=4,
-        algorithm_hypers=DiscreteRandomHypers(),
+        algorithm_config=DiscreteRandomConfig(),
     )
 
     # Create curriculum
@@ -64,7 +64,7 @@ def test_curriculum_integration_without_algorithm():
     curriculum_config = CurriculumConfig(
         task_generator=task_gen_config,
         num_active_tasks=4,
-        algorithm_hypers=None,  # No algorithm
+        algorithm_config=None,  # No algorithm
     )
 
     # Create curriculum
@@ -99,7 +99,7 @@ def test_curriculum_integration_with_learning_progress_algorithm():
     task_gen_config = SingleTaskGeneratorConfig(env=arena_env)
 
     # Create curriculum config with learning progress algorithm
-    lp_hypers = LearningProgressHypers(
+    lp_config = LearningProgressConfig(
         ema_timescale=0.1,
         pool_size=10,
         sample_size=5,
@@ -109,7 +109,7 @@ def test_curriculum_integration_with_learning_progress_algorithm():
     curriculum_config = CurriculumConfig(
         task_generator=task_gen_config,
         num_active_tasks=4,
-        algorithm_hypers=lp_hypers,
+        algorithm_config=lp_config,
     )
 
     # Create curriculum

@@ -43,7 +43,7 @@ class CurriculumTask:
         return self._env_cfg
 
 
-class CurriculumAlgorithmHypers(Config, ABC):
+class CurriculumAlgorithmConfig(Config, ABC):
     """Hyperparameters for the CurriculumAlgorithm."""
 
     type: str = Field(description="Type of algorithm hyperparameters")
@@ -86,7 +86,7 @@ class CurriculumAlgorithm(ABC):
     num_tasks: int
     weights: Optional[np.ndarray] = None
     probabilities: Optional[np.ndarray] = None
-    hypers: CurriculumAlgorithmHypers
+    hypers: CurriculumAlgorithmConfig
 
     # API that Curriculum uses
 
@@ -107,14 +107,14 @@ class CurriculumAlgorithm(ABC):
     # Subclass methods to override
 
     def __init__(
-        self, num_tasks: int, hypers: Optional[CurriculumAlgorithmHypers] = None, initialize_weights: bool = True
+        self, num_tasks: int, hypers: Optional[CurriculumAlgorithmConfig] = None, initialize_weights: bool = True
     ):
         if num_tasks <= 0:
             raise ValueError(f"Number of tasks must be positive. num_tasks {num_tasks}")
         self.num_tasks = num_tasks
 
         if hypers is None:
-            hypers = DiscreteRandomHypers()
+            hypers = DiscreteRandomConfig()
         self.hypers = hypers
 
         # Initialize weights only if requested and algorithm uses them
@@ -171,7 +171,7 @@ class CurriculumAlgorithm(ABC):
         self.probabilities = self.weights / self.weights.sum()
 
 
-class DiscreteRandomHypers(CurriculumAlgorithmHypers):
+class DiscreteRandomConfig(CurriculumAlgorithmConfig):
     """Hyperparameters for DiscreteRandomCurriculum."""
 
     type: str = "discrete_random"
@@ -205,7 +205,7 @@ class CurriculumConfig(Config):
     new_task_rate: float = Field(default=0.01, ge=0, le=1.0, description="Rate of new tasks to generate")
 
     # Algorithm configuration
-    algorithm_hypers: Optional[Union["DiscreteRandomHypers", "LearningProgressHypers"]] = Field(
+    algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
         default=None, description="Curriculum algorithm hyperparameters"
     )
 
@@ -249,8 +249,8 @@ class Curriculum:
 
         # Initialize curriculum algorithm if provided
         self._algorithm: Optional[CurriculumAlgorithm] = None
-        if config.algorithm_hypers is not None:
-            self._algorithm = config.algorithm_hypers.create(config.num_active_tasks)
+        if config.algorithm_config is not None:
+            self._algorithm = config.algorithm_config.create(config.num_active_tasks)
 
     def get_task(self) -> CurriculumTask:
         """Sample a task from the population."""
@@ -323,6 +323,6 @@ class Curriculum:
             return base_stats
 
 
-# Import concrete hypers classes at the end to avoid circular imports
+# Import concrete config classes at the end to avoid circular imports
 # ruff: noqa: E402
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressHypers
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig

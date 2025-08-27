@@ -13,14 +13,14 @@ import numpy as np
 from gym.spaces import Discrete
 from pydantic import ConfigDict, Field
 
-from metta.cogworks.curriculum.curriculum import CurriculumAlgorithm, CurriculumAlgorithmHypers, CurriculumTask
+from metta.cogworks.curriculum.curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_SUCCESS_RATE = 0.5
 
 
-class LearningProgressHypers(CurriculumAlgorithmHypers):
+class LearningProgressConfig(CurriculumAlgorithmConfig):
     """Hyperparameters for LearningProgressAlgorithm."""
 
     type: str = "learning_progress"
@@ -46,7 +46,7 @@ class LearningProgressHypers(CurriculumAlgorithmHypers):
 class LearningProgressAlgorithm(CurriculumAlgorithm):
     """Learning progress algorithm that manages a unified pool of tasks."""
 
-    def __init__(self, num_tasks: int, hypers: LearningProgressHypers):
+    def __init__(self, num_tasks: int, hypers: LearningProgressConfig):
         # Don't initialize weights since this algorithm uses its own sampling strategy
         super().__init__(num_tasks, hypers, initialize_weights=False)
 
