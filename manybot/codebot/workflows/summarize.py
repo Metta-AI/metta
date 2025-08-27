@@ -5,16 +5,16 @@ Implements the summarizer pattern as described in the codebot README - takes a s
 and produces a token-constrained summary optimized for AI consumption.
 """
 
-import logging
 from pathlib import Path
 from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, ModelRetry
 
+from manybot.codebot.logging import get_logger
 from manybot.codebot.workflow import Command, CommandOutput, ExecutionContext, FileChange, PromptContext
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SummaryResult(BaseModel):

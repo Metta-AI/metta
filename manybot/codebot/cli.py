@@ -6,23 +6,18 @@ Foundation for AI-powered development assistance through a unified CLI
 with multiple execution modes, built on PydanticAI.
 """
 
-import logging
-import sys
+import asyncio
 from typing import List, Optional
 
+import pyperclip
 import typer
 from typing_extensions import Annotated
 
+from .logging import get_logger, setup_logging
 from .workflow import ContextManager
 from .workflows.summarize import SummarizeCommand
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    stream=sys.stderr,
-)
-logger = logging.getLogger("codebot")
+logger = get_logger(__name__)
 
 # Create the main Typer app
 app = typer.Typer(
@@ -47,11 +42,10 @@ def main(
     ] = None,
 ):
     """Codebot - AI-Powered Development Assistant"""
-    if verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    setup_logging(verbose)
 
 
-def handle_result(result, dry_run: bool = False):
+def handle_result(result, dry_run: bool = False, copy: bool = False):
     """Handle command output consistently"""
     if dry_run:
         typer.echo("DRY RUN - Changes would be:")
@@ -67,6 +61,11 @@ def handle_result(result, dry_run: bool = False):
     if result.summary:
         typer.echo(f"\n{result.summary}")
 
+        # Copy summary to clipboard if requested
+        if copy:
+            pyperclip.copy(result.summary)
+            typer.echo("Summary copied to clipboard")
+
 
 @app.command()
 def summarize(
@@ -78,6 +77,7 @@ def summarize(
     task: Optional[str] = typer.Option(
         None, "--task", help="Task name (e.g., 'summarize') or path (e.g., 'tasks/refactor.md')"
     ),
+    copy: bool = typer.Option(False, "--copy", help="Copy summary to clipboard"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
 ):
     """Generate AI-powered code summaries"""
@@ -92,64 +92,11 @@ def summarize(
         paths, role=role_name, task=task_name, dry_run=dry_run
     )
 
-    # Temporarily bypass SummaryCache: run the summarizer directly
-    try:
-        import asyncio
+    summarizer = SummarizeCommand()
 
-        summarizer = SummarizeCommand()
-
-        # Run async function with current signature
-        result = asyncio.run(summarizer.execute(prompt_context, execution_context, token_limit=max_tokens))
-        handle_result(result, dry_run)
-
-    except Exception as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1) from None
-
-
-@app.command()
-def debug_tests(
-    paths: Annotated[Optional[List[str]], typer.Argument(help="Paths to analyze")] = None,
-):
-    """Debug failing tests by analyzing test files and related code.
-
-    Placeholder for future implementation.
-    """
-    typer.echo("🔧 Debug tests command coming soon!")
-    if paths:
-        typer.echo(f"Would analyze: {', '.join(paths)}")
-
-
-@app.command()
-def refactor(
-    paths: Annotated[Optional[List[str]], typer.Argument(help="Paths to refactor")] = None,
-    interactive: Annotated[bool, typer.Option("--interactive", "-i", help="Interactive mode")] = False,
-):
-    """Refactor code with AI assistance.
-
-    Placeholder for future implementation.
-    """
-    typer.echo("🔧 Refactor command coming soon!")
-    if paths:
-        typer.echo(f"Would refactor: {', '.join(paths)}")
-    if interactive:
-        typer.echo("Interactive mode would be enabled")
-
-
-@app.command()
-def implement(
-    paths: Annotated[Optional[List[str]], typer.Argument(help="Paths to implement in")] = None,
-    pipeline: Annotated[bool, typer.Option("--pipeline", "-p", help="Pipeline mode with structured output")] = False,
-):
-    """Implement features with AI assistance.
-
-    Placeholder for future implementation.
-    """
-    typer.echo("🔧 Implement command coming soon!")
-    if paths:
-        typer.echo(f"Would implement in: {', '.join(paths)}")
-    if pipeline:
-        typer.echo("Pipeline mode would be enabled")
+    # Run async function with current signature
+    result = asyncio.run(summarizer.execute(prompt_context, execution_context, token_limit=max_tokens))
+    handle_result(result, dry_run, copy)
 
 
 def cli():

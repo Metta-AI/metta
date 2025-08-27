@@ -4,17 +4,16 @@ Core workflow foundation for AI-powered development assistance.
 Provides the base classes and patterns for structured agent operations using PydanticAI.
 """
 
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, TypeVar
 
 import pyperclip
-
 from pydantic import BaseModel, Field
 
 from .codeclip import get_context_objects
+from .logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class FileChange(BaseModel):
