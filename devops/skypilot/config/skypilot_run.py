@@ -418,13 +418,10 @@ def main():
     """Main entry point that runs the full lifecycle and returns exit code."""
     global exit_code, termination_reason
 
-    log_config()
-    setup_signal_handlers()
-
-    start_time = None
-
     try:
         # Setup environment
+        log_config()
+        setup_signal_handlers()
         subprocess.run(["bash", "./devops/skypilot/config/lifecycle/configure_environment.sh"], check=True)
 
         # Source environment file

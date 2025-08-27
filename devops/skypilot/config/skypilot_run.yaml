@@ -46,8 +46,19 @@ file_mounts:
 # `set -u`: Exit on undefined variables to catch missing env vars early
 setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
 
-# `set -e`: Ensure SkyPilot propagates exit codes from skypilot_run.sh (otherwise restart test fails)
-run: set -e && /workspace/metta/devops/skypilot/config/test_exit.sh
+# `set -e`: Ensure SkyPilot propagates exit codes
+run: |
+  set -e
+
+  cd /workspace/metta
+
+  # Drop any preloaded venv; activate your own
+  if [ -n "${VIRTUAL_ENV:-}" ]; then
+    deactivate 2> /dev/null || true
+  fi
+  . .venv/bin/activate
+
+  uv run python ./devops/skypilot/config/test_exit.py
 
 envs:
   TEST_NCCL: "false"
