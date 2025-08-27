@@ -354,7 +354,7 @@ def _(RendererToolConfig):
     # Simple approach: use the built-in arena and add a custom map - just like the demos do
     from metta.mettagrid.config.envs import make_arena
     from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-    from metta.mettagrid.mettagrid_config import AgentRewards, InventoryRewards
+    from metta.mettagrid.mettagrid_config import AgentRewards
     import pprint
 
     # Define simple hallway map as ASCII string
@@ -391,12 +391,14 @@ def _(RendererToolConfig):
 
     # Ensure ore collection gives rewards
     env_config.game.agent.rewards = AgentRewards(
-        inventory=InventoryRewards(
-            ore_red=0.1,
-            ore_red_max=255,
-            battery_red=0.8,
-            battery_red_max=255,
-        ),
+        inventory={
+            "ore_red": 0.1,
+            "battery_red": 0.8,
+        },
+        inventory_max={
+            "ore_red": 255,
+            "battery_red": 255,
+        },
     )
 
     # Set initial resource counts for immediate availability
@@ -432,7 +434,6 @@ def _(RendererToolConfig):
     return (
         AgentRewards,
         AsciiMapBuilder,
-        InventoryRewards,
         env_config,
         make_arena,
         renderer_config,
@@ -1077,8 +1078,8 @@ def _(mo):
         r"""
     # Let's run a new example with a new map
 
-        ###########  
-        #R...@...m#  
+        ###########
+        #R...@...m#
         ###########
     """
     )
@@ -1089,7 +1090,6 @@ def _(mo):
 def _(
     AgentRewards,
     AsciiMapBuilder,
-    InventoryRewards,
     RendererToolConfig,
     make_arena,
     textwrap,
@@ -1126,10 +1126,10 @@ def _(
 
     # Ensure ore collection gives rewards
     env_config2.game.agent.rewards = AgentRewards(
-        inventory=InventoryRewards(
-            ore_red=1.0,
-            battery_red=1.0,
-        ),
+        inventory={
+            "ore_red": 1.0,
+            "battery_red": 1.0,
+        },
     )
 
     renderer_config2 = RendererToolConfig(
