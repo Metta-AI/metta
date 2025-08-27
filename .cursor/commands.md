@@ -5,7 +5,8 @@ provide useful feedback about whether the system is working correctly.
 
 ## Prerequisites
 
-The project uses `uv` for Python package management. All Python commands should be run with `uv run` to ensure proper environment activation.
+The project uses `uv` for Python package management. All Python commands should be run with `uv run` to ensure proper
+environment activation.
 
 ## Quick Test Commands (30-60 seconds total)
 
