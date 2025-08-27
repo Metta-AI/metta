@@ -1,10 +1,10 @@
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
 
 from experiments.recipes.icl_resource_chain import ConverterChainTaskGenerator
 
 
-def icl_resource_chain_eval_env(env: EnvConfig) -> EnvConfig:
+def icl_resource_chain_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     env.game.agent.resource_limits["heart"] = 6
     return env
 
@@ -17,7 +17,9 @@ def update_recipe(converter, input_resource=None, output_resource=None):
     return converter
 
 
-def make_icl_resource_chain_eval_env(chain_length: int, num_sinks: int) -> EnvConfig:
+def make_icl_resource_chain_eval_env(
+    chain_length: int, num_sinks: int
+) -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[chain_length],
         num_sinks=[num_sinks],

@@ -104,7 +104,7 @@ class Simulation:
         )
 
         self._vecenv = make_vecenv(
-            Curriculum(CurriculumConfig.from_env(cfg.env)),
+            Curriculum(CurriculumConfig.from_mg(cfg.env)),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
