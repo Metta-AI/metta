@@ -11,7 +11,7 @@ from torchrl.data import Composite
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
+from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.profiling.stopwatch import Stopwatch
@@ -26,7 +26,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
-from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
+# from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint  # OLD - REMOVED
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -96,7 +96,7 @@ def train(
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
-    policy_store: PolicyStore,
+    checkpoint_manager: SimpleCheckpointManager,
     stats_client: StatsClient | None,
     torch_dist_cfg: TorchDistributedConfig,
 ) -> None:
@@ -144,15 +144,7 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
-    # Create checkpoint manager
-    checkpoint_manager = CheckpointManager(
-        policy_store=policy_store,
-        checkpoint_config=trainer_cfg.checkpoint,
-        device=device,
-        is_master=torch_dist_cfg.is_master,
-        rank=torch_dist_cfg.rank,
-        run_name=run,
-    )
+    # Note: checkpoint_manager is now passed as a parameter (SimpleCheckpointManager)
 
     # Load checkpoint if it exists
     checkpoint = TrainerCheckpoint.load(run_dir)
