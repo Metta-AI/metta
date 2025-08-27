@@ -56,12 +56,6 @@ class PolicyHandle:
             raise TypeError(f"metadata must be PolicyMetadata, dict, or None, got {type(value).__name__}")
 
     def load(self, policy_loader: PolicyLoader) -> PolicyRecord:
-        """Load the policy record using the provided PolicyLoader.
+        """Load the policy record using the provided PolicyLoader."""
 
-        Args:
-            policy_loader: The PolicyLoader to use for loading the policy
-
-        Returns:
-            The loaded PolicyRecord
-        """
         return self.factory(policy_loader)
