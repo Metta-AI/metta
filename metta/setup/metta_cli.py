@@ -127,7 +127,7 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
     ),
     "shell": CommandConfig(
         help="Start an IPython shell with Metta imports",
-        subprocess_cmd=["uv", "run", "metta/setup/shell.py"],
+        subprocess_cmd=["uv", "run", "--active", "metta/setup/shell.py"],
         needs_config=True,  # Needs repo_root
     ),
     "report-env-details": CommandConfig(
@@ -542,8 +542,8 @@ class MettaCLI:
             if not files:
                 return
 
-        check_cmd = ["uv", "run", "ruff", "check"]
-        format_cmd = ["uv", "run", "ruff", "format"]
+        check_cmd = ["uv", "run", "--active", "ruff", "check"]
+        format_cmd = ["uv", "run", "--active", "ruff", "format"]
         cmds = [format_cmd, check_cmd]
 
         # ruff check: warns
