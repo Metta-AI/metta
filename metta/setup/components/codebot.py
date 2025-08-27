@@ -33,9 +33,6 @@ class CodebotSetup(SetupModule):
             return
 
         info("Installing codebot tools...")
-
-        # Install codebot package which includes codeclip command
-        # The gitta dependency is now handled automatically via tool.uv.sources
         try:
             self.run_command(["uv", "tool", "install", "--force", "-e", str(codebot_dir)])
         except subprocess.CalledProcessError:
