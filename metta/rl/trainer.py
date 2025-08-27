@@ -684,39 +684,30 @@ def get_policy_path(
     checkpoint_manager: CheckpointManager,
 ) -> tuple[str, bool]:
     """Determine the path to an existing policy if one exists, or default path for creation."""
+    # Compute default path once
+    default_model_name = checkpoint_manager.make_model_name(0, checkpoint_cfg.model_suffix())
+    default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
+
+    existing_policy_path: str | None
+
     if is_master:
-        if checkpoint and checkpoint.policy_path and trainer_cfg.checkpoint:
-            # Use directory from trainer_cfg.checkpoint and filename from checkpoint.policy_path
+        # Prefer explicit sources (checkpoint, then initial_policy)
+        if checkpoint and checkpoint.policy_path:
             filename = os.path.basename(checkpoint.policy_path)
             existing_policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, filename)
+        elif trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
+            existing_policy_path = trainer_cfg.initial_policy.uri
         else:
-            existing_policy_path = (checkpoint and checkpoint.policy_path) or (
-                trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri
-            )
-
-        # Only check default path if no explicit policy path was found
-        if existing_policy_path is None:
-            default_model_name = checkpoint_manager.make_model_name(0, checkpoint_cfg.model_suffix())
-            default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
             existing_policy_path = default_path if os.path.exists(default_path) else None
     else:
-        # Synchronize existing_policy_path from master
-        # ?? are we always passing None in here? code from my copy of main seems to say so
-        existing_policy_path = None
+        # Synchronize from master rank
         from metta.agent.util.distribution_utils import get_from_master
 
-        existing_policy_path = get_from_master(existing_policy_path)
+        existing_policy_path = get_from_master(None)
         logger.info(f"Rank {rank}: Synchronized existing_policy_path = {existing_policy_path}")
 
-    # Determine if we should create a new policy or load existing
-    if existing_policy_path is None:
-        # Create new policy - determine default path
-        default_model_name = checkpoint_manager.make_model_name(0, checkpoint_cfg.model_suffix())
-        policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
-        should_create = True
-    else:
-        # Load existing policy
-        policy_path = existing_policy_path
-        should_create = False
+    # Choose final path and whether to create a new policy
+    policy_path = existing_policy_path or default_path
+    should_create = existing_policy_path is None
 
     return policy_path, should_create
