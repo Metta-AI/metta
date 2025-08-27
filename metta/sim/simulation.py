@@ -268,17 +268,13 @@ class Simulation:
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
             # Candidate-policy agents
-            policy_actions = self._get_actions_for_agents(
-                self._policy_idxs.cpu(), self._policy_pr.policy
-            )
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy_pr.policy)
 
             # NPC agents (if any)
             npc_actions = None
             if self._npc_pr is not None and len(self._npc_idxs):
                 try:
-                    npc_actions = self._get_actions_for_agents(
-                        self._npc_idxs, self._npc_pr.policy
-                    )
+                    npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_pr.policy)
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
