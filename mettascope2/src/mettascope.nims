@@ -8,7 +8,7 @@ if defined(emscripten):
 
   --os:linux # Emscripten pretends to be linux.
   --cpu:wasm32 # Emscripten is 32bits.
-  --cc:clang # Emscripten is very close to clang, so we ill replace it.
+  --cc:clang # Emscripten is very close to clang, so we will replace it.
   when defined(windows):
     --clang.exe:emcc.bat  # Replace C
     --clang.linkerexe:emcc.bat # Replace C linker
