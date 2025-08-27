@@ -362,6 +362,7 @@ def _():
         Path,
         PolicyStore,
         RendererToolConfig,
+        SimulationConfig,
         TensorDict,
         TrainTool,
         TrainerConfig,
@@ -370,6 +371,7 @@ def _():
         datetime,
         display,
         env_curriculum,
+        evaluate_policy,
         get_repo_root,
         initialize_policy_for_environment,
         io,
@@ -839,11 +841,11 @@ def _(
                 "target_kl": 0.015,  # Add KL divergence limit to prevent large policy updates
             },
             checkpoint=CheckpointConfig(
-                checkpoint_interval=1,  # Frequent checkpoints to catch peak performance
-                wandb_checkpoint_interval=1,
+                checkpoint_interval=10,  # Frequent checkpoints to catch peak performance
+                wandb_checkpoint_interval=10,
             ),
             evaluation=EvaluationConfig(
-                evaluate_interval=1,  # Frequent evaluation to monitor for unlearning
+                evaluate_interval=10,  # Frequent evaluation to monitor for unlearning
                 evaluate_remote=False,
                 evaluate_local=True,
                 replay_dir=f"s3://softmax-public/replays/{run_name}",
@@ -919,47 +921,49 @@ def _(mo):
 
 @app.cell
 def _(
-    MettaGridEnv,
     Path,
     PolicyStore,
-    TensorDict,
+    SimulationConfig,
     WandbConfig,
-    contextlib,
     display,
     env_config,
     eval_trained_button,
+    evaluate_policy,
     get_repo_root,
-    initialize_policy_for_environment,
-    io,
+    logging,
     mo,
     np,
     os,
     pd,
-    renderer_config,
     run_name,
-    simulation_context,
-    time,
     torch,
-    widgets,
 ):
     mo.stop(not eval_trained_button.value)
 
     def evaluate_agent():
-        """
-        Evaluate trained agent using proper evaluation infrastructure.
-        This demonstrates the correct way to evaluate policies in Metta AI.
-        """
+        """Clean local evaluation that runs directly in the notebook."""
         # Change to repo root directory so relative paths work correctly
         original_cwd = os.getcwd()
         repo_root = get_repo_root()
         os.chdir(repo_root)
 
         try:
-            print(
-                "🎯 Starting proper evaluation using Metta AI evaluation infrastructure..."
-            )
+            print("🎯 Starting local evaluation...")
 
-            # Step 1: Create policy store and get policy record
+            # Find and load the latest checkpoint
+            ckpt_dir = Path("train_dir") / run_name / "checkpoints"
+            if not ckpt_dir.exists():
+                raise Exception(f"No checkpoint directory found at {ckpt_dir}")
+
+            checkpoints = list(ckpt_dir.glob("*.pt"))
+            if not checkpoints:
+                raise Exception(f"No checkpoints found in {ckpt_dir}")
+
+            # Use latest checkpoint
+            latest_ckpt = max(checkpoints, key=lambda p: p.stat().st_mtime)
+            print(f"📁 Using checkpoint: {latest_ckpt.name}")
+
+            # Create policy store and load policy
             policy_store = PolicyStore.create(
                 device="cpu",
                 wandb_config=WandbConfig.Off(),
@@ -967,14 +971,7 @@ def _(
                 wandb_run=None,
             )
 
-            # Get policy from checkpoint directory
-            ckpt_dir = Path("train_dir") / run_name / "checkpoints"
-            if not ckpt_dir.exists():
-                raise Exception(f"No checkpoint directory found at {ckpt_dir}")
-
             policy_uri = f"file://{ckpt_dir.absolute()}"
-            print(f"📁 Loading policy from: {policy_uri}")
-
             policy_records = policy_store.policy_records(
                 uri_or_config=policy_uri,
                 selector_type="latest",
@@ -986,107 +983,168 @@ def _(
                 raise Exception("No policy records found")
 
             policy_record = policy_records[0]
-            print(f"✅ Successfully loaded policy: {policy_record.run_name}")
+            print(f"✅ Loaded policy: {policy_record.run_name}")
 
-            # Step 2: Create SimulationConfig using the same environment config as training
-            simulation_config = SimulationConfig(
-                name="hallway_evaluation",
-                env=env_config,  # Same environment as used for training
-                num_episodes=10,  # Run 10 evaluation episodes
-                max_time_s=300,  # 5 minute timeout
-            )
+            # Create evaluation environment
+            with contextlib.redirect_stdout(io.StringIO()):
+                eval_env = MettaGridEnv(env_config, render_mode="human")
 
-            print(f"⚙️  Created simulation config:")
-            print(f"   - Environment: {env_config.game.num_agents} agent(s)")
-            print(f"   - Episodes: {simulation_config.num_episodes}")
-            print(f"   - Max steps per episode: {env_config.game.max_steps}")
-
-            # Step 3: Run evaluation using proper infrastructure
-            print(f"🚀 Running evaluation...")
-
-            eval_results = evaluate_policy(
+            # Initialize policy for environment
+            initialize_policy_for_environment(
                 policy_record=policy_record,
-                simulations=[simulation_config],
+                metta_grid_env=eval_env,
                 device=torch.device("cpu"),
-                vectorization="serial",  # Use serial for deterministic results
-                stats_dir=f"./train_dir/{run_name}/eval_stats",
-                policy_store=policy_store,
-                stats_client=None,
-                logger=logging.getLogger(__name__),
+                restore_feature_mapping=True,
             )
 
-            print(f"✅ Evaluation completed successfully!")
+            trained_policy = policy_record.policy
 
-            # Step 4: Extract and display results
-            stats_db = eval_results.stats_db
+            # Run local evaluation episodes with animated display
+            episode_rewards = []
+            episode_ore_counts = []
+            EVAL_EPISODES = 10
 
-            # Get episode results - this shows the proper way to access evaluation data
-            episode_data = []
-            reward_data = []
+            # Create header and display widgets for animation
+            header = widgets.HTML()
+            map_box = widgets.HTML()
+            display(header, map_box)
 
-            # Query the stats database for results (this is how you properly access evaluation data)
-            episodes_df = stats_db.get_all_episodes()
-            if not episodes_df.empty:
-                print(f"📊 Found {len(episodes_df)} completed episodes")
+            print(f"🎮 Running {EVAL_EPISODES} episodes locally...")
 
-                # Extract key metrics
-                rewards = (
-                    episodes_df["episode_return"].tolist()
-                    if "episode_return" in episodes_df.columns
-                    else []
-                )
-                episode_lengths = (
-                    episodes_df["episode_length"].tolist()
-                    if "episode_length" in episodes_df.columns
-                    else []
-                )
+            with simulation_context(eval_env):
+                for ep in range(1, EVAL_EPISODES + 1):
+                    header.value = f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
 
-                if rewards:
-                    mean_reward = np.mean(rewards)
-                    std_reward = np.std(rewards)
-                    max_reward = max(rewards)
-                    min_reward = min(rewards)
+                    obs, _ = eval_env.reset()
 
-                    print(f"\n🏆 EVALUATION RESULTS:")
-                    print(f"   📈 Average reward: {mean_reward:.2f} ± {std_reward:.2f}")
-                    print(f"   🥇 Best episode: {max_reward:.2f}")
-                    print(f"   📉 Worst episode: {min_reward:.2f}")
-                    if episode_lengths:
-                        avg_length = np.mean(episode_lengths)
-                        print(f"   ⏱️  Average episode length: {avg_length:.1f} steps")
+                    steps = env_config.game.max_steps
+                    print(f"Episode {ep}: Running for {steps} steps")
 
-                    # Display results as DataFrame
-                    results_df = pd.DataFrame(
-                        {
-                            "episode": range(1, len(rewards) + 1),
-                            "reward": rewards,
-                            "episode_length": episode_lengths
-                            if episode_lengths
-                            else [None] * len(rewards),
-                            "running_avg_reward": pd.Series(rewards)
-                            .expanding()
-                            .mean()
-                            .round(2),
+                    for step in range(steps):
+                        # Use proper observation processing pipeline that matches training
+                        from metta.agent.utils import obs_to_td
+
+                        td = obs_to_td(obs, torch.device("cpu"))
+
+                        # The dimension fix in simulation.py ensures proper tensor shapes automatically
+                        trained_policy(td)
+                        actions = td["actions"].cpu().numpy()
+
+                        obs, _, _, _, _ = eval_env.step(actions)
+
+                        # Update display every few steps to show animation
+                        agent_obj = next(
+                            (
+                                o
+                                for o in eval_env.grid_objects.values()
+                                if o.get("agent_id") == 0
+                            )
+                        )
+                        inv = {
+                            eval_env.inventory_item_names[idx]: cnt
+                            for idx, cnt in agent_obj.get("inventory", {}).items()
                         }
-                    )
+                        ore_count = inv.get("ore_red", 0)
+                        battery_count = inv.get("battery_red", 0)
+                        # Calculate reward using training config: ore_red=0.1, battery_red=0.8
+                        total_reward = ore_count * 0.1 + battery_count * 0.8
+                        header.value = (
+                            f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {step + 1}/{steps} - "
+                            f"<br/>"
+                            f"<b>Ore:</b> {ore_count} <b>Reward:</b> {total_reward:.1f}"
+                        )
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            buffer_str = eval_env.render()
+                        map_box.value = f"<pre>{buffer_str}</pre>"
+                        if step % 500 == 0:  # Print progress every 500 steps
+                            print(
+                                f"  Episode {ep}, Step {step}: Ore={ore_count}, Total Reward={total_reward:.1f}"
+                            )
+                        time.sleep(
+                            renderer_config.sleep_time / 50
+                        )  # Small delay for animation
 
-                    display(results_df)
+                    # Get final inventory
+                    agent_obj = next(
+                        (
+                            o
+                            for o in eval_env.grid_objects.values()
+                            if o.get("agent_id") == 0
+                        )
+                    )
+                    inv = {
+                        eval_env.inventory_item_names[idx]: cnt
+                        for idx, cnt in agent_obj.get("inventory", {}).items()
+                    }
+                    ore_count = inv.get("ore_red", 0)
+                    battery_count = inv.get("battery_red", 0)
+
+                    # Calculate total reward based on training reward structure
+                    total_reward = ore_count * 0.1 + battery_count * 0.8
+                    episode_rewards.append(total_reward)
+                    episode_ore_counts.append(ore_count)
 
                     print(
-                        f"\n💡 This demonstrates the proper way to evaluate policies in Metta AI:"
-                    )
-                    print(f"   1. Create a SimulationConfig with your environment")
-                    print(f"   2. Use evaluate_policy() with the simulation config")
-                    print(f"   3. Extract results from the returned StatsDB")
-                    print(
-                        f"   4. All tensor dimension issues are handled automatically!"
+                        f"  Episode {ep}: {ore_count} ore, reward: {total_reward:.1f}"
                     )
 
-                else:
-                    print("⚠️  No reward data found in evaluation results")
-            else:
-                print("⚠️  No episode data found in evaluation results")
+            eval_env.close()
 
+            # Display final results
+            mean_reward = np.mean(episode_rewards)
+            std_reward = np.std(episode_rewards)
+            max_reward = max(episode_rewards)
+            min_reward = min(episode_rewards)
+            max_ore = max(episode_ore_counts)
+            min_ore = min(episode_ore_counts)
+            running_avg = pd.Series(episode_rewards).expanding().mean()
+
+            # Show final results
+            header.value = f"<b>✅ Evaluation Complete!</b>"
+            map_box.value = f"""<pre>
+🏆 TRAINED AGENT RESULTS 🏆
+
+Episodes: {EVAL_EPISODES}
+Average Score: {mean_reward:.2f} ± {std_reward:.2f} ore equivalent
+Best Episode: {max(episode_ore_counts)} ore
+Worst Episode: {min(episode_ore_counts)} ore
+
+Individual Episode Scores: {[f"{r:.1f}" for r in episode_rewards]}
+
+Compare this to the opportunistic baseline from earlier!
+            </pre>"""
+
+            display(
+                pd.DataFrame(
+                    {
+                        "episode": list(range(1, EVAL_EPISODES + 1)),
+                        "total_reward": episode_rewards,
+                        "running_avg": running_avg,
+                        "ore": episode_ore_counts,
+                        "running_avg_ore": pd.Series(episode_ore_counts)
+                        .expanding()
+                        .mean(),
+                    }
+                )
+            )
+
+            print(
+                f"\n🎯 Trained agent performance: {mean_reward:.2f} ± {std_reward:.2f} total reward"
+            )
+            print(
+                f"    (Reward = ore_count * 0.1 + battery_count * 0.8, matching training config)"
+            )
+            print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
+            print(
+                f"\n💡 This is clean local evaluation - no external infrastructure needed!"
+            )
+            print(f"   ✅ Dimension issues resolved by the simulation.py fix")
+            print(f"   ✅ Direct policy execution in notebook")
+            print(f"   ✅ Immediate results with animated display")
+
+        except Exception as e:
+            print(f"❌ Evaluation failed: {e}")
+            raise
         finally:
             os.chdir(original_cwd)
 
