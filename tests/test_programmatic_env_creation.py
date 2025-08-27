@@ -129,9 +129,9 @@ class TestProgrammaticEnvironments:
 
         # Verify custom rewards are set
         rewards = env_config.game.agent.rewards.inventory
-        assert rewards.heart == 1.0
-        assert rewards.ore_red == 0.5
-        assert rewards.battery_red == 0.8
+        assert rewards["heart"] == 1.0
+        assert rewards["ore_red"] == 0.5
+        assert rewards["battery_red"] == 0.8
 
         # Verify resource limits
         limits = env_config.game.agent.resource_limits
@@ -191,6 +191,12 @@ class TestProgrammaticEnvironments:
         assert "team_b" in env_config.game.groups
         assert env_config.game.groups["team_a"].id == 0
         assert env_config.game.groups["team_b"].id == 1
+
+        # This would be a good addition to the test, but we don't currently expose cpp_config.objects.
+        # cpp_config = convert_to_cpp_game_config(env_config.game)
+        # # The keys will be ints, but the values should be easy to check. Did we merge correctly?
+        # assert set(cpp_config.objects["agent.team_a"]["resource_rewards"].values()) == {0.5, 0.8, 2}
+        # assert set(cpp_config.objects["agent.team_b"]["resource_rewards"].values()) == {0.5, 0.8, 1}
 
     @pytest.mark.slow
     def test_environment_with_mettagrid_integration(self):
