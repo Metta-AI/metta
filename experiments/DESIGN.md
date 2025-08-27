@@ -5,6 +5,7 @@ A Python-based framework for defining, launching, managing, and analyzing distri
 ## Overview
 
 The experiments framework provides:
+
 - **Type-safe configuration** using Pydantic models that serialize to Hydra-compatible YAML
 - **Clean separation** between infrastructure (Skypilot) and training (Hydra) configuration
 - **YAML-based config transfer** via Skypilot's file_mounts (no git commits required)
@@ -106,9 +107,10 @@ TrainingJobConfig                   # Complete job specification
 4. **Execution**: Remote training loads via `+experiments={instance_name}` Hydra override
 
 Example serialized YAML structure:
+
 ```yaml
 defaults:
-  - ../common                    # Relative paths from experiments/
+  - ../common # Relative paths from experiments/
   - ../agent/fast
   - ../trainer/trainer
   - ../sim/arena

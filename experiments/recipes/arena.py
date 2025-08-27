@@ -58,7 +58,7 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
 
     return [
         SimulationConfig(name="arena/basic", env=basic_env),
-        SimulationConfig(name="arena/combat", env=basic_env),
+        SimulationConfig(name="arena/combat", env=combat_env),
     ]
 
 
@@ -106,7 +106,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=cc.env_curriculum(env_cfg),
         evaluation=EvaluationConfig(
-            simulations=make_evals(),
+            simulations=make_evals(env_cfg),
         ),
     )
 

@@ -397,8 +397,8 @@ pytest
 
 ### CLI cheat sheet
 
-| Task                        | Command                                                                                        |
-| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| Task                        | Command                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
 | Train (arena)               | `./tools/run.py experiments.recipes.arena.train --args run=my_experiment`                              |
 | Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train --args run=my_experiment`                         |
 | Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                        |

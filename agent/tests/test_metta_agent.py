@@ -39,16 +39,81 @@ def create_metta_agent():
 
     # Create system config
     system_cfg = SystemConfig(device="cpu")
-    # Create a proper AgentConfig object
+    # Use the current interface but with the agent the old tests expected
     agent_cfg = AgentConfig(name="fast")
 
-    # Create the agent
+    # Create the agent with the CURRENT signature
     agent = MettaAgent(
         env=MinimalEnv(),
         system_cfg=system_cfg,
         policy_architecture_cfg=agent_cfg,
         policy=None,  # Will create ComponentPolicy internally
     )
+
+    # Create test components that have clip_weights method for testing
+    class ClippableComponent(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.linear = torch.nn.Linear(10, 10)
+            self.ready = True
+            self._sources = None
+            self.clipped = False
+
+        def setup(self, source_components):
+            pass
+
+        def clip_weights(self):
+            # This is a mock implementation for testing
+            self.clipped = True
+            return True
+
+        def forward(self, x):
+            return x
+
+    # Create a mock ActionEmbedding component that has the activate_actions method
+    class MockActionEmbeds(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embedding = torch.nn.Embedding(50, 8)  # Matches config
+            self.ready = True
+            self._sources = None
+            self.clipped = False
+            self.action_names = None
+            self.device = None
+
+        def setup(self, source_components):
+            pass
+
+        def clip_weights(self):
+            self.clipped = True
+            return True
+
+        def activate_actions(self, action_names, device):
+            self.action_names = action_names
+            self.device = device
+            # Create a simple mapping that will let us test action conversions
+            self.action_to_idx = {name: i for i, name in enumerate(action_names)}
+
+        def initialize_to_environment(self, action_names, device):
+            # Simple implementation that just calls activate_actions
+            self.activate_actions(action_names, device)
+
+        def l2_init_loss(self):
+            return torch.tensor(0.0, dtype=torch.float32)
+
+        def forward(self, x):
+            return x
+
+    # Create components for testing
+    comp1 = ClippableComponent()
+    comp2 = ClippableComponent()
+    action_embeds = MockActionEmbeds()
+
+    # Set components on the policy, not the agent
+    if hasattr(agent.policy, "components"):
+        agent.policy.components = torch.nn.ModuleDict(
+            {"_core_": comp1, "_action_": comp2, "_action_embeds_": action_embeds}
+        )
 
     return agent
 
@@ -214,3 +279,130 @@ def test_l2_init_loss(create_metta_agent):
     # Check it returns a tensor
     assert isinstance(loss, torch.Tensor)
     assert loss.dtype == torch.float32
+
+
+def test_convert_action_to_logit_index(create_metta_agent):
+    """Test the critical action conversion functionality from old tests."""
+    agent = create_metta_agent
+
+    # Setup testing environment with controlled action space
+    action_names = ["action0", "action1", "action2"]
+    action_max_params = [1, 2, 0]  # action0: [0,1], action1: [0,1,2], action2: [0]
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
+
+    # Test single actions (from old comprehensive tests)
+    # action (0,0) should map to logit index 0
+    action = torch.tensor([[0, 0]], dtype=torch.long, device="cpu")
+    result = agent._convert_action_to_logit_index(action)
+    assert result.item() == 0
+
+    # action (0,1) should map to logit index 1
+    action = torch.tensor([[0, 1]], dtype=torch.long, device="cpu")
+    result = agent._convert_action_to_logit_index(action)
+    assert result.item() == 1
+
+    # action (1,0) should map to logit index 2
+    action = torch.tensor([[1, 0]], dtype=torch.long, device="cpu")
+    result = agent._convert_action_to_logit_index(action)
+    assert result.item() == 2
+
+    # action (1,2) should map to logit index 4
+    action = torch.tensor([[1, 2]], dtype=torch.long, device="cpu")
+    result = agent._convert_action_to_logit_index(action)
+    assert result.item() == 4
+
+    # action (2,0) should map to logit index 5
+    action = torch.tensor([[2, 0]], dtype=torch.long, device="cpu")
+    result = agent._convert_action_to_logit_index(action)
+    assert result.item() == 5
+
+    # Test batch conversion
+    actions = torch.tensor([[0, 0], [1, 2], [2, 0]], dtype=torch.long, device="cpu")
+    result = agent._convert_action_to_logit_index(actions)
+    assert torch.all(result.flatten() == torch.tensor([0, 4, 5], dtype=torch.long, device="cpu"))
+
+
+def test_convert_logit_index_to_action(create_metta_agent):
+    """Test the reverse action conversion functionality."""
+    agent = create_metta_agent
+
+    # Setup testing environment
+    action_names = ["action0", "action1", "action2"]
+    action_max_params = [1, 2, 0]  # action0: [0,1], action1: [0,1,2], action2: [0]
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
+
+    # Test single conversions
+    # logit index 0 should map to action (0,0)
+    logit_indices = torch.tensor([0], dtype=torch.long, device="cpu")
+    result = agent._convert_logit_index_to_action(logit_indices)
+    assert torch.all(result == torch.tensor([0, 0], dtype=torch.long, device="cpu"))
+
+    # logit index 1 should map to action (0,1)
+    logit_indices = torch.tensor([1], dtype=torch.long, device="cpu")
+    result = agent._convert_logit_index_to_action(logit_indices)
+    assert torch.all(result == torch.tensor([0, 1], dtype=torch.long, device="cpu"))
+
+    # logit index 4 should map to action (1,2)
+    logit_indices = torch.tensor([4], dtype=torch.long, device="cpu")
+    result = agent._convert_logit_index_to_action(logit_indices)
+    assert torch.all(result == torch.tensor([1, 2], dtype=torch.long, device="cpu"))
+
+    # Test batch conversion
+    logit_indices = torch.tensor([0, 4, 5], dtype=torch.long, device="cpu")
+    result = agent._convert_logit_index_to_action(logit_indices)
+    expected = torch.tensor([[0, 0], [1, 2], [2, 0]], dtype=torch.long, device="cpu")
+    assert torch.all(result == expected)
+
+
+def test_bidirectional_action_conversion(create_metta_agent):
+    """Test that action conversion is bidirectional (critical for training)."""
+    agent = create_metta_agent
+
+    # Setup testing environment
+    action_names = ["action0", "action1", "action2"]
+    action_max_params = [1, 2, 0]  # action0: [0,1], action1: [0,1,2], action2: [0]
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
+
+    # Create a test set of all possible actions
+    original_actions = torch.tensor(
+        [
+            [0, 0],
+            [0, 1],  # action0 with params 0,1
+            [1, 0],
+            [1, 1],
+            [1, 2],  # action1 with params 0,1,2
+            [2, 0],  # action2 with param 0
+        ],
+        dtype=torch.long,
+        device="cpu",
+    )
+
+    # Convert to logit indices
+    logit_indices = agent._convert_action_to_logit_index(original_actions)
+
+    # Convert back to actions
+    reconstructed_actions = agent._convert_logit_index_to_action(logit_indices)
+
+    # Check that we get the original actions back (critical!)
+    assert torch.all(reconstructed_actions == original_actions)
