@@ -64,15 +64,7 @@ class Timer:
 
 
 def _capture_caller_info(extra_skip_frames: int = 0) -> Tuple[str, int]:
-    """Capture the filename and line number of the caller.
-
-    Args:
-        extra_skip_frames: Number of additional stack frames to skip beyond the baseline 2
-                          (this function + direct caller)
-
-    Returns:
-        Tuple of (filename, line_number)
-    """
+    """Capture the filename and line number of the caller."""
     frame = inspect.currentframe()
     try:
         # Skip baseline frames (this function + direct caller) plus any extra
@@ -90,19 +82,7 @@ def _capture_caller_info(extra_skip_frames: int = 0) -> Tuple[str, int]:
 
 
 def with_timer(timer: "Stopwatch", name: str, log_level: int | None = None):
-    """Decorator that wraps function execution in a timer context.
-
-    Args:
-        timer: The Stopwatch instance to use
-        name: Name of the timer
-        log_level: Optional logging level to automatically log elapsed time
-
-    Usage:
-        @with_timer(my_timer, "reset")
-        def reset(self, seed=None):
-            # method content
-            pass
-    """
+    """Decorator that wraps function execution in a timer context."""
 
     def decorator(func: F) -> F:
         # Capture where the decorator is applied
@@ -119,23 +99,7 @@ def with_timer(timer: "Stopwatch", name: str, log_level: int | None = None):
 
 
 def with_instance_timer(name: str, log_level: int | None = None, timer_attr: str = "timer"):
-    """Decorator that uses a timer from the instance.
-
-    Args:
-        name: Name of the timer
-        log_level: Optional logging level
-        timer_attr: Name of the timer attribute on the instance (default: "timer")
-
-    Usage:
-        class MyClass:
-            def __init__(self):
-                self.timer = Stopwatch()
-
-            @with_instance_timer("method_timer")
-            def my_method(self, value):
-                # method content
-                return value
-    """
+    """Decorator that uses a timer from the instance."""
 
     def decorator(func: F) -> F:
         # Capture where the decorator is applied
@@ -222,13 +186,7 @@ class Stopwatch:
 
     @with_lock
     def reset(self, name: str | None = None):
-        """Reset timing data for a specific timer.
-
-        Clears all timing data while preserving the timer's existence and reference history.
-
-        Args:
-            name: Timer name (None for global timer)
-        """
+        """Reset timing data while preserving timer existence and reference history."""
 
         name = name or self.GLOBAL_TIMER_NAME
 
@@ -248,10 +206,7 @@ class Stopwatch:
             self._timers[name] = self._create_timer(name)
 
     def reset_all(self):
-        """Reset all timers including global.
-
-        Clears all timing data while preserving timer existence and reference history.
-        """
+        """Reset all timers while preserving timer existence and reference history."""
         with self._lock:
             timer_names = list(self._timers.keys())
 
@@ -265,13 +220,7 @@ class Stopwatch:
         filename: str | None = None,
         lineno: int | None = None,
     ):
-        """Start a timer.
-
-        Args:
-            name: Timer name
-            filename: Optional filename for reference (auto-captured if not provided)
-            lineno: Optional line number for reference (auto-captured if not provided)
-        """
+        """Start a timer with optional reference tracking."""
         timer = self._get_timer(name)
         name = name or self.GLOBAL_TIMER_NAME
 
@@ -317,19 +266,7 @@ class Stopwatch:
         filename: str | None = None,
         lineno: int | None = None,
     ):
-        """Context manager for timing a code block.
-
-        Args:
-            name: Name of the timer
-            log_level: Optional logging level (e.g., logging.INFO) to automatically log elapsed time on exit
-            filename: Optional filename for reference (auto-captured if not provided)
-            lineno: Optional line number for reference (auto-captured if not provided)
-
-        Usage:
-            with stopwatch.time("my_operation", log_level=logging.INFO):
-                # code to time
-                pass
-        """
+        """Context manager for timing a code block with optional automatic logging."""
 
         # Capture caller info if not provided
         if filename is None or lineno is None:
