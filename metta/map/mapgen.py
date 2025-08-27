@@ -92,13 +92,7 @@ class MapGen(MapBuilder):
 
         @classmethod
         def with_ascii_uri(cls, ascii_map_uri: str, **kwargs) -> "MapGen.Config":
-            """Create a MapGenConfig with an ASCII map file as the instance_map.
-            Args:
-                ascii_map: Path to ASCII map file
-                **kwargs: Additional MapGenConfig parameters (e.g., border_width)
-            Returns:
-                New MapGenConfig instance
-            """
+            """Create a MapGenConfig with an ASCII map file as the instance_map."""
             kwargs["instance_map"] = AsciiMapBuilder.Config.from_uri(ascii_map_uri)
             return cls(**kwargs)
 
@@ -108,10 +102,10 @@ class MapGen(MapBuilder):
         self.root = self.config.root
 
         self.rng = np.random.default_rng(self.config.seed)
+        self.grid = None
 
     def prebuild_instances(self):
-        """
-        In some cases, we need to render individual instances in separate grids before we render the final grid.
+        """In some cases, we need to render individual instances in separate grids before we render the final grid.
 
         This is the case for:
         1) Using `instance_map` (which is a map, not a scene, so it defines its own size).
@@ -218,9 +212,7 @@ class MapGen(MapBuilder):
             self.instances = 1
 
     def prepare_grid(self):
-        """
-        Prepare the full grid and its inner area.
-        """
+        """Prepare the full grid with outer walls and inner area for instances."""
         assert self.instances is not None
 
         self.instance_rows = int(np.ceil(np.sqrt(self.instances)))
@@ -254,9 +246,7 @@ class MapGen(MapBuilder):
         self.inner_area = Area(x=bw, y=bw, width=self.inner_width, height=self.inner_height, grid=inner_grid, tags=[])
 
     def get_root_scene_cfg(self) -> SceneConfigOrFile:
-        """
-        Create the full root scene, which might contain multiple instances.
-        """
+        """Create the full root scene configuration, handling single or multiple instances."""
         assert self.instances is not None
 
         if self.instances == 1:
@@ -309,6 +299,9 @@ class MapGen(MapBuilder):
         )
 
     def build(self):
+        if self.grid is not None:
+            return GameMap(self.grid)
+
         self.prebuild_instances()
         self.prepare_grid()
 
