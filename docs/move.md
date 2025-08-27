@@ -1,10 +1,12 @@
 # Movement System in Metta
 
-Metta uses a unified movement system with a single `move` action that can be configured for either 4-way (cardinal) or 8-way (diagonal) movement.
+Metta uses a unified movement system with a single `move` action that can be configured for either 4-way (cardinal) or
+8-way (diagonal) movement.
 
 ## Movement Configuration
 
 ### Unified Move Action
+
 - **Action**: `move` (directions depend on `allow_diagonals` flag)
 - **Cardinal Mode**: `allow_diagonals=false` → 4 directions (0=N, 1=S, 2=W, 3=E)
 - **8-Way Mode**: `allow_diagonals=true` → 8 directions (0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
@@ -12,9 +14,11 @@ Metta uses a unified movement system with a single `move` action that can be con
 
 ## Key Concepts
 
-**Orientation**: The `move` action automatically updates agent orientation to match the movement direction. Orientation affects actions like `attack`.
+**Orientation**: The `move` action automatically updates agent orientation to match the movement direction. Orientation
+affects actions like `attack`.
 
 **Action Space**: The `move` action's parameter count depends on the `allow_diagonals` setting:
+
 ```python
 # Cardinal (4-way): move action takes values 0-3
 # 8-Way (diagonal): move action takes values 0-7
@@ -23,6 +27,7 @@ Metta uses a unified movement system with a single `move` action that can be con
 ## Usage Examples
 
 ### Training
+
 ```bash
 # Cardinal Movement (4-way, default)
 uv run ./tools/run.py experiments.recipes.arena.train run=cardinal_test \
@@ -36,6 +41,7 @@ uv run ./tools/run.py experiments.recipes.arena.train run=8way_test \
 ```
 
 ### Evaluation
+
 ```bash
 # Cardinal Movement
 uv run ./tools/run.py experiments.recipes.arena.evaluate \
@@ -52,10 +58,10 @@ uv run ./tools/run.py experiments.recipes.arena.evaluate \
 
 ## Performance Trade-offs
 
-| Movement Type | Action Space | Configuration | Best For |
-|--------------|--------------|---------------|----------|
-| Cardinal | Medium (4) | `move=true`, `allow_diagonals=false` | Navigation, grid environments |
-| 8-Way | Large (8) | `move=true`, `allow_diagonals=true` | Open environments, complex navigation |
+| Movement Type | Action Space | Configuration                        | Best For                              |
+| ------------- | ------------ | ------------------------------------ | ------------------------------------- |
+| Cardinal      | Medium (4)   | `move=true`, `allow_diagonals=false` | Navigation, grid environments         |
+| 8-Way         | Large (8)    | `move=true`, `allow_diagonals=true`  | Open environments, complex navigation |
 
 ## Important Notes
 
