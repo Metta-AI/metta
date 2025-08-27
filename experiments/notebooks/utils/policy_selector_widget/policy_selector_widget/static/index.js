@@ -835,7 +835,7 @@ function TT() {
           return z = m._result, z === void 0 && console.error(
             `lazy: Expected the result of a dynamic import() call. Instead received: %s
 
-Your code should look like:
+Your code should look like: 
   const MyComponent = lazy(() => import('./MyComponent'))
 
 Did you accidentally put curly braces around the import?`,
@@ -843,7 +843,7 @@ Did you accidentally put curly braces around the import?`,
           ), "default" in z || console.error(
             `lazy: Expected the result of a dynamic import() call. Instead received: %s
 
-Your code should look like:
+Your code should look like: 
   const MyComponent = lazy(() => import('./MyComponent'))`,
             z
           ), z.default;
@@ -25879,7 +25879,7 @@ Please update the following components: %s`,
         `componentWillMount has been renamed, and is not recommended for use. See https://react.dev/link/unsafe-component-lifecycles for details.
 
 * Move code with side effects to componentDidMount, and set initial state in the constructor.
-* Rename componentWillMount to UNSAFE_componentWillMount to suppress this warning in non-strict mode. In React 18.x, only the UNSAFE_ name will work. To rename all deprecated lifecycles to their new names, you can run \`pnpm react-codemod rename-unsafe-lifecycles\` in your project source folder.
+* Rename componentWillMount to UNSAFE_componentWillMount to suppress this warning in non-strict mode. In React 18.x, only the UNSAFE_ name will work. To rename all deprecated lifecycles to their new names, you can run \`npx react-codemod rename-unsafe-lifecycles\` in your project source folder.
 
 Please update the following components: %s`,
         d
@@ -25890,7 +25890,7 @@ Please update the following components: %s`,
 
 * Move data fetching code or side effects to componentDidUpdate.
 * If you're updating state whenever props change, refactor your code to use memoization techniques or move it to static getDerivedStateFromProps. Learn more at: https://react.dev/link/derived-state
-* Rename componentWillReceiveProps to UNSAFE_componentWillReceiveProps to suppress this warning in non-strict mode. In React 18.x, only the UNSAFE_ name will work. To rename all deprecated lifecycles to their new names, you can run \`pnpm react-codemod rename-unsafe-lifecycles\` in your project source folder.
+* Rename componentWillReceiveProps to UNSAFE_componentWillReceiveProps to suppress this warning in non-strict mode. In React 18.x, only the UNSAFE_ name will work. To rename all deprecated lifecycles to their new names, you can run \`npx react-codemod rename-unsafe-lifecycles\` in your project source folder.
 
 Please update the following components: %s`,
         d
@@ -25898,7 +25898,7 @@ Please update the following components: %s`,
         `componentWillUpdate has been renamed, and is not recommended for use. See https://react.dev/link/unsafe-component-lifecycles for details.
 
 * Move data fetching code or side effects to componentDidUpdate.
-* Rename componentWillUpdate to UNSAFE_componentWillUpdate to suppress this warning in non-strict mode. In React 18.x, only the UNSAFE_ name will work. To rename all deprecated lifecycles to their new names, you can run \`pnpm react-codemod rename-unsafe-lifecycles\` in your project source folder.
+* Rename componentWillUpdate to UNSAFE_componentWillUpdate to suppress this warning in non-strict mode. In React 18.x, only the UNSAFE_ name will work. To rename all deprecated lifecycles to their new names, you can run \`npx react-codemod rename-unsafe-lifecycles\` in your project source folder.
 
 Please update the following components: %s`,
         d
