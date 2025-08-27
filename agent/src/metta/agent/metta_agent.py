@@ -137,8 +137,7 @@ class MettaAgent(nn.Module):
         """Initialize the agent to the current environment.
 
         This is the one-stop shop for setting up agents to interact with environments.
-        Handles both new agents and agents loaded from disk with existing feature mappings.
-        """
+        Handles both new agents and agents loaded from disk with existing feature mappings."""
         self.device = device
         self.training = is_training
 

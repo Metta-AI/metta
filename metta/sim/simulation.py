@@ -191,9 +191,7 @@ class Simulation:
         )
 
     def start_simulation(self) -> None:
-        """
-        Start the simulation.
-        """
+        """Start the simulation."""
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
             self._name,
@@ -219,9 +217,7 @@ class Simulation:
         return td["actions"]
 
     def generate_actions(self) -> np.ndarray:
-        """
-        Generate actions for the simulation.
-        """
+        """Generate actions for the simulation."""
         if __debug__:
             # Debug assertion: verify indices are correctly ordered
             # Policy indices should be 0 to N-1
@@ -363,9 +359,7 @@ class Simulation:
         return SimulationResults(db)
 
     def simulate(self) -> SimulationResults:
-        """
-        Run the simulation; returns the merged `StatsDB`.
-        """
+        """Run the simulation; returns the merged `StatsDB`."""
         self.start_simulation()
 
         self._policy_pr.policy.reset_memory()
@@ -519,8 +513,7 @@ class Simulation:
         """Get the policy state for memory manipulation.
 
         Returns a PolicyState object with lstm_h and lstm_c attributes if available.
-        Note: The actual state management depends on the specific policy implementation.
-        """
+        Note: The actual state management depends on the specific policy implementation."""
         # The policy is the LSTM wrapper
         policy = self._policy_pr.policy
 
@@ -565,10 +558,8 @@ class Simulation:
 
 @dataclass
 class SimulationResults:
-    """
-    Results of a simulation.
-    For now just a stats db. Replay plays can be retrieved from the stats db.
-    """
+    """Results of a simulation.
+    For now just a stats db. Replay plays can be retrieved from the stats db."""
 
     stats_db: SimulationStatsDB
     replay_urls: dict[str, list[str]] | None = None  # Maps simulation names to lists of replay URLs
