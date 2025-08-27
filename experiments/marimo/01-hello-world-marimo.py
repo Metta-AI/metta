@@ -921,22 +921,27 @@ def _(mo):
 
 @app.cell
 def _(
+    MettaGridEnv,
     Path,
     PolicyStore,
-    SimulationConfig,
     WandbConfig,
+    contextlib,
     display,
     env_config,
     eval_trained_button,
-    evaluate_policy,
     get_repo_root,
-    logging,
+    initialize_policy_for_environment,
+    io,
     mo,
     np,
     os,
     pd,
+    renderer_config,
     run_name,
+    simulation_context,
+    time,
     torch,
+    widgets,
 ):
     mo.stop(not eval_trained_button.value)
 
