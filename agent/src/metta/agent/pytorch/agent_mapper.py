@@ -1,5 +1,5 @@
 from metta.agent.pytorch.agalite import AGaLiTe
-from metta.agent.pytorch.agalite_improved import AGaLiTeImproved
+from metta.agent.pytorch.agalite_experimental import AGaLiTeExperimental
 from metta.agent.pytorch.example import Example
 from metta.agent.pytorch.fast import Fast
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed
@@ -11,7 +11,7 @@ from metta.agent.pytorch.transformer_improved import TransformerImproved
 # Map from agent type names to their pytorch implementations
 agent_classes = {
     "agalite": AGaLiTe,  # Stable baseline with fast mode as default
-    "agalite_improved": AGaLiTeImproved,  # Experimental improvements
+    "agalite_experimental": AGaLiTeExperimental,  # Experimental improvements
     "example": Example,
     "fast": Fast,
     "transformer": Transformer,

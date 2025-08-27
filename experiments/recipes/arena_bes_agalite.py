@@ -183,7 +183,7 @@ def train(test_mode: bool = False) -> TrainTool:
     )
 
     # Configure enhanced AGaLiTe agent
-    agent_config = AgentConfig(name="pytorch/agalite_improved")
+    agent_config = AgentConfig(name="pytorch/agalite_experimental")
 
     return TrainTool(
         trainer=trainer_cfg,

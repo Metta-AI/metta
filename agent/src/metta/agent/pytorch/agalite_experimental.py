@@ -1,6 +1,6 @@
 """
-AGaLiTe Improved - A beefier variant of the working agalite-fast.
-Starts from the exact working baseline and adds more capacity.
+AGaLiTe Experimental - A beefier variant of the working agalite-fast.
+Starts from the exact working baseline and adds more capacity for experimental features.
 """
 
 import logging
@@ -13,7 +13,7 @@ from pufferlib.pytorch import layer_init as init_layer
 from tensordict import TensorDict
 from torch import nn
 
-# Import enhanced implementation - required for AGaLiTe Improved
+# Import enhanced implementation - required for AGaLiTe Experimental
 from metta.agent.modules.agalite_core_enhanced import EnhancedAGaLiTeCore
 from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentLinearTransformerEncoder
@@ -362,9 +362,9 @@ class AGaLiTePolicy(nn.Module):
         return self.transformer.initialize_memory(batch_size=batch_size, device=device)
 
 
-class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
+class AGaLiTeExperimental(PyTorchAgentMixin, TransformerWrapper):
     """
-    AGaLiTe Improved - Beefier version of the working agalite-fast.
+    AGaLiTe Experimental - Beefier version of the working agalite-fast.
 
     Changes from baseline:
     - More layers (3 vs 2) for increased depth
@@ -390,7 +390,7 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
         use_enhanced: bool = True,  # Use enhanced implementation by default
         **kwargs,
     ):
-        """Initialize AGaLiTe Improved with enhanced paper implementation.
+        """Initialize AGaLiTe Experimental with enhanced paper implementation.
 
         Args:
             env: Environment

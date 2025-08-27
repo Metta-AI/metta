@@ -9,15 +9,29 @@ from typing import Dict, Optional, Tuple
 import einops
 import numpy as np
 import torch
-from pufferlib.pytorch import layer_init as init_layer
+import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-# Import fast implementation - required for AGaLiTe
-from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
+from pufferlib.pytorch import layer_init as init_layer
+
 from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentLinearTransformerEncoder
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+
+# Import fast implementation for large batch processing
+try:
+    from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
+    FAST_MODE_AVAILABLE = True
+except ImportError:
+    FAST_MODE_AVAILABLE = False
+
+# Install parallel discounted_sum for GPU performance
+try:
+    from metta.agent.modules.agalite_parallel import install_parallel_discounted_sum
+    install_parallel_discounted_sum()
+except ImportError:
+    pass  # Fall back to sequential version
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +40,7 @@ class AGaLiTeCore(nn.Module):
     """
     Full AGaLiTe transformer model with proper memory handling.
     Processes entire BPTT sequences as context.
-
+    
     Supports two modes:
     - Standard mode: Full AGaLiTe with configurable eta/r
     - Fast mode: Optimized for large batches with reduced parameters
@@ -52,19 +66,21 @@ class AGaLiTeCore(nn.Module):
         self.d_ffc = d_ffc
         self.n_heads = n_heads
         self.use_fast_mode = use_fast_mode
-
+        
         # Fast mode uses reduced parameters for efficiency
-        if use_fast_mode:
+        if use_fast_mode and FAST_MODE_AVAILABLE:
             self.eta = min(eta, 2)  # Cap at 2 for fast mode
-            self.r = min(r, 4)  # Cap at 4 for fast mode
+            self.r = min(r, 4)      # Cap at 4 for fast mode
             logger.info(f"Using FastAGaLiTeLayer with eta={self.eta}, r={self.r}")
         else:
             self.eta = eta
             self.r = r
+            if use_fast_mode and not FAST_MODE_AVAILABLE:
+                logger.warning("Fast mode requested but FastAGaLiTeLayer not available, using standard mode")
 
         self.encoders = nn.ModuleList()
         for layer in range(n_layers):
-            if use_fast_mode:
+            if use_fast_mode and FAST_MODE_AVAILABLE:
                 # Use fast implementation
                 encoder = FastAGaLiTeLayer(
                     d_model=d_model,
@@ -100,13 +116,13 @@ class AGaLiTeCore(nn.Module):
 
         for layer_idx, encoder in enumerate(self.encoders):
             layer_key = f"layer_{layer_idx + 1}"
-            if self.use_fast_mode:
+            if self.use_fast_mode and FAST_MODE_AVAILABLE:
                 # Fast mode: encoder is FastAGaLiTeLayer, add residual connection
                 residual = u_i
                 attn_out, memory_updated = encoder(u_i, terminations, memory[layer_key])
                 u_i = residual + attn_out  # Residual connection
             else:
-                # Standard mode: encoder is RecurrentLinearTransformerEncoder
+                # Standard mode: encoder is RecurrentLinearTransformerEncoder  
                 u_i, memory_updated = encoder(u_i, terminations, memory[layer_key])
             new_memory[layer_key] = memory_updated
 
@@ -114,19 +130,13 @@ class AGaLiTeCore(nn.Module):
 
     @staticmethod
     def initialize_memory(
-        batch_size: int,
-        n_layers: int,
-        n_heads: int,
-        d_head: int,
-        eta: int,
-        r: int,
-        device: torch.device = None,
-        use_fast_mode: bool = False,
+        batch_size: int, n_layers: int, n_heads: int, d_head: int, eta: int, r: int, 
+        device: torch.device = None, use_fast_mode: bool = False
     ) -> Dict[str, Tuple]:
         """Initialize memory for all layers."""
         memory_dict = {}
         for layer in range(1, n_layers + 1):
-            if use_fast_mode:
+            if use_fast_mode and FAST_MODE_AVAILABLE:
                 # Fast mode uses reduced parameters
                 actual_eta = min(eta, 2)
                 actual_r = min(r, 4)
@@ -169,15 +179,15 @@ class AGaLiTePolicy(nn.Module):
         self.n_heads = n_heads
         self.d_head = d_head
         self.use_fast_mode = use_fast_mode
-
+        
         # Adjust parameters for fast mode
-        if use_fast_mode:
+        if use_fast_mode and FAST_MODE_AVAILABLE:
             self.eta = min(eta, 2)
             self.r = min(r, 4)
         else:
             self.eta = eta
             self.r = r
-
+        
         self.reset_on_terminate = reset_on_terminate
 
         # Required by TransformerWrapper
@@ -210,7 +220,7 @@ class AGaLiTePolicy(nn.Module):
             d_ffc=d_ffc,
             n_heads=n_heads,
             eta=self.eta,  # Use adjusted values
-            r=self.r,  # Use adjusted values
+            r=self.r,      # Use adjusted values
             reset_on_terminate=reset_on_terminate,
             dropout=dropout,
             use_fast_mode=use_fast_mode,
@@ -222,7 +232,7 @@ class AGaLiTePolicy(nn.Module):
         self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
         self.actor_1 = init_layer(nn.Linear(d_model, 512), std=1.0)
         self.action_embeddings = nn.Embedding(100, 16)
-
+        
         # Initialize action embeddings to match YAML ActionEmbedding component
         nn.init.orthogonal_(self.action_embeddings.weight)
         with torch.no_grad():
@@ -338,13 +348,13 @@ class AGaLiTePolicy(nn.Module):
 
     def initialize_memory(self, batch_size: int) -> Dict:
         """Initialize AGaLiTe memory for a batch.
-
+        
         Gets device from the model's parameters to ensure memory is created
         on the same device as the model.
         """
         # Get device from model parameters
         device = next(self.parameters()).device
-
+        
         return AGaLiTeCore.initialize_memory(
             batch_size=batch_size,
             n_layers=self.n_layers,
@@ -368,7 +378,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
     - Full compatibility with Metta's training infrastructure
     - Weight management and action conversion via PyTorchAgentMixin
     """
-
+    
     def __init__(
         self,
         env,
@@ -381,11 +391,11 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         r: int = 8,
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
-        use_fast_mode: bool = True,  # Default to fast mode (this is agalite-fast)
+        use_fast_mode: bool = False,
         **kwargs,
     ):
         """Initialize AGaLiTe with mixin support.
-
+        
         Args:
             env: Environment
             d_model: Model dimension
@@ -402,7 +412,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         """
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
-
+        
         # Create the AGaLiTe policy
         policy = AGaLiTePolicy(
             env=env,
@@ -420,13 +430,13 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
 
         # Initialize with TransformerWrapper
         super().__init__(env, policy, hidden_size=d_model)
-
+        
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
         """Forward pass compatible with MettaAgent expectations.
-
+        
         Follows the Fast agent pattern for TensorDict handling:
         - Reshape TD early if in training mode
         - Keep it flat throughout processing
@@ -442,7 +452,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         # Store terminations if available
         if "dones" in td:
             state["terminations"] = td["dones"]
-
+            
         # Determine dimensions from observations
         if observations.dim() == 4:  # Training
             B = observations.shape[0]
@@ -453,7 +463,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         else:  # Inference
             B = observations.shape[0]
             TT = 1
-
+            
         # Set critical TensorDict fields using mixin (TD is already reshaped if needed)
         self.set_tensordict_fields(td, observations)
 
@@ -461,7 +471,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         if action is None:
             # Inference mode
             logits, values = self.forward_eval(observations, state)
-
+            
             # Use mixin for inference mode processing
             td = self.forward_inference(td, logits, values)
 
@@ -474,7 +484,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
                 values_flat = values.flatten()
             else:
                 values_flat = values
-
+            
             # Use mixin's forward_training
             # Note: The mixin will try to reshape at the end, but that's okay
             # because our TD is already flat and matches what it expects
