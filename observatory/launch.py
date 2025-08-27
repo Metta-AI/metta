@@ -33,7 +33,7 @@ def main():
 
     observatory_dir = Path(__file__).parent
 
-    # Run npm dev
+    # Run pnpm dev
     info(f"Starting Observatory with backend: {args.backend}")
     info(f"API URL: {env.get('VITE_API_URL')}")
     if "VITE_AUTH_TOKEN" in env:
@@ -42,7 +42,7 @@ def main():
     try:
         subprocess.run(["pnpm", "run", "dev"], env=env, check=True, cwd=observatory_dir)
     except subprocess.CalledProcessError as e:
-        error(f"Error running npm dev: {e}", file=sys.stderr)
+        error(f'Error running "pnpm run dev": {e}', file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:
         error("\nObservatory shutdown")
