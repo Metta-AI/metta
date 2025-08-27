@@ -14,6 +14,9 @@ links:
     icon: https://avatars.githubusercontent.com/u/109387420?s=200&v=4
     url: https://skypilot-api.softmax-research.net/
     short_urls: [s, sky, skypilot]
+    sub_links:
+      - name: README
+        url: https://github.com/Metta-AI/metta/tree/main/devops/skypilot
   - name: Datadog
     url: https://app.datadoghq.com/dashboard/
     short_urls: [dd, datadog]
@@ -38,6 +41,9 @@ links:
     url: https://metta-ai.app.spacelift.io/launchpad
     short_urls: [sl, spacelift]
     icon: https://7706335.fs1.hubspotusercontent-na1.net/hub/7706335/hubfs/logo_dark@2x.png?width=108&height=108
+    sub_links:
+      - name: README
+        url: https://github.com/Metta-AI/metta/tree/main/devops/tf
   - name: Grafana
     url: https://grafana.softmax-research.net/
     short_urls: [gf, grafana]
