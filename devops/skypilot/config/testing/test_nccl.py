@@ -959,7 +959,6 @@ def main():
             return launch_distributed_test()
 
     # Determine our position in the cluster
-    # Standardize on NODE_INDEX (your launch script seems to use this)
     node_index = int(os.environ.get("NODE_INDEX", 0))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     rank = int(os.environ.get("RANK", 0))
