@@ -255,7 +255,6 @@ class Simulation:
         with torch.no_grad():
             # Candidate-policy agents
             my_obs = self._obs[self._policy_idxs.cpu()]
-
             td = obs_to_td(my_obs, self._device)  # One-liner conversion
             policy = self._policy_pr.policy
             policy(td)
@@ -264,7 +263,6 @@ class Simulation:
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = self._obs[self._npc_idxs]
-
                 td = obs_to_td(npc_obs, self._device)  # One-liner conversion
                 npc_policy = self._npc_pr.policy
                 try:
