@@ -39,8 +39,16 @@ protected:
     getOrientationDelta(move_direction, dc, dr);
 
     // Calculate target location
-    target_location.r += dr;
-    target_location.c += dc;
+    int new_r = static_cast<int>(target_location.r) + dr;
+    int new_c = static_cast<int>(target_location.c) + dc;
+
+    if (new_r < 0 || new_r > std::numeric_limits<GridCoord>::max() || new_c < 0 ||
+        new_c > std::numeric_limits<GridCoord>::max()) {
+      return false;
+    }
+
+    target_location.r = static_cast<GridCoord>(new_r);
+    target_location.c = static_cast<GridCoord>(new_c);
 
     // Update orientation to face the movement direction (even if movement fails)
     actor->orientation = move_direction;
