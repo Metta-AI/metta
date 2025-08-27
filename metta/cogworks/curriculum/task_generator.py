@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
 
 from pydantic import (
     ConfigDict,
@@ -20,7 +20,7 @@ from metta.common.util.module import load_symbol
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 if TYPE_CHECKING:
-    from metta.cogworks.curriculum.curriculum import CurriculumConfig
+    pass
 
 logger = logging.getLogger(__name__)
 
