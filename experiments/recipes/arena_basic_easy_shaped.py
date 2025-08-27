@@ -16,33 +16,22 @@ from metta.agent.agent_config import AgentConfig
 def make_env(num_agents: int = 24) -> EnvConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
-    # Apply shaped rewards (CRITICAL: Set rewards on BOTH configs to prevent clobbering)
-    arena_env.game.agent.rewards.inventory.ore_red = 0.1
-    arena_env.game.agent.rewards.inventory.ore_red_max = 1
-    arena_env.game.agent.rewards.inventory.battery_red = 0.8
-    arena_env.game.agent.rewards.inventory.battery_red_max = 1
-    arena_env.game.agent.rewards.inventory.laser = 0.5
-    arena_env.game.agent.rewards.inventory.laser_max = 1
-    arena_env.game.agent.rewards.inventory.armor = 0.5
-    arena_env.game.agent.rewards.inventory.armor_max = 1
-    arena_env.game.agent.rewards.inventory.blueprint = 0.5
-    arena_env.game.agent.rewards.inventory.blueprint_max = 1
-    arena_env.game.agent.rewards.inventory.heart = 1
-    arena_env.game.agent.rewards.inventory.heart_max = 100
-
-    # Also set rewards on group config to prevent them from being clobbered
-    arena_env.game.groups["agent"].props.rewards.inventory.ore_red = 0.1
-    arena_env.game.groups["agent"].props.rewards.inventory.ore_red_max = 1
-    arena_env.game.groups["agent"].props.rewards.inventory.battery_red = 0.8
-    arena_env.game.groups["agent"].props.rewards.inventory.battery_red_max = 1
-    arena_env.game.groups["agent"].props.rewards.inventory.laser = 0.5
-    arena_env.game.groups["agent"].props.rewards.inventory.laser_max = 1
-    arena_env.game.groups["agent"].props.rewards.inventory.armor = 0.5
-    arena_env.game.groups["agent"].props.rewards.inventory.armor_max = 1
-    arena_env.game.groups["agent"].props.rewards.inventory.blueprint = 0.5
-    arena_env.game.groups["agent"].props.rewards.inventory.blueprint_max = 1
-    arena_env.game.groups["agent"].props.rewards.inventory.heart = 1
-    arena_env.game.groups["agent"].props.rewards.inventory.heart_max = 100
+    arena_env.game.agent.rewards.inventory = {
+        "heart": 1,
+        "ore_red": 0.1,
+        "battery_red": 0.8,
+        "laser": 0.5,
+        "armor": 0.5,
+        "blueprint": 0.5,
+    }
+    arena_env.game.agent.rewards.inventory_max = {
+        "heart": 100,
+        "ore_red": 1,
+        "battery_red": 1,
+        "laser": 1,
+        "armor": 1,
+        "blueprint": 1,
+    }
 
     # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
     arena_env.game.objects["altar"].input_resources = {"battery_red": 1}
@@ -108,48 +97,6 @@ def train(
         policy_architecture = AgentConfig(name=agent)
 
     return TrainTool(trainer=trainer_cfg, policy_architecture=policy_architecture)
-
-
-def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
-    env_cfg = make_env()
-    env_cfg.game.agent.rewards.inventory.heart = 1
-    env_cfg.game.agent.rewards.inventory.heart_max = 100
-
-    if rewards:
-        env_cfg.game.agent.rewards.inventory.ore_red = 0.1
-        env_cfg.game.agent.rewards.inventory.ore_red_max = 1
-        env_cfg.game.agent.rewards.inventory.battery_red = 0.8
-        env_cfg.game.agent.rewards.inventory.battery_red_max = 1
-        env_cfg.game.agent.rewards.inventory.laser = 0.5
-        env_cfg.game.agent.rewards.inventory.laser_max = 1
-        env_cfg.game.agent.rewards.inventory.armor = 0.5
-        env_cfg.game.agent.rewards.inventory.armor_max = 1
-        env_cfg.game.agent.rewards.inventory.blueprint = 0.5
-        env_cfg.game.agent.rewards.inventory.blueprint_max = 1
-
-        # Set the same rewards on group config
-        env_cfg.game.groups["agent"].props.rewards.inventory.ore_red = 0.1
-        env_cfg.game.groups["agent"].props.rewards.inventory.ore_red_max = 1
-        env_cfg.game.groups["agent"].props.rewards.inventory.battery_red = 0.8
-        env_cfg.game.groups["agent"].props.rewards.inventory.battery_red_max = 1
-        env_cfg.game.groups["agent"].props.rewards.inventory.laser = 0.5
-        env_cfg.game.groups["agent"].props.rewards.inventory.laser_max = 1
-        env_cfg.game.groups["agent"].props.rewards.inventory.armor = 0.5
-        env_cfg.game.groups["agent"].props.rewards.inventory.armor_max = 1
-        env_cfg.game.groups["agent"].props.rewards.inventory.blueprint = 0.5
-        env_cfg.game.groups["agent"].props.rewards.inventory.blueprint_max = 1
-
-    if converters:
-        env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
-
-    trainer_cfg = TrainerConfig(
-        curriculum=cc.env_curriculum(env_cfg),
-        evaluation=EvaluationConfig(
-            simulations=make_evals(env_cfg),
-        ),
-    )
-
-    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[EnvConfig] = None) -> PlayTool:
