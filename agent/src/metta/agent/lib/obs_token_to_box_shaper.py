@@ -87,6 +87,7 @@ class ObsTokenToBoxShaper(LayerBase):
         box_flat = torch.zeros(
             (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
         )
+
         box_flat.scatter_(1, safe_index, safe_values)
         box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
 

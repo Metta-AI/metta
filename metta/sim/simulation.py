@@ -253,15 +253,7 @@ class Simulation:
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
             # Candidate-policy agents
-            # Use advanced indexing to preserve batch dimensions
-            policy_idxs_cpu = self._policy_idxs.cpu()
-            my_obs = self._obs[policy_idxs_cpu]
-
-            # Ensure we maintain batch dimension even for single agent selection
-            if my_obs.ndim == 2 and len(policy_idxs_cpu) == 1:
-                # If indexing a single agent from (1, tokens, features) resulted in (tokens, features),
-                # restore the batch dimension to (1, tokens, features)
-                my_obs = my_obs[None, ...]  # Add batch dimension back
+            my_obs = self._obs[self._policy_idxs.cpu()]
 
             td = obs_to_td(my_obs, self._device)  # One-liner conversion
             policy = self._policy_pr.policy
@@ -271,10 +263,6 @@ class Simulation:
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = self._obs[self._npc_idxs]
-
-                # Ensure we maintain batch dimension for NPC agents too
-                if npc_obs.ndim == 2 and len(self._npc_idxs) == 1:
-                    npc_obs = npc_obs[None, ...]  # Add batch dimension back
 
                 td = obs_to_td(npc_obs, self._device)  # One-liner conversion
                 npc_policy = self._npc_pr.policy
