@@ -247,14 +247,15 @@ class TransformerBlock(nn.Module):
 
 class TransformerModule(nn.Module):
     """
-    Full-context transformer optimized for parallel processing across environments/agents.
+    GTrXL (Gated Transformer-XL) implementation optimized for reinforcement learning.
 
     Key features:
-    - Processes entire BPTT trajectories as context
+    - Memory mechanism for handling sequences beyond context window
+    - GRU-style gating for training stability
+    - Pre-normalization for better gradient flow
+    - Gradient stopping through memory
     - Fused projections for memory efficiency
     - Batched operations for parallel environment/agent processing
-    - GTrXL-style gating for stability
-    - Pre-normalization for better gradient flow
     """
 
     def __init__(
@@ -264,11 +265,12 @@ class TransformerModule(nn.Module):
         n_layers: int = 6,
         d_ff: int = 1024,
         max_seq_len: int = 256,
+        memory_len: int = 64,
         dropout: float = 0.1,
         use_causal_mask: bool = True,
         use_gating: bool = True,
     ):
-        """Initialize the transformer.
+        """Initialize the GTrXL transformer.
 
         Args:
             d_model: Model dimension
@@ -276,6 +278,7 @@ class TransformerModule(nn.Module):
             n_layers: Number of transformer layers
             d_ff: Feed-forward dimension
             max_seq_len: Maximum sequence length (should be >= BPTT horizon)
+            memory_len: Length of memory to maintain from previous segments
             dropout: Dropout rate
             use_causal_mask: Whether to use causal masking
             use_gating: Whether to use GRU gating (GTrXL-style)
@@ -283,6 +286,8 @@ class TransformerModule(nn.Module):
         super().__init__()
 
         self.d_model = d_model
+        self.n_layers = n_layers
+        self.memory_len = memory_len
         self.use_gating = use_gating
 
         # Positional encoding
@@ -312,8 +317,8 @@ class TransformerModule(nn.Module):
 
         logger = logging.getLogger(__name__)
         logger.info(
-            f"FullContextTransformer initialized: d_model={d_model}, n_heads={n_heads}, "
-            f"n_layers={n_layers}, use_gating={use_gating}"
+            f"GTrXL initialized: d_model={d_model}, n_heads={n_heads}, "
+            f"n_layers={n_layers}, memory_len={memory_len}, use_gating={use_gating}"
         )
 
     def _init_gates_for_identity(self):
@@ -327,77 +332,82 @@ class TransformerModule(nn.Module):
         # Gates are initialized with appropriate bias during construction
         pass
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass processing sequences from multiple environments/agents.
+    def forward(self, x: torch.Tensor, memory: Optional[Dict] = None) -> Tuple[torch.Tensor, Dict]:
+        """Forward pass with GTrXL memory mechanism.
 
         Args:
             x: Input of shape (T, B, d_model) where B = num_envs * num_agents
-                or (B, T, d_model)
+            memory: Dictionary containing memory from previous segments
 
         Returns:
-            Output of same shape as input
+            output: Tensor of same shape as input
+            new_memory: Updated memory dictionary
         """
-        # Log input shape for debugging
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug(f"FullContextTransformer.forward input shape: {x.shape}")
+        # Initialize memory if not provided
+        if memory is None:
+            memory = self.initialize_memory(1)  # Default batch size
 
         # Handle both (T, B, d_model) and (B, T, d_model) formats
         if x.dim() == 3:
-            # The TransformerWrapper should always give us (T, B, d_model)
-            # where T is sequence length and B is batch size
             T, B, D = x.shape
-            needs_transpose = False
-
-            # Sanity check - if T is unreasonably large, something is wrong
-            if T > self.positional_encoding.pe.size(0):
-                logger.error(
-                    f"Sequence length {T} exceeds max positional encoding length {self.positional_encoding.pe.size(0)}"
-                )
-                logger.error(f"Input shape: {x.shape}")
-                # Try to handle it as (B, T, d_model) instead
-                if B <= self.positional_encoding.pe.size(0):
-                    logger.warning("Assuming input is (B, T, d_model) and transposing")
-                    x = x.transpose(0, 1)
-                    T, B, D = x.shape
-                    needs_transpose = True
-                else:
-                    raise ValueError(f"Sequence length {T} exceeds maximum {self.positional_encoding.pe.size(0)}")
         elif x.dim() == 2:
             # Single timestep (B, d_model) - add time dimension
             x = x.unsqueeze(0)  # (1, B, d_model)
             T, B, D = x.shape
-            needs_transpose = False
         else:
             raise ValueError(f"Expected 2D or 3D tensor, got shape {x.shape}")
 
-        logger.debug(f"After reshaping: T={T}, B={B}, D={D}")
+        # Get memory for current batch size
+        past_memory = memory.get("hidden_states")
+        if past_memory is not None and past_memory[0].size(1) != B:
+            # Memory batch size mismatch - reinitialize
+            memory = self.initialize_memory(B)
+            past_memory = memory.get("hidden_states")
 
-        # Optional input projection (like AGaLiTe's embedding layer)
+        # Optional input projection
         if self.use_input_proj:
             x = self.input_proj(x)
-            x = F.relu(x)  # Activation after input projection
+            x = F.relu(x)
 
         # Add positional encoding
         x = self.positional_encoding(x)
 
-        # Process through transformer layers
-        # All environments/agents are processed in parallel
-        for layer in self.layers:
-            x = layer(x)
+        # Store layer outputs for memory update
+        new_memory_states = []
+
+        # Process through transformer layers with memory
+        current_hidden = x
+        for i, layer in enumerate(self.layers):
+            # Get memory for this layer
+            layer_memory = past_memory[i] if past_memory is not None else None
+
+            # Concatenate memory with current input
+            if layer_memory is not None:
+                # Stop gradients through memory (key GTrXL feature)
+                layer_memory = layer_memory.detach()
+                # Concatenate along sequence dimension: (mem_len + T, B, d_model)
+                extended_input = torch.cat([layer_memory, current_hidden], dim=0)
+            else:
+                extended_input = current_hidden
+
+            # Process through transformer layer
+            layer_output = layer(extended_input)
+
+            # Extract output for current sequence (last T steps)
+            current_hidden = layer_output[-T:]
+
+            # Store memory for next iteration (last memory_len steps from full output)
+            if self.memory_len > 0:
+                memory_to_store = layer_output[-self.memory_len :].detach()
+                new_memory_states.append(memory_to_store)
 
         # Final normalization
-        x = self.output_norm(x)
+        output = self.output_norm(current_hidden)
 
-        # Restore original format if needed
-        if needs_transpose:
-            x = x.transpose(0, 1)
-        elif x.size(0) == 1:
-            # Remove time dimension if it was added for single timestep
-            x = x.squeeze(0)
+        # Update memory
+        new_memory = {"hidden_states": new_memory_states if new_memory_states else None}
 
-        return x
+        return output, new_memory
 
     def forward_chunked(self, x: torch.Tensor, chunk_size: int = 16) -> torch.Tensor:
         """Process very long sequences in chunks to manage memory.
@@ -442,18 +452,25 @@ class TransformerModule(nn.Module):
         return torch.cat(outputs, dim=0)
 
     def initialize_memory(self, batch_size: int) -> dict:
-        """Initialize memory for the transformer.
-
-        This transformer doesn't use recurrent memory, but we provide
-        this method for compatibility with the infrastructure.
+        """Initialize GTrXL memory for the transformer.
 
         Args:
             batch_size: Batch size (num_envs * num_agents)
 
         Returns:
-            Empty memory dict
+            Memory dictionary with initialized hidden states for each layer
         """
-        return {}
+        if self.memory_len <= 0:
+            return {"hidden_states": None}
+
+        # Initialize memory for each transformer layer
+        memory_states = []
+        for _ in range(self.n_layers):
+            # Each layer's memory: (memory_len, batch_size, d_model)
+            layer_memory = torch.zeros(self.memory_len, batch_size, self.d_model)
+            memory_states.append(layer_memory)
+
+        return {"hidden_states": memory_states}
 
 
 class TransformerModulePolicy(nn.Module):
