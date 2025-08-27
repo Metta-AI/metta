@@ -139,6 +139,9 @@ def _():
 
     from metta.sim.simulation_config import SimulationConfig
 
+    import os
+    from metta.common.util.fs import get_repo_root
+
     class RendererToolConfig(Config):
         policy_type: str = "random"
         policy_uri: str | None = None
@@ -354,6 +357,7 @@ def _():
         datetime,
         display,
         env_curriculum,
+        get_repo_root,
         initialize_policy_for_environment,
         io,
         logging,
@@ -854,8 +858,8 @@ def _(
             traceback.print_exc()
 
     mo.stop(not train_button.value)
-    # run_name = train_agent()
-    return (username,)
+    run_name = train_agent()
+    return run_name, username
 
 
 @app.cell(hide_code=True)
@@ -893,7 +897,7 @@ def _(mo):
 def _(mo):
     eval_trained_button = mo.ui.run_button(label="Click to evaluate trained agent")
     eval_trained_button
-    return
+    return (eval_trained_button,)
 
 
 @app.cell
@@ -906,28 +910,28 @@ def _(
     contextlib,
     display,
     env_config,
+    eval_trained_button,
+    get_repo_root,
     initialize_policy_for_environment,
     io,
+    mo,
     np,
+    os,
     pd,
     renderer_config,
+    run_name,
     simulation_context,
     time,
     torch,
     widgets,
 ):
-    # a Load trained policy using repo's PolicyStore approach (like tools/sim.py)
-    # mo.stop(not eval_trained_button.value or not run_name)
-
-    run_name = "zfogg.hello_world_train.20250827_023155"
+    mo.stop(not eval_trained_button.value)
 
     def evaluate_agent():
         """
         Fixed simplified version to test path resolution and policy loading
         """
         # Change to repo root directory so relative paths work correctly
-        import os
-        from metta.common.util.fs import get_repo_root
 
         original_cwd = os.getcwd()
         repo_root = get_repo_root()
@@ -1140,7 +1144,7 @@ def _(
 
     Episodes: {EVAL_EPISODES}
     Average Score: {mean_score:.2f} ± {std_score:.2f} ore collected
-    Best Episode: {max(trained_scores)} ore
+    Best Episode: {max(trained_ore_scores)} ore
     Worst Episode: {min(trained_scores)} ore
 
     Individual Episode Scores: {trained_scores}
@@ -1189,7 +1193,7 @@ def _(
             os.chdir(original_cwd)
 
     evaluate_agent()
-    return (run_name,)
+    return
 
 
 @app.cell(hide_code=True)
