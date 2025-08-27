@@ -9,6 +9,7 @@ const
 proc playControls*() =
   if window.buttonPressed[KeySpace]:
     play = not play
+    stepFloat = step.float32
   if window.buttonPressed[KeyMinus]:
     playSpeed *= 0.5
     playSpeed = clamp(playSpeed, 0.00001, 60.0)
@@ -28,10 +29,12 @@ proc playControls*() =
   if window.buttonPressed[KeyLeftBracket]:
     step -= 1
     step = clamp(step, 0, replay.maxSteps - 1)
+    stepFloat = step.float32
     echo "step: ", step
   if window.buttonPressed[KeyRightBracket]:
     step += 1
     step = clamp(step, 0, replay.maxSteps - 1)
+    stepFloat = step.float32
     echo "step: ", step
 
 proc drawTimeline*(panel: Panel) =
@@ -77,7 +80,7 @@ proc drawTimeline*(panel: Panel) =
     h: 16
   )
   if window.boxyMouse.vec2.overlaps(box):
-    if window.buttonPressed[MouseLeft]:
+    if window.buttonDown[MouseLeft]:
       let progress = (window.boxyMouse.vec2.x - 16) / (panel.rect.w.float32 - 32)
       step = int(progress * replay.maxSteps.float32)
       step = clamp(step, 0, replay.maxSteps - 1)
