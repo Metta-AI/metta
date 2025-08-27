@@ -85,7 +85,7 @@ class PolicyStore:
             List of selected PolicyRecord objects
         """
         uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
-        
+
         # Load policy records from URI
         prs = self._load_policy_records_from_uri(uri)
 

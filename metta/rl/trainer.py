@@ -194,8 +194,7 @@ def train(
     policy = latest_saved_policy_record.policy
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(
-        features, metta_grid_env.action_names, metta_grid_env.max_action_args, device,
-        is_training=True
+        features, metta_grid_env.action_names, metta_grid_env.max_action_args, device, is_training=True
     )
 
     # Create kickstarter

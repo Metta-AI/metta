@@ -6,12 +6,9 @@ from pathlib import Path
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
-from metta.agent.policy_record import PolicyRecord
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger(__name__)
-
-
 
 
 def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:

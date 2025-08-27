@@ -129,12 +129,11 @@ class Simulation:
         metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
-        # Initialize policy to environment  
+        # Initialize policy to environment
         policy = self._policy_pr.policy
         features = metta_grid_env.get_observation_features()
         policy.initialize_to_environment(
-            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device,
-            is_training=False
+            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device, is_training=False
         )
 
         if self._npc_pr is not None:
@@ -142,8 +141,7 @@ class Simulation:
             npc_policy = self._npc_pr.policy
             features = metta_grid_env.get_observation_features()
             npc_policy.initialize_to_environment(
-                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device,
-                is_training=False
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device, is_training=False
             )
 
         # ---------------- agent-index bookkeeping ---------------------- #

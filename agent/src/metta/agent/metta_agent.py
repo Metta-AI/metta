@@ -104,7 +104,6 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
-
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""
         if self.policy is None:
@@ -245,7 +244,6 @@ class MettaAgent(nn.Module):
     def get_original_feature_mapping(self) -> dict[str, int] | None:
         """Get the original feature mapping for saving in metadata."""
         return getattr(self, "original_feature_mapping", None)
-
 
     @property
     def total_params(self):

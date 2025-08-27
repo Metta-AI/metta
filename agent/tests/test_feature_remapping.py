@@ -219,9 +219,8 @@ def test_feature_mapping_persistence_via_metadata():
     # Create a new agent and manually restore the mapping (simulating loaded state)
     new_agent = MockAgent()
     new_agent.original_feature_mapping = metadata["original_feature_mapping"].copy()
-    # Initialize with original features  
-    new_agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu", 
-                                       is_training=True)
+    # Initialize with original features
+    new_agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu", is_training=True)
 
     # Verify the mapping was restored
     assert new_agent.original_feature_mapping == {"type_id": 0, "hp": 2, "mineral": 3}
@@ -255,8 +254,7 @@ def test_feature_mapping_persistence_via_metadata():
     eval_agent.original_feature_mapping = metadata["original_feature_mapping"].copy()
 
     # Initialize in original features context first
-    eval_agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu",
-                                        is_training=False)
+    eval_agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu", is_training=False)
     assert eval_agent.original_feature_mapping == {"type_id": 0, "hp": 2, "mineral": 3}
 
     eval_agent.components["_obs_"] = MockObsComponent()
@@ -376,8 +374,9 @@ def test_end_to_end_initialize_to_environment_workflow():
         if "original_feature_mapping" in loaded_pr.metadata:
             loaded_policy.original_feature_mapping = loaded_pr.metadata["original_feature_mapping"].copy()
         new_features = new_env.get_observation_features()
-        loaded_policy.initialize_to_environment(new_features, new_env.action_names, new_env.max_action_args, "cpu",
-                                               is_training=False)
+        loaded_policy.initialize_to_environment(
+            new_features, new_env.action_names, new_env.max_action_args, "cpu", is_training=False
+        )
 
         # Step 3: Verify the remapping was applied correctly
         # All known features should be remapped to their original IDs
