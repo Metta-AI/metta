@@ -1,14 +1,14 @@
 # import pytest
 
 # from metta.mettagrid import dtype_observations
-# from metta.mettagrid.mettagrid_config import EnvConfig
+# from metta.mettagrid.mettagrid_config import MettaGridConfig
 # from metta.mettagrid.mettagrid_env import MettaGridEnv
 # # from tools.renderer import OpportunisticPolicy, RandomPolicy, RendererToolConfig, SimplePolicy, get_policy
 
 # TODO: (richard) #dehydration
 # @pytest.fixture
 # def tiny_env():
-#     env_cfg = EnvConfig.EmptyRoom(num_agents=1)
+#     env_cfg = MettaGridConfig.EmptyRoom(num_agents=1)
 #     env = MettaGridEnv(env_cfg, render_mode="human")
 #     obs, _ = env.reset()
 #     assert obs.dtype == dtype_observations
