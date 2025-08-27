@@ -104,8 +104,12 @@ class Simulation:
             f"episodes per env (total target: {cfg.num_episodes})"
         )
 
+        # Create curriculum from environment config
+        curriculum_config = CurriculumConfig.from_env(cfg.env)
+        curriculum = curriculum_config.build()  # Convert config to curriculum object
+        
         self._vecenv = make_vecenv(
-            CurriculumConfig.from_env(cfg.env),
+            curriculum,
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,

@@ -24,7 +24,7 @@ class SingleAgentWrapper(gym.Wrapper):
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
         obs, infos = self.env.reset(seed=seed, options=options)
-        # Don't squeeze - maintain consistent [agents, tokens, features] format  
+        # Don't squeeze - maintain consistent [agents, tokens, features] format
         # obs = obs.squeeze(0)  # Removed: breaks tensor dimension consistency
         return obs, infos
 
