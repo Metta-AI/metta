@@ -16,15 +16,7 @@ from pathlib import Path
 
 from pydantic import field_validator
 
-from gitlib import (
-    METTA_GITHUB_ORGANIZATION,
-    add_remote,
-    filter_repo,
-    get_commit_count,
-    get_file_list,
-    run_git,
-    run_git_in_dir,
-)
+import gitta as git
 from metta.common.config import Config
 
 
@@ -47,8 +39,8 @@ class FilterRepoConfig(Config):
         """Basic validation of git remote URL."""
         if not v.startswith(("git@", "https://", "http://")):
             raise ValueError("Remote must start with git@, https://, or http://")
-        if f"{METTA_GITHUB_ORGANIZATION}/" not in v:
-            raise ValueError(f"Remote must be from {METTA_GITHUB_ORGANIZATION} organization")
+        if f"{git.METTA_GITHUB_ORGANIZATION}/" not in v:
+            raise ValueError(f"Remote must be from {git.METTA_GITHUB_ORGANIZATION} organization")
         return v
 
 
@@ -57,7 +49,7 @@ CONFIG_REGISTRY = {
     "filter_repo_test": FilterRepoConfig(
         name="filter_repo_test",
         paths=["mettagrid", "mettascope"],
-        remote=f"git@github.com:{METTA_GITHUB_ORGANIZATION}/test_filter_repo.git",
+        remote=f"git@github.com:{git.METTA_GITHUB_ORGANIZATION}/test_filter_repo.git",
     ),
 }
 
@@ -81,19 +73,19 @@ def sync_repo(config_name: str, dry_run: bool = False, skip_confirmation: bool =
     # Step 1: Filter
     print("\nFiltering repository...")
     try:
-        filtered_path = filter_repo(Path.cwd(), config.paths)
+        filtered_path = git.filter_repo(Path.cwd(), config.paths)
     except Exception as e:
         print(f"Filter failed: {e}")
         sys.exit(1)
 
     # Step 2: Show what we got
-    files = get_file_list(filtered_path)
-    commits = get_commit_count(filtered_path)
+    files = git.get_file_list(filtered_path)
+    commits = git.get_commit_count(filtered_path)
     print(f"Result: {len(files)} files, {commits} commits")
 
     # Step 3: Safety checks before push
     try:
-        current_origin = run_git("remote", "get-url", "origin").strip()
+        current_origin = git.run_git("remote", "get-url", "origin").strip()
         if current_origin and config.remote.rstrip("/").rstrip(".git") == current_origin.rstrip("/").rstrip(".git"):
             print("\n*** SAFETY STOP ***")
             print("Target remote matches current origin!")
@@ -118,13 +110,13 @@ def sync_repo(config_name: str, dry_run: bool = False, skip_confirmation: bool =
 
     # Do the push
     try:
-        add_remote("production", config.remote, filtered_path)
+        git.add_remote("production", config.remote, filtered_path)
 
         push_cmd = ["push", "--force", "production", "HEAD:main"]
         if dry_run:
             push_cmd.insert(2, "--dry-run")
 
-        output = run_git_in_dir(filtered_path, *push_cmd)
+        output = git.run_git_in_dir(filtered_path, *push_cmd)
         if output:
             print(output)
 

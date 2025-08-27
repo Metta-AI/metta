@@ -1,15 +1,38 @@
-"""Core git functions and utilities."""
+"""Git utilities library for Metta projects."""
 
 import logging
 import os
+import re
 import subprocess
+import tempfile
 from functools import wraps
 from pathlib import Path
 from time import time
 from typing import Optional
 
 import httpx
+from typing import Any, Dict
 
+# Import from our new runner module
+from ._runner import (
+    GitError as RunnerGitError,
+    GitNotInstalledError,
+    DubiousOwnershipError,
+    NotAGitRepoError,
+    run_git_cmd,
+)
+
+# Export exceptions for public API
+__all__ = [
+    "GitError",
+    "GitNotInstalledError",
+    "DubiousOwnershipError",
+    "NotAGitRepoError",
+    "canonical_remote_url",
+    "get_all_remotes",
+]
+
+# GitHub constants
 METTA_GITHUB_ORGANIZATION = "Metta-AI"
 METTA_GITHUB_REPO = "metta"
 METTA_API_REPO = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
@@ -41,31 +64,23 @@ def memoize(max_age=60):
     return decorator
 
 
-class GitError(Exception):
-    """Custom exception for git-related errors."""
+# Re-export GitError from runner for backwards compatibility
+GitError = RunnerGitError
 
 
 def run_git_with_cwd(args: list[str], cwd: str | Path | None = None) -> str:
     """Run a git command with optional working directory and return its output."""
-    try:
-        result = subprocess.run(
-            ["git", *args], capture_output=True, text=True, check=True, cwd=str(cwd) if cwd else None
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        raise GitError(f"Git command failed ({e.returncode}): {e.stderr.strip()}") from e
-    except FileNotFoundError as e:
-        raise GitError("Git is not installed!") from e
+    return run_git_cmd(args, cwd=Path(cwd) if cwd else None)
 
 
 def run_git(*args: str) -> str:
     """Run a git command and return its output."""
-    return run_git_with_cwd(list(args))
+    return run_git_cmd(list(args))
 
 
 def run_git_in_dir(cwd: str | Path, *args: str) -> str:
     """Run a git command in a specific directory and return its output."""
-    return run_git_with_cwd(list(args), cwd)
+    return run_git_cmd(list(args), cwd=Path(cwd))
 
 
 def run_gh(*args: str) -> str:
@@ -213,20 +228,89 @@ def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
     return int(pr["number"]), pr["title"]
 
 
-def get_remote_url() -> str | None:
-    """Get the URL of the origin remote repository."""
+def canonical_remote_url(url: str) -> str:
+    """Canonicalize a git remote URL to a consistent format.
+
+    Converts both SSH and HTTPS GitHub URLs to a canonical HTTPS format
+    without the .git suffix for easier comparison.
+
+    Examples:
+        git@github.com:Owner/repo.git -> https://github.com/Owner/repo
+        https://github.com/Owner/repo.git -> https://github.com/Owner/repo
+        ssh://git@github.com/Owner/repo -> https://github.com/Owner/repo
+    """
+    url = url.strip()
+
+    # Handle SSH format: git@github.com:Owner/repo[.git]
+    ssh_match = re.match(r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$", url)
+    if ssh_match:
+        owner, repo = ssh_match.groups()
+        return f"https://github.com/{owner}/{repo}"
+
+    # Handle SSH URL format: ssh://git@github.com/Owner/repo[.git]
+    ssh_url_match = re.match(r"^ssh://git@github\.com/([^/]+)/([^/]+?)(?:\.git)?$", url)
+    if ssh_url_match:
+        owner, repo = ssh_url_match.groups()
+        return f"https://github.com/{owner}/{repo}"
+
+    # Handle HTTPS format: https://github.com/Owner/repo[.git]
+    if url.startswith("https://github.com/"):
+        if url.endswith(".git"):
+            url = url[:-4]
+        return url
+
+    # Return as-is for non-GitHub URLs
+    return url
+
+
+def get_remote_url(remote: str = "origin") -> str | None:
+    """Get the URL of a remote repository.
+
+    Args:
+        remote: Name of the remote (default: "origin")
+
+    Returns:
+        The remote URL or None if the remote doesn't exist
+    """
     try:
-        return run_git("remote", "get-url", "origin")
+        return run_git("remote", "get-url", remote)
     except GitError:
         return None
 
 
+def get_all_remotes() -> Dict[str, str]:
+    """Get all configured remotes and their URLs.
+
+    Returns:
+        Dictionary mapping remote names to their fetch URLs
+    """
+    try:
+        output = run_git("remote", "-v")
+        remotes = {}
+        for line in output.splitlines():
+            if line:
+                parts = line.split()
+                if len(parts) >= 2 and "(fetch)" in line:
+                    remotes[parts[0]] = parts[1]
+        return remotes
+    except GitError:
+        return {}
+
+
 def is_metta_ai_repo() -> bool:
-    """Check if the origin remote is set to metta-ai/metta repository."""
-    remote_url = get_remote_url()
-    if not remote_url:
-        return False
-    return remote_url in (f"git@github.com:{METTA_API_REPO}.git", f"https://github.com/{METTA_API_REPO}.git")
+    """Check if any remote is set to the metta-ai/metta repository.
+
+    This checks all configured remotes, not just 'origin', and handles
+    various URL formats (SSH, HTTPS, with/without .git suffix).
+    """
+    target_url = canonical_remote_url(f"https://github.com/{METTA_API_REPO}")
+
+    remotes = get_all_remotes()
+    for remote_url in remotes.values():
+        if canonical_remote_url(remote_url) == target_url:
+            return True
+
+    return False
 
 
 def get_git_hash_for_remote_task(
@@ -364,13 +448,29 @@ def add_remote(name: str, url: str, repo_path: Path | None = None):
 
 
 def find_root(start: Path) -> Optional[Path]:
-    """Return the repository root that contains start, or None if not in a repo."""
-    current = start if start.is_dir() else start.parent
-    while current != current.parent:
-        if (current / ".git").is_dir():
-            return current
-        current = current.parent
-    return None
+    """Return the repository root that contains start, or None if not in a repo.
+
+    This uses git's own logic to find the repository root, which correctly
+    handles worktrees, submodules, and other edge cases.
+
+    Args:
+        start: Starting path (file or directory) to search from
+
+    Returns:
+        Path to repository root or None if not in a repo
+    """
+    try:
+        # Ensure we have a directory for cwd
+        if start.is_file():
+            cwd = start.parent
+        else:
+            cwd = start
+
+        # Use git's own logic to find the repository root
+        root = run_git_cmd(["rev-parse", "--show-toplevel"], cwd=cwd)
+        return Path(root)
+    except (GitError, NotAGitRepoError):
+        return None
 
 
 def fetch(repo_root: Path) -> None:
@@ -397,3 +497,138 @@ def diff(repo_root: Path, base_ref: str) -> str:
         return run_git_in_dir(repo_root, "diff", base_ref)
     except GitError:
         return ""
+
+
+# ============================================================================
+# GitHub API functionality
+# ============================================================================
+
+
+def post_commit_status(
+    commit_sha: str,
+    state: str,
+    repo: Optional[str] = None,
+    context: str = "CI/Skypilot",
+    description: Optional[str] = None,
+    target_url: Optional[str] = None,
+    token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Post a status update for a commit to GitHub.
+
+    Args:
+        commit_sha: The SHA of the commit
+        state: The state of the status (error, failure, pending, success)
+        repo: Repository in format "owner/repo". If not provided, uses default from constants
+        context: A string label to differentiate this status from others
+        description: A short description of the status
+        target_url: The target URL to associate with this status
+        token: GitHub token. If not provided, uses GITHUB_TOKEN env var
+
+    Returns:
+        The created status object
+
+    Raises:
+        ValueError: If no token is available
+        httpx.HTTPError: If the API request fails
+    """
+    # Use default repo if not provided
+    if repo is None:
+        repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    # Get token
+    github_token = token or os.environ.get("GITHUB_TOKEN")
+    if not github_token:
+        raise ValueError("GitHub token not provided and GITHUB_TOKEN environment variable not set")
+
+    # Build request
+    url = f"https://api.github.com/repos/{repo}/statuses/{commit_sha}"
+    headers = {"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"}
+
+    data = {
+        "state": state,
+        "context": context,
+    }
+
+    if description:
+        data["description"] = description
+    if target_url:
+        data["target_url"] = target_url
+
+    # Make request
+    try:
+        response = httpx.post(url, headers=headers, json=data, timeout=10.0)
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPError as e:
+        logging.error(f"Failed to post GitHub status: {e}")
+        raise
+
+
+# ============================================================================
+# Git filter-repo functionality
+# ============================================================================
+
+
+def filter_repo(source_path: Path, paths: list[str]) -> Path:
+    """Filter repository to only include specified paths.
+
+    Args:
+        source_path: Path to source repository
+        paths: List of paths to keep (e.g., ["mettagrid/", "mettascope/"])
+
+    Returns:
+        Path to the filtered repository
+    """
+
+    if not (source_path / ".git").exists():
+        raise ValueError(f"Not a git repository: {source_path}")
+
+    # Create temporary directory
+    target_dir = Path(tempfile.mkdtemp(prefix="filtered-repo-"))
+    filtered_path = target_dir / "filtered"
+
+    print("Cloning for filtering...")
+
+    # Clone locally
+    source_url = f"file://{source_path.absolute()}"
+    try:
+        run_git("clone", "--no-local", source_url, str(filtered_path))
+    except GitError as e:
+        raise RuntimeError(f"Failed to clone: {e}") from e
+
+    # Check if git-filter-repo is available
+    try:
+        subprocess.run(["git", "filter-repo", "--version"], capture_output=True, text=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        # Use the same installation method as metta CLI tool
+        raise RuntimeError(
+            "\ngit-filter-repo not found. Please install it:\n\n"
+            "  metta install filter-repo\n\n"
+            "Or install manually:\n"
+            "  curl -O https://raw.githubusercontent.com/newren/git-filter-repo/main/git-filter-repo\n"
+            "  chmod +x git-filter-repo\n"
+            "  sudo mv git-filter-repo /usr/local/bin/\n"
+        ) from e
+
+    # Filter repository
+    filter_cmd = ["git", "filter-repo", "--force"]
+    for path in paths:
+        filter_cmd.extend(["--path", path])
+
+    print(f"Filtering to: {', '.join(paths)}")
+
+    result = subprocess.run(filter_cmd, cwd=filtered_path, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"git-filter-repo failed: {result.stderr.strip()}")
+
+    # Verify result
+    files = get_file_list(filtered_path)
+
+    if not files:
+        raise RuntimeError("Filtered repository is empty!")
+
+    commit_count = get_commit_count(filtered_path)
+    print(f"✅ Filtered: {len(files)} files, {commit_count} commits")
+
+    return filtered_path

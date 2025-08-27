@@ -124,14 +124,14 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "app_backend", "common", "agent", "experiments", "gitlib", "codebot"]
+members = ["mettagrid", "app_backend", "common", "agent", "experiments", "gitta", "codebot"]
 
 [tool.uv.sources]
 metta-app-backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
-gitlib = { workspace = true }
+gitta = { workspace = true }
 codebot = { workspace = true }
 
 [tool.ruff]

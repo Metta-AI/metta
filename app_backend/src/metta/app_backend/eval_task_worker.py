@@ -21,8 +21,8 @@ from datetime import datetime
 
 import boto3
 
+import gitta as git
 from devops.observatory_login import CLIAuthenticator
-from gitlib import METTA_API_REPO_URL
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
     TaskResponse,
@@ -112,7 +112,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
         result = subprocess.run(
-            ["git", "clone", METTA_API_REPO_URL, self._versioned_path],
+            ["git", "clone", git.METTA_API_REPO_URL, self._versioned_path],
             capture_output=True,
             text=True,
         )

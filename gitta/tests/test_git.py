@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import httpx
 import pytest
 
-from gitlib import (
+from gitta import (
     GitError,
     add_remote,
     get_branch_commit,
@@ -271,27 +271,27 @@ def test_get_remote_url_no_remote(git_repo):
 
 def test_is_metta_ai_repo(monkeypatch):
     # Import the constants to get the exact repo name
-    from gitlib import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
+    from gitta import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 
     # Test with metta-ai repo URLs (using exact format from constants)
     monkeypatch.setattr(
-        "gitlib.git.get_remote_url",
-        lambda: f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git",
+        "gitta.get_all_remotes",
+        lambda: {"origin": f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git"},
     )
     assert is_metta_ai_repo() is True
 
     monkeypatch.setattr(
-        "gitlib.git.get_remote_url",
-        lambda: f"git@github.com:{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git",
+        "gitta.get_all_remotes",
+        lambda: {"origin": f"git@github.com:{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git"},
     )
     assert is_metta_ai_repo() is True
 
     # Test with different repo
-    monkeypatch.setattr("gitlib.git.get_remote_url", lambda: "https://github.com/other/repo.git")
+    monkeypatch.setattr("gitta.get_all_remotes", lambda: {"origin": "https://github.com/other/repo.git"})
     assert is_metta_ai_repo() is False
 
     # Test with no remote
-    monkeypatch.setattr("gitlib.git.get_remote_url", lambda: None)
+    monkeypatch.setattr("gitta.get_all_remotes", lambda: {})
     assert is_metta_ai_repo() is False
 
 
@@ -332,22 +332,22 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
     logger = logging.getLogger()
 
     # Test when not in git repo
-    monkeypatch.setattr("gitlib.git.get_current_commit", Mock(side_effect=ValueError("Not in a git repository")))
+    monkeypatch.setattr("gitta.get_current_commit", Mock(side_effect=ValueError("Not in a git repository")))
     result = get_git_hash_for_remote_task(logger=logger)
     assert result is None
     assert "Not in a git repository" in caplog.text
 
     # Test when not metta-ai repo
-    monkeypatch.setattr("gitlib.git.get_current_commit", lambda: "abc123")
-    monkeypatch.setattr("gitlib.git.is_metta_ai_repo", lambda: False)
+    monkeypatch.setattr("gitta.get_current_commit", lambda: "abc123")
+    monkeypatch.setattr("gitta.is_metta_ai_repo", lambda: False)
     caplog.clear()
     result = get_git_hash_for_remote_task(logger=logger)
     assert result is None
     assert "Origin not set to metta-ai/metta" in caplog.text
 
     # Test with uncommitted changes (should raise)
-    monkeypatch.setattr("gitlib.git.is_metta_ai_repo", lambda: True)
-    monkeypatch.setattr("gitlib.git.has_unstaged_changes", lambda: (True, "M  some_file.py"))
+    monkeypatch.setattr("gitta.is_metta_ai_repo", lambda: True)
+    monkeypatch.setattr("gitta.has_unstaged_changes", lambda: (True, "M  some_file.py"))
     with pytest.raises(GitError) as e:
         get_git_hash_for_remote_task()
     assert "uncommitted changes" in str(e.value)
@@ -355,14 +355,14 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
     # Test with uncommitted changes but skip_git_check=True
     caplog.clear()
     # Need to mock is_commit_pushed to avoid git command with fake commit hash
-    monkeypatch.setattr("gitlib.git.is_commit_pushed", lambda x: True)
+    monkeypatch.setattr("gitta.is_commit_pushed", lambda x: True)
     result = get_git_hash_for_remote_task(skip_git_check=True, logger=logger)
     assert result == "abc123"
     assert "Working tree has unstaged changes" in caplog.text
 
     # Test with unpushed commit
-    monkeypatch.setattr("gitlib.git.has_unstaged_changes", lambda: (False, ""))
-    monkeypatch.setattr("gitlib.git.is_commit_pushed", lambda x: False)
+    monkeypatch.setattr("gitta.has_unstaged_changes", lambda: (False, ""))
+    monkeypatch.setattr("gitta.is_commit_pushed", lambda x: False)
     with pytest.raises(GitError) as e:
         get_git_hash_for_remote_task()
     assert "hasn't been pushed" in str(e.value)
@@ -374,7 +374,7 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
     # No specific log message for unpushed commits when skip_git_check=True
 
     # Test success case
-    monkeypatch.setattr("gitlib.git.is_commit_pushed", lambda x: True)
+    monkeypatch.setattr("gitta.is_commit_pushed", lambda x: True)
     result = get_git_hash_for_remote_task()
     assert result == "abc123"
 
@@ -476,8 +476,11 @@ def test_empty_repo_edge_cases(git_repo):
 def test_git_error_with_different_exit_codes(monkeypatch):
     # Test GitError includes exit code
     def mock_run(*args, **kwargs):
-        error = subprocess.CalledProcessError(128, ["git"], stderr="fatal: error")
-        raise error
+        # Create a mock CompletedProcess that failed
+        mock_result = subprocess.CompletedProcess(
+            args=["git", "status"], returncode=128, stdout=b"", stderr=b"fatal: error"
+        )
+        return mock_result
 
     monkeypatch.setattr("subprocess.run", mock_run)
 
@@ -501,8 +504,8 @@ def test_is_commit_pushed_fast_path(monkeypatch):
         else:
             raise GitError("Unexpected git command")
 
-    monkeypatch.setattr("gitlib.git.get_current_branch", lambda: "main")
-    monkeypatch.setattr("gitlib.git.run_git", mock_run_git)
+    monkeypatch.setattr("gitta.get_current_branch", lambda: "main")
+    monkeypatch.setattr("gitta.run_git", mock_run_git)
 
     assert is_commit_pushed("test-commit") is True
 
@@ -517,7 +520,7 @@ def test_is_commit_pushed_fast_path(monkeypatch):
         else:
             raise GitError("Unexpected git command")
 
-    monkeypatch.setattr("gitlib.git.run_git", mock_run_git_not_ancestor)
+    monkeypatch.setattr("gitta.run_git", mock_run_git_not_ancestor)
     assert is_commit_pushed("test-commit") is False
 
 
@@ -535,7 +538,7 @@ def test_get_branch_commit_with_remote_fetch(monkeypatch):
         else:
             raise GitError(f"Unexpected git command: {args}")
 
-    monkeypatch.setattr("gitlib.git.run_git", mock_run_git)
+    monkeypatch.setattr("gitta.run_git", mock_run_git)
 
     result = get_branch_commit("origin/main")
     assert result == "abcd1234" * 5
@@ -554,8 +557,147 @@ def test_get_branch_commit_with_remote_fetch(monkeypatch):
         else:
             raise GitError(f"Unexpected git command: {args}")
 
-    monkeypatch.setattr("gitlib.git.run_git", mock_run_git_fetch_fails)
+    monkeypatch.setattr("gitta.run_git", mock_run_git_fetch_fails)
 
     result = get_branch_commit("origin/main")
     assert result == "abcd1234" * 5
     assert fetch_called
+
+
+# ============================================================================
+# Git filter-repo tests
+# ============================================================================
+
+
+import shutil
+import tempfile
+
+
+class TestFilterRepo:
+    """Test the filter_repo functionality."""
+
+    @pytest.fixture
+    def source_repo(self):
+        """Create a source repository with test structure."""
+        temp_dir = tempfile.mkdtemp()
+        repo_path = Path(temp_dir) / "source"
+        repo_path.mkdir()
+
+        # Initialize repo
+        subprocess.run(["git", "init"], cwd=repo_path, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True)
+        subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_path, check=True)
+
+        # Create structure matching our filter paths
+        (repo_path / "mettagrid").mkdir()
+        (repo_path / "mettagrid" / "core.py").write_text("# mettagrid core")
+        (repo_path / "mettagrid" / "utils.py").write_text("# mettagrid utils")
+
+        (repo_path / "mettascope").mkdir()
+        (repo_path / "mettascope" / "viz.py").write_text("# mettascope viz")
+
+        # Create files that should be filtered out
+        (repo_path / "other_module").mkdir()
+        (repo_path / "other_module" / "file.py").write_text("# should be filtered")
+        (repo_path / "README.md").write_text("# Root readme")
+
+        # Commit everything
+        subprocess.run(["git", "add", "."], cwd=repo_path, check=True)
+        subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True)
+
+        # Add more commits to test history preservation
+        (repo_path / "mettagrid" / "new_file.py").write_text("# new file")
+        subprocess.run(["git", "add", "."], cwd=repo_path, check=True)
+        subprocess.run(["git", "commit", "-m", "Add new file to mettagrid"], cwd=repo_path, check=True)
+
+        # Add a tag
+        subprocess.run(["git", "tag", "v1.0.0"], cwd=repo_path, check=True)
+
+        yield repo_path
+
+        # Cleanup
+        shutil.rmtree(temp_dir)
+
+    @pytest.mark.skipif(shutil.which("git-filter-repo") is None, reason="git-filter-repo not installed")
+    def test_filter_repo_basic(self, source_repo):
+        """Test basic filter_repo functionality."""
+        # Import filter_repo from gitta
+        from gitta import filter_repo
+
+        # Filter repository
+        filtered_path = filter_repo(source_repo, ["mettagrid/", "mettascope/"])
+
+        try:
+            # Verify filtered repository
+            files = get_file_list(filtered_path)
+
+            # Check that only mettagrid and mettascope files are present
+            for file in files:
+                assert file.startswith("mettagrid/") or file.startswith("mettascope/"), (
+                    f"Unexpected file in filtered repo: {file}"
+                )
+
+            # Check specific files
+            expected_files = {"mettagrid/core.py", "mettagrid/utils.py", "mettagrid/new_file.py", "mettascope/viz.py"}
+            assert set(files) == expected_files
+
+            # Check that history is preserved (2 commits)
+            assert get_commit_count(filtered_path) == 2
+
+            # Check that tag is preserved
+            result = subprocess.run(["git", "tag", "-l"], cwd=filtered_path, capture_output=True, text=True, check=True)
+            tags = result.stdout.strip().split("\n") if result.stdout.strip() else []
+            assert "v1.0.0" in tags
+
+        finally:
+            # Cleanup
+            shutil.rmtree(filtered_path.parent)
+
+    @pytest.mark.skipif(shutil.which("git-filter-repo") is None, reason="git-filter-repo not installed")
+    def test_filter_repo_single_path(self, source_repo):
+        """Test filter_repo with single path."""
+        # Import filter_repo from gitta
+        from gitta import filter_repo
+
+        # Filter repository to single path
+        filtered_path = filter_repo(source_repo, ["mettagrid/"])
+
+        try:
+            # Verify content
+            files = get_file_list(filtered_path)
+
+            # Should only have mettagrid files
+            assert all(f.startswith("mettagrid/") for f in files)
+            assert len(files) == 3  # core.py, utils.py, new_file.py
+
+        finally:
+            # Cleanup
+            shutil.rmtree(filtered_path.parent)
+
+    @pytest.mark.skipif(shutil.which("git-filter-repo") is None, reason="git-filter-repo not installed")
+    def test_filter_repo_empty_result(self, source_repo):
+        """Test filter_repo when result would be empty."""
+        # Import filter_repo from gitta
+        from gitta import filter_repo
+
+        # Try to filter non-existent path
+        with pytest.raises(RuntimeError, match="Filtered repository is empty"):
+            filter_repo(source_repo, ["nonexistent/"])
+
+    def test_filter_repo_missing_tool(self, source_repo, monkeypatch):
+        """Test filter_repo when git-filter-repo is not installed."""
+        # Import filter_repo from gitta
+        from gitta import filter_repo
+
+        # Mock subprocess.run to simulate missing git-filter-repo
+        original_run = subprocess.run
+
+        def mock_run(cmd, *args, **kwargs):
+            if len(cmd) >= 3 and cmd[0:3] == ["git", "filter-repo", "--version"]:
+                raise subprocess.CalledProcessError(1, cmd, stderr="command not found")
+            return original_run(cmd, *args, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        with pytest.raises(RuntimeError, match="git-filter-repo not found"):
+            filter_repo(source_repo, ["mettagrid/"])

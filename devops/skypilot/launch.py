@@ -9,6 +9,7 @@ import sys
 import sky
 import yaml
 
+import gitta as git
 from devops.skypilot.utils import (
     check_config_files,
     check_git_state,
@@ -16,7 +17,6 @@ from devops.skypilot.utils import (
     launch_task,
     set_task_secrets,
 )
-from gitlib import get_current_commit, validate_git_ref
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
@@ -169,12 +169,12 @@ def main():
 
     # check that the parsed args.git_ref provides a valid commit hash
     if args.git_ref:
-        commit_hash = validate_git_ref(args.git_ref)
+        commit_hash = git.validate_git_ref(args.git_ref)
         if not commit_hash:
             print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
             sys.exit(1)
     else:
-        commit_hash = get_current_commit()
+        commit_hash = git.get_current_commit()
 
         # check that the commit has been pushed and there are no staged changes
         if not args.skip_git_check:

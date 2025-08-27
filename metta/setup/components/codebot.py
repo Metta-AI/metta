@@ -31,7 +31,7 @@ class CodebotSetup(SetupModule):
     def install(self) -> None:
         """Install codebot as an editable uv tool."""
         codebot_dir = self.repo_root / "codebot"
-        gitlib_dir = self.repo_root / "gitlib"
+        gitta_dir = self.repo_root / "gitta"
 
         if not codebot_dir.exists():
             warning(f"Codebot directory not found at {codebot_dir}")
@@ -41,9 +41,9 @@ class CodebotSetup(SetupModule):
 
         # Install codebot package which includes codeclip command
         try:
-            # First install the tool with gitlib dependency
+            # First install the tool with gitta dependency
             result = subprocess.run(
-                ["uv", "tool", "install", "--force", "-e", str(codebot_dir), "--with", f"gitlib @ file://{gitlib_dir}"],
+                ["uv", "tool", "install", "--force", "-e", str(codebot_dir), "--with", f"gitta @ file://{gitta_dir}"],
                 capture_output=True,
                 text=True,
                 cwd=self.repo_root,
@@ -53,18 +53,18 @@ class CodebotSetup(SetupModule):
                 # Try a different approach if editable install fails
                 # Install without -e flag
                 self.run_command(
-                    ["uv", "tool", "install", "--force", str(codebot_dir), "--with", f"gitlib @ file://{gitlib_dir}"]
+                    ["uv", "tool", "install", "--force", str(codebot_dir), "--with", f"gitta @ file://{gitta_dir}"]
                 )
         except subprocess.CalledProcessError:
             # Fallback: install as a regular package
             try:
                 self.run_command(
-                    ["uv", "tool", "install", "--force", str(codebot_dir), "--with", f"gitlib @ file://{gitlib_dir}"]
+                    ["uv", "tool", "install", "--force", str(codebot_dir), "--with", f"gitta @ file://{gitta_dir}"]
                 )
             except subprocess.CalledProcessError as e:
                 warning(f"Failed to install codebot: {e}")
                 warning("You can manually install it with:")
-                warning(f"  uv tool install --force {codebot_dir} --with 'gitlib @ file://{gitlib_dir}'")
+                warning(f"  uv tool install --force {codebot_dir} --with 'gitta @ file://{gitta_dir}'")
                 return
 
         # Fix the Python path for the install

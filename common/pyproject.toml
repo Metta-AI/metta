@@ -13,7 +13,7 @@ readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
 dependencies = [
-    "gitlib>=0.1.0",
+    "gitta>=0.1.0",
 ]
 
 [dependency-groups]
