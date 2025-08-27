@@ -8,6 +8,7 @@ import sky.jobs
 import sky.server.common
 import wandb
 
+from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
@@ -216,17 +217,7 @@ def set_task_secrets(task: sky.Task) -> None:
     if not wandb_password:
         raise ValueError("Failed to get wandb password, run 'metta install' to fix")
 
-    # Try to get observatory token from environment or .netrc
-    observatory_token = os.environ.get("OBSERVATORY_TOKEN", "")
-    if not observatory_token:
-        try:
-            # Try to get from .netrc if it exists there
-            netrc_data = netrc.netrc(os.path.expanduser("~/.netrc"))
-            if "observatory.softmax-research.net" in netrc_data.hosts:
-                observatory_token = netrc_data.hosts["observatory.softmax-research.net"][2]
-        except (FileNotFoundError, KeyError):
-            pass
-
+    observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
