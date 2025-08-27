@@ -61,10 +61,18 @@ def handle_result(result, dry_run: bool = False, copy: bool = False):
     if result.summary:
         typer.echo(f"\n{result.summary}")
 
-        # Copy summary to clipboard if requested
-        if copy:
-            pyperclip.copy(result.summary)
-            typer.echo("Summary copied to clipboard")
+    if copy:
+        # Copy summary content to clipboard if requested
+        summary_file = None
+        for change in result.file_changes:
+            if change.filepath.endswith("summaries/latest.md"):
+                summary_file = change
+                break
+
+        pyperclip.copy(summary_file.content)
+        typer.echo("📋 Summary copied to clipboard")
+
+
 
 
 @app.command()
