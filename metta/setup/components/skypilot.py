@@ -96,7 +96,7 @@ class SkypilotSetup(SetupModule):
 
         if get_saved_settings().user_type.is_softmax:
             try:
-                result = subprocess.run(["uv", "run", "sky", "api", "info"], capture_output=True, text=True)
+                result = subprocess.run(["uv", "run", "--active", "sky", "api", "info"], capture_output=True, text=True)
 
                 if result.returncode == 0:
                     if self.softmax_url in result.stdout:
@@ -109,7 +109,7 @@ class SkypilotSetup(SetupModule):
                 return None
         else:
             try:
-                result = subprocess.run(["uv", "run", "sky", "check"], capture_output=True, text=True)
+                result = subprocess.run(["uv", "run", "--active", "sky", "check"], capture_output=True, text=True)
                 if result.returncode == 0:
                     return "configured"
                 return None
