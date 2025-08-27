@@ -12,8 +12,17 @@ from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import BoxConfig, ConverterConfig, GameConfig, WallConfig
 
 
+def recursive_update(d, u):
+    for k, v in u.items():
+        if isinstance(v, dict):
+            d[k] = recursive_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
+
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
-    """Convert a GameConfig dict or instance to a CppGameConfig."""
+    """Convert a GameConfig to a CppGameConfig."""
 
     if isinstance(mettagrid_config, GameConfig):
         # If it's already a GameConfig instance, convert to dict
@@ -37,19 +46,19 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         # Update, but in a nested way
         if group_config.props:
-            for key, value in group_config.props.model_dump(exclude_unset=True).items():
-                if isinstance(value, dict):
-                    agent_group_props[key].update(value)
-                else:
-                    agent_group_props[key] = value
-
-        # Extract inventory rewards - handle both old and new format for backward compatibility
-        inventory_rewards = {}
-        inventory_reward_max = {}
+            recursive_update(agent_group_props, group_config.props.model_dump(exclude_unset=True))
 
         rewards_config = agent_group_props.get("rewards", {})
-        inventory_rewards = rewards_config.get("inventory", {})
-        inventory_reward_max = rewards_config.get("inventory_max", {})
+        inventory_rewards = {
+            resource_name_to_id[k]: v
+            for k, v in rewards_config.get("inventory", {}).items()
+            if k in resource_name_to_id
+        }
+        inventory_reward_max = {
+            resource_name_to_id[k]: v
+            for k, v in rewards_config.get("inventory_max", {}).items()
+            if k in resource_name_to_id
+        }
 
         # Process stats rewards
         stat_rewards = {}
