@@ -15,8 +15,6 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 
 import httpx
 
-from metta.common.util.memoization import memoize
-
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -180,7 +178,7 @@ def _memoize(max_age=60):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             key = str(args) + str(kwargs)
-            current_time = time()
+            current_time = time.time()
 
             if key in cache and current_time - cache_time[key] < max_age:
                 return cache[key]
@@ -501,7 +499,7 @@ def get_git_hash_for_remote_task(
     return current_commit
 
 
-@memoize(max_age=60 * 5)
+@_memoize(max_age=60 * 5)
 async def get_latest_commit(branch: str = "main") -> str:
     async with httpx.AsyncClient() as client:
         response = await client.get(
