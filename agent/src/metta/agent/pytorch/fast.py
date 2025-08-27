@@ -147,7 +147,7 @@ class Policy(nn.Module):
         # actor_1 uses gain=1 (YAML default for Linear layers with ReLU)
         self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.actor_hidden_dim), std=1.0)
 
-        # Action embeddings - will be properly initialized via activate_action_embeddings
+        # Action embeddings - will be properly initialized via initialize_to_environment
         self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
         self._initialize_action_embeddings()
 
