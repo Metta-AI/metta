@@ -1,10 +1,13 @@
 # Metta Sweep System
 
-A hyperparameter optimization system using Protein (Bayesian optimization with Gaussian Processes) integrated with WandB for efficient hyperparameter search and experiment tracking.
+A hyperparameter optimization system using Protein (Bayesian optimization with Gaussian Processes) integrated with WandB
+for efficient hyperparameter search and experiment tracking.
 
 ## Overview
 
-The sweep system enables automated hyperparameter optimization for training runs. Each sweep consists of multiple training iterations with different hyperparameter configurations, where each iteration:
+The sweep system enables automated hyperparameter optimization for training runs. Each sweep consists of multiple
+training iterations with different hyperparameter configurations, where each iteration:
+
 1. Gets suggestions from the Protein optimizer
 2. Trains a model with those hyperparameters
 3. Evaluates the trained model
@@ -14,7 +17,7 @@ The sweep system enables automated hyperparameter optimization for training runs
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌───────────────────┐
-│   sweep_init    │───▶│     train.py    │───▶│   sweep_eval      │
+│   sweep_init    │───▶│  Recipe System  │───▶│   sweep_eval      │
 │                 │    │                 │    │                   │
 │ • Create sweep  │    │ • Load overrides│    │ • Evaluate        │
 │ • Get run_id    │    │ • Train model   │    │ • Record obs      │
@@ -51,7 +54,7 @@ The sweep system enables automated hyperparameter optimization for training runs
 ### Key Scripts
 
 - **`tools/sweep_init.py`** - Initialize sweep and create runs
-- **`tools/train.py`** - Train model with suggested hyperparameters
+- **Recipe training system** - Train model with suggested hyperparameters via `./tools/run.py experiments.recipes.*.train`
 - **`tools/sweep_eval.py`** - Evaluate trained policy and record results
 - **`devops/sweep.sh`** - Continuous sweep execution with retry logic
 - **`devops/sweep_rollout.sh`** - Single sweep iteration
@@ -63,16 +66,16 @@ The sweep system enables automated hyperparameter optimization for training runs
 ```yaml
 # configs/sweep/quick.yaml
 protein:
-  num_random_samples: 5          # Initial random exploration
-  max_suggestion_cost: 3600      # Max cost per suggestion (seconds)
-  resample_frequency: 0          # How often to resample suggestions
-  global_search_scale: 1         # Exploration vs exploitation
-  random_suggestions: 1024       # Random samples for acquisition
-  suggestions_per_pareto: 256    # Samples per Pareto point
+  num_random_samples: 5 # Initial random exploration
+  max_suggestion_cost: 3600 # Max cost per suggestion (seconds)
+  resample_frequency: 0 # How often to resample suggestions
+  global_search_scale: 1 # Exploration vs exploitation
+  random_suggestions: 1024 # Random samples for acquisition
+  suggestions_per_pareto: 256 # Samples per Pareto point
 
-metric: reward                   # Objective metric name
-goal: maximize                   # maximize or minimize
-method: bayes                    # Optimization method
+metric: reward # Objective metric name
+goal: maximize # maximize or minimize
+method: bayes # Optimization method
 
 parameters:
   trainer:
@@ -81,78 +84,89 @@ parameters:
         distribution: log_normal
         min: 0.0001
         max: 0.001
-        mean: 0.0005            # Search center point
-        scale: 0.5              # Search width
+        mean: 0.0005 # Search center point
+        scale: 0.5 # Search width
 ```
 
 ### Sweep Job Config (`configs/sweep_job.yaml`)
 
 Main configuration that combines:
+
 - `trainer`: Training parameters
 - `sim`: Evaluation suite
 - `sweep`: Optimization config
 - `wandb`: Tracking settings
 
 Key parameters:
+
 - `run`: Sweep name (e.g., "my_experiment")
 - `runs_dir`: Output directory for runs
 
 ## Parameter Distributions
 
 ### `uniform` - Linear uniform distribution
+
 ```yaml
 learning_rate:
-  distribution: "uniform"
+  distribution: 'uniform'
   min: 0.001
   max: 0.01
-  scale: "auto"  # or numeric value, controls search width
-  mean: 0.005    # search center point
+  scale: 'auto' # or numeric value, controls search width
+  mean: 0.005 # search center point
 ```
 
 ### `int_uniform` - Integer uniform distribution
+
 ```yaml
 batch_size:
-  distribution: "int_uniform"
+  distribution: 'int_uniform'
   min: 16
   max: 128
-  scale: "auto"
+  scale: 'auto'
   mean: 64
 ```
 
 ### `log_normal` - Log-normal distribution
+
 Best for parameters that vary over orders of magnitude (learning rates, regularization).
+
 ```yaml
 learning_rate:
-  distribution: "log_normal"
+  distribution: 'log_normal'
   min: 1e-5
   max: 1e-2
-  scale: "auto"  # or "time" for time-based scaling
+  scale: 'auto' # or "time" for time-based scaling
   mean: 3e-4
 ```
 
 ### `uniform_pow2` - Power-of-2 uniform distribution
+
 For memory-aligned values (batch sizes, hidden dimensions).
+
 ```yaml
 hidden_size:
-  distribution: "uniform_pow2"
+  distribution: 'uniform_pow2'
   min: 64
   max: 1024
-  scale: "auto"
+  scale: 'auto'
   mean: 256
 ```
 
 ### `logit_normal` - Logit-normal distribution
+
 For probabilities and rates (dropout, clip ratios).
+
 ```yaml
 dropout_rate:
-  distribution: "logit_normal"
+  distribution: 'logit_normal'
   min: 0.1
   max: 0.9
-  scale: "auto"
+  scale: 'auto'
   mean: 0.5
 ```
 
 ### Scale Options
+
 - `"auto"`: Default scale of 0.5
 - `"time"`: For log distributions, scale = 1/(log2(max) - log2(min))
 - Numeric value: Custom search width around the mean
@@ -247,9 +261,12 @@ optimizer.record_observation(objective=objective_value, cost=120.0)
 ## Troubleshooting
 
 ### Run ID Conflicts
-The system automatically generates unique run IDs (e.g., `sweep_name.r.0`, `sweep_name.r.1`). If conflicts occur, the system will find the next available ID.
+
+The system automatically generates unique run IDs (e.g., `sweep_name.r.0`, `sweep_name.r.1`). If conflicts occur, the
+system will find the next available ID.
 
 ### WandB Issues
+
 - Check that `wandb` config has correct `project` and `entity` settings
 - Ensure you're logged in: `wandb login`
 - Verify sweep exists: Check the cached sweep ID in `train_dir/sweep/{sweep_name}/config.yaml`
@@ -257,6 +274,7 @@ The system automatically generates unique run IDs (e.g., `sweep_name.r.0`, `swee
 ## Development
 
 ### Running Tests
+
 ```bash
 # Run all sweep tests
 cd tests && python -m pytest sweep/ -xvs
@@ -266,7 +284,9 @@ python -m pytest sweep/test_protein_metta.py -xvs
 ```
 
 ### Adding New Distributions
+
 To add a new parameter distribution:
+
 1. Implement the distribution in `protein.py`
 2. Add support in `_process_parameter_config` in `protein_metta.py`
 3. Update this README with the new distribution
@@ -276,7 +296,8 @@ To add a new parameter distribution:
 
 ### Extracting Best Parameters
 
-The `tools/get_best_params_from_sweep.py` script helps you extract the best performing hyperparameters from a completed sweep:
+The `tools/get_best_params_from_sweep.py` script helps you extract the best performing hyperparameters from a completed
+sweep:
 
 ```bash
 # Basic usage - generates config patch file
@@ -326,6 +347,7 @@ The `tools/get_best_params_from_sweep.py` script helps you extract the best perf
 The script generates multiple formats for using the best parameters:
 
 1. **Config Patch File** (saved to `configs/trainer/patch/{sweep_name}_best.yaml`):
+
 ```yaml
 # @package _global_
 # Best hyperparameters from sweep
