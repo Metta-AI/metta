@@ -1,7 +1,7 @@
 import marimo
 
-__generated_with = "0.14.17"
-app = marimo.App(width="medium", app_title="Hello metta-ai")
+__generated_with = "0.15.0"
+app = marimo.App(width="full", app_title="Hello metta-ai")
 
 
 @app.cell
@@ -31,13 +31,13 @@ def _(mo):
 
     ## 1. Setup
 
-    Let's load dependencies and set up some scaffolding. Don't worry about the details here.
+    That's done above in the setup cell.
     """
     )
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _():
     import marimo as mo
     import sys
@@ -91,7 +91,11 @@ def _():
         EvaluationConfig,
     )
 
-    from metta.cogworks.curriculum import env_curriculum
+    from metta.cogworks.curriculum import (
+        env_curriculum,
+        SingleTaskGeneratorConfig,
+        CurriculumConfig,
+    )
 
     # Define a minimal HTML widget using anywidget so we can drop ipywidgets
     class HTMLWidget(anywidget.AnyWidget):
@@ -127,9 +131,16 @@ def _():
 
     # Policy implementations (replacing the deprecated tools/renderer.py)
     from metta.common.config import Config
-    from metta.mettagrid.util.actions import generate_valid_random_actions
+    from metta.mettagrid.test_support.actions import generate_valid_random_actions
     from typing import Protocol, List
     import numpy as np
+
+    import multiprocessing
+
+    from metta.sim.simulation_config import SimulationConfig
+
+    import os
+    from metta.common.util.fs import get_repo_root
 
     class RendererToolConfig(Config):
         policy_type: str = "random"
@@ -222,7 +233,12 @@ def _():
             ar, ac = agent["r"], agent["c"]
             agent_ori = int(agent.get("agent:orientation", 0))
 
-            # Check if next to a mine with ore - if so, pick up
+            # Check agent's ore inventory first
+            agent_inventory = agent.get("inventory", {})
+            agent_ore_count = agent_inventory.get(0, 0)  # ore_red is typically index 0
+            max_ore_limit = 10  # Match the resource limit we set
+
+            # Check if next to a mine with ore - only pick up if not at max capacity
             for orient, (dr, dc) in self.ORIENT_TO_DELTA.items():
                 tr, tc = ar + dr, ac + dc
                 for obj in grid_objects.values():
@@ -238,6 +254,10 @@ def _():
                                     sum(inv.values()) if isinstance(inv, dict) else 0
                                 )
                                 if total > 0:
+                                    # If at max ore capacity, move randomly instead of getting stuck
+                                    if agent_ore_count >= max_ore_limit:
+                                        break  # Skip mine interaction, go to random movement
+
                                     # If facing the mine, pick up; otherwise rotate toward it
                                     if orient == agent_ori:
                                         action_type, action_arg = self.pickup_idx, 0
@@ -256,9 +276,7 @@ def _():
             # Otherwise, wander randomly
             return generate_valid_random_actions(self.env, self.num_agents)
 
-    def get_policy(
-        policy_type: str, env: MettaGridEnv, cfg: RendererToolConfig
-    ) -> Policy:
+    def get_policy(policy_type: str, env: MettaGridEnv) -> Policy:
         """Get a policy based on the specified type."""
         if policy_type == "random":
             return RandomPolicy(env)
@@ -267,11 +285,76 @@ def _():
         else:
             raise Exception("Unknown policy type")
 
+    import signal
+    import sys
+    from contextlib import contextmanager
+    import wandb
+
+    @contextmanager
+    def cancellable_context():
+        """Base context manager for clean cancellation with signal handling"""
+        original_handler = signal.signal(signal.SIGINT, signal.default_int_handler)
+        try:
+            yield
+        except KeyboardInterrupt:
+            print("Operation interrupted by user")
+            sys.exit(0)
+        finally:
+            # Always restore the original signal handler
+            signal.signal(signal.SIGINT, original_handler)
+
+    @contextmanager
+    def training_context():
+        """Context manager for training with cleanup of ML resources"""
+        with cancellable_context():
+            try:
+                yield
+            except KeyboardInterrupt:
+                print("Training interrupted, cleaning up ML resources...")
+                # Cleanup training-specific resources
+                try:
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        print("✓ GPU memory cleared")
+                except Exception as e:
+                    print(f"⚠️ GPU cleanup failed: {e}")
+
+                try:
+                    if wandb.run is not None:
+                        wandb.finish()
+                        print("✓ W&B run finished")
+                except Exception as e:
+                    print(f"⚠️ W&B cleanup failed: {e}")
+
+                print("Training cleanup completed")
+                raise  # Re-raise to let cancellable_context handle the exit
+
+    @contextmanager
+    def simulation_context(env: MettaGridEnv):
+        """Context manager for simulation with cleanup of environment resources"""
+        with cancellable_context():
+            try:
+                yield
+            except KeyboardInterrupt:
+                print("Simulation interrupted, cleaning up environment resources...")
+                # Cleanup simulation-specific resources
+                try:
+                    # Environment cleanup would go here
+                    # e.g., env.close(), release file handles, etc.
+                    env.close()
+                    print("✓ Environment resources cleaned")
+                except Exception as e:
+                    print(f"⚠️ Environment cleanup failed: {e}")
+
+                print("Simulation cleanup completed")
+                raise  # Re-raise to let cancellable_context handle the exit
+
     print("Setup done")
     return (
         CheckpointConfig,
         EvaluationConfig,
         MettaGridEnv,
+        OpportunisticPolicy,
         Path,
         PolicyStore,
         RendererToolConfig,
@@ -283,18 +366,21 @@ def _():
         datetime,
         display,
         env_curriculum,
-        get_policy,
+        get_repo_root,
         initialize_policy_for_environment,
         io,
         logging,
         mo,
+        multiprocessing,
         np,
         os,
         pd,
-        replay_available,
         show_replay,
+        simulation_context,
         time,
         torch,
+        training_context,
+        wandb,
         widgets,
     )
 
@@ -354,7 +440,12 @@ def _(RendererToolConfig):
     # Simple approach: use the built-in arena and add a custom map - just like the demos do
     from metta.mettagrid.config.envs import make_arena
     from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-    from metta.mettagrid.mettagrid_config import AgentRewards
+
+    from metta.mettagrid.mettagrid_config import (
+        AgentRewards,
+        InventoryRewards,
+        StatsRewards,
+    )
     import pprint
 
     # Define simple hallway map as ASCII string
@@ -378,18 +469,19 @@ def _(RendererToolConfig):
     env_config.game.obs_width = 11
     env_config.game.obs_height = 11
 
-    # Enable basic movement and item collection - disable combat
-    env_config.game.actions.move_cardinal.enabled = True
+    # IMPORTANT: Match the exact training action configuration from config.json
+    env_config.game.actions.move.enabled = True
     env_config.game.actions.rotate.enabled = True
-    env_config.game.actions.noop.enabled = True
-    env_config.game.actions.move_8way.enabled = False
-    env_config.game.actions.move.enabled = False
+    env_config.game.actions.noop.enabled = True  # Training had noop enabled!
+    env_config.game.actions.get_items.enabled = True
+    env_config.game.actions.put_items.enabled = False  # Training had this disabled
+    env_config.game.actions.attack.enabled = True  # Training had attack enabled
     env_config.game.actions.change_color.enabled = False
     env_config.game.actions.change_glyph.enabled = False
     env_config.game.actions.swap.enabled = False
     env_config.game.actions.place_box.enabled = False
 
-    # Ensure ore collection gives rewards
+    # IMPORTANT: Match the exact training reward structure from config.json
     env_config.game.agent.rewards = AgentRewards(
         inventory={
             "ore_red": 0.1,
@@ -401,12 +493,15 @@ def _(RendererToolConfig):
         },
     )
 
+    # Use action failure penalty to discourage inefficient actions
+    env_config.game.agent.action_failure_penalty = 0.0  # Match training config
+
     # Set initial resource counts for immediate availability
-    for obj_name in ["mine_red", "generator_red"]:
-        if obj_name in env_config.game.objects:
-            obj_copy = env_config.game.objects[obj_name].model_copy(deep=True)
-            obj_copy.initial_resource_count = 10
-            env_config.game.objects[obj_name] = obj_copy
+    # for obj_name in ["mine_red", "generator_red"]:
+    #    if obj_name in env_config.game.objects:
+    #        obj_copy = env_config.game.objects[obj_name].model_copy(deep=True)
+    #        obj_copy.initial_resource_count = 10
+    #        env_config.game.objects[obj_name] = obj_copy
 
     # Create a proper RendererToolConfig for policy creation
     renderer_config = RendererToolConfig(
@@ -430,10 +525,11 @@ def _(RendererToolConfig):
     env_config.game.global_obs.visitation_counts = False
 
     print("✅ Simple hallway environment: start with arena, add custom map")
-    print(pprint.pp(env_config, indent=1, width=80))
     return (
         AgentRewards,
         AsciiMapBuilder,
+        InventoryRewards,
+        StatsRewards,
         env_config,
         make_arena,
         renderer_config,
@@ -470,14 +566,15 @@ def _(mo):
 @app.cell
 def _(
     MettaGridEnv,
+    OpportunisticPolicy,
     contextlib,
     display,
     env_config,
-    get_policy,
     io,
     mo,
     observe_button,
     renderer_config,
+    simulation_context,
     time,
     widgets,
 ):
@@ -486,32 +583,34 @@ def _(
     def _():
         # Create environment with proper EnvConfig
         env = MettaGridEnv(env_config, render_mode="human")
-        policy = get_policy(renderer_config.policy_type, env, renderer_config)
+        policy = OpportunisticPolicy(env)
 
         header = widgets.HTML()
         map_box = widgets.HTML()
         display(header, map_box)
         _obs, info = env.reset()
 
-        # steps = renderer_config.num_steps
-        steps = renderer_config.num_steps
-        for _step in range(steps):
-            _actions = policy.predict(_obs)
-            _obs, rewards, terminals, truncations, info = env.step(_actions)
-            _agent_obj = next(
-                (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
-            )
-            _inv = {
-                env.inventory_item_names[idx]: count
-                for idx, count in _agent_obj.get("inventory", {}).items()
-            }
-            header.value = f"<b>Step:</b> {_step + 1}/{steps} <br/> <b>Inventory:</b> {_inv.get('ore_red', 0)}"
-            with contextlib.redirect_stdout(io.StringIO()) as buffer:
-                buffer_str = env.render()
-            map_box.value = f"<pre>{buffer_str}</pre>"
-            if renderer_config.sleep_time:
-                time.sleep(renderer_config.sleep_time)
-        env.close()
+        with simulation_context(env):
+            # steps = renderer_config.num_steps
+            steps = renderer_config.num_steps
+            for _step in range(steps):
+                _actions = policy.predict(_obs)
+                _obs, rewards, terminals, truncations, info = env.step(_actions)
+                _agent_obj = next(
+                    (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
+                )
+                _inv = {
+                    env.inventory_item_names[idx]: count
+                    for idx, count in _agent_obj.get("inventory", {}).items()
+                }
+                header.value = f"<b>Step:</b> {_step + 1}/{steps} <br/> <b>Inventory:</b> {_inv.get('ore_red', 0)}"
+                with contextlib.redirect_stdout(io.StringIO()) as buffer:
+                    buffer_str = env.render()
+                map_box.value = f"<pre>{buffer_str}</pre>"
+                if renderer_config.sleep_time:
+                    time.sleep(renderer_config.sleep_time)
+
+            env.close()
 
     _()
     return
@@ -594,11 +693,11 @@ def _(mo):
 @app.cell
 def _(
     MettaGridEnv,
+    OpportunisticPolicy,
     contextlib,
     display,
     env_config,
     eval_button,
-    get_policy,
     io,
     mo,
     np,
@@ -613,7 +712,7 @@ def _(
     with contextlib.redirect_stdout(io.StringIO()):
         # Create evaluation environment with our simple config
         eval_env = MettaGridEnv(env_config, render_mode="human")
-        eval_policy = get_policy(renderer_config.policy_type, eval_env, renderer_config)
+        eval_policy = OpportunisticPolicy(eval_env)
 
     for ep in range(1, EVAL_EPISODES + 1):
         _obs, _ = eval_env.reset()
@@ -706,47 +805,47 @@ def _(
     env_curriculum,
     logging,
     mo,
+    multiprocessing,
     os,
     train_button,
+    training_context,
 ):
     username = os.environ.get("USER", "metta_user")
 
-    # Unique run name (so multiple notebook runs don't collide)
-    run_name = (
-        f"{username}.hello_world_train.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    )
-
-    print(f"🚀 Starting training run: {run_name}")
-
     def train_agent():
-        # Create a simple curriculum with our hallway environment
-        curriculum = env_curriculum(env_config)
+        # Unique run name (so multiple notebook runs don't collide)
+        run_name = f"{username}.hello_world_train.mine.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        print(f"🚀 Starting training run: {run_name}")
 
-        # Create trainer configuration with Mac-optimized settings
-        # Batch sizes optimized for Mac CPU/Metal - larger than demo but reasonable for local machine
+        # Create trainer configuration to reach peak performance before unlearning
         trainer_config = TrainerConfig(
-            curriculum=curriculum,
-            total_timesteps=2000000,  # Small demo run
-            # total_timesteps=1000,  # DEBUG run
-            batch_size=65536,  # Increased from 256, reduced from default 524288 for Mac
-            minibatch_size=512,  # Increased from 256, reduced from default 16384 for Mac
-            rollout_workers=14,  # Single worker for Mac
-            forward_pass_minibatch_target_size=512,  # Increased from 2 - better GPU utilization
-            # Adjusted learning rate for smaller batch size (scaled down from default 0.000457)
-            # Using sqrt(2048/524288) ≈ 0.0625 scaling factor
-            # optimizer={
-            #    "learning_rate": 0.00003
-            # },  # Reduced from default for smaller batch
+            curriculum=env_curriculum(env_config),
+            total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 ore)
+            batch_size=32768,  # Reduced batch size for more stable learning
+            minibatch_size=256,  # Smaller minibatches for better gradient estimates
+            rollout_workers=min(
+                4, multiprocessing.cpu_count()
+            ),  # Cap workers to prevent resource contention
+            forward_pass_minibatch_target_size=256,
+            # Use lower learning rate from the start to prevent aggressive updates
+            optimizer={
+                "learning_rate": 0.0002,  # Lower than default to prevent unlearning
+            },
+            # More conservative PPO settings
+            ppo={
+                "clip_coef": 0.15,  # Slightly higher clip to prevent too aggressive updates
+                "ent_coef": 0.01,  # Higher entropy to maintain exploration
+                "target_kl": 0.015,  # Add KL divergence limit to prevent large policy updates
+            },
             checkpoint=CheckpointConfig(
-                checkpoint_interval=10,  # Checkpoint every n epochs
-                wandb_checkpoint_interval=10,
+                checkpoint_interval=20,  # Frequent checkpoints to catch peak performance
+                wandb_checkpoint_interval=20,
             ),
-            # Enable replay generation for MettaScope visualization
             evaluation=EvaluationConfig(
-                evaluate_interval=10,  # Generate replays every 50 steps (matches checkpoint interval)
-                evaluate_remote=False,  # Run locally or you'll have to wait
+                evaluate_interval=20,  # Frequent evaluation to monitor for unlearning
+                evaluate_remote=False,
                 evaluate_local=True,
-                replay_dir=f"s3://softmax-public/replays/{run_name}",  # Store replays on S3
+                replay_dir=f"s3://softmax-public/replays/{run_name}",
             ),
         )
 
@@ -764,8 +863,10 @@ def _(
 
         try:
             print("🏋️ Training started...")
-            result = train_tool.invoke()  # Use invoke() method instead of run()
-            print(f"✅ Training completed successfully! Result: {result}")
+            with training_context():
+                result = train_tool.invoke(args={}, overrides=[])
+                print(f"✅ Training completed successfully! Result: {result}")
+            return run_name
         except Exception as e:
             print(f"❌ Training failed: {e}")
             import traceback
@@ -773,7 +874,7 @@ def _(
             traceback.print_exc()
 
     mo.stop(not train_button.value)
-    train_agent()
+    run_name = train_agent()
     return run_name, username
 
 
@@ -817,174 +918,268 @@ def _(mo):
 
 @app.cell
 def _(
-    EVAL_EPISODES,
     MettaGridEnv,
     Path,
     PolicyStore,
-    TensorDict,
     WandbConfig,
     contextlib,
     display,
     env_config,
     eval_trained_button,
+    get_repo_root,
     initialize_policy_for_environment,
     io,
     mo,
     np,
+    os,
     pd,
     renderer_config,
     run_name,
+    simulation_context,
     time,
     torch,
     widgets,
 ):
-    # Load trained policy using repo's PolicyStore approach (like tools/sim.py)
-    mo.stop(not eval_trained_button.value or not run_name)
+    mo.stop(not eval_trained_button.value)
 
     def evaluate_agent():
-        # Find the latest checkpoint
-        ckpt_dir = Path("train_dir") / run_name / "checkpoints"
-        latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
+        """
+        Fixed simplified version to test path resolution and policy loading
+        """
+        # Change to repo root directory so relative paths work correctly
 
-        print(f"Evaluating checkpoint: {latest_ckpt.name}")
+        original_cwd = os.getcwd()
+        repo_root = get_repo_root()
+        os.chdir(repo_root)
 
-        # Create policy store (same as tools/sim.py:65-70)
-        policy_store = PolicyStore.create(
-            device="cpu",
-            wandb_config=WandbConfig.Off(),
-            data_dir="train_dir",
-            wandb_run=None,
-        )
+        try:
+            # Find all checkpoints and select the best one (not just latest)
+            ckpt_dir = Path("train_dir") / run_name / "checkpoints"
+            print(f"Looking for checkpoints in: {ckpt_dir.absolute()}")
+            print(f"Directory exists: {ckpt_dir.exists()}")
+            if ckpt_dir.exists():
+                checkpoints = list(ckpt_dir.glob("*.pt"))
+                print(
+                    f"Found {len(checkpoints)} checkpoint files: {[c.name for c in checkpoints]}"
+                )
+            if not ckpt_dir.exists() or not list(ckpt_dir.glob("*.pt")):
+                raise Exception(f"No checkpoints found in {ckpt_dir.absolute()}")
 
-        # Get policy record (same as tools/sim.py:76-82)
-        policy_uri = f"file://{latest_ckpt.parent.absolute()}"
-        policy_records = policy_store.policy_records(
-            uri_or_config=policy_uri,
-            selector_type="latest",
-            n=1,
-            metric="score",
-        )
+            # Get all checkpoints sorted by epoch number (extract epoch from filename)
+            checkpoints = list(ckpt_dir.glob("*.pt"))
+            if (
+                len(checkpoints) > 10
+            ):  # If we have many checkpoints, try one from the peak learning phase
+                # Sort by epoch number and take one from around 60-80% through training
+                checkpoints.sort(
+                    key=lambda p: int("".join(filter(str.isdigit, p.stem)))
+                    if any(c.isdigit() for c in p.stem)
+                    else 0
+                )
+                peak_idx = int(
+                    len(checkpoints) * 0.7
+                )  # Use checkpoint from 70% through training
+                latest_ckpt = checkpoints[peak_idx]
+                print(
+                    f"Using peak performance checkpoint: {latest_ckpt.name} (index {peak_idx}/{len(checkpoints)})"
+                )
+                print(
+                    f"   📊 This avoids the unlearning phase seen in later checkpoints"
+                )
+            else:
+                latest_ckpt = max(checkpoints, key=lambda p: p.stat().st_mtime)
+                print(f"Using latest checkpoint: {latest_ckpt.name}")
 
-        if not policy_records:
-            raise Exception("No policy records found")
+            print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-        policy_record = policy_records[0]
-        print(f"✅ Successfully loaded policy: {policy_record.run_name}")
-
-        # Create evaluation environment
-        with contextlib.redirect_stdout(io.StringIO()):
-            eval_env = MettaGridEnv(env_config, render_mode="human")
-
-        # Initialize policy for environment (same as simulation.py:133-138)
-        initialize_policy_for_environment(
-            policy_record=policy_record,
-            metta_grid_env=eval_env,
-            device=torch.device("cpu"),
-            restore_feature_mapping=True,
-        )
-
-        # Get the trained policy from the policy record
-        trained_policy = policy_record.policy
-
-        # Run animated evaluation with the trained policy
-        trained_scores: list[int] = []
-
-        # Create header and display widgets for animation
-        header = widgets.HTML()
-        map_box = widgets.HTML()
-        display(header, map_box)
-
-        print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
-
-        for ep in range(1, EVAL_EPISODES + 1):
-            header.value = (
-                f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
+            # Create policy store (same as tools/sim.py:65-70)
+            policy_store = PolicyStore.create(
+                device="cpu",
+                wandb_config=WandbConfig.Off(),
+                data_dir="train_dir",
+                wandb_run=None,
             )
 
-            _obs, _ = eval_env.reset()
-            # Convert obs to tensor format for policy
-            obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
+            # Get policy record (same as tools/sim.py:76-82)
+            policy_uri = f"file://{latest_ckpt.parent.absolute()}"
+            print(f"Policy URI: {policy_uri}")
+            policy_records = policy_store.policy_records(
+                uri_or_config=policy_uri,
+                selector_type="latest",
+                n=1,
+                metric="score",
+            )
 
-            steps = 1000
-            for _step in range(steps):  # Same number of steps as opportunistic
-                # Use TensorDict format for trained policy (same as simulation.py:272-275)
+            if not policy_records:
+                raise Exception("No policy records found")
 
-                td = TensorDict({"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0])
-                trained_policy(td)
-                _actions = td["actions"].cpu().numpy()
+            policy_record = policy_records[0]
+            print(f"✅ Successfully loaded policy: {policy_record.run_name}")
 
-                _obs, _, _, _, _ = eval_env.step(_actions)
-                obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
+            # Create evaluation environment
+            with contextlib.redirect_stdout(io.StringIO()):
+                eval_env = MettaGridEnv(env_config, render_mode="human")
 
-                # Update display every few steps to show animation
-                _agent_obj = next(
-                    (
-                        o
-                        for o in eval_env.grid_objects.values()
-                        if o.get("agent_id") == 0
+            # Initialize policy for environment (same as simulation.py:133-138)
+            initialize_policy_for_environment(
+                policy_record=policy_record,
+                metta_grid_env=eval_env,
+                device=torch.device("cpu"),
+                restore_feature_mapping=True,
+            )
+
+            # Get the trained policy from the policy record
+            trained_policy = policy_record.policy
+
+            # Run animated evaluation with the trained policy
+            trained_scores: list[int] = []
+            trained_ore_scores: list[int] = []
+
+            # Create header and display widgets for animation
+            header = widgets.HTML()
+            map_box = widgets.HTML()
+            display(header, map_box)
+
+            EVAL_EPISODES = 10
+            print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
+
+            with simulation_context(eval_env):
+                for ep in range(1, EVAL_EPISODES + 1):
+                    header.value = f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
+
+                    _obs, _ = eval_env.reset()
+
+                    steps = (
+                        env_config.game.max_steps
+                    )  # Use same steps as training (5000)
+                    print(
+                        f"Episode {ep}: Running evaluation for {steps} steps (matching training configuration)"
                     )
-                )
-                _inv = {
-                    eval_env.inventory_item_names[idx]: cnt
-                    for idx, cnt in _agent_obj.get("inventory", {}).items()
-                }
-                header.value = (
-                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
-                    f"<br />"
-                    f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
-                )
-                with contextlib.redirect_stdout(io.StringIO()) as buffer:
-                    buffer_str = eval_env.render()
-                map_box.value = f"<pre>{buffer_str}</pre>"
-                time.sleep(renderer_config.sleep_time)  # Small delay for animation
+                    for _step in range(steps):
+                        # Use proper observation processing pipeline that matches training
+                        from metta.agent.utils import obs_to_td
 
-            # Final inventory count for this episode
-            _agent_obj = next(
-                (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
-            )
-            _inv = {
-                eval_env.inventory_item_names[idx]: cnt
-                for idx, cnt in _agent_obj.get("inventory", {}).items()
-            }
-            inv_count = int(_inv.get("ore_red", 0))
-            trained_scores.append(inv_count)
+                        td = obs_to_td(_obs, torch.device("cpu"))
 
-        eval_env.close()
+                        # The dimension fix in simulation.py ensures proper tensor shapes automatically
 
-        # Calculate and display results
-        mean_score = np.mean(trained_scores)
-        std_score = np.std(trained_scores)
-        running_avg = pd.Series(trained_scores).expanding().mean()
+                        trained_policy(td)
+                        _actions = td["actions"].cpu().numpy()
 
-        # Show final results
-        header.value = f"<b>✅ Evaluation Complete!</b>"
-        map_box.value = f"""<pre>
+                        _obs, _, _, _, _ = eval_env.step(_actions)
+
+                        # Update display every few steps to show animation
+                        _agent_obj = next(
+                            (
+                                o
+                                for o in eval_env.grid_objects.values()
+                                if o.get("agent_id") == 0
+                            )
+                        )
+                        _inv = {
+                            eval_env.inventory_item_names[idx]: cnt
+                            for idx, cnt in _agent_obj.get("inventory", {}).items()
+                        }
+                        ore_count = _inv.get("ore_red", 0)
+                        battery_count = _inv.get("battery_red", 0)
+                        # Calculate reward using training config: ore_red=0.1, battery_red=0.8
+                        total_reward = ore_count * 0.1 + battery_count * 0.8
+                        header.value = (
+                            f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
+                            f"<br />"
+                            f"<b>Ore:</b> {ore_count} <b>Reward:</b> {total_reward:.1f}"
+                        )
+                        with contextlib.redirect_stdout(io.StringIO()) as buffer:
+                            buffer_str = eval_env.render()
+                        map_box.value = f"<pre>{buffer_str}</pre>"
+                        if _step % 500 == 0:  # Print progress every 500 steps
+                            print(
+                                f"  Episode {ep}, Step {_step}: Ore={ore_count}, Total Reward={total_reward:.1f}"
+                            )
+                        time.sleep(
+                            renderer_config.sleep_time / 50
+                        )  # Small delay for animation
+
+                    # Final inventory count for this episode - use total reward, not just ore
+                    _agent_obj = next(
+                        (
+                            o
+                            for o in eval_env.grid_objects.values()
+                            if o.get("agent_id") == 0
+                        )
+                    )
+                    _inv = {
+                        eval_env.inventory_item_names[idx]: cnt
+                        for idx, cnt in _agent_obj.get("inventory", {}).items()
+                    }
+                    ore_count = int(_inv.get("ore_red", 0))
+                    battery_count = int(_inv.get("battery_red", 0))
+                    # Calculate total reward based on training reward structure
+                    total_reward = ore_count * 0.1 + battery_count * 0.8
+                    trained_scores.append(total_reward)
+                    trained_ore_scores.append(ore_count)
+
+                eval_env.close()
+
+            # Calculate and display results
+            mean_score = np.mean(trained_scores)
+            std_score = np.std(trained_scores)
+            running_avg = pd.Series(trained_scores).expanding().mean()
+
+            # Show final results
+            header.value = f"<b>✅ Evaluation Complete!</b>"
+            map_box.value = f"""<pre>
     🏆 TRAINED AGENT RESULTS 🏆
 
     Episodes: {EVAL_EPISODES}
     Average Score: {mean_score:.2f} ± {std_score:.2f} ore collected
-    Best Episode: {max(trained_scores)} ore
+    Best Episode: {max(trained_ore_scores)} ore
     Worst Episode: {min(trained_scores)} ore
 
     Individual Episode Scores: {trained_scores}
 
     Compare this to the opportunistic baseline from earlier!
-        </pre>"""
+    </pre>"""
 
-        display(
-            pd.DataFrame(
-                {
-                    "episode": list(range(1, EVAL_EPISODES + 1)),
-                    "ore_red": trained_scores,
-                    "running_avg": running_avg,
-                }
+            display(
+                pd.DataFrame(
+                    {
+                        "episode": list(range(1, EVAL_EPISODES + 1)),
+                        "total_reward": trained_scores,
+                        "running_avg": running_avg,
+                        "ore": trained_ore_scores,
+                        "running_avg_ore": pd.Series(trained_ore_scores)
+                        .expanding()
+                        .mean(),
+                    },
+                )
             )
-        )
 
-        print(
-            f"\n🎯 Trained agent performance: {mean_score:.2f} ± {std_score:.2f} ore collected"
-        )
-        print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
+            print(
+                f"\n🎯 Trained agent performance: {mean_score:.2f} ± {std_score:.2f} total reward"
+            )
+            print(
+                f"    (Reward = ore_count * 0.1 + battery_count * 0.8, matching training config)"
+            )
+            print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
+            print(f"\n📋 TRAINING vs EVALUATION COMPARISON:")
+            print(f"   - Training WandB shows: ~40+ ore per episode")
+            print(
+                f"   - Evaluation shows: {mean_score:.2f} total reward ({mean_score / 0.1:.1f} ore equivalent)"
+            )
+            print(f"   - Episode length: {steps} steps (matching training max_steps)")
+            if mean_score < 2.0:  # Less than 20 ore equivalent
+                print(
+                    f"   ⚠️  MISMATCH: Evaluation performance much lower than training metrics!"
+                )
+                print(
+                    f"   🔍 Possible issues: checkpoint selection, environment differences, or step count"
+                )
+            else:
+                print(f"   ✅ Performance matches training expectations!")
+
+        finally:
+            os.chdir(original_cwd)
 
     evaluate_agent()
     return
@@ -1011,45 +1206,28 @@ def _(mo):
     return
 
 
-@app.cell(hide_code=True)
-def _(mo):
-    replay_button = mo.ui.run_button(label="Click to view MettaScope replay")
-    replay_button
-    return (replay_button,)
-
-
 @app.cell
-def _(mo, replay_available, replay_button, run_name, show_replay):
-    mo.stop(not replay_button.value or not run_name)
+def _(mo, run_name, show_replay):
+    mo.stop(not run_name)
 
-    if not replay_available:
-        print("❌ MettaScope replay viewer is not available")
-        print("Make sure you're running from the experiments/marimo directory")
-    else:
-        print(f"🎬 Loading MettaScope replay for training run: {run_name}")
-        print("This will display an interactive visualization of the trained agent...")
-
-        try:
-            # Show the latest replay from the training run
-            show_replay(run_name, step="last", width=950, height=400, autoplay=True)
-        except Exception as e:
-            print(f"❌ Error loading replay: {e}")
-            print("This could mean:")
-            print("- Training hasn't generated replays yet (evaluation incomplete)")
-            print("- Run not found in W&B (check run name)")
-            print("- Network connectivity issues")
-            print(
-                f"\nReplays are stored on S3 at: s3://softmax-public/replays/{run_name}/"
-            )
+    try:
+        # Show the latest replay from the training run
+        show_replay(run_name, step="last", width=1250, height=500, autoplay=True)
+    except Exception as e:
+        print(f"❌ Error loading replay: {e}")
+        print("This could mean:")
+        print("- Training hasn't generated replays yet (evaluation incomplete)")
+        print("- Run not found in W&B (check run name)")
+        print("- Network connectivity issues")
+        print(f"\nReplays are stored on S3 at: s3://softmax-public/replays/{run_name}/")
     return
 
 
 @app.cell
-def _(mo, run_name, traceback):
-    import wandb
+def _(mo, wandb):
     import IPython
 
-    def _display_by_wandb_path(path: str, *, height: int) -> None:
+    def display_by_wandb_path(path: str, *, height: int) -> None:
         """Display a wandb object (usually in an iframe) given its URI.
 
         Args:
@@ -1063,12 +1241,20 @@ def _(mo, run_name, traceback):
 
             return mo.md(obj.to_html(height=height))
         except wandb.Error:
+            import traceback
+
             traceback.print_exc()
             return mo.md(
                 f"Path {path!r} does not refer to a W&B object you can access."
             )
 
-    _display_by_wandb_path(f"metta-research/metta/runs/{run_name}", height=580)
+    return (display_by_wandb_path,)
+
+
+@app.cell
+def _(display_by_wandb_path, mo, run_name):
+    mo.stop(not run_name)
+    display_by_wandb_path(f"metta-research/metta/{run_name}", height=580)
     return
 
 
@@ -1076,11 +1262,23 @@ def _(mo, run_name, traceback):
 def _(mo):
     mo.md(
         r"""
-    # Let's run a new example with a new map
+    ## 9. Let's run a new example with a new map
 
-        ###########
-        #R...@...m#
-        ###########
+    This time we have a mine (m) on the right to dispense red ore and a red converter (R) on the left to turn the ore into batteries.
+
+    ```text
+    ###########
+    #R...@...m#
+    ###########
+    ```
+
+    ###  🔄 Multi-Step Task Success
+
+    This second environment is more complex - it requires:
+
+    1. Collect ore from the mine (right side)
+    2. Transport ore to the generator (left side)  
+    3. Convert ore to batteries for higher rewards
     """
     )
     return
@@ -1091,6 +1289,7 @@ def _(
     AgentRewards,
     AsciiMapBuilder,
     RendererToolConfig,
+    StatsRewards,
     make_arena,
     textwrap,
 ):
@@ -1113,29 +1312,42 @@ def _(
     env_config2.game.obs_height = 11
 
     # Enable basic movement and item collection - disable combat
-    env_config2.game.actions.move_cardinal.enabled = True
+    env_config2.game.actions.move.enabled = True
     env_config2.game.actions.rotate.enabled = True
-    env_config2.game.actions.noop.enabled = True
-    env_config2.game.actions.move_8way.enabled = False
+    env_config2.game.actions.noop.enabled = False  # Disable no-op to force action
     env_config2.game.actions.attack.enabled = False
+    env_config2.game.actions.get_items.enabled = True
     env_config2.game.actions.put_items.enabled = True
     env_config2.game.actions.change_color.enabled = False
     env_config2.game.actions.change_glyph.enabled = False
     env_config2.game.actions.swap.enabled = False
     env_config2.game.actions.place_box.enabled = False
 
-    # Ensure ore collection gives rewards
+    # CONVERSION INCENTIVE: Make conversion much more profitable than resource limit camping
     env_config2.game.agent.rewards = AgentRewards(
         inventory={
-            "ore_red": 1.0,
-            "battery_red": 1.0,
+            "ore_red": -0.02,
+            "battery_red": 5.0,
+        },
+        inventory_max={
+            "ore_red": 255,
+            "battery_red": 255,
         },
     )
+
+    # Force more frequent conversion by limiting ore storage
+    env_config2.game.agent.resource_limits = {"ore_red": 10}  # Can only hold 10 ore max
+
+    # Use action failure penalty for efficiency (encourages purposeful movement)
+    env_config2.game.agent.action_failure_penalty = 0.01
+
+    # Use proper StatsRewards object to avoid serialization warnings
+    env_config2.game.agent.rewards.stats = StatsRewards()
 
     renderer_config2 = RendererToolConfig(
         policy_type="opportunistic",
         num_steps=3000,
-        sleep_time=0.005,
+        sleep_time=0.0020,
         renderer_type="human",
     )
     return env_config2, renderer_config2
@@ -1151,14 +1363,15 @@ def _(mo):
 @app.cell
 def _(
     MettaGridEnv,
+    OpportunisticPolicy,
     contextlib,
     display,
     env_config2,
-    get_policy,
     io,
     mo,
     observe_button2,
     renderer_config2,
+    simulation_context,
     time,
     widgets,
 ):
@@ -1167,38 +1380,120 @@ def _(
     def observe_agent2():
         # Create environment with proper EnvConfig
         env = MettaGridEnv(env_config2, render_mode="human")
-        policy = get_policy(renderer_config2.policy_type, env, renderer_config2)
+        policy = OpportunisticPolicy(env)
 
         header = widgets.HTML()
         map_box = widgets.HTML()
         display(header, map_box)
         _obs, info = env.reset()
 
-        # steps = renderer_config.num_steps
-        steps = renderer_config2.num_steps
-        for _step in range(steps):
-            _actions = policy.predict(_obs)
-            _obs, rewards, terminals, truncations, info = env.step(_actions)
-            _agent_obj = next(
-                (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
-            )
-            _inv = {
-                env.inventory_item_names[idx]: count
-                for idx, count in _agent_obj.get("inventory", {}).items()
-            }
-            header.value = "<br />".join(
-                [
-                    f"<b>Step:</b> {_step + 1}/{steps}",
-                    f"<b>Inventory:</b> ore={_inv.get('ore_red', 0)} batteries={_inv.get('battery_red', 0)}",
-                ]
-            )
-            with contextlib.redirect_stdout(io.StringIO()):
-                buffer_str = env.render()
-            map_box.value = f"<pre>{buffer_str}</pre>"
-            time.sleep(renderer_config2.sleep_time)
-        env.close()
+        with simulation_context(env):
+            # steps = renderer_config.num_steps
+            steps = env_config2.game.max_steps
+            for _step in range(steps):
+                _actions = policy.predict(_obs)
+                _obs, rewards, terminals, truncations, info = env.step(_actions)
+                _agent_obj = next(
+                    (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
+                )
+                _inv = {
+                    env.inventory_item_names[idx]: count
+                    for idx, count in _agent_obj.get("inventory", {}).items()
+                }
+                header.value = "<br />".join(
+                    [
+                        f"<b>Step:</b> {_step + 1}/{steps}",
+                        f"<b>Inventory:</b> ore={_inv.get('ore_red', 0)} batteries={_inv.get('battery_red', 0)}",
+                    ]
+                )
+                with contextlib.redirect_stdout(io.StringIO()):
+                    buffer_str = env.render()
+                map_box.value = f"<pre>{buffer_str}</pre>"
+                time.sleep(renderer_config2.sleep_time)
+            env.close()
 
     observe_agent2()
+    return
+
+
+@app.cell
+def _(mo):
+    eval_button2 = mo.ui.run_button(label="Click to run another evaluation")
+    eval_button2
+    return (eval_button2,)
+
+
+@app.cell
+def _(
+    EVAL_EPISODES,
+    MettaGridEnv,
+    OpportunisticPolicy,
+    contextlib,
+    display,
+    env_config2,
+    eval_button2,
+    io,
+    mo,
+    np,
+    pd,
+    renderer_config2,
+):
+    mo.stop(not eval_button2.value)
+
+    def _():
+        scores_ore: list[int] = []
+        scores_batteries: list[int] = []
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            # Create evaluation environment with our simple config
+            eval_env = MettaGridEnv(env_config2, render_mode="human")
+            eval_policy = OpportunisticPolicy(eval_env)
+
+        for ep in range(1, EVAL_EPISODES + 1):
+            _obs, _ = eval_env.reset()
+            inv_count = 0
+            for _step in range(renderer_config2.num_steps):
+                _actions = eval_policy.predict(_obs)
+                _obs, _, _, _, _ = eval_env.step(_actions)
+            _agent_obj = next(
+                (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
+            )
+            _inv = {
+                eval_env.inventory_item_names[idx]: cnt
+                for idx, cnt in _agent_obj.get("inventory", {}).items()
+            }
+            inv_count_ore = int(_inv.get("ore_red", 0))
+            inv_count_batteries = int(_inv.get("battery_red", 0))
+            scores_ore.append(inv_count_ore)
+            scores_batteries.append(inv_count_batteries)
+
+        mean_score_ore = np.mean(scores_ore)
+        mean_score_batteries = np.mean(scores_batteries)
+        std_score_ore = np.std(scores_ore)
+        std_score_batteries = np.std(scores_batteries)
+        running_avg_ore = pd.Series(scores_ore).expanding().mean()
+        running_avg_batteries = pd.Series(scores_batteries).expanding().mean()
+
+        analysis_str = (
+            f"Opportunistic agent baseline: {mean_score_ore:.2f} ± {std_score_ore:.2f} ore collected, "
+            f"{mean_score_batteries:.2f} ± {std_score_batteries:.2f} batteries collected"
+        )
+        print(analysis_str)
+        display(mo.md(analysis_str))
+        display(
+            pd.DataFrame(
+                {
+                    "episode": list(range(1, EVAL_EPISODES + 1)),
+                    "ore_red": scores_ore,
+                    "battery_red": scores_batteries,
+                    "running_avg_ore": running_avg_ore,
+                    "running_avg_battery": running_avg_batteries,
+                }
+            )
+        )
+        eval_env.close()
+
+    _()
     return
 
 
@@ -1220,7 +1515,9 @@ def _(
     env_curriculum,
     logging,
     mo,
+    multiprocessing,
     train_button2,
+    training_context,
     username,
 ):
     mo.stop(not train_button2.value)
@@ -1229,33 +1526,55 @@ def _(
         # Create a simple curriculum with our hallway environment
         curriculum = env_curriculum(env_config2)
 
-        run_name2 = f"{username}.hello_world_train.generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_name2 = f"{username}.hello_world_train.mine_plus_generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        # Create trainer configuration with Mac-optimized settings
-        # Batch sizes optimized for Mac CPU/Metal - larger than first demo but still reasonable
         trainer_config = TrainerConfig(
             curriculum=curriculum,
-            total_timesteps=2000000,  # Small demo run
-            # total_timesteps=1000,  # DEBUG run
-            batch_size=65536,  # Increased from 256, reduced from default 524288 for Mac
-            minibatch_size=512,  # Increased from 256, reduced from default 16384 for Mac
-            rollout_workers=14,  # Single worker for Mac
-            forward_pass_minibatch_target_size=512,  # Increased from 2 - better GPU utilization
-            # Adjusted learning rate for smaller batch size (scaled down from default 0.000457)
-            # Using sqrt(4096/524288) ≈ 0.088 scaling factor
+            total_timesteps=3500000,  # Extended training to master conversion cycles
+            batch_size=65536,  # Larger batches for stable learning of clear signal
+            minibatch_size=512,  # Bigger minibatches with clean reward structure
+            rollout_workers=min(
+                6, multiprocessing.cpu_count()
+            ),  # More workers for route exploration
+            forward_pass_minibatch_target_size=512,
+            # Learning rate with decay to prevent unlearning
             optimizer={
-                "learning_rate": 0.00004
-            },  # Reduced from default for smaller batch
+                "learning_rate": 0.0004,  # Start high to learn conversion quickly
+                "eps": 1e-8,  # Numerical stability
+                "weight_decay": 5e-7,  # Slightly higher regularization to prevent overfitting
+            },
+            # Anti-unlearning PPO settings
+            ppo={
+                "clip_coef": 0.15,  # Tighter clipping to prevent policy drift
+                "ent_coef": 0.02,  # Start with exploration, will decay via scheduler
+                "target_kl": 0.03,  # Stricter KL limit to prevent large policy changes
+                "vf_coef": 0.5,  # Standard value function coefficient
+                "gamma": 0.99,  # Standard discount for immediate conversion feedback
+                "gae_lambda": 0.95,  # Standard GAE
+                "max_grad_norm": 0.5,  # Gradient clipping for stability
+            },
+            # Comprehensive scheduling to prevent unlearning
+            hyperparameter_scheduler={
+                "learning_rate_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+                    "initial_value": 0.0004,  # Start high for initial learning
+                    "min_value": 0.00005,  # Decay to very low to lock in behavior
+                },
+                "ppo_ent_coef_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+                    "initial_value": 0.02,  # Start with exploration
+                    "min_value": 0.001,  # Reduce exploration once learned
+                },
+            },
             checkpoint=CheckpointConfig(
-                checkpoint_interval=10,  # Checkpoint every n epochs
+                checkpoint_interval=10,  # More frequent checkpoints to catch peak
                 wandb_checkpoint_interval=10,
             ),
-            # Enable replay generation for MettaScope visualization
             evaluation=EvaluationConfig(
-                evaluate_interval=10,  # Generate replays every 50 steps (matches checkpoint interval)
-                evaluate_remote=False,  # Run locally or you'll have to wait
+                evaluate_interval=10,  # More frequent evaluation to monitor unlearning
+                evaluate_remote=False,
                 evaluate_local=True,
-                replay_dir=f"s3://softmax-public/replays/{run_name2}",  # Store replays on S3
+                replay_dir=f"s3://softmax-public/replays/{run_name2}",
             ),
         )
 
@@ -1273,8 +1592,9 @@ def _(
 
         try:
             print("🏋️ Training started...")
-            result = train_tool.invoke()  # Use invoke() method instead of run()
-            print(f"✅ Training completed successfully! Result: {result}")
+            with training_context():
+                result = train_tool.invoke(args={}, overrides=[])
+                print(f"✅ Training completed successfully! Result: {result}")
         except Exception as e:
             print(f"❌ Training failed: {e}")
             import traceback
@@ -1289,7 +1609,7 @@ def _(
 
 @app.cell
 def _(mo):
-    eval_trained_button2 = mo.ui.run_button(label="Click to evaluate trained agent")
+    eval_trained_button2 = mo.ui.run_button(label="Click to evaluate 2nd trained agent")
     eval_trained_button2
     return (eval_trained_button2,)
 
@@ -1304,6 +1624,7 @@ def _(
     WandbConfig,
     contextlib,
     display,
+    env_config,
     env_config2,
     eval_trained_button2,
     initialize_policy_for_environment,
@@ -1313,16 +1634,50 @@ def _(
     pd,
     renderer_config2,
     run_name2,
+    simulation_context,
     time,
     torch,
     widgets,
 ):
     mo.stop(not eval_trained_button2.value or not run_name2)
 
+    # run_name2 = "zfogg.hello_world_train.mine_plus_generator.20250827_042602"
+
     def evaluate_agent2():
-        # Find the latest checkpoint
+        # Find all checkpoints and select the best one using peak performance strategy
         ckpt_dir = Path("train_dir") / run_name2 / "checkpoints"
-        latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
+        print(f"Looking for checkpoints in: {ckpt_dir.absolute()}")
+        print(f"Directory exists: {ckpt_dir.exists()}")
+        if ckpt_dir.exists():
+            checkpoints = list(ckpt_dir.glob("*.pt"))
+            print(
+                f"Found {len(checkpoints)} checkpoint files: {[c.name for c in checkpoints]}"
+            )
+        if not ckpt_dir.exists() or not list(ckpt_dir.glob("*.pt")):
+            raise Exception(f"No checkpoints found in {ckpt_dir.absolute()}")
+
+        # Get all checkpoints sorted by epoch number (extract epoch from filename)
+        checkpoints = list(ckpt_dir.glob("*.pt"))
+        if (
+            len(checkpoints) > 10
+        ):  # If we have many checkpoints, try one from the peak learning phase
+            # Sort by epoch number and take one from around 60-80% through training
+            checkpoints.sort(
+                key=lambda p: int("".join(filter(str.isdigit, p.stem)))
+                if any(c.isdigit() for c in p.stem)
+                else 0
+            )
+            peak_idx = int(
+                len(checkpoints) * 0.7
+            )  # Use checkpoint from 70% through training
+            latest_ckpt = checkpoints[peak_idx]
+            print(
+                f"Using peak performance checkpoint: {latest_ckpt.name} (index {peak_idx}/{len(checkpoints)})"
+            )
+            print(f"   📊 This avoids the unlearning phase seen in later checkpoints")
+        else:
+            latest_ckpt = max(checkpoints, key=lambda p: p.stat().st_mtime)
+            print(f"Using latest checkpoint: {latest_ckpt.name}")
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
@@ -1336,6 +1691,7 @@ def _(
 
         # Get policy record (same as tools/sim.py:76-82)
         policy_uri = f"file://{latest_ckpt.parent.absolute()}"
+        print(f"Policy URI: {policy_uri}")
         policy_records = policy_store.policy_records(
             uri_or_config=policy_uri,
             selector_type="latest",
@@ -1365,6 +1721,7 @@ def _(
         trained_policy = policy_record.policy
 
         # Run animated evaluation with the trained policy
+        trained_scores: list[int] = []
         trained_scores_ore: list[int] = []
         trained_scores_batteries: list[int] = []
 
@@ -1373,28 +1730,60 @@ def _(
         map_box = widgets.HTML()
         display(header, map_box)
 
-        print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
+        print(f"🔧 EVALUATION SETUP:")
+        print(f"   - Environment max_steps: {env_config.game.max_steps}")
+        print(f"   - Selected checkpoint: {latest_ckpt.name}")
 
-        for ep in range(1, EVAL_EPISODES + 1):
-            header.value = (
-                f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
-            )
+        with simulation_context(eval_env):
+            print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
+            for ep in range(1, EVAL_EPISODES + 1):
+                header.value = (
+                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
+                )
 
-            _obs, _ = eval_env.reset()
-            # Convert obs to tensor format for policy
-            obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
-
-            steps = 1000
-            for _step in range(steps):  # Same number of steps as opportunistic
-                # Use TensorDict format for trained policy (same as simulation.py:272-275)
-                td = TensorDict({"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0])
-                trained_policy(td)
-                _actions = td["actions"].cpu().numpy()
-
-                _obs, _, _, _, _ = eval_env.step(_actions)
+                _obs, _ = eval_env.reset()
+                # Convert obs to tensor format for policy
                 obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
-                # Update display every few steps to show animation
+                steps = env_config2.game.max_steps  # Use same steps as training (5000)
+                for _step in range(steps):  # Same number of steps as opportunistic
+                    # Use TensorDict format for trained policy (same as simulation.py:272-275)
+                    td = TensorDict(
+                        {"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0]
+                    )
+                    trained_policy(td)
+                    _actions = td["actions"].cpu().numpy()
+
+                    _obs, _, _, _, _ = eval_env.step(_actions)
+                    obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
+
+                    # Update display every few steps to show animation
+                    _agent_obj = next(
+                        (
+                            o
+                            for o in eval_env.grid_objects.values()
+                            if o.get("agent_id") == 0
+                        )
+                    )
+                    _inv = {
+                        eval_env.inventory_item_names[idx]: cnt
+                        for idx, cnt in _agent_obj.get("inventory", {}).items()
+                    }
+                    header.value = (
+                        f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
+                        f"<br />"
+                        f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
+                        f"<br />"
+                        f"<b>Batteries collected:</b> {_inv.get('battery_red', 0)}"
+                    )
+                    with contextlib.redirect_stdout(io.StringIO()) as buffer:
+                        buffer_str = eval_env.render()
+                    map_box.value = f"<pre>{buffer_str}</pre>"
+                    time.sleep(
+                        renderer_config2.sleep_time / 100
+                    )  # Small delay for animation
+
+                # Final inventory count for this episode
                 _agent_obj = next(
                     (
                         o
@@ -1406,38 +1795,30 @@ def _(
                     eval_env.inventory_item_names[idx]: cnt
                     for idx, cnt in _agent_obj.get("inventory", {}).items()
                 }
-                header.value = (
-                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
-                    f"<br />"
-                    f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
-                    f"<br />"
-                    f"<b>Batteries collected:</b> {_inv.get('battery_red', 0)}"
-                )
-                with contextlib.redirect_stdout(io.StringIO()) as buffer:
-                    buffer_str = eval_env.render()
-                map_box.value = f"<pre>{buffer_str}</pre>"
-                time.sleep(renderer_config2.sleep_time)  # Small delay for animation
+                inv_count_ore = int(_inv.get("ore_red", 0))
+                inv_count_batteries = int(_inv.get("battery_red", 0))
+                reward_ore = (
+                    inv_count_ore * env_config2.game.agent.rewards.inventory.ore_red
+                )  # Will be 0.0
+                reward_batteries = (
+                    inv_count_batteries
+                    * env_config2.game.agent.rewards.inventory.battery_red
+                )  # Only source of reward
+                reward = reward_ore + reward_batteries  # Pure battery reward
+                trained_scores.append(reward)
+                trained_scores_ore.append(inv_count_ore)
+                trained_scores_batteries.append(inv_count_batteries)
 
-            # Final inventory count for this episode
-            _agent_obj = next(
-                (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
-            )
-            _inv = {
-                eval_env.inventory_item_names[idx]: cnt
-                for idx, cnt in _agent_obj.get("inventory", {}).items()
-            }
-            inv_count_ore = int(_inv.get("ore_red", 0))
-            inv_count_batteries = int(_inv.get("battery_red", 0))
-            trained_scores_ore.append(inv_count_ore)
-            trained_scores_batteries.append(inv_count_batteries)
-
-        eval_env.close()
+            eval_env.close()
 
         # Calculate and display results
+        mean_score = np.mean(trained_scores)
         mean_score_ore = np.mean(trained_scores_ore)
         mean_score_batteries = np.mean(trained_scores_batteries)
+        std_score = np.std(trained_scores)
         std_score_ore = np.std(trained_scores_ore)
         std_score_batteries = np.std(trained_scores_batteries)
+        running_avg = pd.Series(trained_scores).expanding().mean()
         running_avg_ore = pd.Series(trained_scores_ore).expanding().mean()
         running_avg_batteries = pd.Series(trained_scores_batteries).expanding().mean()
 
@@ -1447,13 +1828,19 @@ def _(
     🏆 TRAINED AGENT RESULTS 🏆
 
     Episodes: {EVAL_EPISODES}
-    Average Score: {mean_score_ore:.2f} ± {std_score_ore:.2f} ore collected
-    Average Score: {mean_score_batteries:.2f} ± {std_score_batteries:.2f} batteries collected
-    Best Episode: {max(trained_scores_ore)} ore, {max(trained_scores_batteries)} batteries
-    Worst Episode: {min(trained_scores_ore)} ore, {min(trained_scores_batteries)} batteries
 
-    Individual Episode Scores: {trained_scores_ore} ore, {trained_scores_batteries} batteries
+    📊 COMPREHENSIVE STATISTICS:
+    Total Reward:  {mean_score:.2f} ± {std_score:.2f}
+    Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f} 
+    Batteries:     {mean_score_batteries:.2f} ± {std_score_batteries:.2f}
 
+    🎯 BEST EPISODE:
+    Reward: {max(trained_scores):.1f}, Ore: {max(trained_scores_ore)}, Batteries: {max(trained_scores_batteries)}
+
+    ⚠️ WORST EPISODE: 
+    Reward: {min(trained_scores):.1f}, Ore: {min(trained_scores_ore)}, Batteries: {min(trained_scores_batteries)}
+
+    💡 Multi-step task: Collect ore → Transport → Convert to batteries
     Compare this to the opportunistic baseline from earlier!
         </pre>"""
 
@@ -1461,23 +1848,64 @@ def _(
             pd.DataFrame(
                 {
                     "episode": list(range(1, EVAL_EPISODES + 1)),
+                    "reward": trained_scores,
                     "ore_red": trained_scores_ore,
                     "battery_red": trained_scores_batteries,
+                    "running_avg_reward": running_avg,
                     "running_avg_ore": running_avg_ore,
                     "running_avg_batteries": running_avg_batteries,
                 }
             )
         )
 
+        print(f"\n🎯 Trained agent performance:")
+        print(f"   Total Reward: {mean_score:.2f} ± {std_score:.2f}")
+        print(f"   Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f}")
         print(
-            f"\n🎯 Trained agent performance: {mean_score_ore:.2f} ± {std_score_ore:.2f} ore collected"
+            f"   Batteries Collected: {mean_score_batteries:.2f} ± {std_score_batteries:.2f}"
+        )
+        print(f"\n💰 Reward Breakdown:")
+        print(
+            f"   Ore reward rate: {env_config2.game.agent.rewards.inventory.ore_red} per ore"
         )
         print(
-            f"\n🎯 Trained agent performance: {mean_score_batteries:.2f} ± {std_score_batteries:.2f} batteries collected"
+            f"   Battery reward rate: {env_config2.game.agent.rewards.inventory.battery_red} per battery"
+        )
+        print(
+            f"   Average ore reward: {mean_score_ore * env_config2.game.agent.rewards.inventory.ore_red:.2f}"
+        )
+        print(
+            f"   Average battery reward: {mean_score_batteries * env_config2.game.agent.rewards.inventory.battery_red:.2f}"
         )
         print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
 
     evaluate_agent2()
+    return
+
+
+@app.cell
+def _(mo, run_name2, show_replay):
+    mo.stop(not run_name2)
+
+    try:
+        # Show the latest replay from the training run
+        show_replay(run_name2, step="last", width=1250, height=500, autoplay=True)
+    except Exception as e:
+        print(f"❌ Error loading replay: {e}")
+        print("This could mean:")
+        print("- Training hasn't generated replays yet (evaluation incomplete)")
+        print("- Run not found in W&B (check run name)")
+        print("- Network connectivity issues")
+        print(
+            f"\nReplays are stored on S3 at: s3://softmax-public/replays/{run_name2}/"
+        )
+    return
+
+
+@app.cell
+def _(display_by_wandb_path, mo, run_name2):
+    mo.stop(not run_name2)
+    display_by_wandb_path(f"metta-research/metta/{run_name2}", height=580)
     return
 
 

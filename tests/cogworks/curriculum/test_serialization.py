@@ -15,7 +15,7 @@ from metta.cogworks.curriculum import (
     SingleTaskGeneratorConfig,
     TaskGeneratorSetConfig,
 )
-from metta.cogworks.curriculum.task_generator import ValueRange as vr
+from metta.cogworks.curriculum.task_generator import Span
 
 
 class TestCurriculumConfigSerialization(unittest.TestCase):
@@ -42,10 +42,9 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         # Add various bucket types
         arena_tasks.add_bucket("game.level_map.width", [10, 20, 30])
         arena_tasks.add_bucket("game.level_map.height", [10, 20, 30])
-        arena_tasks.add_bucket("game.agent.rewards.inventory.ore_red", [0, vr.vr(0, 1.0)])
+        arena_tasks.add_bucket("game.agent.rewards.inventory.ore_red", [0, Span(0, 1.0)])
 
-        original = arena_tasks.to_curriculum(num_tasks=5)
-
+        original = CurriculumConfig(task_generator=arena_tasks)
         # Serialize and deserialize
         json_str = original.model_dump_json()
         restored = CurriculumConfig.model_validate_json(json_str)
@@ -99,9 +98,9 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         arena_tasks = cc.bucketed(arena)
 
         # Add bucket with ValueRange
-        arena_tasks.add_bucket("test.param", [0, vr.vr(0.5, 1.5), 2])
+        arena_tasks.add_bucket("test.param", [0, Span(0.5, 1.5), 2])
 
-        original = arena_tasks.to_curriculum()
+        original = CurriculumConfig(task_generator=arena_tasks)
 
         # Serialize and deserialize
         json_str = original.model_dump_json()

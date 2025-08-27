@@ -23,6 +23,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -104,7 +105,7 @@ class Simulation:
         )
 
         self._vecenv = make_vecenv(
-            cfg.env.to_curriculum(),
+            Curriculum(CurriculumConfig.from_env(cfg.env)),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
@@ -210,6 +211,16 @@ class Simulation:
 
         self._t0 = time.time()
 
+    def _get_actions_for_agents(self, agent_indices: torch.Tensor, policy) -> torch.Tensor:
+        """Get actions for a group of agents, preserving agent dimension for single-agent cases."""
+        agent_obs = self._obs[agent_indices]
+        # Ensure agent dimension is preserved for single-agent environments
+        if agent_obs.ndim == 2 and len(agent_indices) == 1:
+            agent_obs = agent_obs[None, ...]  # Add back the agent dimension
+        td = obs_to_td(agent_obs, self._device)
+        policy(td)
+        return td["actions"]
+
     def generate_actions(self) -> np.ndarray:
         """
         Generate actions for the simulation.
@@ -253,20 +264,13 @@ class Simulation:
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
             # Candidate-policy agents
-            my_obs = self._obs[self._policy_idxs.cpu()]
-            td = obs_to_td(my_obs, self._device)  # One-liner conversion
-            policy = self._policy_pr.policy
-            policy(td)
-            policy_actions = td["actions"]
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy_pr.policy)
 
             # NPC agents (if any)
+            npc_actions = None
             if self._npc_pr is not None and len(self._npc_idxs):
-                npc_obs = self._obs[self._npc_idxs]
-                td = obs_to_td(npc_obs, self._device)  # One-liner conversion
-                npc_policy = self._npc_pr.policy
                 try:
-                    npc_policy(td)
-                    npc_actions = td["actions"]
+                    npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_pr.policy)
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(

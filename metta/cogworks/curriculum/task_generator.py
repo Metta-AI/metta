@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
 
 from pydantic import (
     ConfigDict,
@@ -20,7 +20,7 @@ from metta.common.util.module import load_symbol
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 if TYPE_CHECKING:
-    from metta.cogworks.curriculum.curriculum import CurriculumConfig
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +66,6 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
                 f"either define it nested under the generator or set `_generator_cls`."
             )
         return cls._generator_cls
-
-    def to_curriculum(self, num_tasks: Optional[int] = None) -> "CurriculumConfig":
-        """Create a CurriculumConfig from this configuration."""
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig
-
-        cc = CurriculumConfig(task_generator=self)
-        cc.num_active_tasks = num_tasks or cast(int, cc.num_active_tasks)
-        return cc
 
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
@@ -206,11 +198,20 @@ class TaskGeneratorSet(TaskGenerator):
 ################################################################################
 # BucketedTaskGenerator
 ################################################################################
-class ValueRange(Config):
+class Span(Config):
     """A range of values with minimum and maximum bounds."""
 
     range_min: float | int = Field(description="Range minimum")
     range_max: float | int = Field(description="Range maximum")
+
+    def __init__(self, range_min: float | int | None = None, range_max: float | int | None = None, **kwargs):
+        """Initialize Span with positional arguments or keyword arguments."""
+        if range_min is not None and range_max is not None:
+            # Called with positional arguments
+            super().__init__(range_min=range_min, range_max=range_max, **kwargs)
+        else:
+            # Called with keyword arguments (normal Pydantic behavior)
+            super().__init__(**kwargs)
 
     @field_validator("range_max")
     @classmethod
@@ -220,11 +221,6 @@ class ValueRange(Config):
         if range_min is not None and range_min >= v:
             raise ValueError("range_min must be less than range_max")
         return v
-
-    @classmethod
-    def vr(cls, range_min: float | int, range_max: float | int) -> "ValueRange":
-        """Create a ValueRange from a range_min and range_max."""
-        return cls(range_min=range_min, range_max=range_max)
 
     def __str__(self) -> str:
         return f"{self.range_min}-{self.range_max}"
@@ -243,20 +239,18 @@ class BucketedTaskGenerator(TaskGenerator):
         """Configuration for BucketedTaskGenerator."""
 
         child_generator_config: AnyTaskGeneratorConfig = Field(description="Child task generator configuration")
-        buckets: dict[str, Sequence[int | float | str | ValueRange]] = Field(
+        buckets: dict[str, Sequence[int | float | str | Span]] = Field(
             default_factory=dict, description="Buckets for sampling, keys are config paths"
         )
 
-        def add_bucket(
-            self, path: str, values: Sequence[int | float | str | ValueRange]
-        ) -> "BucketedTaskGenerator.Config":
+        def add_bucket(self, path: str, values: Sequence[int | float | str | Span]) -> "BucketedTaskGenerator.Config":
             """Add a bucket of values for a specific configuration path."""
             assert path not in self.buckets, f"Bucket {path} already exists"
             self.buckets[path] = values
             return self
 
         @classmethod
-        def from_env_config(cls, env_config: EnvConfig) -> "BucketedTaskGenerator.Config":
+        def from_env(cls, env_config: EnvConfig) -> "BucketedTaskGenerator.Config":
             """Create a BucketedTaskGenerator.Config from an EnvConfig."""
             return cls(child_generator_config=SingleTaskGenerator.Config(env=env_config))
 
@@ -266,10 +260,10 @@ class BucketedTaskGenerator(TaskGenerator):
         assert config.buckets, "Buckets must be non-empty"
         self._child_generator = config.child_generator_config.create()
 
-    def _get_bucket_value(self, bucket_values: Sequence[int | float | str | ValueRange], rng: random.Random) -> Any:
+    def _get_bucket_value(self, bucket_values: Sequence[int | float | str | Span], rng: random.Random) -> Any:
         bucket_value = rng.choice(bucket_values)
 
-        if isinstance(bucket_value, ValueRange):
+        if isinstance(bucket_value, Span):
             min_val, max_val = bucket_value.range_min, bucket_value.range_max
             if isinstance(min_val, int) and isinstance(max_val, int):
                 bucket_value = rng.randint(min_val, max_val)

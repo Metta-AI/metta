@@ -45,7 +45,7 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return arena_tasks.to_curriculum()
+    return CurriculumConfig(task_generator=arena_tasks)
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
