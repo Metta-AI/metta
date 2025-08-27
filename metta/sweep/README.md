@@ -17,7 +17,7 @@ training iterations with different hyperparameter configurations, where each ite
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌───────────────────┐
-│   sweep_init    │───▶│     train.py    │───▶│   sweep_eval      │
+│   sweep_init    │───▶│  Recipe System  │───▶│   sweep_eval      │
 │                 │    │                 │    │                   │
 │ • Create sweep  │    │ • Load overrides│    │ • Evaluate        │
 │ • Get run_id    │    │ • Train model   │    │ • Record obs      │
@@ -54,7 +54,7 @@ training iterations with different hyperparameter configurations, where each ite
 ### Key Scripts
 
 - **`tools/sweep_init.py`** - Initialize sweep and create runs
-- **`tools/train.py`** - Train model with suggested hyperparameters
+- **Recipe training system** - Train model with suggested hyperparameters via `./tools/run.py experiments.recipes.*.train`
 - **`tools/sweep_eval.py`** - Evaluate trained policy and record results
 - **`devops/sweep.sh`** - Continuous sweep execution with retry logic
 - **`devops/sweep_rollout.sh`** - Single sweep iteration
