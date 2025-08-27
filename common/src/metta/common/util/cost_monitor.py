@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import sys
+from typing import Any
 
 # Remove current directory from sys.path to avoid circular imports
 sys.path = [p for p in sys.path if p not in ("", ".", os.path.dirname(__file__))]
@@ -99,36 +100,45 @@ def get_running_instance_info() -> tuple[str, str, str, bool]:
         raise RuntimeError(f"Error querying AWS metadata service. Not running on AWS EC2? Error: {e}") from e
 
 
-def main():
+def get_cost_info() -> dict[str, Any]:
+    """Get cost information for the running cluster."""
+    instance_type, region, zone, use_spot = get_running_instance_info()
+
+    num_nodes_env = os.environ.get("SKYPILOT_NUM_NODES")
+    if not num_nodes_env:
+        raise RuntimeError("SKYPILOT_NUM_NODES environment variable not set")
+
+    num_nodes = int(num_nodes_env)
+    instance_hourly_cost = get_instance_cost(instance_type=instance_type, region=region, zone=zone, use_spot=use_spot)
+
+    return {
+        "instance_type": instance_type,
+        "region": region,
+        "zone": zone,
+        "use_spot": use_spot,
+        "instance_hourly_cost": instance_hourly_cost,
+        "num_nodes": num_nodes,
+        "total_hourly_cost": instance_hourly_cost * num_nodes,
+    }
+
+
+def main() -> int:
     """Calculate total hourly cost for the cluster and output to stdout."""
     try:
-        # Get instance info
-        instance_type, region, zone, use_spot = get_running_instance_info()
-
-        # Get number of nodes
-        num_nodes_env = os.environ.get("SKYPILOT_NUM_NODES")
-        if not num_nodes_env:
-            raise RuntimeError("SKYPILOT_NUM_NODES environment variable not set")
-
-        num_nodes = int(num_nodes_env)
-
-        # Calculate costs
-        instance_hourly_cost = get_instance_cost(
-            instance_type=instance_type, region=region, zone=zone, use_spot=use_spot
-        )
-        total_hourly_cost = instance_hourly_cost * num_nodes
+        cost_info = get_cost_info()
 
         # Log details to stderr
-        logger.info(f"Instance Type: {instance_type}")
-        logger.info(f"Spot Instance: {use_spot}")
-        logger.info(f"Region: {region}")
+        logger.info(f"Instance Type: {cost_info['instance_type']}")
+        logger.info(f"Spot Instance: {cost_info['use_spot']}")
+        logger.info(f"Region: {cost_info['region']}")
         logger.info(
-            f"Total Hourly Cost for {num_nodes} node(s): ${total_hourly_cost:.4f} "
-            f"(${instance_hourly_cost:.4f}/hr per instance)"
+            f"Total Hourly Cost for {cost_info['num_nodes']} node(s): "
+            f"${cost_info['total_hourly_cost']:.4f} "
+            f"(${cost_info['instance_hourly_cost']:.4f}/hr per instance)"
         )
 
         # Output cost to stdout
-        print(total_hourly_cost)
+        print(cost_info["total_hourly_cost"])
         return 0
 
     except Exception as e:

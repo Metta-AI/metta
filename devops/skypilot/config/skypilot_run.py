@@ -13,6 +13,10 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from metta.common.util.cost_monitor import get_cost_info
+from metta.common.wandb.log_wandb import log_to_wandb
+from metta.common.util.skypilot_latency import calculate_queue_latency
+
 # Import GitHub status module
 sys.path.insert(0, str(Path(__file__).parent))
 from github_status import set_github_status as _set_github_status
@@ -80,72 +84,6 @@ def setup_signal_handlers():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGHUP, signal_handler)
-
-
-def setup_environment():
-    """Setup environment including sourcing the env file."""
-    # Run configure_environment.sh
-    subprocess.run(["bash", "./devops/skypilot/config/lifecycle/configure_environment.sh"], check=True)
-
-    # Source environment file
-    env_file = _get_env_file_path()
-    if env_file.exists():
-        with open(env_file) as f:
-            for line in f:
-                line = line.strip()
-                if "=" in line and not line.startswith("#"):
-                    key, value = line.split("=", 1)
-                    # Handle shell variable expansion if needed
-                    os.environ[key] = value
-
-
-def _get_env_file_path() -> Path:
-    """Get the environment file path."""
-    env_file = (
-        subprocess.check_output(["uv", "run", "./common/src/metta/common/util/constants.py", "METTA_ENV_FILE"])
-        .decode()
-        .strip()
-    )
-    return Path(env_file)
-
-
-def run_preflight_checks():
-    """Run preflight checks including NCCL tests if needed."""
-    if is_master:
-        # Collect SkyPilot latency
-        try:
-            subprocess.run(["uv", "run", "python", "common/src/metta/common/util/skypilot_latency.py"], check=False)
-        except Exception as e:
-            logger.warning(f"Failed to collect SkyPilot latency: {e}")
-
-        # Collect total hourly cost
-        try:
-            subprocess.run(["uv", "run", "python", "common/src/metta/common/util/cost_monitor.py"], check=False)
-        except Exception as e:
-            logger.warning(f"Failed to collect instance cost: {e}")
-
-        # set env METTA_HOURLY_COST for system_monitor to use
-        logger.info(f"Set METTA_HOURLY_COST={total_hourly_cost}")
-
-    # Run NCCL tests if needed
-    if test_nccl and restart_count == 0:
-        logger.info(f"Running GPU diagnostics and NCCL tests (node {rank})...")
-        try:
-            result = subprocess.run(
-                ["uv", "run", "python", "./devops/skypilot/config/preflight/test_nccl.py"],
-                capture_output=True,
-                text=True,
-            )
-
-            if result.returncode != 0:
-                logger.error(f"NCCL tests failed: {result.stderr}")
-                sys.exit(EXIT_NCCL_TEST_FAILURE)
-            else:
-                logger.info("NCCL tests passed")
-
-        except Exception as e:
-            logger.error(f"Failed to run NCCL tests: {e}")
-            sys.exit(EXIT_NCCL_TEST_FAILURE)
 
 
 def build_command() -> list[str]:
@@ -421,29 +359,44 @@ def main():
     """Main entry point that runs the full lifecycle and returns exit code."""
     global exit_code, termination_reason
 
-    try:
-        # Setup environment
-        log_config()
-        setup_signal_handlers()
-        subprocess.run(["bash", "./devops/skypilot/config/lifecycle/configure_environment.sh"], check=True)
+    # Setup environment
+    log_config()
+    setup_signal_handlers()
 
-        # Source environment file
-        env_file = _get_env_file_path()
-        if env_file.exists():
-            with open(env_file) as f:
-                for line in f:
-                    if "=" in line:
-                        key, value = line.strip().split("=", 1)
-                        os.environ[key] = value
+    if is_master:
+        latency_sec = calculate_queue_latency()
+        logger.info(f"SkyPilot queue latency: {latency_sec:.1f}s")
 
-        # Run preflight checks
+        cost_info = get_cost_info()
+        total_hourly_cost = cost_info["total_hourly_cost"]
+        logger.info(f"Total hourly cost: ${total_hourly_cost:.4f}")
+        os.environ["METTA_HOURLY_COST"] = str(total_hourly_cost)
+
+        log_to_wandb({
+            "skypilot/hourly_cost": total_hourly_cost,
+            "skypilot/queue_latency_s": latency_sec
+        })
+
+
+    # Run NCCL tests on all nodes
+    if test_nccl and restart_count == 0:
+        logger.info(f"Running GPU diagnostics and NCCL tests (node {node_index})...")
         try:
-            run_preflight_checks()
-        except SystemExit as e:
-            if e.code == EXIT_NCCL_TEST_FAILURE:
-                termination_reason = "nccl_test_failure"
-                exit_code = EXIT_NCCL_TEST_FAILURE
-                raise
+            result = subprocess.run(
+                ["uv", "run", "python", "./devops/skypilot/config/preflight/test_nccl.py"],
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode != 0:
+                logger.error(f"NCCL tests failed: {result.stderr}")
+                sys.exit(EXIT_NCCL_TEST_FAILURE)
+            else:
+                logger.info("NCCL tests passed")
+
+        except Exception as e:
+            logger.error(f"Failed to run NCCL tests: {e}")
+            sys.exit(EXIT_NCCL_TEST_FAILURE)
 
         # Track start time for logging
         start_time = time.time()

@@ -46,17 +46,25 @@ file_mounts:
 # `set -u`: Exit on undefined variables to catch missing env vars early
 setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
 
-# `set -e`: Ensure SkyPilot propagates exit codes
 run: |
   set -e
-
   cd /workspace/metta
 
-  # Drop any preloaded venv; activate your own
-  if [ -n "${VIRTUAL_ENV:-}" ]; then
-    deactivate 2> /dev/null || true
+  # Note that the docker image may start with its own venv - switch to metta venv
+  if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
   fi
   . .venv/bin/activate
+
+  echo "[SETUP] Setting up Python environment..."
+  uv sync
+
+  bash ./devops/skypilot/config/lifecycle/configure_environment.sh
+
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+  source "$METTA_ENV_FILE"
+
+  echo "Starting skypilot run script..."
 
   uv run python ./devops/skypilot/config/test_exit.py
 
