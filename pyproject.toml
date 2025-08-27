@@ -63,7 +63,7 @@ dependencies = [
   "bidict>=0.23.1",
   "ddtrace>=2.6.0",
   "pydantic-settings>=2.10.1",
-  "marimo==0.15.0"
+  "marimo==0.15.0",
   "altair>=5.5.0",
   "pyarrow>=21.0.0",
   "typer>=0.16.0",
