@@ -5,6 +5,7 @@ This module handles saving and loading policy records with sidecar pattern.
 Initialize once with init_yaml_serializers() before use.
 """
 
+import os
 import shutil
 import tempfile
 from typing import Any, Dict
@@ -20,6 +21,16 @@ from metta.agent.policy_record import PolicyRecord
 
 # Module-level initialization flag
 _yaml_serializers_initialized = False
+
+
+def _ensure_yaml_initialized(func):
+    """Decorator to ensure YAML serializers are initialized before function execution."""
+
+    def wrapper(*args, **kwargs):
+        init_yaml_serializers()
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 def multidiscrete_representer(dumper, data):
@@ -41,16 +52,21 @@ def init_yaml_serializers():
         _yaml_serializers_initialized = True
 
 
+def _unwrap_ddp_agent(agent: PolicyAgent) -> PolicyAgent:
+    """Extract the underlying agent from distributed wrappers."""
+    if isinstance(agent, DistributedMettaAgent):
+        return agent.module
+    return agent
+
+
+@_ensure_yaml_initialized
 def save_policy(policy_record: PolicyRecord, checkpoint_name: str, base_path: str) -> str:
     """Save policy record with sidecar pattern"""
-    init_yaml_serializers()  # Ensure serializers are initialized
-
     weights_ptx_path = f"{base_path}/{checkpoint_name}.safetensors"
     metadata_path = f"{base_path}/{checkpoint_name}.yaml"
 
     # Extract state dict (handle DDP wrapper)
     state_dict = _get_state_dict(policy_record.policy)
-    # state_dict = {key.replace("policy.", ""): value for key, value in state_dict.items()}
 
     # Extract metadata from the policy record and agent
     metadata_dict = _extract_metadata_from_record(policy_record)
@@ -62,10 +78,9 @@ def save_policy(policy_record: PolicyRecord, checkpoint_name: str, base_path: st
     return safetensors_path
 
 
+@_ensure_yaml_initialized
 def get_metadata(checkpoint_name: str, base_path: str) -> PolicyMetadata:
     """Fast metadata loading without touching weights"""
-    init_yaml_serializers()  # Ensure serializers are initialized
-
     metadata_path = f"{base_path}/{checkpoint_name}.yaml"
     with open(metadata_path, "r", encoding="utf-8") as f:
         metadata_dict = yaml.safe_load(f)
@@ -75,40 +90,31 @@ def get_metadata(checkpoint_name: str, base_path: str) -> PolicyMetadata:
             return PolicyMetadata()
 
 
+@_ensure_yaml_initialized
 def restore_weights(agent: PolicyAgent, path: str) -> None:
     """Restore agent weights from checkpoint"""
-    init_yaml_serializers()  # Ensure serializers are initialized
-
     weights = load_file(path)
-
-    # Load weights (handle DDP)
-    if isinstance(agent, DistributedMettaAgent):
-        agent.module.load_state_dict(weights)
-    else:
-        agent.load_state_dict(weights)
+    unwrapped_agent = _unwrap_ddp_agent(agent)
+    unwrapped_agent.load_state_dict(weights)
 
 
 # Private helper functions
 def _get_state_dict(agent: PolicyAgent) -> Dict[str, torch.Tensor]:
     """Extract state dict, handling DDP wrapper"""
-    if isinstance(agent, DistributedMettaAgent):
-        return agent.module.state_dict()
-    return agent.state_dict()
+    unwrapped_agent = _unwrap_ddp_agent(agent)
+    return unwrapped_agent.state_dict()
 
 
 def _extract_agent_attributes(agent: PolicyAgent) -> Dict[str, Any]:
-    # Get the actual agent (unwrap DDP if needed)
-    actual_agent = agent.module if isinstance(agent, DistributedMettaAgent) else agent
+    """Extract agent attributes from the policy."""
+    unwrapped_agent = _unwrap_ddp_agent(agent)
 
-    # Check if policy has agent_attributes
-    attr_dict = {}
-    if hasattr(actual_agent.policy, "agent_attributes"):
-        value = actual_agent.policy.agent_attributes
+    if hasattr(unwrapped_agent.policy, "agent_attributes"):
+        value = unwrapped_agent.policy.agent_attributes
         if isinstance(value, dict):
-            attr_dict["agent_attributes"] = value
+            return {"agent_attributes": value}
 
-    # Return empty dict if no valid attributes found
-    return attr_dict
+    return {}
 
 
 def _extract_metadata_from_record(policy_record: PolicyRecord) -> Dict[str, Any]:
@@ -130,8 +136,6 @@ def _extract_metadata_from_record(policy_record: PolicyRecord) -> Dict[str, Any]
 
 def _atomic_save_weights(sd: Dict, target_path: str) -> str:
     """Atomically save weights to prevent corruption"""
-    import os
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pt", dir=os.path.dirname(target_path)) as tmp:
         # (recommended) normalize tensors before saving - should I do this?
         sd = {k: v.detach().cpu().contiguous() for k, v in sd.items() if isinstance(v, torch.Tensor)}
@@ -145,21 +149,9 @@ def _atomic_save_weights(sd: Dict, target_path: str) -> str:
 
 def _atomic_save_metadata(metadata: Dict, target_path: str):
     """Atomically save metadata YAML"""
-    import os
-
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".yaml", dir=os.path.dirname(target_path), encoding="utf-8"
     ) as tmp:
         yaml.safe_dump(metadata, tmp, default_flow_style=False, allow_unicode=True)
         tmp.flush()
         shutil.move(tmp.name, target_path)
-
-
-def _is_serializable(obj) -> bool:
-    """Check if object is YAML serializable"""
-    try:
-        yaml.safe_dump(obj)
-        return True
-    except:
-        print(f"Failed to serialize {obj}")
-        return False
