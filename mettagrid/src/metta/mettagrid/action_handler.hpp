@@ -1,5 +1,9 @@
+// action_handler.hpp
 #ifndef ACTION_HANDLER_HPP_
 #define ACTION_HANDLER_HPP_
+
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 #include <map>
 #include <string>
@@ -15,8 +19,8 @@ struct ActionConfig {
   std::map<InventoryItem, InventoryQuantity> required_resources;
   std::map<InventoryItem, InventoryQuantity> consumed_resources;
 
-  ActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
-               const std::map<InventoryItem, InventoryQuantity>& consumed_resources)
+  ActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources = {},
+               const std::map<InventoryItem, InventoryQuantity>& consumed_resources = {})
       : required_resources(required_resources), consumed_resources(consumed_resources) {}
 
   virtual ~ActionConfig() {}
@@ -73,8 +77,8 @@ public:
     // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
     if (actor->location == actor->prev_location) {
       actor->steps_without_motion += 1;
-      if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
-        actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
+      if (static_cast<float>(actor->steps_without_motion) > actor->stats.get("status.max_steps_without_motion")) {
+        actor->stats.set("status.max_steps_without_motion", static_cast<float>(actor->steps_without_motion));
       }
     } else {
       actor->steps_without_motion = 0;
@@ -117,5 +121,17 @@ protected:
   std::map<InventoryItem, InventoryQuantity> _required_resources;
   std::map<InventoryItem, InventoryQuantity> _consumed_resources;
 };
+
+namespace py = pybind11;
+
+inline void bind_action_config(py::module& m) {
+  py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>())
+      .def_readwrite("required_resources", &ActionConfig::required_resources)
+      .def_readwrite("consumed_resources", &ActionConfig::consumed_resources);
+}
 
 #endif  // ACTION_HANDLER_HPP_

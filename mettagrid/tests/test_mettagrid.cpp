@@ -6,6 +6,7 @@
 #include "actions/put_recipe_items.hpp"
 #include "event.hpp"
 #include "grid.hpp"
+#include "mettagrid_config.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
@@ -300,6 +301,10 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
 TEST_F(MettaGridCppTest, AttackAction) {
   Grid grid(10, 10);
 
+  // Create a minimal GameConfig for testing
+  GameConfig game_config;
+  game_config.allow_diagonals = false;  // Test with cardinal directions only
+
   // Create attacker and target
   AgentConfig attacker_cfg = create_test_agent_config();
   attacker_cfg.group_name = "red";
@@ -328,11 +333,11 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(target->inventory[TestItems::HEART], 3);
 
   // Verify attacker orientation
-  EXPECT_EQ(attacker->orientation, Orientation::Up);
+  EXPECT_EQ(attacker->orientation, Orientation::North);
 
   // Create attack action handler
   AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, {{TestItems::ARMOR, 3}});
-  Attack attack(attack_cfg);
+  Attack attack(attack_cfg, &game_config);
   attack.init(&grid);
 
   // Perform attack (arg 5 targets directly in front)

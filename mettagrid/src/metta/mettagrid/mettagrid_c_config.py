@@ -12,10 +12,15 @@ from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import BoxConfig, ConverterConfig, GameConfig, WallConfig
 
 
-def convert_to_cpp_game_config(mettagrid_config_dict: dict):
-    """Convert a GameConfig to a CppGameConfig."""
+def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
+    """Convert a GameConfig dict or instance to a CppGameConfig."""
 
-    game_config = GameConfig(**mettagrid_config_dict)
+    if isinstance(mettagrid_config, GameConfig):
+        # If it's already a GameConfig instance, convert to dict
+        game_config = mettagrid_config
+    else:
+        # If it's a dict, create a GameConfig instance
+        game_config = GameConfig(**mettagrid_config)
 
     resource_names = list(game_config.inventory_item_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
@@ -198,22 +203,27 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
             }
             actions_cpp_params[action_name] = CppAttackActionConfig(**action_cpp_params)
         elif action_name == "change_glyph":
-            action_cpp_params["number_of_glyphs"] = action_config["number_of_glyphs"]
-            actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**action_cpp_params)
+            # Extract the specific parameters needed for ChangeGlyphActionConfig
+            change_glyph_params = {
+                "required_resources": action_cpp_params.get("required_resources", {}),
+                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
+                "number_of_glyphs": action_config["number_of_glyphs"],
+            }
+            actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
 
-    # Add recipe_details_obs flag
-    game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
-
-    # Add no_agent_interference flag
-    game_cpp_params["no_agent_interference"] = game_config.no_agent_interference
-
     # Add resource_loss_prob
     game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
+
+    # Set feature flags
+    game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
+    game_cpp_params["no_agent_interference"] = game_config.no_agent_interference
+    game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
+    game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
 
     return CppGameConfig(**game_cpp_params)
 

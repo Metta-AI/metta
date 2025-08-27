@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "grid_object.hpp"
+#include "mettagrid_config.hpp"
 #include "packed_coordinate.hpp"
 #include "types.hpp"
 
@@ -43,31 +44,6 @@ struct AttackActionConfig;
 struct ChangeGlyphActionConfig;
 
 namespace py = pybind11;
-
-struct GlobalObsConfig {
-  bool episode_completion_pct = true;
-  bool last_action = true;  // Controls both last_action and last_action_arg
-  bool last_reward = true;
-  bool resource_rewards = false;  // Controls whether resource rewards are included in observations
-  bool visitation_counts = false;  // Controls whether visitation counts are included in observations
-};
-
-struct GameConfig {
-  size_t num_agents;
-  unsigned int max_steps;
-  bool episode_truncates;
-  ObservationCoord obs_width;
-  ObservationCoord obs_height;
-  std::vector<std::string> inventory_item_names;
-  unsigned int num_observation_tokens;
-  GlobalObsConfig global_obs;
-  std::map<std::string, std::shared_ptr<ActionConfig>> actions;
-  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
-  bool track_movement_metrics;
-  bool no_agent_interference = false;
-  float resource_loss_prob = 0.0;
-  bool recipe_details_obs = false;
-};
 
 class METTAGRID_API MettaGrid {
 public:
@@ -116,16 +92,28 @@ public:
   using ActionSuccess = std::vector<bool>;
   using ActionHandlers = std::vector<std::unique_ptr<ActionHandler>>;
 
-  const Grid& grid() const { return *_grid; }
-  const Actions& actions() const { return _actions; }
-  const ActionSuccess& action_success() const { return _action_success; }
-  const ActionHandlers& action_handlers() const { return _action_handlers; }
+  const Grid& grid() const {
+    return *_grid;
+  }
+  const Actions& actions() const {
+    return _actions;
+  }
+  const ActionSuccess& action_success() const {
+    return _action_success;
+  }
+  const ActionHandlers& action_handlers() const {
+    return _action_handlers;
+  }
 
-  const Agent* agent(uint32_t agent_id) const { return _agents[agent_id]; }
+  const Agent* agent(uint32_t agent_id) const {
+    return _agents[agent_id];
+  }
 
 private:
   // Member variables
   GlobalObsConfig _global_obs_config;
+  GameConfig _game_config;
+
   std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;

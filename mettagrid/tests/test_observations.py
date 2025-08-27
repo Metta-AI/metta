@@ -16,7 +16,7 @@ from metta.mettagrid.mettagrid_config import (
     GroupConfig,
     WallConfig,
 )
-from metta.mettagrid.test_support import ObservationHelper, TokenTypes
+from metta.mettagrid.test_support import ObservationHelper, Orientation, TokenTypes
 
 NUM_OBS_TOKENS = 50
 
@@ -790,6 +790,7 @@ class TestEdgeObservations:
 
     def test_observation_off_edge_with_large_window(self):
         """Test observation window behavior when agent walks to corner of large map."""
+
         # Create a 15x10 grid (width=15, height=10) with 7x7 observation window
         game_map = create_grid(10, 15, fill_value=".")
         helper = ObservationHelper()
@@ -803,7 +804,7 @@ class TestEdgeObservations:
         # Place agent near top-left at (2, 2)
         game_map[2, 2] = "@"
 
-        # Place an altar at (7, 5) - we'll watch it move through our view
+        # Place an altar at row=5, col=7 (which is position (7,5) in x,y coordinates)
         game_map[5, 7] = "_"
 
         # Create environment with 7x7 observation window
@@ -844,137 +845,120 @@ class TestEdgeObservations:
 
         # Get action indices
         move_idx = env.action_names.index("move")
-        rotate_idx = env.action_names.index("rotate")
 
         # Verify initial position - agent should be at center of observation
         agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
         assert len(agent_tokens) > 0, "Agent should see itself at center (3,3)"
 
-        # The altar at grid (7,5) should not be visible initially
-        # Agent at (2,2) with 7x7 window sees from (-1,-1) to (5,5)
-        # So altar at (7,5) is outside the view
+        # The altar at grid position (row=5, col=7) should not be visible initially
+        # Agent at (row=2, col=2) with 7x7 window sees:
+        # - rows from (2-3) to (2+3) = -1 to 5 ✓ (altar at row 5 is at edge)
+        # - cols from (2-3) to (2+3) = -1 to 5 ✗ (altar at col 7 is outside)
         altar_visible = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
         assert not altar_visible, "Altar should not be visible initially"
 
-        print("\nInitial state: Agent at (2,2), altar at (7,5) - not visible")
+        print("\nInitial state: Agent at (2,2), altar at (5,7) - not visible")
 
-        # Face right and move right 3 steps
-        actions = np.array([[rotate_idx, 3]], dtype=dtype_actions)
-        obs, _, _, _, _ = env.step(actions)
-
+        # Move right (East) 3 steps
         for step in range(3):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
+            actions = np.array([[move_idx, Orientation.EAST.value]], dtype=dtype_actions)  # 3 = East
             obs, _, _, _, _ = env.step(actions)
 
-            # After step 0: agent at (3,2), window covers (0,0) to (6,5) - altar still not visible
-            # After step 1: agent at (4,2), window covers (1,0) to (7,5) - altar just enters view!
-            # After step 2: agent at (5,2), window covers (2,0) to (8,5) - altar clearly visible
+            # Calculate agent position after this step
+            agent_col = 2 + step + 1  # Started at col 2, moved (step+1) times
 
-            if step >= 1:  # Altar should be visible after first step
+            # Use helper to check if altar is actually visible
+            altar_visible = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+
+            # The altar becomes visible when agent reaches column 4 (after step 1)
+            # At col 4: window covers cols 1-7, altar at col 7 is just visible
+            if step >= 1:
+                assert altar_visible, f"Altar should be visible after step {step} (agent at col {agent_col})"
+
                 # Find altar in observation
                 altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
-                assert len(altar_tokens) > 0, f"Altar should be visible after step {step}"
+                altar_positions = helper.get_positions_from_tokens(altar_tokens)
+                assert len(altar_positions) == 1, "Should find exactly one altar"
 
-                altar_location = altar_tokens[0, 0]
-                altar_coords = PackedCoordinate.unpack(altar_location)
-                assert altar_coords is not None, "Should be able to unpack altar coordinates"
+                obs_col, obs_row = altar_positions[0]
 
-                obs_row, obs_col = altar_coords
-                # Calculate expected position
-                # Agent is at grid (3+step, 2) after step steps
-                # Altar at grid (7,5)
-                # Relative position: altar - agent = (7-(3+step), 5-2) = (4-step, 3)
-                # In observation coords: relative + center = (4-step+3, 3+3) = (7-step, 6)
-                expected_col = 7 - step
-                expected_row = 6
-                print(f"\nStep {step}: Agent at ({3 + step},2), altar visible at obs ({obs_col},{obs_row})")
+                # Calculate expected observation position
+                # Altar at grid (5,7), agent at grid (2,agent_col)
+                # Relative position: (5-2, 7-agent_col) = (3, 7-agent_col)
+                # In observation: relative + center = (7-agent_col+3, 3+3)
+                expected_col = 7 - agent_col + 3
+                expected_row = 3 + 3
+
+                print(f"\nStep {step}: Agent at (2,{agent_col}), altar visible at obs ({obs_col},{obs_row})")
                 assert obs_col == expected_col and obs_row == expected_row, (
-                    f"Altar should be at ({expected_col},{expected_row}), found at ({obs_col},{obs_row})"
+                    f"Altar should be at obs ({expected_col},{expected_row}), found at ({obs_col},{obs_row})"
                 )
+            else:
+                assert not altar_visible, f"Altar should not be visible yet at step {step}"
+                print(f"\nStep {step}: Agent at (2,{agent_col}), altar not yet visible")
 
         # Continue moving right until altar leaves view
-        for step in range(3, 6):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
+        for step in range(3, 9):
+            actions = np.array([[move_idx, Orientation.EAST.value]], dtype=dtype_actions)  # 3 = East
             obs, _, _, _, _ = env.step(actions)
 
-            # After step 3: agent at (6,2), altar at relative (1,3) - still visible
-            # After step 4: agent at (7,2), altar at relative (0,3) - at center column
-            # After step 5: agent at (8,2), altar at relative (-1,3) - at left edge
+            agent_col = 2 + step + 1
 
+            # Check if altar is visible
             altar_found = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+
             if altar_found:
                 altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
-                altar_location = altar_tokens[0, 0]
-                altar_coords = PackedCoordinate.unpack(altar_location)
-                if altar_coords:
-                    obs_row, obs_col = altar_coords
-                    expected_col = 7 - step
-                    print(f"\nStep {step}: Agent at ({3 + step},2), altar at obs ({obs_col},{obs_row})")
+                altar_positions = helper.get_positions_from_tokens(altar_tokens)
+                if altar_positions:
+                    obs_col, obs_row = altar_positions[0]
+                    print(f"\nStep {step}: Agent at (2,{agent_col}), altar at obs ({obs_col},{obs_row})")
 
-            if step <= 5:
-                assert altar_found, f"Altar should still be visible at step {step}"
-
-        # Continue moving right until altar leaves view
-        for step in range(6, 9):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
-            obs, _, _, _, _ = env.step(actions)
-
-            # After step 6: agent at (9,2), altar at relative (-2,3) - obs position (1,6)
-            # After step 7: agent at (10,2), altar at relative (-3,3) - obs position (0,6) - at very edge
-            # After step 8: agent at (11,2), altar at relative (-4,3) - outside 7x7 window
-
-            altar_found = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
-            if altar_found:
-                altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
-                altar_location = altar_tokens[0, 0]
-                altar_coords = PackedCoordinate.unpack(altar_location)
-                if altar_coords:
-                    obs_row, obs_col = altar_coords
-                    print(f"\nStep {step}: Agent at ({3 + step},2), altar at obs ({obs_col},{obs_row})")
-
-            if step <= 7:
+            # Altar should leave view when agent reaches column 11 (after step 8)
+            # At col 11: window covers cols 8-14, altar at col 7 is no longer visible
+            if step < 8:
                 assert altar_found, f"Altar should still be visible at step {step}"
             else:
-                assert not altar_found, "Altar should have left the view"
-                print(f"\nStep {step}: Agent at ({3 + step},2), altar no longer visible")
+                assert not altar_found, f"Altar should have left the view at step {step}"
+                print(f"\nStep {step}: Agent at (2,{agent_col}), altar no longer visible")
 
         # Now walk to bottom-right corner
-        # Continue right to x=13
+        # Move right to x=13
         for _ in range(5):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
+            actions = np.array([[move_idx, Orientation.EAST.value]], dtype=dtype_actions)  # 3 = East
             obs, _, _, _, _ = env.step(actions)
 
-        # Face down and move to y=8
-        actions = np.array([[rotate_idx, 1]], dtype=dtype_actions)
-        obs, _, _, _, _ = env.step(actions)
-
+        # Move down to y=8 using move (direction 4 = South)
         for _ in range(6):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
+            actions = np.array([[move_idx, Orientation.SOUTH.value]], dtype=dtype_actions)  # 1 = South
             obs, _, _, _, _ = env.step(actions)
 
         # Verify agent is still at center of observation
         agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
         assert len(agent_tokens) > 0, "Agent should still see itself at center (3,3)"
 
-        # Check walls at edges
-        # Right wall at x=14 -> obs x=4
+        # Check walls at edges of observation
+        # Agent is now at (8, 13) in grid
+        # Right wall at grid x=14 appears at obs x=(14-13+3)=4
         for obs_y in range(7):
-            grid_y = 8 + obs_y - 3
-            if 0 <= grid_y <= 9:
-                assert helper.has_wall_at(obs[0], 4, obs_y), f"Should see right wall at obs ({4}, {obs_y})"
+            grid_y = 8 + obs_y - 3  # Convert obs y to grid y
+            if 0 <= grid_y <= 9:  # Within grid bounds
+                assert helper.has_wall_at(obs[0], 4, obs_y), f"Should see right wall at obs (4, {obs_y})"
 
-        # Bottom wall at y=9 -> obs y=4
+        # Bottom wall at grid y=9 appears at obs y=(9-8+3)=4
         for obs_x in range(7):
-            grid_x = 13 + obs_x - 3
-            if 0 <= grid_x <= 14:
-                assert helper.has_wall_at(obs[0], obs_x, 4), f"Should see bottom wall at obs ({obs_x}, {4})"
+            grid_x = 13 + obs_x - 3  # Convert obs x to grid x
+            if 0 <= grid_x <= 14:  # Within grid bounds
+                assert helper.has_wall_at(obs[0], obs_x, 4), f"Should see bottom wall at obs ({obs_x}, 4)"
 
-        # Verify padding areas have no tokens
+        # Verify padding areas (beyond walls) have no feature tokens
+        # Areas beyond x=4 and y=4 should be empty
         for x in range(5, 7):
             for y in range(7):
                 tokens = helper.find_tokens_at_location(obs[0], x, y)
+                # Check tokens beyond the first few (which might be global tokens)
                 for i, token in enumerate(tokens):
-                    if i >= 4:
+                    if i >= 4:  # Skip potential global tokens
                         assert np.array_equal(token, TokenTypes.EMPTY_TOKEN), f"Expected empty token at obs ({x},{y})"
 
         print("\nSUCCESS: Watched altar move through field of view and verified edge behavior")

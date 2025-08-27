@@ -36,6 +36,8 @@ export const FeedPost: FC<{
   } | null;
   isCommentsExpanded: boolean;
   onCommentToggle: () => void;
+  onPostSelect?: () => void;
+  isSelected?: boolean;
 }> = ({
   post,
   onPaperClick,
@@ -43,11 +45,16 @@ export const FeedPost: FC<{
   currentUser,
   isCommentsExpanded,
   onCommentToggle,
+  onPostSelect,
+  isSelected,
 }) => {
   const router = useRouter();
 
   // Local state for paper data that can be updated when institutions are added
   const [paperData, setPaperData] = useState(post.paper);
+
+  // Local state for comment count to handle immediate UI updates
+  const [commentCount, setCommentCount] = useState(post.replies);
 
   // Local state for optimistic queue updates
   const [optimisticQueues, setOptimisticQueues] = useState(post.queues);
@@ -63,7 +70,8 @@ export const FeedPost: FC<{
     setPaperData(post.paper);
     setOptimisticQueues(post.queues);
     setOptimisticQueued(post.paper?.queued ?? false);
-  }, [post.paper, post.queues]);
+    setCommentCount(post.replies);
+  }, [post.paper, post.queues, post.replies]);
 
   // Callback to update paper data when institutions are added
   const handleInstitutionsAdded = (institutions: string[]) => {
@@ -73,6 +81,11 @@ export const FeedPost: FC<{
         institutions: institutions,
       });
     }
+  };
+
+  // Handle comment count updates for immediate UI feedback
+  const handleCommentCountChange = (delta: number) => {
+    setCommentCount((prev) => Math.max(0, prev + delta));
   };
 
   // Generate user initials for avatar
@@ -177,11 +190,17 @@ export const FeedPost: FC<{
   };
 
   const handlePostClick = () => {
+    // Always toggle comments
     onCommentToggle();
+
+    // If the post has a paper, also show the paper sidebar
+    if (post.paper) {
+      onPostSelect?.();
+    }
   };
 
   const handleOpenFullView = () => {
-    router.push(`/posts/${post.id}`);
+    onPostSelect?.();
   };
 
   const handleDelete = () => {
@@ -314,26 +333,30 @@ export const FeedPost: FC<{
                 e.stopPropagation();
                 handlePostClick();
               }}
-              className="rounded-full p-1 text-neutral-400 transition-colors group-hover:hidden hover:bg-neutral-100 hover:text-blue-500"
-              title={`${post.replies} comments`}
+              className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
+                !isSelected ? "group-hover:hidden" : ""
+              }`}
+              title={`${commentCount} comments`}
             >
               <div className="flex items-center gap-1">
                 <MessageSquare className="h-4 w-4" />
-                <span className="text-[11px] tabular-nums">{post.replies}</span>
+                <span className="text-[11px] tabular-nums">{commentCount}</span>
               </div>
             </button>
 
-            {/* Open button - shown on hover to replace comment button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenFullView();
-              }}
-              className="hidden cursor-pointer items-center gap-1 rounded-full border bg-white/80 px-2 py-1 text-[11px] text-neutral-700 backdrop-blur transition-colors group-hover:flex hover:bg-white"
-              title="Open post"
-            >
-              Open <ChevronRight className="h-3 w-3" />
-            </button>
+            {/* Open button - shown on hover to replace comment button (hidden when selected) */}
+            {!isSelected && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenFullView();
+                }}
+                className="hidden cursor-pointer items-center gap-1 rounded-full border bg-white/80 px-2 py-1 text-[11px] text-neutral-700 backdrop-blur transition-colors group-hover:flex hover:bg-white"
+                title="Open post"
+              >
+                Open <ChevronRight className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -474,26 +497,30 @@ export const FeedPost: FC<{
               e.stopPropagation();
               handlePostClick();
             }}
-            className="rounded-full p-1 text-neutral-400 transition-colors group-hover:hidden hover:bg-neutral-100 hover:text-blue-500"
-            title={`${post.replies} comments`}
+            className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
+              !isSelected ? "group-hover:hidden" : ""
+            }`}
+            title={`${commentCount} comments`}
           >
             <div className="flex items-center gap-1">
               <MessageSquare className="h-4 w-4" />
-              <span className="text-[11px] tabular-nums">{post.replies}</span>
+              <span className="text-[11px] tabular-nums">{commentCount}</span>
             </div>
           </button>
 
-          {/* Open button - shown on hover to replace comment button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpenFullView();
-            }}
-            className="hidden cursor-pointer items-center gap-1 rounded-full border bg-white/80 px-2 py-1 text-[11px] text-neutral-700 backdrop-blur transition-colors group-hover:flex hover:bg-white"
-            title="Open post"
-          >
-            Open <ChevronRight className="h-3 w-3" />
-          </button>
+          {/* Open button - shown on hover to replace comment button (hidden when selected) */}
+          {!isSelected && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenFullView();
+              }}
+              className="hidden cursor-pointer items-center gap-1 rounded-full border bg-white/80 px-2 py-1 text-[11px] text-neutral-700 backdrop-blur transition-colors group-hover:flex hover:bg-white"
+              title="Open post"
+            >
+              Open <ChevronRight className="h-3 w-3" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -527,6 +554,7 @@ export const FeedPost: FC<{
           isExpanded={isCommentsExpanded}
           onToggle={onCommentToggle}
           currentUser={currentUser}
+          onCommentCountChange={handleCommentCountChange}
         />
       </div>
 

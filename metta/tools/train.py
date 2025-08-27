@@ -41,6 +41,7 @@ class TrainTool(Tool):
 
     # Optional configurations
     map_preview_uri: str | None = None
+    disable_macbook_optimize: bool = False
 
     consumed_args: list[str] = ["run"]
 
@@ -128,7 +129,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         wandb_run=wandb_run,
     )
 
-    if platform.system() == "Darwin":
+    if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
         cfg = _minimize_config_for_debugging(cfg)
 
     # Save configuration

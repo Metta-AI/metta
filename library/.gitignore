@@ -45,3 +45,18 @@ next-env.d.ts
 debug-adobe-error-*.pdf
 debug-textract-error-*.pdf
 temp-pdf-*.pdf
+
+# Textract debug output files
+textract-raw-blocks-*.json
+textract-processed-elements-*.json
+
+# Figure extraction output files
+extracted-figure-*.png
+temp-pdf-extraction/
+
+# Batch extraction output
+textract-extractions/
+temp-extraction-*/
+*.pdf
+*.png
+textract-*.json

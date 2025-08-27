@@ -5,6 +5,7 @@ import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.test_support.orientation import Orientation
 
 # Test constants
 NUM_AGENTS = 1
@@ -42,7 +43,6 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
-            "rotate": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
         },
         "groups": {
@@ -67,6 +67,7 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "agent": {
             "default_resource_limit": 10,
         },
+        "allow_diagonals": True,
     }
 
     return MettaGrid(from_mettagrid_config(game_config), game_map, 42)
@@ -81,15 +82,10 @@ class TestStatsRewards:
         # Get action indices
         action_names = env.action_names()
         move_idx = action_names.index("move")
-        rotate_idx = action_names.index("rotate") if "rotate" in action_names else None
-
-        # Rotate to face down (south) first to ensure we can move
-        if rotate_idx is not None:
-            rotate_action = np.array([[rotate_idx, 1]], dtype=np.int32)  # Rotate to face down
-            env.step(rotate_action)
 
         # Agent should get 0.1 reward per successful move
-        actions = np.array([[move_idx, 0]], dtype=np.int32)  # Move forward
+        # Move down (South)
+        actions = np.array([[move_idx, Orientation.SOUTH.value]], dtype=np.int32)
 
         # Execute move
         obs, rewards, terminals, truncations, info = env.step(actions)
@@ -105,29 +101,25 @@ class TestStatsRewards:
         # Get action indices
         action_names = env.action_names()
         move_idx = action_names.index("move")
-        rotate_idx = action_names.index("rotate")
 
         # Do several moves to accumulate move rewards
         total_reward = 0.0
         successful_moves = 0
 
-        # Move down
-        env.step(np.array([[rotate_idx, 1]], dtype=np.int32))  # Face down
-        _, rewards, _, _, _ = env.step(np.array([[move_idx, 0]], dtype=np.int32))
+        # Move down (South)
+        _, rewards, _, _, _ = env.step(np.array([[move_idx, Orientation.SOUTH.value]], dtype=np.int32))
         if rewards[0] > 0:
             successful_moves += 1
             total_reward += rewards[0]
 
-        # Move right
-        env.step(np.array([[rotate_idx, 2]], dtype=np.int32))  # Face right
-        _, rewards, _, _, _ = env.step(np.array([[move_idx, 0]], dtype=np.int32))
+        # Move right (East)
+        _, rewards, _, _, _ = env.step(np.array([[move_idx, Orientation.EAST.value]], dtype=np.int32))
         if rewards[0] > 0:
             successful_moves += 1
             total_reward += rewards[0]
 
-        # Move left
-        env.step(np.array([[rotate_idx, 3]], dtype=np.int32))  # Face left
-        _, rewards, _, _, _ = env.step(np.array([[move_idx, 0]], dtype=np.int32))
+        # Move left (West)
+        _, rewards, _, _, _ = env.step(np.array([[move_idx, Orientation.WEST.value]], dtype=np.int32))
         if rewards[0] > 0:
             successful_moves += 1
             total_reward += rewards[0]

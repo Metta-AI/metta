@@ -16,18 +16,7 @@ def setup_monitoring(
     experience: Experience,
     timer: Optional[Stopwatch] = None,
 ) -> Tuple[MemoryMonitor, SystemMonitor]:
-    """Set up memory and system monitoring.
-
-    Note: This should only be called on the master rank.
-
-    Args:
-        policy: Policy model to monitor
-        experience: Experience buffer to monitor
-        timer: Optional stopwatch timer for system monitor
-
-    Returns:
-        Tuple of (memory_monitor, system_monitor)
-    """
+    """Set up memory and system monitoring (should only be called on master rank)."""
 
     # Create memory monitor
     memory_monitor = MemoryMonitor()
@@ -51,12 +40,7 @@ def cleanup_monitoring(
     memory_monitor: Optional[MemoryMonitor],
     system_monitor: Optional[SystemMonitor],
 ) -> None:
-    """Clean up monitoring resources.
-
-    Args:
-        memory_monitor: Memory monitor to clean up
-        system_monitor: System monitor to stop
-    """
+    """Clean up memory and system monitoring resources."""
     if memory_monitor:
         memory_monitor.clear()
         logger.debug("Cleared memory monitor")
@@ -67,14 +51,7 @@ def cleanup_monitoring(
 
 
 def get_memory_stats(memory_monitor: Optional[MemoryMonitor]) -> dict:
-    """Get current memory statistics.
-
-    Args:
-        memory_monitor: Memory monitor instance
-
-    Returns:
-        Dictionary of memory stats, empty if monitor is None
-    """
+    """Get current memory statistics from memory monitor."""
     if not memory_monitor:
         return {}
 
@@ -89,14 +66,7 @@ def get_memory_stats(memory_monitor: Optional[MemoryMonitor]) -> dict:
 
 
 def get_system_stats(system_monitor: Optional[SystemMonitor]) -> dict:
-    """Get current system statistics.
-
-    Args:
-        system_monitor: System monitor instance
-
-    Returns:
-        Dictionary of system stats, empty if monitor is None
-    """
+    """Get current system statistics including CPU, memory, and GPU metrics."""
     if not system_monitor:
         return {}
 

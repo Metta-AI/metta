@@ -7,51 +7,11 @@
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
+#include "agent_config.hpp"
 #include "constants.hpp"
 #include "objects/box.hpp"
 #include "types.hpp"
-
-// #MettagridConfig
-struct AgentConfig : public GridObjectConfig {
-  AgentConfig(TypeId type_id,
-              const std::string& type_name,
-              unsigned char group_id,
-              const std::string& group_name,
-              unsigned char freeze_duration,
-              float action_failure_penalty,
-              const std::map<InventoryItem, InventoryQuantity>& resource_limits,
-              const std::map<InventoryItem, RewardType>& resource_rewards,
-              const std::map<InventoryItem, RewardType>& resource_reward_max,
-              const std::map<std::string, RewardType>& stat_rewards,
-              const std::map<std::string, RewardType>& stat_reward_max,
-              float group_reward_pct,
-              const std::map<InventoryItem, InventoryQuantity>& initial_inventory)
-      : GridObjectConfig(type_id, type_name),
-        group_id(group_id),
-        group_name(group_name),
-        freeze_duration(freeze_duration),
-        action_failure_penalty(action_failure_penalty),
-        resource_limits(resource_limits),
-        resource_rewards(resource_rewards),
-        resource_reward_max(resource_reward_max),
-        stat_rewards(stat_rewards),
-        stat_reward_max(stat_reward_max),
-        group_reward_pct(group_reward_pct),
-        initial_inventory(initial_inventory) {}
-  unsigned char group_id;
-  std::string group_name;
-  short freeze_duration;
-  float action_failure_penalty;
-  std::map<InventoryItem, InventoryQuantity> resource_limits;
-  std::map<InventoryItem, RewardType> resource_rewards;
-  std::map<InventoryItem, RewardType> resource_reward_max;
-  std::map<std::string, RewardType> stat_rewards;
-  std::map<std::string, RewardType> stat_reward_max;
-  float group_reward_pct;
-  std::map<InventoryItem, InventoryQuantity> initial_inventory;
-};
 
 class Agent : public GridObject {
 public:
@@ -90,7 +50,7 @@ public:
       : group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
-        orientation(Orientation::Up),
+        orientation(Orientation::North),
         inventory(),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
@@ -138,8 +98,7 @@ public:
   void increment_visitation_count(GridCoord r, GridCoord c) {
     if (!visitation_counts_enabled) return;
 
-    if (r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) && c >= 0 &&
-        c < static_cast<GridCoord>(visitation_grid[0].size())) {
+    if (r < static_cast<GridCoord>(visitation_grid.size()) && c < static_cast<GridCoord>(visitation_grid[0].size())) {
       visitation_grid[r][c]++;
     }
   }
@@ -147,10 +106,17 @@ public:
   std::array<unsigned int, 5> get_visitation_counts() const {
     std::array<unsigned int, 5> counts = {0, 0, 0, 0, 0};
     if (!visitation_grid.empty()) {
-      counts[0] = get_visitation_count(location.r, location.c);      // center
-      counts[1] = get_visitation_count(location.r - 1, location.c);  // up
+      counts[0] = get_visitation_count(location.r, location.c);  // center
+
+      // Handle potential underflow at map edge
+      if (location.r > 0) {
+        counts[1] = get_visitation_count(location.r - 1, location.c);  // up
+      }
       counts[2] = get_visitation_count(location.r + 1, location.c);  // down
-      counts[3] = get_visitation_count(location.r, location.c - 1);  // left
+
+      if (location.c > 0) {
+        counts[3] = get_visitation_count(location.r, location.c - 1);  // left
+      }
       counts[4] = get_visitation_count(location.r, location.c + 1);  // right
     }
     return counts;
@@ -273,7 +239,7 @@ private:
   }
 
   unsigned int get_visitation_count(GridCoord r, GridCoord c) const {
-    if (visitation_grid.empty() || r < 0 || r >= static_cast<GridCoord>(visitation_grid.size()) || c < 0 ||
+    if (visitation_grid.empty() || r >= static_cast<GridCoord>(visitation_grid.size()) ||
         c >= static_cast<GridCoord>(visitation_grid[0].size())) {
       return 0;  // Return 0 for out-of-bounds positions
     }

@@ -25,7 +25,6 @@ class TestConverterObservations:
             "actions": {
                 "noop": {"enabled": True},
                 "move": {"enabled": True},
-                "rotate": {"enabled": True},
                 "put_items": {"enabled": True},
                 "get_items": {"enabled": True},
                 "attack": {"enabled": False},

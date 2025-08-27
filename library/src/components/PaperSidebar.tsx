@@ -13,6 +13,7 @@ import { AuthorDTO, loadAuthorClient } from "@/posts/data/authors-client";
 
 interface PaperSidebarProps {
   paper: FeedPostDTO["paper"];
+  onClose?: () => void;
 }
 
 interface LLMAbstractViewProps {
@@ -32,7 +33,7 @@ interface LLMAbstractViewProps {
  * - Tags and external link
  */
 
-export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
+export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   const router = useRouter();
   const { openAuthor, openInstitution } = useOverlayNavigation();
 
@@ -163,7 +164,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
               )}
             </div>
           </div>
-          <div className="pl-2">
+          <div className="flex items-center gap-2 pl-2">
             {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
               <Button
                 size="small"
@@ -196,6 +197,29 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
                 <Download className="h-4 w-4" />
               </Button>
             ) : null}
+
+            {/* Close button */}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                title="Close paper details"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
@@ -214,7 +238,10 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
                   onClick={() => handleAuthorClick(author.id, author.name)}
                   className="inline-block cursor-pointer"
                 >
-                  <Badge variant="secondary" className="rounded-md hover:bg-neutral-200 transition-colors">
+                  <Badge
+                    variant="secondary"
+                    className="rounded-md transition-colors hover:bg-neutral-200"
+                  >
                     {author.name}
                   </Badge>
                 </button>
@@ -236,7 +263,10 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
                   onClick={() => handleInstitutionClick(institution)}
                   className="inline-block cursor-pointer"
                 >
-                  <Badge variant="secondary" className="rounded-md hover:bg-neutral-200 transition-colors">
+                  <Badge
+                    variant="secondary"
+                    className="rounded-md transition-colors hover:bg-neutral-200"
+                  >
                     {institution}
                   </Badge>
                 </button>
@@ -382,76 +412,54 @@ const LLMAbstractView: FC<LLMAbstractViewProps> = ({
             </p>
           </div>
 
-          {/* Key Figures */}
-          {llmAbstract.figuresWithImages.length > 0 && (
-            <div>
-              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-                Key Figures ({llmAbstract.figuresWithImages.length})
-              </div>
-              <div className="space-y-3">
-                {llmAbstract.figuresWithImages.map((figure, index) => (
-                  <figure key={index} className="rounded-xl border p-3">
-                    <div className="flex items-center gap-2 text-[12px] text-neutral-700">
-                      <span className="font-semibold">
-                        {figure.figureNumber}
-                      </span>
-                      <span>• Page {figure.pageNumber}</span>
-                      <span>
-                        • Confidence: {Math.round(figure.confidence * 100)}%
-                      </span>
+          {/* Figure Insights */}
+          {llmAbstract.figuresWithImages &&
+            llmAbstract.figuresWithImages.length > 0 && (
+              <div>
+                <div className="mb-2 text-[12px] font-semibold text-neutral-700">
+                  Key Figures ({llmAbstract.figuresWithImages.length})
+                </div>
+                <div className="space-y-3">
+                  {llmAbstract.figuresWithImages.map((figure, index) => (
+                    <div
+                      key={index}
+                      className="rounded border border-neutral-200 bg-neutral-50 p-3"
+                    >
+                      <div className="mb-1 text-[12px] font-medium text-neutral-900">
+                        {figure.figureNumber || `Figure ${index + 1}`}
+                        {figure.pageNumber && (
+                          <span className="ml-1 text-neutral-500">
+                            (Page {figure.pageNumber})
+                          </span>
+                        )}
+                      </div>
+
+                      {figure.caption && (
+                        <p className="mb-2 text-[12px] text-neutral-700">
+                          <span className="font-medium">Caption:</span>{" "}
+                          {figure.caption}
+                        </p>
+                      )}
+
+                      {/* AI Commentary - Significance (Why it matters) */}
+                      {(figure as any).significance && (
+                        <p className="mb-2 text-[12px] leading-[1.5] text-neutral-800">
+                          {(figure as any).significance}
+                        </p>
+                      )}
+
+                      {/* Fallback to combined context if significance not available */}
+                      {!(figure as any).significance &&
+                        (figure as any).context && (
+                          <p className="text-[12px] leading-[1.5] text-neutral-800">
+                            {(figure as any).context}
+                          </p>
+                        )}
                     </div>
-                    <div className="mt-2 text-[13px] font-medium text-neutral-900">
-                      {figure.caption}
-                    </div>
-                    {/* Preview placeholder or actual image */}
-                    {figure.imageData ? (
-                      <div className="mt-2">
-                        <img
-                          src={`data:image/${figure.imageType || "png"};base64,${figure.imageData}`}
-                          alt={figure.caption}
-                          className="h-24 w-full cursor-pointer rounded-lg object-cover"
-                          onClick={(e) => {
-                            // Create a downloadable blob URL for better viewing
-                            const byteCharacters = atob(figure.imageData!);
-                            const byteNumbers = new Array(
-                              byteCharacters.length
-                            );
-                            for (let i = 0; i < byteCharacters.length; i++) {
-                              byteNumbers[i] = byteCharacters.charCodeAt(i);
-                            }
-                            const byteArray = new Uint8Array(byteNumbers);
-                            const blob = new Blob([byteArray], {
-                              type: `image/${figure.imageType || "png"}`,
-                            });
-                            const url = URL.createObjectURL(blob);
-                            window.open(url, "_blank");
-                            // Clean up the URL after a delay
-                            setTimeout(() => URL.revokeObjectURL(url), 1000);
-                          }}
-                          title="Click to open in new tab"
-                        />
-                      </div>
-                    ) : (
-                      <div className="mt-2 grid h-24 place-content-center rounded-lg bg-neutral-100 text-[12px] text-neutral-500">
-                        preview
-                      </div>
-                    )}
-                    <figcaption className="mt-2 text-[13px] text-neutral-900">
-                      {figure.explanation}
-                    </figcaption>
-                    {figure.significance && (
-                      <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2 text-[12.5px] text-blue-900">
-                        <span className="font-semibold">
-                          Why it's important:{" "}
-                        </span>
-                        {figure.significance}
-                      </div>
-                    )}
-                  </figure>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </section>
       ) : (
         <section className="mt-4 text-[13.5px] leading-[1.6] text-neutral-800">

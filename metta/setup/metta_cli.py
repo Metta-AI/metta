@@ -143,6 +143,11 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
         help="Clean build artifacts and temporary files",
         handler="cmd_clean",
     ),
+    "go": CommandConfig(
+        help="Navigate to a Softmax Home shortcut",
+        handler="cmd_go",
+        pass_unknown_args=True,
+    ),
     # Commands that need config but not components
     "local": CommandConfig(
         help="Local development commands",
@@ -449,6 +454,27 @@ class MettaCLI:
                 subprocess.run(cmd, cwd=str(self.repo_root), check=True)
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
+
+    def cmd_go(self, args, unknown_args=None) -> None:
+        """Navigate to a Softmax Home shortcut URL."""
+        import webbrowser
+
+        from metta.setup.utils import error, info
+
+        if not unknown_args:
+            error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
+            info("\nCommon shortcuts:")
+            info("  g    - GitHub")
+            info("  w    - Weights & Biases")
+            info("  o    - Observatory")
+            info("  d    - Datadog")
+            return
+
+        shortcut = unknown_args[0]
+        url = f"https://home.softmax-research.net/{shortcut}"
+
+        info(f"Opening {url}...")
+        webbrowser.open(url)
 
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""

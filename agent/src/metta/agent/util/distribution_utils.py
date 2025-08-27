@@ -9,24 +9,8 @@ from torch import Tensor
 
 @torch.jit.script
 def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
-    """
-    Sample actions from logits during inference.
-
-    Args:
-        action_logits: Raw logits from policy network of shape [batch_size, num_actions].
-                       These are unnormalized log-probabilities over the action space.
-
-    Returns:
-        actions: Sampled action indices of shape [batch_size]. Each element is an
-                 integer in [0, num_actions) representing the sampled action.
-
-        act_log_prob: Log-probabilities of the sampled actions, shape [batch_size].
-
-        entropy: Policy entropy at each state, shape [batch_size].
-
-        full_log_probs: Full log-probability distribution over all actions,
-                          shape [batch_size, num_actions]. Same as log-softmax of logits.
-    """
+    """Sample actions from logits during inference.
+    Returns (actions, action_log_probs, entropy, full_log_probs) for sampled actions."""
 
     full_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
@@ -46,26 +30,8 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
 
 @torch.jit.script
 def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
-    """
-    Evaluate provided actions against logits during training.
-
-    Args:
-        action_logits: Current policy logits of shape [batch_size, num_actions].
-                       These may differ from the logits that originally generated
-                       the actions due to policy updates.
-
-        actions: Previously taken action indices of shape [batch_size].
-                 Each element must be a valid action index in [0, num_actions).
-
-    Returns:
-        log_probs: Log-probabilities of the given actions under current policy,
-                   shape [batch_size]. Used for importance sampling: π_new(a|s)/π_old(a|s).
-
-        entropy: Current policy entropy at each state, shape [batch_size].
-
-        action_log_probs: Full log-probability distribution over all actions,
-                          shape [batch_size, num_actions]. Same as log-softmax of logits.
-    """
+    """Evaluate provided actions against current policy logits for importance sampling.
+    Returns (log_probs, entropy, action_log_probs) for the given actions under current policy."""
 
     action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
@@ -81,9 +47,7 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
 
 
 def get_from_master(x: Any) -> Any:
-    """Return the value from rank 0 across all ranks.
-    Works for everything that can be pickled.
-    """
+    """Broadcast value from rank 0 to all ranks in distributed training. Works for everything that can be pickled."""
     if not dist.is_available() or not dist.is_initialized() or dist.get_world_size() == 1:
         return x
 

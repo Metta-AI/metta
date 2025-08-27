@@ -32,14 +32,7 @@ def evaluate_policy(
     stats_client: StatsClient | None,
     logger: logging.Logger,
 ) -> EvalResults:
-    """
-    Evaluate **one** policy URI (may expand to several checkpoints).
-    All simulations belonging to a single checkpoint are merged into one
-    *StatsDB* which is optionally exported.
-
-    Returns:
-        Dictionary containing simulation results and metrics
-    """
+    """Evaluate one policy URI, merging all simulations into a single StatsDB."""
     pr = policy_record
 
     stats_dir = stats_dir or "/tmp/stats"

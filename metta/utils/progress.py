@@ -7,12 +7,7 @@ from rich.table import Table
 
 
 def should_use_rich_console() -> bool:
-    """Determine if rich console output is appropriate.
-
-    Returns:
-        False for batch jobs, wandb, skypilot, or when disabled.
-        True for interactive terminals.
-    """
+    """Determine if rich console output is appropriate based on environment and TTY availability."""
     import sys
 
     # Check if explicitly disabled
@@ -28,15 +23,7 @@ def should_use_rich_console() -> bool:
 
 
 def create_progress_table(epoch: int, run_name: str | None = None) -> Table:
-    """Create a rich table for training progress.
-
-    Args:
-        epoch: Current training epoch
-        run_name: Name of the current training run
-
-    Returns:
-        Configured Rich table
-    """
+    """Create a configured rich table for displaying training progress."""
     title = f"[bold cyan]Training Progress - Epoch {epoch}"
     if run_name:
         title += f"\n{run_name}"
@@ -66,18 +53,7 @@ def log_rich_progress(
     stats_pct: float,
     run_name: str | None = None,
 ) -> None:
-    """Log training progress using rich console tables.
-
-    Args:
-        epoch: Current epoch
-        agent_step: Current agent step
-        total_timesteps: Total timesteps to train
-        steps_per_sec: Steps per second
-        train_pct: Percentage of time in training
-        rollout_pct: Percentage of time in rollout
-        stats_pct: Percentage of time in stats processing
-        run_name: Name of the current training run
-    """
+    """Log training progress using rich console tables with steps and time breakdown."""
     console = Console()
     table = create_progress_table(epoch, run_name)
 

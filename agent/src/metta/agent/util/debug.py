@@ -4,28 +4,7 @@ import torch
 
 
 def assert_shape(tensor: torch.Tensor, expected_shape: Tuple[Union[int, str], ...], name: Optional[str] = None) -> bool:
-    """
-    Assert that a tensor has an expected shape by raising ValueError if the shape doesn't match. This function should
-    be called from within a debug block to allow optimization to skip the checks
-
-    Args:
-        tensor: The tensor to check
-        expected_shape: A tuple specifying expected dimensions. Each element can be:
-            - An integer: Requires the dimension to have exactly this size
-            - A string: Represents a named dimension (like "B", "T", "H", "W") where any
-              positive size is acceptable
-        name: Optional name for the tensor to include in the error message
-
-    Examples:
-        if __debug__:
-            assert_shape(logits, ("B", "T", 10000), 'logits')
-
-    Raises:
-        ValueError: If the tensor shape doesn't match the expected shape
-
-    Returns:
-        bool: True when the assertion passes
-    """
+    """Assert tensor has expected shape, allowing named dimensions (strings) for variable sizes."""
     tensor_shape = tuple(tensor.shape)
     tensor_name = f"'{name}'" if name else "tensor"
 

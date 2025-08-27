@@ -26,17 +26,7 @@ class LatentAttnTiny(PyTorchAgentMixin, LSTMWrapper):
         num_layers=2,
         **kwargs,
     ):
-        """Initialize LatentAttnTiny policy with mixin support.
-
-        Args:
-            env: Environment
-            policy: Optional inner policy
-            cnn_channels: Number of CNN channels
-            input_size: LSTM input size
-            hidden_size: LSTM hidden size
-            num_layers: Number of LSTM layers
-            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
-        """
+        """Initialize LatentAttnTiny policy with mixin support."""
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
 
@@ -160,9 +150,7 @@ class Policy(nn.Module):
         return x
 
     def encode_observations(self, observations, state=None):
-        """
-        Encode observations into a hidden representation.
-        """
+        """Encode observations into a hidden representation."""
 
         # Initialize dictionary for TensorDict
         td = {"env_obs": observations, "state": None}

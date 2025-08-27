@@ -4,23 +4,7 @@ import torch
 
 
 def position_embeddings(width, height, embedding_dim=128):
-    """
-    Creates simple 2D position embeddings with x, y coordinates.
-
-    Generates a grid of positions where each point has normalized coordinates
-    in the range [-1, 1]. This provides a basic position representation that
-    can be used in neural networks to inject spatial information.
-
-    Args:
-        width (int): The width of the grid
-        height (int): The height of the grid
-        embedding_dim (int): Not used in this function, included for API consistency
-            with sinusoidal_position_embeddings
-
-    Returns:
-        torch.Tensor: A tensor of shape [width, height, 2] containing normalized
-            x, y coordinates for each position in the grid
-    """
+    """Creates simple 2D position embeddings with normalized x,y coordinates in [-1,1]."""
     x = torch.linspace(-1, 1, width)
     y = torch.linspace(-1, 1, height)
     pos_x, pos_y = torch.meshgrid(x, y, indexing="xy")
@@ -28,31 +12,7 @@ def position_embeddings(width, height, embedding_dim=128):
 
 
 def sinusoidal_position_embeddings(width, height, embedding_dim=128):
-    """
-    Creates sinusoidal position embeddings for a 2D grid.
-
-    This function implements sinusoidal position embeddings similar to those used
-    in the Transformer architecture, but adapted for 2D spatial positions. It creates
-    embeddings by applying sine and cosine functions at different frequencies to the
-    x and y coordinates, producing a rich representational space that captures both
-    position and relative distances.
-
-    The embeddings include both frequency-based features and the raw normalized coordinates
-    as the last two dimensions, providing both high-frequency detail and direct positional
-    information.
-
-    Args:
-        width (int): The width of the grid
-        height (int): The height of the grid
-        embedding_dim (int): The dimension of the position embeddings, must be even
-
-    Returns:
-        torch.Tensor: A tensor of shape [width, height, embedding_dim] containing
-            the sinusoidal position embeddings for each position in the grid
-
-    Raises:
-        AssertionError: If embedding_dim is not even
-    """
+    """Creates sinusoidal position embeddings for 2D grid using sine/cosine at different frequencies."""
     # Generate a grid of positions for x and y coordinates
     x = torch.linspace(-1, 1, width, dtype=torch.float32)
     y = torch.linspace(-1, 1, height, dtype=torch.float32)

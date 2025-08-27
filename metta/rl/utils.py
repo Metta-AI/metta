@@ -34,18 +34,7 @@ def log_training_progress(
     stats_time: float,
     run_name: str,
 ) -> None:
-    """Log training progress with timing breakdown.
-
-    Args:
-        epoch: Current epoch
-        agent_step: Current agent step
-        total_timesteps: Total timesteps to train
-        steps_before: Agent step at time of previous log
-        train_time: Time spent training
-        rollout_time: Time spent in rollout
-        stats_time: Time spent processing stats
-        run_name: Name of the current training run
-    """
+    """Log training progress with timing breakdown and performance metrics."""
     total_time = train_time + rollout_time + stats_time
     if total_time > 0:
         steps_per_sec = (agent_step - prev_agent_step) / total_time

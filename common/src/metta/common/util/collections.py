@@ -26,3 +26,7 @@ def find_first(collection: Iterable[T], predicate: Callable[[T], bool]) -> T | N
 
 def is_unique(collection: Sequence[T]) -> bool:
     return len(collection) == len(set(collection))
+
+
+def remove_falsey(collection: Iterable[T]) -> list[T]:
+    return [item for item in collection if item]
