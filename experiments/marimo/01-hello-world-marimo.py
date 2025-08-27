@@ -31,13 +31,13 @@ def _(mo):
 
     ## 1. Setup
 
-    Let's load dependencies and set up some scaffolding. Don't worry about the details here.
+    That's done above in the setup cell.
     """
     )
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _():
     import marimo as mo
     import sys
@@ -711,7 +711,7 @@ def _(
         eval_policy = OpportunisticPolicy(eval_env)
 
     for ep in range(1, EVAL_EPISODES + 1):
-        _obs, _ = eval_env.reset(ep)
+        _obs, _ = eval_env.reset()
         inv_count = 0
         for _step in range(renderer_config.num_steps):
             _actions = eval_policy.predict(_obs)
@@ -1440,6 +1440,87 @@ def _(
 
 @app.cell
 def _(mo):
+    eval_button2 = mo.ui.run_button(label="Click to run another evaluation")
+    eval_button2
+    return (eval_button2,)
+
+
+@app.cell
+def _(
+    EVAL_EPISODES,
+    MettaGridEnv,
+    OpportunisticPolicy,
+    contextlib,
+    display,
+    env_config2,
+    eval_button2,
+    io,
+    mo,
+    np,
+    pd,
+    renderer_config2,
+):
+    mo.stop(not eval_button2.value)
+
+    def _():
+        scores_ore: list[int] = []
+        scores_batteries: list[int] = []
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            # Create evaluation environment with our simple config
+            eval_env = MettaGridEnv(env_config2, render_mode="human")
+            eval_policy = OpportunisticPolicy(eval_env)
+
+        for ep in range(1, EVAL_EPISODES + 1):
+            _obs, _ = eval_env.reset()
+            inv_count = 0
+            for _step in range(renderer_config2.num_steps):
+                _actions = eval_policy.predict(_obs)
+                _obs, _, _, _, _ = eval_env.step(_actions)
+            _agent_obj = next(
+                (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
+            )
+            _inv = {
+                eval_env.inventory_item_names[idx]: cnt
+                for idx, cnt in _agent_obj.get("inventory", {}).items()
+            }
+            inv_count_ore = int(_inv.get("ore_red", 0))
+            inv_count_batteries = int(_inv.get("battery_red", 0))
+            scores_ore.append(inv_count_ore)
+            scores_batteries.append(inv_count_batteries)
+
+        mean_score_ore = np.mean(scores_ore)
+        mean_score_batteries = np.mean(scores_batteries)
+        std_score_ore = np.std(scores_ore)
+        std_score_batteries = np.std(scores_batteries)
+        running_avg_ore = pd.Series(scores_ore).expanding().mean()
+        running_avg_batteries = pd.Series(scores_batteries).expanding().mean()
+
+        analysis_str = (
+            f"Opportunistic agent baseline: {mean_score_ore:.2f} ± {std_score_ore:.2f} ore collected, "
+            f"{mean_score_batteries:.2f} ± {std_score_batteries:.2f} batteries collected"
+        )
+        print(analysis_str)
+        display(mo.md(analysis_str))
+        display(
+            pd.DataFrame(
+                {
+                    "episode": list(range(1, EVAL_EPISODES + 1)),
+                    "ore_red": scores_ore,
+                    "battery_red": scores_batteries,
+                    "running_avg_ore": running_avg_ore,
+                    "running_avg_battery": running_avg_batteries,
+                }
+            )
+        )
+        eval_env.close()
+
+    _()
+    return
+
+
+@app.cell
+def _(mo):
     train_button2 = mo.ui.run_button(label="Click to run training below")
     train_button2
     return (train_button2,)
@@ -1471,7 +1552,7 @@ def _(
 
         trainer_config = TrainerConfig(
             curriculum=curriculum,
-            total_timesteps=2500000,  # Extended training to master conversion cycles
+            total_timesteps=3500000,  # Extended training to master conversion cycles
             batch_size=65536,  # Larger batches for stable learning of clear signal
             minibatch_size=512,  # Bigger minibatches with clean reward structure
             rollout_workers=min(
