@@ -63,13 +63,13 @@ class TestHelpersSimpleCheckpoint:
             "agent_step": epoch * 1000,
             "generation": 1,
             "train_time": epoch * 10.0,
+            "epoch": epoch,
         }
 
         checkpoint_manager.save_agent(mock_agent, epoch=epoch, metadata=metadata)
 
-        # Get the checkpoint path
-        checkpoint_dir = temp_dir / "checkpoints"
-        checkpoint_path = checkpoint_dir / f"model_{epoch:04d}.pt"
+        # Get the actual checkpoint path that CheckpointManager created
+        checkpoint_path = checkpoint_manager.checkpoint_dir / f"agent_epoch_{epoch}.pt"
 
         return Checkpoint(run_name=run_name, uri=f"file://{checkpoint_path}", metadata=metadata)
 
@@ -168,7 +168,7 @@ def test_checkpoint_info_compatibility():
         # Test the interface methods that database code expects
         assert checkpoint_info.uri.startswith("file://")
         assert checkpoint_info.run_name == "test_run"
-        assert checkpoint_info.epoch == 5
+        assert checkpoint_info.metadata["epoch"] == 5
         assert checkpoint_info.metadata["score"] == 0.92
 
         # Test key_and_version method (equivalent to what SimulationStatsDB.key_and_version() does)
@@ -176,11 +176,12 @@ def test_checkpoint_info_compatibility():
         assert key == "test_run"
         assert version == 5
 
-        # Verify the checkpoint file actually exists
-        assert Path(checkpoint_info.checkpoint_path).exists()
+        # Verify the checkpoint file actually exists (extract path from URI)
+        checkpoint_path = checkpoint_info.uri[7:]  # Remove "file://" prefix
+        assert Path(checkpoint_path).exists()
 
         # Verify metadata file exists and is readable
-        yaml_path = checkpoint_info.checkpoint_path.replace(".pt", ".yaml")
+        yaml_path = checkpoint_path.replace(".pt", ".yaml")
         assert Path(yaml_path).exists()
 
         with open(yaml_path) as f:

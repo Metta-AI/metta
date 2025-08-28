@@ -21,7 +21,7 @@ from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
-from metta.eval.eval_request_config import EvalRewardSummary, EvaluationResults
+from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -556,7 +556,7 @@ def train(
                             evaluate_local = True
                     if evaluate_local:
                         logger.warning("Local evaluation not configured")
-                        evaluation_results = EvaluationResults(scores=EvalRewardSummary(), replay_urls=[])
+                        evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
                         category_scores = list(eval_scores.category_scores.values())
