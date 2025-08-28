@@ -9,7 +9,7 @@ from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.simple_policy_interface import SimplePolicyRecord
+from metta.rl.checkpoint_interface import Checkpoint
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
@@ -18,7 +18,7 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 
 def evaluate_policy(
     *,
-    policy_record: SimplePolicyRecord,
+    checkpoint: Checkpoint,
     simulations: list[SimulationConfig],
     device: torch.device,
     vectorization: str,
@@ -33,12 +33,12 @@ def evaluate_policy(
     logger: logging.Logger,
 ) -> EvalResults:
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
-    pr = policy_record
+    ckpt = checkpoint
 
     stats_dir = stats_dir or "/tmp/stats"
 
     # For each checkpoint of the policy, simulate
-    logger.info(f"Evaluating policy {pr.uri}")
+    logger.info(f"Evaluating checkpoint {ckpt.uri}")
     if not is_unique([sim.name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
 
@@ -46,7 +46,7 @@ def evaluate_policy(
         Simulation(
             name=sim.name,
             cfg=sim,
-            policy_record=pr,
+            checkpoint=ckpt,
             checkpoint_manager=checkpoint_manager,
             replay_dir=replay_dir,
             stats_dir=stats_dir,
@@ -70,7 +70,7 @@ def evaluate_policy(
             merged_db.merge_in(sim_result.stats_db)
             record_heartbeat()
             if replay_dir is not None:
-                key, version = sim_result.stats_db.key_and_version(sim.policy_record)
+                key, version = sim_result.stats_db.key_and_version(sim.checkpoint)
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
                 if sim_replay_urls:
                     replay_urls[sim.name] = sim_replay_urls
@@ -92,8 +92,8 @@ def evaluate_policy(
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
     eval_stats_db = EvalStatsDB(merged_db.path)
-    logger.info("Evaluation complete for policy %s", pr.uri)
-    scores = extract_scores(policy_record, simulations, eval_stats_db, logger)
+    logger.info("Evaluation complete for checkpoint %s", ckpt.uri)
+    scores = extract_scores(checkpoint, simulations, eval_stats_db, logger)
 
     if export_stats_db_uri is not None:
         logger.info("Exporting merged stats DB → %s", export_stats_db_uri)
@@ -108,7 +108,7 @@ def evaluate_policy(
 
 
 def extract_scores(
-    policy_record: SimplePolicyRecord,
+    checkpoint: Checkpoint,
     simulations: list[SimulationConfig],
     stats_db: EvalStatsDB,
     logger: logging.Logger,

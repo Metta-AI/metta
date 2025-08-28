@@ -1,4 +1,4 @@
-"""Minimal interface for PolicyEvaluator integration - exactly what's needed, nothing more."""
+"""Minimal checkpoint interface for evaluation integration - exactly what's needed, nothing more."""
 
 import logging
 from dataclasses import dataclass
@@ -11,10 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class SimplePolicyRecord:
-    """Minimal PolicyRecord replacement for evaluation system integration.
-
-    Provides exactly the interface that PolicyEvaluator expects.
+class Checkpoint:
+    """Simple checkpoint data container - groups policy, trainer state, and metadata.
+    
+    This is NOT backwards compatible with PolicyRecord - it's a clean, simple replacement.
+    Just contains the essential data needed for evaluation: the run name, file location, 
+    basic metadata, and the loaded policy.
     """
 
     run_name: str
@@ -22,8 +24,16 @@ class SimplePolicyRecord:
     metadata: Dict[str, Any]
     _cached_policy: Any = None
 
+    def key_and_version(self) -> tuple[str, int]:
+        """Extract (key, version) tuple for database normalization.
+        
+        For database integration, we use run_name as key and extract epoch from metadata.
+        """
+        epoch = self.metadata.get("epoch", 0)
+        return self.run_name, epoch
+
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
-        """Extract wandb info from URI - kept for compatibility."""
+        """Extract wandb info from URI - kept for evaluation system compatibility."""
         if self.uri is None or not self.uri.startswith("wandb://"):
             raise ValueError("Cannot get wandb info without a valid URI.")
         try:
@@ -38,14 +48,14 @@ class SimplePolicyRecord:
             ) from e
 
 
-def get_policy_record_from_checkpoint_dir(checkpoint_dir: str) -> Optional[SimplePolicyRecord]:
-    """Get a policy record from a checkpoint directory.
+def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
+    """Get a checkpoint from a directory containing agent_epoch_*.pt files.
 
     Args:
-        checkpoint_dir: Path to directory containing agent_epoch_*.pt files
+        checkpoint_dir: Path to directory containing checkpoint files
 
     Returns:
-        SimplePolicyRecord for the latest checkpoint, or None if no checkpoints found
+        Checkpoint for the latest checkpoint, or None if no checkpoints found
     """
     checkpoint_path = Path(checkpoint_dir)
     if not checkpoint_path.exists():
@@ -65,7 +75,7 @@ def get_policy_record_from_checkpoint_dir(checkpoint_dir: str) -> Optional[Simpl
         logger.error(f"Failed to parse epoch numbers from checkpoint files: {e}")
         return None
 
-    # Load the policy
+    # Load the policy using weights_only=False
     try:
         agent = torch.load(latest_file, weights_only=False)
     except Exception as e:
@@ -75,29 +85,29 @@ def get_policy_record_from_checkpoint_dir(checkpoint_dir: str) -> Optional[Simpl
     # Extract run name from directory structure
     run_name = checkpoint_path.parent.name if checkpoint_path.parent else "unknown"
 
-    return SimplePolicyRecord(run_name=run_name, uri=f"file://{latest_file}", metadata={}, _cached_policy=agent)
+    return Checkpoint(run_name=run_name, uri=f"file://{latest_file}", metadata={}, _cached_policy=agent)
 
 
-def get_policy_tuples_for_stats_integration(checkpoint_dirs: list[str]) -> list[tuple[str, str, str | None]]:
-    """Get policy tuples for get_or_create_policy_ids function.
+def get_checkpoint_tuples_for_stats_integration(checkpoint_dirs: list[str]) -> list[tuple[str, str, str | None]]:
+    """Get checkpoint tuples for get_or_create_policy_ids function.
 
     Args:
         checkpoint_dirs: List of checkpoint directory paths
 
     Returns:
-        List of (policy_name, policy_uri, description) tuples
+        List of (checkpoint_name, checkpoint_uri, description) tuples for stats server
     """
-    policy_tuples = []
+    checkpoint_tuples = []
 
     for checkpoint_dir in checkpoint_dirs:
-        policy_record = get_policy_record_from_checkpoint_dir(checkpoint_dir)
-        if policy_record:
-            policy_tuples.append(
+        checkpoint = get_checkpoint_from_dir(checkpoint_dir)
+        if checkpoint:
+            checkpoint_tuples.append(
                 (
-                    policy_record.run_name,
-                    policy_record.uri,
+                    checkpoint.run_name,
+                    checkpoint.uri,
                     None,  # No description needed
                 )
             )
 
-    return policy_tuples
+    return checkpoint_tuples
