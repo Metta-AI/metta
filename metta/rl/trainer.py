@@ -24,6 +24,7 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
+from metta.rl.checkpoint_manager import CheckpointManager
 
 # from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint  # OLD - REMOVED
 from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
@@ -42,7 +43,6 @@ from metta.rl.stats import (
     process_stats,
 )
 from metta.rl.system_config import SystemConfig
-from metta.rl.tiny_checkpoint_manager import TinyCheckpointManager
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import (
@@ -93,7 +93,7 @@ def train(
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
-    checkpoint_manager: TinyCheckpointManager,
+    checkpoint_manager: CheckpointManager,
     stats_client: StatsClient | None,
     torch_dist_cfg: TorchDistributedConfig,
 ) -> None:
@@ -141,7 +141,7 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
-    # Load existing agent from TinyCheckpointManager
+    # Load existing agent from CheckpointManager
     existing_agent = checkpoint_manager.load_agent()
 
     # Load trainer state (optimizer state, epoch, agent_step)

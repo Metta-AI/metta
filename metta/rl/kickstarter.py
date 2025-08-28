@@ -4,8 +4,8 @@ from torch import Tensor, nn
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.mettagrid import MettaGridEnv
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
-from metta.rl.tiny_checkpoint_manager import TinyCheckpointManager
 
 
 class KickstartTeacher:
@@ -23,7 +23,7 @@ class Kickstarter:
         self,
         cfg: KickstartConfig,
         device: torch.device,
-        checkpoint_manager: TinyCheckpointManager,
+        checkpoint_manager: CheckpointManager,
         metta_grid_env: MettaGridEnv,
     ):
         """Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher
@@ -60,7 +60,7 @@ class Kickstarter:
             self.enabled = False
             return
 
-        self.checkpoint_manager: TinyCheckpointManager = checkpoint_manager
+        self.checkpoint_manager: CheckpointManager = checkpoint_manager
         self.kickstart_steps: int = cfg.kickstart_steps
         self.anneal_factor = 1.0
 
@@ -101,9 +101,7 @@ class Kickstarter:
             checkpoint_path = teacher_uri[7:]  # Remove "file://" prefix
             if checkpoint_path.endswith("/checkpoints"):
                 # Find latest checkpoint in directory
-                checkpoint_manager = TinyCheckpointManager(
-                    run_name="", run_dir=checkpoint_path.replace("/checkpoints", "")
-                )
+                checkpoint_manager = CheckpointManager(run_name="", run_dir=checkpoint_path.replace("/checkpoints", ""))
                 return checkpoint_manager.load_latest_agent()
             else:
                 # Direct path to specific checkpoint file

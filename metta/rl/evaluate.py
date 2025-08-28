@@ -13,7 +13,7 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskRes
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
-from metta.rl.tiny_checkpoint_manager import TinyCheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def evaluate_policy_remote_with_checkpoint_manager(
-    checkpoint_manager: TinyCheckpointManager,
+    checkpoint_manager: CheckpointManager,
     checkpoint_path: Optional[str],
     simulations: list[SimulationConfig],
     stats_epoch_id: uuid.UUID | None,
@@ -32,13 +32,13 @@ def evaluate_policy_remote_with_checkpoint_manager(
     trainer_cfg: TrainerConfig,
 ) -> TaskResponse | None:
     """
-    Create a remote evaluation task using TinyCheckpointManager.
+    Create a remote evaluation task using CheckpointManager.
 
     This replaces the old evaluate_policy_remote function to work with
-    TinyCheckpointManager instead of PolicyRecord objects.
+    CheckpointManager instead of PolicyRecord objects.
 
     Args:
-        checkpoint_manager: TinyCheckpointManager instance
+        checkpoint_manager: CheckpointManager instance
         checkpoint_path: Specific checkpoint path, or None for latest
         simulations: List of simulations to run
         stats_epoch_id: Stats epoch ID for tracking
@@ -140,7 +140,7 @@ def evaluate_policy_remote_legacy_adapter(
         if checkpoint_path and Path(checkpoint_path).exists():
             run_dir = str(Path(checkpoint_path).parent.parent)
             run_name = Path(run_dir).name
-            checkpoint_manager = TinyCheckpointManager(run_name=run_name, run_dir=run_dir)
+            checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
 
             return evaluate_policy_remote_with_checkpoint_manager(
                 checkpoint_manager=checkpoint_manager,

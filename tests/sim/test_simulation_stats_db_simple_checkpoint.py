@@ -1,6 +1,6 @@
 """
-Updated simulation stats database tests using SimpleCheckpointManager patterns.
-This shows how the database integration would work with SimpleCheckpointManager
+Updated simulation stats database tests using CheckpointManager patterns.
+This shows how the database integration would work with CheckpointManager
 instead of the old PolicyRecord system.
 """
 
@@ -15,11 +15,11 @@ import yaml
 from duckdb import DuckDBPyConnection
 
 from metta.agent.mocks import MockAgent
-from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
-class SimpleCheckpointInfo:
+class CheckpointInfo:
     """
     Simple data class to represent checkpoint information for database integration.
     This replaces PolicyRecord in database operations.
@@ -42,7 +42,7 @@ class SimpleCheckpointInfo:
 
 
 class TestHelpersSimpleCheckpoint:
-    """Helper methods for simulation stats database tests using SimpleCheckpointManager."""
+    """Helper methods for simulation stats database tests using CheckpointManager."""
 
     @staticmethod
     def get_count(con: DuckDBPyConnection, query: str) -> int:
@@ -76,11 +76,9 @@ class TestHelpersSimpleCheckpoint:
         return episode_id
 
     @staticmethod
-    def create_checkpoint_with_manager(
-        temp_dir: Path, run_name: str, epoch: int, score: float = 0.5
-    ) -> SimpleCheckpointInfo:
-        """Create a checkpoint using SimpleCheckpointManager and return info object."""
-        checkpoint_manager = SimpleCheckpointManager(run_dir=str(temp_dir), run_name=run_name)
+    def create_checkpoint_with_manager(temp_dir: Path, run_name: str, epoch: int, score: float = 0.5) -> CheckpointInfo:
+        """Create a checkpoint using CheckpointManager and return info object."""
+        checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=str(temp_dir))
 
         # Create a mock agent and save it
         mock_agent = MockAgent()
@@ -97,10 +95,10 @@ class TestHelpersSimpleCheckpoint:
         checkpoint_dir = temp_dir / "checkpoints"
         checkpoint_path = checkpoint_dir / f"model_{epoch:04d}.pt"
 
-        return SimpleCheckpointInfo(str(checkpoint_path), run_name, epoch, metadata)
+        return CheckpointInfo(str(checkpoint_path), run_name, epoch, metadata)
 
     @staticmethod
-    def create_agent_map_from_checkpoints(checkpoint_infos: list[SimpleCheckpointInfo]) -> dict[int, tuple[str, int]]:
+    def create_agent_map_from_checkpoints(checkpoint_infos: list[CheckpointInfo]) -> dict[int, tuple[str, int]]:
         """Create agent map from checkpoint info list (equivalent to old PolicyRecord agent_map)."""
         agent_map = {}
         for i, checkpoint_info in enumerate(checkpoint_infos):
@@ -111,14 +109,14 @@ class TestHelpersSimpleCheckpoint:
 
 def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
     """
-    Test creating a SimulationStatsDB from shards using SimpleCheckpointManager.
+    Test creating a SimulationStatsDB from shards using CheckpointManager.
     This shows how the database integration would work with the new checkpoint system.
     """
     # Create checkpoint directories
     checkpoint_temp_dir = tmp_path / "checkpoints"
     checkpoint_temp_dir.mkdir(parents=True)
 
-    # Create a checkpoint using SimpleCheckpointManager
+    # Create a checkpoint using CheckpointManager
     checkpoint_info = TestHelpersSimpleCheckpoint.create_checkpoint_with_manager(
         checkpoint_temp_dir, "test_policy", epoch=1, score=0.85
     )
@@ -139,17 +137,17 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
     assert ep_id in shard_episode_ids, f"Episode {ep_id} not found in shard DB"
     shard_db.close()
 
-    # Create the merged database using SimpleCheckpointManager context
+    # Create the merged database using CheckpointManager context
     sim_id = str(uuid.uuid4())
 
-    # This would be the updated interface for SimpleCheckpointManager integration
+    # This would be the updated interface for CheckpointManager integration
     merged_db = SimulationStatsDB.from_shards_and_context(
         sim_id=sim_id,
         dir_with_shards=shard_dir,
         agent_map=agent_map,  # Now using simple tuples instead of PolicyRecord objects
         sim_name="test_sim",
         sim_env="test_env",
-        policy_record=checkpoint_info,  # SimpleCheckpointInfo instead of PolicyRecord
+        policy_record=checkpoint_info,  # CheckpointInfo instead of PolicyRecord
     )
 
     # Verify the merged database contains our data
@@ -177,11 +175,11 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
 
     merged_db.close()
 
-    print("✅ Database integration with SimpleCheckpointManager verified")
+    print("✅ Database integration with CheckpointManager verified")
 
 
 def test_checkpoint_info_compatibility():
-    """Test that SimpleCheckpointInfo provides the same interface as PolicyRecord for database operations."""
+    """Test that CheckpointInfo provides the same interface as PolicyRecord for database operations."""
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
@@ -213,13 +211,13 @@ def test_checkpoint_info_compatibility():
             loaded_metadata = yaml.safe_load(f)
         assert loaded_metadata["score"] == 0.92
 
-        print("✅ SimpleCheckpointInfo compatibility with database operations verified")
+        print("✅ CheckpointInfo compatibility with database operations verified")
 
 
 def test_database_policy_lookup_with_checkpoints(tmp_path: Path):
     """
     Test database policy lookups using checkpoint information instead of PolicyRecord.
-    This demonstrates how evaluation/analysis would work with SimpleCheckpointManager.
+    This demonstrates how evaluation/analysis would work with CheckpointManager.
     """
 
     # Create multiple checkpoints for different experiments
@@ -300,7 +298,7 @@ def test_database_policy_lookup_with_checkpoints(tmp_path: Path):
 def test_checkpoint_metadata_database_integration(tmp_path: Path):
     """
     Test that checkpoint metadata integrates properly with database operations.
-    This shows how rich metadata from SimpleCheckpointManager can enhance database queries.
+    This shows how rich metadata from CheckpointManager can enhance database queries.
     """
 
     # Create checkpoints with rich metadata
