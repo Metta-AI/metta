@@ -42,15 +42,6 @@ class LocalCommands:
         subparsers.add_parser("build-policy-evaluator-img", help="Build policy evaluator Docker image")
         subparsers.add_parser("build-app-backend-img", help="Build app backend Docker image")
 
-        # Load policies command
-        load_parser = subparsers.add_parser("load-policies", help="Load W&B artifacts as policies")
-        load_parser.add_argument("--entity", help="W&B entity name (default: from W&B auth)")
-        load_parser.add_argument("--project", help="W&B project name (default: 'metta')")
-        load_parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
-        load_parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
-        load_parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
-        load_parser.add_argument("--stats-db-uri", help="Stats database URI (required when using --post-policies)")
-
         # Server commands
         subparsers.add_parser("stats-server", help="Launch Stats Server")
         subparsers.add_parser("observatory", help="Launch Observatory")
@@ -92,22 +83,6 @@ class LocalCommands:
             self.build_policy_evaluator_img(build_args=unknown_args)
         elif args.command == "build-app-backend-img":
             self.build_app_backend_img()
-        elif args.command == "load-policies":
-            # Convert back to list format for compatibility
-            load_args = []
-            if args.entity:
-                load_args.extend(["--entity", args.entity])
-            if args.project:
-                load_args.extend(["--project", args.project])
-            if args.days_back != 30:
-                load_args.extend(["--days-back", str(args.days_back)])
-            if args.limit:
-                load_args.extend(["--limit", str(args.limit)])
-            if args.run_name:
-                load_args.extend(["--run-name", args.run_name])
-            if args.stats_db_uri:
-                load_args.extend(["--stats-db-uri", args.stats_db_uri])
-            self.load_policies(load_args)
         elif args.command == "kind":
             self.kind(args)
         elif args.command == "observatory":
@@ -144,74 +119,6 @@ class LocalCommands:
             self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
             build_args or [],
         )
-
-    def load_policies(self, unknown_args) -> None:
-        """Load local checkpoint directories as policies into stats database."""
-        import json
-        from pathlib import Path
-
-        from metta.app_backend.clients.stats_client import StatsClient
-        from metta.rl.checkpoint_interface import get_checkpoint_tuples_for_stats_integration
-
-        # Create parser for load-policies specific arguments
-        parser = argparse.ArgumentParser(
-            prog="metta local load-policies", description="Load local checkpoints as policies into stats database"
-        )
-        parser.add_argument("--data-dir", default="./train_dir", help="Training data directory (default: ./train_dir)")
-        parser.add_argument("--stats-db-uri", required=True, help="Stats database URI")
-
-        # Handle help manually since metta intercepts -h
-        if "--help" in unknown_args or "-h" in unknown_args:
-            parser.print_help()
-            sys.exit(0)
-
-        args = parser.parse_args(unknown_args)
-
-        info(f"Scanning for checkpoints in: {args.data_dir}")
-
-        # Find all checkpoint directories
-        data_dir = Path(args.data_dir)
-        if not data_dir.exists():
-            error(f"Data directory does not exist: {args.data_dir}")
-            sys.exit(1)
-
-        # Look for directories with checkpoint subdirectories
-        checkpoint_dirs = []
-        for run_dir in data_dir.iterdir():
-            if run_dir.is_dir():
-                checkpoint_subdir = run_dir / "checkpoints"
-                if checkpoint_subdir.exists():
-                    checkpoint_dirs.append(str(checkpoint_subdir))
-
-        if not checkpoint_dirs:
-            info("No checkpoint directories found")
-            return
-
-        info(f"Found {len(checkpoint_dirs)} checkpoint directories")
-
-        # Connect to stats database
-        print(f"\nConnecting to stats database at {args.stats_db_uri}...")
-        stats_client = StatsClient.create(args.stats_db_uri)
-        if not stats_client:
-            error("Failed to connect to stats client")
-            return
-
-        # Get checkpoint tuples for stats integration
-        checkpoint_tuples = get_checkpoint_tuples_for_stats_integration(checkpoint_dirs)
-
-        if not checkpoint_tuples:
-            info("No valid checkpoints found in directories")
-            return
-
-        # Import using our get_or_create_policy_ids utility
-        from metta.sim.utils import get_or_create_policy_ids
-
-        policy_ids = get_or_create_policy_ids(stats_client, checkpoint_tuples)
-
-        json_repr = json.dumps({name: str(pid) for name, pid in policy_ids.items()}, indent=2)
-        print(f"Ensured {len(policy_ids)} policy IDs: {json_repr}")
-        sys.stdout.flush()
-        sys.stderr.flush()
 
     def kind(self, args) -> None:
         """Handle Kind cluster management for Kubernetes testing."""

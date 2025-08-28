@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import sys
 import uuid
 from datetime import datetime
@@ -45,7 +44,9 @@ class SimTool(Tool):
 
     wandb: WandbConfig = auto_wandb_config()
 
-    selector_type: str = "top"  # top, latest, or score threshold
+    selector_type: str = "top"  # top, latest, all, or best_score
+    selector_count: int = 1  # number of checkpoints to select
+    selector_metric: str = "score"  # metric to use for selection
     stats_dir: str | None = None  # The (local) directory where stats should be stored
     stats_db_uri: str | None = None  # If set, export stats to this url (local path, wandb:// or s3://)
     stats_server_uri: str | None = None  # If set, send stats to this http server
@@ -67,43 +68,51 @@ class SimTool(Tool):
 
         # Load policies directly from checkpoint directories
         checkpoint_managers_by_uri: dict[str, CheckpointManager] = {}
-        policies_by_uri: dict[str, list[tuple]] = {}  # (agent, metadata) tuples
+        policies_by_uri: dict[str, list[tuple]] = {}  # (agent, metadata, checkpoint_path) tuples
 
         for policy_uri in self.policy_uris:
             if policy_uri.startswith("file://"):
                 checkpoint_dir = policy_uri.replace("file://", "")
+                checkpoint_path = Path(checkpoint_dir)
+
                 # Extract run name from path
-                run_name = Path(checkpoint_dir).parent.name
-                checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=str(Path(checkpoint_dir).parent))
+                run_name = checkpoint_path.parent.name
+                run_dir = str(checkpoint_path.parent.parent)
+                checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
                 checkpoint_managers_by_uri[policy_uri] = checkpoint_manager
 
-                # Load policy based on selector type
-                if self.selector_type == "top":
-                    # Find best checkpoint by score
-                    best_path = checkpoint_manager.find_best_checkpoint("score")
-                    if best_path:
-                        agent = torch.load(best_path, map_location="cpu", weights_only=False)
-                        # Get metadata from corresponding YAML file
-                        yaml_path = best_path.replace(".pt", ".yaml")
+                # Select checkpoints using the new selection system
+                strategy_map = {"top": "best_score", "latest": "latest", "best_score": "best_score", "all": "all"}
+                strategy = strategy_map.get(self.selector_type, "latest")
+
+                selected_paths = checkpoint_manager.select_checkpoints(
+                    strategy=strategy, count=self.selector_count, metric=self.selector_metric
+                )
+
+                logger.info(f"Selected {len(selected_paths)} checkpoints for {policy_uri} using strategy '{strategy}'")
+
+                policies_by_uri[policy_uri] = []
+                for checkpoint_path in selected_paths:
+                    try:
+                        # Load agent
+                        agent = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+
+                        # Load metadata
+                        yaml_path = checkpoint_path.with_suffix(".yaml")
                         metadata = {}
-                        if os.path.exists(yaml_path):
+                        if yaml_path.exists():
                             with open(yaml_path) as f:
                                 metadata = yaml.safe_load(f) or {}
-                        policies_by_uri[policy_uri] = [(agent, metadata)]
-                    else:
-                        logger.warning(f"No checkpoints found with score for {policy_uri}")
-                        policies_by_uri[policy_uri] = []
-                elif self.selector_type == "latest":
-                    # Load latest checkpoint
-                    agent = checkpoint_manager.load_agent()
-                    if agent:
-                        policies_by_uri[policy_uri] = [(agent, {})]
-                    else:
-                        logger.warning(f"No checkpoints found for {policy_uri}")
-                        policies_by_uri[policy_uri] = []
-                else:
-                    logger.error(f"Unsupported selector_type: {self.selector_type}")
-                    policies_by_uri[policy_uri] = []
+
+                        policies_by_uri[policy_uri].append((agent, metadata, checkpoint_path))
+                        logger.info(
+                            f"Loaded checkpoint {checkpoint_path.name} with score {metadata.get('score', 'N/A')}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to load checkpoint {checkpoint_path}: {e}")
+
+                if not policies_by_uri[policy_uri]:
+                    logger.warning(f"No valid checkpoints loaded for {policy_uri}")
             else:
                 logger.error(f"Only file:// URIs supported currently, got {policy_uri}")
                 policies_by_uri[policy_uri] = []
@@ -118,20 +127,21 @@ class SimTool(Tool):
             _determine_run_name(policy_uri)
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
-            for _agent, metadata in agent_metadata_list:
+            for _agent, metadata, checkpoint_path in agent_metadata_list:
                 # Evaluation with CheckpointManager - direct agent evaluation
                 # For now, skip evaluation and just return basic info
-                logger.warning(
-                    f"Evaluation temporarily disabled for {policy_uri} - needs CheckpointManager integration"
-                )
+                logger.info(f"Processing checkpoint {checkpoint_path.name} from {policy_uri}")
 
                 results["checkpoints"].append(
                     {
-                        "name": metadata.get("run", "unknown"),
-                        "uri": policy_uri,
+                        "name": metadata.get("run", checkpoint_path.stem),
+                        "uri": f"file://{checkpoint_path}",
+                        "epoch": metadata.get("epoch", 0),
+                        "checkpoint_path": str(checkpoint_path),
                         "metrics": {
                             "reward_avg": metadata.get("score", 0.0),
                             "reward_avg_category_normalized": metadata.get("avg_reward", 0.0),
+                            "agent_step": metadata.get("agent_step", 0),
                             "detailed": {},
                         },
                         "replay_url": [],

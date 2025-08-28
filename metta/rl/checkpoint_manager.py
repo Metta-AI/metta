@@ -3,7 +3,7 @@
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 import yaml
@@ -168,6 +168,87 @@ class CheckpointManager:
                 logger.warning(f"Failed to process metadata file {yaml_file}: {e}")
 
         return best_file if best_file and best_file.exists() else None
+
+    def select_checkpoints(
+        self, strategy: str = "latest", count: int = 1, metric: str = "score", filters: Optional[Dict[str, Any]] = None
+    ) -> List[Path]:
+        """Select checkpoints using different strategies.
+
+        Args:
+            strategy: Selection strategy - "latest", "best_score", "all"
+            count: Number of checkpoints to return (ignored for "all")
+            metric: Metric to use for "best_score" strategy
+            filters: Optional metadata filters (e.g., {"score": {"min": 0.5}})
+
+        Returns:
+            List of checkpoint paths
+        """
+        if not self.checkpoint_dir.exists():
+            return []
+
+        # Get all checkpoints with metadata
+        checkpoints = []
+        for yaml_file in self.checkpoint_dir.glob("agent_epoch_*.yaml"):
+            try:
+                with open(yaml_file) as f:
+                    metadata = yaml.safe_load(f)
+                    if metadata is None:
+                        continue
+
+                    epoch = metadata.get("epoch")
+                    if epoch is None:
+                        continue
+
+                    checkpoint_path = self.checkpoint_dir / f"agent_epoch_{epoch}.pt"
+                    if not checkpoint_path.exists():
+                        continue
+
+                    # Apply filters if specified
+                    if filters and not self._matches_filters(metadata, filters):
+                        continue
+
+                    checkpoints.append((checkpoint_path, metadata))
+            except Exception as e:
+                logger.warning(f"Failed to process metadata file {yaml_file}: {e}")
+
+        if not checkpoints:
+            return []
+
+        # Apply selection strategy
+        if strategy == "latest":
+            # Sort by epoch descending, take latest
+            checkpoints.sort(key=lambda x: x[1].get("epoch", 0), reverse=True)
+            return [cp[0] for cp in checkpoints[:count]]
+        elif strategy == "best_score":
+            # Sort by metric descending, take best
+            checkpoints.sort(key=lambda x: x[1].get(metric, float("-inf")), reverse=True)
+            return [cp[0] for cp in checkpoints[:count]]
+        elif strategy == "all":
+            # Return all matching checkpoints
+            return [cp[0] for cp in checkpoints]
+        else:
+            raise ValueError(f"Unknown selection strategy: {strategy}")
+
+    def _matches_filters(self, metadata: Dict[str, Any], filters: Dict[str, Any]) -> bool:
+        """Check if metadata matches the given filters."""
+        for key, filter_value in filters.items():
+            if key not in metadata:
+                return False
+
+            metadata_value = metadata[key]
+
+            if isinstance(filter_value, dict):
+                # Handle range filters like {"min": 0.5, "max": 1.0}
+                if "min" in filter_value and metadata_value < filter_value["min"]:
+                    return False
+                if "max" in filter_value and metadata_value > filter_value["max"]:
+                    return False
+            else:
+                # Handle exact match filters
+                if metadata_value != filter_value:
+                    return False
+
+        return True
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         """Clean up old checkpoints, keeping only the most recent ones."""
