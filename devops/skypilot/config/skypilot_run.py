@@ -24,7 +24,10 @@ from runtime_monitors import start_monitors
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)]
+    level=logging.INFO,
+    format="[%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True
 )
 logger = logging.getLogger(__name__)
 
@@ -55,14 +58,32 @@ enable_github_status = os.environ.get("ENABLE_GITHUB_STATUS", "false").lower() =
 def log_config():
     """Log the current configuration."""
     logger.info("Run Configuration:")
+    logger.info(f"  - METTA_RUN_ID: {os.environ.get('METTA_RUN_ID', '')}")
+    logger.info(f"  - SKYPILOT_TASK_ID: {os.environ.get('SKYPILOT_TASK_ID', '')}")
+
     logger.info(f"  - NODE_RANK: {rank}")
     logger.info(f"  - IS_MASTER: {is_master}")
     logger.info(f"  - TOTAL_NODES: {total_nodes}")
-    logger.info(f"  - METTA_RUN_ID: {os.environ.get('METTA_RUN_ID', '')}")
-    logger.info(f"  - SKYPILOT_TASK_ID: {os.environ.get('SKYPILOT_TASK_ID', '')}")
+
     logger.info(f"  - HEARTBEAT_TIMEOUT: {heartbeat_timeout or 'NOT SET'}")
+    heartbeat_file_path = os.environ.get("HEARTBEAT_FILE", "") or None
+    logger.info(f"  - HEARTBEAT_FILE: {heartbeat_file_path or 'NOT SET'}")
+
+    accumulated_runtime_file_path = os.environ.get("ACCUMULATED_RUNTIME_FILE", "") or None
+    logger.info(f"  - ACCUMULATED_RUNTIME_FILE: {accumulated_runtime_file_path or 'NOT SET'}")
+
+    if accumulated_runtime_file_path:
+        accumulated_runtime_file = Path(accumulated_runtime_file_path)
+        if accumulated_runtime_file.exists():
+            try:
+                accumulated_runtime = float(accumulated_runtime_file.read_text())
+                logger.info(f"  - ACCUMULATED_RUNTIME: {accumulated_runtime}")
+            except (ValueError, IOError) as e:
+                logger.warning(f"Failed to load accumulated runtime: {e}")
+
     logger.info(f"  - MAX_RUNTIME_HOURS: {max_runtime_hours or 'NOT SET'}")
     logger.info(f"  - RESTART_COUNT: {restart_count}")
+
     logger.info(f"  - TEST_NCCL: {test_nccl}")
 
 

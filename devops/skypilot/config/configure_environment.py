@@ -34,8 +34,8 @@ def setup_job_metadata():
     heartbeat_file = Path(os.environ.get("HEARTBEAT_FILE", job_metadata_dir / "heartbeat_file"))
 
     # Calculate IS_MASTER based on node rank
-    rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
-    is_master = rank == 0
+    node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+    is_master = node_index == 0
 
     # Handle restart count
     if restart_count_file.exists():
@@ -48,7 +48,7 @@ def setup_job_metadata():
     if is_master:
         restart_count_file.write_text(str(restart_count))
     else:
-        print("[INFO] Skipping RESTART_COUNT_FILE updates on non-master node")
+        print(f"[INFO] Skipping RESTART_COUNT_FILE updates on non-master node {node_index}")
 
     # Read accumulated runtime
     if accumulated_runtime_file.exists():
@@ -56,11 +56,12 @@ def setup_job_metadata():
     else:
         accumulated_runtime = 0
 
-    print("============= RESTART INFO =============")
-    print(f"  METTA_RUN_ID: {metta_run_id}")
-    print(f"  RESTART_COUNT: {restart_count}")
-    print(f"  ACCUMULATED_RUNTIME: {accumulated_runtime}s ({accumulated_runtime // 60}m)")
-    print("========================================")
+    if is_master:
+        print("============= RESTART INFO =============")
+        print(f"  METTA_RUN_ID: {metta_run_id}")
+        print(f"  RESTART_COUNT: {restart_count}")
+        print(f"  ACCUMULATED_RUNTIME: {accumulated_runtime}s ({accumulated_runtime // 60}m)")
+        print("========================================")
 
     return {
         "restart_count": restart_count,
@@ -156,13 +157,17 @@ def create_job_secrets(profile, wandb_password, observatory_token):
 
 def main():
     """Main function to configure the runtime environment."""
-    # Print initial environment info
-    print(f"VIRTUAL_ENV: {os.environ.get('VIRTUAL_ENV', 'Not set')}")
-    print(f"Which python: {run_command('which python')}")
-    python_exec = run_command([sys.executable, "-c", "import sys; print(sys.executable)"])
-    print(f"Python executable: {python_exec}")
+    node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+    is_master = node_index == 0
 
-    print("Configuring runtime environment...")
+    # Print initial environment info
+    if is_master:
+        print(f"VIRTUAL_ENV: {os.environ.get('VIRTUAL_ENV', 'Not set')}")
+        print(f"Which python: {run_command('which python')}")
+        python_exec = run_command([sys.executable, "-c", "import sys; print(sys.executable)"])
+        print(f"Python executable: {python_exec}")
+
+    print(f"Configuring runtime environment [node {node_index}]...")
 
     # Create wandb directory
     Path("./wandb").mkdir(exist_ok=True)
@@ -170,7 +175,7 @@ def main():
     # Get METTA_ENV_FILE path and create parent directories
     metta_env_file = str(METTA_ENV_FILE)
     Path(metta_env_file).parent.mkdir(parents=True, exist_ok=True)
-    print(f"Persisting env vars into: {metta_env_file}")
+    print(f"Persisting env vars into: {metta_env_file} [node {node_index}]")
 
     # Setup job metadata
     metadata = setup_job_metadata()
@@ -188,7 +193,7 @@ def main():
     # Get optional OBSERVATORY_TOKEN
     observatory_token = os.environ.get("OBSERVATORY_TOKEN")
 
-    print("Creating/updating job secrets...")
+    print(f"Creating/updating job secrets [node {node_index}]...")
 
     # Create job secrets
     try:
@@ -197,7 +202,7 @@ def main():
         print(f"ERROR: Failed to create job secrets: {e}")
         sys.exit(1)
 
-    print("Runtime environment configuration completed")
+    print("Runtime environment configuration completed [node {node_index}]")
 
 
 if __name__ == "__main__":
