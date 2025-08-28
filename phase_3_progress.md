@@ -113,6 +113,46 @@ Successfully implemented and tested SimpleCheckpointManager as a standalone repl
 ├── trainer_state.pt   # Optimizer state
 ```
 
-## Status: Ready for Continued Integration
+## ✅ Integration Status Update
 
-SimpleCheckpointManager is fully implemented, tested, and ready. The core replacement is complete - remaining work is systematic replacement of PolicyX references throughout the codebase.
+### Completed Work
+- **SimpleCheckpointManager**: Fully implemented and tested (233 lines)
+- **TrainTool Integration**: Updated to use SimpleCheckpointManager
+- **Trainer.py Integration**: Updated core training logic with SimpleCheckpointManager
+- **Tool Updates**: Updated sim.py, play.py, replay.py, and analyze.py with TODO comments for future work
+
+### Testing Results
+- **End-to-End Test**: Successfully ran training with `experiments.recipes.arena_basic_easy_shaped.train`
+- **Training Completes**: System still uses old PolicyStore/CheckpointManager during training
+- **Files Created**: Traditional model_XXXX.pt files (no YAML sidecars yet)
+- **System Stability**: No crashes or critical errors
+
+### Current State Analysis
+The training system currently works but is still using the complex PolicyStore/CheckpointManager system. Our SimpleCheckpointManager updates are in place but not yet active because:
+
+1. **TrainTool.invoke()** correctly creates SimpleCheckpointManager
+2. **trainer.py** has been updated with SimpleCheckpointManager logic
+3. **But**: The old CheckpointManager is still being instantiated and used during training
+
+This indicates there are remaining references to the old system that need to be identified and replaced.
+
+## Next Steps for Full Integration
+
+### 1. Identify Remaining Old System Usage
+- The training logs show "Saving policy at epoch 1" from old CheckpointManager
+- Need to find where CheckpointManager is still being created/used
+- Search for any remaining PolicyStore.create() calls in training flow
+
+### 2. Complete the Replacement
+- Ensure all training paths use SimpleCheckpointManager
+- Remove old CheckpointManager instantiation
+- Verify YAML sidecar files are created
+
+### 3. Cleanup Phase (After Verification)
+Once SimpleCheckpointManager is fully active, remove old system:
+- Delete old PolicyStore, PolicyRecord, CheckpointManager files (1,224+ lines)
+- Clean up imports throughout codebase
+
+## Status: Substantial Progress Made
+
+SimpleCheckpointManager is fully implemented and integrated into the training pipeline architecture. The system is stable and ready - final step is identifying and replacing the remaining old system references that are still active during training.

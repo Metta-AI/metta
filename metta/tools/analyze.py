@@ -4,7 +4,8 @@ import logging
 
 from pydantic import Field
 
-from metta.agent.policy_store import PolicyStore
+# TODO: Update to use SimpleCheckpointManager instead of PolicyStore
+# from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.common.config.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.analysis import analyze
@@ -22,6 +23,10 @@ class AnalysisTool(Tool):
     data_dir: str = Field(default="./train_dir")
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+        # TODO: Update this to use SimpleCheckpointManager  
+        # For now, keeping PolicyStore to avoid breaking the analysis tools
+        from metta.agent.policy_store import PolicyStore
+        
         policy_store = PolicyStore(
             device=self.system.device,
             data_dir=self.data_dir,

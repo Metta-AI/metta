@@ -3,7 +3,8 @@
 import logging
 
 import mettascope.server as server
-from metta.agent.policy_store import PolicyStore
+# TODO: Update to use SimpleCheckpointManager instead of PolicyStore
+# from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.common.config.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
@@ -47,7 +48,10 @@ def create_simulation(cfg: PlayTool) -> Simulation:
     """Create a simulation for playing/replaying."""
     logger.info(f"Creating simulation: {cfg.sim.name}")
 
-    # Create policy store directly without WandbContext
+    # TODO: Update this to use SimpleCheckpointManager
+    # For now, keeping PolicyStore to avoid breaking the interactive tools
+    from metta.agent.policy_store import PolicyStore
+    
     policy_store = PolicyStore.create(
         device=cfg.system.device,
         wandb_config=cfg.wandb,
