@@ -301,8 +301,8 @@ def process_stats(
     wandb_run: WandbRun | None,
     memory_monitor: MemoryMonitor,
     system_monitor: SystemMonitor,
-    latest_saved_policy_record: None = None,
     optimizer: torch.optim.Optimizer,
+    latest_saved_policy_record: None = None,
     kickstarter: Kickstarter | None = None,
 ) -> None:
     """Process and log training statistics."""

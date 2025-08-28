@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 
 from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_record import PolicyRecord
+from metta.sim.policy_wrapper import PolicyRecord
 from metta.eval.eval_stats_db import EvalStatsDB
 
 

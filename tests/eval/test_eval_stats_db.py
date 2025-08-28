@@ -17,7 +17,7 @@ import pytest
 from typing_extensions import Generator
 
 from metta.agent.mocks import MockPolicyRecord
-from metta.agent.policy_record import PolicyRecord
+from metta.sim.policy_wrapper import PolicyRecord
 from metta.eval.eval_stats_db import EvalStatsDB
 
 TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]
