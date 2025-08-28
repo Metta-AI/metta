@@ -42,8 +42,8 @@ protected:
     // (e.g., 65535 for uint16_t), and the move will fail at the is_valid_location check below since it will
     // be greater than the expected map dimensions. This assumes we will never have a map with width or height
     // equal to the max value of a GridCoord but we can save a few comparisons by making this assumption.
-    target_location.r += dr;
-    target_location.c += dc;
+    target_location.r = static_cast<GridCoord>(static_cast<int>(target_location.r) + dr);
+    target_location.c = static_cast<GridCoord>(static_cast<int>(target_location.c) + dc);
 
     // Update orientation to face the movement direction (even if movement fails)
     actor->orientation = move_direction;
