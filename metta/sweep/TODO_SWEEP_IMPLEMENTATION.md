@@ -6,7 +6,7 @@ Implement a fully operational simple sequential sweep by end of day tomorrow tha
 ## High Priority Tasks
 
 ### 1. Update JobDefinition (First thing)
-- [ ] Add resource requirements to JobDefinition
+- [x] Add resource requirements to JobDefinition
   ```python
   @dataclass
   class JobDefinition:
@@ -17,10 +17,10 @@ Implement a fully operational simple sequential sweep by end of day tomorrow tha
   ```
 
 ### 2. Implement Concrete Classes (Morning)
-- [ ] **SequentialScheduler** - Always schedules one job at a time
+- [x] **SequentialScheduler** - Always schedules one job at a time
   - `initialize()` - Create first job with base configuration
-  - `schedule()` - Always return one new job if there are no pending/running jobs
-  - `schedule_evaluations()` - Create eval jobs with correct recipe commands
+  - `schedule()` - Handles both training and evaluation jobs in single method
+  - ~~`schedule_evaluations()`~~ - DEPRECATED, logic moved to main schedule()
   - `should_stop_job()` - Return False (no early stopping for v1)
   - Keep track of trial count internally
   
