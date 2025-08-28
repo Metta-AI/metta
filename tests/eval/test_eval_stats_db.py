@@ -16,8 +16,7 @@ from typing import List, cast
 import pytest
 from typing_extensions import Generator
 
-from metta.agent.mocks import MockPolicyRecord
-from metta.sim.policy_wrapper import PolicyRecord
+# No PolicyRecord needed - working directly with checkpoint metadata
 from metta.eval.eval_stats_db import EvalStatsDB
 
 TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]
@@ -26,8 +25,8 @@ TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     db = EvalStatsDB(db_path)
 
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
-    pk, pv = db.key_and_version(policy_record)  # type: ignore
+    checkpoint_path, epoch = "test_policy", 1
+    pk, pv = db.key_and_version(checkpoint_path, epoch)
 
     sim_id = str(uuid.uuid4())
 
@@ -88,8 +87,8 @@ def test_db() -> Generator[TestEvalStatsDb, None, None]:
 # -------- Tests ------------------------------------------------------------ #
 def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
-    pk, pv = db.key_and_version(policy_record)  # type: ignore
+    checkpoint_path, epoch = "test_policy", 1
+    pk, pv = db.key_and_version(checkpoint_path, epoch)
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
     avg_hearts = db.get_average_metric_by_filter("hearts_collected", policy_record)
@@ -117,9 +116,9 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
+    checkpoint_path, epoch = "test_policy", 1
 
-    scores = db.simulation_scores(policy_record, "hearts_collected")
+    scores = db.simulation_scores(checkpoint_path, epoch, "hearts_collected")
     assert len(scores) == 1
 
     key = next(iter(scores))

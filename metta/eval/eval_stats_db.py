@@ -22,7 +22,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from metta.sim.policy_wrapper import PolicyRecord
+# No PolicyRecord import needed - working directly with checkpoint metadata
 from metta.mettagrid.util.file import local_copy
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
@@ -184,40 +184,44 @@ class EvalStatsDB(SimulationStatsDB):
     def get_average_metric_by_filter(
         self,
         metric: str,
-        policy_record: PolicyRecord,
+        checkpoint_path: str,
+        epoch: int,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = self.key_and_version(policy_record)
+        pk, pv = self.key_and_version(checkpoint_path, epoch)
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
     def get_sum_metric_by_filter(
         self,
         metric: str,
-        policy_record: PolicyRecord,
+        checkpoint_path: str,
+        epoch: int,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = self.key_and_version(policy_record)
+        pk, pv = self.key_and_version(checkpoint_path, epoch)
         return self._normalized_value(pk, pv, metric, "SUM", filter_condition)
 
     def get_std_metric_by_filter(
         self,
         metric: str,
-        policy_record: PolicyRecord,
+        checkpoint_path: str,
+        epoch: int,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = self.key_and_version(policy_record)
+        pk, pv = self.key_and_version(checkpoint_path, epoch)
         return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
     def sample_count(
         self,
-        policy_record: Optional[PolicyRecord] = None,
+        checkpoint_path: Optional[str] = None,
+        epoch: Optional[int] = None,
         sim_name: Optional[str] = None,
         sim_env: Optional[str] = None,
     ) -> int:
         """Return potential‑sample count for arbitrary filters."""
         q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
-        if policy_record:
-            pk, pv = self.key_and_version(policy_record)
+        if checkpoint_path and epoch is not None:
+            pk, pv = self.key_and_version(checkpoint_path, epoch)
             q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
         if sim_name:
             q += f" AND sim_name  = '{sim_name}'"
@@ -225,9 +229,9 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
 
-    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str], float]:
+    def simulation_scores(self, checkpoint_path: str, epoch: int, metric: str) -> Dict[tuple[str, str], float]:
         """Return { (name,env) : normalized mean(metric) }."""
-        pk, pv = self.key_and_version(policy_record)
+        pk, pv = self.key_and_version(checkpoint_path, epoch)
         sim_rows = self.query(f"""
             SELECT DISTINCT sim_name, sim_env
               FROM policy_simulation_agent_samples
@@ -242,7 +246,6 @@ class EvalStatsDB(SimulationStatsDB):
                 scores[(row.sim_name, row.sim_env)] = val
         return scores
 
-    def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
-        if pr.uri is None:
-            raise ValueError("PolicyRecord must have a URI to be used in EvalStatsDB queries.")
-        return pr.uri, pr.metadata.epoch
+    def key_and_version(self, checkpoint_path: str, epoch: int) -> tuple[str, int]:
+        """Get policy key and version from checkpoint path and epoch metadata."""
+        return checkpoint_path, epoch
