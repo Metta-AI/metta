@@ -28,7 +28,7 @@ from gymnasium import spaces
 from pettingzoo.test import parallel_api_test
 
 # PettingZoo adapter imports
-from metta.mettagrid import EnvConfig, MettaGridPettingZooEnv
+from metta.mettagrid import MettaGridConfig, MettaGridPettingZooEnv
 
 
 def demo_pettingzoo_api():
@@ -38,7 +38,7 @@ def demo_pettingzoo_api():
 
     # Create PettingZoo environment with default config
     env = MettaGridPettingZooEnv(
-        env_config=EnvConfig(),
+        env_config=MettaGridConfig(),
         render_mode=None,
     )
 
@@ -61,7 +61,7 @@ def demo_random_rollout():
 
     # Create PettingZoo environment with default config
     env = MettaGridPettingZooEnv(
-        env_config=EnvConfig(),
+        env_config=MettaGridConfig(),
         render_mode=None,
         is_training=True,
     )
@@ -112,7 +112,7 @@ def demo_simple_marl_training():
 
     # Create PettingZoo environment with default config
     env = MettaGridPettingZooEnv(
-        env_config=EnvConfig(),
+        env_config=MettaGridConfig(),
         render_mode=None,
         is_training=True,
     )

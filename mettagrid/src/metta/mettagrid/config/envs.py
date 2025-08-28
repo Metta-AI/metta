@@ -10,10 +10,9 @@ from metta.mettagrid.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
-    EnvConfig,
     GameConfig,
     GroupConfig,
-    InventoryRewards,
+    MettaGridConfig,
 )
 
 
@@ -21,7 +20,7 @@ def make_arena(
     num_agents: int,
     combat: bool = True,
     map_builder: MapBuilderConfig | None = None,  # custom map builder; must match num_agents
-) -> EnvConfig:
+) -> MettaGridConfig:
     objects = {
         "wall": building.wall,
         "altar": building.altar,
@@ -74,7 +73,7 @@ def make_arena(
             ),
         )
 
-    return EnvConfig(
+    return MettaGridConfig(
         label="arena" + (".combat" if combat else ""),
         game=GameConfig(
             num_agents=num_agents,
@@ -86,9 +85,9 @@ def make_arena(
                     "heart": 255,
                 },
                 rewards=AgentRewards(
-                    inventory=InventoryRewards(
-                        heart=1,
-                    ),
+                    inventory={
+                        "heart": 1,
+                    },
                 ),
             ),
             groups={
@@ -103,11 +102,11 @@ def make_arena(
     )
 
 
-def make_navigation(num_agents: int) -> EnvConfig:
+def make_navigation(num_agents: int) -> MettaGridConfig:
     altar = building.altar.model_copy()
     altar.cooldown = 255  # Maximum cooldown
     altar.initial_resource_count = 1
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
             objects={
@@ -121,9 +120,9 @@ def make_navigation(num_agents: int) -> EnvConfig:
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
-                    inventory=InventoryRewards(
-                        heart=1,
-                    ),
+                    inventory={
+                        "heart": 1,
+                    },
                 ),
             ),
             # Always provide a concrete map builder config so tests can set width/height
@@ -133,9 +132,11 @@ def make_navigation(num_agents: int) -> EnvConfig:
     return cfg
 
 
-def make_icl_resource_chain(num_agents: int, max_steps, game_objects: dict, map_builder_objects: dict) -> EnvConfig:
+def make_icl_resource_chain(
+    num_agents: int, max_steps, game_objects: dict, map_builder_objects: dict
+) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             max_steps=max_steps,
             num_agents=num_agents,
@@ -154,9 +155,9 @@ def make_icl_resource_chain(num_agents: int, max_steps, game_objects: dict, map_
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
-                    inventory=InventoryRewards(
-                        heart=1,
-                    ),
+                    inventory={
+                        "heart": 1,
+                    },
                 ),
                 default_resource_limit=1,
                 resource_limits={"heart": 15},

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from typing import Optional
 
 import numpy as np
 import pytest
@@ -11,10 +10,10 @@ from metta.mettagrid.mettagrid_c import dtype_actions
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
-    EnvConfig,
     GameConfig,
     GlobalObsConfig,
     GroupConfig,
+    MettaGridConfig,
     WallConfig,
 )
 
@@ -118,13 +117,13 @@ def count_visitation_features_at_center(obs: np.ndarray) -> int:
     return count
 
 
-def get_agent_position(env: MettaGridCore) -> Optional[tuple[int, int]]:
+def get_agent_position(env: MettaGridCore) -> tuple[int, int]:
     """Get the current agent position."""
     grid_objects = env.grid_objects
     for obj in grid_objects.values():
         if "agent_id" in obj:
             return (obj["r"], obj["c"])
-    return None
+    raise ValueError("Agent not found in grid objects")
 
 
 def test_visitation_counts_enabled(env_with_visitation):
@@ -186,7 +185,7 @@ def test_visitation_counts_configurable():
     ]
 
     # Test enabled
-    config_enabled = EnvConfig(
+    config_enabled = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             obs_width=5,
@@ -206,7 +205,7 @@ def test_visitation_counts_configurable():
     assert count == 5, f"Expected 5 features when enabled, got {count}"
 
     # Test disabled
-    config_disabled = EnvConfig(
+    config_disabled = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             obs_width=5,
@@ -226,7 +225,7 @@ def test_visitation_counts_configurable():
     assert count == 0, f"Expected 0 features when disabled, got {count}"
 
     # Test default (not specified)
-    config_default = EnvConfig(
+    config_default = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             obs_width=5,
@@ -259,7 +258,7 @@ def performance_config():
         [".", ".", ".", ".", ".", ".", "."],
     ]
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=1000,
