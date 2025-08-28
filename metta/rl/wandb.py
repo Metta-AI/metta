@@ -8,8 +8,6 @@ from typing import Dict
 import torch.nn as nn
 import wandb
 
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
 from metta.common.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger(__name__)
@@ -77,19 +75,3 @@ def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
         wandb_run.summary["model/total_parameters"] = num_params
 
 
-def upload_policy_artifact(
-    wandb_run: WandbRun | None,
-    policy_store: PolicyStore,
-    policy_record: PolicyRecord,
-) -> str | None:
-    """Upload policy to wandb as artifact, returning policy name or None if failed."""
-    if not wandb_run or not policy_record:
-        return None
-
-    try:
-        wandb_policy_name = policy_store.add_to_wandb_run(wandb_run.id, policy_record)
-        logger.info(f"Uploaded policy to wandb: {wandb_policy_name}")
-        return wandb_policy_name
-    except Exception as e:
-        logger.warning(f"Failed to upload policy to wandb: {e}")
-        return None
