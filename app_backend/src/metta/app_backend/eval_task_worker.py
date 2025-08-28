@@ -9,6 +9,8 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
+import base64
+import json
 import logging
 import os
 import subprocess
@@ -30,7 +32,7 @@ from metta.app_backend.routes.eval_task_routes import (
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
-from metta.common.util.git import METTA_API_REPO_URL
+from metta.common.util.git_repo import REPO_URL
 from metta.common.util.logging_helpers import init_logging
 
 
@@ -48,16 +50,14 @@ class AbstractTaskExecutor(ABC):
 
 
 class SimTaskExecutor(AbstractTaskExecutor):
-    def __init__(self, backend_url: str, machine_token: str, logger: logging.Logger):
+    def __init__(self, backend_url: str, logger: logging.Logger):
         self._backend_url = backend_url
-        CLIAuthenticator(backend_url).save_token(machine_token)
         self._logger = logger
         self._logger.info(f"Backend URL: {self._backend_url}")
 
     def _run_cmd_from_versioned_checkout(
         self,
         cmd: list[str],
-        error_msg: str,
         capture_output: bool = True,
     ) -> subprocess.CompletedProcess:
         """Run a command from the versioned checkout with a clean environment."""
@@ -83,6 +83,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
     def _upload_logs_to_s3(self, job_id: str, process: subprocess.CompletedProcess) -> None:
         self._logger.info(f"Uploading logs to S3: {job_id}")
+        self._logger.info(f"Stdout: {process.stdout}")
+        self._logger.info(f"Stderr: {process.stderr}")
         s3_client = boto3.client("s3")
         s3_client.put_object(
             Bucket=SOFTMAX_S3_BUCKET,
@@ -110,7 +112,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
         result = subprocess.run(
-            ["git", "clone", METTA_API_REPO_URL, self._versioned_path],
+            ["git", "clone", REPO_URL, self._versioned_path],
             capture_output=True,
             text=True,
         )
@@ -131,11 +133,10 @@ class SimTaskExecutor(AbstractTaskExecutor):
         self._logger.info("Installing dependencies in versioned checkout...")
         self._run_cmd_from_versioned_checkout(
             ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
-            "Failed to configure dependencies",
+            capture_output=True,
         )
         self._run_cmd_from_versioned_checkout(
             ["uv", "run", "metta", "install"],
-            "Failed to install dependencies",
         )
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
@@ -153,14 +154,20 @@ class SimTaskExecutor(AbstractTaskExecutor):
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
+
+        # Convert simulations list to a base64-encoded JSON string to avoid parsing issues
+        simulations = task.attributes.get("simulations", [])
+        simulations_json = json.dumps(simulations)
+        simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
+
         cmd = [
             "uv",
             "run",
             "tools/run.py",
-            "experiments.evals.run",
+            "experiments.evals.run.eval",
             "--args",
             f"policy_uri=wandb://run/{policy_name}",
-            f"simulations_json={task.attributes.get('simulations')}",
+            f"simulations_json_base64={simulations_base64}",
             "--overrides",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
@@ -168,10 +175,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         ]
         self._logger.info(f"Running command: {' '.join(cmd)}")
 
-        result = self._run_cmd_from_versioned_checkout(
-            cmd,
-            "sim.py failed with exit code",
-        )
+        result = self._run_cmd_from_versioned_checkout(cmd)
 
         self._upload_logs_to_s3(str(task.id), result)
 
@@ -241,9 +245,6 @@ class EvalTaskWorker:
     async def run(self) -> None:
         self._logger.info("Starting eval worker")
         self._logger.info(f"Worker id: {self._assignee}")
-
-        self._logger.info("Worker running from main branch, sim.py will use git hash")
-
         while True:
             loop_start_time = datetime.now()
             try:
@@ -294,9 +295,9 @@ async def main() -> None:
     backend_url = os.environ["BACKEND_URL"]
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
-
+    CLIAuthenticator(backend_url).save_token(machine_token)
     client = EvalTaskClient(backend_url)
-    task_executor = SimTaskExecutor(backend_url, machine_token, logger)
+    task_executor = SimTaskExecutor(backend_url, logger)
     async with EvalTaskWorker(client, task_executor, assignee, logger=logger) as worker:
         await worker.run()
 

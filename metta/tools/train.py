@@ -1,23 +1,25 @@
 import logging
 import os
 import platform
+import uuid
 from logging import Logger
 from typing import Optional
 
 import torch
 
+import gitta as git
 from metta.agent.agent_config import AgentConfig
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
-from metta.common.util.git import get_git_hash_for_remote_task
+from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging_helpers import init_file_logging, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
     wandb: WandbConfig = WandbConfig.Unconfigured()
     policy_architecture: Optional[AgentConfig] = None
-    run: str
+    run: Optional[str] = None
     run_dir: Optional[str] = None
     stats_server_uri: Optional[str] = auto_stats_server_uri()
 
@@ -40,8 +42,19 @@ class TrainTool(Tool):
 
     # Optional configurations
     map_preview_uri: str | None = None
+    disable_macbook_optimize: bool = False
 
-    def model_post_init(self, __context):
+    consumed_args: list[str] = ["run"]
+
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+        # Handle run_id being passed via cmd line
+        if "run" in args:
+            assert self.run is None, "run cannot be set via args and config"
+            self.run = args["run"]
+
+        if self.run is None:
+            self.run = f"local.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())}"
+
         # Set run_dir based on run name if not explicitly set
         if self.run_dir is None:
             self.run_dir = f"{self.system.data_dir}/{self.run}"
@@ -61,13 +74,10 @@ class TrainTool(Tool):
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 
-    def invoke(self) -> int:
-        assert self.run_dir is not None
         os.makedirs(self.run_dir, exist_ok=True)
 
         record_heartbeat()
 
-        assert self.run_dir is not None
         init_file_logging(run_dir=self.run_dir)
 
         init_logging(run_dir=self.run_dir)
@@ -120,7 +130,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         wandb_run=wandb_run,
     )
 
-    if platform.system() == "Darwin":
+    if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
         cfg = _minimize_config_for_debugging(cfg)
 
     # Save configuration
@@ -160,8 +170,8 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
         return None
 
     if cfg.trainer.evaluation.replay_dir is None:
-        log_on_master(f"Setting replay_dir to s3://softmax-public/replays/{cfg.run}")
-        cfg.trainer.evaluation.replay_dir = f"s3://softmax-public/replays/{cfg.run}"
+        cfg.trainer.evaluation.replay_dir = auto_replay_dir()
+        log_on_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
 
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:
@@ -176,7 +186,8 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
             cfg.trainer.evaluation.evaluate_remote = False
             log_on_master("Evaluate interval set to 0, disabling remote evaluations")
         elif not cfg.trainer.evaluation.git_hash:
-            cfg.trainer.evaluation.git_hash = get_git_hash_for_remote_task(
+            cfg.trainer.evaluation.git_hash = git.get_git_hash_for_remote_task(
+                target_repo=REPO_SLUG,
                 skip_git_check=cfg.trainer.evaluation.skip_git_check,
                 skip_cmd="trainer.evaluation.skip_git_check=true",
                 logger=logger,

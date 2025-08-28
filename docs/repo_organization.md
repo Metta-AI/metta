@@ -2,7 +2,8 @@
 
 ## Overview
 
-This document outlines a flattened organization structure for the Metta monorepo, using consistent `softmax-*` package naming while maintaining simple directory names and imports with enforced `metta.*` namespace.
+This document outlines a flattened organization structure for the Metta monorepo, using consistent `softmax-*` package
+naming while maintaining simple directory names and imports with enforced `metta.*` namespace.
 
 ### Key Principles
 
@@ -15,11 +16,13 @@ This document outlines a flattened organization structure for the Metta monorepo
 ### Naming Convention
 
 Our three-tier naming system:
+
 1. **Directory name**: Simple, no prefix (e.g., `cogworks/`)
 2. **Import name**: Enforced namespace (e.g., `from metta.cogworks import api`)
 3. **Package name**: Company-prefixed (e.g., `pip install softmax-cogworks`)
 
 This gives us the best of all worlds:
+
 - Clean, simple directory structure
 - Enforced consistent imports across the codebase (using familiar `metta.` namespace)
 - Clear company branding for published packages (using `softmax-` prefix)
@@ -207,6 +210,7 @@ package-dir = {"": "."}
 ```
 
 **Imports:**
+
 ```python
 from metta.cogworks import api
 from metta.cogworks.rl import trainer
@@ -214,6 +218,7 @@ from metta.cogworks.agent import MettaAgent
 ```
 
 **Installation:**
+
 ```bash
 pip install softmax-cogworks
 ```
@@ -234,6 +239,7 @@ package-dir = {"": "."}
 ```
 
 **Imports:**
+
 ```python
 from metta.mettagrid import MettaGridPufferEnv
 from metta.mettagrid.wrappers import AsyncWrapper
@@ -254,6 +260,7 @@ package-dir = {"": "."}
 ```
 
 **Imports:**
+
 ```python
 from metta.common import logger
 from metta.common.util import config
@@ -280,6 +287,7 @@ package-dir = {"": "."}
 ```
 
 **Imports:**
+
 ```python
 from metta.backend_shared import sweep_names
 from metta.backend_shared.stat_buffer import StatBuffer
@@ -288,6 +296,7 @@ from metta.backend_shared.cache import cache_result
 ```
 
 **Installation:**
+
 ```bash
 pip install softmax-backend-shared
 ```
@@ -358,11 +367,13 @@ uv sync  # Installs all workspace packages
 ## Python Package Structure
 
 Each Python package follows a standard structure:
+
 - Top-level directory contains `pyproject.toml`, tests, and other package files
 - `metta/` subdirectory contains the namespace package
 - Actual code lives in `metta/<package_name>/`
 
 This approach:
+
 - Uses standard Python namespace packages (no PEP 420 needed)
 - Each package is self-contained with its own `metta` namespace
 - No symlinks or complex build configurations required
@@ -371,15 +382,18 @@ This approach:
 ## Import Philosophy
 
 We maintain a clear separation between:
+
 - **Package distribution names** (with `softmax-` prefix for branding)
 - **Import names** (enforced `metta.` namespace for consistency)
 
 This approach is used by many successful projects:
+
 - `scikit-learn` → `import sklearn`
 - `beautifulsoup4` → `import bs4`
 - `pillow` → `import PIL`
 
 In our case:
+
 - Install with: `pip install softmax-cogworks`
 - Import with: `from metta.cogworks import api`
 
@@ -412,6 +426,7 @@ graph TD
 ## Future Packages
 
 As the web apps mature, they'll follow the same pattern:
+
 - `gridworks/` → `from metta.gridworks` → `pip install softmax-gridworks`
 - `observatory/` → `from metta.observatory` → `pip install softmax-observatory`
 - `mettascope/` → `from metta.mettascope` → `pip install softmax-mettascope`
@@ -427,4 +442,5 @@ As the web apps mature, they'll follow the same pattern:
 7. Test with `uv sync` to verify package names
 8. Update CI/CD and documentation
 
-This structure provides a clean, professional organization with enforced consistency across the entire codebase while maintaining the Softmax brand identity in package distribution and keeping code imports stable.
+This structure provides a clean, professional organization with enforced consistency across the entire codebase while
+maintaining the Softmax brand identity in package distribution and keeping code imports stable.

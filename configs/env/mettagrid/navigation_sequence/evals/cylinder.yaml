@@ -1,9 +1,0 @@
-defaults:
-  - /env/mettagrid/navigation_sequence/evals/defaults@
-  - _self_
-
-game:
-  max_steps: 800
-  map_builder:
-    border_width: 10
-    uri: "configs/env/mettagrid/maps/navigation_sequence/cylinder.map"

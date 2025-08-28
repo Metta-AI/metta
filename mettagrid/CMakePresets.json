@@ -4,6 +4,7 @@
     {
       "name": "base",
       "hidden": true,
+      "generator": "Ninja",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }

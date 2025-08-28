@@ -1,19 +1,6 @@
-"""
-This file implements a PolicyStore class that manages loading and caching of trained policies.
-It provides functionality to:
-- Load policies from local files or remote URIs
-- Cache loaded policies to avoid reloading
-- Select policies based on metadata filters
-- Track policy metadata and versioning
-
-The PolicyStore is used by the training system to manage opponent policies and checkpoints.
-"""
-
-import collections
 import logging
 import os
 import random
-import sys
 from typing import Any, Literal
 
 import torch
@@ -85,23 +72,11 @@ class PolicyStore:
         stats_client: StatsClient | None = None,
         eval_name: str | None = None,
     ) -> list[PolicyRecord]:
-        uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
-        return self._select_policy_records(uri, selector_type, n, metric, stats_client, eval_name)
-
-    def _select_policy_records(
-        self,
-        uri: str,
-        selector_type: PolicySelectorType = "top",
-        n: int = 1,
-        metric: str = "score",
-        stats_client: StatsClient | None = None,
-        eval_name: str | None = None,
-    ) -> list[PolicyRecord]:
         """
         Select policy records based on URI and selection criteria.
 
         Args:
-            uri: Resource identifier (wandb://, file://, pytorch://, or path)
+            uri_or_config: Resource identifier (wandb://, file://, pytorch://, path) or config with uri
             selector_type: Selection strategy ('all', 'latest', 'rand', 'top')
             n: Number of policy records to select (for 'top' selector)
             metric: Metric to use for 'top' selection
@@ -109,6 +84,8 @@ class PolicyStore:
         Returns:
             List of selected PolicyRecord objects
         """
+        uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
+
         # Load policy records from URI
         prs = self._load_policy_records_from_uri(uri)
 
@@ -138,12 +115,10 @@ class PolicyStore:
             raise ValueError(f"Invalid selector type: {selector_type}")
 
     def _prs_from_wandb(self, uri: str) -> list[PolicyRecord]:
-        """
-        Supported formats:
+        """Supported formats:
         - wandb://run/<run_name>[:<version>]
         - wandb://sweep/<sweep_name>[:<version>]
-        - wandb://<entity>/<project>/<artifact_type>/<name>[:<version>]
-        """
+        - wandb://<entity>/<project>/<artifact_type>/<name>[:<version>]"""
         wandb_uri = uri[len("wandb://") :]
         version = None
 
@@ -249,14 +224,6 @@ class PolicyStore:
             logger.warning(f"Metric '{metric}' not found in policy metadata")
             return {p: None for p in prs}
 
-    def make_model_name(self, epoch: int) -> str:
-        return f"model_{epoch:04d}.pt"
-
-    def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
-        path = os.path.join(checkpoint_dir, name)
-        metadata = PolicyMetadata()
-        return PolicyRecord(self, name, f"file://{path}", metadata)
-
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
         """Save a policy record using the simple torch.save approach with atomic file operations."""
         if path is None:
@@ -328,13 +295,14 @@ class PolicyStore:
         if path.endswith(".pt"):
             paths.append(path)
         else:
-            paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
+            checkpoint_files = [p for p in os.listdir(path) if p.endswith(".pt")]
+            checkpoint_files.sort(key=lambda f: int(f[6:-3]) if f.startswith("model_") else -1, reverse=True)
+            paths.extend([os.path.join(path, p) for p in checkpoint_files])
+
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
     def _prs_from_wandb_artifact(self, uri: str, version: str | None = None) -> list[PolicyRecord]:
-        """
-        Expected uri format: <entity>/<project>/<artifact_type>/<name>
-        """
+        """Expected uri format: <entity>/<project>/<artifact_type>/<name>"""
         entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
@@ -378,51 +346,6 @@ class PolicyStore:
         pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
         return pr
 
-    def _make_codebase_backwards_compatible(self):
-        """
-        torch.load expects the codebase to be in the same structure as when the model was saved.
-        We can use this function to alias old layout structures. For now we are supporting:
-        - agent --> metta.agent
-        """
-        # Memoize
-        if self._made_codebase_backwards_compatible:
-            return
-        self._made_codebase_backwards_compatible = True
-
-        # Handle agent --> metta.agent
-        sys.modules["agent"] = sys.modules["metta.agent"]
-        modules_queue = collections.deque(["metta.agent"])
-
-        processed = set()
-        while modules_queue:
-            module_name = modules_queue.popleft()
-            if module_name in processed:
-                continue
-            processed.add(module_name)
-
-            if module_name not in sys.modules:
-                continue
-            module = sys.modules[module_name]
-            old_name = module_name.replace("metta.agent", "agent")
-            sys.modules[old_name] = module
-
-            # Find all submodules
-            for attr_name in dir(module):
-                try:
-                    attr = getattr(module, attr_name)
-                except (ImportError, AttributeError):
-                    continue
-                if hasattr(attr, "__module__"):
-                    attr_module = getattr(attr, "__module__", None)
-
-                    # If it's a module and part of metta.agent, queue it
-                    if attr_module and attr_module.startswith("metta.agent"):
-                        modules_queue.append(attr_module)
-
-                submodule_name = f"{module_name}.{attr_name}"
-                if submodule_name in sys.modules:
-                    modules_queue.append(submodule_name)
-
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from a file using simple torch.load."""
         cached_pr = self._cached_prs.get(path)
@@ -436,9 +359,6 @@ class PolicyStore:
         logger.info(f"Loading policy from {path}")
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
-
-        # Make codebase backwards compatible before loading
-        self._make_codebase_backwards_compatible()
 
         # Load checkpoint - could be PolicyRecord or legacy format
         checkpoint = torch.load(path, map_location=self._device, weights_only=False)
@@ -481,17 +401,7 @@ class PolicyStore:
         wandb_config: WandbConfig,
         wandb_run: WandbRun | None = None,
     ) -> "PolicyStore":
-        """Create a PolicyStore from a WandbConfig.
-
-        Args:
-            device: Device to load policies on (e.g., "cpu", "cuda")
-            wandb_config: WandbConfig object containing entity and project info
-            replay_dir: Directory for storing policy artifacts
-            wandb_run: Optional existing wandb run
-
-        Returns:
-            Configured PolicyStore instance
-        """
+        """Create a PolicyStore from a WandbConfig."""
         return cls(
             device=device,
             wandb_run=wandb_run,
@@ -505,15 +415,7 @@ class PolicyStore:
         policy_uri: str | None,
         run_name: str = "mock_run",
     ) -> PolicyRecord:
-        """Get a policy record or create a mock if no URI provided.
-
-        Args:
-            policy_uri: Optional policy URI to load
-            run_name: Name for the mock run if no URI provided
-
-        Returns:
-            PolicyRecord from URI or MockPolicyRecord
-        """
+        """Get a policy record or create a mock if no URI provided."""
         if policy_uri is not None:
             return self.policy_record(policy_uri)
         else:

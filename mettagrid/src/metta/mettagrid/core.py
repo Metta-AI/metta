@@ -1,9 +1,7 @@
-"""
-MettaGridCore - Core Python wrapper for MettaGrid C++ environment.
+"""MettaGridCore - Core Python wrapper for MettaGrid C++ environment.
 
 This class provides the base functionality for all framework-specific adapters,
-without any training-specific features or framework dependencies.
-"""
+without any training-specific features or framework dependencies."""
 
 from __future__ import annotations
 
@@ -22,7 +20,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
@@ -51,18 +49,12 @@ class MettaGridCore:
 
     def __init__(
         self,
-        env_config: EnvConfig,
+        env_config: MettaGridConfig,
         render_mode: Optional[str] = None,
     ):
-        """
-        Initialize core MettaGrid functionality.
-
-        Args:
-            env_config: Environment configuration
-            render_mode: Rendering mode (None, "human", "miniscope")
-        """
-        if not isinstance(env_config, EnvConfig):
-            raise ValueError("env_config must be an instance of EnvConfig")
+        """Initialize core MettaGrid functionality."""
+        if not isinstance(env_config, MettaGridConfig):
+            raise ValueError("env_config must be an instance of MettaGridConfig")
 
         # We protect the env config with __ to avoid accidental modification
         # by subclasses. It should only be modified through set_env_config.
@@ -86,11 +78,11 @@ class MettaGridCore:
         self._update_core_buffers()
 
     @property
-    def env_config(self) -> EnvConfig:
+    def env_config(self) -> MettaGridConfig:
         """Get the environment configuration."""
         return self.__env_config
 
-    def set_env_config(self, env_config: EnvConfig) -> None:
+    def set_env_config(self, env_config: MettaGridConfig) -> None:
         """Set the environment configuration."""
         self.__env_config = env_config
         self._map_builder = self.__env_config.game.map_builder.create()
@@ -172,15 +164,7 @@ class MettaGridCore:
         return obs, infos
 
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
-        """
-        Execute one timestep of the environment dynamics with the given actions.
-
-        Args:
-            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
-
-        Returns:
-            Tuple of (observations, rewards, terminals, truncations, infos)
-        """
+        """Execute one timestep of the environment dynamics with the given actions."""
         # Execute step in core environment
         return self.__c_env_instance.step(actions)
 
@@ -285,12 +269,7 @@ class MettaGridCore:
         return self.__c_env_instance.action_success()
 
     def get_observation_features(self) -> Dict[str, Dict]:
-        """
-        Build the features dictionary for initialize_to_environment.
-
-        Returns:
-            Dictionary mapping feature names to their properties
-        """
+        """Build the features dictionary for initialize_to_environment."""
         # Get feature spec from C++ environment
         feature_spec = self.__c_env_instance.feature_spec()
 

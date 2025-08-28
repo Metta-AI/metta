@@ -1,11 +1,9 @@
-"""
-Vectorized simulation runner.
+"""Vectorized simulation runner.
 
 • Launches a MettaGrid vec-env batch
 • Each worker writes its own *.duckdb* shard
 • At shutdown the shards are merged into **one** StatsDB object that the
-  caller can further merge / export.
-"""
+  caller can further merge / export."""
 
 from __future__ import annotations
 
@@ -20,16 +18,16 @@ from typing import Any, Dict
 import numpy as np
 import torch
 from einops import rearrange
-from tensordict import TensorDict
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -49,9 +47,7 @@ class SimulationCompatibilityError(Exception):
 
 
 class Simulation:
-    """
-    A vectorized batch of MettaGrid environments sharing the same parameters.
-    """
+    """A vectorized batch of MettaGrid environments sharing the same parameters."""
 
     def __init__(
         self,
@@ -61,7 +57,6 @@ class Simulation:
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
-        sim_suite_name: str | None = None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
@@ -71,7 +66,6 @@ class Simulation:
         episode_tags: list[str] | None = None,
     ):
         self._name = name
-        self._sim_suite_name = sim_suite_name
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
@@ -110,7 +104,7 @@ class Simulation:
         )
 
         self._vecenv = make_vecenv(
-            cfg.env.to_curriculum(),
+            Curriculum(CurriculumConfig.from_mg(cfg.env)),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
@@ -131,24 +125,25 @@ class Simulation:
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
-        metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        driver_env = self._vecenv.driver_env  # type: ignore
+        metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
+        assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
         # Initialize policy to environment
-        initialize_policy_for_environment(
-            policy_record=self._policy_pr,
-            metta_grid_env=metta_grid_env,
-            device=self._device,
-            restore_feature_mapping=True,
+        policy = self._policy_pr.policy
+        policy.eval()  # Set to evaluation mode for simulation
+        features = metta_grid_env.get_observation_features()
+        policy.initialize_to_environment(
+            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
         )
 
         if self._npc_pr is not None:
             # Initialize NPC policy to environment
-            initialize_policy_for_environment(
-                policy_record=self._npc_pr,
-                metta_grid_env=metta_grid_env,
-                device=self._device,
-                restore_feature_mapping=True,
+            npc_policy = self._npc_pr.policy
+            npc_policy.eval()  # Set to evaluation mode for simulation
+            features = metta_grid_env.get_observation_features()
+            npc_policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
             )
 
         # ---------------- agent-index bookkeeping ---------------------- #
@@ -178,21 +173,7 @@ class Simulation:
         policy_uri: str | None = None,
         run_name: str = "simulation_run",
     ) -> "Simulation":
-        """Create a Simulation with sensible defaults.
-
-        Args:
-            sim_config: Simulation configuration with environment settings
-            policy_store: PolicyStore instance for managing policies
-            device: Device to run on (e.g., "cpu", "cuda")
-            vectorization: Vectorization backend (e.g., "serial", "multiprocessing")
-            stats_dir: Directory for simulation statistics
-            replay_dir: Directory for replay files
-            policy_uri: Optional policy URI to load (None for mock policy)
-            run_name: Name for the mock run if no policy URI provided
-
-        Returns:
-            Configured Simulation instance
-        """
+        """Create a Simulation with sensible defaults."""
         # Get policy record or create a mock
         policy_record = policy_store.policy_record_or_mock(policy_uri, run_name)
 
@@ -212,9 +193,7 @@ class Simulation:
         )
 
     def start_simulation(self) -> None:
-        """
-        Start the simulation.
-        """
+        """Start the simulation."""
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
             self._name,
@@ -229,10 +208,18 @@ class Simulation:
 
         self._t0 = time.time()
 
+    def _get_actions_for_agents(self, agent_indices: torch.Tensor, policy) -> torch.Tensor:
+        """Get actions for a group of agents, preserving agent dimension for single-agent cases."""
+        agent_obs = self._obs[agent_indices]
+        # Ensure agent dimension is preserved for single-agent environments
+        if agent_obs.ndim == 2 and len(agent_indices) == 1:
+            agent_obs = agent_obs[None, ...]  # Add back the agent dimension
+        td = obs_to_td(agent_obs, self._device)
+        policy(td)
+        return td["actions"]
+
     def generate_actions(self) -> np.ndarray:
-        """
-        Generate actions for the simulation.
-        """
+        """Generate actions for the simulation."""
         if __debug__:
             # Debug assertion: verify indices are correctly ordered
             # Policy indices should be 0 to N-1
@@ -271,21 +258,14 @@ class Simulation:
 
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
-            obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
-            my_obs = obs_t[self._policy_idxs]
-            td = TensorDict({"env_obs": my_obs}, batch_size=my_obs.shape[0])
-            policy = self._policy_pr.policy
-            policy(td)
-            policy_actions = td["actions"]
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy_pr.policy)
+
             # NPC agents (if any)
+            npc_actions = None
             if self._npc_pr is not None and len(self._npc_idxs):
-                npc_obs = obs_t[self._npc_idxs]
-                td = TensorDict({"env_obs": npc_obs}, batch_size=npc_obs.shape[0])
-                npc_policy = self._npc_pr.policy
                 try:
-                    npc_policy(td)
-                    npc_actions = td["actions"]
+                    npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_pr.policy)
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
@@ -333,11 +313,7 @@ class Simulation:
                 self._env_done_flags[e] = False
 
     def _maybe_generate_thumbnail(self) -> str | None:
-        """Generate thumbnail if this is the first run for this eval_name.
-
-        Returns:
-            Thumbnail URL if generated successfully, None otherwise
-        """
+        """Generate thumbnail if this is the first run for this eval_name."""
         try:
             # Skip synthetic evaluation framework simulations
             if self._name.startswith(SYNTHETIC_EVAL_PREFIX):
@@ -385,9 +361,7 @@ class Simulation:
         return SimulationResults(db)
 
     def simulate(self) -> SimulationResults:
-        """
-        Run the simulation; returns the merged `StatsDB`.
-        """
+        """Run the simulation; returns the merged `StatsDB`."""
         self.start_simulation()
 
         self._policy_pr.policy.reset_memory()
@@ -423,9 +397,13 @@ class Simulation:
             for idx in self._npc_idxs:
                 agent_map[int(idx.item())] = self._npc_pr
 
-        suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._policy_pr
+            sim_id=self._id,
+            dir_with_shards=self._stats_dir,
+            agent_map=agent_map,
+            sim_name=self._name,
+            sim_env=self._config.env.label,
+            policy_record=self._policy_pr,
         )
         return db
 
@@ -491,8 +469,8 @@ class Simulation:
                         agent_metrics=agent_metrics,
                         primary_policy_id=policy_ids[policy_name],
                         stats_epoch=self._stats_epoch_id,
-                        eval_name=self._name,
-                        simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
+                        sim_name=self._name,
+                        env_label=self._config.env.label,
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
                         eval_task_id=self._eval_task_id,
@@ -537,8 +515,7 @@ class Simulation:
         """Get the policy state for memory manipulation.
 
         Returns a PolicyState object with lstm_h and lstm_c attributes if available.
-        Note: The actual state management depends on the specific policy implementation.
-        """
+        Note: The actual state management depends on the specific policy implementation."""
         # The policy is the LSTM wrapper
         policy = self._policy_pr.policy
 
@@ -583,10 +560,8 @@ class Simulation:
 
 @dataclass
 class SimulationResults:
-    """
-    Results of a simulation.
-    For now just a stats db. Replay plays can be retrieved from the stats db.
-    """
+    """Results of a simulation.
+    For now just a stats db. Replay plays can be retrieved from the stats db."""
 
     stats_db: SimulationStatsDB
     replay_urls: dict[str, list[str]] | None = None  # Maps simulation names to lists of replay URLs

@@ -9,6 +9,7 @@ import sys
 import sky
 import yaml
 
+import gitta as git
 from devops.skypilot.utils import (
     check_config_files,
     check_git_state,
@@ -18,7 +19,6 @@ from devops.skypilot.utils import (
 )
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
-from metta.common.util.git import get_current_commit, validate_git_ref
 from metta.common.util.text_styles import red
 
 logger = logging.getLogger("launch.py")
@@ -27,7 +27,7 @@ logger = logging.getLogger("launch.py")
 def _validate_run_tool(module_path: str, run_id: str, filtered_args: list, overrides: list) -> None:
     """Validate that run.py can successfully create a tool config with the given arguments."""
     # Build the run.py command
-    run_cmd = ["uv", "run", "tools/run.py", module_path, "--dry-run"]
+    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
 
     # Add args if provided (run= is already included in filtered_args)
     if filtered_args:
@@ -99,7 +99,7 @@ def patch_task(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("module_path", help="Module path to run (e.g., experiments.arena.train)")
+    parser.add_argument("module_path", help="Module path to run (e.g., experiments.recipes.arena.train)")
     parser.add_argument("--run", type=str, default=None, help="Run ID for the job")
     parser.add_argument("--args", nargs="*", default=[], help="Arguments to pass to the module")
     parser.add_argument("--overrides", nargs="*", default=[], help="Overrides to apply to the config")
@@ -119,7 +119,7 @@ def main():
         "-hb",
         "--heartbeat-timeout-seconds",
         type=int,
-        default=99999,  # Disabled - #TODO(robb) #dehydration
+        default=300,
         help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
     )
     parser.add_argument(
@@ -169,12 +169,12 @@ def main():
 
     # check that the parsed args.git_ref provides a valid commit hash
     if args.git_ref:
-        commit_hash = validate_git_ref(args.git_ref)
+        commit_hash = git.validate_git_ref(args.git_ref)
         if not commit_hash:
             print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
             sys.exit(1)
     else:
-        commit_hash = get_current_commit()
+        commit_hash = git.get_current_commit()
 
         # check that the commit has been pushed and there are no staged changes
         if not args.skip_git_check:

@@ -1,13 +1,13 @@
 #!/usr/bin/env -S uv run
-import importlib
 import logging
 import random
 import string
 
 from metta.common.config.tool import Tool
+from metta.common.util.module import load_symbol
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +19,14 @@ def uri_is_file(uri: str) -> bool:
 
 
 class GenTool(Tool):
-    env_fn: str  # Path to the function that makes EnvConfig
+    env_fn: str  # Path to the function that makes MettaGridConfig
 
     output_uri: str | None = None  # Output URI
     show_mode: ShowMode | None = None  # Show the map in the specified mode
     count: int = 1  # Number of maps to generate
     env_overrides: list[str] = []  # OmegaConf-style overrides for the env config
 
-    def invoke(self):
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         show_mode = self.show_mode
         if not show_mode and not self.output_uri:
             # if not asked to save, show the map
@@ -36,15 +36,16 @@ class GenTool(Tool):
         count = self.count
         env_fn_name = self.env_fn
 
-        module_name, class_name = env_fn_name.rsplit(".", 1)
-        module = importlib.import_module(module_name)
-        env_fn = getattr(module, class_name)
+        env_fn = load_symbol(env_fn_name)
+
+        if not callable(env_fn):
+            raise ValueError(f"Env {env_fn_name} is not callable")
 
         # TODO - support env_fn args?
         env_config = env_fn()
 
-        if not isinstance(env_config, EnvConfig):
-            raise ValueError(f"Env config must be an instance of EnvConfig, got {type(env_config)}")
+        if not isinstance(env_config, MettaGridConfig):
+            raise ValueError(f"Env config must be an instance of MettaGridConfig, got {type(env_config)}")
 
         for override in self.env_overrides:
             key, value = override.split("=")

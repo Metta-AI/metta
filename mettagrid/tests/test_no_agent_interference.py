@@ -5,7 +5,7 @@ import pytest
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.actions import get_agent_position
+from metta.mettagrid.test_support.actions import get_agent_position
 
 
 @pytest.fixture
@@ -74,7 +74,6 @@ class TestNoAgentInterference:
             initial_positions = []
             for agent_idx in range(2):
                 agent_pos = get_agent_position(env.__c_env_instance, agent_idx)
-                assert agent_pos is not None, f"Agent {agent_idx} should have a valid position"
                 initial_positions.append(agent_pos)
 
             # Check if agents are adjacent
@@ -286,11 +285,8 @@ def _test_ghost_movement_with_interference_flag(no_agent_interference: bool):
     initial_positions = []
     for agent_idx in range(2):
         agent_pos = get_agent_position(env.__c_env_instance, agent_idx)
-        if agent_pos:
-            initial_positions.append(agent_pos)
-            print(f"  Agent {agent_idx} initial position: {agent_pos}")
-        else:
-            print(f"  Agent {agent_idx} initial position: unknown")
+        initial_positions.append(agent_pos)
+        print(f"  Agent {agent_idx} initial position: {agent_pos}")
 
     # Check if agents are adjacent
     if len(initial_positions) == 2:
@@ -321,11 +317,8 @@ def _test_ghost_movement_with_interference_flag(no_agent_interference: bool):
     final_positions = []
     for agent_idx in range(2):
         agent_pos = get_agent_position(env.__c_env_instance, agent_idx)
-        if agent_pos:
-            final_positions.append(agent_pos)
-            print(f"  Agent {agent_idx} final position: {agent_pos}")
-        else:
-            print(f"  Agent {agent_idx} final position: unknown")
+        final_positions.append(agent_pos)
+        print(f"  Agent {agent_idx} final position: {agent_pos}")
 
     # Analyze results
     if no_agent_interference:

@@ -33,7 +33,8 @@ import { drawMap, focusFullMap } from './worldmap.js'
 
 // Expose state to window for testing purposes (e.g., Playwright tests)
 if (typeof window !== 'undefined') {
-  ;(window as any).state = state
+  let anyWindow = window as any
+  anyWindow.state = state
 }
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
@@ -1090,6 +1091,15 @@ onEvent('click', '#modal', () => {
   // make error modal dismissable.
   if (html.modal.classList.contains('error')) {
     Common.closeModal()
+  }
+})
+
+onEvent('click', '#file-name', () => {
+  // Open a new window with the env config as a JSON string.
+  const configWindow = window.open('', '_blank')
+  if (configWindow) {
+    configWindow.document.write(`<pre>${JSON.stringify(state.replay.MettaGridConfig, null, 2)}</pre>`)
+    configWindow.document.close()
   }
 })
 

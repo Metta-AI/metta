@@ -93,16 +93,20 @@ def test_feature_remapping_in_agent():
     """Test that feature remapping is correctly set up in MettaAgent."""
     agent = MockAgent()
 
-    # Test activate_observations with original features
+    # Test initialize_to_environment with original features
     original_features = {
         "type_id": {"id": 0, "type": "categorical"},
         "hp": {"id": 2, "type": "scalar", "normalization": 30.0},
         "mineral": {"id": 3, "type": "scalar", "normalization": 100.0},
     }
 
+    # Mock action configuration
+    action_names = ["move", "attack", "gather"]
+    action_max_params = [3, 2, 1]
+
     # Set training mode for first initialization
     agent.train()
-    agent.activate_observations(original_features, "cpu")
+    agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu")
 
     # Verify original mapping stored
     assert agent.original_feature_mapping == {
@@ -122,7 +126,7 @@ def test_feature_remapping_in_agent():
     mock_obs = MockObsComponent()
     agent.components["_obs_"] = mock_obs
 
-    agent.activate_observations(new_features, "cpu")
+    agent.initialize_to_environment(new_features, action_names, action_max_params, "cpu")
 
     # Verify all remappings in a clear block
     assert agent.feature_id_remap[5] == 2  # hp: 5->2
@@ -139,6 +143,10 @@ def test_unknown_feature_handling():
     """Test that unknown features are mapped to index 255."""
     agent = MockAgent()
 
+    # Mock action configuration
+    action_names = ["move", "attack"]
+    action_max_params = [3, 2]
+
     # First initialization with training features
     original_features = {
         "type_id": {"id": 0, "type": "categorical"},
@@ -147,7 +155,7 @@ def test_unknown_feature_handling():
 
     # Set training mode for first initialization
     agent.train()
-    agent.activate_observations(original_features, "cpu")
+    agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu")
 
     # Add mock observation component
     mock_obs = MockObsComponent()
@@ -162,7 +170,7 @@ def test_unknown_feature_handling():
 
     # Initialize in evaluation mode
     agent.eval()
-    agent.activate_observations(new_features_with_unknown, "cpu")
+    agent.initialize_to_environment(new_features_with_unknown, action_names, action_max_params, "cpu")
 
     # Verify all remappings in a clear block
     # Known features should be remapped to their original IDs
@@ -185,6 +193,10 @@ def test_feature_mapping_persistence_via_metadata():
     """Test that original_feature_mapping can be persisted through metadata."""
     agent = MockAgent()
 
+    # Mock action configuration
+    action_names = ["move", "attack", "gather"]
+    action_max_params = [3, 2, 1]
+
     # Test initial feature setup
     original_features = {
         "type_id": {"id": 0, "type": "categorical"},
@@ -194,7 +206,7 @@ def test_feature_mapping_persistence_via_metadata():
 
     # Initialize the agent
     agent.train()
-    agent.activate_observations(original_features, "cpu")
+    agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu")
 
     # Get the original feature mapping
     original_mapping = agent.get_original_feature_mapping()
@@ -204,9 +216,11 @@ def test_feature_mapping_persistence_via_metadata():
     assert original_mapping
     metadata = {"original_feature_mapping": original_mapping.copy()}
 
-    # Create a new agent and restore from metadata
+    # Create a new agent and manually restore the mapping (simulating loaded state)
     new_agent = MockAgent()
-    new_agent.restore_original_feature_mapping(metadata["original_feature_mapping"])
+    new_agent.original_feature_mapping = metadata["original_feature_mapping"].copy()
+    # Initialize with original features
+    new_agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu")
 
     # Verify the mapping was restored
     assert new_agent.original_feature_mapping == {"type_id": 0, "hp": 2, "mineral": 3}
@@ -225,7 +239,7 @@ def test_feature_mapping_persistence_via_metadata():
 
     # Initialize in training mode - new features should be learned
     new_agent.train()
-    new_agent.activate_observations(new_features, "cpu")
+    new_agent.initialize_to_environment(new_features, action_names, action_max_params, "cpu")
 
     # Verify all remappings in a clear block
     assert new_agent.feature_id_remap[5] == 0  # type_id: 5->0
@@ -237,16 +251,17 @@ def test_feature_mapping_persistence_via_metadata():
 
     # Test evaluation mode with unknown features
     eval_agent = MockAgent()
-    eval_agent.restore_original_feature_mapping(metadata["original_feature_mapping"])
+    eval_agent.original_feature_mapping = metadata["original_feature_mapping"].copy()
 
-    # Verify the restoration worked correctly
+    # Initialize in original features context first
+    eval_agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu")
     assert eval_agent.original_feature_mapping == {"type_id": 0, "hp": 2, "mineral": 3}
 
     eval_agent.components["_obs_"] = MockObsComponent()
 
     # Initialize in eval mode - new features should map to 255
     eval_agent.eval()
-    eval_agent.activate_observations(new_features, "cpu")
+    eval_agent.initialize_to_environment(new_features, action_names, action_max_params, "cpu")
 
     # Check the observation component's remap table
     obs_component = eval_agent.components["_obs_"]
@@ -349,16 +364,15 @@ def test_end_to_end_initialize_to_environment_workflow():
         loaded_pr = torch.load(save_path, map_location="cpu", weights_only=False)
         loaded_policy = MockAgent()  # Create a fresh policy
 
-        # Restore the original feature mapping from metadata
-        if "original_feature_mapping" in loaded_pr.metadata:
-            loaded_policy.restore_original_feature_mapping(loaded_pr.metadata["original_feature_mapping"])
-
         # Create a mock observation component to verify remapping
         mock_obs = MockObsComponent()
         loaded_policy.components["_obs_"] = mock_obs
 
         # Initialize to the new environment (in eval mode)
         loaded_policy.eval()  # Set to evaluation mode
+        # Manually restore the mapping (simulating what PolicyRecord.policy property would do)
+        if "original_feature_mapping" in loaded_pr.metadata:
+            loaded_policy.original_feature_mapping = loaded_pr.metadata["original_feature_mapping"].copy()
         new_features = new_env.get_observation_features()
         loaded_policy.initialize_to_environment(new_features, new_env.action_names, new_env.max_action_args, "cpu")
 

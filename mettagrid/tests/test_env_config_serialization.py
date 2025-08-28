@@ -5,17 +5,17 @@
 import json
 
 from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
 def test_env_config_map_builder_serialization():
     """Test that map_builder polymorphic serialization includes all fields."""
 
     # Create config with specific map_builder parameters
-    env_config = EnvConfig.EmptyRoom(num_agents=24, border_width=0)
+    config = MettaGridConfig.EmptyRoom(num_agents=24, border_width=0)
 
     # Serialize to JSON and parse back
-    config_json = env_config.model_dump_json(indent=2)
+    config_json = config.model_dump_json(indent=2)
     config_dict = json.loads(config_json)
 
     # Verify that map_builder contains all expected fields
@@ -48,12 +48,12 @@ def test_env_config_custom_map_builder():
     )
 
     # Create env config with custom map builder
-    env_config = EnvConfig()
-    env_config.game.map_builder = custom_map_builder
-    env_config.game.num_agents = 12
+    config = MettaGridConfig()
+    config.game.map_builder = custom_map_builder
+    config.game.num_agents = 12
 
     # Serialize and verify
-    config_dict = env_config.model_dump()
+    config_dict = config.model_dump()
     map_builder = config_dict["game"]["map_builder"]
 
     assert map_builder["type"] == "metta.mettagrid.map_builder.random.RandomMapBuilder"
@@ -69,11 +69,11 @@ def test_env_config_polymorphism_deserialization():
     """Test that we can deserialize the polymorphic map_builder correctly."""
 
     # Create a config and serialize it
-    original_config = EnvConfig.EmptyRoom(num_agents=16)
+    original_config = MettaGridConfig.EmptyRoom(num_agents=16)
     config_json = original_config.model_dump_json()
 
     # Deserialize it back
-    reconstructed_config = EnvConfig.model_validate_json(config_json)
+    reconstructed_config = MettaGridConfig.model_validate_json(config_json)
 
     map_builder_data = reconstructed_config.game.map_builder
     assert isinstance(map_builder_data, RandomMapBuilder.Config)

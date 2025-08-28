@@ -1,13 +1,13 @@
 #!/usr/bin/env -S uv run
 
 """
-Demo showing how to create an EnvConfig and build a game map using the map builder.
+Demo showing how to create an MettaGridConfig and build a game map using the map builder.
 """
 
 from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, MettaGridConfig
 
-env_config = EnvConfig()
+env_config = MettaGridConfig()
 env_config.game.num_agents = 24
 
 env_config.game.map_builder = RandomMapBuilder.Config(
@@ -15,7 +15,7 @@ env_config.game.map_builder = RandomMapBuilder.Config(
 )
 
 env_config.game.actions = ActionsConfig(
-    move_8way=ActionConfig(enabled=True),
+    move=ActionConfig(enabled=True),
     rotate=ActionConfig(enabled=True),
 )
 

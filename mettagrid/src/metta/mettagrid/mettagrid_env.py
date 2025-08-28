@@ -1,10 +1,8 @@
-"""
-MettaGridEnv - Training-specific Python environment class.
+"""MettaGridEnv - Training-specific Python environment class.
 
 This class provides Metta's custom training environment, built on PufferLib
 for high-performance vectorized training. Includes stats writing, replay writing,
-and episode tracking functionality.
-"""
+and episode tracking functionality."""
 
 from __future__ import annotations
 
@@ -19,7 +17,7 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.puffer_base import MettaGridPufferBase
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -43,23 +41,13 @@ class MettaGridEnv(MettaGridPufferBase):
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
-        env_cfg: EnvConfig,
+        env_cfg: MettaGridConfig,
         render_mode: Optional[str] = None,
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,
         is_training: bool = False,
     ):
-        """
-        Initialize MettaGridEnv for training.
-
-        Args:
-            env_cfg: Environment configuration
-            render_mode: Rendering mode (None, "human", "miniscope", "raylib")
-            buf: PufferLib buffer object
-            stats_writer: Optional stats writer
-            replay_writer: Optional replay writer
-            is_training: Whether this is for training
-        """
+        """Initialize MettaGridEnv for training."""
         # Add training-specific attributes first (needed by MettaGridCore)
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -91,15 +79,7 @@ class MettaGridEnv(MettaGridPufferBase):
     @override
     @with_instance_timer("reset")
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
-        """
-        Reset the environment for training.
-
-        Args:
-            seed: Random seed
-
-        Returns:
-            Tuple of (observations, info)
-        """
+        """Reset the environment for training."""
         self.timer.stop("thread_idle")
 
         # Reset counters
@@ -122,15 +102,7 @@ class MettaGridEnv(MettaGridPufferBase):
     @override
     @with_instance_timer("step")
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
-        """
-        Execute one timestep for training.
-
-        Args:
-            actions: Array of actions
-
-        Returns:
-            Tuple of (observations, rewards, terminals, truncations, infos)
-        """
+        """Execute one timestep for training."""
         self.timer.stop("thread_idle")
 
         with self.timer("_c_env.step"):

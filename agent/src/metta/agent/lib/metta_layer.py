@@ -38,8 +38,7 @@ class LayerBase(nn.Module):
     one dimension smaller than the actual shape of the tensor.
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
-    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
-    """
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy."""
 
     def __init__(self, name=None, sources=None, nn_params=None, **cfg):
         super().__init__()
@@ -77,8 +76,7 @@ class LayerBase(nn.Module):
         return self._ready
 
     def setup(self, source_components=None):
-        """_in_tensor_shapes is a list of lists. Each sublist contains the shapes of the input tensors for each source
-        component._out_tensor_shape is a list of the shape of the output tensor."""
+        """Sets up layer with source components and tensor shapes."""
         if self._ready:
             return
 
@@ -237,49 +235,19 @@ class ParamLayer(LayerBase):
         self.largest_weight = largest_weight
 
     def clip_weights(self):
-        """
-        Clips weights to prevent exploding gradients.
-
-        If clip_value is positive, clamps all weights to the range [-clip_value, clip_value].
-        """
+        """Clips weights to prevent exploding gradients."""
         if self.clip_value > 0:
             with torch.no_grad():
                 self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
 
     def l2_init_loss(self) -> torch.Tensor:
-        """
-        Computes L2-init regularization loss (delta regularization).
-
-        Penalizes deviation from initial weights to help prevent catastrophic forgetting.
-
-        Returns:
-            torch.Tensor: The L2-init regularization loss scaled by l2_init_scale,
-                          or zero if regularization is disabled.
-        """
+        """Computes L2-init regularization loss to prevent catastrophic forgetting."""
         l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device, dtype=torch.float32)
         l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
-        """
-        Computes metrics related to the weight matrix dynamics.
-
-        Analyzes weight matrices to provide insights into network behavior and training dynamics.
-
-        Args:
-            delta (float): Small constant used in effective rank calculation
-
-        Returns:
-            dict: Dictionary of metrics including:
-                - Singular value statistics
-                - Effective rank
-                - Weight norms
-                - Power law fit metrics
-                - Layer name
-
-            Returns None if the layer doesn't have a 2D weight matrix or
-            if weight analysis is disabled.
-        """
+        """Computes weight matrix dynamics metrics for analysis and debugging."""
         if (
             self.weight_net.weight.data.dim() != 2
             or not hasattr(self, "analyze_weights_bool")

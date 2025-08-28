@@ -4,14 +4,14 @@
  * Script to generate LLM abstracts for papers
  *
  * Usage:
- *   npm run generate-llm-abstracts           # Generate for 10 papers without abstracts
- *   npm run generate-llm-abstracts -- --all # Generate for all papers without abstracts
- *   npm run generate-llm-abstracts -- --paper-id=<id>  # Generate for specific paper
- *   npm run generate-llm-abstracts -- --limit=20       # Generate for up to 20 papers
+ *   pnpm run generate-llm-abstracts           # Generate for 10 papers without abstracts
+ *   pnpm run generate-llm-abstracts -- --all # Generate for all papers without abstracts
+ *   pnpm run generate-llm-abstracts -- --paper-id=<id>  # Generate for specific paper
+ *   pnpm run generate-llm-abstracts -- --limit=20       # Generate for up to 20 papers
  */
 
-import { PaperAbstractService } from "../src/lib/paper-abstract-service";
 import { prisma } from "../src/lib/db/prisma";
+import { PaperAbstractService } from "../src/lib/paper-abstract-service";
 
 async function main() {
   const args = process.argv.slice(2);
@@ -42,7 +42,7 @@ async function main() {
           "📋 Short explanation:",
           abstract.shortExplanation.slice(0, 100) + "..."
         );
-        console.log("🏷️ Concepts:", abstract.conceptsOverview.join(", "));
+        console.log("📊 Summary:", abstract.summary.slice(0, 100) + "...");
       } else {
         console.log("❌ Failed to generate abstract");
       }
@@ -54,7 +54,7 @@ async function main() {
 
       const totalPapers = await prisma.paper.count({
         where: {
-          llmAbstract: null,
+          llmAbstract: null as any,
           link: { not: null },
         },
       });

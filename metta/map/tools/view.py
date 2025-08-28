@@ -11,7 +11,7 @@ class ViewTool(Tool):
     uri: str
     mode: ShowMode
 
-    def invoke(self):
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         uri = self.uri
 
         logger.info(f"Loading map from {uri}")

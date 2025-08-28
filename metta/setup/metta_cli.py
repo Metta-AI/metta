@@ -19,6 +19,17 @@ if TYPE_CHECKING:
     from metta.setup.symlink_setup import PathSetup
     from metta.setup.tools.book import BookCommands
 
+# Shared list of test folders for Python tests
+PYTHON_TEST_FOLDERS = [
+    "tests",
+    "mettascope/tests",
+    "agent/tests",
+    "app_backend/tests",
+    "codebot/tests",
+    "common/tests",
+    "mettagrid/tests",
+]
+
 
 @dataclass
 class CommandConfig:
@@ -103,12 +114,7 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
             "uv",
             "run",
             "pytest",
-            "tests",
-            "mettascope/tests",
-            "agent/tests",
-            "app_backend/tests",
-            "common/tests",
-            "mettagrid/tests",
+            *PYTHON_TEST_FOLDERS,
             "--benchmark-disable",
             "-n",
             "auto",
@@ -127,7 +133,7 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
     ),
     "shell": CommandConfig(
         help="Start an IPython shell with Metta imports",
-        subprocess_cmd=["uv", "run", "metta/setup/shell.py"],
+        subprocess_cmd=["uv", "run", "--active", "metta/setup/shell.py"],
         needs_config=True,  # Needs repo_root
     ),
     "report-env-details": CommandConfig(
@@ -142,6 +148,11 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
     "clean": CommandConfig(
         help="Clean build artifacts and temporary files",
         handler="cmd_clean",
+    ),
+    "go": CommandConfig(
+        help="Navigate to a Softmax Home shortcut",
+        handler="cmd_go",
+        pass_unknown_args=True,
     ),
     # Commands that need config but not components
     "local": CommandConfig(
@@ -450,6 +461,27 @@ class MettaCLI:
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
 
+    def cmd_go(self, args, unknown_args=None) -> None:
+        """Navigate to a Softmax Home shortcut URL."""
+        import webbrowser
+
+        from metta.setup.utils import error, info
+
+        if not unknown_args:
+            error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
+            info("\nCommon shortcuts:")
+            info("  g    - GitHub")
+            info("  w    - Weights & Biases")
+            info("  o    - Observatory")
+            info("  d    - Datadog")
+            return
+
+        shortcut = unknown_args[0]
+        url = f"https://home.softmax-research.net/{shortcut}"
+
+        info(f"Opening {url}...")
+        webbrowser.open(url)
+
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
         if len(text) <= max_len:
@@ -489,7 +521,7 @@ class MettaCLI:
         except FileNotFoundError:
             print(f"Error: Command not found: {cmd[0]}", file=sys.stderr)
             if command == "clip":
-                print("Run: metta install codeclip", file=sys.stderr)
+                print("Run: metta install codebot", file=sys.stderr)
             sys.exit(1)
 
     def cmd_report_env_details(self, args, unknown_args=None) -> None:
@@ -516,8 +548,8 @@ class MettaCLI:
             if not files:
                 return
 
-        check_cmd = ["uv", "run", "ruff", "check"]
-        format_cmd = ["uv", "run", "ruff", "format"]
+        check_cmd = ["uv", "run", "--active", "ruff", "check"]
+        format_cmd = ["uv", "run", "--active", "ruff", "format"]
         cmds = [format_cmd, check_cmd]
 
         # ruff check: warns
@@ -550,12 +582,7 @@ class MettaCLI:
             "uv",
             "run",
             "pytest",
-            "tests",
-            "mettascope/tests",
-            "agent/tests",
-            "app_backend/tests",
-            "common/tests",
-            "mettagrid/tests",
+            *PYTHON_TEST_FOLDERS,
             "--benchmark-disable",
             "-n",
             "auto",

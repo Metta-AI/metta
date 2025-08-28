@@ -32,14 +32,7 @@ def evaluate_policy(
     stats_client: StatsClient | None,
     logger: logging.Logger,
 ) -> EvalResults:
-    """
-    Evaluate **one** policy URI (may expand to several checkpoints).
-    All simulations belonging to a single checkpoint are merged into one
-    *StatsDB* which is optionally exported.
-
-    Returns:
-        Dictionary containing simulation results and metrics
-    """
+    """Evaluate one policy URI, merging all simulations into a single StatsDB."""
     pr = policy_record
 
     stats_dir = stats_dir or "/tmp/stats"
@@ -98,7 +91,7 @@ def evaluate_policy(
         raise RuntimeError("No simulations could be run successfully")
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
-    eval_stats_db = EvalStatsDB.from_sim_stats_db(merged_db)
+    eval_stats_db = EvalStatsDB(merged_db.path)
     logger.info("Evaluation complete for policy %s", pr.uri)
     scores = extract_scores(policy_record, simulations, eval_stats_db, logger)
 
@@ -133,7 +126,7 @@ def extract_scores(
         category_scores[category] = score
     per_sim_scores: dict[tuple[str, str], float] = {}
     all_scores = stats_db.simulation_scores(policy_record, "reward")
-    for (_, sim_name, _), score in all_scores.items():
+    for (sim_name, _), score in all_scores.items():
         category = sim_name.split("/")[0]
         sim_short_name = sim_name.split("/")[-1]
         per_sim_scores[(category, sim_short_name)] = score

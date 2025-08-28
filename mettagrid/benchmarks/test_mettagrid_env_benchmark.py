@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.actions import generate_valid_random_actions
+from metta.mettagrid.test_support.actions import generate_valid_random_actions
 
 
 @pytest.fixture
@@ -16,40 +16,44 @@ def environment(num_agents: int):
     random.seed(seed)
     np.random.seed(seed)
 
-    # Map from num_agents to expected_hash (updated for RandomMapBuilder.Config with render_mode="human")
+    # Map from num_agents to expected_hash (updated for deterministic RandomMapBuilder)
     grid_hash_map = {
-        1: 10803749541391338082,
-        2: 2514094204136141655,
-        4: 6128504151662836775,
-        8: 6629058126583841883,
-        16: 11905961516680070883,
+        1: 8758918251456738458,
+        2: 5399377357525131219,
+        4: 15159704145714964875,
+        8: 17168213948652951998,
+        16: 15523353553253390979,
     }
 
     expected_grid_hash = grid_hash_map.get(num_agents)
     if expected_grid_hash is None:
         raise ValueError(f"No expected hash defined for num_agents={num_agents}")
 
-    cfg = EnvConfig()
+    cfg = MettaGridConfig()
 
     # Override the number of agents in the configuration
     cfg.game.num_agents = num_agents
     assert isinstance(cfg.game.map_builder, RandomMapBuilder.Config)
     cfg.game.map_builder.agents = num_agents  # RandomMapBuilderConfig uses agents field
+    cfg.game.map_builder.seed = seed  # Set the map builder seed for deterministic maps!
     cfg.game.max_steps = 0  # env lasts forever
 
     print(f"\nConfiguring environment with {num_agents} agents")
 
     env = MettaGridEnv(cfg, render_mode="human")
 
-    # Note: Grid hash check temporarily disabled due to configuration changes
-    # TODO: #dehydration Update expected hashes or make test more deterministic
-    # assert env.initial_grid_hash == expected_grid_hash
+    # Verify deterministic grid generation
+    assert env.initial_grid_hash == expected_grid_hash, (
+        f"Grid hash mismatch for {num_agents} agents! Expected: {expected_grid_hash}, Got: {env.initial_grid_hash}"
+    )
 
     env.reset()
 
-    # Note: Grid hash check temporarily disabled due to configuration changes
-    # TODO: #dehydration Update expected hashes or make test more deterministic
-    # assert env.initial_grid_hash == expected_grid_hash
+    # Verify that reset doesn't change the initial grid hash
+    assert env.initial_grid_hash == expected_grid_hash, (
+        f"Grid hash changed after reset for {num_agents} agents! "
+        f"Expected: {expected_grid_hash}, Got: {env.initial_grid_hash}"
+    )
 
     yield env
     # Cleanup after test
@@ -150,7 +154,7 @@ def test_create_env_performance(benchmark):
 
     def create_and_reset():
         """Create a new environment and reset it."""
-        env = MettaGridEnv(EnvConfig(), render_mode="human")
+        env = MettaGridEnv(MettaGridConfig(), render_mode="human")
         obs = env.reset()
         # Cleanup
         del env

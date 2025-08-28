@@ -4,9 +4,7 @@ from metta.common.config import Config
 
 
 class HyperparameterSchedulerConfig(Config):
-    """
-    Configuration for hyperparameter scheduling in RL training.
-    """
+    """Configuration for hyperparameter scheduling in RL training."""
 
     learning_rate_schedule: Optional[Dict[str, Any]] = None
     ppo_clip_schedule: Optional[Dict[str, Any]] = None

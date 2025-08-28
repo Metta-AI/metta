@@ -3,24 +3,20 @@
 from __future__ import annotations
 
 import random
-from typing import Annotated, ClassVar, Union
+from typing import ClassVar
 
 from pydantic import ConfigDict, Field, field_validator
 
 from metta.common.config import Config
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
-from .task_generator import (
-    BucketedTaskGeneratorConfig,
-    SingleTaskGeneratorConfig,
-    TaskGeneratorSetConfig,
-)
+from .task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
 
 
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 
-    def __init__(self, task_id: int, env_cfg: EnvConfig):
+    def __init__(self, task_id: int, env_cfg: MettaGridConfig):
         self._task_id = task_id
         self._env_cfg = env_cfg
         self._num_completions = 0
@@ -34,7 +30,7 @@ class CurriculumTask:
         self._total_score += score
         self._mean_score = self._total_score / self._num_completions
 
-    def get_env_cfg(self) -> EnvConfig:
+    def get_env_cfg(self) -> MettaGridConfig:
         """Get the env_cfg for the task."""
         return self._env_cfg
 
@@ -42,13 +38,10 @@ class CurriculumTask:
 class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
 
-    task_generator: Annotated[
-        Union[SingleTaskGeneratorConfig, TaskGeneratorSetConfig, BucketedTaskGeneratorConfig],
-        Field(discriminator="type", description="TaskGenerator configuration"),
-    ]
+    task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
     max_task_id: int = Field(default=1000000, gt=0, description="Maximum task id to generate")
 
-    num_active_tasks: int = Field(default=100, gt=0, description="Number of active tasks to maintain")
+    num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
     new_task_rate: float = Field(default=0.01, ge=0, le=1.0, description="Rate of new tasks to generate")
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -57,24 +50,26 @@ class CurriculumConfig(Config):
         populate_by_name=True,
     )
 
+    @classmethod
+    def from_mg(cls, env_config: MettaGridConfig) -> CurriculumConfig:
+        return cls(
+            task_generator=SingleTaskGeneratorConfig(env=env_config),
+        )
+
     @field_validator("num_active_tasks")
     @classmethod
     def validate_num_active_tasks(cls, v, info):
-        max_task_id = info.data.get("max_task_id", 1000000)
+        max_task_id = info.data["max_task_id"]
         if v > max_task_id:
             raise ValueError("num_active_tasks must be less than max_task_id")
         return v
 
-    def make(self) -> Curriculum:
-        """Make a Curriculum from this configuration."""
-        return Curriculum(self)
-
 
 class Curriculum:
-    """Base curriculum class that uses TaskGenerator to generate EnvConfigs and returns Tasks.
+    """Base curriculum class that uses TaskGenerator to generate MettaGridConfigs and returns Tasks.
 
     Curriculum takes a CurriculumConfig, and supports get_task(). It uses the task generator
-    to generate the EnvConfig and then returns a Task(env_cfg).
+    to generate the MettaGridConfig and then returns a Task(env_cfg).
     """
 
     def __init__(self, config: CurriculumConfig, seed: int = 0):

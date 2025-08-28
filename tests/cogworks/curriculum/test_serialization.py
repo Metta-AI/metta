@@ -15,7 +15,7 @@ from metta.cogworks.curriculum import (
     SingleTaskGeneratorConfig,
     TaskGeneratorSetConfig,
 )
-from metta.cogworks.curriculum.task_generator import ValueRange as vr
+from metta.cogworks.curriculum.task_generator import Span
 
 
 class TestCurriculumConfigSerialization(unittest.TestCase):
@@ -37,15 +37,14 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
     def test_bucketed_task_generator(self):
         """Test BucketedTaskGeneratorConfig round-trip."""
         arena = eb.make_arena(num_agents=4)
-        arena_tasks = cc.tasks(arena)
+        arena_tasks = cc.bucketed(arena)
 
         # Add various bucket types
         arena_tasks.add_bucket("game.level_map.width", [10, 20, 30])
         arena_tasks.add_bucket("game.level_map.height", [10, 20, 30])
-        arena_tasks.add_bucket("game.agent.rewards.inventory.ore_red", [0, vr.vr(0, 1.0)])
+        arena_tasks.add_bucket("game.agent.rewards.inventory.ore_red", [0, Span(0, 1.0)])
 
-        original = cc.curriculum(arena_tasks, num_tasks=5)
-
+        original = CurriculumConfig(task_generator=arena_tasks)
         # Serialize and deserialize
         json_str = original.model_dump_json()
         restored = CurriculumConfig.model_validate_json(json_str)
@@ -76,7 +75,7 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         arena = eb.make_arena(num_agents=2)
 
         # Create inner bucketed config
-        inner_tasks = cc.tasks(arena)
+        inner_tasks = cc.bucketed(arena)
         inner_tasks.add_bucket("game.level_map.width", [5, 10])
 
         # Create outer bucketed config with inner as child
@@ -96,12 +95,12 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
     def test_value_ranges(self):
         """Test that ValueRange objects survive round-trip."""
         arena = eb.make_arena(num_agents=1)
-        arena_tasks = cc.tasks(arena)
+        arena_tasks = cc.bucketed(arena)
 
         # Add bucket with ValueRange
-        arena_tasks.add_bucket("test.param", [0, vr.vr(0.5, 1.5), 2])
+        arena_tasks.add_bucket("test.param", [0, Span(0.5, 1.5), 2])
 
-        original = cc.curriculum(arena_tasks)
+        original = CurriculumConfig(task_generator=arena_tasks)
 
         # Serialize and deserialize
         json_str = original.model_dump_json()

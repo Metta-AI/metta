@@ -15,11 +15,12 @@ class Tool(Config):
     3) Make a function that returns an instance of your tool class.
     4) Run the tool with `./tools/run.py <path.to.tool.function>`.
 
-    The function can optionally take arguments, which will be passed to the tool when passed in `--args`.
-    """
+    The function can optionally take arguments, which will be passed to the tool when passed in `--args`."""
 
     system: SystemConfig = Field(default_factory=SystemConfig)
 
+    consumed_args: list[str] = Field(default_factory=list)
+
     # Returns exit code, optionally.
     @abstractmethod
-    def invoke(self) -> int | None: ...
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None: ...

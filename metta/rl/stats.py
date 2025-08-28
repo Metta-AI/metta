@@ -136,23 +136,7 @@ def process_training_stats(
     trainer_config: TrainerConfig,
     kickstarter: Kickstarter | None,
 ) -> dict[str, Any]:
-    """Process training statistics into a clean format.
-
-    Args:
-        raw_stats: Raw statistics dictionary (possibly with lists of values)
-        losses: Losses object with stats() method
-        experience: Experience object with stats() method
-        trainer_config: Training configuration
-        kickstarter: Kickstarter object
-
-    Returns:
-        Dictionary with processed statistics including:
-        - mean_stats: Raw stats converted to means
-        - losses_stats: Loss statistics
-        - experience_stats: Experience buffer statistics
-        - environment_stats: Environment-specific stats
-        - overview: High-level metrics like average reward
-    """
+    """Process training statistics into a clean format."""
     # Convert lists to means
     mean_stats = {}
     for k, v in raw_stats.items():
@@ -204,20 +188,7 @@ def compute_timing_stats(
     timer: Stopwatch,
     agent_step: int,
 ) -> dict[str, Any]:
-    """Compute timing statistics from a Stopwatch timer.
-
-    Args:
-        timer: Stopwatch instance
-        agent_step: Current agent step count
-
-    Returns:
-        Dictionary with timing statistics including:
-        - lap_times: Per-operation lap times
-        - epoch_steps: Steps in this epoch
-        - epoch_steps_per_second: Steps per second (epoch)
-        - steps_per_second: Overall steps per second
-        - timing_stats: Formatted timing statistics for logging
-    """
+    """Compute timing statistics from a Stopwatch timer."""
     elapsed_times = timer.get_all_elapsed()
     wall_time = timer.get_elapsed()
     train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
@@ -275,24 +246,7 @@ def build_wandb_stats(
     agent_step: int,
     epoch: int,
 ) -> dict[str, Any]:
-    """Build complete statistics dictionary for wandb logging.
-
-    Args:
-        processed_stats: Output from process_training_stats
-        timing_info: Output from compute_timing_stats
-        weight_stats: Weight analysis statistics
-        grad_stats: Gradient statistics
-        system_stats: System monitor statistics
-        memory_stats: Memory monitor statistics
-        parameters: Training parameters
-        hyperparameters: Current hyperparameter values
-        evals: Evaluation scores
-        agent_step: Current agent step
-        epoch: Current epoch
-
-    Returns:
-        Complete dictionary ready for wandb logging
-    """
+    """Build complete statistics dictionary for wandb logging."""
     # Build overview with sps and rewards
     overview = {
         "sps": timing_info["epoch_steps_per_second"],
