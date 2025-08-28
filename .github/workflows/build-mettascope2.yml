@@ -18,6 +18,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nimble-
       - uses: jiro4989/setup-nim-action@v2
+        with:
+          # repo-token is used for rate limiting.
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - run: cd mettascope2 && nimble install -y
 
