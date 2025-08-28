@@ -6,8 +6,6 @@ import mettascope.server as server
 from metta.common.config.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
-
-# Using CheckpointManager for direct checkpoint loading
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
