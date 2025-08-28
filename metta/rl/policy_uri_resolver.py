@@ -88,37 +88,3 @@ def discover_policies(
         return [(base_uri, metadata)]
     else:
         raise ValueError(f"Unsupported URI scheme: {base_uri}")
-
-
-class PolicyUriResolver:
-    """Legacy class for backward compatibility."""
-
-    def resolve_policy(self, uri: str, device: str = "cpu") -> torch.nn.Module:
-        return resolve_policy(uri, device)
-
-    def get_policy_metadata(self, uri: str) -> Dict[str, Any]:
-        return get_policy_metadata(uri)
-
-    def discover_policies(
-        self, base_uri: str, strategy: str = "latest", count: int = 1, metric: str = "score"
-    ) -> List[Tuple[str, Dict[str, Any]]]:
-        return discover_policies(base_uri, strategy, count, metric)
-
-
-# Convenience functions (using new direct functions)
-def resolve_policy_from_uri(uri: str, device: str = "cpu") -> torch.nn.Module:
-    return resolve_policy(uri, device)
-
-
-def get_policy_metadata_from_uri(uri: str) -> Dict[str, Any]:
-    return get_policy_metadata(uri)
-
-
-def discover_policies_from_uri(
-    base_uri: str, strategy: str = "latest", count: int = 1, metric: str = "score"
-) -> List[Tuple[str, Dict[str, Any]]]:
-    return discover_policies(base_uri, strategy, count, metric)
-
-
-# Legacy global instance for backward compatibility
-policy_resolver = PolicyUriResolver()

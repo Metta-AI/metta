@@ -144,12 +144,6 @@ def upload_replay_html(
         html_content = " | ".join(links)
         _upload_replay_html(html_content, agent_step, epoch, wandb_run, step_metric_key, epoch_metric_key)
 
-    # Maintain backward compatibility - log training task separately if available
-    if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
-        training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
-        html_content = _form_mettascope_link(training_url, f"MetaScope Replay (Epoch {epoch})")
-        _upload_replay_html(html_content, agent_step, epoch, wandb_run, step_metric_key, epoch_metric_key)
-
 
 def _form_mettascope_link(url: str, name: str) -> str:
     return f'<a href="{METTASCOPE_REPLAY_URL}/?replayUrl={url}" target="_blank">{name}</a>'

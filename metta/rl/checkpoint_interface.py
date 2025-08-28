@@ -60,7 +60,7 @@ def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
             old_format_files, key=lambda f: int(f.stem.split("_")[-1]) if f.stem.split("_")[-1].isdigit() else 0
         )
         agent = torch.load(latest_file, weights_only=False)
-        # Extract epoch from filename for compatibility
+        # Extract epoch from filename
         epoch_str = latest_file.stem.split("_")[-1]
         epoch = int(epoch_str) if epoch_str.isdigit() else 0
         metadata = {"epoch": epoch}

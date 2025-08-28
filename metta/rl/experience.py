@@ -63,7 +63,7 @@ class Experience:
         # Tracking for rollout completion
         self.full_rows = 0
 
-        # Calculate num_minibatches for compatibility
+        # Calculate num_minibatches
         num_minibatches = self.segments / self.minibatch_segments
         self.num_minibatches: int = int(num_minibatches)
         if self.num_minibatches != num_minibatches:
@@ -87,7 +87,7 @@ class Experience:
 
     @property
     def full(self) -> bool:
-        """Alias for ready_for_training for compatibility."""
+        """Alias for ready_for_training."""
         return self.ready_for_training
 
     @property
