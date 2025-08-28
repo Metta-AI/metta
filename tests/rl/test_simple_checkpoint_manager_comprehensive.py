@@ -12,7 +12,6 @@ import torch
 import yaml
 
 from metta.agent.mocks import MockAgent, MockPolicy
-from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 
 
 @pytest.fixture
