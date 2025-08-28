@@ -4,11 +4,11 @@ import logging
 
 from pydantic import Field
 
-from metta.agent.policy_store import PolicyStore
 from metta.common.config.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
+from metta.rl.checkpoint_interface import Checkpoint, get_checkpoint_from_dir
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -22,15 +22,17 @@ class AnalysisTool(Tool):
     data_dir: str = Field(default="./train_dir")
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        # TODO: Update this to use CheckpointManager
-        # For now, keeping PolicyStore to avoid breaking the analysis tools
-        policy_store = PolicyStore(
-            device=self.system.device,
-            data_dir=self.data_dir,
-            wandb_entity=self.wandb.entity if self.wandb.enabled else None,
-            wandb_project=self.wandb.project if self.wandb.enabled else None,
-        )
-        policy_pr = policy_store.policy_record(
-            self.policy_uri, self.analysis.policy_selector.type, metric=self.analysis.policy_selector.metric
-        )
-        analyze(policy_pr, self.analysis)
+        # Nuclear simplification - direct checkpoint loading from URI
+        if self.policy_uri.startswith("file://"):
+            # Handle file:// URIs by extracting directory path
+            checkpoint_dir = self.policy_uri[7:]  # Remove "file://" prefix
+            checkpoint = get_checkpoint_from_dir(checkpoint_dir)
+            if checkpoint is None:
+                logger.error(f"No checkpoints found in directory: {checkpoint_dir}")
+                return 1
+        else:
+            # For other URIs, create minimal checkpoint object
+            logger.warning(f"Non-file URI {self.policy_uri} - creating minimal checkpoint")
+            checkpoint = Checkpoint(run_name="unknown", uri=self.policy_uri, metadata={"epoch": 0})
+
+        analyze(checkpoint, self.analysis)

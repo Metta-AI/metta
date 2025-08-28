@@ -14,19 +14,19 @@ __name__ = "__ipython__"
 REPO_ROOT = get_repo_root()
 CONFIGS_DIR = REPO_ROOT / "configs"
 
-from metta.agent.policy_store import PolicyStore  # noqa
+# Legacy PolicyStore removed in nuclear simplification
+# from metta.agent.policy_store import PolicyStore  # noqa
 
 
-def get_policy_store_from_cfg(cfg: DictConfig, wandb_run: WandbRun | None = None) -> PolicyStore:
-    policy_store = PolicyStore(
-        device=cfg.device,
-        wandb_run=wandb_run,
-        data_dir=getattr(cfg, "data_dir", None),
-        wandb_entity=cfg.wandb.entity if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "entity") else None,
-        wandb_project=cfg.wandb.project if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "project") else None,
-        pytorch_cfg=getattr(cfg, "pytorch", None),
+def get_policy_store_from_cfg(cfg: DictConfig, wandb_run: WandbRun | None = None):
+    """Legacy function removed - PolicyStore no longer supported.
+
+    Use CheckpointManager and get_checkpoint_from_dir instead.
+    """
+    raise NotImplementedError(
+        "PolicyStore removed in nuclear simplification. "
+        "Use CheckpointManager and get_checkpoint_from_dir from metta.rl.checkpoint_interface instead."
     )
-    return policy_store
 
 
 def help_configs() -> None:
