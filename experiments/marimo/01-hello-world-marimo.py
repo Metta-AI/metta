@@ -78,7 +78,6 @@ def _():
     from metta.rl.checkpoint_interface import Checkpoint, get_checkpoint_from_dir
 
     from metta.common.wandb.wandb_context import WandbConfig
-    from metta.rl.policy_management import initialize_policy_for_environment
     import torch
 
     from tensordict import TensorDict
@@ -368,7 +367,6 @@ def _():
         display,
         env_curriculum,
         get_repo_root,
-        initialize_policy_for_environment,
         io,
         logging,
         mo,
@@ -927,7 +925,6 @@ def _(
     env_config,
     eval_trained_button,
     get_repo_root,
-    initialize_policy_for_environment,
     io,
     mo,
     np,
@@ -1611,7 +1608,6 @@ def _(
     env_config,
     env_config2,
     eval_trained_button2,
-    initialize_policy_for_environment,
     io,
     mo,
     np,
