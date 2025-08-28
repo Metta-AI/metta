@@ -1,13 +1,12 @@
 """Minimal checkpoint interface for evaluation integration."""
 
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
 
-logger = logging.getLogger(__name__)
+from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_filename
 
 
 @dataclass
@@ -20,77 +19,61 @@ class Checkpoint:
     _cached_policy: Any = None
 
     def key_and_version(self) -> tuple[str, int]:
-        epoch = self.metadata.get("epoch", 0)
-        return self.run_name, epoch
+        return self.run_name, self.metadata.get("epoch", 0)
 
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
-        """Extract wandb info from URI - kept for evaluation system compatibility."""
-        if self.uri is None or not self.uri.startswith("wandb://"):
-            raise ValueError("Cannot get wandb info without a valid URI.")
-        try:
-            entity, project, name = self.uri[len("wandb://") :].split("/")
-            version: str | None = None
-            if ":" in name:
-                name, version = name.split(":")
-            return entity, project, name, version
-        except ValueError as e:
-            raise ValueError(
-                f"Failed to parse wandb URI: {self.uri}. Expected format: wandb://<entity>/<project>/<name>"
-            ) from e
+        """Extract wandb info from URI."""
+        if not self.uri or not self.uri.startswith("wandb://"):
+            raise ValueError("Invalid wandb URI")
+
+        parts = self.uri[8:].split("/")  # Remove "wandb://"
+        if len(parts) < 3:
+            raise ValueError(f"Invalid wandb URI format: {self.uri}")
+
+        entity, project, name = parts[0], parts[1], parts[2]
+        version = name.split(":")[1] if ":" in name else None
+        if ":" in name:
+            name = name.split(":")[0]
+        return entity, project, name, version
 
 
 def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
-    """Get a checkpoint from a directory containing agent_epoch_*.pt files.
-
-    Loads the latest checkpoint by epoch number, or None if no checkpoints found.
-    """
+    """Get latest checkpoint from directory, supporting both old and new formats."""
     checkpoint_path = Path(checkpoint_dir)
     if not checkpoint_path.exists():
-        logger.warning(f"Checkpoint directory does not exist: {checkpoint_dir}")
         return None
 
-    # Find latest checkpoint
+    # Try new triple-dash format first
+    run_name = checkpoint_path.parent.name if checkpoint_path.parent else "unknown"
+    manager = CheckpointManager(run_name, str(checkpoint_path.parent.parent))
+
+    if manager.exists():
+        agent = manager.load_latest_agent()
+        if agent:
+            # Find latest checkpoint file for metadata
+            agent_files = list(checkpoint_path.glob(f"{run_name}---e*_s*_t*s.pt"))
+            if agent_files:
+                latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
+                metadata = parse_checkpoint_filename(latest_file.name) or {}
+                return Checkpoint(
+                    run_name=run_name, uri=f"file://{latest_file}", metadata=metadata, _cached_policy=agent
+                )
+
+    # Fallback to old format
     agent_files = list(checkpoint_path.glob("agent_epoch_*.pt"))
     if not agent_files:
-        logger.warning(f"No checkpoint files found in {checkpoint_dir}")
         return None
 
-    # Get latest by epoch number
-    try:
-        latest_file = max(agent_files, key=lambda f: int(f.stem.split("_")[-1]))
-    except (ValueError, IndexError) as e:
-        logger.error(f"Failed to parse epoch numbers from checkpoint files: {e}")
-        return None
-
-    # Load the policy using weights_only=False
-    try:
-        agent = torch.load(latest_file, weights_only=False)
-    except Exception as e:
-        logger.error(f"Failed to load checkpoint {latest_file}: {e}")
-        return None
-
-    # Extract run name from directory structure
-    run_name = checkpoint_path.parent.name if checkpoint_path.parent else "unknown"
+    latest_file = max(agent_files, key=lambda f: int(f.stem.split("_")[-1]) if f.stem.split("_")[-1].isdigit() else 0)
+    agent = torch.load(latest_file, weights_only=False)
 
     return Checkpoint(run_name=run_name, uri=f"file://{latest_file}", metadata={}, _cached_policy=agent)
 
 
 def get_checkpoint_tuples_for_stats_integration(checkpoint_dirs: list[str]) -> list[tuple[str, str, str | None]]:
-    """Get checkpoint tuples for get_or_create_policy_ids function.
-
-    Converts checkpoint directories into tuples suitable for stats server integration.
-    """
-    checkpoint_tuples = []
-
-    for checkpoint_dir in checkpoint_dirs:
-        checkpoint = get_checkpoint_from_dir(checkpoint_dir)
-        if checkpoint:
-            checkpoint_tuples.append(
-                (
-                    checkpoint.run_name,
-                    checkpoint.uri,
-                    None,  # No description needed
-                )
-            )
-
-    return checkpoint_tuples
+    """Convert checkpoint directories to tuples for stats integration."""
+    return [
+        (checkpoint.run_name, checkpoint.uri, None)
+        for checkpoint_dir in checkpoint_dirs
+        if (checkpoint := get_checkpoint_from_dir(checkpoint_dir)) is not None
+    ]

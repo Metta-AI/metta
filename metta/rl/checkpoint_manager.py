@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import torch
+import yaml
 
 from metta.rl.wandb_policy_loader import get_wandb_artifact_metadata, load_policy_from_wandb_uri
 
@@ -130,13 +131,13 @@ class CheckpointManager:
                 self.save_trainer_state(optimizer, epoch, agent_step or 0)
 
     def list_epochs(self) -> list[int]:
-        agent_files = self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt")
-        epochs = []
-        for f in agent_files:
-            metadata = parse_checkpoint_filename(f.name)
-            if metadata:
-                epochs.append(metadata["epoch"])
-        return sorted(epochs)
+        return sorted(
+            [
+                metadata["epoch"]
+                for f in self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt")
+                if (metadata := parse_checkpoint_filename(f.name)) is not None
+            ]
+        )
 
     def get_latest_epoch(self) -> Optional[int]:
         epochs = self.list_epochs()
@@ -155,64 +156,45 @@ class CheckpointManager:
         return None
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
-        """Find checkpoint with highest value for the given metric.
+        """Find checkpoint with highest value for the given metric."""
 
-        Available metrics: epoch, agent_step, total_time
-        """
-        best_score = float("-inf")
-        best_file = None
+        def get_score(checkpoint_file):
+            metadata = parse_checkpoint_filename(checkpoint_file.name)
+            return metadata.get(metric, 0.0) if metadata else float("-inf")
 
-        for checkpoint_file in self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"):
-            try:
-                metadata = parse_checkpoint_filename(checkpoint_file.name)
-                if metadata is None:
-                    continue
-                score = metadata.get(metric, 0.0)
-                if score > best_score:
-                    best_score = score
-                    best_file = checkpoint_file
-            except Exception as e:
-                logger.warning(f"Failed to process checkpoint file {checkpoint_file}: {e}")
-
-        return best_file if best_file and best_file.exists() else None
+        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"))
+        return max(checkpoint_files, key=get_score, default=None) if checkpoint_files else None
 
     def select_checkpoints(
         self, strategy: str = "latest", count: int = 1, metric: str = "epoch", filters: Optional[Dict[str, Any]] = None
     ) -> List[Path]:
-        """Select checkpoints using different strategies.
-
-        Supports "latest", "best_score", and "all" selection strategies.
-        Optionally filter checkpoints by metadata criteria like minimum thresholds."""
+        """Select checkpoints using different strategies."""
         if not self.checkpoint_dir.exists():
             return []
 
-        checkpoints = []
-        for checkpoint_file in self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"):
-            try:
-                metadata = parse_checkpoint_filename(checkpoint_file.name)
-                if not metadata:
-                    continue
-
-                if filters and not self._matches_filters(metadata, filters):
-                    continue
-
-                checkpoints.append((checkpoint_file, metadata))
-            except Exception:
-                continue
+        # Parse and filter valid checkpoints
+        checkpoints = [
+            (file, metadata)
+            for file in self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt")
+            if (metadata := parse_checkpoint_filename(file.name)) is not None
+            and (not filters or self._matches_filters(metadata, filters))
+        ]
 
         if not checkpoints:
             return []
 
-        if strategy == "latest":
-            checkpoints.sort(key=lambda x: x[1].get("epoch", 0), reverse=True)
-            return [cp[0] for cp in checkpoints[:count]]
-        elif strategy == "best_score":
-            checkpoints.sort(key=lambda x: x[1].get(metric, float("-inf")), reverse=True)
-            return [cp[0] for cp in checkpoints[:count]]
-        elif strategy == "all":
-            return [cp[0] for cp in checkpoints]
-        else:
+        # Apply strategy-specific sorting
+        sort_strategies = {
+            "latest": lambda x: x[1].get("epoch", 0),
+            "best_score": lambda x: x[1].get(metric, float("-inf")),
+            "all": lambda x: 0,
+        }
+
+        if strategy not in sort_strategies:
             raise ValueError(f"Unknown selection strategy: {strategy}")
+
+        checkpoints.sort(key=sort_strategies[strategy], reverse=True)
+        return [cp[0] for cp in checkpoints[: count if strategy != "all" else len(checkpoints)]]
 
     def _matches_filters(self, metadata: Dict[str, Any], filters: Dict[str, Any]) -> bool:
         """Check if metadata matches the given filters."""
@@ -236,44 +218,35 @@ class CheckpointManager:
         return True
 
     def load_policy_from_uri(self, uri: str, device: str = "cpu"):
-        """Load a policy from either local file:// or wandb:// URI.
-
-        Supports both local checkpoints and wandb artifacts for unified policy access.
-        """
+        """Load a policy from either local file:// or wandb:// URI."""
         if uri.startswith("wandb://"):
             return load_policy_from_wandb_uri(uri, device)
-        elif uri.startswith("file://"):
-            # Load from local file path
+
+        if uri.startswith("file://"):
             file_path = Path(uri[7:])  # Remove "file://" prefix
             if file_path.exists():
                 return torch.load(file_path, map_location=device, weights_only=False)
-            else:
-                logger.error(f"Local file not found: {file_path}")
-                return None
-        else:
-            logger.error(f"Unsupported URI format: {uri}. Supported: file://, wandb://")
+            logger.error(f"Local file not found: {file_path}")
             return None
 
-    def get_policy_metadata_from_uri(self, uri: str) -> Dict[str, Any]:
-        """Get metadata from a policy URI without loading the policy.
+        logger.error(f"Unsupported URI format: {uri}. Supported: file://, wandb://")
+        return None
 
-        Returns basic information for selection and filtering purposes.
-        """
+    def get_policy_metadata_from_uri(self, uri: str) -> Dict[str, Any]:
+        """Get metadata from a policy URI without loading the policy."""
         if uri.startswith("wandb://"):
             return get_wandb_artifact_metadata(uri)
-        elif uri.startswith("file://"):
-            # Load metadata from local YAML file
-            file_path = Path(uri[7:])  # Remove "file://" prefix
-            yaml_path = file_path.with_suffix(".yaml")
+
+        if uri.startswith("file://"):
+            yaml_path = Path(uri[7:]).with_suffix(".yaml")  # Remove "file://" prefix
             if yaml_path.exists():
                 try:
                     with open(yaml_path) as f:
                         return yaml.safe_load(f) or {}
                 except Exception as e:
                     logger.warning(f"Failed to load metadata from {yaml_path}: {e}")
-            return {}
-        else:
-            return {}
+
+        return {}
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         """Clean up old checkpoints, keeping only the most recent ones."""
@@ -284,17 +257,16 @@ class CheckpointManager:
         if len(agent_files) <= keep_last_n:
             return 0
 
-        # Sort by epoch number
+        # Sort by epoch and get files to remove
         agent_files.sort(key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
         files_to_remove = agent_files[:-keep_last_n]
 
         deleted_count = 0
         for agent_file in files_to_remove:
             try:
-                metadata = parse_checkpoint_filename(agent_file.name)
-                if metadata:
-                    epoch = metadata["epoch"]
-                    trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
+                # Remove associated trainer file if it exists
+                if metadata := parse_checkpoint_filename(agent_file.name):
+                    trainer_file = self.checkpoint_dir / f"trainer_epoch_{metadata['epoch']}.pt"
                     trainer_file.unlink(missing_ok=True)
 
                 agent_file.unlink()
