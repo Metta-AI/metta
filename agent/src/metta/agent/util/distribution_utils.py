@@ -32,7 +32,7 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
 
     # Numeric stabilizer: replace non-finite and renormalize with epsilon floor
-    eps = torch.finfo(action_probs.dtype).eps
+    eps = 1e-12
     finite_mask = torch.isfinite(action_probs)
     action_probs = torch.where(finite_mask, action_probs, torch.zeros_like(action_probs))
     action_probs = torch.clamp(action_probs, min=eps)
@@ -80,7 +80,7 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
 
     # Numeric stabilizer to keep entropy finite
-    eps = torch.finfo(action_probs.dtype).eps
+    eps = 1e-12
     finite_mask = torch.isfinite(action_probs)
     action_probs = torch.where(finite_mask, action_probs, torch.zeros_like(action_probs))
     action_probs = torch.clamp(action_probs, min=eps)
