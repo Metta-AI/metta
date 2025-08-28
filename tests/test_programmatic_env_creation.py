@@ -5,6 +5,7 @@ Demonstrates the new pattern for creating environments as shown in experiments/a
 
 import pytest
 
+import metta.mettagrid.config.envs as eb
 from metta.mettagrid.config import building
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import (
@@ -16,6 +17,7 @@ from metta.mettagrid.mettagrid_config import (
     GroupConfig,
     MettaGridConfig,
 )
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
 class TestProgrammaticEnvironments:
@@ -61,7 +63,6 @@ class TestProgrammaticEnvironments:
 
     def test_create_arena_like_environment(self):
         """Test creating an arena-style environment similar to experiments/arena.py."""
-        import metta.mettagrid.config.envs as eb
 
         # Use the make_arena function from the envs module
         arena_env = eb.make_arena(num_agents=8, combat=False)
@@ -78,7 +79,6 @@ class TestProgrammaticEnvironments:
 
     def test_create_navigation_environment(self):
         """Test creating a navigation environment."""
-        import metta.mettagrid.config.envs as eb
 
         nav_env = eb.make_navigation(num_agents=4)
 
@@ -201,8 +201,6 @@ class TestProgrammaticEnvironments:
     @pytest.mark.slow
     def test_environment_with_mettagrid_integration(self):
         """Test that programmatic environments work with MettaGridEnv."""
-        import metta.mettagrid.config.envs as eb
-        from metta.mettagrid.mettagrid_env import MettaGridEnv
 
         # Create environment config
         env_config = eb.make_navigation(num_agents=2)
