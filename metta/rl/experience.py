@@ -1,5 +1,4 @@
-"""
-This file implements an Experience class for storing and managing experience data during reinforcement
+"""This file implements an Experience class for storing and managing experience data during reinforcement
 learning training.
 
 The Experience class provides:
@@ -12,8 +11,7 @@ The Experience class provides:
 Key features:
 - Stores trajectories in segmented tensors for BPTT
 - Provides prioritized sampling for training
-- Manages minibatch creation for training
-"""
+- Manages minibatch creation for training"""
 
 from typing import Dict
 

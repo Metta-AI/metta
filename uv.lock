@@ -8,7 +8,9 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "codebot",
     "experiments",
+    "gitta",
     "metta",
     "metta-agent",
     "metta-app-backend",
@@ -498,6 +500,23 @@ wheels = [
 ]
 
 [[package]]
+name = "codebot"
+version = "0.1.0"
+source = { editable = "codebot" }
+dependencies = [
+    { name = "click" },
+    { name = "gitta" },
+    { name = "tiktoken" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "click", specifier = ">=8.0" },
+    { name = "gitta", editable = "gitta" },
+    { name = "tiktoken", specifier = ">=0.9.0" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -936,6 +955,29 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9a/c8/dd58967d119baab745caec2f9d853297cec1989ec1d63f677d3880632b88/gitpython-3.1.45.tar.gz", hash = "sha256:85b0ee964ceddf211c41b9f27a49086010a190fd8132a24e21f362a4b36a791c", size = 215076, upload-time = "2025-07-24T03:45:54.871Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/01/61/d4b89fec821f72385526e1b9d9a3a0385dda4a72b206d28049e2c7cd39b8/gitpython-3.1.45-py3-none-any.whl", hash = "sha256:8908cb2e02fb3b93b7eb0f2827125cb699869470432cc885f019b8fd0fccff77", size = 208168, upload-time = "2025-07-24T03:45:52.517Z" },
+]
+
+[[package]]
+name = "gitta"
+version = "0.1.0"
+source = { editable = "gitta" }
+dependencies = [
+    { name = "httpx" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "httpx", specifier = ">=0.24.0" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
 ]
 
 [[package]]
@@ -1815,6 +1857,7 @@ dependencies = [
     { name = "anywidget" },
     { name = "bidict" },
     { name = "boto3" },
+    { name = "codebot" },
     { name = "colorama" },
     { name = "cpplint" },
     { name = "ddtrace" },
@@ -1896,6 +1939,7 @@ requires-dist = [
     { name = "anywidget", specifier = ">=0.9.18" },
     { name = "bidict", specifier = ">=0.23.1" },
     { name = "boto3", specifier = ">=1.38.32" },
+    { name = "codebot", editable = "codebot" },
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "cpplint", specifier = ">=2.0.2" },
     { name = "ddtrace", specifier = ">=2.6.0" },

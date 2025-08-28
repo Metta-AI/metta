@@ -107,8 +107,7 @@ def main():
     def stream_output(proc: subprocess.Popen[str], label: str):
         """Continuously read lines from a subprocess and print them with a label.
 
-        When both backend and frontend indicate they are ready, automatically open the browser.
-        """
+        When both backend and frontend indicate they are ready, automatically open the browser."""
         nonlocal backend_ready, frontend_ready
         assert proc.stdout is not None  # for mypy/static checkers
 

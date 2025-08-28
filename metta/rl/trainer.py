@@ -35,7 +35,6 @@ from metta.rl.optimization import (
     compute_gradient_stats,
 )
 from metta.rl.policy_management import (
-    initialize_policy_for_environment,
     wrap_agent_distributed,
 )
 from metta.rl.rollout import get_observation, send_observation
@@ -187,8 +186,9 @@ def train(
 
     # Initialize policy to environment after distributed wrapping  
     # This must happen after wrapping to ensure all ranks do it at the same time
-    if hasattr(policy, 'initialize_for_environment'):
-        policy.initialize_for_environment(metta_grid_env, device)
+    policy.train()  # Set to training mode for training
+    features = metta_grid_env.get_observation_features()
+    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     # Create kickstarter (simplified - no policy_store needed)
     kickstarter = None  # Disabled for now - needs update for SimpleCheckpointManager
