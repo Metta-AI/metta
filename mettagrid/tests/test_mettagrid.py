@@ -13,7 +13,7 @@ NUM_OBS_TOKENS = 50
 @pytest.fixture
 def basic_env() -> MettaGrid:
     """Create a basic test environment with 8x4 grid and 2 agents."""
-    env_cfg = MettaGridConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
             obs_width=3,
@@ -32,7 +32,7 @@ def basic_env() -> MettaGrid:
             ),
         )
     )
-    return MettaGridCore(env_cfg)
+    return MettaGridCore(cfg)
 
 
 class TestBasicFunctionality:
