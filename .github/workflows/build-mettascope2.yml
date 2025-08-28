@@ -1,4 +1,4 @@
-name: Build mettascope (nim)
+name: Build mettascope2 (nim)
 
 on:
   pull_request:
