@@ -137,3 +137,6 @@ proc drawFrame*(area: Area) =
     x += width + 10
 
   bxy.restoreTransform()
+
+  for subarea in area.areas:
+    drawFrame(subarea)
