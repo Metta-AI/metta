@@ -41,14 +41,14 @@ class NodejsSetup(SetupModule):
         try:
             env = os.environ.copy()
             env["NODE_NO_WARNINGS"] = "1"
-            result = subprocess.run(
+            subprocess.run(
                 ["pnpm", "--version"],
                 capture_output=True,
                 text=True,
                 check=True,
                 env=env,
             )
-            return result.returncode == 0
+            return True
         except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
