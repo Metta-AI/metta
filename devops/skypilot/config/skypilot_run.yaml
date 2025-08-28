@@ -68,7 +68,7 @@ run: |
   echo "[SETUP] Setting up Python environment..."
   uv sync
 
-  uv run python ./devops/skypilot/config/lifecycle/configure_environment.py
+  uv run python ./devops/skypilot/config/configure_environment.py
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
   source "$METTA_ENV_FILE"
 

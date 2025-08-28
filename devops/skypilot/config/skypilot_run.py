@@ -173,7 +173,7 @@ def send_discord_notification(emoji: str, title: str, status_msg: str, additiona
         subprocess.run(
             [
                 "bash",
-                "./devops/skypilot/config/observability/send_discord_notification.sh",
+                "./devops/skypilot/config/send_discord_notification.sh",
                 emoji,
                 title,
                 status_msg,
@@ -361,7 +361,7 @@ def main():
         logger.info(f"Running GPU diagnostics and NCCL tests (node {rank})...")
         try:
             result = subprocess.run(
-                ["uv", "run", "python", "./devops/skypilot/config/preflight/test_nccl.py"],
+                ["uv", "run", "python", "./devops/skypilot/config/test_nccl.py"],
                 capture_output=True,
                 text=True,
             )
