@@ -19,7 +19,8 @@ from metta.common.util.skypilot_latency import calculate_queue_latency
 from metta.common.wandb.log_wandb import log_to_wandb
 from metta.common.util.discord import send_to_discord
 
-from .runtime_monitors import start_monitors
+sys.path.insert(0, str(Path(__file__).parent))
+from runtime_monitors import start_monitors
 
 # Configure logging
 logging.basicConfig(
