@@ -14,8 +14,10 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
+from metta.rl.checkpoint_interface import Checkpoint
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
+from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,7 @@ class SimTool(Tool):
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
+    export_to_stats_db: bool = True  # Export evaluation results to stats database
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         if self.policy_uris is None:
@@ -139,27 +142,53 @@ class SimTool(Tool):
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
 
+        # Initialize stats database if needed
+        stats_db = None
+        if self.export_to_stats_db and self.stats_db_uri:
+            try:
+                stats_db = SimulationStatsDB(Path(self.stats_db_uri))
+                stats_db.initialize_schema()
+                logger.info(f"Initialized stats database at {self.stats_db_uri}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize stats database: {e}")
+                stats_db = None
+
         for policy_uri, agent_metadata_list in policies_by_uri.items():
-            _determine_run_name(policy_uri)
+            run_name = _determine_run_name(policy_uri)
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
             for _agent, metadata, checkpoint_path in agent_metadata_list:
-                # Evaluation with CheckpointManager - direct agent evaluation
-                # For now, skip evaluation and just return basic info
                 logger.info(f"Processing checkpoint {checkpoint_path.name} from {policy_uri}")
+
+                # Create Checkpoint object for stats database integration
+                checkpoint = Checkpoint(
+                    run_name=metadata.get("run", checkpoint_path.stem), uri=policy_uri, metadata=metadata
+                )
+
+                # Perform basic evaluation (placeholder - would run actual simulations in real implementation)
+                # For Phase 3, we focus on the database integration infrastructure
+                evaluation_metrics = {
+                    "reward_avg": metadata.get("score", 0.0),
+                    "reward_avg_category_normalized": metadata.get("avg_reward", 0.0),
+                    "agent_step": metadata.get("agent_step", 0),
+                    "detailed": {},
+                }
+
+                # Export to stats database if configured
+                if stats_db and self.export_to_stats_db:
+                    try:
+                        self._export_checkpoint_to_stats_db(stats_db, checkpoint, evaluation_metrics)
+                        logger.info("Exported checkpoint results to stats database")
+                    except Exception as e:
+                        logger.warning(f"Failed to export to stats database: {e}")
 
                 results["checkpoints"].append(
                     {
-                        "name": metadata.get("run", checkpoint_path.stem),
-                        "uri": f"file://{checkpoint_path}",
+                        "name": checkpoint.run_name,
+                        "uri": checkpoint.uri,
                         "epoch": metadata.get("epoch", 0),
                         "checkpoint_path": str(checkpoint_path),
-                        "metrics": {
-                            "reward_avg": metadata.get("score", 0.0),
-                            "reward_avg_category_normalized": metadata.get("avg_reward", 0.0),
-                            "agent_step": metadata.get("agent_step", 0),
-                            "detailed": {},
-                        },
+                        "metrics": evaluation_metrics,
                         "replay_url": [],
                     }
                 )
@@ -175,3 +204,80 @@ class SimTool(Tool):
         print("===JSON_OUTPUT_START===")
         print(json.dumps(all_results, indent=2))
         print("===JSON_OUTPUT_END===")
+
+    def _export_checkpoint_to_stats_db(
+        self, stats_db: SimulationStatsDB, checkpoint: Checkpoint, metrics: dict
+    ) -> None:
+        """Export checkpoint evaluation results to stats database."""
+        policy_key, policy_version = checkpoint.key_and_version()
+
+        # Record simulation entries for each configured simulation
+        for sim_config in self.simulations:
+            simulation_id = (
+                f"{sim_config.name}_{policy_key}_{policy_version}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            )
+
+            # Insert simulation record
+            stats_db.execute(
+                """
+                INSERT INTO simulations (id, name, env, policy_key, policy_version, created_at, finished_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+                [simulation_id, sim_config.name, sim_config.env_name, policy_key, policy_version],
+            )
+
+            # For this phase, create minimal agent policy records
+            # In a real implementation, these would come from actual simulation episodes
+            episode_id = f"episode_{simulation_id}_001"
+            agent_id = 0
+
+            # Insert agent policy mapping
+            stats_db.execute(
+                """
+                INSERT OR IGNORE INTO agent_policies (episode_id, agent_id, policy_key, policy_version)
+                VALUES (?, ?, ?, ?)
+            """,
+                [episode_id, agent_id, policy_key, policy_version],
+            )
+
+            logger.debug(
+                f"Exported checkpoint {checkpoint.run_name} to stats database for simulation {sim_config.name}"
+            )
+
+    def compare_policies(self, policy_uris: list[str], metric: str = "score") -> dict:
+        """Simple policy comparison functionality."""
+        if not self.stats_db_uri:
+            raise ValueError("stats_db_uri required for policy comparison")
+
+        comparison_results = {"metric": metric, "policies": []}
+
+        try:
+            with SimulationStatsDB.from_uri(self.stats_db_uri) as stats_db:
+                for policy_uri in policy_uris:
+                    # Extract policy info from URI
+                    if policy_uri.startswith("file://"):
+                        checkpoint_path = Path(policy_uri.replace("file://", ""))
+                        run_name = checkpoint_path.parent.name
+                        # For file URIs, we'd need to determine epoch from the checkpoint
+                        epoch = 0  # Simplified for Phase 3
+
+                        # Get policy performance from stats database
+                        policy_scores = stats_db.simulation_scores(str(checkpoint_path), epoch, metric)
+
+                        comparison_results["policies"].append(
+                            {
+                                "policy_uri": policy_uri,
+                                "run_name": run_name,
+                                "epoch": epoch,
+                                "scores": dict(policy_scores),
+                                "average_score": sum(policy_scores.values()) / len(policy_scores)
+                                if policy_scores
+                                else 0.0,
+                            }
+                        )
+
+        except Exception as e:
+            logger.error(f"Policy comparison failed: {e}")
+            comparison_results["error"] = str(e)
+
+        return comparison_results
