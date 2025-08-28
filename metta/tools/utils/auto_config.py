@@ -9,16 +9,29 @@ from metta.setup.components.wandb import WandbSetup
 from metta.setup.profiles import UserType
 
 
-class SupportedWandbEnvOverrides(BaseSettings):
+class EnvOverrides(BaseSettings):
+    """Unified environment variable overrides for all configuration categories."""
+
     model_config = SettingsConfigDict(
         extra="ignore",
     )
 
+    # Weights & Biases configuration
     WANDB_ENABLED: bool | None = Field(default=None, description="Enable Weights & Biases")
     WANDB_PROJECT: str | None = Field(default=None, description="Weights & Biases project")
     WANDB_ENTITY: str | None = Field(default=None, description="Weights & Biases entity")
 
-    def to_config_settings(self) -> dict[str, str | bool]:
+    # Observatory/Stats server configuration
+    STATS_SERVER_ENABLED: bool | None = Field(default=None, description="If true, use the stats server")
+    STATS_SERVER_URI: str | None = Field(default=None, description="Stats server URI")
+
+    # AWS/Storage directory configuration
+    REPLAY_DIR: str | None = Field(default=None, description="Replay directory")
+    TORCH_PROFILE_DIR: str | None = Field(default=None, description="Torch profiler directory")
+    CHECKPOINT_DIR: str | None = Field(default=None, description="Checkpoint directory")
+
+    def to_wandb_config_settings(self) -> dict[str, str | bool]:
+        """Extract Wandb-specific configuration settings."""
         return remove_none_values(
             {
                 "enabled": self.WANDB_ENABLED,
@@ -27,8 +40,29 @@ class SupportedWandbEnvOverrides(BaseSettings):
             }
         )
 
+    def to_observatory_config_settings(self) -> dict[str, str | None]:
+        """Extract Observatory-specific configuration settings."""
+        # If explicitly disabled, do not use stats server
+        if self.STATS_SERVER_ENABLED is False:
+            return {"stats_server_uri": None}
+        # If explicitly provided, use stats server at given URI
+        if self.STATS_SERVER_URI is not None:
+            return {"stats_server_uri": self.STATS_SERVER_URI}
+        return {}
 
-supported_tool_overrides = SupportedWandbEnvOverrides()
+    def to_aws_config_settings(self) -> dict[str, str]:
+        """Extract AWS/Storage-specific configuration settings."""
+        return remove_none_values(
+            {
+                "replay_dir": self.REPLAY_DIR,
+                "torch_profile_dir": self.TORCH_PROFILE_DIR,
+                "checkpoint_dir": self.CHECKPOINT_DIR,
+            }
+        )
+
+
+# Global instance for environment variable overrides
+env_overrides = EnvOverrides()
 
 
 def auto_wandb_config(run: str | None = None) -> WandbConfig:
@@ -50,7 +84,7 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
                 config_dict["project"] = cloud_config["wandb_project"]
 
     # Apply environment variable overrides (highest priority)
-    config_dict.update(supported_tool_overrides.to_config_settings())
+    config_dict.update(env_overrides.to_wandb_config_settings())
 
     cfg = WandbConfig(**config_dict)
 
@@ -63,54 +97,11 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
     return cfg
 
 
-class SupportedObservatoryEnvOverrides(BaseSettings):
-    model_config = SettingsConfigDict(
-        extra="ignore",
-    )
-
-    STATS_SERVER_ENABLED: bool | None = Field(default=None, description="If true, use the stats server")
-    STATS_SERVER_URI: str | None = Field(default=None, description="Stats server URI")
-
-    def to_config_settings(self) -> dict[str, str | None]:
-        # If explicitly disabled, do not use stats server
-        if self.STATS_SERVER_ENABLED is False:
-            return {"stats_server_uri": None}
-        # If explicitly provided, use stats server at given URI
-        if self.STATS_SERVER_URI is not None:
-            return {"stats_server_uri": self.STATS_SERVER_URI}
-        return {}
-
-
-supported_observatory_env_overrides = SupportedObservatoryEnvOverrides()
-
-
 def auto_stats_server_uri() -> str | None:
     return {
         **ObservatoryKeySetup().to_config_settings(),  # type: ignore
-        **supported_observatory_env_overrides.to_config_settings(),
+        **env_overrides.to_observatory_config_settings(),
     }.get("stats_server_uri")
-
-
-class SupportedAwsEnvOverrides(BaseSettings):
-    model_config = SettingsConfigDict(
-        extra="ignore",
-    )
-
-    REPLAY_DIR: str | None = Field(default=None, description="Replay directory")
-    TORCH_PROFILE_DIR: str | None = Field(default=None, description="Torch profiler directory")
-    CHECKPOINT_DIR: str | None = Field(default=None, description="Checkpoint directory")
-
-    def to_config_settings(self) -> dict[str, str]:
-        return remove_none_values(
-            {
-                "replay_dir": self.REPLAY_DIR,
-                "torch_profile_dir": self.TORCH_PROFILE_DIR,
-                "checkpoint_dir": self.CHECKPOINT_DIR,
-            }
-        )
-
-
-supported_aws_env_overrides = SupportedAwsEnvOverrides()
 
 
 def auto_replay_dir() -> str:
@@ -129,7 +120,7 @@ def auto_replay_dir() -> str:
             config["replay_dir"] = f"s3://{cloud_config['s3_bucket']}/replays/"
 
     # Apply environment variable overrides (highest priority)
-    config.update(supported_aws_env_overrides.to_config_settings())
+    config.update(env_overrides.to_aws_config_settings())
 
     return config.get("replay_dir")
 
@@ -156,7 +147,7 @@ def auto_torch_profile_dir() -> str:
     # Allow environment variable override
     config = {
         "torch_profile_dir": profile_default,
-        **supported_aws_env_overrides.to_config_settings(),
+        **env_overrides.to_aws_config_settings(),
     }
 
     return config.get("torch_profile_dir")
@@ -175,7 +166,7 @@ def auto_checkpoint_dir() -> str:
     # Allow environment variable override for cloud users who want S3
     config = {
         "checkpoint_dir": checkpoint_default,
-        **supported_aws_env_overrides.to_config_settings(),
+        **env_overrides.to_aws_config_settings(),
     }
 
     return config.get("checkpoint_dir")
