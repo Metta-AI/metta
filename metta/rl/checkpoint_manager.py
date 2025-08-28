@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 import torch
 import yaml
 
+from metta.rl.wandb_policy_loader import load_policy_from_wandb_uri, get_wandb_artifact_metadata
+
 logger = logging.getLogger(__name__)
 
 
@@ -243,6 +245,46 @@ class CheckpointManager:
                     return False
 
         return True
+
+    def load_policy_from_uri(self, uri: str, device: str = "cpu"):
+        """Load a policy from either local file:// or wandb:// URI.
+
+        Supports both local checkpoints and wandb artifacts for unified policy access.
+        """
+        if uri.startswith("wandb://"):
+            return load_policy_from_wandb_uri(uri, device)
+        elif uri.startswith("file://"):
+            # Load from local file path
+            file_path = Path(uri[7:])  # Remove "file://" prefix
+            if file_path.exists():
+                return torch.load(file_path, map_location=device, weights_only=False)
+            else:
+                logger.error(f"Local file not found: {file_path}")
+                return None
+        else:
+            logger.error(f"Unsupported URI format: {uri}. Supported: file://, wandb://")
+            return None
+
+    def get_policy_metadata_from_uri(self, uri: str) -> Dict[str, Any]:
+        """Get metadata from a policy URI without loading the policy.
+
+        Returns basic information for selection and filtering purposes.
+        """
+        if uri.startswith("wandb://"):
+            return get_wandb_artifact_metadata(uri)
+        elif uri.startswith("file://"):
+            # Load metadata from local YAML file
+            file_path = Path(uri[7:])  # Remove "file://" prefix
+            yaml_path = file_path.with_suffix(".yaml")
+            if yaml_path.exists():
+                try:
+                    with open(yaml_path) as f:
+                        return yaml.safe_load(f) or {}
+                except Exception as e:
+                    logger.warning(f"Failed to load metadata from {yaml_path}: {e}")
+            return {}
+        else:
+            return {}
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         """Clean up old checkpoints, keeping only the most recent ones."""

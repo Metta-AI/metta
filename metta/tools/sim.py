@@ -113,8 +113,37 @@ class SimTool(Tool):
 
                 if not policies_by_uri[policy_uri]:
                     logger.warning(f"No valid checkpoints loaded for {policy_uri}")
+            elif policy_uri.startswith("wandb://"):
+                # Handle wandb URI - create a simple CheckpointManager for URI operations
+                checkpoint_manager = CheckpointManager(run_name="wandb", run_dir="./temp")
+                checkpoint_managers_by_uri[policy_uri] = checkpoint_manager
+
+                logger.info(f"Loading policy from wandb URI: {policy_uri}")
+
+                policies_by_uri[policy_uri] = []
+                try:
+                    # Load policy from wandb
+                    agent = checkpoint_manager.load_policy_from_uri(policy_uri, device="cpu")
+
+                    if agent is not None:
+                        # Get metadata from wandb
+                        metadata = checkpoint_manager.get_policy_metadata_from_uri(policy_uri)
+
+                        # Create a dummy path for consistency
+                        dummy_path = Path(f"wandb_artifact_{policy_uri.replace('/', '_').replace(':', '_')}")
+
+                        policies_by_uri[policy_uri].append((agent, metadata, dummy_path))
+                        logger.info(f"Loaded wandb policy with metadata keys: {list(metadata.keys())}")
+                    else:
+                        logger.error(f"Failed to load policy from wandb URI: {policy_uri}")
+
+                except Exception as e:
+                    logger.error(f"Failed to load wandb policy {policy_uri}: {e}")
+
+                if not policies_by_uri[policy_uri]:
+                    logger.warning(f"No valid policies loaded from wandb URI: {policy_uri}")
             else:
-                logger.error(f"Only file:// URIs supported currently, got {policy_uri}")
+                logger.error(f"Unsupported URI format: {policy_uri}. Supported: file://, wandb://")
                 policies_by_uri[policy_uri] = []
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
