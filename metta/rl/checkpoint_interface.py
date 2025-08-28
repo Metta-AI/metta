@@ -51,11 +51,7 @@ class Checkpoint:
 def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
     """Get a checkpoint from a directory containing agent_epoch_*.pt files.
 
-    Args:
-        checkpoint_dir: Path to directory containing checkpoint files
-
-    Returns:
-        Checkpoint for the latest checkpoint, or None if no checkpoints found
+    Loads the latest checkpoint by epoch number, or None if no checkpoints found.
     """
     checkpoint_path = Path(checkpoint_dir)
     if not checkpoint_path.exists():
@@ -91,11 +87,7 @@ def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
 def get_checkpoint_tuples_for_stats_integration(checkpoint_dirs: list[str]) -> list[tuple[str, str, str | None]]:
     """Get checkpoint tuples for get_or_create_policy_ids function.
 
-    Args:
-        checkpoint_dirs: List of checkpoint directory paths
-
-    Returns:
-        List of (checkpoint_name, checkpoint_uri, description) tuples for stats server
+    Converts checkpoint directories into tuples suitable for stats server integration.
     """
     checkpoint_tuples = []
 

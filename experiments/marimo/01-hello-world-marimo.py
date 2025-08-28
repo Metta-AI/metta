@@ -1215,9 +1215,7 @@ def _(mo, wandb):
     def display_by_wandb_path(path: str, *, height: int) -> None:
         """Display a wandb object (usually in an iframe) given its URI.
 
-        Args:
-            path: A path to a run, sweep, project, report, etc.
-            height: Height of the iframe in pixels.
+        Supports runs, sweeps, projects, reports, and other wandb objects.
         """
         api = wandb.Api()
 
