@@ -17,7 +17,7 @@ from metta.tools.utils.auto_config import auto_wandb_config
 logger = logging.getLogger(__name__)
 
 
-# TODO: This job can be replaced with sim now that Simulations create replays
+# This tool can be replaced with sim.py as simulations now create replays
 class ReplayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig

@@ -30,7 +30,7 @@ from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
-from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.sim.simulation_stats_db import SimulationStatsDB, CheckpointInfo
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
@@ -286,7 +286,7 @@ class Simulation:
                     "Policy indices should be continuous sequence starting from 0"
                 )
 
-            if self._npc_pr is not None and num_npc > 0:
+            if self._npc_policy is not None and num_npc > 0:
                 expected_npc_start = num_policy
                 assert self._npc_idxs[0] == expected_npc_start, (
                     f"NPC indices should start at {expected_npc_start}, got {self._npc_idxs[0]}"
