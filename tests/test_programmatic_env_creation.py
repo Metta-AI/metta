@@ -5,6 +5,7 @@ Demonstrates the new pattern for creating environments as shown in experiments/a
 
 import pytest
 
+import metta.mettagrid.config.envs as eb
 from metta.mettagrid.config import building
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import (
@@ -12,11 +13,11 @@ from metta.mettagrid.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    EnvConfig,
     GameConfig,
     GroupConfig,
-    InventoryRewards,
+    MettaGridConfig,
 )
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
 class TestProgrammaticEnvironments:
@@ -24,7 +25,7 @@ class TestProgrammaticEnvironments:
 
     def test_create_simple_environment(self):
         """Test creating a simple environment with basic components."""
-        env_config = EnvConfig(
+        env_config = MettaGridConfig(
             label="test_simple",
             game=GameConfig(
                 num_agents=4,
@@ -39,7 +40,9 @@ class TestProgrammaticEnvironments:
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
-                        inventory=InventoryRewards(heart=1),
+                        inventory={
+                            "heart": 1,
+                        }
                     ),
                 ),
                 map_builder=RandomMapBuilder.Config(
@@ -60,7 +63,6 @@ class TestProgrammaticEnvironments:
 
     def test_create_arena_like_environment(self):
         """Test creating an arena-style environment similar to experiments/arena.py."""
-        import metta.mettagrid.config.envs as eb
 
         # Use the make_arena function from the envs module
         arena_env = eb.make_arena(num_agents=8, combat=False)
@@ -77,7 +79,6 @@ class TestProgrammaticEnvironments:
 
     def test_create_navigation_environment(self):
         """Test creating a navigation environment."""
-        import metta.mettagrid.config.envs as eb
 
         nav_env = eb.make_navigation(num_agents=4)
 
@@ -90,7 +91,7 @@ class TestProgrammaticEnvironments:
 
     def test_environment_with_custom_rewards(self):
         """Test creating an environment with custom reward configuration."""
-        env_config = EnvConfig(
+        env_config = MettaGridConfig(
             label="custom_rewards",
             game=GameConfig(
                 num_agents=2,
@@ -104,11 +105,11 @@ class TestProgrammaticEnvironments:
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
-                        inventory=InventoryRewards(
-                            heart=1.0,
-                            ore_red=0.5,
-                            battery_red=0.8,
-                        ),
+                        inventory={
+                            "heart": 1.0,
+                            "ore_red": 0.5,
+                            "battery_red": 0.8,
+                        },
                     ),
                     resource_limits={
                         "heart": 255,
@@ -128,9 +129,9 @@ class TestProgrammaticEnvironments:
 
         # Verify custom rewards are set
         rewards = env_config.game.agent.rewards.inventory
-        assert rewards.heart == 1.0
-        assert rewards.ore_red == 0.5
-        assert rewards.battery_red == 0.8
+        assert rewards["heart"] == 1.0
+        assert rewards["ore_red"] == 0.5
+        assert rewards["battery_red"] == 0.8
 
         # Verify resource limits
         limits = env_config.game.agent.resource_limits
@@ -140,7 +141,7 @@ class TestProgrammaticEnvironments:
 
     def test_environment_with_groups(self):
         """Test creating an environment with agent groups."""
-        env_config = EnvConfig(
+        env_config = MettaGridConfig(
             label="groups_test",
             game=GameConfig(
                 num_agents=6,
@@ -157,7 +158,9 @@ class TestProgrammaticEnvironments:
                         sprite=0,
                         props=AgentConfig(
                             rewards=AgentRewards(
-                                inventory=InventoryRewards(heart=2),
+                                inventory={
+                                    "heart": 2,
+                                },
                             ),
                         ),
                     ),
@@ -166,7 +169,9 @@ class TestProgrammaticEnvironments:
                         sprite=1,
                         props=AgentConfig(
                             rewards=AgentRewards(
-                                inventory=InventoryRewards(heart=1),
+                                inventory={
+                                    "heart": 1,
+                                },
                             ),
                         ),
                     ),
@@ -187,11 +192,15 @@ class TestProgrammaticEnvironments:
         assert env_config.game.groups["team_a"].id == 0
         assert env_config.game.groups["team_b"].id == 1
 
+        # This would be a good addition to the test, but we don't currently expose cpp_config.objects.
+        # cpp_config = convert_to_cpp_game_config(env_config.game)
+        # # The keys will be ints, but the values should be easy to check. Did we merge correctly?
+        # assert set(cpp_config.objects["agent.team_a"]["resource_rewards"].values()) == {0.5, 0.8, 2}
+        # assert set(cpp_config.objects["agent.team_b"]["resource_rewards"].values()) == {0.5, 0.8, 1}
+
     @pytest.mark.slow
     def test_environment_with_mettagrid_integration(self):
         """Test that programmatic environments work with MettaGridEnv."""
-        import metta.mettagrid.config.envs as eb
-        from metta.mettagrid.mettagrid_env import MettaGridEnv
 
         # Create environment config
         env_config = eb.make_navigation(num_agents=2)

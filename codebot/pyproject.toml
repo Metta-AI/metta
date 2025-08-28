@@ -1,0 +1,36 @@
+[project]
+name = "codebot"
+version = "0.1.0"
+description = "AI-powered development toolkit with codeclip context extraction and autonomous file editing"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.0",
+    "tiktoken>=0.9.0",
+    "gitta>=0.1.0",
+    "pydantic-ai>=0.0.12",
+    "pydantic>=2.0.0",
+    "mcp>=1.0.0",
+]
+
+[project.scripts]
+codeclip = "codeclip.cli:cli"
+codebot = "manybot.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["codeclip", "manybot"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.20.0",
+    "black>=22.0.0",
+    "ruff>=0.1.0",
+]
+
+[tool.uv.sources]
+gitta = { workspace = true }
