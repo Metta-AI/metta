@@ -16,30 +16,9 @@ import yaml
 from duckdb import DuckDBPyConnection
 
 from metta.agent.mocks import MockAgent
+from metta.rl.checkpoint_interface import Checkpoint
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_stats_db import SimulationStatsDB
-
-
-class CheckpointInfo:
-    """
-    Simple data class to represent checkpoint information for database integration.
-    This replaces PolicyRecord in database operations.
-    """
-
-    def __init__(self, checkpoint_path: str, run_name: str, epoch: int, metadata: dict = None):
-        self.checkpoint_path = checkpoint_path
-        self.run_name = run_name
-        self.epoch = epoch
-        self.metadata = metadata or {}
-
-    @property
-    def uri(self) -> str:
-        """URI for this checkpoint."""
-        return f"file://{self.checkpoint_path}"
-
-    def key_and_version(self) -> tuple[str, int]:
-        """Return key and version tuple for database operations."""
-        return self.run_name, self.epoch
 
 
 class TestHelpersSimpleCheckpoint:
@@ -77,7 +56,7 @@ class TestHelpersSimpleCheckpoint:
         return episode_id
 
     @staticmethod
-    def create_checkpoint_with_manager(temp_dir: Path, run_name: str, epoch: int, score: float = 0.5) -> CheckpointInfo:
+    def create_checkpoint_with_manager(temp_dir: Path, run_name: str, epoch: int, score: float = 0.5) -> Checkpoint:
         """Create a checkpoint using CheckpointManager and return info object."""
         checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=str(temp_dir))
 
@@ -96,10 +75,10 @@ class TestHelpersSimpleCheckpoint:
         checkpoint_dir = temp_dir / "checkpoints"
         checkpoint_path = checkpoint_dir / f"model_{epoch:04d}.pt"
 
-        return CheckpointInfo(str(checkpoint_path), run_name, epoch, metadata)
+        return Checkpoint(run_name=run_name, uri=f"file://{checkpoint_path}", metadata=metadata)
 
     @staticmethod
-    def create_agent_map_from_checkpoints(checkpoint_infos: list[CheckpointInfo]) -> dict[int, tuple[str, int]]:
+    def create_agent_map_from_checkpoints(checkpoint_infos: list[Checkpoint]) -> dict[int, tuple[str, int]]:
         """Create agent map from checkpoint info list (equivalent to old PolicyRecord agent_map)."""
         agent_map = {}
         for i, checkpoint_info in enumerate(checkpoint_infos):
@@ -148,7 +127,7 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
         agent_map=agent_map,  # Now using simple tuples instead of PolicyRecord objects
         sim_name="test_sim",
         sim_env="test_env",
-        policy_record=checkpoint_info,  # CheckpointInfo instead of PolicyRecord
+        policy_record=checkpoint_info,  # Checkpoint instead of PolicyRecord
     )
 
     # Verify the merged database contains our data
@@ -180,7 +159,7 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
 
 
 def test_checkpoint_info_compatibility():
-    """Test that CheckpointInfo provides the same interface as PolicyRecord for database operations."""
+    """Test that Checkpoint provides the same interface as PolicyRecord for database operations."""
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
@@ -212,7 +191,7 @@ def test_checkpoint_info_compatibility():
             loaded_metadata = yaml.safe_load(f)
         assert loaded_metadata["score"] == 0.92
 
-        print("✅ CheckpointInfo compatibility with database operations verified")
+        print("✅ Checkpoint compatibility with database operations verified")
 
 
 def test_database_policy_lookup_with_checkpoints(tmp_path: Path):

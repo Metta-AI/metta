@@ -119,13 +119,13 @@ def extract_scores(
 
     category_scores: dict[str, float] = {}
     for category in categories:
-        score = stats_db.get_average_metric_by_filter("reward", checkpoint_info, f"sim_name LIKE '%{category}%'")
+        score = stats_db.get_average_metric_by_filter("reward", checkpoint, f"sim_name LIKE '%{category}%'")
         logger.info(f"{category} score: {score}")
         if score is None:
             continue
         category_scores[category] = score
     per_sim_scores: dict[tuple[str, str], float] = {}
-    all_scores = stats_db.simulation_scores(checkpoint_info, "reward")
+    all_scores = stats_db.simulation_scores(checkpoint, "reward")
     for (sim_name, _), score in all_scores.items():
         category = sim_name.split("/")[0]
         sim_short_name = sim_name.split("/")[-1]

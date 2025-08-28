@@ -277,7 +277,7 @@ def test_from_shards_and_context(tmp_path: Path):
     # Create agent map with simple (key, version) tuples
     agent_map = {0: ("test_policy", 1)}
 
-    # Now call the actual from_shards_and_context method using CheckpointInfo tuple format
+    # Now call the actual from_shards_and_context method using Checkpoint tuple format
     merged_db = SimulationStatsDB.from_shards_and_context(
         sim_id="sim_id",
         dir_with_shards=shard_dir,
