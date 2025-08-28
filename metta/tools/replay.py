@@ -11,7 +11,7 @@ from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +22,14 @@ class ReplayTool(Tool):
     sim: SimulationConfig
     policy_uri: str | None = None
     selector_type: str = "latest"
-    replay_dir: str = "./train_dir/replays"
+    replay_dir: str | None = None
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+        # Use auto_replay_dir if not specified
+        effective_replay_dir = self.replay_dir if self.replay_dir is not None else auto_replay_dir()
+
         # Create policy store directly without WandbContext
         policy_store = PolicyStore.create(
             device=self.system.device,
@@ -42,7 +45,7 @@ class ReplayTool(Tool):
             device=self.system.device,
             vectorization=self.system.vectorization,
             stats_dir=self.stats_dir,
-            replay_dir=self.replay_dir,
+            replay_dir=effective_replay_dir,
             policy_uri=self.policy_uri,
             run_name="replay_run",
         )

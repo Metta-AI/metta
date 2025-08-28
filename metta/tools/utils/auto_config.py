@@ -81,12 +81,14 @@ class SupportedAwsEnvOverrides(BaseSettings):
 
     REPLAY_DIR: str | None = Field(default=None, description="Replay directory")
     TORCH_PROFILE_DIR: str | None = Field(default=None, description="Torch profiler directory")
+    CHECKPOINT_DIR: str | None = Field(default=None, description="Checkpoint directory")
 
     def to_config_settings(self) -> dict[str, str]:
         return remove_none_values(
             {
                 "replay_dir": self.REPLAY_DIR,
                 "torch_profile_dir": self.TORCH_PROFILE_DIR,
+                "checkpoint_dir": self.CHECKPOINT_DIR,
             }
         )
 
@@ -121,3 +123,22 @@ def auto_torch_profile_dir() -> str:
     }
 
     return config.get("torch_profile_dir")
+
+
+def auto_checkpoint_dir() -> str:
+    """Returns profile-based checkpoint directory.
+
+    Note: Currently all users use local checkpoints by default for performance.
+    Cloud users can override with CHECKPOINT_DIR env var if they want S3.
+    """
+    # Everyone gets local by default - checkpoints are accessed frequently during training
+    # and S3 latency could impact performance
+    checkpoint_default = "./train_dir/checkpoints/"
+
+    # Allow environment variable override for cloud users who want S3
+    config = {
+        "checkpoint_dir": checkpoint_default,
+        **supported_aws_env_overrides.to_config_settings(),
+    }
+
+    return config.get("checkpoint_dir")
