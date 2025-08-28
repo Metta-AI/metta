@@ -87,12 +87,15 @@ class TestCheckpointManagerBasicOperations:
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
 
         # Verify the loaded agent works with a forward pass
-        test_input = torch.randn(1, 10)
+        from tensordict import TensorDict
+
+        test_input = TensorDict({"env_obs": torch.randn(1, 10)}, batch_size=(1,))
         output = loaded_agent(test_input)
 
         # Assertions
         assert type(loaded_agent).__name__ == "MockAgent"
-        assert output.shape == torch.Size([1, 10])
+        assert "actions" in output
+        assert output["actions"].shape[0] == 1  # batch size
 
         # Verify the loaded agent has the expected structure
         assert callable(loaded_agent)
@@ -118,10 +121,14 @@ class TestCheckpointManagerBasicOperations:
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
 
         # Verify the loaded agent works
-        test_input = torch.randn(1, 10)
+        from tensordict import TensorDict
+
+        test_input = TensorDict({"env_obs": torch.randn(1, 10)}, batch_size=(1,))
         output = loaded_agent(test_input)
 
-        assert output.shape == torch.Size([1, 10])
+        # MockAgent returns actions in TensorDict format
+        assert "actions" in output
+        assert output["actions"].shape[0] == 1  # batch size
 
         # Load metadata directly from CheckpointManager API
         loaded_metadata = checkpoint_manager.load_metadata(epoch=5)
