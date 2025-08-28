@@ -1,10 +1,14 @@
 #!/usr/bin/env -S uv run
 import argparse
 import copy
+import io
 import json
 import logging
+import re
 import subprocess
 import sys
+import time
+from contextlib import redirect_stdout
 
 import sky
 import yaml
@@ -95,6 +99,26 @@ def patch_task(
         task.set_resources(type(task.resources)(new_resources_list))
 
     return task
+
+
+def launch_task_and_check_logs(task):
+    """Launch task and automatically check logs after a brief delay."""
+    # Capture the output from launch_task to extract the job ID
+    f = io.StringIO()
+    with redirect_stdout(f):
+        launch_task(task)
+    output = f.getvalue()
+    print(output, end='')  # Print the original output
+
+    # Extract job ID from "Check logs with: sky api logs XXXXXXXX"
+    match = re.search(r'Check logs with: sky api logs ([a-f0-9-]+)', output)
+    if match:
+        job_id = match.group(1)
+        time.sleep(1)
+        print("\n" + "="*60)
+        print("Auto-checking logs...")
+        print("="*60 + "\n")
+        subprocess.run(["sky", "api", "logs", job_id])
 
 
 def main():
@@ -275,14 +299,14 @@ def main():
 
     # Launch the task(s)
     if args.copies == 1:
-        launch_task(task)
+        launch_task_and_check_logs(task)
     else:
         for _ in range(1, args.copies + 1):
             copy_task = copy.deepcopy(task)
             copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
             copy_task.name = run_id
             copy_task.validate_name()
-            launch_task(copy_task)
+            launch_task_and_check_logs(copy_task)
 
 
 if __name__ == "__main__":
