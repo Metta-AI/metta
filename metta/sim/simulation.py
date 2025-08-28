@@ -19,8 +19,6 @@ import numpy as np
 import torch
 from einops import rearrange
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.agent.mocks import MockAgent
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.agent.utils import obs_to_td
@@ -162,6 +160,7 @@ class Simulation:
             else torch.tensor([], device=self._device, dtype=torch.long)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
+
     @classmethod
     def create(
         cls,

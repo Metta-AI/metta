@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Sequence
 
 import torch
-import yaml
 from pydantic import Field
 
 from metta.agent.policy_record import PolicyRecord
@@ -26,7 +25,6 @@ from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.eval_service import evaluate_policy
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config

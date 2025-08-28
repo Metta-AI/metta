@@ -294,7 +294,6 @@ class MettaCLI:
             info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
     def _custom_setup(self) -> None:
-
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
             [(ut, ut.get_description()) for ut in UserType if ut != UserType.CUSTOM],
@@ -628,7 +627,6 @@ class MettaCLI:
             sys.exit(e.returncode)
 
     def cmd_status(self, args, unknown_args=None) -> None:
-
         from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info, success, warning
 

@@ -22,7 +22,7 @@ from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
-from metta.eval.eval_request_config import EvalRewardSummary, EvaluationResults
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
