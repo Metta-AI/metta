@@ -4,8 +4,8 @@ import logging
 
 from pydantic import Field
 
-# TODO: Update to use TinyCheckpointManager instead of PolicyStore
-# from metta.rl.tiny_checkpoint_manager import TinyCheckpointManager
+# TODO: Update to use CheckpointManager instead of PolicyStore
+# from metta.rl.checkpoint_manager import CheckpointManager
 from metta.common.config.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.analysis import analyze
@@ -23,7 +23,7 @@ class AnalysisTool(Tool):
     data_dir: str = Field(default="./train_dir")
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        # TODO: Update this to use TinyCheckpointManager
+        # TODO: Update this to use CheckpointManager
         # For now, keeping PolicyStore to avoid breaking the analysis tools
         from metta.agent.policy_store import PolicyStore
 

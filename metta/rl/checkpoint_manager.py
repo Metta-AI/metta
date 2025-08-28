@@ -1,4 +1,4 @@
-"""Ultra-simple checkpoint manager using direct torch.save/load with YAML metadata."""
+"""Checkpoint manager using direct torch.save/load with YAML metadata."""
 
 import logging
 from pathlib import Path
@@ -10,8 +10,8 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
-class TinyCheckpointManager:
-    """Minimal checkpoint manager: torch.save/load + YAML metadata for PolicyEvaluator integration."""
+class CheckpointManager:
+    """Checkpoint manager: torch.save/load + YAML metadata for PolicyEvaluator integration."""
 
     def __init__(self, run_name: str, run_dir: str = "./train_dir"):
         self.run_name = run_name

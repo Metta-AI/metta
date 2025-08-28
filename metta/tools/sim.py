@@ -23,8 +23,8 @@ from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
 
-# Using TinyCheckpointManager for direct checkpoint loading
-from metta.rl.tiny_checkpoint_manager import TinyCheckpointManager
+# Using CheckpointManager for direct checkpoint loading
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 
@@ -69,13 +69,13 @@ class SimTool(Tool):
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
 
-        # Note: With TinyCheckpointManager, we work directly with checkpoint directories
+        # Note: With CheckpointManager, we work directly with checkpoint directories
         # No central policy store needed
         if self.stats_server_uri is not None:
             StatsClient.create(self.stats_server_uri)
 
         # Load policies directly from checkpoint directories
-        checkpoint_managers_by_uri: dict[str, TinyCheckpointManager] = {}
+        checkpoint_managers_by_uri: dict[str, CheckpointManager] = {}
         policies_by_uri: dict[str, list[tuple]] = {}  # (agent, metadata) tuples
 
         for policy_uri in self.policy_uris:
@@ -83,7 +83,7 @@ class SimTool(Tool):
                 checkpoint_dir = policy_uri.replace("file://", "")
                 # Extract run name from path
                 run_name = Path(checkpoint_dir).parent.name
-                checkpoint_manager = TinyCheckpointManager(run_name=run_name, run_dir=str(Path(checkpoint_dir).parent))
+                checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=str(Path(checkpoint_dir).parent))
                 checkpoint_managers_by_uri[policy_uri] = checkpoint_manager
 
                 # Load policy based on selector type
@@ -135,7 +135,7 @@ class SimTool(Tool):
                 # TODO: Update evaluate_policy to work with direct agents instead of policy_records
                 # For now, skip evaluation and just return basic info
                 logger.warning(
-                    f"Evaluation temporarily disabled for {policy_uri} - needs TinyCheckpointManager integration"
+                    f"Evaluation temporarily disabled for {policy_uri} - needs CheckpointManager integration"
                 )
 
                 results["checkpoints"].append(
