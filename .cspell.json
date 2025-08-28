@@ -201,6 +201,7 @@
     "pluginmanager",
     "policydash",
     "preauthorized",
+    "preexec",
     "prio",
     "pufferlib",
     "pybind",

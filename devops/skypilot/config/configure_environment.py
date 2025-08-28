@@ -3,54 +3,17 @@
 import os
 import subprocess
 import sys
-import logging
 from pathlib import Path
 
 from metta.common.util.constants import METTA_ENV_FILE, PROD_OBSERVATORY_FRONTEND_URL, PROD_STATS_SERVER_URI
 
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
 
-def setup_logger():
-    """Setup logger with node index in format."""
-    node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+from skypilot_logging import log_all, log_error, log_master, setup_logger
 
-    # Create logger
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-
-    # Create console handler with custom formatter
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        f'[%(asctime)s] [%(levelname)s] [{node_index}] %(message)s',
-        datefmt='%H:%M:%S.%f'
-    )
-    # Custom filter to trim microseconds to milliseconds
-    handler.setFormatter(formatter)
-
-    # Override the default time formatting to show milliseconds
-    import datetime
-    formatter.formatTime = lambda record, datefmt=None: datetime.datetime.fromtimestamp(
-        record.created).strftime('%H:%M:%S.%f')[:-3]
-
-    # Add handler to logger
-    logger.addHandler(handler)
-
-    return logger
-
-
-# Initialize logger at module level
+# Initialize logger for this module
 logger = setup_logger()
-
-
-def log_master(message):
-    """Log only from master node (node_index == 0)."""
-    node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
-    if node_index == 0:
-        logger.info(message)
-
-
-def log_all(message):
-    """Log on all nodes."""
-    logger.info(message)
 
 
 def run_command(cmd, capture_output=True):
@@ -60,8 +23,8 @@ def run_command(cmd, capture_output=True):
 
     result = subprocess.run(cmd, capture_output=capture_output, text=True)
     if result.returncode != 0 and not capture_output:
-        logger.error(f"Command failed: {' '.join(cmd)}")
-        logger.error(f"Error: {result.stderr}")
+        log_error(f"Command failed: {' '.join(cmd)}")
+        log_error(f"Error: {result.stderr}")
         sys.exit(1)
 
     return result.stdout.strip() if capture_output else None
@@ -229,8 +192,8 @@ def main():
     # Check for required WANDB_PASSWORD
     wandb_password = os.environ.get("WANDB_PASSWORD")
     if not wandb_password:
-        logger.error("WANDB_PASSWORD environment variable is required but not set")
-        logger.error("Please ensure WANDB_PASSWORD is set in your Skypilot environment variables")
+        log_error("WANDB_PASSWORD environment variable is required but not set")
+        log_error("Please ensure WANDB_PASSWORD is set in your Skypilot environment variables")
         sys.exit(1)
 
     # Get optional OBSERVATORY_TOKEN
@@ -242,7 +205,7 @@ def main():
     try:
         create_job_secrets("softmax-docker", wandb_password, observatory_token)
     except Exception as e:
-        logger.error(f"Failed to create job secrets: {e}")
+        log_error(f"Failed to create job secrets: {e}")
         sys.exit(1)
 
     log_all("Runtime environment configuration completed")

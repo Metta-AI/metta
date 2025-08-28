@@ -3,15 +3,21 @@
 Runtime monitors for SkyPilot jobs including heartbeat and timeout monitoring.
 """
 
-import logging
 import os
+import sys
 import threading
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Callable, Optional
 
-logger = logging.getLogger(__name__)
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+
+from skypilot_logging import setup_logger, log_all, log_error, log_warning, log_debug
+
+# Initialize logger for this module
+logger = setup_logger()
 
 
 class JobMonitor(ABC):
@@ -35,12 +41,12 @@ class JobMonitor(ABC):
                 should_terminate, reason = self.check_condition()
 
                 if should_terminate and reason:
-                    logger.error(f"{self.name} monitor triggered: {reason}")
+                    log_error(f"{self.name} monitor triggered: {reason}")
                     self.shutdown_callback(reason)
                     break
 
             except Exception as e:
-                logger.warning(f"{self.name} monitor error: {e}")
+                log_warning(f"{self.name} monitor error: {e}")
 
             time.sleep(self.check_interval_sec)
 
@@ -75,9 +81,9 @@ class HeartbeatMonitor(JobMonitor):
             try:
                 self.heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
                 self.heartbeat_file.touch()
-                logger.info(f"Created heartbeat file at {self.heartbeat_file}")
+                log_all(f"Created heartbeat file at {self.heartbeat_file}")
             except Exception as e:
-                logger.error(f"Failed to create heartbeat file: {e}")
+                log_error(f"Failed to create heartbeat file: {e}")
 
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if heartbeat has timed out."""
@@ -96,7 +102,7 @@ class HeartbeatMonitor(JobMonitor):
         return False, None
 
     def run(self):
-        logger.info(f"Heartbeat monitor started on node {self.rank} (timeout: {self.heartbeat_timeout}s)")
+        log_all(f"Heartbeat monitor started on node {self.rank} (timeout: {self.heartbeat_timeout}s)")
         super().run()
 
 
@@ -132,9 +138,9 @@ class TimeoutMonitor(JobMonitor):
         if self.accumulated_runtime_file.exists():
             try:
                 self.accumulated_runtime_sec = int(self.accumulated_runtime_file.read_text())
-                logger.info(f"Loaded accumulated runtime: {self.accumulated_runtime_sec:.0f}s")
+                log_all(f"Loaded accumulated runtime: {self.accumulated_runtime_sec:.0f}s")
             except (ValueError, IOError) as e:
-                logger.warning(f"Failed to load accumulated runtime: {e}")
+                log_warning(f"Failed to load accumulated runtime: {e}")
                 self.accumulated_runtime_sec = 0
         else:
             # Only master node creates the file
@@ -142,11 +148,11 @@ class TimeoutMonitor(JobMonitor):
                 try:
                     self.accumulated_runtime_file.parent.mkdir(parents=True, exist_ok=True)
                     self.accumulated_runtime_file.write_text("0")
-                    logger.info("Created accumulated runtime file with initial value: 0.0s")
+                    log_all("Created accumulated runtime file with initial value: 0.0s")
                 except Exception as e:
-                    logger.error(f"Failed to create accumulated runtime file: {e}")
+                    log_error(f"Failed to create accumulated runtime file: {e}")
             else:
-                logger.info("Accumulated runtime file not found (non-master node)")
+                log_all("Accumulated runtime file not found (non-master node)")
                 self.accumulated_runtime_sec = 0
 
     def get_current_runtime(self) -> int:
@@ -167,9 +173,9 @@ class TimeoutMonitor(JobMonitor):
             total_runtime = self.get_total_runtime()
             self.accumulated_runtime_file.parent.mkdir(parents=True, exist_ok=True)
             self.accumulated_runtime_file.write_text(str(total_runtime))
-            logger.debug(f"Updated accumulated runtime: {total_runtime:.0f}s")
+            log_debug(f"Updated accumulated runtime: {total_runtime:.0f}s")
         except Exception as e:
-            logger.error(f"Failed to save accumulated runtime: {e}")
+            log_error(f"Failed to save accumulated runtime: {e}")
 
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if max runtime has been exceeded."""
@@ -185,7 +191,7 @@ class TimeoutMonitor(JobMonitor):
 
     def run(self):
         remaining = self.max_seconds - self.accumulated_runtime_sec
-        logger.info(f"Timeout monitor started on node {self.rank} (exit in {remaining:.0f}s)")
+        log_all(f"Timeout monitor started on node {self.rank} (exit in {remaining:.0f}s)")
         super().run()
 
 
@@ -218,7 +224,7 @@ class ForceRestartTestMonitor(JobMonitor):
         return False, None
 
     def run(self):
-        logger.info(f"Test failure monitor started on node {self.rank} (will fail in {self.failure_delay_sec}s)")
+        log_all(f"Test failure monitor started on node {self.rank} (will fail in {self.failure_delay_sec}s)")
         super().run()
 
 

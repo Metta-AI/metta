@@ -1,14 +1,11 @@
 #!/usr/bin/env -S uv run
 import argparse
 import copy
-import io
 import json
 import logging
-import re
 import subprocess
 import sys
 import time
-from contextlib import redirect_stdout
 
 import sky
 import yaml
@@ -284,6 +281,7 @@ def main():
     if len(request_ids) == 1:
         time.sleep(1)
         subprocess.run(["sky", "api", "logs", request_ids[0]])
+
 
 if __name__ == "__main__":
     main()

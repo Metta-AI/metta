@@ -20,6 +20,7 @@ _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
 # Regex for SkyPilot task ID format
 _TS_RE: Final = re.compile(r"^sky(?:-managed)?-(?P<ts>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{6,9})_")
 
+
 def parse_submission_timestamp(task_id: str) -> datetime.datetime:
     """
     Parse submission timestamp from task ID.
