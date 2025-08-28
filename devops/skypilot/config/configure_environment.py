@@ -34,12 +34,15 @@ def setup_job_metadata():
     """Setup job metadata tracking (restart count, accumulated runtime)."""
     data_dir = os.environ.get("DATA_DIR", "./train_dir")
     metta_run_id = os.environ.get("METTA_RUN_ID", "default")
-    job_metadata_dir = Path(data_dir) / ".job_metadata" / metta_run_id
-    job_metadata_dir.mkdir(parents=True, exist_ok=True)
 
-    restart_count_file = job_metadata_dir / "restart_count"
-    accumulated_runtime_file = job_metadata_dir / "accumulated_runtime"
-    heartbeat_file = Path(os.environ.get("HEARTBEAT_FILE", job_metadata_dir / "heartbeat_file"))
+    shared_metadata_dir = Path(data_dir) / ".job_metadata" / metta_run_id
+    shared_metadata_dir.mkdir(parents=True, exist_ok=True)
+    restart_count_file = shared_metadata_dir / "restart_count"
+    accumulated_runtime_file = shared_metadata_dir / "accumulated_runtime"
+
+    local_metadata_dir =  Path("/tmp") / ".job_metadata" / metta_run_id
+    local_metadata_dir.mkdir(parents=True, exist_ok=True)
+    heartbeat_file = Path(os.environ.get("HEARTBEAT_FILE", local_metadata_dir / "heartbeat_file"))
 
     # Calculate IS_MASTER based on node rank
     node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))

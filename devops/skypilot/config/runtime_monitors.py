@@ -91,20 +91,39 @@ class HeartbeatMonitor(JobMonitor):
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if heartbeat has timed out."""
         try:
+            # Get file stats
             stat = os.stat(self.heartbeat_file)
             last_heartbeat_time = stat.st_mtime
-            elapsed = time.time() - last_heartbeat_time
+            current_time = time.time()
+            elapsed = current_time - last_heartbeat_time
 
+            # Check for timeout
             if elapsed > self.heartbeat_timeout:
                 log_all(f"elapsed: {elapsed} > last_heartbeat_time: {last_heartbeat_time}")
                 return True, "heartbeat_timeout"
 
-        except (OSError, FileNotFoundError):
-            # If heartbeat file doesn't exist, that's a problem - trigger timeout
-            log_warning(f"Heartbeat file not found: {self.heartbeat_file}")
+            return False, None
+
+        except FileNotFoundError:
+            log_error(f"Heartbeat file not found: {self.heartbeat_file}")
+            if not self.heartbeat_file.parent.exists():
+                log_error(f"Parent directory also missing: {self.heartbeat_file.parent}")
+                return True, "heartbeat_directory_missing"
+
             return True, "heartbeat_file_missing"
 
-        return False, None
+        except PermissionError as e:
+            log_error(f"Permission denied accessing heartbeat file: {e}")
+            return True, "heartbeat_permission_denied"
+
+        except OSError as e:
+            errno_num = getattr(e, 'errno', 'unknown')
+            log_error(f"OS error accessing heartbeat file (errno={errno_num}): {e}")
+            return True, f"heartbeat_os_error_{errno_num}"
+
+        except Exception as e:
+            log_error(f"Unexpected error checking heartbeat: {type(e).__name__}: {e}")
+            return True, f"heartbeat_unexpected_error_{type(e).__name__}"
 
     def run(self):
         log_all(f"Heartbeat monitor started on node {self.rank} (timeout: {self.heartbeat_timeout}s)")
