@@ -7,8 +7,6 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
-from metta.rl.wandb_policy_loader import get_wandb_artifact_metadata, load_policy_from_wandb_uri
-
 logger = logging.getLogger(__name__)
 
 
@@ -101,115 +99,45 @@ class CheckpointManager:
         score: Optional[float] = None,
         agent_step: Optional[int] = None,
     ):
-        """Save complete checkpoint with torch.save + YAML metadata."""
+        """Save complete checkpoint with filename-embedded metadata."""
         metadata = {"score": score or 0.0, "agent_step": agent_step or 0}
         self.save_agent(agent, epoch, metadata)
 
         if trainer_state and trainer_state.get("optimizer"):
             self.save_trainer_state(trainer_state["optimizer"], epoch, agent_step or 0)
 
-    def list_epochs(self) -> list[int]:
-        return sorted(
-            [
-                metadata["epoch"]
-                for f in self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt")
-                if (metadata := parse_checkpoint_filename(f.name)) is not None
-            ]
-        )
-
     def get_latest_epoch(self) -> Optional[int]:
-        epochs = self.list_epochs()
-        return epochs[-1] if epochs else None
-
-    def load_metadata(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        epoch = epoch or self.get_latest_epoch()
-        if epoch is None:
+        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
+        if not agent_files:
             return None
-
-        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
-        return parse_checkpoint_filename(checkpoint_files[0].name) if checkpoint_files else None
+        latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
+        return parse_checkpoint_filename(latest_file.name)["epoch"]
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
         """Find checkpoint with highest value for the given metric."""
-
-        def get_score(checkpoint_file):
-            metadata = parse_checkpoint_filename(checkpoint_file.name)
-            return metadata.get(metric, 0.0) if metadata else float("-inf")
-
         checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
-        return max(checkpoint_files, key=get_score, default=None) if checkpoint_files else None
+        if not checkpoint_files:
+            return None
+        return max(checkpoint_files, key=lambda f: parse_checkpoint_filename(f.name).get(metric, float("-inf")))
 
-    def select_checkpoints(
-        self, strategy: str = "latest", count: int = 1, metric: str = "epoch", filters: Optional[Dict[str, Any]] = None
-    ) -> List[Path]:
+    def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
         """Select checkpoints using different strategies."""
-        if not self.checkpoint_dir.exists():
+        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
+        if not checkpoint_files:
             return []
 
-        checkpoints = [
-            (file, metadata)
-            for file in self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt")
-            if (metadata := parse_checkpoint_filename(file.name)) is not None
-            and (not filters or self._matches_filters(metadata, filters))
-        ]
-
-        if not checkpoints:
-            return []
-
-        sort_strategies = {
-            "latest": lambda x: x[1].get("epoch", 0),
-            "best_score": lambda x: x[1].get(metric, float("-inf")),
-            "all": lambda x: 0,
-        }
-
-        if strategy not in sort_strategies:
+        if strategy == "latest":
+            checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)["epoch"], reverse=True)
+        elif strategy in ["best_score", "top"]:
+            checkpoint_files.sort(
+                key=lambda f: parse_checkpoint_filename(f.name).get(metric, float("-inf")), reverse=True
+            )
+        elif strategy == "all":
+            count = len(checkpoint_files)
+        else:
             raise ValueError(f"Unknown selection strategy: {strategy}")
 
-        checkpoints.sort(key=sort_strategies[strategy], reverse=True)
-        return [cp[0] for cp in checkpoints[: count if strategy != "all" else len(checkpoints)]]
-
-    def _matches_filters(self, metadata: Dict[str, Any], filters: Dict[str, Any]) -> bool:
-        """Check if metadata matches the given filters."""
-        for key, filter_value in filters.items():
-            if key not in metadata:
-                return False
-
-            metadata_value = metadata[key]
-            if isinstance(filter_value, dict):
-                if "min" in filter_value and metadata_value < filter_value["min"]:
-                    return False
-                if "max" in filter_value and metadata_value > filter_value["max"]:
-                    return False
-            elif metadata_value != filter_value:
-                return False
-
-        return True
-
-    def load_policy_from_uri(self, uri: str, device: str = "cpu"):
-        """Load a policy from either local file:// or wandb:// URI."""
-        if uri.startswith("wandb://"):
-            return load_policy_from_wandb_uri(uri, device)
-
-        if uri.startswith("file://"):
-            file_path = Path(uri[7:])  # Remove "file://" prefix
-            if file_path.exists():
-                return torch.load(file_path, map_location=device, weights_only=False)
-            logger.error(f"Local file not found: {file_path}")
-            return None
-
-        logger.error(f"Unsupported URI format: {uri}. Supported: file://, wandb://")
-        return None
-
-    def get_policy_metadata_from_uri(self, uri: str) -> Dict[str, Any]:
-        """Get metadata from a policy URI without loading the policy."""
-        if uri.startswith("wandb://"):
-            return get_wandb_artifact_metadata(uri)
-
-        if uri.startswith("file://"):
-            file_path = Path(uri[7:])
-            return parse_checkpoint_filename(file_path.name) or {}
-
-        return {}
+        return checkpoint_files[:count]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         """Clean up old checkpoints, keeping only the most recent ones."""

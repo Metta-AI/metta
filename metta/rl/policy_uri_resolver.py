@@ -65,7 +65,8 @@ class PolicyUriResolver:
             return parse_checkpoint_filename(file_path.name) or {}
         elif file_path.is_dir():
             checkpoint_manager = self._get_or_create_checkpoint_manager(file_path)
-            return checkpoint_manager.load_metadata() or {}
+            latest_file = checkpoint_manager.find_best_checkpoint("epoch")
+            return parse_checkpoint_filename(latest_file.name) if latest_file else {}
         else:
             raise FileNotFoundError(f"Path does not exist: {file_path}")
 
