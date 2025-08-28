@@ -1,0 +1,37 @@
+name: Build mettascope (nim)
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # - name: Install system dependencies
+      #   run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev libgl1-mesa-dev libxxf86vm-dev
+
+      - name: Cache nimble
+        id: cache-nimble
+        uses: actions/cache@v4
+        with:
+          path: ~/.nimble
+          key: ${{ runner.os }}-nimble-${{ hashFiles('mettascope2/mettascope2.nimble') }}
+          restore-keys: |
+            ${{ runner.os }}-nimble-
+      - uses: jiro4989/setup-nim-action@v2
+
+      - run: cd mettascope2 && nimble install -y
+
+      - name: Build mettascope2 (release)
+        run: cd mettascope2 && nim c -d:release --out:src/mettascope.out src/mettascope.nim
+
+      - name: Upload mettascope.out artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mettascope.out
+          path: mettascope2/src/mettascope.out
+          if-no-files-found: error
+
+
