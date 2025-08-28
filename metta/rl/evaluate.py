@@ -1,15 +1,160 @@
 """Policy evaluation functionality."""
 
 import logging
-from typing import Any
+import uuid
+from typing import Any, Optional
+from pathlib import Path
 
 import wandb
+import yaml
 
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
+from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
+from metta.rl.trainer_config import TrainerConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 logger = logging.getLogger(__name__)
+
+
+def evaluate_policy_remote_with_checkpoint_manager(
+    checkpoint_manager: SimpleCheckpointManager,
+    checkpoint_path: Optional[str],
+    simulations: list[SimulationConfig],
+    stats_epoch_id: uuid.UUID | None,
+    wandb_policy_name: str | None,
+    stats_client: StatsClient | None,
+    wandb_run: WandbRun | None,
+    trainer_cfg: TrainerConfig,
+) -> TaskResponse | None:
+    """
+    Create a remote evaluation task using SimpleCheckpointManager.
+    
+    This replaces the old evaluate_policy_remote function to work with
+    SimpleCheckpointManager instead of PolicyRecord objects.
+    
+    Args:
+        checkpoint_manager: SimpleCheckpointManager instance
+        checkpoint_path: Specific checkpoint path, or None for latest
+        simulations: List of simulations to run
+        stats_epoch_id: Stats epoch ID for tracking
+        wandb_policy_name: WandB policy name for artifacts
+        stats_client: Client for stats server communication
+        wandb_run: WandB run context
+        trainer_cfg: Training configuration
+    
+    Returns:
+        TaskResponse if evaluation task created, None otherwise
+    """
+    if not (wandb_run and stats_client and wandb_policy_name):
+        logger.warning("Remote evaluation requires wandb_run, stats_client, and wandb_policy_name")
+        return None
+    
+    # Get checkpoint path and metadata
+    if checkpoint_path is None:
+        checkpoint_path = checkpoint_manager.find_best_checkpoint("score")
+        if checkpoint_path is None:
+            logger.warning("No checkpoints available for remote evaluation")
+            return None
+    
+    # Load metadata from YAML sidecar
+    yaml_path = Path(checkpoint_path).with_suffix('.yaml')
+    metadata = {}
+    if yaml_path.exists():
+        with open(yaml_path) as f:
+            metadata = yaml.safe_load(f) or {}
+    else:
+        logger.warning(f"No metadata file found at {yaml_path}")
+    
+    # Validate wandb policy name format
+    if ":" not in wandb_policy_name:
+        logger.warning(f"Remote evaluation: {wandb_policy_name} does not specify a version")
+        return None
+    
+    # Process wandb policy registration
+    internal_wandb_policy_name, wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
+    stats_server_policy_id = get_or_create_policy_ids(
+        stats_client,
+        [(internal_wandb_policy_name, wandb_uri, wandb_run.notes)],
+        stats_epoch_id,
+    ).get(internal_wandb_policy_name)
+    
+    if not stats_server_policy_id:
+        logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
+        return None
+    
+    # Create evaluation task
+    task = stats_client.create_task(
+        TaskCreateRequest(
+            policy_id=stats_server_policy_id,
+            sim_suite=simulations[0].name,
+            attributes={
+                "git_hash": (trainer_cfg.evaluation and trainer_cfg.evaluation.git_hash),
+                "simulations": [sim.model_dump() for sim in simulations],
+                "checkpoint_path": str(checkpoint_path),
+                "checkpoint_metadata": metadata,
+                "run_name": checkpoint_manager.run_name,
+            },
+        )
+    )
+    
+    logger.info(
+        f"Policy evaluator: created task {task.id} for {wandb_policy_name} on {simulations[0].name} "
+        f"using checkpoint {Path(checkpoint_path).name}"
+    )
+    
+    return task
+
+
+# Legacy compatibility function for gradual migration
+def evaluate_policy_remote_legacy_adapter(
+    policy_record,  # Old PolicyRecord object  
+    simulations: list[SimulationConfig],
+    stats_epoch_id: uuid.UUID | None,
+    wandb_policy_name: str | None,
+    stats_client: StatsClient | None,
+    wandb_run: WandbRun | None,
+    trainer_cfg: TrainerConfig,
+) -> TaskResponse | None:
+    """
+    Legacy adapter for old evaluate_policy_remote calls.
+    
+    This provides backward compatibility during migration period.
+    Should be removed once all callers are updated.
+    """
+    logger.warning(
+        "Using legacy evaluate_policy_remote adapter. "
+        "Update to use evaluate_policy_remote_with_checkpoint_manager instead."
+    )
+    
+    # Try to extract information from policy_record mock
+    if hasattr(policy_record, 'uri') and policy_record.uri:
+        # Extract checkpoint path from URI
+        checkpoint_path = policy_record.uri.replace('file://', '') if policy_record.uri.startswith('file://') else None
+        
+        # Create a temporary checkpoint manager for the call
+        if checkpoint_path and Path(checkpoint_path).exists():
+            run_dir = str(Path(checkpoint_path).parent.parent)
+            run_name = Path(run_dir).name
+            checkpoint_manager = SimpleCheckpointManager(run_dir=run_dir, run_name=run_name)
+            
+            return evaluate_policy_remote_with_checkpoint_manager(
+                checkpoint_manager=checkpoint_manager,
+                checkpoint_path=checkpoint_path,
+                simulations=simulations,
+                stats_epoch_id=stats_epoch_id,
+                wandb_policy_name=wandb_policy_name,
+                stats_client=stats_client,
+                wandb_run=wandb_run,
+                trainer_cfg=trainer_cfg,
+            )
+    
+    logger.error("Cannot extract valid checkpoint information from policy_record")
+    return None
 
 
 def upload_replay_html(

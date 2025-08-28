@@ -48,8 +48,8 @@ class SimpleCheckpointManager:
 
         logger.info(f"Loading agent from {latest_checkpoint}")
         try:
-            # Load without weights_only for compatibility with older PyTorch versions
-            agent = torch.load(latest_checkpoint, map_location="cpu")
+            # Load without weights_only for compatibility with older PyTorch versions and custom classes
+            agent = torch.load(latest_checkpoint, map_location="cpu", weights_only=False)
             if not isinstance(agent, MettaAgent):
                 raise ValueError(f"Checkpoint contains {type(agent)}, expected MettaAgent")
             return agent
@@ -116,7 +116,7 @@ class SimpleCheckpointManager:
 
         logger.info(f"Loading trainer state from {trainer_path}")
         try:
-            state = torch.load(trainer_path, map_location="cpu")
+            state = torch.load(trainer_path, map_location="cpu", weights_only=False)
             return state
         except Exception as e:
             logger.error(f"Failed to load trainer state from {trainer_path}: {e}")

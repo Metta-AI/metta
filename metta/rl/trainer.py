@@ -26,7 +26,7 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
 
 # from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint  # OLD - REMOVED
-from metta.rl.evaluate import upload_replay_html
+from metta.rl.evaluate import upload_replay_html, evaluate_policy_remote_with_checkpoint_manager
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
@@ -185,13 +185,16 @@ def train(
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-    # Create kickstarter (simplified - no policy_store needed)
-    kickstarter = None  # Disabled for now - needs update for SimpleCheckpointManager
-    # kickstarter = Kickstarter(
-    #     cfg=trainer_cfg.kickstart,
-    #     device=device,
-    #     metta_grid_env=metta_grid_env,
-    # )
+    # Create kickstarter (using PolicyStore stub for compatibility)
+    from metta.agent.policy_store import PolicyStore
+
+    policy_store = PolicyStore.create()  # Use stub for compatibility
+    kickstarter = Kickstarter(
+        cfg=trainer_cfg.kickstart,
+        device=device,
+        policy_store=policy_store,
+        metta_grid_env=metta_grid_env,
+    )
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
@@ -535,9 +538,28 @@ def train(
                     evaluate_local = trainer_cfg.evaluation.evaluate_local
                     if trainer_cfg.evaluation.evaluate_remote:
                         try:
-                            # TODO: Update remote evaluation to work with SimpleCheckpointManager
-                            logger.warning("Remote evaluation not yet implemented with SimpleCheckpointManager")
-                            evaluate_local = True
+                            # Use SimpleCheckpointManager for remote evaluation
+                            wandb_policy_name = f"{run}:{epoch}" if wandb_run else None
+
+                            task_response = evaluate_policy_remote_with_checkpoint_manager(
+                                checkpoint_manager=checkpoint_manager,
+                                checkpoint_path=None,  # Use best checkpoint
+                                simulations=sims,
+                                stats_epoch_id=stats_tracker.stats_epoch_id,
+                                wandb_policy_name=wandb_policy_name,
+                                stats_client=stats_client,
+                                wandb_run=wandb_run,
+                                trainer_cfg=trainer_cfg,
+                            )
+
+                            if task_response:
+                                logger.info(f"Remote evaluation task created: {task_response.id}")
+                                # Remote evaluation initiated successfully, skip local evaluation
+                                evaluate_local = False
+                            else:
+                                logger.warning("Failed to create remote evaluation task, falling back to local")
+                                evaluate_local = True
+
                         except Exception as e:
                             logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
                             logger.error("Falling back to local evaluation")

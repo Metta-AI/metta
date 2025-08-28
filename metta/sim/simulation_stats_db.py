@@ -15,13 +15,71 @@ from typing import Dict, List, Tuple, Union
 
 import duckdb
 
-from metta.agent.policy_record import PolicyRecord
 from metta.mettagrid.episode_stats_db import EpisodeStatsDB
 from metta.mettagrid.util.file import exists, local_copy, write_file
+from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
 # ------------------------------------------------------------------ #
+
+
+class SimpleCheckpointInfo:
+    """Lightweight info object for database integration.
+
+    Replaces PolicyRecord for database operations - only contains
+    essential information needed for database storage and retrieval.
+    """
+
+    def __init__(self, run_name: str, epoch: int, metadata: dict | None = None):
+        self.run_name = run_name
+        self.epoch = epoch
+        self.metadata = metadata or {}
+
+    @property
+    def uri(self) -> str:
+        """Generate a consistent URI format for database storage."""
+        return f"checkpoint://{self.run_name}/epoch_{self.epoch:04d}"
+
+    def key_and_version(self) -> tuple[str, int]:
+        """Extract (key, version) tuple for database normalization."""
+        return self.run_name, self.epoch
+
+    @classmethod
+    def from_checkpoint_manager(
+        cls, checkpoint_manager: SimpleCheckpointManager, checkpoint_path: str | None = None
+    ) -> "SimpleCheckpointInfo":
+        """Create SimpleCheckpointInfo from SimpleCheckpointManager.
+
+        Args:
+            checkpoint_manager: SimpleCheckpointManager instance
+            checkpoint_path: Specific checkpoint path, or None for best checkpoint
+
+        Returns:
+            SimpleCheckpointInfo with extracted metadata
+        """
+        if checkpoint_path is None:
+            checkpoint_path = checkpoint_manager.find_best_checkpoint("score")
+            if checkpoint_path is None:
+                raise ValueError("No checkpoints found in checkpoint manager")
+
+        # Extract epoch from checkpoint path
+        from pathlib import Path
+
+        checkpoint_name = Path(checkpoint_path).stem
+        if checkpoint_name.startswith("model_"):
+            try:
+                epoch = int(checkpoint_name.split("_")[1])
+            except (IndexError, ValueError):
+                epoch = 0
+        else:
+            epoch = 0
+
+        # Load metadata if available
+        metadata = checkpoint_manager.load_metadata(checkpoint_path) or {}
+
+        return cls(run_name=checkpoint_manager.run_name, epoch=epoch, metadata=metadata)
+
 
 # TODO: add a githash
 SIMULATION_DB_TABLES = {
@@ -80,11 +138,27 @@ class SimulationStatsDB(EpisodeStatsDB):
         *,
         sim_id: str,
         dir_with_shards: Union[str, Path],
-        agent_map: Dict[int, PolicyRecord],
+        agent_map: Dict[int, Union["SimpleCheckpointInfo", Tuple[str, int]]],
         sim_name: str,
         sim_env: str,
-        policy_record: PolicyRecord,
+        policy_info: Union["SimpleCheckpointInfo", Tuple[str, int]],
     ) -> "SimulationStatsDB":
+        """Create SimulationStatsDB from checkpoint shards and context.
+
+        Now supports both SimpleCheckpointInfo objects and simple (key, version) tuples.
+        This provides a clean migration path from PolicyRecord to SimpleCheckpointManager.
+
+        Args:
+            sim_id: Unique simulation identifier
+            dir_with_shards: Directory containing .duckdb shard files
+            agent_map: Maps agent_id -> checkpoint info (SimpleCheckpointInfo or (key, version))
+            sim_name: Human-readable simulation name
+            sim_env: Environment name
+            policy_info: Main policy info (SimpleCheckpointInfo or (key, version))
+
+        Returns:
+            SimulationStatsDB with merged data from all shards
+        """
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"
 
@@ -102,7 +176,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         merged = SimulationStatsDB(merged_path)
 
-        policy_key, policy_version = merged.key_and_version(policy_record)
+        policy_key, policy_version = merged._extract_key_and_version(policy_info)
         merged._insert_simulation(
             sim_id=sim_id,
             name=sim_name,
@@ -121,8 +195,10 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"Found {len(all_episode_ids)} episodes across all shards")
 
         if all_episode_ids:
-            # Convert agent_map with PolicyRecord to agent_map with (key, version) tuples
-            agent_tuple_map = {agent_id: merged.key_and_version(record) for agent_id, record in agent_map.items()}
+            # Convert agent_map to (key, version) tuples
+            agent_tuple_map = {
+                agent_id: merged._extract_key_and_version(record) for agent_id, record in agent_map.items()
+            }
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
             merged._update_episode_simulations(all_episode_ids, sim_id)
@@ -256,8 +332,18 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
-    def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
-        return pr.uri or "unknown", pr.metadata.epoch or 0
+    def _extract_key_and_version(self, info: Union["SimpleCheckpointInfo", Tuple[str, int]]) -> tuple[str, int]:
+        """Extract (key, version) from various input formats.
+
+        Supports both SimpleCheckpointInfo objects and direct (key, version) tuples.
+        """
+        if isinstance(info, tuple) and len(info) == 2:
+            return info
+        elif hasattr(info, "key_and_version"):
+            return info.key_and_version()
+        else:
+            # Fallback for compatibility
+            return str(info), 0
 
     def _merge_db(self, other_path: Path) -> None:
         """

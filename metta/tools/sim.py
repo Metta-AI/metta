@@ -95,7 +95,7 @@ class SimTool(Tool):
                     if best_path:
                         import torch
 
-                        agent = torch.load(best_path, map_location="cpu")
+                        agent = torch.load(best_path, map_location="cpu", weights_only=False)
                         # Get metadata from corresponding YAML file
                         yaml_path = best_path.replace(".pt", ".yaml")
                         metadata = {}

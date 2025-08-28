@@ -3,12 +3,9 @@ from __future__ import annotations
 import datetime
 import uuid
 from pathlib import Path
-from typing import cast
 
 from duckdb import DuckDBPyConnection
 
-from metta.agent.mocks import MockPolicyRecord
-from metta.agent.policy_record import PolicyRecord
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 _DUMMY_AGENT_MAP = {0: ("dummy_policy", 0)}
@@ -277,17 +274,17 @@ def test_from_shards_and_context(tmp_path: Path):
     # Check that the merged database doesn't exist yet
     assert not merged_path.exists(), "Merged DB already exists"
 
-    # Create agent map with our mock PolicyRecord
-    agent_map = {0: MockPolicyRecord.from_key_and_version("test_policy", 1)}
+    # Create agent map with simple (key, version) tuples
+    agent_map = {0: ("test_policy", 1)}
 
-    # Now call the actual from_shards_and_context method
+    # Now call the actual from_shards_and_context method using SimpleCheckpointInfo tuple format
     merged_db = SimulationStatsDB.from_shards_and_context(
         sim_id="sim_id",
         dir_with_shards=shard_dir,
-        agent_map=cast(dict[int, PolicyRecord], agent_map),
+        agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_record=cast(PolicyRecord, MockPolicyRecord.from_key_and_version("test_policy", 1)),
+        policy_info=("test_policy", 1),
     )
 
     # Verify merged database was created
