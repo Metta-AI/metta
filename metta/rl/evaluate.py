@@ -31,11 +31,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
     wandb_run: WandbRun | None,
     trainer_cfg: TrainerConfig,
 ) -> TaskResponse | None:
-    """
-    Create a remote evaluation task using CheckpointManager.
-
-    This replaces the old evaluate_policy_remote function to work with
-    CheckpointManager instead of PolicyRecord objects.
+    """Create a remote evaluation task using CheckpointManager.
 
     Args:
         checkpoint_manager: CheckpointManager instance

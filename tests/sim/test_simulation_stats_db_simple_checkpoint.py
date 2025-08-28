@@ -120,10 +120,10 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
     merged_db = SimulationStatsDB.from_shards_and_context(
         sim_id=sim_id,
         dir_with_shards=shard_dir,
-        agent_map=agent_map,  # Now using simple tuples instead of PolicyRecord objects
+        agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_record=checkpoint_info,  # Checkpoint instead of PolicyRecord
+        policy_record=checkpoint_info,
     )
 
     # Verify the merged database contains our data
@@ -155,7 +155,7 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
 
 
 def test_checkpoint_info_compatibility():
-    """Test that Checkpoint provides the same interface as PolicyRecord for database operations."""
+    """Test that Checkpoint provides the required interface for database operations."""
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
@@ -191,8 +191,7 @@ def test_checkpoint_info_compatibility():
 
 
 def test_database_policy_lookup_with_checkpoints(tmp_path: Path):
-    """
-    Test database policy lookups using checkpoint information instead of PolicyRecord.
+    """Test database policy lookups using checkpoint information.
     This demonstrates how evaluation/analysis would work with CheckpointManager.
     """
 
