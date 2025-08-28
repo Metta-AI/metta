@@ -411,6 +411,9 @@ def main():
                 text=True,
             )
 
+            if is_master and result.stdout:
+                print(result.stdout)
+
             if result.returncode != 0:
                 log_error(f"NCCL tests failed: {result.stderr}")
                 sys.exit(EXIT_NCCL_TEST_FAILURE)
