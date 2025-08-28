@@ -17,10 +17,8 @@ from typing import Final
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
 
-# Regex for current SkyPilot task ID format
-# Accepts 6-9 digit microseconds (macOS can produce 9 digits)
-_TS_RE: Final = re.compile(r"^sky-(?P<ts>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{6,9})_")
-
+# Regex for SkyPilot task ID format
+_TS_RE: Final = re.compile(r"^sky(?:-managed)?-(?P<ts>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{6,9})_")
 
 def parse_submission_timestamp(task_id: str) -> datetime.datetime:
     """
