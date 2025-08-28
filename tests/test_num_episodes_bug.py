@@ -9,20 +9,32 @@ import uuid
 from pathlib import Path
 
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.checkpoint_manager import parse_checkpoint_filename
 
 
-def create_test_database(db_path: Path, num_episodes_requested: int, num_episodes_completed: int, num_agents: int = 2):
+def create_test_database(
+    db_path: Path,
+    num_episodes_requested: int,
+    num_episodes_completed: int,
+    num_agents: int = 2,
+    checkpoint_filename: str = "test_policy---e1_s1000_t30s.pt",
+):
     """Create a test database that simulates the bug scenario."""
     db = EvalStatsDB(db_path)
 
     # Create a simulation
     sim_id = uuid.uuid4().hex[:8]
+    # Use checkpoint filename to extract policy information automatically
+    metadata = parse_checkpoint_filename(checkpoint_filename)
+    policy_key = metadata["run"]
+    policy_version = metadata["epoch"]
+
     db.con.execute(
         """
         INSERT INTO simulations (id, name, env, policy_key, policy_version)
         VALUES (?, ?, ?, ?, ?)
     """,
-        (sim_id, "test_sim", "test_env", "test_policy", 1),
+        (sim_id, "test_sim", "test_env", policy_key, policy_version),
     )
 
     # Create episodes - THIS IS KEY: we might create records for all requested episodes
@@ -47,7 +59,7 @@ def create_test_database(db_path: Path, num_episodes_requested: int, num_episode
                 INSERT INTO agent_policies (episode_id, agent_id, policy_key, policy_version)
                 VALUES (?, ?, ?, ?)
             """,
-                (episode_id, agent_id, "test_policy", 1),
+                (episode_id, agent_id, policy_key, policy_version),
             )
 
     # But only create metrics for COMPLETED episodes
@@ -68,8 +80,15 @@ def create_test_database(db_path: Path, num_episodes_requested: int, num_episode
 
 
 def test_normalization_bug():
-    """Test that demonstrates the normalization bug and the fix."""
+    """Test that demonstrates the normalization bug and the fix.
+
+    Also showcases the new filename-based checkpoint metadata system:
+    - No more manual epoch tracking
+    - All metadata extracted from checkpoint filename automatically
+    - Cleaner, more maintainable code
+    """
     print("Testing num_episodes normalization bug...")
+    print("(Also demonstrating new checkpoint metadata system)")
     print("=" * 60)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -79,10 +98,18 @@ def test_normalization_bug():
             Path(tmpdir) / "test1.duckdb", num_episodes_requested=1, num_episodes_completed=1, num_agents=2
         )
 
-        # Calculate metrics
+        # Demonstrate new filename-based checkpoint metadata system
+        # OLD WAY: checkpoint_path, epoch = "test_policy", 1  # Manual tuple tracking
+        # NEW WAY: Everything extracted automatically from filename
+        checkpoint_filename = "test_policy---e1_s1000_t30s.pt"
+        metadata = parse_checkpoint_filename(checkpoint_filename)
+        checkpoint_path, epoch = metadata["run"], metadata["epoch"]
 
-        # Use checkpoint metadata directly
-        checkpoint_path, epoch = "test_policy", 1
+        print(f"  Checkpoint file: {checkpoint_filename}")
+        print(f"  Extracted metadata: {metadata}")
+        print(
+            f"  Policy: {checkpoint_path}, Epoch: {epoch}, Steps: {metadata['agent_step']}, Training time: {metadata['total_time']}s"
+        )
 
         # Check what's in the database
         episodes_count = db1.query("SELECT COUNT(*) as cnt FROM episodes")["cnt"][0]
@@ -119,20 +146,23 @@ def test_normalization_bug():
         print("\nDiagnosing the normalization:")
         print("-" * 40)
 
-        # Get the potential samples count
-        potential = db2.potential_samples_for_metric("test_policy", 1)
+        # Get the potential samples count using metadata from checkpoint filename
+        potential = db2.potential_samples_for_metric(checkpoint_path, epoch)
         print(f"  Potential samples (from agent_policies): {potential}")
 
         # Get the actual recorded metrics
-        recorded = db2.count_metric_agents("test_policy", 1, "reward")
+        recorded = db2.count_metric_agents(checkpoint_path, epoch, "reward")
         print(f"  Recorded metrics: {recorded}")
 
         # Get the sum
-        sum_query = db2.query("""
+        sum_query = db2.query(
+            """
             SELECT SUM(value) as total
             FROM policy_simulation_agent_metrics
-            WHERE policy_key = 'test_policy' AND policy_version = 1 AND metric = 'reward'
-        """)
+            WHERE policy_key = ? AND policy_version = ? AND metric = 'reward'
+        """,
+            (checkpoint_path, epoch),
+        )
         total = sum_query["total"][0] if not sum_query.empty else 0
         print(f"  Sum of rewards: {total}")
         print(f"  Normalization: {total} / {potential} = {total / potential if potential > 0 else 'N/A'}")
