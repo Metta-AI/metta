@@ -35,6 +35,12 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
     arena_env.game.objects["altar"].input_resources = {"battery_red": 1}
 
+    # Ensure transfer exists in action space everywhere to keep action spaces identical.
+    # Gate to traders so it's a no-op in standard arena (no trader group present).
+    arena_env.game.actions.transfer.enabled = True
+    arena_env.game.actions.transfer.trader_only = True
+    arena_env.game.actions.transfer.trader_group_id = 99
+
     return arena_env
 
 
