@@ -1,8 +1,8 @@
 """
-Tests for SimpleCheckpointManager caching patterns.
+Tests for CheckpointManager caching patterns.
 Rewritten from the original PolicyCache tests to show equivalent caching operations.
 
-Note: SimpleCheckpointManager doesn't have built-in caching, but this shows
+Note: CheckpointManager doesn't have built-in caching, but this shows
 how caching could be implemented if needed, or how the system works without
 the complex caching layer.
 """
@@ -17,6 +17,7 @@ import pytest
 import torch
 
 from metta.agent.mocks import MockAgent
+from metta.rl.checkpoint_manager import CheckpointManager
 
 
 @pytest.fixture
@@ -28,8 +29,8 @@ def temp_run_dir():
 
 @pytest.fixture
 def checkpoint_manager(temp_run_dir):
-    """Create a SimpleCheckpointManager for testing."""
-    return SimpleCheckpointManager(run_dir=temp_run_dir, run_name="test_run")
+    """Create a CheckpointManager for testing."""
+    return CheckpointManager(run_dir=temp_run_dir, run_name="test_run")
 
 
 @pytest.fixture
@@ -40,7 +41,7 @@ def mock_agent():
 
 class MockCheckpointCache:
     """
-    Mock implementation of what a checkpoint cache could look like for SimpleCheckpointManager.
+    Mock implementation of what a checkpoint cache could look like for CheckpointManager.
     This demonstrates the equivalent functionality to PolicyCache.
     """
 
@@ -85,23 +86,24 @@ class MockCheckpointCache:
         return self._access_counter
 
 
-class SimpleCheckpointManagerWithCache:
+class CheckpointManagerWithCache:
     """
-    Wrapper around SimpleCheckpointManager that adds caching.
+    Wrapper around CheckpointManager that adds caching.
     This demonstrates how caching could be added if needed.
     """
 
     def __init__(self, run_dir: str, run_name: str, cache_size: int = 3):
-        self.checkpoint_manager = SimpleCheckpointManager(run_dir=run_dir, run_name=run_name)
+        self.checkpoint_manager = CheckpointManager(run_dir=run_dir, run_name=run_name)
         self.cache = MockCheckpointCache(max_size=cache_size)
 
-    def load_agent_cached(self, checkpoint_path: str = None):
+    def load_agent_cached(self, epoch: int = None):
         """Load agent with caching."""
-        if checkpoint_path is None:
+        if epoch is None:
             # Load latest - can't cache this easily since "latest" changes
             return self.checkpoint_manager.load_agent()
 
         # Check cache first
+        checkpoint_path = str(self.checkpoint_manager.checkpoint_dir / f"agent_epoch_{epoch}.pt")
         cached_agent = self.cache.get(checkpoint_path)
         if cached_agent is not None:
             return cached_agent
@@ -119,8 +121,8 @@ class SimpleCheckpointManagerWithCache:
         return self.checkpoint_manager.save_agent(agent, epoch, metadata)
 
 
-class TestSimpleCheckpointManagerCachingBasics:
-    """Test basic caching operations for SimpleCheckpointManager pattern."""
+class TestCheckpointManagerCachingBasics:
+    """Test basic caching operations for CheckpointManager pattern."""
 
     def test_cache_init_with_invalid_size(self):
         """Test that cache initialization fails with invalid size."""
@@ -134,7 +136,7 @@ class TestSimpleCheckpointManagerCachingBasics:
         """Test basic put and get operations with checkpoints."""
         cache = MockCheckpointCache(max_size=3)
 
-        checkpoint_path = str(Path(temp_run_dir) / "model_0001.pt")
+        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / "agent_epoch_1.pt")
 
         # Put an agent
         cache.put(checkpoint_path, mock_agent)
@@ -152,7 +154,7 @@ class TestSimpleCheckpointManagerCachingBasics:
         """Test updating an existing checkpoint in cache."""
         cache = MockCheckpointCache()
 
-        checkpoint_path = str(Path(temp_run_dir) / "model_0001.pt")
+        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / "agent_epoch_1.pt")
         agent1 = MockAgent()
         agent2 = MockAgent()
 
@@ -162,7 +164,7 @@ class TestSimpleCheckpointManagerCachingBasics:
         assert cache.get(checkpoint_path) is agent2
 
 
-class TestSimpleCheckpointManagerCachingLRU:
+class TestCheckpointManagerCachingLRU:
     """Test LRU eviction behavior for checkpoint caching."""
 
     def test_lru_eviction_with_checkpoints(self, temp_run_dir):
@@ -170,16 +172,17 @@ class TestSimpleCheckpointManagerCachingLRU:
         cache = MockCheckpointCache(max_size=3)
 
         # Create checkpoint paths
-        paths = [str(Path(temp_run_dir) / f"model_{i:04d}.pt") for i in range(1, 5)]
+        base_path = Path(temp_run_dir) / "test_run" / "checkpoints"
+        paths = [str(base_path / f"agent_epoch_{i}.pt") for i in range(1, 5)]
         agents = [MockAgent() for _ in range(4)]
 
         # Fill cache to capacity
-        cache.put(paths[0], agents[0])  # model_0001.pt
-        cache.put(paths[1], agents[1])  # model_0002.pt
-        cache.put(paths[2], agents[2])  # model_0003.pt
+        cache.put(paths[0], agents[0])  # agent_epoch_1.pt
+        cache.put(paths[1], agents[1])  # agent_epoch_2.pt
+        cache.put(paths[2], agents[2])  # agent_epoch_3.pt
 
-        # Add one more, should evict model_0001.pt (least recently used)
-        cache.put(paths[3], agents[3])  # model_0004.pt
+        # Add one more, should evict agent_epoch_1.pt (least recently used)
+        cache.put(paths[3], agents[3])  # agent_epoch_4.pt
 
         assert cache.get(paths[0]) is None  # Evicted
         assert cache.get(paths[1]) is not None
@@ -190,19 +193,20 @@ class TestSimpleCheckpointManagerCachingLRU:
         """Test LRU with specific checkpoint access pattern."""
         cache = MockCheckpointCache(max_size=3)
 
-        paths = [str(Path(temp_run_dir) / f"model_{i:04d}.pt") for i in range(1, 5)]
+        base_path = Path(temp_run_dir) / "test_run" / "checkpoints"
+        paths = [str(base_path / f"agent_epoch_{i}.pt") for i in range(1, 5)]
         agents = [MockAgent() for _ in range(4)]
 
         # Fill cache
-        cache.put(paths[0], agents[0])  # model_0001.pt
-        cache.put(paths[1], agents[1])  # model_0002.pt
-        cache.put(paths[2], agents[2])  # model_0003.pt
+        cache.put(paths[0], agents[0])  # agent_epoch_1.pt
+        cache.put(paths[1], agents[1])  # agent_epoch_2.pt
+        cache.put(paths[2], agents[2])  # agent_epoch_3.pt
 
-        # Access model_0001.pt and model_0003.pt to make them recently used
+        # Access agent_epoch_1.pt and agent_epoch_3.pt to make them recently used
         cache.get(paths[0])
         cache.get(paths[2])
 
-        # Add model_0004.pt, should evict model_0002.pt (least recently used)
+        # Add agent_epoch_4.pt, should evict agent_epoch_2.pt (least recently used)
         cache.put(paths[3], agents[3])
 
         assert cache.get(paths[0]) is not None  # Still in cache
@@ -211,44 +215,44 @@ class TestSimpleCheckpointManagerCachingLRU:
         assert cache.get(paths[3]) is not None  # Newly added
 
 
-class TestSimpleCheckpointManagerCachingIntegration:
-    """Test integrated caching with SimpleCheckpointManager."""
+class TestCheckpointManagerCachingIntegration:
+    """Test integrated caching with CheckpointManager."""
 
     def test_cached_checkpoint_manager_basic_operations(self, temp_run_dir, mock_agent):
         """Test basic operations with cached checkpoint manager."""
-        cached_manager = SimpleCheckpointManagerWithCache(run_dir=temp_run_dir, run_name="test_run", cache_size=3)
+        cached_manager = CheckpointManagerWithCache(run_dir=temp_run_dir, run_name="test_run", cache_size=3)
 
         # Save some checkpoints
         cached_manager.save_agent(mock_agent, epoch=1, metadata={"score": 0.5})
         cached_manager.save_agent(mock_agent, epoch=2, metadata={"score": 0.8})
 
         # Get checkpoint paths
-        checkpoint_dir = Path(temp_run_dir) / "checkpoints"
-        path1 = str(checkpoint_dir / "model_0001.pt")
+        checkpoint_dir = Path(temp_run_dir) / "test_run" / "checkpoints"
+        path1 = str(checkpoint_dir / "agent_epoch_1.pt")
 
         # First load should read from disk and cache
         with patch("torch.load") as mock_load:
             mock_load.return_value = mock_agent
 
-            agent1 = cached_manager.load_agent_cached(path1)
+            agent1 = cached_manager.load_agent_cached(epoch=1)
             assert agent1 is mock_agent
             assert mock_load.call_count == 1
 
             # Second load of same checkpoint should use cache
-            agent1_cached = cached_manager.load_agent_cached(path1)
+            agent1_cached = cached_manager.load_agent_cached(epoch=1)
             assert agent1_cached is mock_agent
             assert mock_load.call_count == 1  # No additional disk read
 
     def test_cache_performance_simulation(self, temp_run_dir, mock_agent):
         """Simulate performance benefits of caching checkpoint loads."""
-        cached_manager = SimpleCheckpointManagerWithCache(run_dir=temp_run_dir, run_name="test_run", cache_size=5)
+        cached_manager = CheckpointManagerWithCache(run_dir=temp_run_dir, run_name="test_run", cache_size=5)
 
         # Save multiple checkpoints
         for epoch in range(1, 8):
             cached_manager.save_agent(mock_agent, epoch=epoch, metadata={"score": epoch * 0.1})
 
-        checkpoint_dir = Path(temp_run_dir) / "checkpoints"
-        checkpoint_paths = [str(checkpoint_dir / f"model_{i:04d}.pt") for i in range(1, 8)]
+        checkpoint_dir = Path(temp_run_dir) / "test_run" / "checkpoints"
+        checkpoint_paths = [str(checkpoint_dir / f"agent_epoch_{i}.pt") for i in range(1, 8)]
 
         # Simulate repeated access pattern (some checkpoints accessed frequently)
         access_pattern = [
@@ -284,7 +288,7 @@ class TestSimpleCheckpointManagerCachingIntegration:
         print(f"Cache performance: {cache_hits} hits, {disk_loads} disk loads out of {len(access_pattern)} accesses")
 
 
-class TestSimpleCheckpointManagerCachingConcurrency:
+class TestCheckpointManagerCachingConcurrency:
     """Test thread safety of checkpoint caching."""
 
     def test_concurrent_checkpoint_cache_access(self, temp_run_dir):
@@ -295,7 +299,7 @@ class TestSimpleCheckpointManagerCachingConcurrency:
         def worker(worker_id):
             try:
                 for i in range(10):
-                    checkpoint_path = str(Path(temp_run_dir) / f"worker_{worker_id}_model_{i:04d}.pt")
+                    checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / f"worker_{worker_id}_agent_epoch_{i}.pt")
                     agent = MockAgent()
                     cache.put(checkpoint_path, agent)
                     time.sleep(0.001)  # Small delay to increase contention
@@ -320,7 +324,7 @@ class TestSimpleCheckpointManagerCachingConcurrency:
 
         # Pre-populate some entries
         for i in range(5):
-            checkpoint_path = str(Path(temp_run_dir) / f"initial_model_{i:04d}.pt")
+            checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / f"initial_agent_epoch_{i}.pt")
             cache.put(checkpoint_path, MockAgent())
 
         def worker(worker_id):
@@ -328,11 +332,11 @@ class TestSimpleCheckpointManagerCachingConcurrency:
                 for i in range(10):
                     if i % 2 == 0:
                         # Put operation
-                        checkpoint_path = str(Path(temp_run_dir) / f"worker_{worker_id}_model_{i:04d}.pt")
+                        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / f"worker_{worker_id}_agent_epoch_{i}.pt")
                         cache.put(checkpoint_path, MockAgent())
                     else:
                         # Get operation
-                        checkpoint_path = str(Path(temp_run_dir) / f"initial_model_{i % 5:04d}.pt")
+                        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / f"initial_agent_epoch_{i % 5}.pt")
                         cache.get(checkpoint_path)
 
                     time.sleep(0.0001)
@@ -351,8 +355,8 @@ class TestSimpleCheckpointManagerCachingConcurrency:
         assert len(errors) == 0
 
 
-class TestSimpleCheckpointManagerWithoutCaching:
-    """Test that SimpleCheckpointManager works well without complex caching."""
+class TestCheckpointManagerWithoutCaching:
+    """Test that CheckpointManager works well without complex caching."""
 
     def test_direct_load_performance_characteristics(self, checkpoint_manager, mock_agent):
         """Test that direct loading from disk is acceptable for most use cases."""
@@ -364,9 +368,9 @@ class TestSimpleCheckpointManagerWithoutCaching:
         # Test loading different checkpoints
         load_times = []
 
-        for _ in range(10):  # Simulate multiple loads
+        for epoch in range(1, 6):  # Simulate multiple loads
             start_time = time.time()
-            agent = checkpoint_manager.load_agent()
+            agent = checkpoint_manager.load_agent(epoch=epoch)
             end_time = time.time()
 
             load_times.append(end_time - start_time)
@@ -390,8 +394,8 @@ class TestSimpleCheckpointManagerWithoutCaching:
         # (unlike a cache that would keep multiple agents in memory)
 
         agents_loaded = []
-        for _epoch in [1, 3, 5, 7, 9]:
-            agent = checkpoint_manager.load_agent()
+        for epoch in [1, 3, 5, 7, 9]:
+            agent = checkpoint_manager.load_agent(epoch=epoch)
             agents_loaded.append(agent)
             # In real usage, each agent would be used and then could be garbage collected
             # No cache means no additional memory overhead
