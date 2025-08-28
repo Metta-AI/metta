@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 def parse_checkpoint_filename(filename: str) -> Optional[Dict[str, Any]]:
     """Parse checkpoint metadata from filename.
     
-    Format: {run_name}-e{epoch}_s{agent_step}_t{total_time}s.pt
-    Example: kickstart_test-e5_s5280_t18s.pt
+    Format: {run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt
+    Example: kickstart_test---e5_s5280_t18s.pt
     """
-    pattern = r"(.+)-e(\d+)_s(\d+)_t(\d+)s\.pt"
+    pattern = r"(.+)---e(\d+)_s(\d+)_t(\d+)s\.pt"
     match = re.match(pattern, filename)
     if match:
         return {
@@ -40,11 +40,11 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
 
     def exists(self) -> bool:
-        return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}-e*_s*_t*s.pt"))
+        return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"))
 
     def load_latest_agent(self):
         """Load the latest agent using torch.load(weights_only=False)."""
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}-e*_s*_t*s.pt"))
+        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"))
         if not agent_files:
             return None
 
@@ -86,7 +86,7 @@ class CheckpointManager:
         total_time = int(metadata.get("total_time", 0))
         
         # Generate filename with embedded metadata
-        filename = f"{self.run_name}-e{epoch}_s{agent_step}_t{total_time}s.pt"
+        filename = f"{self.run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt"
         agent_file = self.checkpoint_dir / filename
         
         # Save agent with torch.save
@@ -146,7 +146,7 @@ class CheckpointManager:
             return None
 
         # Find checkpoint file with this epoch
-        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}-e{epoch}_s*_t*s.pt"))
+        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e{epoch}_s*_t*s.pt"))
         if checkpoint_files:
             return parse_checkpoint_filename(checkpoint_files[0].name)
         return None
@@ -159,7 +159,7 @@ class CheckpointManager:
         best_score = float("-inf")
         best_file = None
 
-        for checkpoint_file in self.checkpoint_dir.glob(f"{self.run_name}-e*_s*_t*s.pt"):
+        for checkpoint_file in self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"):
             try:
                 metadata = parse_checkpoint_filename(checkpoint_file.name)
                 if metadata is None:
@@ -184,7 +184,7 @@ class CheckpointManager:
             return []
 
         checkpoints = []
-        for checkpoint_file in self.checkpoint_dir.glob(f"{self.run_name}-e*_s*_t*s.pt"):
+        for checkpoint_file in self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"):
             try:
                 metadata = parse_checkpoint_filename(checkpoint_file.name)
                 if not metadata:
@@ -277,7 +277,7 @@ class CheckpointManager:
         if not self.checkpoint_dir.exists():
             return 0
 
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}-e*_s*_t*s.pt"))
+        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"))
         if len(agent_files) <= keep_last_n:
             return 0
 
