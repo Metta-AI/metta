@@ -35,10 +35,11 @@ jobs:
       - name: Upload mettascope2 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mettascope.out
+          name: mettascope2
           path: |
             mettascope2/src/mettascope.out
             mettascope2/data/
+            mettascope2/replays
           if-no-files-found: error
 
 
