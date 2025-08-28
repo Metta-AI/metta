@@ -67,18 +67,15 @@ class CheckpointManager:
         agent_file = self.checkpoint_dir / f"agent_epoch_{epoch}.pt"
         torch.save(agent, agent_file)
 
-        # Extract relevant metadata fields
-        score = metadata.get("score", 0.0)
-        agent_step = metadata.get("agent_step", 0)
-
-        # Save YAML metadata for integration
-        yaml_metadata = {
-            "run": self.run_name,
-            "epoch": epoch,
-            "agent_step": agent_step,
-            "score": score,
-            "checkpoint_file": agent_file.name,
-        }
+        # Preserve full metadata and add essential checkpoint fields
+        yaml_metadata = metadata.copy()
+        yaml_metadata.update(
+            {
+                "run": self.run_name,
+                "epoch": epoch,
+                "checkpoint_file": agent_file.name,
+            }
+        )
 
         yaml_file = self.checkpoint_dir / f"agent_epoch_{epoch}.yaml"
         with open(yaml_file, "w") as f:

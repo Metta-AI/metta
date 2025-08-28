@@ -52,19 +52,32 @@ class TestHelpersSimpleCheckpoint:
         return episode_id
 
     @staticmethod
-    def create_checkpoint_with_manager(temp_dir: Path, run_name: str, epoch: int, score: float = 0.5) -> Checkpoint:
+    def create_checkpoint_with_manager(
+        temp_dir: Path, run_name: str, epoch: int, score: float = 0.5, metadata: dict = None
+    ) -> Checkpoint:
         """Create a checkpoint using CheckpointManager and return info object."""
         checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=str(temp_dir))
 
         # Create a mock agent and save it
         mock_agent = MockAgent()
-        metadata = {
-            "score": score,
-            "agent_step": epoch * 1000,
-            "generation": 1,
-            "train_time": epoch * 10.0,
-            "epoch": epoch,
-        }
+        if metadata is None:
+            metadata = {
+                "score": score,
+                "agent_step": epoch * 1000,
+                "generation": 1,
+                "train_time": epoch * 10.0,
+                "epoch": epoch,
+            }
+        else:
+            # Ensure essential fields are present
+            metadata = metadata.copy()
+            metadata.update(
+                {
+                    "score": score,
+                    "epoch": epoch,
+                    "agent_step": metadata.get("agent_step", epoch * 1000),
+                }
+            )
 
         checkpoint_manager.save_agent(mock_agent, epoch=epoch, metadata=metadata)
 
@@ -123,7 +136,7 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
         agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_record=checkpoint_info,
+        policy_info=checkpoint_info,
     )
 
     # Verify the merged database contains our data
@@ -242,10 +255,11 @@ def test_database_policy_lookup_with_checkpoints(tmp_path: Path):
     # Find best performing checkpoint across all runs
     best_policy = db.con.execute(
         """
-        SELECT policy_key, policy_version, AVG(agent_metrics.reward) as avg_reward
+        SELECT policy_key, policy_version, AVG(agent_metrics.value) as avg_reward
         FROM agent_policies 
         JOIN episodes ON agent_policies.episode_id = episodes.id
         JOIN agent_metrics ON episodes.id = agent_metrics.episode_id
+        WHERE agent_metrics.metric = 'reward'
         GROUP BY policy_key, policy_version
         ORDER BY avg_reward DESC
         LIMIT 1
@@ -297,13 +311,14 @@ def test_checkpoint_metadata_database_integration(tmp_path: Path):
         }
 
         checkpoint_info = TestHelpersSimpleCheckpoint.create_checkpoint_with_manager(
-            tmp_path / "rich_metadata_run", "rich_metadata_run", epoch=i + 1, score=metadata["score"]
+            tmp_path / "rich_metadata_run", "rich_metadata_run", epoch=i + 1, score=metadata["score"], metadata=metadata
         )
         checkpoint_infos.append((checkpoint_info, metadata))
 
     # Verify that metadata is properly saved and can be loaded
     for checkpoint_info, original_metadata in checkpoint_infos:
-        yaml_path = checkpoint_info.checkpoint_path.replace(".pt", ".yaml")
+        checkpoint_path = checkpoint_info.uri[7:]  # Remove "file://" prefix
+        yaml_path = checkpoint_path.replace(".pt", ".yaml")
         with open(yaml_path) as f:
             loaded_metadata = yaml.safe_load(f)
 
