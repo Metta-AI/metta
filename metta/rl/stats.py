@@ -15,14 +15,13 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
-from metta.rl.wandb import POLICY_EVALUATOR_METRIC_PREFIX, POLICY_EVALUATOR_STEP_METRIC
 
 logger = logging.getLogger(__name__)
 
@@ -359,19 +358,3 @@ def process_stats(
 
     # Log to wandb
     wandb_run.log(all_stats, step=agent_step)
-
-
-def process_policy_evaluator_stats(eval_results: EvalResults, wandb_run, agent_step: int, epoch: int) -> None:
-    """Log evaluation results to wandb with policy evaluator metrics."""
-    if not wandb_run:
-        return
-
-    eval_metrics = {
-        f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
-        for k, v in eval_results.scores.to_wandb_metrics_format().items()
-    }
-
-    eval_metrics[POLICY_EVALUATOR_STEP_METRIC] = agent_step
-    eval_metrics["metric/evaluator_epoch"] = epoch
-
-    wandb_run.log(eval_metrics, step=agent_step)

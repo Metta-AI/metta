@@ -50,7 +50,6 @@ class SimTool(Tool):
     stats_server_uri: str | None = None  # If set, send stats to this http server
     register_missing_policies: bool = False
     eval_task_id: str | None = None
-    push_metrics_to_wandb: bool = False
     export_to_stats_db: bool = True  # Export evaluation results to stats database
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
