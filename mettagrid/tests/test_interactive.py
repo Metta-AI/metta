@@ -80,7 +80,7 @@ def test_gym_env():
     print("=" * 50)
 
     # Create environment with a simple map
-    env_cfg = MettaGridConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
@@ -101,7 +101,7 @@ def test_gym_env():
         )
     )
 
-    env = MettaGridGymEnv(env_cfg, render_mode="human")
+    env = MettaGridGymEnv(cfg, render_mode="human")
 
     print("Environment created!")
     print(f"- Agents: {env.num_agents}")
@@ -140,7 +140,7 @@ def test_pettingzoo_env():
     print("=" * 50)
 
     # Create environment with a simple map for 3 agents
-    env_cfg = MettaGridConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=3,
             actions=ActionsConfig(
@@ -167,7 +167,7 @@ def test_pettingzoo_env():
         )
     )
 
-    env = MettaGridPettingZooEnv(env_cfg, render_mode="human")
+    env = MettaGridPettingZooEnv(cfg, render_mode="human")
 
     print("Environment created!")
     print(f"- Max agents: {env.max_num_agents}")
