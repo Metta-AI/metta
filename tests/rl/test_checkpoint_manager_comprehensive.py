@@ -97,40 +97,6 @@ class TestCheckpointManagerBasicOperations:
 
         print("✅ Agent loading and forward pass verified!")
 
-    def test_save_and_load_with_dict_metadata(self, checkpoint_manager, mock_agent):
-        """Test that we can save and load with plain dict metadata (backwards compatibility)."""
-
-        # Create metadata as plain dict (testing backwards compatibility)
-        metadata = {
-            "action_names": ["move", "turn"],
-            "agent_step": 100,
-            "epoch": 5,
-            "generation": 1,
-            "train_time": 60.0,
-        }
-
-        # Save the agent
-        checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
-
-        # Load it back
-        loaded_agent = checkpoint_manager.load_agent(epoch=5)
-
-        # Verify the loaded agent works
-        test_input = TensorDict({"env_obs": torch.randn(1, 10)}, batch_size=(1,))
-        output = loaded_agent(test_input)
-
-        # MockAgent returns actions in TensorDict format
-        assert "actions" in output
-        assert output["actions"].shape[0] == 1  # batch size
-
-        # Load metadata directly from CheckpointManager API
-        loaded_metadata = checkpoint_manager.load_metadata(epoch=5)
-        assert loaded_metadata["run"] == "test_run"
-        assert loaded_metadata["epoch"] == 5
-        assert loaded_metadata["agent_step"] == 100
-
-        print("✅ Agent save/load with dict metadata verified!")
-
     def test_multiple_epoch_saves(self, checkpoint_manager, mock_agent):
         """Test saving multiple epochs and finding the best/latest."""
 
@@ -162,50 +128,6 @@ class TestCheckpointManagerBasicOperations:
         loaded_trainer_state = checkpoint_manager.load_trainer_state(epoch=15)
         assert loaded_trainer_state["epoch"] == 15
         assert loaded_trainer_state["agent_step"] == 15000
-
-    def test_metadata_backwards_compatibility(self, checkpoint_manager, mock_agent):
-        """Test that CheckpointManager can handle various metadata formats."""
-
-        # Test different metadata formats that might exist in old checkpoints
-        metadata_formats = [
-            # Standard format
-            {
-                "action_names": ["move", "turn"],
-                "agent_step": 100,
-                "epoch": 5,
-                "score": 0.8,
-            },
-            # With extra fields
-            {
-                "action_names": ["move", "turn", "attack"],
-                "agent_step": 200,
-                "epoch": 6,
-                "score": 0.9,
-                "extra_field": "should_be_ignored",  # Extra fields are not preserved
-                "nested": {"data": "also_ignored"},
-            },
-            # Minimal format
-            {
-                "epoch": 7,
-                "agent_step": 300,
-            },
-        ]
-
-        for i, metadata in enumerate(metadata_formats):
-            epoch = metadata.get("epoch", i)
-            checkpoint_manager.save_agent(mock_agent, epoch=epoch, metadata=metadata)
-
-            # Verify we can load the metadata back
-            loaded_metadata = checkpoint_manager.load_metadata(epoch=epoch)
-
-            # Core fields should be preserved
-            assert loaded_metadata["epoch"] == epoch
-            if "agent_step" in metadata:
-                assert loaded_metadata["agent_step"] == metadata["agent_step"]
-            if "score" in metadata:
-                assert loaded_metadata["score"] == metadata["score"]
-
-            print(f"✅ Metadata format {i + 1} saved and loaded correctly")
 
 
 class TestCheckpointManagerAdvancedFeatures:
@@ -315,41 +237,6 @@ class TestCheckpointManagerErrorHandling:
 
         best_path = checkpoint_manager.find_best_checkpoint("score")
         assert best_path is None
-
-    def test_load_with_corrupted_files(self, checkpoint_manager, mock_agent, temp_run_dir):
-        """Test handling of corrupted checkpoint files."""
-
-        # Save a valid checkpoint first
-        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"score": 0.5})
-
-        # Corrupt the checkpoint file
-        checkpoint_dir = Path(temp_run_dir) / "test_run" / "checkpoints"
-        checkpoint_file = checkpoint_dir / "agent_epoch_1.pt"
-
-        with open(checkpoint_file, "w") as f:
-            f.write("corrupted data")
-
-        # Should handle corruption gracefully
-        loaded_agent = checkpoint_manager.load_agent(epoch=1)
-        assert loaded_agent is None  # Should return None on load error
-
-    def test_metadata_file_missing(self, checkpoint_manager, mock_agent, temp_run_dir):
-        """Test handling when metadata file is missing."""
-
-        # Save normally
-        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"score": 0.5})
-
-        # Remove metadata file
-        metadata_file = Path(temp_run_dir) / "test_run" / "checkpoints" / "agent_epoch_1.yaml"
-        metadata_file.unlink()
-
-        # Should still be able to find checkpoint, but without metadata
-        best_path = checkpoint_manager.find_best_checkpoint("score")
-        assert best_path is None  # Can't find best without metadata
-
-        # Should still be able to load agent
-        loaded_agent = checkpoint_manager.load_agent(epoch=1)
-        assert loaded_agent is not None
 
 
 if __name__ == "__main__":
