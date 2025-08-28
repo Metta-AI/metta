@@ -110,53 +110,6 @@ def evaluate_policy_remote_with_checkpoint_manager(
     return task
 
 
-# Legacy compatibility function for gradual migration
-def evaluate_policy_remote_legacy_adapter(
-    policy_record,  # Old PolicyRecord object
-    simulations: list[SimulationConfig],
-    stats_epoch_id: uuid.UUID | None,
-    wandb_policy_name: str | None,
-    stats_client: StatsClient | None,
-    wandb_run: WandbRun | None,
-    trainer_cfg: TrainerConfig,
-) -> TaskResponse | None:
-    """
-    Legacy adapter for old evaluate_policy_remote calls.
-
-    This provides backward compatibility during migration period.
-    Should be removed once all callers are updated.
-    """
-    logger.warning(
-        "Using legacy evaluate_policy_remote adapter. "
-        "Update to use evaluate_policy_remote_with_checkpoint_manager instead."
-    )
-
-    # Try to extract information from policy_record mock
-    if hasattr(policy_record, "uri") and policy_record.uri:
-        # Extract checkpoint path from URI
-        checkpoint_path = policy_record.uri.replace("file://", "") if policy_record.uri.startswith("file://") else None
-
-        # Create a temporary checkpoint manager for the call
-        if checkpoint_path and Path(checkpoint_path).exists():
-            run_dir = str(Path(checkpoint_path).parent.parent)
-            run_name = Path(run_dir).name
-            checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
-
-            return evaluate_policy_remote_with_checkpoint_manager(
-                checkpoint_manager=checkpoint_manager,
-                checkpoint_path=checkpoint_path,
-                simulations=simulations,
-                stats_epoch_id=stats_epoch_id,
-                wandb_policy_name=wandb_policy_name,
-                stats_client=stats_client,
-                wandb_run=wandb_run,
-                trainer_cfg=trainer_cfg,
-            )
-
-    logger.error("Cannot extract valid checkpoint information from policy_record")
-    return None
-
-
 def upload_replay_html(
     replay_urls: dict[str, list[str]],
     agent_step: int,
