@@ -1,4 +1,6 @@
 import pytest
+
+# this comment is here to help with a ruff linting bug
 from metta.mettagrid.mettagrid_c import (
     AgentConfig,
     GameConfig,
