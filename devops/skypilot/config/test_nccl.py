@@ -265,43 +265,59 @@ def print_benchmark_results(results: dict[str, Any], topology: dict[str, Any] | 
 
     print(output)
 
-
 def format_box_header(title: str, width: int = 75, include_rank: bool = True) -> str:
-    """Format a box header as a string instead of printing directly."""
+    """Format a box header as a string instead of printing directly.
+
+    Args:
+        title: The title text (can include \n for multi-line)
+        width: Total width of the box
+        include_rank: Whether to append rank info to the first line
+
+    Returns:
+        Formatted box as a string
+    """
     output = io.StringIO()
 
     # Prepare the title with rank info if requested
     rank = int(os.environ.get("RANK", 0))
     node_index = int(os.environ.get("NODE_INDEX", 0))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    display_title = f"{title} (Rank {rank}, Node {node_index}, GPU {local_rank})"
 
-    if not include_rank:
-        display_title = f"{title}"
+    # Split title into lines
+    lines = title.split('\n')
 
-    # Ensure title fits with padding
+    if include_rank and lines:
+        lines[0] = f"{lines[0]} (Rank {rank}, Node {node_index}, GPU {local_rank})"
+
+    # Ensure each line fits with padding
     max_title_width = width - 4  # Account for borders and spacing
-    if len(display_title) > max_title_width:
-        display_title = display_title[: max_title_width - 3] + "..."
-
-    # Calculate padding for centering
-    padding = width - len(display_title)
-    left_pad = padding // 2
-    right_pad = padding - left_pad
+    formatted_lines = []
+    for line in lines:
+        if len(line) > max_title_width:
+            line = line[: max_title_width - 3] + "..."
+        formatted_lines.append(line)
 
     output.write(f"╔{'═' * width}╗\n")
-    output.write(f"║{' ' * left_pad}{display_title}{' ' * right_pad}║\n")
+
+    for line in formatted_lines:
+        # Calculate padding for centering
+        padding = width - len(line)
+        left_pad = padding // 2
+        right_pad = padding - left_pad
+        output.write(f"║{' ' * left_pad}{line}{' ' * right_pad}║\n")
+
     output.write(f"╚{'═' * width}╝\n")
     return output.getvalue()
 
 
 def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> None:
-    """Print a formatted box header with centered title."""
+    """Print a formatted box header with centered title.
+    Supports multi-line titles by using \n in the title string.
+    """
     if dist.is_available() and dist.is_initialized() and dist.get_rank() != 0:
         return  # Only print from rank 0 in distributed mode
 
     print(format_box_header(title, width, include_rank))
-
 
 def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
     """Run a command and return exit code, stdout, and stderr."""
@@ -972,11 +988,13 @@ def main():
 
     # Print header (master only)
     if IS_MASTER:
-        print("\n" + "╔" * 75)
-        print("                      NCCL DIAGNOSTICS AND TESTING")
+        print()  # Add blank line before
         if is_distributed:
-            print(f"                    Nodes: {num_nodes}, GPUs/node: {num_gpus_per_node}, Total: {world_size}")
-        print("╔" * 75)
+            title = f"NCCL DIAGNOSTICS AND TESTING\nNodes: {num_nodes}, GPUs/node: {num_gpus_per_node}, Total: {world_size}"
+        else:
+            title = "NCCL DIAGNOSTICS AND TESTING"
+
+        print_box_header(title, include_rank=False)
 
     # delay to de-synchronize printing
     time.sleep(0.02 * rank)
@@ -1112,20 +1130,29 @@ def main():
         print_benchmark_results(benchmark_results, topology)
 
     if IS_MASTER:
-        print_box_header("TEST SUMMARY", include_rank=False)
+        # Build multi-line content for the box
+        lines = ["TEST SUMMARY"]
+        lines.append("")  # blank line for spacing
 
+        # Add test results
         for test_name, result in test_results:
-            print(f"  {test_name:<30} : {result}")
+            lines.append(f"{test_name:<30} : {result}")
 
+        # Add overall status if distributed
         if is_distributed:
-            print(f"\n  Overall: {'✔ All ranks passed' if all_ranks_passed else '✗ Some ranks failed'}")
+            lines.append("")  # blank line
+            lines.append(f"Overall: {'✔ All ranks passed' if all_ranks_passed else '✗ Some ranks failed'}")
 
-        print("\n" + "╔" * 75)
+        # Add final status
+        lines.append("")  # blank line
         if all_ranks_passed:
-            print("                    ✔ ALL TESTS PASSED! ✔")
+            lines.append("✔ ALL TESTS PASSED! ✔")
         else:
-            print("                    ✗ SOME TESTS FAILED ✗")
-        print("╔" * 75 + "\n")
+            lines.append("✗ SOME TESTS FAILED ✗")
+
+        # Print the complete box
+        print()  # blank line before
+        print_box_header("\n".join(lines), include_rank=False)
 
     # Add after tests, before destroying process group
     if is_distributed and dist.is_initialized() and not all_ranks_passed:
