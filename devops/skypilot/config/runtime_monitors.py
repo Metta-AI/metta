@@ -63,10 +63,11 @@ class HeartbeatMonitor(JobMonitor):
         super().__init__(
             name="heartbeat",
             shutdown_callback=shutdown_callback,
-            check_interval_sec=15.0,  # Check every 15 seconds
+            check_interval_sec=15.0,
         )
         self.heartbeat_timeout = heartbeat_timeout_sec
         self.rank = rank
+        self.is_master = rank == 0
 
         # Get heartbeat file path from environment
         heartbeat_file_path = os.environ.get("HEARTBEAT_FILE")
@@ -74,31 +75,33 @@ class HeartbeatMonitor(JobMonitor):
             raise ValueError("HEARTBEAT_FILE environment variable must be set")
 
         self.heartbeat_file = Path(heartbeat_file_path)
-        self.last_heartbeat = time.time()
 
-        # Create heartbeat file if it doesn't exist
-        if not self.heartbeat_file.exists():
+        # Only master node manages the heartbeat file
+        if self.is_master:
             try:
                 self.heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
-                self.heartbeat_file.touch()
-                log_all(f"Created heartbeat file at {self.heartbeat_file}")
+                self.heartbeat_file.touch()  # Updates mtime on restart
+                log_all(f"Updated heartbeat file at {self.heartbeat_file}")
             except Exception as e:
-                log_error(f"Failed to create heartbeat file: {e}")
+                log_error(f"Failed to update heartbeat file: {e}")
+        else:
+            time.sleep(5) # give the master node time to update the file
+
 
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if heartbeat has timed out."""
         try:
             stat = os.stat(self.heartbeat_file)
-            self.last_heartbeat = stat.st_mtime
+            last_heartbeat_time = stat.st_mtime
+            elapsed = time.time() - last_heartbeat_time
+
+            if elapsed > self.heartbeat_timeout:
+                return True, "heartbeat_timeout"
+
         except (OSError, FileNotFoundError):
-            # File doesn't exist or was deleted - this is fine,
-            # we'll use the last known heartbeat time
-            pass
-
-        elapsed = time.time() - self.last_heartbeat
-
-        if elapsed > self.heartbeat_timeout:
-            return True, "heartbeat_timeout"
+            # If heartbeat file doesn't exist, that's a problem - trigger timeout
+            log_warning(f"Heartbeat file not found: {self.heartbeat_file}")
+            return True, "heartbeat_file_missing"
 
         return False, None
 
