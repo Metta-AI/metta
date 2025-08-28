@@ -7,14 +7,14 @@ import sys
 import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 # Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
-from metta.setup.local_commands import LocalCommands
+from metta.setup.local_commands import LocalCommands, setup_local_parser
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
 from metta.setup.registry import get_all_modules, get_enabled_setup_modules
-from metta.setup.saved_settings import get_saved_settings
+from metta.setup.saved_settings import CURRENT_SAVED_SETTINGS_VERSION, get_saved_settings
 from metta.setup.symlink_setup import PathSetup
 from metta.setup.tools.book import BookCommands
 from metta.setup.utils import (
@@ -27,10 +27,6 @@ from metta.setup.utils import (
     success,
     warning,
 )
-
-# Type hints only
-if TYPE_CHECKING:
-    pass
 
 # Shared list of test folders for Python tests
 PYTHON_TEST_FOLDERS = [
@@ -345,8 +341,6 @@ class MettaCLI:
             self.setup_wizard()
 
     def configure_component(self, component_name: str) -> None:
-        from metta.setup.utils import error, info
-
         modules = get_all_modules()
         module_map = {m.name: m for m in modules}
 
@@ -362,8 +356,6 @@ class MettaCLI:
         module.configure()
 
     def cmd_run(self, args, unknown_args=None) -> None:
-        from metta.setup.utils import error, info
-
         modules = get_all_modules()
         module_map = {m.name: m for m in modules}
 
@@ -376,8 +368,6 @@ class MettaCLI:
         module.run(args.args)
 
     def cmd_install(self, args, unknown_args=None) -> None:
-        from metta.setup.utils import error, info, success, warning
-
         if not get_saved_settings().exists():
             warning("No configuration found. Running setup wizard first...")
             self.setup_wizard()
@@ -433,8 +423,6 @@ class MettaCLI:
         success("Installation complete!")
 
     def cmd_clean(self, args, unknown_args=None, verbose: bool = False) -> None:
-        from metta.setup.utils import info
-
         build_dir = self.repo_root / "build"
         if build_dir.exists():
             info("  Removing root build directory...")
@@ -460,9 +448,6 @@ class MettaCLI:
 
     def cmd_go(self, args, unknown_args=None) -> None:
         """Navigate to a Softmax Home shortcut URL."""
-
-        from metta.setup.utils import error, info
-
         if not unknown_args:
             error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
             info("\nCommon shortcuts:")
@@ -570,8 +555,6 @@ class MettaCLI:
 
     def cmd_ci(self, args, unknown_args=None) -> None:
         """Run all Python and C++ tests for CI."""
-        from metta.setup.utils import error, info, success
-
         # First run Python tests
         info("Running Python tests...")
         python_test_cmd = [
@@ -627,9 +610,6 @@ class MettaCLI:
             sys.exit(e.returncode)
 
     def cmd_status(self, args, unknown_args=None) -> None:
-        from metta.setup.registry import get_all_modules
-        from metta.setup.utils import error, info, success, warning
-
         # Get all modules first
         all_modules = get_all_modules()
 
@@ -836,8 +816,6 @@ Examples:
             if cmd_config.parser_setup:
                 cmd_config.parser_setup(cmd_parser)
             elif cmd_name == "local":
-                from metta.setup.local_commands import setup_local_parser
-
                 setup_local_parser(cmd_parser)
 
             # Special handling for configure --profile
@@ -880,8 +858,6 @@ Examples:
                     print("Error: No configuration found. Please run 'metta configure' first.", file=sys.stderr)
                     sys.exit(1)
                 else:
-                    from metta.setup.saved_settings import CURRENT_SAVED_SETTINGS_VERSION
-
                     if saved_settings.config_version < CURRENT_SAVED_SETTINGS_VERSION:
                         print(
                             f"Warning: Your configuration is from an older version (v{saved_settings.config_version}).",

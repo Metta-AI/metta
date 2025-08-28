@@ -7,16 +7,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import wandb
-
-from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.constants import METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
-from metta.common.wandb.wandb_runs import find_training_runs
 from metta.setup.tools.local.kind import KindLocal
 from metta.setup.utils import error, info
-from metta.sim.utils import get_or_create_policy_ids
 
 # Type checking imports
 if TYPE_CHECKING:
@@ -155,6 +150,12 @@ class LocalCommands:
 
     def load_policies(self, unknown_args) -> None:
         """Load W&B artifacts as policies into stats database."""
+        # Lazy imports
+        import wandb
+
+        from metta.agent.policy_store import PolicyStore
+        from metta.common.wandb.wandb_runs import find_training_runs
+        from metta.sim.utils import get_or_create_policy_ids
 
         # Create parser for load-policies specific arguments
         parser = argparse.ArgumentParser(
