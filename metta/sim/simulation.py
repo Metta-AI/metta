@@ -20,7 +20,6 @@ import torch
 from einops import rearrange
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
@@ -28,6 +27,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -38,18 +38,6 @@ from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 SYNTHETIC_EVAL_PREFIX = "eval/"
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class PolicyRecord:
-    """Lightweight policy container for simulation."""
-    policy: PolicyAgent
-    run_name: str
-    uri: str
-
-    def key_and_version(self) -> tuple[str, int]:
-        """Compatible with database integration."""
-        return self.run_name, 0
 
 
 class SimulationCompatibilityError(Exception):
@@ -65,8 +53,9 @@ class Simulation:
         self,
         name: str,
         cfg: SimulationConfig,
-        policy_pr: PolicyRecord,
-        checkpoint_manager: CheckpointManager | None,
+        policy: PolicyAgent,
+        run_name: str,
+        policy_uri: str,
         device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
@@ -129,10 +118,12 @@ class Simulation:
         self._agents_per_env = cfg.env.game.num_agents
 
         # ---------------- policies ------------------------------------- #
-        self._policy_pr = policy_pr
-        self._checkpoint_manager = checkpoint_manager
-        self._npc_pr = self._load_npc_policy(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
-        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_pr is not None else 1.0
+        self._policy = policy
+        self._run_name = run_name
+        self._policy_uri = policy_uri
+        self._npc_policy = self._load_npc_policy(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
+        self._npc_policy_uri = cfg.npc_policy_uri
+        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -142,19 +133,17 @@ class Simulation:
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
         # Initialize policy to environment
-        policy = self._policy_pr.policy
-        policy.eval()  # Set to evaluation mode for simulation
+        self._policy.eval()  # Set to evaluation mode for simulation
         features = metta_grid_env.get_observation_features()
-        policy.initialize_to_environment(
+        self._policy.initialize_to_environment(
             features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
         )
 
-        if self._npc_pr is not None:
+        if self._npc_policy is not None:
             # Initialize NPC policy to environment
-            npc_policy = self._npc_pr.policy
-            npc_policy.eval()  # Set to evaluation mode for simulation
+            self._npc_policy.eval()  # Set to evaluation mode for simulation
             features = metta_grid_env.get_observation_features()
-            npc_policy.initialize_to_environment(
+            self._npc_policy.initialize_to_environment(
                 features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
             )
 
@@ -173,15 +162,10 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
-    def _load_npc_policy(self, npc_policy_uri: str) -> PolicyRecord:
+    def _load_npc_policy(self, npc_policy_uri: str) -> PolicyAgent:
         """Load NPC policy from URI."""
-        policy = self._load_policy_from_uri(npc_policy_uri)
-        return PolicyRecord(
-            policy=policy,
-            run_name="npc",
-            uri=npc_policy_uri
-        )
-        
+        return self._load_policy_from_uri(npc_policy_uri)
+
     def _load_policy_from_uri(self, policy_uri: str) -> PolicyAgent:
         """Load policy from URI using CheckpointManager pattern."""
         if policy_uri.startswith("file://"):
@@ -190,10 +174,7 @@ class Simulation:
                 # Directory format - find latest checkpoint
                 checkpoint_dir = Path(checkpoint_path)
                 parent_dir = checkpoint_dir.parent
-                checkpoint_manager = CheckpointManager(
-                    run_name=parent_dir.name, 
-                    run_dir=str(parent_dir.parent)
-                )
+                checkpoint_manager = CheckpointManager(run_name=parent_dir.name, run_dir=str(parent_dir.parent))
                 return checkpoint_manager.load_latest_agent()
             else:
                 # Direct file path
@@ -201,8 +182,9 @@ class Simulation:
         else:
             # For other URI types, create a mock agent
             from metta.agent.mocks import MockAgent
+
             return MockAgent()
-    
+
     @staticmethod
     def _load_policy_from_uri_static(policy_uri: str) -> PolicyAgent:
         """Static version of policy loading for classmethod use."""
@@ -212,10 +194,7 @@ class Simulation:
                 # Directory format - find latest checkpoint
                 checkpoint_dir = Path(checkpoint_path)
                 parent_dir = checkpoint_dir.parent
-                checkpoint_manager = CheckpointManager(
-                    run_name=parent_dir.name, 
-                    run_dir=str(parent_dir.parent)
-                )
+                checkpoint_manager = CheckpointManager(run_name=parent_dir.name, run_dir=str(parent_dir.parent))
                 return checkpoint_manager.load_latest_agent()
             else:
                 # Direct file path
@@ -223,6 +202,7 @@ class Simulation:
         else:
             # For other URI types, create a mock agent
             from metta.agent.mocks import MockAgent
+
             return MockAgent()
 
     @classmethod
@@ -243,13 +223,8 @@ class Simulation:
             policy = cls._load_policy_from_uri_static(policy_uri)
         else:
             from metta.agent.mocks import MockAgent
+
             policy = MockAgent()
-            
-        policy_record = PolicyRecord(
-            policy=policy,
-            run_name=run_name,
-            uri=policy_uri or "mock://"
-        )
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
@@ -258,8 +233,9 @@ class Simulation:
         return cls(
             sim_config.name,
             sim_config,
-            policy_record,
-            checkpoint_manager=None,  # No longer needed
+            policy,
+            run_name,
+            policy_uri or "mock://",
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,
@@ -333,17 +309,17 @@ class Simulation:
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
             # Candidate-policy agents
-            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy_pr.policy)
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy)
 
             # NPC agents (if any)
             npc_actions = None
-            if self._npc_pr is not None and len(self._npc_idxs):
+            if self._npc_policy is not None and len(self._npc_idxs):
                 try:
-                    npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_pr.policy)
+                    npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
-                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.run_name}: {e}"
+                        f"[{self._name}] Error generating NPC actions for NPC policy: {e}"
                     ) from e
 
         # ---------------- action stitching ----------------------- #
@@ -438,9 +414,9 @@ class Simulation:
         """Run the simulation; returns the merged `StatsDB`."""
         self.start_simulation()
 
-        self._policy_pr.policy.reset_memory()
-        if self._npc_pr is not None:
-            self._npc_pr.policy.reset_memory()
+        self._policy.reset_memory()
+        if self._npc_policy is not None:
+            self._npc_policy.reset_memory()
 
         # Track iterations for heartbeat
         iteration_count = 0
