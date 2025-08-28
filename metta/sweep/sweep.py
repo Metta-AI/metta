@@ -67,20 +67,10 @@ def sweep(
     for trial_idx in range(num_trials):
         record_heartbeat()
         logger.info(f"Starting trial {trial_idx + 1}/{num_trials}")
-        protein = MettaProtein(protein_config)
-        previous_observations = fetch_protein_observations_from_wandb(
-            wandb_entity=wandb_cfg.entity,
-            wandb_project=wandb_cfg.project,
-            sweep_name=sweep_name,
-            max_observations=max_observations_to_load,
-        )
-        logger.info(f"Loaded {len(previous_observations)} previous observations")
-        for obs in previous_observations:
-            protein.observe(obs["suggestion"], obs["objective"], obs["cost"], obs.get("is_failure", False))
 
-        # Generate suggestion and get run name
-        protein_suggestion, _ = protein.suggest()
-        run_name = cogweb_client.sweep_client().get_next_run_id(sweep_name)
+        run_name, protein_suggestion = generate_suggestion(
+            protein_config, sweep_name, wandb_cfg.entity, wandb_cfg.project, max_observations_to_load, sweep_server_uri
+        )
 
         # Create and configure TrainTool
         train_tool = train_tool_factory(run_name)
@@ -167,6 +157,37 @@ def sweep(
             raise
 
     logger.info(f"Sweep '{sweep_name}' completed {num_trials} trials")
+
+
+def initialize_sweep(sweep_name, sweep_server_uri, project, entity):
+    cogweb_client = CogwebClient.get_client(base_url=sweep_server_uri)
+    sweep_client = cogweb_client.sweep_client()
+
+    # Register sweep if it doesn't exist
+    sweep_info = sweep_client.get_sweep(sweep_name)
+    if not sweep_info.exists:
+        logger.info(f"Registering sweep {sweep_name}")
+        sweep_client.create_sweep(sweep_name, project, entity, sweep_name)
+
+
+def generate_suggestion(protein_config, sweep_name, entity, project, max_observations_to_load, sweep_server_uri):
+    protein = MettaProtein(protein_config)
+    cogweb_client = CogwebClient.get_client(base_url=sweep_server_uri)
+    sweep_client = cogweb_client.sweep_client()
+    previous_observations = fetch_protein_observations_from_wandb(
+        wandb_entity=entity,
+        wandb_project=project,
+        sweep_name=sweep_name,
+        max_observations=max_observations_to_load,
+    )
+    logger.info(f"Loaded {len(previous_observations)} previous observations")
+    for obs in previous_observations:
+        protein.observe(obs["suggestion"], obs["objective"], obs["cost"], obs.get("is_failure", False))
+
+    # Generate suggestion and get run name
+    protein_suggestion, _ = protein.suggest()
+    run_name = sweep_client.get_next_run_id(sweep_name)
+    return run_name, protein_suggestion
 
 
 def apply_suggestion_to_tool(train_tool: TrainTool, suggestion: dict[str, Any]) -> TrainTool:
