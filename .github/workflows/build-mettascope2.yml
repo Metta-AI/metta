@@ -32,11 +32,13 @@ jobs:
       - name: Build mettascope2 (release)
         run: cd mettascope2 && nim c -d:release --out:src/mettascope.out src/mettascope.nim
 
-      - name: Upload mettascope.out artifact
+      - name: Upload mettascope2 artifact
         uses: actions/upload-artifact@v4
         with:
           name: mettascope.out
-          path: mettascope2/src/mettascope.out
+          path: |
+            mettascope2/src/mettascope.out
+            mettascope2/data/
           if-no-files-found: error
 
 
