@@ -323,18 +323,17 @@ def test_end_to_end_initialize_to_environment_workflow():
             "position_y": 5,
         }
 
-        # Create metadata with the mapping and save using CheckpointManager
+        # Save using CheckpointManager - original_feature_mapping is automatically saved with the agent
         checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="test_policy")
 
-        # Create metadata that includes the original feature mapping
+        # Create simple metadata (no need to manually save original_feature_mapping)
         metadata = {
             "agent_step": 1000,
             "epoch": 10,
             "score": 0.85,
-            "original_feature_mapping": original_mapping,
         }
 
-        # Save the policy
+        # Save the policy - original_feature_mapping is automatically included
         checkpoint_manager.save_agent(policy, epoch=10, metadata=metadata)
 
         # Step 2: Load the policy in a new environment with different feature IDs
@@ -349,11 +348,11 @@ def test_end_to_end_initialize_to_environment_workflow():
             }
         )
 
-        # Load the saved policy
+        # Load the saved policy - original_feature_mapping is automatically restored
         loaded_policy = checkpoint_manager.load_agent(epoch=10)
 
-        # Load the metadata to restore the original feature mapping
-        loaded_metadata = checkpoint_manager.load_metadata(epoch=10)
+        # Verify the original feature mapping was automatically preserved
+        assert loaded_policy.get_original_feature_mapping() == original_mapping
 
         # Create a mock observation component to verify remapping
         mock_obs = MockObsComponent()
@@ -361,9 +360,6 @@ def test_end_to_end_initialize_to_environment_workflow():
 
         # Initialize to the new environment (in eval mode)
         loaded_policy.eval()  # Set to evaluation mode
-        # Restore the mapping from saved metadata
-        if "original_feature_mapping" in loaded_metadata:
-            loaded_policy.original_feature_mapping = loaded_metadata["original_feature_mapping"].copy()
         new_features = new_env.get_observation_features()
         loaded_policy.initialize_to_environment(new_features, new_env.action_names, new_env.max_action_args, "cpu")
 

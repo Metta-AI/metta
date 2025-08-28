@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def parse_checkpoint_filename(filename: str) -> Optional[Dict[str, Any]]:
     """Parse checkpoint metadata from filename.
-    
+
     Format: {run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt
     Example: kickstart_test---e5_s5280_t18s.pt
     """
@@ -57,10 +57,13 @@ class CheckpointManager:
         if epoch is None:
             return self.load_latest_agent()
 
-        agent_file = self.checkpoint_dir / f"agent_epoch_{epoch}.pt"
-        if not agent_file.exists():
+        # Find checkpoint file with the new filename format: {run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt
+        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e{epoch}_s*_t*s.pt"))
+        if not agent_files:
             return None
 
+        # If multiple files match (shouldn't happen), get the first one
+        agent_file = agent_files[0]
         logger.info(f"Loading agent from {agent_file}")
         return torch.load(agent_file, weights_only=False)
 
@@ -84,11 +87,11 @@ class CheckpointManager:
         # Extract metadata for filename
         agent_step = metadata.get("agent_step", 0)
         total_time = int(metadata.get("total_time", 0))
-        
+
         # Generate filename with embedded metadata
         filename = f"{self.run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt"
         agent_file = self.checkpoint_dir / filename
-        
+
         # Save agent with torch.save
         torch.save(agent, agent_file)
 
@@ -127,7 +130,7 @@ class CheckpointManager:
                 self.save_trainer_state(optimizer, epoch, agent_step or 0)
 
     def list_epochs(self) -> list[int]:
-        agent_files = self.checkpoint_dir.glob(f"{self.run_name}-e*_s*_t*s.pt")
+        agent_files = self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt")
         epochs = []
         for f in agent_files:
             metadata = parse_checkpoint_filename(f.name)
@@ -153,7 +156,7 @@ class CheckpointManager:
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
         """Find checkpoint with highest value for the given metric.
-        
+
         Available metrics: epoch, agent_step, total_time
         """
         best_score = float("-inf")
@@ -307,4 +310,3 @@ class CheckpointManager:
         if not run_name or not re.match(r"^[a-zA-Z0-9._-]+$", run_name):
             raise ValueError(f"Invalid run_name: {run_name}")
         return run_name
-
