@@ -20,6 +20,7 @@ import torch
 from einops import rearrange
 
 from metta.agent.metta_agent import PolicyAgent
+from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
@@ -181,8 +182,6 @@ class Simulation:
                 return torch.load(checkpoint_path, weights_only=False)
         else:
             # For other URI types, create a mock agent
-            from metta.agent.mocks import MockAgent
-
             return MockAgent()
 
     @staticmethod
@@ -201,8 +200,6 @@ class Simulation:
                 return torch.load(checkpoint_path, weights_only=False)
         else:
             # For other URI types, create a mock agent
-            from metta.agent.mocks import MockAgent
-
             return MockAgent()
 
     @classmethod
@@ -222,8 +219,6 @@ class Simulation:
         if policy_uri:
             policy = cls._load_policy_from_uri_static(policy_uri)
         else:
-            from metta.agent.mocks import MockAgent
-
             policy = MockAgent()
 
         # Create replay directory path with simulation name

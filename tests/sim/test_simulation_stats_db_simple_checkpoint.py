@@ -11,6 +11,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
+import pytest
 import yaml
 from duckdb import DuckDBPyConnection
 
@@ -348,6 +349,4 @@ def test_checkpoint_metadata_database_integration(tmp_path: Path):
 
 
 if __name__ == "__main__":
-    import pytest
-
     pytest.main([__file__, "-v"])
