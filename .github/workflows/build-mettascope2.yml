@@ -9,9 +9,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # - name: Install system dependencies
-      #   run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev libgl1-mesa-dev libxxf86vm-dev
-
       - name: Cache nimble
         id: cache-nimble
         uses: actions/cache@v4
