@@ -38,25 +38,19 @@ class CheckpointManager:
     def exists(self) -> bool:
         return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
 
-    def load_latest_agent(self):
-        """Load the latest agent using torch.load(weights_only=False)."""
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
-        if not agent_files:
-            return None
-
-        latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
-        logger.info(f"Loading agent from {latest_file}")
-        return torch.load(latest_file, weights_only=False)
-
     def load_agent(self, epoch: Optional[int] = None):
+        """Load agent from checkpoint by epoch (or latest if None)."""
         if epoch is None:
-            return self.load_latest_agent()
+            agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
+            if not agent_files:
+                return None
+            agent_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
+        else:
+            agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
+            if not agent_files:
+                return None
+            agent_file = agent_files[0]
 
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
-        if not agent_files:
-            return None
-
-        agent_file = agent_files[0]
         logger.info(f"Loading agent from {agent_file}")
         return torch.load(agent_file, weights_only=False)
 
@@ -73,23 +67,6 @@ class CheckpointManager:
         logger.info(f"Loading trainer state from {trainer_file}")
         return torch.load(trainer_file, weights_only=False)
 
-    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{self.run_name}.e{epoch}.s{metadata.get('agent_step', 0)}.t{int(metadata.get('total_time', 0))}.pt"
-        torch.save(agent, self.checkpoint_dir / filename)
-        logger.info(f"Saved agent: {filename}")
-
-    def save_trainer_state(self, optimizer, epoch: int, agent_step: int):
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        trainer_state = {
-            "optimizer": optimizer.state_dict(),
-            "epoch": epoch,
-            "agent_step": agent_step,
-        }
-        trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
-        torch.save(trainer_state, trainer_file)
-        logger.info(f"Saved trainer state: {trainer_file}")
-
     def save_checkpoint(
         self,
         agent,
@@ -99,11 +76,25 @@ class CheckpointManager:
         agent_step: Optional[int] = None,
     ):
         """Save complete checkpoint with filename-embedded metadata."""
-        metadata = {"score": score or 0.0, "agent_step": agent_step or 0}
-        self.save_agent(agent, epoch, metadata)
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
+        # Save agent with embedded metadata in filename
+        filename = f"{self.run_name}.e{epoch}.s{agent_step or 0}.t{int(score or 0)}.pt"
+        torch.save(agent, self.checkpoint_dir / filename)
+        logger.info(f"Saved agent: {filename}")
+
+        # Save trainer state if provided
         if trainer_state and trainer_state.get("optimizer"):
-            self.save_trainer_state(trainer_state["optimizer"], epoch, agent_step or 0)
+            trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
+            torch.save(
+                {
+                    "optimizer": trainer_state["optimizer"].state_dict(),
+                    "epoch": epoch,
+                    "agent_step": agent_step or 0,
+                },
+                trainer_file,
+            )
+            logger.info(f"Saved trainer state: {trainer_file}")
 
     def get_latest_epoch(self) -> Optional[int]:
         agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))

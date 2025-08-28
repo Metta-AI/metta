@@ -65,21 +65,6 @@ def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAg
 # URI Resolution Functions (moved from policy_uri_resolver.py)
 
 
-def _checkpoint_tuple_to_dict(filename: str) -> Dict[str, Any]:
-    """Convert checkpoint filename to metadata dict for compatibility."""
-    try:
-        run_name, epoch, agent_step, total_time = parse_checkpoint_filename(filename)
-        return {
-            "run": run_name,
-            "epoch": epoch,
-            "agent_step": agent_step,
-            "total_time": total_time,
-            "checkpoint_file": filename,
-        }
-    except ValueError:
-        return {}
-
-
 def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
     """Load a policy from file:// or wandb:// URI."""
     if uri.startswith("file://"):
@@ -107,7 +92,17 @@ def get_policy_metadata(uri: str) -> Dict[str, Any]:
     if uri.startswith("file://"):
         file_path = Path(uri[7:])
         if file_path.is_file():
-            return _checkpoint_tuple_to_dict(file_path.name)
+            try:
+                run_name, epoch, agent_step, total_time = parse_checkpoint_filename(file_path.name)
+                return {
+                    "run": run_name,
+                    "epoch": epoch,
+                    "agent_step": agent_step,
+                    "total_time": total_time,
+                    "checkpoint_file": file_path.name,
+                }
+            except ValueError:
+                return {}
         elif file_path.is_dir():
             # Find latest checkpoint in directory
             pattern = "*.e*.s*.t*.pt"
@@ -115,7 +110,17 @@ def get_policy_metadata(uri: str) -> Dict[str, Any]:
             if not checkpoints:
                 return {}
             latest = max(checkpoints, key=lambda f: parse_checkpoint_filename(f.name)[1])
-            return _checkpoint_tuple_to_dict(latest.name)
+            try:
+                run_name, epoch, agent_step, total_time = parse_checkpoint_filename(latest.name)
+                return {
+                    "run": run_name,
+                    "epoch": epoch,
+                    "agent_step": agent_step,
+                    "total_time": total_time,
+                    "checkpoint_file": latest.name,
+                }
+            except ValueError:
+                return {}
         else:
             return {}
     elif uri.startswith("wandb://"):
@@ -151,7 +156,17 @@ def discover_policies(
         results = []
         for checkpoint in checkpoints[:count]:
             uri = f"file://{checkpoint}"
-            metadata = _checkpoint_tuple_to_dict(checkpoint.name)
+            try:
+                run_name, epoch, agent_step, total_time = parse_checkpoint_filename(checkpoint.name)
+                metadata = {
+                    "run": run_name,
+                    "epoch": epoch,
+                    "agent_step": agent_step,
+                    "total_time": total_time,
+                    "checkpoint_file": checkpoint.name,
+                }
+            except ValueError:
+                metadata = {}
             results.append((uri, metadata))
 
         return results
@@ -160,9 +175,3 @@ def discover_policies(
         return [(base_uri, metadata)]
     else:
         raise ValueError(f"Unsupported URI scheme: {base_uri}")
-
-
-# Convenience aliases
-resolve_policy_from_uri = resolve_policy
-get_policy_metadata_from_uri = get_policy_metadata
-discover_policies_from_uri = discover_policies
