@@ -60,13 +60,11 @@ def setup_job_metadata():
     print(f"  METTA_RUN_ID: {metta_run_id}")
     print(f"  RESTART_COUNT: {restart_count}")
     print(f"  ACCUMULATED_RUNTIME: {accumulated_runtime}s ({accumulated_runtime // 60}m)")
-    print(f"  METADATA_DIR: {job_metadata_dir}")
     print("========================================")
 
     return {
         "restart_count": restart_count,
         "accumulated_runtime": accumulated_runtime,
-        "job_metadata_dir": str(job_metadata_dir),
         "accumulated_runtime_file": str(accumulated_runtime_file),
         "heartbeat_file": str(heartbeat_file),
     }
@@ -100,7 +98,6 @@ export RESTART_COUNT="{metadata["restart_count"]}"
 export ACCUMULATED_RUNTIME="{metadata["accumulated_runtime"]}"
 
 # File path exports for monitors
-export JOB_METADATA_DIR="{metadata["job_metadata_dir"]}"
 export ACCUMULATED_RUNTIME_FILE="{metadata["accumulated_runtime_file"]}"
 export HEARTBEAT_FILE="{metadata["heartbeat_file"]}"
 

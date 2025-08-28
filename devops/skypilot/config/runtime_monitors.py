@@ -50,6 +50,7 @@ class HeartbeatMonitor(JobMonitor):
 
     def __init__(
         self,
+        rank: int,
         heartbeat_timeout_sec: int,
         shutdown_callback: Callable[[str], None],
     ):
@@ -59,6 +60,7 @@ class HeartbeatMonitor(JobMonitor):
             check_interval_sec=15.0,  # Check every 15 seconds
         )
         self.heartbeat_timeout = heartbeat_timeout_sec
+        self.rank = rank
 
         # Get heartbeat file path from environment
         heartbeat_file_path = os.environ.get("HEARTBEAT_FILE")
@@ -94,7 +96,7 @@ class HeartbeatMonitor(JobMonitor):
         return False, None
 
     def run(self):
-        logger.info(f"Heartbeat monitor started (timeout: {self.heartbeat_timeout}s)")
+        logger.info(f"Heartbeat monitor started on node {self.rank} (timeout: {self.heartbeat_timeout}s)")
         super().run()
 
 
@@ -103,6 +105,7 @@ class TimeoutMonitor(JobMonitor):
 
     def __init__(
         self,
+        rank: int,
         max_runtime_hours: float,
         shutdown_callback: Callable[[str], None],
     ):
@@ -116,12 +119,14 @@ class TimeoutMonitor(JobMonitor):
         self.start_time = time.time()
         self.accumulated_runtime = 0.0
 
-        rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+        self.rank = rank
         self.is_master = rank == 0
 
         # Get accumulated runtime file path from environment
-        job_metadata_dir = Path(os.environ.get("JOB_METADATA_DIR", "/tmp/metta"))
-        self.accumulated_runtime_file = job_metadata_dir / "accumulated_runtime"
+        accumulated_runtime_file_path = os.environ.get("ACCUMULATED_RUNTIME_FILE")
+        if not accumulated_runtime_file_path:
+            raise ValueError("ACCUMULATED_RUNTIME_FILE environment variable must be set")
+        self.accumulated_runtime_file = Path(accumulated_runtime_file_path)
 
         # Load accumulated runtime if file exists, otherwise create it
         if self.accumulated_runtime_file.exists():
@@ -179,8 +184,40 @@ class TimeoutMonitor(JobMonitor):
 
     def run(self):
         remaining = self.max_seconds - self.accumulated_runtime
-        node_type = "master" if self.is_master else "non-master"
-        logger.info(f"Timeout monitor started ({node_type} node, remaining: {remaining:.0f}s)")
+        logger.info(f"Timeout monitor started on node {self.rank} (exit in {remaining:.0f}s)")
+        super().run()
+
+
+class ForceRestartTestMonitor(JobMonitor):
+    """Monitor that simulates node failure for testing job recovery."""
+
+    def __init__(
+        self,
+        rank: int,
+        restart_time_hours: float,
+        shutdown_callback: Callable[[str], None],
+    ):
+        super().__init__(
+            name="force_restart_test",
+            shutdown_callback=shutdown_callback,
+            check_interval_sec=10.0,  # Check every 10 seconds
+        )
+        self.start_time = time.time()
+        self.failure_delay_sec = int(restart_time_hours * 3600)
+        self.rank = rank
+
+    def check_condition(self) -> tuple[bool, Optional[str]]:
+        """Check if it's time to simulate a failure."""
+
+        elapsed = time.time() - self.start_time
+
+        if elapsed >= self.failure_delay_sec:
+            return True, "force_restart_test"
+
+        return False, None
+
+    def run(self):
+        logger.info(f"Test failure monitor started on node {self.rank} (will fail in {self.failure_delay_sec}s)")
         super().run()
 
 
@@ -204,8 +241,12 @@ def start_monitors(
     heartbeat_timeout = int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None
     max_runtime_hours = float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None
 
+    rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+    is_master = rank == 0
+
     if heartbeat_timeout:
         heartbeat_monitor = HeartbeatMonitor(
+            rank,
             heartbeat_timeout_sec=heartbeat_timeout,
             shutdown_callback=shutdown_callback,
         )
@@ -213,8 +254,18 @@ def start_monitors(
 
     if max_runtime_hours:
         timeout_monitor = TimeoutMonitor(
+            rank,
             max_runtime_hours=max_runtime_hours,
             shutdown_callback=shutdown_callback,
         )
-
         threading.Thread(target=timeout_monitor.run, name="timeout_monitor", daemon=True).start()
+
+        if is_master:
+            force_restart_test_monitor = ForceRestartTestMonitor(
+                rank,
+                restart_time_hours=max_runtime_hours / 2.0,
+                shutdown_callback=shutdown_callback,
+            )
+            threading.Thread(
+                target=force_restart_test_monitor.run, name="force_restart_test_monitor", daemon=True
+            ).start()

@@ -11,7 +11,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from metta.common.util.cost_monitor import get_cost_info
 from metta.common.util.github import set_skypilot_test_status
@@ -32,14 +32,11 @@ EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
 EXIT_NCCL_TEST_FAILURE = 42
 
-# Global state
+# Global state - reduced to minimum necessary for signal handling
 main_process: Optional[subprocess.Popen] = None
 shutdown_event = threading.Event()
 termination_reason_lock = threading.Lock()
-exit_code = 0
-termination_reason = ""
-github_status_state = ""
-github_status_description = ""
+_termination_reason = ""
 
 # Configuration
 rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
@@ -51,10 +48,6 @@ restart_count = int(os.environ.get("RESTART_COUNT", "0"))
 test_nccl = os.environ.get("TEST_NCCL", "false").lower() == "true"
 enable_discord = os.environ.get("ENABLE_DISCORD", "false").lower() == "true"
 enable_github_status = os.environ.get("ENABLE_GITHUB_STATUS", "false").lower() == "true"
-
-# Paths
-job_metadata_dir = Path(os.environ.get("JOB_METADATA_DIR", "/tmp/metta"))
-heartbeat_file = job_metadata_dir / "heartbeat"
 
 
 def log_config():
@@ -86,19 +79,25 @@ def setup_signal_handlers():
 
 def trigger_shutdown(reason: str):
     """Callback function for monitors to trigger shutdown."""
-    global termination_reason
+    global _termination_reason
 
     with termination_reason_lock:
-        if not termination_reason:  # Only set if not already set
-            termination_reason = reason
+        if not _termination_reason:  # Only set if not already set
+            _termination_reason = reason
             logger.info(f"Shutdown triggered with reason: {reason}")
 
     shutdown_event.set()
 
 
-def run_training():
-    """Run the main training process."""
-    global main_process, exit_code
+def get_termination_reason() -> str:
+    """Thread-safe getter for termination reason."""
+    with termination_reason_lock:
+        return _termination_reason
+
+
+def run_training() -> int:
+    """Run the main training process and return exit code."""
+    global main_process
 
     cmd = ["./devops/run.sh"]
 
@@ -152,9 +151,10 @@ def run_training():
 
     exit_code = main_process.returncode or 0
     logger.info(f"Training process exited with code: {exit_code}")
+    return exit_code
 
 
-def send_discord_notification(emoji: str, title: str, status_msg: str, additional_info: str = ""):
+def send_discord_notification(emoji: str, title: str, status_msg: str, additional_info: str = "", exit_code: int = 0):
     """Send Discord notification via the shell script."""
     if not is_master or not enable_discord:
         return
@@ -186,12 +186,12 @@ def send_discord_notification(emoji: str, title: str, status_msg: str, additiona
         logger.warning(f"Failed to send Discord notification: {e}")
 
 
-def set_github_status():
-    """Update GitHub commit status using the new helper function."""
+def set_github_status(exit_code: int, state: str, description: str, termination_reason: str):
+    """Update GitHub commit status."""
     if not is_master or not enable_github_status:
         return
 
-    if not github_status_state or not github_status_description:
+    if not state or not description:
         return
 
     # Get required environment variables
@@ -214,8 +214,8 @@ def set_github_status():
     wandb_run_id = os.environ.get("METTA_RUN_ID")
 
     success = set_skypilot_test_status(
-        state=github_status_state,
-        description=github_status_description,
+        state=state,
+        description=description,
         commit_sha=commit_sha,
         token=token,
         context=context,
@@ -228,61 +228,87 @@ def set_github_status():
         logger.warning("Failed to set GitHub status")
 
 
-def handle_master_cleanup():
-    """Handle master-specific cleanup tasks."""
-    global exit_code, github_status_state, github_status_description, termination_reason
+def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, str, str, int]:
+    """
+    Determine job status based on exit code and termination reason.
 
-    if not is_master:
-        return
+    Returns:
+        Tuple of (github_state, github_description, final_termination_reason, final_exit_code)
+    """
+    # Default values - assume failure unless proven otherwise
+    github_state = "failure"
+    github_description = f"Job failed with exit code {exit_code}"
+    final_termination_reason = termination_reason or f"exit_code_{exit_code}"
+    final_exit_code = exit_code
 
-    # Check termination reason and set appropriate status
     if termination_reason == "heartbeat_timeout":
         logger.error("Job terminated due to heartbeat timeout")
-        github_status_state = "failure"
-        github_status_description = f"Job failed - no heartbeat for {heartbeat_timeout} seconds"
-        send_discord_notification("❌", "SkyPilot Job Heartbeat Timeout", github_status_description)
-        # Map to success exit code to prevent a SkyPilot restart
-        exit_code = EXIT_SUCCESS
+        github_description = f"Job failed - no heartbeat for {heartbeat_timeout} seconds"
+        final_exit_code = EXIT_SUCCESS  # Prevent SkyPilot restart
 
     elif termination_reason == "max_runtime_reached":
         logger.info("Job terminated due to max runtime limit")
-        github_status_state = "success"
-        github_status_description = f"Job ran successfully for {max_runtime_hours} hours"
-        send_discord_notification("✅", "SkyPilot Job Completed", github_status_description)
-        # Map to success exit code to prevent a SkyPilot restart
-        exit_code = EXIT_SUCCESS
+        github_state = "success"
+        github_description = f"Job ran successfully for {max_runtime_hours} hours"
+        final_exit_code = EXIT_SUCCESS  # Prevent SkyPilot restart
 
-    elif not termination_reason:
-        if exit_code == EXIT_SUCCESS:
-            logger.info("[SUCCESS] Job completed successfully")
-            termination_reason = "completed"
-            github_status_state = "success"
-            github_status_description = "Job completed successfully"
-        else:
-            logger.error(f"Job failed with exit code {exit_code}")
-            termination_reason = f"exit_code_{exit_code}"
-            github_status_state = "failure"
-            github_status_description = f"Job failed with exit code {exit_code}"
+    elif termination_reason == "force_restart_test":
+        logger.info("Job restarting to simulate a node failure")
+        github_state = "pending"
+        github_description = f"Forced a restart test (restart count: {restart_count + 1})"
+        final_exit_code = EXIT_FAILURE  # Cause SkyPilot restart
+
+    elif not termination_reason and exit_code == EXIT_SUCCESS:
+        logger.info("[SUCCESS] Job completed successfully")
+        final_termination_reason = "completed"
+        github_state = "success"
+        github_description = "Job completed successfully"
 
     elif exit_code == EXIT_NCCL_TEST_FAILURE:
         logger.error("Job failed during NCCL tests")
-        github_status_state = "error"  # Infrastructure issue
-        github_status_description = "NCCL tests failed - GPU communication issue"
-        termination_reason = "nccl_test_failure"
-        send_discord_notification("❌", "SkyPilot Job NCCL Config Error", github_status_description)
+        github_state = "error"  # Infrastructure issue
+        github_description = "NCCL tests failed - GPU communication issue"
+        final_termination_reason = "nccl_test_failure"
 
     else:
+        # Default case - just log the error
         logger.error(f"Job failed with exit code {exit_code}")
-        github_status_state = "failure"
-        github_status_description = f"Job failed with exit code {exit_code}"
-        termination_reason = f"exit_code_{exit_code}"
-        send_discord_notification("❌", "SkyPilot Job Failed", github_status_description)
+
+    return github_state, github_description, final_termination_reason, final_exit_code
+
+
+def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
+    """
+    Handle master-specific cleanup tasks.
+
+    Returns:
+        Final exit code after cleanup
+    """
+    if not is_master:
+        return exit_code
+
+    # Determine job status
+    github_state, github_description, final_termination_reason, final_exit_code = determine_job_status(
+        exit_code, termination_reason
+    )
+
+    # Send notifications based on status
+    if termination_reason == "heartbeat_timeout":
+        send_discord_notification("❌", "SkyPilot Job Heartbeat Timeout", github_description, "", exit_code)
+    elif termination_reason == "max_runtime_reached":
+        send_discord_notification("✅", "SkyPilot Job Completed", github_description, "", exit_code)
+    elif exit_code == EXIT_NCCL_TEST_FAILURE:
+        send_discord_notification("❌", "SkyPilot Job NCCL Config Error", github_description, "", exit_code)
+    elif exit_code != EXIT_SUCCESS and termination_reason != "force_restart_test":
+        send_discord_notification("❌", "SkyPilot Job Failed", github_description, "", exit_code)
 
     # Update GitHub status
-    set_github_status()
+    set_github_status(exit_code, github_state, github_description, final_termination_reason)
+
+    return final_exit_code
 
 
-def print_final_summary():
+def print_final_summary(exit_code: int, termination_reason: str):
     """Print final job summary."""
     logger.info("[SUMMARY] ===== Job Summary =====")
     logger.info(f"[SUMMARY] Metta Run ID: {os.environ.get('METTA_RUN_ID', 'N/A')}")
@@ -315,8 +341,6 @@ def shutdown():
 
 def main():
     """Main entry point that runs the full lifecycle and returns exit code."""
-    global exit_code, termination_reason
-
     # Setup environment
     log_config()
     setup_signal_handlers()
@@ -352,9 +376,13 @@ def main():
             logger.error(f"Failed to run NCCL tests: {e}")
             sys.exit(EXIT_NCCL_TEST_FAILURE)
 
+    exit_code = EXIT_FAILURE
+    termination_reason = ""
+
     try:
         start_monitors(shutdown_callback=trigger_shutdown)
-        run_training()
+        exit_code = run_training()
+        termination_reason = get_termination_reason()
 
     except SystemExit:
         # Re-raise system exit to be handled properly
@@ -367,8 +395,9 @@ def main():
 
     logger.info(f"[INFO] Termination reason: {termination_reason}")
 
-    handle_master_cleanup()
-    print_final_summary()
+    # Handle cleanup and potentially modify exit code
+    final_exit_code = handle_master_cleanup(exit_code, termination_reason)
+    print_final_summary(exit_code, termination_reason)
 
     # Sleep briefly before exit
     time.sleep(1)
@@ -376,10 +405,9 @@ def main():
     if termination_reason in ["max_runtime_reached", "completed", "heartbeat_timeout"]:
         logger.info("Will exit with code 0 to prevent SkyPilot restart")
         return EXIT_SUCCESS
-
     else:
-        logger.info(f"Will exit with code: {exit_code}")
-        return exit_code
+        logger.info(f"Will exit with code: {final_exit_code}")
+        return final_exit_code
 
 
 if __name__ == "__main__":
