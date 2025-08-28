@@ -25,7 +25,7 @@ TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     db = EvalStatsDB(db_path)
 
-    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     metadata = parse_checkpoint_filename(checkpoint_filename)
     assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
     pk, pv = metadata["run"], metadata["epoch"]
@@ -89,7 +89,7 @@ def test_db() -> Generator[TestEvalStatsDb, None, None]:
 # -------- Tests ------------------------------------------------------------ #
 def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     metadata = parse_checkpoint_filename(checkpoint_filename)
     assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
     pk, pv = metadata["run"], metadata["epoch"]
@@ -120,7 +120,7 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     metadata = parse_checkpoint_filename(checkpoint_filename)
     assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
     pk, pv = metadata["run"], metadata["epoch"]
@@ -143,7 +143,7 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     metadata = parse_checkpoint_filename(checkpoint_filename)
     assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
     pk, pv = metadata["run"], metadata["epoch"]
@@ -155,7 +155,7 @@ def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     metadata = parse_checkpoint_filename(checkpoint_filename)
     assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
     pk, pv = metadata["run"], metadata["epoch"]

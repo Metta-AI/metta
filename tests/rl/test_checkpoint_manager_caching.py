@@ -97,7 +97,7 @@ class CheckpointManagerWithCache:
 
         # Find checkpoint file with matching epoch using new format
         checkpoint_files = list(
-            self.checkpoint_manager.checkpoint_dir.glob(f"{self.checkpoint_manager.run_name}---e{epoch}_s*_t*s.pt")
+            self.checkpoint_manager.checkpoint_dir.glob(f"{self.checkpoint_manager.run_name}.e{epoch}.s*.t*.pt")
         )
         if not checkpoint_files:
             return None
@@ -137,7 +137,7 @@ class TestCheckpointManagerCachingBasics:
         """Test basic put and get operations with checkpoints."""
         cache = MockCheckpointCache(max_size=3)
 
-        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / "test_run---e1_s1000_t30s.pt")
+        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / "test_run.e1.s1000.t30.pt")
 
         # Put an agent
         cache.put(checkpoint_path, mock_agent)
@@ -155,7 +155,7 @@ class TestCheckpointManagerCachingBasics:
         """Test updating an existing checkpoint in cache."""
         cache = MockCheckpointCache()
 
-        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / "test_run---e1_s1000_t30s.pt")
+        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / "test_run.e1.s1000.t30.pt")
         agent1 = MockAgent()
         agent2 = MockAgent()
 
@@ -174,7 +174,7 @@ class TestCheckpointManagerCachingLRU:
 
         # Create checkpoint paths using new format
         base_path = Path(temp_run_dir) / "test_run" / "checkpoints"
-        paths = [str(base_path / f"test_run---e{i}_s{i * 1000}_t{i * 30}s.pt") for i in range(1, 5)]
+        paths = [str(base_path / f"test_run.e{i}.s{i * 1000}.t{i * 30}.pt") for i in range(1, 5)]
         agents = [MockAgent() for _ in range(4)]
 
         # Fill cache to capacity
@@ -195,7 +195,7 @@ class TestCheckpointManagerCachingLRU:
         cache = MockCheckpointCache(max_size=3)
 
         base_path = Path(temp_run_dir) / "test_run" / "checkpoints"
-        paths = [str(base_path / f"test_run---e{i}_s{i * 1000}_t{i * 30}s.pt") for i in range(1, 5)]
+        paths = [str(base_path / f"test_run.e{i}.s{i * 1000}.t{i * 30}.pt") for i in range(1, 5)]
         agents = [MockAgent() for _ in range(4)]
 
         # Fill cache
@@ -251,7 +251,7 @@ class TestCheckpointManagerCachingIntegration:
             cached_manager.save_agent(mock_agent, epoch=epoch, agent_step=epoch * 1000, total_time=epoch * 30)
 
         checkpoint_dir = Path(temp_run_dir) / "test_run" / "checkpoints"
-        checkpoint_paths = [str(checkpoint_dir / f"test_run---e{i}_s{i * 1000}_t{i * 30}s.pt") for i in range(1, 8)]
+        checkpoint_paths = [str(checkpoint_dir / f"test_run.e{i}.s{i * 1000}.t{i * 30}.pt") for i in range(1, 8)]
 
         # Simulate repeated access pattern (some checkpoints accessed frequently)
         access_pattern = [
@@ -302,7 +302,7 @@ class TestCheckpointManagerCachingConcurrency:
                         Path(temp_run_dir)
                         / "test_run"
                         / "checkpoints"
-                        / f"worker_{worker_id}---e{i}_s{i * 1000}_t{i * 30}s.pt"
+                        / f"worker_{worker_id}.e{i}.s{i * 1000}.t{i * 30}.pt"
                     )
                     agent = MockAgent()
                     cache.put(checkpoint_path, agent)
@@ -329,7 +329,7 @@ class TestCheckpointManagerCachingConcurrency:
         # Pre-populate some entries
         for i in range(5):
             checkpoint_path = str(
-                Path(temp_run_dir) / "test_run" / "checkpoints" / f"initial---e{i}_s{i * 1000}_t{i * 30}s.pt"
+                Path(temp_run_dir) / "test_run" / "checkpoints" / f"initial.e{i}.s{i * 1000}.t{i * 30}.pt"
             )
             cache.put(checkpoint_path, MockAgent())
 
@@ -342,7 +342,7 @@ class TestCheckpointManagerCachingConcurrency:
                             Path(temp_run_dir)
                             / "test_run"
                             / "checkpoints"
-                            / f"worker_{worker_id}---e{i}_s{i * 1000}_t{i * 30}s.pt"
+                            / f"worker_{worker_id}.e{i}.s{i * 1000}.t{i * 30}.pt"
                         )
                         cache.put(checkpoint_path, MockAgent())
                     else:
@@ -351,7 +351,7 @@ class TestCheckpointManagerCachingConcurrency:
                             Path(temp_run_dir)
                             / "test_run"
                             / "checkpoints"
-                            / f"initial---e{i % 5}_s{(i % 5) * 1000}_t{(i % 5) * 30}s.pt"
+                            / f"initial.e{i % 5}.s{(i % 5) * 1000}.t{(i % 5) * 30}.pt"
                         )
                         cache.get(checkpoint_path)
 

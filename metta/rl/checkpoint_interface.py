@@ -38,15 +38,15 @@ class Checkpoint:
 
 
 def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
-    """Get latest checkpoint from directory, supporting both new triple-dash and old formats."""
+    """Get latest checkpoint from directory, supporting both new dot-separated and old formats."""
     checkpoint_path = Path(checkpoint_dir)
     if not checkpoint_path.exists():
         return None
 
     run_name = checkpoint_path.parent.name if checkpoint_path.parent else "unknown"
 
-    # Try new triple-dash format first
-    new_format_files = list(checkpoint_path.glob(f"{run_name}---e*_s*_t*s.pt"))
+    # Try new dot-separated format first
+    new_format_files = list(checkpoint_path.glob(f"{run_name}.e*.s*.t*.pt"))
     if new_format_files:
         latest_file = max(new_format_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
         metadata = parse_checkpoint_filename(latest_file.name) or {}

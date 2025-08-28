@@ -17,7 +17,7 @@ def create_test_database(
     num_episodes_requested: int,
     num_episodes_completed: int,
     num_agents: int = 2,
-    checkpoint_filename: str = "test_policy---e1_s1000_t30s.pt",
+    checkpoint_filename: str = "test_policy.e1.s1000.t30.pt",
 ):
     """Create a test database that simulates the bug scenario."""
     db = EvalStatsDB(db_path)
@@ -101,7 +101,7 @@ def test_normalization_bug():
         # Demonstrate new filename-based checkpoint metadata system
         # OLD WAY: checkpoint_path, epoch = "test_policy", 1  # Manual tuple tracking
         # NEW WAY: Everything extracted automatically from filename
-        checkpoint_filename = "test_policy---e1_s1000_t30s.pt"
+        checkpoint_filename = "test_policy.e1.s1000.t30.pt"
         metadata = parse_checkpoint_filename(checkpoint_filename)
         checkpoint_path, epoch = metadata["run"], metadata["epoch"]
 

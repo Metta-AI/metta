@@ -52,9 +52,9 @@ class TestCheckpointManagerBasicOperations:
         # Save the agent
         checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
 
-        # Verify checkpoint file exists with new format: {run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt
+        # Verify checkpoint file exists with new format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        expected_filename = "test_run---e5_s5280_t120s.pt"
+        expected_filename = "test_run.e5.s5280.t120.pt"
         agent_file = checkpoint_dir / expected_filename
 
         assert agent_file.exists()
@@ -109,10 +109,10 @@ class TestCheckpointManagerBasicOperations:
         # Verify files were created with correct naming format
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
         expected_files = [
-            "test_run---e1_s1000_t30s.pt",
-            "test_run---e5_s5000_t150s.pt",
-            "test_run---e10_s10000_t300s.pt",
-            "test_run---e15_s15000_t450s.pt",
+            "test_run.e1.s1000.t30.pt",
+            "test_run.e5.s5000.t150.pt",
+            "test_run.e10.s10000.t300.pt",
+            "test_run.e15.s15000.t450.pt",
         ]
         for expected_file in expected_files:
             assert (checkpoint_dir / expected_file).exists()
@@ -120,12 +120,12 @@ class TestCheckpointManagerBasicOperations:
         # Test find_best_checkpoint functionality (uses epoch by default)
         best_path = checkpoint_manager.find_best_checkpoint("epoch")
         assert best_path is not None
-        assert "test_run---e15_s15000_t450s.pt" == best_path.name  # Epoch 15 is highest
+        assert "test_run.e15.s15000.t450.pt" == best_path.name  # Epoch 15 is highest
 
         # Test find_best_checkpoint with agent_step metric
         best_step_path = checkpoint_manager.find_best_checkpoint("agent_step")
         assert best_step_path is not None
-        assert "test_run---e15_s15000_t450s.pt" == best_step_path.name  # Highest agent_step
+        assert "test_run.e15.s15000.t450.pt" == best_step_path.name  # Highest agent_step
 
         # Test loading latest (should be epoch 15)
         loaded_agent = checkpoint_manager.load_agent()  # No epoch specified = latest
@@ -160,15 +160,15 @@ class TestCheckpointManagerAdvancedFeatures:
 
         # Test finding best by epoch (highest epoch number)
         best_epoch_path = checkpoint_manager.find_best_checkpoint("epoch")
-        assert "test_run---e15_s15000_t450s.pt" == best_epoch_path.name
+        assert "test_run.e15.s15000.t450.pt" == best_epoch_path.name
 
         # Test finding best by agent_step
         best_step_path = checkpoint_manager.find_best_checkpoint("agent_step")
-        assert "test_run---e15_s15000_t450s.pt" == best_step_path.name
+        assert "test_run.e15.s15000.t450.pt" == best_step_path.name
 
         # Test checkpoint file existence and parsing
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        checkpoint_files = list(checkpoint_dir.glob("test_run---e*_s*_t*s.pt"))
+        checkpoint_files = list(checkpoint_dir.glob("test_run.e*.s*.t*.pt"))
         assert len(checkpoint_files) == 4
 
         # Test that we can parse metadata from all checkpoint filenames
@@ -194,7 +194,7 @@ class TestCheckpointManagerAdvancedFeatures:
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
 
         # Verify all checkpoints exist with new format
-        checkpoint_files = list(checkpoint_dir.glob("test_run---e*_s*_t*s.pt"))
+        checkpoint_files = list(checkpoint_dir.glob("test_run.e*.s*.t*.pt"))
         assert len(checkpoint_files) == 10
 
         # Test the actual cleanup functionality
@@ -202,7 +202,7 @@ class TestCheckpointManagerAdvancedFeatures:
         assert deleted_count == 5  # Should have removed 5 old checkpoints
 
         # Verify only 5 checkpoints remain
-        remaining_files = list(checkpoint_dir.glob("test_run---e*_s*_t*s.pt"))
+        remaining_files = list(checkpoint_dir.glob("test_run.e*.s*.t*.pt"))
         assert len(remaining_files) == 5
 
         # Verify the remaining files are the latest ones (epochs 6-10)
@@ -276,7 +276,7 @@ class TestCheckpointManagerErrorHandling:
         """Test the parse_checkpoint_filename utility function."""
 
         # Test valid filename
-        valid_filename = "test_run---e5_s1000_t300s.pt"
+        valid_filename = "test_run.e5.s1000.t300.pt"
         metadata = parse_checkpoint_filename(valid_filename)
 
         assert metadata is not None
@@ -289,10 +289,10 @@ class TestCheckpointManagerErrorHandling:
         # Test invalid filename formats
         invalid_filenames = [
             "invalid.pt",
-            "test_run_e5_s1000_t300s.pt",  # Wrong separator
-            "test_run---e5_s1000.pt",  # Missing total_time
-            "test_run---e5_t300s.pt",  # Missing agent_step
-            "test_run---s1000_t300s.pt",  # Missing epoch
+            "test_run_e5_s1000_t300.pt",  # Wrong separator
+            "test_run.e5.s1000.pt",  # Missing total_time
+            "test_run.e5.t300.pt",  # Missing agent_step
+            "test_run.s1000.t300.pt",  # Missing epoch
         ]
 
         for invalid_filename in invalid_filenames:
