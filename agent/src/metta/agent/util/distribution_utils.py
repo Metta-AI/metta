@@ -31,6 +31,15 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     full_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
 
+    # Numeric stabilizer: replace non-finite and renormalize with epsilon floor
+    eps = torch.finfo(action_probs.dtype).eps
+    finite_mask = torch.isfinite(action_probs)
+    action_probs = torch.where(finite_mask, action_probs, torch.zeros_like(action_probs))
+    action_probs = torch.clamp(action_probs, min=eps)
+    row_sums = action_probs.sum(dim=-1, keepdim=True)
+    uniform = torch.full_like(action_probs, 1.0 / action_probs.size(-1))
+    action_probs = torch.where(row_sums > 0, action_probs / row_sums.clamp(min=eps), uniform)
+
     # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
     actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
 
@@ -69,6 +78,15 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
 
     action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
+
+    # Numeric stabilizer to keep entropy finite
+    eps = torch.finfo(action_probs.dtype).eps
+    finite_mask = torch.isfinite(action_probs)
+    action_probs = torch.where(finite_mask, action_probs, torch.zeros_like(action_probs))
+    action_probs = torch.clamp(action_probs, min=eps)
+    row_sums = action_probs.sum(dim=-1, keepdim=True)
+    uniform = torch.full_like(action_probs, 1.0 / action_probs.size(-1))
+    action_probs = torch.where(row_sums > 0, action_probs / row_sums.clamp(min=eps), uniform)
 
     # Extract log-probabilities for the provided actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
