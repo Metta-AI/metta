@@ -2,10 +2,10 @@ import importlib.util
 import sys
 
 import IPython
-from omegaconf import DictConfig
 from traitlets.config import Config as IPythonConfig
 
 from metta.common.util.fs import get_repo_root
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.setup.utils import header, info, success, warning
 
 __name__ = "__ipython__"
@@ -14,14 +14,9 @@ REPO_ROOT = get_repo_root()
 CONFIGS_DIR = REPO_ROOT / "configs"
 
 
-def get_checkpoint_manager_from_cfg(cfg: DictConfig, run_name: str = "default") -> "CheckpointManager":
-    """Create CheckpointManager from config for interactive shell use."""
-    from metta.rl.checkpoint_manager import CheckpointManager
-    
-    return CheckpointManager(
-        run_name=run_name,
-        run_dir=getattr(cfg, "data_dir", "./train_dir")
-    )
+def create_checkpoint_manager(run_name: str = "default", run_dir: str = "./train_dir") -> CheckpointManager:
+    """Create CheckpointManager for interactive shell use."""
+    return CheckpointManager(run_name=run_name, run_dir=run_dir)
 
 
 def help_configs() -> None:
