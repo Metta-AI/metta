@@ -8,8 +8,8 @@
 # TODO: (richard) #dehydration
 # @pytest.fixture
 # def tiny_env():
-#     env_cfg = MettaGridConfig.EmptyRoom(num_agents=1)
-#     env = MettaGridEnv(env_cfg, render_mode="human")
+#     cfg = MettaGridConfig.EmptyRoom(num_agents=1)
+#     env = MettaGridEnv(cfg, render_mode="human")
 #     obs, _ = env.reset()
 #     assert obs.dtype == dtype_observations
 #     try:
