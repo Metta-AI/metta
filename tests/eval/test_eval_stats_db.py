@@ -11,7 +11,7 @@ import datetime
 import tempfile
 import uuid
 from pathlib import Path
-from typing import List, cast
+from typing import List
 
 import pytest
 from typing_extensions import Generator
@@ -91,7 +91,7 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     pk, pv = db.key_and_version(checkpoint_path, epoch)
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
-    avg_hearts = db.get_average_metric_by_filter("hearts_collected", policy_record)
+    avg_hearts = db.get_average_metric_by_filter("hearts_collected", checkpoint_path, epoch)
     assert avg_hearts is not None
     assert 1.15 <= avg_hearts <= 1.25, f"expected ≈1.2 got {avg_hearts}"
 
@@ -102,16 +102,16 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     assert recorded == 2
 
     # reward recorded for every sample → mean unaffected
-    avg_reward = db.get_average_metric_by_filter("reward", policy_record)
+    avg_reward = db.get_average_metric_by_filter("reward", checkpoint_path, epoch)
     assert avg_reward is not None
 
     # filter condition
-    avg_filtered = db.get_average_metric_by_filter("hearts_collected", policy_record, "sim_env = 'test_env'")
+    avg_filtered = db.get_average_metric_by_filter("hearts_collected", checkpoint_path, epoch, "sim_env = 'test_env'")
     assert avg_filtered is not None
     assert 1.15 <= avg_filtered <= 1.25
 
     # non‑matching filter
-    assert db.get_average_metric_by_filter("hearts_collected", policy_record, "sim_env = 'none'") is None
+    assert db.get_average_metric_by_filter("hearts_collected", checkpoint_path, epoch, "sim_env = 'none'") is None
 
 
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
@@ -136,28 +136,28 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
+    checkpoint_path, epoch = "test_policy", 1
 
-    sum_norm = db.get_sum_metric_by_filter("hearts_collected", policy_record)
+    sum_norm = db.get_sum_metric_by_filter("hearts_collected", checkpoint_path, epoch)
     assert sum_norm is not None
     assert 1.15 <= sum_norm <= 1.25  # (6 / 5) ≈ 1.2
 
 
 def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
+    checkpoint_path, epoch = "test_policy", 1
 
-    assert db.get_average_metric_by_filter("nonexistent", policy_record) == 0.0
+    assert db.get_average_metric_by_filter("nonexistent", checkpoint_path, epoch) == 0.0
 
-    bad_policy_record = MockPolicyRecord.from_key_and_version("none", 99)
-    assert db.get_average_metric_by_filter("hearts_collected", bad_policy_record) is None
+    bad_checkpoint_path, bad_epoch = "none", 99
+    assert db.get_average_metric_by_filter("hearts_collected", bad_checkpoint_path, bad_epoch) is None
 
 
 def test_empty_database():
     with tempfile.TemporaryDirectory() as tmp:
         db = EvalStatsDB(Path(tmp) / "empty.duckdb")
-        policy_record = MockPolicyRecord.from_key_and_version("test", 1)
+        checkpoint_path, epoch = "test", 1
 
-        assert db.get_average_metric_by_filter("reward", cast(PolicyRecord, policy_record)) is None
+        assert db.get_average_metric_by_filter("reward", checkpoint_path, epoch) is None
         assert db.potential_samples_for_metric("test", 1) == 0
         db.close()

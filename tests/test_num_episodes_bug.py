@@ -8,8 +8,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from metta.agent.policy_metadata import PolicyMetadata
-from metta.sim.policy_wrapper import PolicyRecord
+# Working directly with checkpoint metadata - no PolicyRecord needed
 from metta.eval.eval_stats_db import EvalStatsDB
 
 
@@ -83,14 +82,8 @@ def test_normalization_bug():
 
         # Calculate metrics
 
-        # Create a mock policy record using PolicyWrapper/PolicyRecord
-        from metta.agent.mocks.mock_agent import MockAgent
-        policy_record = PolicyRecord(
-            policy=MockAgent(),
-            run_name="test_policy",
-            uri="test_policy",
-            epoch=1,
-        )
+        # Use checkpoint metadata directly
+        checkpoint_path, epoch = "test_policy", 1
 
         # Check what's in the database
         episodes_count = db1.query("SELECT COUNT(*) as cnt FROM episodes")["cnt"][0]
@@ -102,7 +95,7 @@ def test_normalization_bug():
         print(f"  Agent metrics: {metrics_count}")
 
         # Get average reward
-        avg_reward_1 = db1.get_average_metric_by_filter("reward", policy_record)
+        avg_reward_1 = db1.get_average_metric_by_filter("reward", checkpoint_path, epoch)
         print(f"  Average reward: {avg_reward_1}")
 
         # Scenario 2: Not all episodes complete (demonstrates bug)
@@ -120,7 +113,7 @@ def test_normalization_bug():
         print(f"  Agent metrics: {metrics_count} (only completed episodes)")
 
         # Get average reward
-        avg_reward_2 = db2.get_average_metric_by_filter("reward", policy_record)
+        avg_reward_2 = db2.get_average_metric_by_filter("reward", checkpoint_path, epoch)
         print(f"  Average reward: {avg_reward_2}")
 
         # Check the normalization calculation details
