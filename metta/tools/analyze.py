@@ -22,6 +22,8 @@ class AnalysisTool(Tool):
     data_dir: str = Field(default="./train_dir")
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+        # TODO: Update this to use CheckpointManager
+        # For now, keeping PolicyStore to avoid breaking the analysis tools
         policy_store = PolicyStore(
             device=self.system.device,
             data_dir=self.data_dir,
