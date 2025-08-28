@@ -24,8 +24,6 @@ mkdir -p "$JOB_METADATA_DIR"
 # Files to track
 RESTART_COUNT_FILE="$JOB_METADATA_DIR/restart_count"
 ACCUMULATED_RUNTIME_FILE="$JOB_METADATA_DIR/accumulated_runtime"
-CLUSTER_STOP_FILE="$JOB_METADATA_DIR/cluster_stop"
-TERMINATION_REASON_FILE="$JOB_METADATA_DIR/termination_reason"
 HEARTBEAT_FILE="${HEARTBEAT_FILE:-$JOB_METADATA_DIR/heartbeat_file}"
 
 # Initialize or update restart tracking
@@ -38,10 +36,8 @@ fi
 
 if [[ "$IS_MASTER" == "true" ]]; then
   echo "$RESTART_COUNT" > "$RESTART_COUNT_FILE"
-  # Clear any stale cluster stop flag at the beginning of a fresh attempt
-  : > "$CLUSTER_STOP_FILE" 2> /dev/null || true
 else
-  echo "[INFO] Skipping RESTART_COUNT_FILE and CLUSTER_STOP_FILE updates on non-master node"
+  echo "[INFO] Skipping RESTART_COUNT_FILE updates on non-master node"
 fi
 
 # Read accumulated runtime
@@ -88,9 +84,7 @@ export ACCUMULATED_RUNTIME="${ACCUMULATED_RUNTIME}"
 # File path exports for monitors
 export JOB_METADATA_DIR="${JOB_METADATA_DIR}"
 export ACCUMULATED_RUNTIME_FILE="${ACCUMULATED_RUNTIME_FILE}"
-export CLUSTER_STOP_FILE="${CLUSTER_STOP_FILE}"
 export HEARTBEAT_FILE="${HEARTBEAT_FILE}"
-export TERMINATION_REASON_FILE="${TERMINATION_REASON_FILE}"
 
 # NCCL Configuration
 export NCCL_PORT_RANGE="\${NCCL_PORT_RANGE:-43000-43063}"

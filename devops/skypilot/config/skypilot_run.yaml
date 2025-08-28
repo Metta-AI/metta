@@ -65,7 +65,7 @@ run: |
   source "$METTA_ENV_FILE"
 
   echo "Starting skypilot run script..."
-  uv run python ./devops/skypilot/config/test_exit.py
+  uv run python ./devops/skypilot/config/skypilot_run.py
 
 envs:
   TEST_NCCL: "false"

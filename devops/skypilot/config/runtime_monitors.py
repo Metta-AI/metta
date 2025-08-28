@@ -51,7 +51,6 @@ class HeartbeatMonitor(JobMonitor):
     def __init__(
         self,
         heartbeat_timeout_sec: int,
-        heartbeat_file: Path,
         shutdown_callback: Callable[[str], None],
     ):
         super().__init__(
@@ -60,8 +59,23 @@ class HeartbeatMonitor(JobMonitor):
             check_interval_sec=15.0,  # Check every 15 seconds
         )
         self.heartbeat_timeout = heartbeat_timeout_sec
-        self.heartbeat_file = heartbeat_file
+
+        # Get heartbeat file path from environment
+        heartbeat_file_path = os.environ.get("HEARTBEAT_FILE")
+        if not heartbeat_file_path:
+            raise ValueError("HEARTBEAT_FILE environment variable must be set")
+
+        self.heartbeat_file = Path(heartbeat_file_path)
         self.last_heartbeat = time.time()
+
+        # Create heartbeat file if it doesn't exist
+        if not self.heartbeat_file.exists():
+            try:
+                self.heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+                self.heartbeat_file.touch()
+                logger.info(f"Created heartbeat file at {self.heartbeat_file}")
+            except Exception as e:
+                logger.error(f"Failed to create heartbeat file: {e}")
 
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if heartbeat has timed out."""
@@ -102,6 +116,9 @@ class TimeoutMonitor(JobMonitor):
         self.start_time = time.time()
         self.accumulated_runtime = 0.0
 
+        rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+        self.is_master = rank == 0
+
         # Get accumulated runtime file path from environment
         job_metadata_dir = Path(os.environ.get("JOB_METADATA_DIR", "/tmp/metta"))
         self.accumulated_runtime_file = job_metadata_dir / "accumulated_runtime"
@@ -115,13 +132,17 @@ class TimeoutMonitor(JobMonitor):
                 logger.warning(f"Failed to load accumulated runtime: {e}")
                 self.accumulated_runtime = 0.0
         else:
-            # Create the file with initial value
-            try:
-                self.accumulated_runtime_file.parent.mkdir(parents=True, exist_ok=True)
-                self.accumulated_runtime_file.write_text("0.0")
-                logger.info("Created accumulated runtime file with initial value: 0.0s")
-            except Exception as e:
-                logger.error(f"Failed to create accumulated runtime file: {e}")
+            # Only master node creates the file
+            if self.is_master:
+                try:
+                    self.accumulated_runtime_file.parent.mkdir(parents=True, exist_ok=True)
+                    self.accumulated_runtime_file.write_text("0.0")
+                    logger.info("Created accumulated runtime file with initial value: 0.0s")
+                except Exception as e:
+                    logger.error(f"Failed to create accumulated runtime file: {e}")
+            else:
+                logger.info("Accumulated runtime file not found (non-master node)")
+                self.accumulated_runtime = 0.0
 
     def get_current_runtime(self) -> float:
         """Get the runtime for the current session."""
@@ -132,7 +153,10 @@ class TimeoutMonitor(JobMonitor):
         return self.accumulated_runtime + self.get_current_runtime()
 
     def save_accumulated_runtime(self):
-        """Save the current total runtime to file."""
+        """Save the current total runtime to file (master node only)."""
+        if not self.is_master:
+            return
+
         try:
             total_runtime = self.get_total_runtime()
             self.accumulated_runtime_file.parent.mkdir(parents=True, exist_ok=True)
@@ -155,7 +179,8 @@ class TimeoutMonitor(JobMonitor):
 
     def run(self):
         remaining = self.max_seconds - self.accumulated_runtime
-        logger.info(f"Timeout monitor started (remaining: {remaining:.0f}s)")
+        node_type = "master" if self.is_master else "non-master"
+        logger.info(f"Timeout monitor started ({node_type} node, remaining: {remaining:.0f}s)")
         super().run()
 
 
@@ -167,6 +192,7 @@ def start_monitors(
 
     Reads configuration from environment variables:
     - HEARTBEAT_TIMEOUT: Timeout in seconds for heartbeat monitoring
+    - HEARTBEAT_FILE: Path to the heartbeat file (required if HEARTBEAT_TIMEOUT is set)
     - MAX_RUNTIME_HOURS: Maximum runtime in hours
     - SKYPILOT_NODE_RANK: Node rank (0 = master)
     - JOB_METADATA_DIR: Directory for metadata files
@@ -177,24 +203,15 @@ def start_monitors(
     # Read configuration from environment
     heartbeat_timeout = int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None
     max_runtime_hours = float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None
-    rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
-    is_master = rank == 0
-    job_metadata_dir = Path(os.environ.get("JOB_METADATA_DIR", "/tmp/metta"))
 
-    # Define paths
-    heartbeat_file = job_metadata_dir / "heartbeat"
-
-    # Start heartbeat monitor if configured
     if heartbeat_timeout:
         heartbeat_monitor = HeartbeatMonitor(
             heartbeat_timeout_sec=heartbeat_timeout,
-            heartbeat_file=heartbeat_file,
             shutdown_callback=shutdown_callback,
         )
         threading.Thread(target=heartbeat_monitor.run, name="heartbeat_monitor", daemon=True).start()
 
-    # Start timeout monitor if configured and on master
-    if max_runtime_hours and is_master:
+    if max_runtime_hours:
         timeout_monitor = TimeoutMonitor(
             max_runtime_hours=max_runtime_hours,
             shutdown_callback=shutdown_callback,
