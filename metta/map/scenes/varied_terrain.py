@@ -1,21 +1,3 @@
-"""
-This file defines the VariedTerrainDiverse environment.
-It creates a grid world with configurable features including:
-  - Large obstacles and small obstacles: randomly generated, connected shapes.
-  - Cross obstacles: cross-shaped patterns.
-  - Mini labyrinths: maze-like structures (≈11×11) with passages thickened probabilistically,
-      and with at least two-cell gaps along the borders; empty cells may be replaced with "heart".
-  - Scattered single walls: individual wall cells placed at random empty cells.
-  - Blocks: new rectangular objects whose width and height are sampled uniformly between 2 and 14.
-      The number of blocks is determined from the style.
-  - Altars: the only object placed, whose count is determined by hearts_count.
-  - A clumpiness factor that biases object placement.
-All objects are placed with at least a one-cell clearance.
-If no space is found for a new object, placement is skipped.
-The build order is:
-    mini labyrinths → obstacles (large, small, crosses) → scattered walls → blocks → altars → agents.
-"""
-
 from typing import List, Optional, Tuple
 
 import numpy as np
