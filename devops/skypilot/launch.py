@@ -139,7 +139,6 @@ def main():
         "--discord-webhook-url", type=str, default=None, help="Discord webhook URL for status update channel"
     )
     parser.add_argument(
-        "-ci"
         "--run-ci-tests",
         action="store_true",
         help="Run NCCL and job restart tests",
