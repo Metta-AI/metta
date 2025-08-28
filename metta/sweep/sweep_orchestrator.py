@@ -5,6 +5,7 @@ from enum import StrEnum, auto
 import time
 import logging
 import subprocess
+import functools
 
 from cogweb.cogweb_client import CogwebClient
 
@@ -52,10 +53,7 @@ class JobStatus(StrEnum):
     COMPLETED = auto()
 
 
-class DispatchType(StrEnum):
-    LOCAL = auto()
-    SKYPILOT = auto()
-    CENTRAL_QUEUE = auto()
+# DispatchType removed - dispatchers are passed directly to controller
 
 
 @dataclass
@@ -79,7 +77,7 @@ class RunInfo:
     last_heartbeat_at: datetime | None = None
 
     # Configuration and results
-    summary: dict = {}
+    summary: dict | None = None
     has_started_training: bool = False
     has_completed_training: bool = False
     has_started_eval: bool = False
@@ -100,7 +98,7 @@ class RunInfo:
             return JobStatus.TRAINING_DONE_NO_EVAL
         if self.has_started_eval and not self.has_been_evaluated:
             return JobStatus.IN_EVAL
-        if self.has_been_evaluated and (self.observation is None or self.observation == {}):
+        if self.has_been_evaluated and self.observation is None:
             return JobStatus.EVAL_DONE_NOT_COMPLETED
         else:
             return JobStatus.COMPLETED
@@ -205,7 +203,7 @@ class Dispatcher(Protocol):
     """
 
     # Distinction: run_id is the job's identifier in WandB, dispatch_id is the Sky Job iD, the pid, etc...
-    def dispatch(self, job: JobDefinition, dispatch_type: DispatchType) -> str:
+    def dispatch(self, job: JobDefinition) -> str:
         """Start a job and return a dispatch ID"""
         ...
 
@@ -230,6 +228,7 @@ def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
     """Decorator for retrying operations with exponential backoff"""
 
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             attempt = 1
             current_delay = delay
@@ -272,10 +271,8 @@ class LocalDispatcher:
         self._processes: dict[str, subprocess.Popen] = {}  # pid -> process
         self._run_to_pid: dict[str, str] = {}  # run_id -> pid for debugging
 
-    def dispatch(self, job: JobDefinition, dispatch_type: DispatchType) -> str:
+    def dispatch(self, job: JobDefinition) -> str:
         """Dispatch a job locally as a subprocess and return its PID as dispatch_id"""
-        if dispatch_type != DispatchType.LOCAL:
-            raise ValueError(f"LocalDispatcher only supports LOCAL dispatch, got {dispatch_type}")
 
         # Build command
         cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
@@ -297,11 +294,11 @@ class LocalDispatcher:
         logger.info(f"Dispatching local run {job.run_id}: {' '.join(cmd_parts)}")
 
         try:
-            # Start subprocess
+            # Start subprocess without piping to avoid deadlock
             process = subprocess.Popen(
                 cmd_parts,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 text=True,
             )
 
@@ -340,7 +337,6 @@ class SweepController:
         store: Store,
         sweep_config: SweepConfig,
         max_parallel_jobs: int = 10,
-        dispatch_type: DispatchType = DispatchType.SKYPILOT,
         monitoring_interval: int = 5,
     ):
         # Configuration only - no state
@@ -350,26 +346,21 @@ class SweepController:
         self.dispatcher = dispatcher
         self.store = store
         self.sweep_config = sweep_config
-        self.dispatch_type = dispatch_type
         self.monitoring_interval = monitoring_interval
-
-        # For local dispatch, enforce max_parallel_jobs = 1
-        if dispatch_type == DispatchType.LOCAL:
-            if max_parallel_jobs != 1:
-                logger.warning(f"Local dispatch requires max_parallel_jobs=1, overriding {max_parallel_jobs}")
-            self.max_parallel_jobs = 1
-        else:
-            self.max_parallel_jobs = max_parallel_jobs
+        self.max_parallel_jobs = max_parallel_jobs
 
     def _compute_metadata_from_runs(self, all_runs: list[RunInfo]) -> SweepMetadata:
         """Compute sweep metadata from all runs"""
         metadata = SweepMetadata(sweep_id=self.sweep_id)
+        metadata.runs_created = len(all_runs)  # Total number of runs
 
         for run in all_runs:
-            if run.status == JobStatus.COMPLETED:
-                metadata.runs_completed += 1
-            elif run.status in [JobStatus.PENDING, JobStatus.IN_TRAINING, JobStatus.IN_EVAL]:
+            if run.status == JobStatus.PENDING:
+                metadata.runs_pending += 1
+            elif run.status in [JobStatus.IN_TRAINING, JobStatus.TRAINING_DONE_NO_EVAL, JobStatus.IN_EVAL]:
                 metadata.runs_in_progress += 1
+            elif run.status in [JobStatus.COMPLETED, JobStatus.EVAL_DONE_NOT_COMPLETED]:
+                metadata.runs_completed += 1
 
         return metadata
 
@@ -384,7 +375,17 @@ class SweepController:
                 metadata = self._compute_metadata_from_runs(all_run_infos)
 
                 # 3. Hand everything to scheduler - it decides what to do
-                new_jobs = self.scheduler.schedule(sweep_metadata=metadata, all_runs=all_run_infos)
+                # But enforce max_parallel_jobs limit
+                if metadata.runs_in_progress >= self.max_parallel_jobs:
+                    logger.debug(f"At max parallel jobs limit ({self.max_parallel_jobs}), skipping scheduling")
+                    new_jobs = []
+                else:
+                    new_jobs = self.scheduler.schedule(sweep_metadata=metadata, all_runs=all_run_infos)
+                    # Limit jobs to not exceed max_parallel
+                    max_to_schedule = self.max_parallel_jobs - metadata.runs_in_progress
+                    if len(new_jobs) > max_to_schedule:
+                        logger.info(f"Scheduler returned {len(new_jobs)} jobs, limiting to {max_to_schedule}")
+                        new_jobs = new_jobs[:max_to_schedule]
 
                 # 4. Execute scheduler's decisions
                 for job in new_jobs:
@@ -400,13 +401,14 @@ class SweepController:
                         )
                         logger.info(f"Launching eval for job {job.run_id}")
 
-                    dispatch_id = self.dispatcher.dispatch(job, self.dispatch_type)
-                    logger.info(f"Dispatched {job.run_id} with PID {dispatch_id}")
+                    dispatch_id = self.dispatcher.dispatch(job)
+                    logger.info(f"Dispatched {job.run_id} with dispatch_id {dispatch_id}")
 
                 # 5. Finally, update transient states and mark completions
                 # TODO: Refactor: Sweep config and Optimizer config
                 for run in all_run_infos:
                     if run.status == JobStatus.EVAL_DONE_NOT_COMPLETED:
+                        assert run.summary is not None
                         cost = run.cost if run.cost != 0 else run.runtime
                         score = run.summary.get(self.sweep_config.protein.metric)
                         if score is None:
@@ -445,7 +447,6 @@ class SweepOrchestratorConfig:
     wandb: WandbConfig
     sweep_config: SweepConfig
     max_parallel_jobs: int = 10
-    dispatch_type: DispatchType = DispatchType.SKYPILOT
     monitoring_interval: int = 5
 
 
@@ -480,7 +481,6 @@ def orchestrate_sweep(
         store=store,
         sweep_config=config.sweep_config,
         max_parallel_jobs=config.max_parallel_jobs,
-        dispatch_type=config.dispatch_type,
         monitoring_interval=config.monitoring_interval,
     )
 
