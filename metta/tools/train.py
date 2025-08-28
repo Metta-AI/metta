@@ -19,7 +19,12 @@ from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import (
+    auto_replay_dir,
+    auto_stats_server_uri,
+    auto_torch_profile_dir,
+    auto_wandb_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +177,11 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
     if cfg.trainer.evaluation.replay_dir is None:
         cfg.trainer.evaluation.replay_dir = auto_replay_dir()
         log_on_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
+
+    # Auto-configure torch profiler directory if not set
+    if cfg.trainer.profiler.profile_dir is None:
+        cfg.trainer.profiler.profile_dir = auto_torch_profile_dir()
+        log_on_master(f"Setting torch profile_dir to {cfg.trainer.profiler.profile_dir}")
 
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:

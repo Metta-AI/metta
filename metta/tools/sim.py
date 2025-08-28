@@ -22,12 +22,11 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicySelectorType, PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
-from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,7 @@ class SimTool(Tool):
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
-    replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    replay_dir: str = Field(default_factory=lambda: f"{auto_replay_dir()}/{str(uuid.uuid4())}")
 
     wandb: WandbConfig = auto_wandb_config()
 

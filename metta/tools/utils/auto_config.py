@@ -80,9 +80,15 @@ class SupportedAwsEnvOverrides(BaseSettings):
     )
 
     REPLAY_DIR: str | None = Field(default=None, description="Replay directory")
+    TORCH_PROFILE_DIR: str | None = Field(default=None, description="Torch profiler directory")
 
     def to_config_settings(self) -> dict[str, str]:
-        return remove_none_values({"replay_dir": self.REPLAY_DIR})
+        return remove_none_values(
+            {
+                "replay_dir": self.REPLAY_DIR,
+                "torch_profile_dir": self.TORCH_PROFILE_DIR,
+            }
+        )
 
 
 supported_aws_env_overrides = SupportedAwsEnvOverrides()
@@ -94,3 +100,24 @@ def auto_replay_dir() -> str:
         **aws_setup_module.to_config_settings(),  # type: ignore
         **supported_aws_env_overrides.to_config_settings(),
     }.get("replay_dir")
+
+
+def auto_torch_profile_dir() -> str:
+    """Returns profile-based torch profiler directory."""
+    from metta.setup.saved_settings import get_saved_settings
+
+    saved_settings = get_saved_settings()
+
+    # Profile-based defaults
+    if saved_settings.user_type.is_softmax:
+        profile_default = "s3://softmax-public/torch_traces/"
+    else:
+        profile_default = "./train_dir/torch_traces/"
+
+    # Allow environment variable override
+    config = {
+        "torch_profile_dir": profile_default,
+        **supported_aws_env_overrides.to_config_settings(),
+    }
+
+    return config.get("torch_profile_dir")
