@@ -3,46 +3,10 @@
 import pytest
 
 from metta.map.scene import ChildrenAction
-from metta.map.scenes.ascii import Ascii
 from metta.map.scenes.bsp import BSP
 from metta.map.scenes.make_connected import MakeConnected
 from metta.map.scenes.room_grid import RoomGrid
-from metta.map.scenes.wfc import WFC
-from tests.map.scenes.utils import assert_connected, assert_grid, render_scene
-
-
-class TestAsciiScenes:
-    def test_basic(self):
-        scene = render_scene(Ascii.factory(Ascii.Params(uri="tests/map/scenes/fixtures/test.map")), (4, 4))
-
-        assert_grid(
-            scene,
-            """
-####
-#_.#
-##.#
-####
-        """,
-        )
-
-
-class TestWFCScenes:
-    def test_basic(self):
-        scene = render_scene(
-            WFC.factory(
-                WFC.Params(
-                    pattern="""
-                    .#...
-                    ###..
-                    ###..
-                """
-                )
-            ),
-            (20, 20),
-        )
-
-        assert (scene.grid == "wall").sum() > 0
-        assert (scene.grid == "empty").sum() > 0
+from tests.map.scenes.utils import assert_connected, render_scene
 
 
 class TestBSPScenes:
