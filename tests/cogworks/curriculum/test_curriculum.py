@@ -19,12 +19,12 @@ class TestCurriculumTask:
     def test_curriculum_task_creation(self):
         """Test creating a CurriculumTask with required parameters."""
         task_id = 123
-        env_cfg = MettaGridConfig()
+        cfg = MettaGridConfig()
 
-        task = CurriculumTask(task_id, env_cfg)
+        task = CurriculumTask(task_id, cfg)
 
         assert task._task_id == task_id
-        assert task._env_cfg == env_cfg
+        assert task._env_cfg == cfg
         assert task._num_completions == 0
         assert task._total_score == 0.0
         assert task._mean_score == 0.0
@@ -32,10 +32,10 @@ class TestCurriculumTask:
 
     def test_curriculum_task_get_env_cfg(self):
         """Test that get_env_cfg returns the correct env config."""
-        env_cfg = MettaGridConfig()
-        task = CurriculumTask(123, env_cfg)
+        cfg = MettaGridConfig()
+        task = CurriculumTask(123, cfg)
 
-        assert task.get_env_cfg() is env_cfg
+        assert task.get_env_cfg() is cfg
 
     def test_curriculum_task_complete(self):
         """Test task completion updates statistics."""
