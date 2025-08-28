@@ -26,7 +26,7 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
 
 # from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint  # OLD - REMOVED
-from metta.rl.evaluate import upload_replay_html, evaluate_policy_remote_with_checkpoint_manager
+from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
@@ -36,13 +36,13 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.rollout import get_observation, send_observation
-from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
     process_stats,
 )
 from metta.rl.system_config import SystemConfig
+from metta.rl.tiny_checkpoint_manager import TinyCheckpointManager
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import (
@@ -93,7 +93,7 @@ def train(
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
-    checkpoint_manager: SimpleCheckpointManager,
+    checkpoint_manager: TinyCheckpointManager,
     stats_client: StatsClient | None,
     torch_dist_cfg: TorchDistributedConfig,
 ) -> None:
@@ -141,7 +141,7 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
-    # Load existing agent from SimpleCheckpointManager
+    # Load existing agent from TinyCheckpointManager
     existing_agent = checkpoint_manager.load_agent()
 
     # Load trainer state (optimizer state, epoch, agent_step)

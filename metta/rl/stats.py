@@ -8,7 +8,6 @@ from typing import Any
 
 import numpy as np
 import torch
-import wandb
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
@@ -16,20 +15,13 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
-from metta.rl.evaluate import upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
-from metta.rl.wandb import (
-    POLICY_EVALUATOR_EPOCH_METRIC,
-    POLICY_EVALUATOR_METRIC_PREFIX,
-    POLICY_EVALUATOR_STEP_METRIC,
-    setup_policy_evaluator_metrics,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -373,5 +365,3 @@ def process_stats(
 
     # Log to wandb
     wandb_run.log(all_stats, step=agent_step)
-
-

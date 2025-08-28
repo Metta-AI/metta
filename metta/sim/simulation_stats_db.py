@@ -17,7 +17,7 @@ import duckdb
 
 from metta.mettagrid.episode_stats_db import EpisodeStatsDB
 from metta.mettagrid.util.file import exists, local_copy, write_file
-from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
+from metta.rl.tiny_checkpoint_manager import TinyCheckpointManager
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
@@ -47,12 +47,12 @@ class SimpleCheckpointInfo:
 
     @classmethod
     def from_checkpoint_manager(
-        cls, checkpoint_manager: SimpleCheckpointManager, checkpoint_path: str | None = None
+        cls, checkpoint_manager: TinyCheckpointManager, checkpoint_path: str | None = None
     ) -> "SimpleCheckpointInfo":
-        """Create SimpleCheckpointInfo from SimpleCheckpointManager.
+        """Create SimpleCheckpointInfo from TinyCheckpointManager.
 
         Args:
-            checkpoint_manager: SimpleCheckpointManager instance
+            checkpoint_manager: TinyCheckpointManager instance
             checkpoint_path: Specific checkpoint path, or None for best checkpoint
 
         Returns:

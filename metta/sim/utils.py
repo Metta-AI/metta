@@ -3,7 +3,6 @@ import uuid
 from bidict import bidict
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.routes.score_routes import PolicyScoresData, PolicyScoresRequest
 
 
 def get_or_create_policy_ids(
@@ -34,5 +33,3 @@ def wandb_policy_name_to_uri(wandb_policy_name: str) -> tuple[str, str]:
     internal_wandb_policy_name = arr[2]
     wandb_uri = "wandb://" + arr[1] + "/" + arr[2]
     return (internal_wandb_policy_name, wandb_uri)
-
-

@@ -5,12 +5,11 @@ import platform
 from urllib.parse import quote
 
 import mettascope.server as server
-
-# TODO: Update to use SimpleCheckpointManager instead of PolicyStore
-# from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.common.config.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
+
+# Using TinyCheckpointManager for direct checkpoint loading
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -29,15 +28,13 @@ class ReplayTool(Tool):
     open_browser_on_start: bool = True
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        # Use minimal policy store that works with SimpleCheckpointManager
-        from metta.sim.simple_policy_store import SimplePolicyStore
-
-        policy_store = SimplePolicyStore.create(device=self.system.device)
+        # TODO: Update Simulation.create to work without policy_store
+        # For now, skip policy_store parameter
 
         # Create simulation using the helper method with explicit parameters
         sim = Simulation.create(
             sim_config=self.sim,
-            policy_store=policy_store,
+            policy_store=None,  # TODO: Remove policy_store dependency
             device=self.system.device,
             vectorization=self.system.vectorization,
             stats_dir=self.stats_dir,

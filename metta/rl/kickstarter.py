@@ -3,9 +3,9 @@ from tensordict import TensorDict
 from torch import Tensor, nn
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.sim.simple_policy_store import SimplePolicyStore
 from metta.mettagrid import MettaGridEnv
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
+from metta.rl.tiny_checkpoint_manager import TinyCheckpointManager
 
 
 class KickstartTeacher:
@@ -20,7 +20,11 @@ class KickstartTeacher:
 
 class Kickstarter:
     def __init__(
-        self, cfg: KickstartConfig, device: torch.device, policy_store: SimplePolicyStore, metta_grid_env: MettaGridEnv
+        self,
+        cfg: KickstartConfig,
+        device: torch.device,
+        checkpoint_manager: TinyCheckpointManager,
+        metta_grid_env: MettaGridEnv,
     ):
         """Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher
         policies. This is done by adding a loss term that encourages the student's output (action logits and value)
@@ -56,7 +60,7 @@ class Kickstarter:
             self.enabled = False
             return
 
-        self.policy_store: SimplePolicyStore = policy_store
+        self.checkpoint_manager: TinyCheckpointManager = checkpoint_manager
         self.kickstart_steps: int = cfg.kickstart_steps
         self.anneal_factor = 1.0
 
@@ -72,8 +76,7 @@ class Kickstarter:
     def _load_policies(self) -> None:
         self.teachers: list[KickstartTeacher] = []
         for teacher_cfg in self.teacher_cfgs or []:
-            policy_wrapper = self.policy_store.policy_record_or_mock(teacher_cfg.teacher_uri, "kickstarter")
-            policy: PolicyAgent = policy_wrapper.policy
+            policy: PolicyAgent = self._load_teacher_policy(teacher_cfg.teacher_uri)
             policy.action_loss_coef = teacher_cfg.action_loss_coef
             policy.value_loss_coef = teacher_cfg.value_loss_coef
             # Support both new and old initialization methods
@@ -91,6 +94,25 @@ class Kickstarter:
                 value_loss_coef=teacher_cfg.value_loss_coef,
             )
             self.teachers.append(teacher)
+
+    def _load_teacher_policy(self, teacher_uri: str) -> PolicyAgent:
+        """Load teacher policy directly from checkpoint file."""
+        if teacher_uri.startswith("file://"):
+            checkpoint_path = teacher_uri[7:]  # Remove "file://" prefix
+            if checkpoint_path.endswith("/checkpoints"):
+                # Find latest checkpoint in directory
+                checkpoint_manager = TinyCheckpointManager(
+                    run_name="", run_dir=checkpoint_path.replace("/checkpoints", "")
+                )
+                return checkpoint_manager.load_latest_agent()
+            else:
+                # Direct path to specific checkpoint file
+                return torch.load(checkpoint_path, weights_only=False)
+        elif teacher_uri.startswith("wandb://"):
+            # For now, skip wandb loading - would need wandb integration
+            raise NotImplementedError(f"Wandb URI loading not implemented yet: {teacher_uri}")
+        else:
+            raise ValueError(f"Unsupported teacher URI format: {teacher_uri}")
 
     def loss(
         self,

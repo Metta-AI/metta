@@ -73,5 +73,3 @@ def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     num_params = sum(p.numel() for p in policy.parameters())
     if wandb_run.summary:
         wandb_run.summary["model/total_parameters"] = num_params
-
-
