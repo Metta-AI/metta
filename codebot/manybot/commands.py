@@ -17,6 +17,8 @@ from typing import Dict, List, Optional, Union
 from pydantic import BaseModel
 from pydantic_ai import Agent
 
+import gitta
+
 from .command_models import (
     DebugResult,
     FixResult,
@@ -25,7 +27,6 @@ from .command_models import (
     TestGenerationResult,
 )
 from .git_layer import GitLayer, GitLayerError
-from .git_utils import find_root
 from .models import CommandOutput, ExecutionContext, FileChange
 from .summary_models import SummaryResult
 
@@ -689,7 +690,7 @@ The summary should be comprehensive but focused on the most important aspects of
 
         # Try to find git root for the first file
         first_file_dir = file_paths[0].parent if file_paths[0].is_file() else file_paths[0]
-        git_root = find_root(first_file_dir)
+        git_root = gitta.find_root(first_file_dir)
 
         if git_root:
             logger.info(f"Using git root as project root: {git_root}")
