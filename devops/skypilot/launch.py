@@ -111,7 +111,7 @@ def launch_task_and_check_logs(task):
     print(output, end='')  # Print the original output
 
     # Extract job ID from "Check logs with: sky api logs XXXXXXXX"
-    match = re.search(r'Check logs with: sky api logs ([a-f0-9-]+)', output)
+    match = re.search(r'- Check logs with: sky api logs ([a-f0-9-]+)', output)
     if match:
         job_id = match.group(1)
         time.sleep(1)
