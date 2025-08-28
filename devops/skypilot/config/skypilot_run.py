@@ -40,8 +40,8 @@ termination_reason_lock = threading.Lock()
 _termination_reason = ""
 
 # Configuration
-rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
-is_master = rank == 0
+node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+is_master = node_index == 0
 total_nodes = int(os.environ.get("SKYPILOT_NUM_NODES", "1"))
 max_runtime_hours = float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None
 heartbeat_timeout = int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None
@@ -57,7 +57,7 @@ def log_config():
     log_all(f"  - METTA_RUN_ID: {os.environ.get('METTA_RUN_ID', '')}")
     log_all(f"  - SKYPILOT_TASK_ID: {os.environ.get('SKYPILOT_TASK_ID', '')}")
 
-    log_all(f"  - NODE_RANK: {rank}")
+    log_all(f"  - NODE_INDEX: {node_index}")
     log_all(f"  - IS_MASTER: {is_master}")
     log_all(f"  - TOTAL_NODES: {total_nodes}")
 
@@ -423,7 +423,7 @@ def main():
 
     # Run NCCL tests on all nodes
     if test_nccl and restart_count == 0:
-        log_all(f"Running GPU diagnostics and NCCL tests (node {rank})...")
+        log_all(f"Running GPU diagnostics and NCCL tests...")
         try:
             result = subprocess.run(
                 ["uv", "run", "python", "./devops/skypilot/config/test_nccl.py"],

@@ -15,10 +15,19 @@ import socket
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any, Optional
 
 import torch
 import torch.distributed as dist
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+
+from skypilot_logging import setup_logger, log_all, log_master, log_error, log_warning, log_debug
+
+# Initialize logger for this module
+logger = setup_logger()
 
 
 def measure_p2p_bandwidth(
@@ -111,8 +120,7 @@ def measure_allreduce_bandwidth(
             required_memory = size_elements * 4 * 2
 
             if free_memory < required_memory:
-                if rank == 0:
-                    print(f"Skipping size {size_mb}MB - insufficient memory")
+                log_master(f"Skipping size {size_mb}MB - insufficient memory")
                 continue
 
             # Allocate tensor
@@ -154,12 +162,10 @@ def measure_allreduce_bandwidth(
             torch.cuda.empty_cache()
 
         except torch.cuda.OutOfMemoryError:
-            if rank == 0:
-                print(f"Out of memory at size {size_mb}MB")
+            log_master(f"Out of memory at size {size_mb}MB")
             break
         except Exception as e:
-            if rank == 0:
-                print(f"Error at size {size_mb}MB: {e}")
+            log_master(f"Error at size {size_mb}MB: {e}")
             break
 
     # Single barrier at end
@@ -174,7 +180,7 @@ def collect_nccl_benchmarks() -> dict[str, Any] | None:
         torch.cuda.set_device(local_rank)
         device = torch.device(f"cuda:{local_rank}")
         if not dist.is_initialized():
-            print("Process group not initialized, cannot run benchmarks")
+            log_warning("Process group not initialized, cannot run benchmarks")
             return None
 
         rank = dist.get_rank()
@@ -222,14 +228,14 @@ def format_benchmark_results(results: dict[str, Any]) -> str:
     # P2P bandwidth
     if "p2p_bandwidth" in results:
         p2p = results["p2p_bandwidth"]
-        output.write(f"\n  📊 P2P BANDWIDTH (Rank {p2p['src_rank']} → Rank {p2p['dst_rank']}):\n")
+        output.write(f"\n  🔊 P2P BANDWIDTH (Rank {p2p['src_rank']} → Rank {p2p['dst_rank']}):\n")
         output.write(f"    Message Size : {p2p['message_size_mb']} MB\n")
         output.write(f"    Bandwidth    : {p2p['bandwidth_gbps']:.2f} GB/s\n")
         output.write(f"    Time         : {p2p['time_ms']:.2f} ms\n")
 
     # Allreduce bandwidth
     if "allreduce_bandwidth" in results:
-        output.write("\n  📊 ALLREDUCE BANDWIDTH:\n")
+        output.write("\n  🔊 ALLREDUCE BANDWIDTH:\n")
         output.write(f"    {'Size (MB)':<12} {'Time (ms)':<12} {'Bandwidth (GB/s)':<15}\n")
         output.write(f"    {'-' * 12} {'-' * 12} {'-' * 15}\n")
 
@@ -266,12 +272,12 @@ def print_benchmark_results(results: dict[str, Any], topology: dict[str, Any] | 
 
         efficiency = (p2p["bandwidth_gbps"] / expected_bandwidth) * 100
 
-        output += "\n  📊 Topology Analysis:\n"
+        output += "\n  🔊 Topology Analysis:\n"
         output += f"    Connection Type: {conn_type}\n"
         output += f"    Expected BW: ~{expected_bandwidth:.0f} GB/s\n"
         output += f"    Efficiency: {efficiency:.0f}%\n"
 
-    print(output)
+    log_master(output)
 
 
 def format_box_header(title: str, width: int = 75, include_rank: bool = True) -> str:
@@ -280,9 +286,9 @@ def format_box_header(title: str, width: int = 75, include_rank: bool = True) ->
 
     # Prepare the title with rank info if requested
     rank = int(os.environ.get("RANK", 0))
-    node_rank = int(os.environ.get("NODE_RANK", os.environ.get("NODE_INDEX", 0)))
+    node_index = int(os.environ.get("NODE_INDEX", 0))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    display_title = f"{title} (Rank {rank}, Node {node_rank}, GPU {local_rank})"
+    display_title = f"{title} (Rank {rank}, Node {node_index}, GPU {local_rank})"
 
     if not include_rank:
         display_title = f"{title}"
@@ -308,7 +314,7 @@ def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> 
     if dist.is_available() and dist.is_initialized() and dist.get_rank() != 0:
         return  # Only print from rank 0 in distributed mode
 
-    print(format_box_header(title, width, include_rank), end="")
+    log_master(format_box_header(title, width, include_rank))
 
 
 def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
@@ -455,7 +461,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
     }
 
     # Get nvidia-smi output
-    print(f"Running nvidia-smi on node {node_index}...")
+    log_all(f"Running nvidia-smi...")
     code, stdout, stderr = run_command(["nvidia-smi"])
     if code == 0:
         diagnostics["nvidia_smi"] = stdout
@@ -468,7 +474,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
         diagnostics["errors"].append(f"nvidia-smi failed: {stderr}")
 
     if code == 0:  # If nvidia-smi worked
-        print(f"Checking GPU topology on node {node_index}...")
+        log_all(f"Checking GPU topology...")
         topo_code, topo_stdout, topo_stderr = run_command(["nvidia-smi", "topo", "-m"])
         if topo_code == 0:
             diagnostics["gpu_topology"] = parse_gpu_topology(topo_stdout)
@@ -476,7 +482,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
             diagnostics["errors"].append(f"Failed to get GPU topology: {topo_stderr}")
 
     # Get CUDA version from nvcc
-    print(f"Checking CUDA version on node {node_index}...")
+    log_all(f"Checking CUDA version...")
     code, stdout, stderr = run_command(["nvcc", "--version"])
     if code == 0:
         # Extract version from output
@@ -488,7 +494,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
         diagnostics["cuda_version"] = "nvcc not found"
 
     # Get NCCL version
-    print(f"Checking NCCL version on node {node_index}...")
+    log_all(f"Checking NCCL version...")
     nccl_paths = ["/usr/local/cuda/lib64/libnccl.so", "/usr/lib/x86_64-linux-gnu/libnccl.so", "/usr/lib64/libnccl.so"]
 
     for nccl_path in nccl_paths:
@@ -675,16 +681,16 @@ def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
     output.write(f"  Debug Level            : {debug_str}\n")
 
     output.write("\n  Communication Modes:\n")
-    output.write(f"    • P2P (GPU Direct)   : {'✓ Enabled' if not nccl_p2p_disable else '✗ Disabled'}\n")
-    output.write(f"    • Shared Memory      : {'✓ Enabled' if not nccl_shm_disable else '✗ Disabled'}\n")
-    output.write(f"    • InfiniBand/EFA     : {'✓ Enabled' if not nccl_ib_disable else '✗ Disabled'}\n")
+    output.write(f"    • P2P (GPU Direct)   : {'✔ Enabled' if not nccl_p2p_disable else '✗ Disabled'}\n")
+    output.write(f"    • Shared Memory      : {'✔ Enabled' if not nccl_shm_disable else '✗ Disabled'}\n")
+    output.write(f"    • InfiniBand/EFA     : {'✔ Enabled' if not nccl_ib_disable else '✗ Disabled'}\n")
 
     return output.getvalue()
 
 
 def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
     """Print system diagnostics in a clean format - kept for backward compatibility."""
-    print(format_system_diagnostics(diagnostics))
+    log_master(format_system_diagnostics(diagnostics))
 
 
 def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
@@ -763,7 +769,7 @@ def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
 
 def print_diagnostics(diagnostics: dict[str, Any]) -> None:
     """Pretty print GPU diagnostics information - kept for backward compatibility."""
-    print(format_gpu_diagnostics(diagnostics))
+    log_master(format_gpu_diagnostics(diagnostics))
 
 
 def setup_nccl_debug_env(master_addr: str | None = None) -> None:
@@ -776,12 +782,12 @@ def setup_nccl_debug_env(master_addr: str | None = None) -> None:
     os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
 
     # Log current NCCL settings
-    print("Setting NCCL Environment for testing:")
+    log_all("Setting NCCL Environment for testing:")
     for key, value in sorted(os.environ.items()):
         if key.startswith("NCCL_"):
-            print(f"  {key} = {value}")
+            log_all(f"  {key} = {value}")
 
-    print(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
+    log_all(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
 
 
 def test_nccl_communication() -> bool:
@@ -801,7 +807,7 @@ def test_nccl_communication() -> bool:
     try:
         # Check if we're in a distributed environment
         if "RANK" not in os.environ:
-            print("RANK not set, skipping distributed NCCL test")
+            log_warning("RANK not set, skipping distributed NCCL test")
             return True
 
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -883,7 +889,7 @@ def launch_distributed_test() -> int:
     master_addr = os.environ.get("MASTER_ADDR", "localhost")
     master_port = os.environ.get("MASTER_PORT", "29500")
 
-    print(f"Launching distributed test with {num_gpus} GPUs on {num_nodes} nodes")
+    log_master(f"Launching distributed test with {num_gpus} GPUs on {num_nodes} nodes")
 
     cmd = [
         sys.executable,
@@ -898,7 +904,7 @@ def launch_distributed_test() -> int:
         "--distributed-worker",
     ]
 
-    print(f"Running command: {' '.join(cmd)}")
+    log_master(f"Running command: {' '.join(cmd)}")
 
     try:
         # Use Popen to have more control over the process
@@ -906,13 +912,13 @@ def launch_distributed_test() -> int:
         returncode = process.wait()
 
         if returncode != 0:
-            print(f"[WARNING] torch.distributed.run exited with code {returncode}")
+            log_warning(f"torch.distributed.run exited with code {returncode}")
             # Give a grace period for cleanup
             time.sleep(2)
 
         return returncode
     except Exception as e:
-        print(f"[ERROR] Failed to run distributed test: {e}")
+        log_error(f"Failed to run distributed test: {e}")
         return 1
 
 
@@ -951,11 +957,11 @@ def main():
     # Check if we're a distributed worker
     if "--distributed-worker" in sys.argv:
         # We're inside a torchrun worker, run the actual tests
-        print("Running as distributed worker")
+        log_all("Running as distributed worker")
     else:
         # We're the main process, check if we need to launch distributed
         if is_distributed_environment():
-            print("Detected distributed environment, launching with torchrun...")
+            log_master("Detected distributed environment, launching with torchrun...")
             return launch_distributed_test()
 
     # Determine our position in the cluster
@@ -976,21 +982,21 @@ def main():
 
     if is_distributed and IS_GPU0:
         # Quick node status line
-        print(f"[Node {node_index}] Initialized - {num_gpus_per_node} GPUs detected")
+        log_all(f"Node Initialized - {num_gpus_per_node} GPUs detected")
 
     # Print header (master only)
     if IS_MASTER:
-        print("\n" + "═" * 75)
+        print("\n" + "╔" * 75)
         print("                      NCCL DIAGNOSTICS AND TESTING")
         if is_distributed:
             print(f"                    Nodes: {num_nodes}, GPUs/node: {num_gpus_per_node}, Total: {world_size}")
-        print("═" * 75)
+        print("╔" * 75)
 
     # delay to de-synchronize printing
     time.sleep(0.02 * rank)
 
     # Collect system diagnostics
-    print(f"Collecting system diagnostics on rank {rank}...")
+    log_all(f"Collecting system diagnostics on rank {rank}...")
     system_diagnostics = get_system_diagnostics()
 
     # Cluster-wide configuration (master only)
@@ -1020,7 +1026,7 @@ def main():
         print(f"  UMASK           : {sys_info['UMASK']}")
 
     if IS_GPU0:
-        print(f"Collecting GPU diagnostics on node {node_index}...")
+        log_all(f"Collecting GPU diagnostics...")
         gpu_diagnostics = get_gpu_diagnostics(node_index)
         print_box_header(f"NODE {node_index} GPU DIAGNOSTICS", include_rank=False)
         print(f"  PyTorch Version        : {gpu_diagnostics['torch_version']}")
@@ -1043,7 +1049,7 @@ def main():
     nccl_env = system_diagnostics["nccl_env"]
     nccl_vars = sorted([(k, v) for k, v in nccl_env.items() if k.startswith("NCCL_")])
     for k, v in nccl_vars:
-        print(f"  {k:<25} : {v}")
+        log_all(f"  {k:<25} : {v}")
 
     # Setup debug environment
     setup_nccl_debug_env()
@@ -1057,9 +1063,9 @@ def main():
     # Single GPU test
     if torch.cuda.is_available():
         if IS_GPU0:
-            print(f"\n  🔧 Node {node_index}: Running single GPU tests...")
+            log_all(f"\n  🔧 Running single GPU tests...")
         if test_single_gpu():
-            test_results.append((f"Single GPU Test [Rank {rank}]", "✓ PASSED"))
+            test_results.append((f"Single GPU Test [Rank {rank}]", "✔ PASSED"))
         else:
             test_results.append((f"Single GPU Test [Rank {rank}]", "✗ FAILED"))
             all_passed = False
@@ -1070,10 +1076,10 @@ def main():
     # NCCL communication test
     if all_passed and world_size > 1:
         if IS_GPU0:
-            print(f"\n  🔧 Node {node_index}: Running NCCL communication tests...")
+            log_all(f"\n  🔧 Running NCCL communication tests...")
 
         if test_nccl_communication():
-            test_results.append((f"NCCL Communication Test [Rank {rank}]", "✓ PASSED"))
+            test_results.append((f"NCCL Communication Test [Rank {rank}]", "✔ PASSED"))
         else:
             test_results.append((f"NCCL Communication Test [Rank {rank}]", "✗ FAILED"))
             all_passed = False
@@ -1084,14 +1090,14 @@ def main():
     benchmark_results = None
     if all_passed and world_size > 1:
         if IS_GPU0:
-            print(f"\n  📊 Node {node_index}: Running benchmarks...")
+            log_all(f"\n  🔊 Running benchmarks...")
 
         bench_result = collect_nccl_benchmarks()
 
         # Only rank 0 gets results
         if bench_result is not None:
             benchmark_results = bench_result
-            test_results.append((f"NCCL Benchmarks [Rank {rank}]", "✓ PASSED"))
+            test_results.append((f"NCCL Benchmarks [Rank {rank}]", "✔ PASSED"))
         else:
             test_results.append((f"NCCL Benchmarks [Rank {rank}]", "✗ FAILED"))
             all_passed = False
@@ -1111,7 +1117,7 @@ def main():
         else:
             # If process group was destroyed, we can't aggregate
             # In this case, we just report our local status
-            print("Process group not initialized for result aggregation")
+            log_warning("Process group not initialized for result aggregation")
 
     # Summary - only from master
     if IS_MASTER and benchmark_results:
@@ -1123,17 +1129,17 @@ def main():
         print_box_header("TEST SUMMARY", include_rank=False)
 
         for test_name, result in test_results:
-            print(f"  {test_name:<30} : {result}")
+            log_master(f"  {test_name:<30} : {result}")
 
         if is_distributed:
-            print(f"\n  Overall: {'✓ All ranks passed' if all_ranks_passed else '✗ Some ranks failed'}")
+            log_master(f"\n  Overall: {'✔ All ranks passed' if all_ranks_passed else '✗ Some ranks failed'}")
 
-        print("\n" + "═" * 75)
+        log_master("\n" + "╔" * 75)
         if all_ranks_passed:
-            print("                    ✓ ALL TESTS PASSED! ✓")
+            log_master("                    ✔ ALL TESTS PASSED! ✔")
         else:
-            print("                    ✗ SOME TESTS FAILED ✗")
-        print("═" * 75 + "\n")
+            log_master("                    ✗ SOME TESTS FAILED ✗")
+        log_master("╔" * 75 + "\n")
 
     # Add after tests, before destroying process group
     if is_distributed and dist.is_initialized() and not all_ranks_passed:
@@ -1151,9 +1157,9 @@ def main():
             if IS_MASTER:
                 errors = [err for err in error_list if err]  # Filter out None values
                 if errors:
-                    print("\n  Error Summary:")
+                    log_master("\n  Error Summary:")
                     for err in errors:
-                        print(f"    {err}")
+                        log_master(f"    {err}")
 
     # Clean up process group last
     if dist.is_initialized():
