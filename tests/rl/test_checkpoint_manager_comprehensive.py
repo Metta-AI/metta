@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import torch
+from tensordict import TensorDict
 
 from metta.agent.mocks import MockAgent, MockPolicy
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -87,8 +88,6 @@ class TestCheckpointManagerBasicOperations:
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
 
         # Verify the loaded agent works with a forward pass
-        from tensordict import TensorDict
-
         test_input = TensorDict({"env_obs": torch.randn(1, 10)}, batch_size=(1,))
         output = loaded_agent(test_input)
 
@@ -121,8 +120,6 @@ class TestCheckpointManagerBasicOperations:
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
 
         # Verify the loaded agent works
-        from tensordict import TensorDict
-
         test_input = TensorDict({"env_obs": torch.randn(1, 10)}, batch_size=(1,))
         output = loaded_agent(test_input)
 

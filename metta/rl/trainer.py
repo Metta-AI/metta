@@ -21,7 +21,7 @@ from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
-from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_request_config import EvalRewardSummary, EvaluationResults
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -556,8 +556,6 @@ def train(
                             evaluate_local = True
                     if evaluate_local:
                         # Local evaluation disabled for CheckpointManager integration
-                        from metta.eval.eval_request_config import EvaluationResults
-
                         logger.warning(
                             "Local evaluation temporarily disabled - needs SimpleCheckpointManager integration"
                         )

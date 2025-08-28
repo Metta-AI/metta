@@ -16,14 +16,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Sequence
 
+import torch
+import yaml
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
-
-# Using CheckpointManager for direct checkpoint loading
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -91,15 +91,11 @@ class SimTool(Tool):
                     # Find best checkpoint by score
                     best_path = checkpoint_manager.find_best_checkpoint("score")
                     if best_path:
-                        import torch
-
                         agent = torch.load(best_path, map_location="cpu", weights_only=False)
                         # Get metadata from corresponding YAML file
                         yaml_path = best_path.replace(".pt", ".yaml")
                         metadata = {}
                         if os.path.exists(yaml_path):
-                            import yaml
-
                             with open(yaml_path) as f:
                                 metadata = yaml.safe_load(f) or {}
                         policies_by_uri[policy_uri] = [(agent, metadata)]

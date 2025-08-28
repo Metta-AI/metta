@@ -64,8 +64,6 @@ class CheckpointInfo:
                 raise ValueError("No checkpoints found in checkpoint manager")
 
         # Extract epoch from checkpoint path
-        from pathlib import Path
-
         checkpoint_name = Path(checkpoint_path).stem
         if checkpoint_name.startswith("model_"):
             try:
