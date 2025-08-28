@@ -3,9 +3,54 @@
 import os
 import subprocess
 import sys
+import logging
 from pathlib import Path
 
 from metta.common.util.constants import METTA_ENV_FILE, PROD_OBSERVATORY_FRONTEND_URL, PROD_STATS_SERVER_URI
+
+
+def setup_logger():
+    """Setup logger with node index in format."""
+    node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+
+    # Create logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    # Create console handler with custom formatter
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        f'[%(asctime)s] [%(levelname)s] [{node_index}] %(message)s',
+        datefmt='%H:%M:%S.%f'
+    )
+    # Custom filter to trim microseconds to milliseconds
+    handler.setFormatter(formatter)
+
+    # Override the default time formatting to show milliseconds
+    import datetime
+    formatter.formatTime = lambda record, datefmt=None: datetime.datetime.fromtimestamp(
+        record.created).strftime('%H:%M:%S.%f')[:-3]
+
+    # Add handler to logger
+    logger.addHandler(handler)
+
+    return logger
+
+
+# Initialize logger at module level
+logger = setup_logger()
+
+
+def log_master(message):
+    """Log only from master node (node_index == 0)."""
+    node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+    if node_index == 0:
+        logger.info(message)
+
+
+def log_all(message):
+    """Log on all nodes."""
+    logger.info(message)
 
 
 def run_command(cmd, capture_output=True):
@@ -15,8 +60,8 @@ def run_command(cmd, capture_output=True):
 
     result = subprocess.run(cmd, capture_output=capture_output, text=True)
     if result.returncode != 0 and not capture_output:
-        print(f"Command failed: {' '.join(cmd)}")
-        print(f"Error: {result.stderr}")
+        logger.error(f"Command failed: {' '.join(cmd)}")
+        logger.error(f"Error: {result.stderr}")
         sys.exit(1)
 
     return result.stdout.strip() if capture_output else None
@@ -47,8 +92,9 @@ def setup_job_metadata():
     # Only update restart count on master node
     if is_master:
         restart_count_file.write_text(str(restart_count))
+        log_master("Updated restart count file")
     else:
-        print(f"[INFO] Skipping RESTART_COUNT_FILE updates on non-master node {node_index}")
+        log_all("Skipping RESTART_COUNT_FILE updates on non-master node")
 
     # Read accumulated runtime
     if accumulated_runtime_file.exists():
@@ -56,12 +102,12 @@ def setup_job_metadata():
     else:
         accumulated_runtime = 0
 
-    if is_master:
-        print("============= RESTART INFO =============")
-        print(f"  METTA_RUN_ID: {metta_run_id}")
-        print(f"  RESTART_COUNT: {restart_count}")
-        print(f"  ACCUMULATED_RUNTIME: {accumulated_runtime}s ({accumulated_runtime // 60}m)")
-        print("========================================")
+    # Log restart info only on master
+    log_master("=" * 40 + " RESTART INFO " + "=" * 40)
+    log_master(f"  METTA_RUN_ID: {metta_run_id}")
+    log_master(f"  RESTART_COUNT: {restart_count}")
+    log_master(f"  ACCUMULATED_RUNTIME: {accumulated_runtime}s ({accumulated_runtime // 60}m)")
+    log_master("=" * 94)
 
     return {
         "restart_count": restart_count,
@@ -121,30 +167,31 @@ export NCCL_IB_DISABLE="${{NCCL_IB_DISABLE:-1}}"
     with open(metta_env_file, "a") as f:
         f.write(env_vars)
 
-    print(f"Environment variables written to: {metta_env_file}")
+    log_all(f"Environment variables written to: {metta_env_file}")
 
 
 def create_job_secrets(profile, wandb_password, observatory_token):
     """Create ~/.netrc and ~/.metta/observatory_tokens.yaml files."""
     # Run metta configure if profile is provided
     if profile:
+        log_all(f"Running metta configure with profile: {profile}")
         subprocess.run(["uv", "run", "metta", "configure", "--profile", profile])
 
     # Create ~/.netrc for wandb
     netrc_path = Path.home() / ".netrc"
     if netrc_path.exists():
-        print("~/.netrc already exists")
+        log_all("~/.netrc already exists")
     else:
         netrc_content = f"machine api.wandb.ai\n  login user\n  password {wandb_password}\n"
         netrc_path.write_text(netrc_content)
         netrc_path.chmod(0o600)  # Restrict to owner read/write only
-        print("~/.netrc created")
+        log_all("~/.netrc created")
 
     # Create observatory tokens file if token is provided
     if observatory_token:
         observatory_path = Path.home() / ".metta" / "observatory_tokens.yaml"
         if observatory_path.exists():
-            print("~/.metta/observatory_tokens.yaml already exists")
+            log_all("~/.metta/observatory_tokens.yaml already exists")
         else:
             observatory_path.parent.mkdir(exist_ok=True)
             observatory_content = (
@@ -152,22 +199,18 @@ def create_job_secrets(profile, wandb_password, observatory_token):
                 + f"{PROD_OBSERVATORY_FRONTEND_URL}/api: {observatory_token}\n"
             )
             observatory_path.write_text(observatory_content)
-            print("~/.metta/observatory_tokens.yaml created")
+            log_all("~/.metta/observatory_tokens.yaml created")
 
 
 def main():
     """Main function to configure the runtime environment."""
-    node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
-    is_master = node_index == 0
+    # Print initial environment info only on master
+    log_master(f"VIRTUAL_ENV: {os.environ.get('VIRTUAL_ENV', 'Not set')}")
+    log_master(f"Which python: {run_command('which python')}")
+    python_exec = run_command([sys.executable, "-c", "import sys; print(sys.executable)"])
+    log_master(f"Python executable: {python_exec}")
 
-    # Print initial environment info
-    if is_master:
-        print(f"VIRTUAL_ENV: {os.environ.get('VIRTUAL_ENV', 'Not set')}")
-        print(f"Which python: {run_command('which python')}")
-        python_exec = run_command([sys.executable, "-c", "import sys; print(sys.executable)"])
-        print(f"Python executable: {python_exec}")
-
-    print(f"Configuring runtime environment [node {node_index}]...")
+    log_all("Configuring runtime environment...")
 
     # Create wandb directory
     Path("./wandb").mkdir(exist_ok=True)
@@ -175,7 +218,7 @@ def main():
     # Get METTA_ENV_FILE path and create parent directories
     metta_env_file = str(METTA_ENV_FILE)
     Path(metta_env_file).parent.mkdir(parents=True, exist_ok=True)
-    print(f"Persisting env vars into: {metta_env_file} [node {node_index}]")
+    log_all(f"Persisting env vars into: {metta_env_file}")
 
     # Setup job metadata
     metadata = setup_job_metadata()
@@ -186,23 +229,23 @@ def main():
     # Check for required WANDB_PASSWORD
     wandb_password = os.environ.get("WANDB_PASSWORD")
     if not wandb_password:
-        print("ERROR: WANDB_PASSWORD environment variable is required but not set")
-        print("Please ensure WANDB_PASSWORD is set in your Skypilot environment variables")
+        logger.error("WANDB_PASSWORD environment variable is required but not set")
+        logger.error("Please ensure WANDB_PASSWORD is set in your Skypilot environment variables")
         sys.exit(1)
 
     # Get optional OBSERVATORY_TOKEN
     observatory_token = os.environ.get("OBSERVATORY_TOKEN")
 
-    print(f"Creating/updating job secrets [node {node_index}]...")
+    log_all("Creating/updating job secrets...")
 
     # Create job secrets
     try:
         create_job_secrets("softmax-docker", wandb_password, observatory_token)
     except Exception as e:
-        print(f"ERROR: Failed to create job secrets: {e}")
+        logger.error(f"Failed to create job secrets: {e}")
         sys.exit(1)
 
-    print("Runtime environment configuration completed [node {node_index}]")
+    log_all("Runtime environment configuration completed")
 
 
 if __name__ == "__main__":
