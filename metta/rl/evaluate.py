@@ -57,7 +57,17 @@ def evaluate_policy_remote_with_checkpoint_manager(
             return None
 
     # Load metadata from checkpoint filename
-    metadata = parse_checkpoint_filename(Path(checkpoint_path).name) or {}
+    try:
+        run_name, epoch, agent_step, total_time = parse_checkpoint_filename(Path(checkpoint_path).name)
+        metadata = {
+            "run": run_name,
+            "epoch": epoch,
+            "agent_step": agent_step,
+            "total_time": total_time,
+            "checkpoint_file": Path(checkpoint_path).name,
+        }
+    except ValueError:
+        metadata = {}
 
     # Validate wandb policy name format
     if ":" not in wandb_policy_name:

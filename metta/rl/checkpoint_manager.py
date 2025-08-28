@@ -10,22 +10,21 @@ import torch
 logger = logging.getLogger(__name__)
 
 
-def parse_checkpoint_filename(filename: str) -> Optional[Dict[str, Any]]:
-    """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt"""
+def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
+    """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt
+
+    Returns: (run_name, epoch, agent_step, total_time)
+    """
     parts = filename.split(".")
     if len(parts) != 5 or parts[-1] != "pt":
-        return None
+        raise ValueError(f"Invalid checkpoint filename format: {filename}")
 
-    try:
-        return {
-            "run": parts[0],
-            "epoch": int(parts[1][1:]),
-            "agent_step": int(parts[2][1:]),
-            "total_time": int(parts[3][1:]),
-            "checkpoint_file": filename,
-        }
-    except (ValueError, IndexError):
-        return None
+    run_name = parts[0]
+    epoch = int(parts[1][1:])  # Remove 'e' prefix
+    agent_step = int(parts[2][1:])  # Remove 's' prefix
+    total_time = int(parts[3][1:])  # Remove 't' prefix
+
+    return run_name, epoch, agent_step, total_time
 
 
 class CheckpointManager:
@@ -45,7 +44,7 @@ class CheckpointManager:
         if not agent_files:
             return None
 
-        latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
+        latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
         logger.info(f"Loading agent from {latest_file}")
         return torch.load(latest_file, weights_only=False)
 
@@ -110,15 +109,16 @@ class CheckpointManager:
         agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
         if not agent_files:
             return None
-        latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
-        return parse_checkpoint_filename(latest_file.name)["epoch"]
+        latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
+        return parse_checkpoint_filename(latest_file.name)[1]
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
         """Find checkpoint with highest value for the given metric."""
         checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
         if not checkpoint_files:
             return None
-        return max(checkpoint_files, key=lambda f: parse_checkpoint_filename(f.name).get(metric, float("-inf")))
+        metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3}.get(metric, 1)
+        return max(checkpoint_files, key=lambda f: parse_checkpoint_filename(f.name)[metric_idx])
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
         """Select checkpoints using different strategies."""
@@ -127,11 +127,10 @@ class CheckpointManager:
             return []
 
         if strategy == "latest":
-            checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)["epoch"], reverse=True)
+            checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[1], reverse=True)
         elif strategy in ["best_score", "top"]:
-            checkpoint_files.sort(
-                key=lambda f: parse_checkpoint_filename(f.name).get(metric, float("-inf")), reverse=True
-            )
+            metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3}.get(metric, 1)
+            checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
         elif strategy == "all":
             count = len(checkpoint_files)
         else:
@@ -148,15 +147,15 @@ class CheckpointManager:
         if len(agent_files) <= keep_last_n:
             return 0
 
-        agent_files.sort(key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
+        agent_files.sort(key=lambda p: parse_checkpoint_filename(p.name)[1])
         files_to_remove = agent_files[:-keep_last_n]
 
         deleted_count = 0
         for agent_file in files_to_remove:
             try:
-                if metadata := parse_checkpoint_filename(agent_file.name):
-                    trainer_file = self.checkpoint_dir / f"trainer_epoch_{metadata['epoch']}.pt"
-                    trainer_file.unlink(missing_ok=True)
+                _, epoch, _, _ = parse_checkpoint_filename(agent_file.name)
+                trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
+                trainer_file.unlink(missing_ok=True)
 
                 agent_file.unlink()
                 deleted_count += 1

@@ -48,8 +48,15 @@ def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
     # Try new dot-separated format first
     new_format_files = list(checkpoint_path.glob(f"{run_name}.e*.s*.t*.pt"))
     if new_format_files:
-        latest_file = max(new_format_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
-        metadata = parse_checkpoint_filename(latest_file.name) or {}
+        latest_file = max(new_format_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
+        run_name, epoch, agent_step, total_time = parse_checkpoint_filename(latest_file.name)
+        metadata = {
+            "run": run_name,
+            "epoch": epoch,
+            "agent_step": agent_step,
+            "total_time": total_time,
+            "checkpoint_file": latest_file.name,
+        }
         agent = torch.load(latest_file, weights_only=False)
         return Checkpoint(run_name=run_name, uri=f"file://{latest_file}", metadata=metadata, _cached_policy=agent)
 
