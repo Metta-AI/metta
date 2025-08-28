@@ -76,8 +76,8 @@ def log_config():
         accumulated_runtime_file = Path(accumulated_runtime_file_path)
         if accumulated_runtime_file.exists():
             try:
-                accumulated_runtime = float(accumulated_runtime_file.read_text())
-                logger.info(f"  - ACCUMULATED_RUNTIME: {accumulated_runtime}")
+                accumulated_runtime_sec = int(accumulated_runtime_file.read_text())
+                logger.info(f"  - ACCUMULATED_RUNTIME_SEC: {accumulated_runtime_sec}")
             except (ValueError, IOError) as e:
                 logger.warning(f"Failed to load accumulated runtime: {e}")
 

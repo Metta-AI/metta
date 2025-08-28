@@ -98,20 +98,20 @@ def setup_job_metadata():
 
     # Read accumulated runtime
     if accumulated_runtime_file.exists():
-        accumulated_runtime = int(accumulated_runtime_file.read_text())
+        accumulated_runtime_sec = int(accumulated_runtime_file.read_text())
     else:
-        accumulated_runtime = 0
+        accumulated_runtime_sec = 0
 
     # Log restart info only on master
     log_master("=" * 40 + " RESTART INFO " + "=" * 40)
     log_master(f"  METTA_RUN_ID: {metta_run_id}")
     log_master(f"  RESTART_COUNT: {restart_count}")
-    log_master(f"  ACCUMULATED_RUNTIME: {accumulated_runtime}s ({accumulated_runtime // 60}m)")
+    log_master(f"  ACCUMULATED_RUNTIME_SEC: {accumulated_runtime_sec}s ({accumulated_runtime_sec // 60}m)")
     log_master("=" * 94)
 
     return {
         "restart_count": restart_count,
-        "accumulated_runtime": accumulated_runtime,
+        "accumulated_runtime_sec": accumulated_runtime_sec,
         "accumulated_runtime_file": str(accumulated_runtime_file),
         "heartbeat_file": str(heartbeat_file),
     }
@@ -142,7 +142,7 @@ export NODE_INDEX="${{SKYPILOT_NODE_RANK}}"
 
 # Job metadata exports
 export RESTART_COUNT="{metadata["restart_count"]}"
-export ACCUMULATED_RUNTIME="{metadata["accumulated_runtime"]}"
+export ACCUMULATED_RUNTIME_SEC="{metadata["accumulated_runtime_sec"]}"
 
 # File path exports for monitors
 export ACCUMULATED_RUNTIME_FILE="{metadata["accumulated_runtime_file"]}"

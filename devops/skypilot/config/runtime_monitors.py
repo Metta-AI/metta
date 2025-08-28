@@ -117,7 +117,7 @@ class TimeoutMonitor(JobMonitor):
         self.max_runtime_hours = max_runtime_hours
         self.max_seconds = max_runtime_hours * 3600 if max_runtime_hours else 0
         self.start_time = time.time()
-        self.accumulated_runtime = 0.0
+        self.accumulated_runtime_sec : int = 0
 
         self.rank = rank
         self.is_master = rank == 0
@@ -131,31 +131,31 @@ class TimeoutMonitor(JobMonitor):
         # Load accumulated runtime if file exists, otherwise create it
         if self.accumulated_runtime_file.exists():
             try:
-                self.accumulated_runtime = float(self.accumulated_runtime_file.read_text())
-                logger.info(f"Loaded accumulated runtime: {self.accumulated_runtime:.0f}s")
+                self.accumulated_runtime_sec = int(self.accumulated_runtime_file.read_text())
+                logger.info(f"Loaded accumulated runtime: {self.accumulated_runtime_sec:.0f}s")
             except (ValueError, IOError) as e:
                 logger.warning(f"Failed to load accumulated runtime: {e}")
-                self.accumulated_runtime = 0.0
+                self.accumulated_runtime_sec = 0
         else:
             # Only master node creates the file
             if self.is_master:
                 try:
                     self.accumulated_runtime_file.parent.mkdir(parents=True, exist_ok=True)
-                    self.accumulated_runtime_file.write_text("0.0")
+                    self.accumulated_runtime_file.write_text("0")
                     logger.info("Created accumulated runtime file with initial value: 0.0s")
                 except Exception as e:
                     logger.error(f"Failed to create accumulated runtime file: {e}")
             else:
                 logger.info("Accumulated runtime file not found (non-master node)")
-                self.accumulated_runtime = 0.0
+                self.accumulated_runtime_sec = 0
 
-    def get_current_runtime(self) -> float:
+    def get_current_runtime(self) -> int:
         """Get the runtime for the current session."""
-        return time.time() - self.start_time
+        return int(time.time() - self.start_time)
 
-    def get_total_runtime(self) -> float:
+    def get_total_runtime(self) -> int:
         """Get the total runtime including accumulated time."""
-        return self.accumulated_runtime + self.get_current_runtime()
+        return self.accumulated_runtime_sec + self.get_current_runtime()
 
     def save_accumulated_runtime(self):
         """Save the current total runtime to file (master node only)."""
@@ -163,6 +163,7 @@ class TimeoutMonitor(JobMonitor):
             return
 
         try:
+
             total_runtime = self.get_total_runtime()
             self.accumulated_runtime_file.parent.mkdir(parents=True, exist_ok=True)
             self.accumulated_runtime_file.write_text(str(total_runtime))
@@ -183,7 +184,7 @@ class TimeoutMonitor(JobMonitor):
         return False, None
 
     def run(self):
-        remaining = self.max_seconds - self.accumulated_runtime
+        remaining = self.max_seconds - self.accumulated_runtime_sec
         logger.info(f"Timeout monitor started on node {self.rank} (exit in {remaining:.0f}s)")
         super().run()
 
