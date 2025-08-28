@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import torch
-import yaml
 
 from metta.rl.wandb_policy_loader import get_wandb_artifact_metadata, load_policy_from_wandb_uri
 
@@ -207,13 +206,8 @@ class CheckpointManager:
             return get_wandb_artifact_metadata(uri)
 
         if uri.startswith("file://"):
-            yaml_path = Path(uri[7:]).with_suffix(".yaml")  # Remove "file://" prefix
-            if yaml_path.exists():
-                try:
-                    with open(yaml_path) as f:
-                        return yaml.safe_load(f) or {}
-                except Exception as e:
-                    logger.warning(f"Failed to load metadata from {yaml_path}: {e}")
+            file_path = Path(uri[7:])
+            return parse_checkpoint_filename(file_path.name) or {}
 
         return {}
 

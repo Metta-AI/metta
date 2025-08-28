@@ -6,14 +6,13 @@ from pathlib import Path
 from typing import Any, Optional
 
 import wandb
-import yaml
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_filename
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
@@ -57,14 +56,8 @@ def evaluate_policy_remote_with_checkpoint_manager(
             logger.warning("No checkpoints available for remote evaluation")
             return None
 
-    # Load metadata from YAML sidecar
-    yaml_path = Path(checkpoint_path).with_suffix(".yaml")
-    metadata = {}
-    if yaml_path.exists():
-        with open(yaml_path) as f:
-            metadata = yaml.safe_load(f) or {}
-    else:
-        logger.warning(f"No metadata file found at {yaml_path}")
+    # Load metadata from checkpoint filename
+    metadata = parse_checkpoint_filename(Path(checkpoint_path).name) or {}
 
     # Validate wandb policy name format
     if ":" not in wandb_policy_name:
