@@ -96,6 +96,7 @@ class HeartbeatMonitor(JobMonitor):
             elapsed = time.time() - last_heartbeat_time
 
             if elapsed > self.heartbeat_timeout:
+                log_all(f"elapsed: {elapsed} > last_heartbeat_time: {last_heartbeat_time}")
                 return True, "heartbeat_timeout"
 
         except (OSError, FileNotFoundError):
@@ -188,7 +189,8 @@ class TimeoutMonitor(JobMonitor):
         # Save accumulated runtime on every check
         self.save_accumulated_runtime()
 
-        if total_runtime >= self.max_seconds:
+        if total_runtime > self.max_seconds:
+            log_all(f"total_runtime: {total_runtime} > self.max_seconds: {self.max_seconds}")
             return True, "max_runtime_reached"
 
         return False, None
