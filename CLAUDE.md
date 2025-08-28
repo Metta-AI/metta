@@ -81,6 +81,10 @@ implementation.
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
 5. **CRITICAL: Always format Python code** - After editing any Python file (\*.py), immediately run:
    ```bash
+   metta lint --fix
+   ```
+   Or alternatively, for individual files:
+   ```bash
    ruff format [file_path]
    ruff check --fix [file_path]
    ```
