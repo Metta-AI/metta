@@ -87,12 +87,13 @@ class HeartbeatMonitor(JobMonitor):
 
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if heartbeat has timed out."""
-        if self.heartbeat_file.exists():
-            try:
-                stat = os.stat(self.heartbeat_file)
-                self.last_heartbeat = stat.st_mtime
-            except OSError:
-                pass  # File might have been deleted
+        try:
+            stat = os.stat(self.heartbeat_file)
+            self.last_heartbeat = stat.st_mtime
+        except (OSError, FileNotFoundError):
+            # File doesn't exist or was deleted - this is fine,
+            # we'll use the last known heartbeat time
+            pass
 
         elapsed = time.time() - self.last_heartbeat
 

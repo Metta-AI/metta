@@ -89,7 +89,6 @@ def setup_signal_handlers():
     def signal_handler(signal_number, frame):
         log_all(f"Received signal {signal_number}, initiating shutdown...")
         shutdown_event.set()
-        shutdown()
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -140,7 +139,7 @@ def run_training() -> int:
     # Create new process group
     main_process = subprocess.Popen(
         cmd,
-        preexec_fn=os.setsid,  # Create new process group
+        start_new_session=True,
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
@@ -383,25 +382,6 @@ def print_final_summary(exit_code: int, termination_reason: str):
     log_all("[SUMMARY] ======================")
 
     log_all(f"[RUN] Job complete with exit code: {exit_code} (reason: {termination_reason or 'unknown'})")
-
-
-def shutdown():
-    """Graceful shutdown of all processes."""
-    if main_process and main_process.poll() is None:
-        try:
-            pgid = os.getpgid(main_process.pid)
-            log_all(f"Terminating process group {pgid}")
-            os.killpg(pgid, signal.SIGTERM)
-
-            # Wait for graceful shutdown
-            try:
-                main_process.wait(timeout=30)
-            except subprocess.TimeoutExpired:
-                log_warning("Process didn't terminate gracefully, using SIGKILL")
-                os.killpg(pgid, signal.SIGKILL)
-                main_process.wait()
-        except ProcessLookupError:
-            pass  # Process already terminated
 
 
 def main():
