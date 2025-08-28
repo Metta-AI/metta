@@ -27,6 +27,10 @@ links:
       - name: Logs
         url: https://app.datadoghq.com/logs
         short_urls: [ddlogs]
+      - name: K8s pod statuses
+      - url: https://app.datadoghq.com/orchestration/explorer/pod?explorer-na-groups=false
+      - short_urls: [ddpods]
+
   - name: GitHub
     url: https://github.com/Metta-AI/metta
     short_urls: [g, gh, github]
