@@ -15,21 +15,23 @@ logger = logging.getLogger(__name__)
 
 def parse_checkpoint_filename(filename: str) -> Optional[Dict[str, Any]]:
     """Parse checkpoint metadata from filename.
-
-    Format: {run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt
-    Example: kickstart_test---e5_s5280_t18s.pt
+    
+    Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt
     """
-    pattern = r"(.+)---e(\d+)_s(\d+)_t(\d+)s\.pt"
-    match = re.match(pattern, filename)
-    if match:
+    parts = filename.split('.')
+    if len(parts) != 5 or parts[-1] != 'pt':
+        return None
+    
+    try:
         return {
-            "run": match.group(1),
-            "epoch": int(match.group(2)),
-            "agent_step": int(match.group(3)),
-            "total_time": int(match.group(4)),
+            "run": parts[0],
+            "epoch": int(parts[1][1:]),      # Remove 'e' prefix
+            "agent_step": int(parts[2][1:]), # Remove 's' prefix  
+            "total_time": int(parts[3][1:]), # Remove 't' prefix
             "checkpoint_file": filename,
         }
-    return None
+    except (ValueError, IndexError):
+        return None
 
 
 class CheckpointManager:
@@ -84,19 +86,9 @@ class CheckpointManager:
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-        # Extract metadata for filename
-        agent_step = metadata.get("agent_step", 0)
-        total_time = int(metadata.get("total_time", 0))
-
-        # Generate filename with embedded metadata
-        filename = f"{self.run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt"
-        agent_file = self.checkpoint_dir / filename
-
-        # Save agent with torch.save
-        torch.save(agent, agent_file)
-
-        logger.info(f"Saved agent: {agent_file}")
+        filename = f"{self.run_name}.e{epoch}.s{metadata.get('agent_step', 0)}.t{int(metadata.get('total_time', 0))}.pt"
+        torch.save(agent, self.checkpoint_dir / filename)
+        logger.info(f"Saved agent: {filename}")
 
     def save_trainer_state(self, optimizer, epoch: int, agent_step: int):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
