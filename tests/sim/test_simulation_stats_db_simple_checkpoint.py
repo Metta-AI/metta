@@ -1,8 +1,4 @@
-"""
-Updated simulation stats database tests using CheckpointManager patterns.
-This shows how the database integration would work with CheckpointManager
-instead of the old PolicyRecord system.
-"""
+"""Simulation stats database tests using CheckpointManager patterns."""
 
 from __future__ import annotations
 
@@ -79,7 +75,7 @@ class TestHelpersSimpleCheckpoint:
 
     @staticmethod
     def create_agent_map_from_checkpoints(checkpoint_infos: list[Checkpoint]) -> dict[int, tuple[str, int]]:
-        """Create agent map from checkpoint info list (equivalent to old PolicyRecord agent_map)."""
+        """Create agent map from checkpoint info list."""
         agent_map = {}
         for i, checkpoint_info in enumerate(checkpoint_infos):
             key, version = checkpoint_info.key_and_version()
