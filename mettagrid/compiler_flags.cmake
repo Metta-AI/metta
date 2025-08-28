@@ -135,6 +135,9 @@ target_compile_options(mettagrid_sanitizers INTERFACE
     -fsanitize=address
     -fsanitize=undefined
     -fsanitize=float-divide-by-zero
+    # We're most interested in protecting against integer over / under flow,
+    # but am happy to have the other sanitizers too.
+    -fsanitize=integer
     -fno-sanitize-recover=all
     -fstack-protector-strong
 
