@@ -14,20 +14,17 @@ logger = logging.getLogger(__name__)
 
 
 def parse_checkpoint_filename(filename: str) -> Optional[Dict[str, Any]]:
-    """Parse checkpoint metadata from filename.
-    
-    Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt
-    """
-    parts = filename.split('.')
-    if len(parts) != 5 or parts[-1] != 'pt':
+    """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt"""
+    parts = filename.split(".")
+    if len(parts) != 5 or parts[-1] != "pt":
         return None
-    
+
     try:
         return {
             "run": parts[0],
-            "epoch": int(parts[1][1:]),      # Remove 'e' prefix
-            "agent_step": int(parts[2][1:]), # Remove 's' prefix  
-            "total_time": int(parts[3][1:]), # Remove 't' prefix
+            "epoch": int(parts[1][1:]),
+            "agent_step": int(parts[2][1:]),
+            "total_time": int(parts[3][1:]),
             "checkpoint_file": filename,
         }
     except (ValueError, IndexError):
@@ -43,15 +40,14 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
 
     def exists(self) -> bool:
-        return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"))
+        return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
 
     def load_latest_agent(self):
         """Load the latest agent using torch.load(weights_only=False)."""
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"))
+        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
         if not agent_files:
             return None
 
-        # Get latest by epoch number from filename
         latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
         logger.info(f"Loading agent from {latest_file}")
         return torch.load(latest_file, weights_only=False)
@@ -60,20 +56,17 @@ class CheckpointManager:
         if epoch is None:
             return self.load_latest_agent()
 
-        # Find checkpoint file with the new filename format: {run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e{epoch}_s*_t*s.pt"))
+        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
         if not agent_files:
             return None
 
-        # If multiple files match (shouldn't happen), get the first one
         agent_file = agent_files[0]
         logger.info(f"Loading agent from {agent_file}")
         return torch.load(agent_file, weights_only=False)
 
     def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Load trainer state (optimizer state, epoch, agent_step)."""
-        if epoch is None:
-            epoch = self.get_latest_epoch()
+        epoch = epoch or self.get_latest_epoch()
         if epoch is None:
             return None
 
@@ -92,16 +85,13 @@ class CheckpointManager:
 
     def save_trainer_state(self, optimizer, epoch: int, agent_step: int):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
         trainer_state = {
             "optimizer": optimizer.state_dict(),
             "epoch": epoch,
             "agent_step": agent_step,
         }
-
         trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
         torch.save(trainer_state, trainer_file)
-
         logger.info(f"Saved trainer state: {trainer_file}")
 
     def save_checkpoint(
@@ -116,17 +106,14 @@ class CheckpointManager:
         metadata = {"score": score or 0.0, "agent_step": agent_step or 0}
         self.save_agent(agent, epoch, metadata)
 
-        if trainer_state:
-            # Assume trainer_state contains optimizer
-            optimizer = trainer_state.get("optimizer")
-            if optimizer:
-                self.save_trainer_state(optimizer, epoch, agent_step or 0)
+        if trainer_state and trainer_state.get("optimizer"):
+            self.save_trainer_state(trainer_state["optimizer"], epoch, agent_step or 0)
 
     def list_epochs(self) -> list[int]:
         return sorted(
             [
                 metadata["epoch"]
-                for f in self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt")
+                for f in self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt")
                 if (metadata := parse_checkpoint_filename(f.name)) is not None
             ]
         )
@@ -136,16 +123,12 @@ class CheckpointManager:
         return epochs[-1] if epochs else None
 
     def load_metadata(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        if epoch is None:
-            epoch = self.get_latest_epoch()
+        epoch = epoch or self.get_latest_epoch()
         if epoch is None:
             return None
 
-        # Find checkpoint file with this epoch
-        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e{epoch}_s*_t*s.pt"))
-        if checkpoint_files:
-            return parse_checkpoint_filename(checkpoint_files[0].name)
-        return None
+        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
+        return parse_checkpoint_filename(checkpoint_files[0].name) if checkpoint_files else None
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
         """Find checkpoint with highest value for the given metric."""
@@ -154,7 +137,7 @@ class CheckpointManager:
             metadata = parse_checkpoint_filename(checkpoint_file.name)
             return metadata.get(metric, 0.0) if metadata else float("-inf")
 
-        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"))
+        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
         return max(checkpoint_files, key=get_score, default=None) if checkpoint_files else None
 
     def select_checkpoints(
@@ -164,10 +147,9 @@ class CheckpointManager:
         if not self.checkpoint_dir.exists():
             return []
 
-        # Parse and filter valid checkpoints
         checkpoints = [
             (file, metadata)
-            for file in self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt")
+            for file in self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt")
             if (metadata := parse_checkpoint_filename(file.name)) is not None
             and (not filters or self._matches_filters(metadata, filters))
         ]
@@ -175,7 +157,6 @@ class CheckpointManager:
         if not checkpoints:
             return []
 
-        # Apply strategy-specific sorting
         sort_strategies = {
             "latest": lambda x: x[1].get("epoch", 0),
             "best_score": lambda x: x[1].get(metric, float("-inf")),
@@ -195,17 +176,13 @@ class CheckpointManager:
                 return False
 
             metadata_value = metadata[key]
-
             if isinstance(filter_value, dict):
-                # Handle range filters like {"min": 0.5, "max": 1.0}
                 if "min" in filter_value and metadata_value < filter_value["min"]:
                     return False
                 if "max" in filter_value and metadata_value > filter_value["max"]:
                     return False
-            else:
-                # Handle exact match filters
-                if metadata_value != filter_value:
-                    return False
+            elif metadata_value != filter_value:
+                return False
 
         return True
 
@@ -245,18 +222,16 @@ class CheckpointManager:
         if not self.checkpoint_dir.exists():
             return 0
 
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}---e*_s*_t*s.pt"))
+        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
         if len(agent_files) <= keep_last_n:
             return 0
 
-        # Sort by epoch and get files to remove
         agent_files.sort(key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
         files_to_remove = agent_files[:-keep_last_n]
 
         deleted_count = 0
         for agent_file in files_to_remove:
             try:
-                # Remove associated trainer file if it exists
                 if metadata := parse_checkpoint_filename(agent_file.name):
                     trainer_file = self.checkpoint_dir / f"trainer_epoch_{metadata['epoch']}.pt"
                     trainer_file.unlink(missing_ok=True)
