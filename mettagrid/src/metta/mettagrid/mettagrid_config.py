@@ -10,31 +10,6 @@ from metta.mettagrid.map_builder.random import RandomMapBuilder
 # ===== Python Configuration Models =====
 
 
-class InventoryRewards(Config):
-    """Inventory-based reward configuration."""
-
-    ore_red: float = Field(default=0)
-    ore_blue: float = Field(default=0)
-    ore_green: float = Field(default=0)
-    ore_red_max: int = Field(default=255)
-    ore_blue_max: int = Field(default=255)
-    ore_green_max: int = Field(default=255)
-    battery_red: float = Field(default=0)
-    battery_blue: float = Field(default=0)
-    battery_green: float = Field(default=0)
-    battery_red_max: int = Field(default=255)
-    battery_blue_max: int = Field(default=255)
-    battery_green_max: int = Field(default=255)
-    heart: float = Field(default=1)
-    heart_max: int = Field(default=255)
-    armor: float = Field(default=0)
-    armor_max: int = Field(default=255)
-    laser: float = Field(default=0)
-    laser_max: int = Field(default=255)
-    blueprint: float = Field(default=0)
-    blueprint_max: int = Field(default=255)
-
-
 class StatsRewards(Config):
     """Agent stats-based reward configuration.
 
@@ -51,7 +26,8 @@ class StatsRewards(Config):
 class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
-    inventory: InventoryRewards = Field(default_factory=InventoryRewards)
+    inventory: dict[str, float] = Field(default_factory=dict)
+    inventory_max: dict[str, int] = Field(default_factory=dict)
     stats: StatsRewards = Field(default_factory=StatsRewards)
 
 
@@ -218,7 +194,7 @@ class GameConfig(Config):
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
 
-class EnvConfig(Config):
+class MettaGridConfig(Config):
     """Environment configuration."""
 
     label: str = Field(default="mettagrid")
@@ -226,17 +202,17 @@ class EnvConfig(Config):
     desync_episodes: bool = Field(default=True)
 
     @model_validator(mode="after")
-    def validate_fields(self) -> "EnvConfig":
+    def validate_fields(self) -> "MettaGridConfig":
         return self
 
-    def with_ascii_map(self, map_data: list[list[str]]) -> "EnvConfig":
+    def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
         return self
 
     @staticmethod
     def EmptyRoom(
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
-    ) -> "EnvConfig":
+    ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
@@ -246,6 +222,6 @@ class EnvConfig(Config):
         objects = {}
         if border_width > 0 or with_walls:
             objects["wall"] = WallConfig(type_id=1, swappable=False)
-        return EnvConfig(
+        return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )
