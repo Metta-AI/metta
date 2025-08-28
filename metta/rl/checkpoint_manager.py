@@ -1,4 +1,4 @@
-"""Simple checkpoint manager - just the essentials for training and basic evaluation."""
+"""Simple checkpoint manager for training and evaluation."""
 
 import logging
 import re
@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import torch
 import yaml
 
-from metta.rl.wandb_policy_loader import load_policy_from_wandb_uri, get_wandb_artifact_metadata
+from metta.rl.wandb_policy_loader import get_wandb_artifact_metadata, load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
 

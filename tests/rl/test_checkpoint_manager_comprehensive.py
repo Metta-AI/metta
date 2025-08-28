@@ -1,8 +1,4 @@
-#!/usr/bin/env python3
-"""
-Comprehensive tests for CheckpointManager functionality
-Rewritten from the original PolicyStore tests to show equivalent operations.
-"""
+"""Comprehensive tests for CheckpointManager functionality."""
 
 import tempfile
 from pathlib import Path

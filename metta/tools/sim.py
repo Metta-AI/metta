@@ -112,8 +112,6 @@ class SimTool(Tool):
                 checkpoint_manager = CheckpointManager(run_name="wandb", run_dir="./temp")
                 checkpoint_managers_by_uri[policy_uri] = checkpoint_manager
 
-                logger.info(f"Loading policy from wandb URI: {policy_uri}")
-
                 policies_by_uri[policy_uri] = []
                 try:
                     # Load policy from wandb
@@ -127,7 +125,6 @@ class SimTool(Tool):
                         dummy_path = Path(f"wandb_artifact_{policy_uri.replace('/', '_').replace(':', '_')}")
 
                         policies_by_uri[policy_uri].append((agent, metadata, dummy_path))
-                        logger.info(f"Loaded wandb policy with metadata keys: {list(metadata.keys())}")
                     else:
                         logger.error(f"Failed to load policy from wandb URI: {policy_uri}")
 
@@ -135,7 +132,7 @@ class SimTool(Tool):
                     logger.error(f"Failed to load wandb policy {policy_uri}: {e}")
 
                 if not policies_by_uri[policy_uri]:
-                    logger.warning(f"No valid policies loaded from wandb URI: {policy_uri}")
+                    logger.warning(f"No policies loaded from wandb URI: {policy_uri}")
             else:
                 logger.error(f"Unsupported URI format: {policy_uri}. Supported: file://, wandb://")
                 policies_by_uri[policy_uri] = []

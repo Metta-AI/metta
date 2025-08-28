@@ -1,11 +1,4 @@
-"""
-Tests for CheckpointManager caching patterns.
-Rewritten from the original PolicyCache tests to show equivalent caching operations.
-
-Note: CheckpointManager doesn't have built-in caching, but this shows
-how caching could be implemented if needed, or how the system works without
-the complex caching layer.
-"""
+"""Tests for CheckpointManager caching patterns."""
 
 import tempfile
 import threading

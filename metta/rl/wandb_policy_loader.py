@@ -1,7 +1,4 @@
-"""Simple wandb policy loading utilities.
-
-Minimal wandb integration for loading policies from wandb artifacts without complex abstractions.
-"""
+"""Simple wandb policy loading utilities."""
 
 import logging
 import tempfile
@@ -9,6 +6,11 @@ from pathlib import Path
 from typing import Optional
 
 import torch
+
+try:
+    import wandb
+except ImportError:
+    wandb = None
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +22,7 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[
     - wandb://run/run_name (loads latest artifact from run)
     - wandb://entity/project/artifact_name:version
     """
-    try:
-        import wandb
-    except ImportError:
+    if wandb is None:
         logger.error("wandb not available. Install with: pip install wandb")
         return None
 
@@ -52,7 +52,6 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[
 
 def _load_from_run(run_name: str, device: str) -> Optional[torch.nn.Module]:
     """Load latest policy artifact from a wandb run."""
-    import wandb
 
     api = wandb.Api()
 
@@ -78,7 +77,6 @@ def _load_from_run(run_name: str, device: str) -> Optional[torch.nn.Module]:
 
 def _load_from_artifact_path(artifact_path: str, device: str) -> Optional[torch.nn.Module]:
     """Load policy from direct artifact path."""
-    import wandb
 
     api = wandb.Api()
 
@@ -109,7 +107,6 @@ def _download_and_load_artifact(artifact, device: str) -> Optional[torch.nn.Modu
 
             # Load the first policy file found
             policy_file = policy_files[0]
-            logger.info(f"Loading policy from {policy_file}")
 
             # Load with torch.load (weights_only=False for compatibility)
             policy = torch.load(policy_file, map_location=device, weights_only=False)
@@ -125,9 +122,7 @@ def get_wandb_artifact_metadata(wandb_uri: str) -> dict:
 
     Returns basic information about the artifact for selection purposes.
     """
-    try:
-        import wandb
-    except ImportError:
+    if wandb is None:
         logger.error("wandb not available")
         return {}
 

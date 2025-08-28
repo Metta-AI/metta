@@ -1,4 +1,4 @@
-"""Minimal checkpoint interface for evaluation integration - exactly what's needed, nothing more."""
+"""Minimal checkpoint interface for evaluation integration."""
 
 import logging
 from dataclasses import dataclass
