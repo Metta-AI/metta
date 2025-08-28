@@ -6,8 +6,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Sequence
 
-import torch
-import yaml
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
@@ -15,7 +13,7 @@ from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.rl.checkpoint_interface import Checkpoint
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_management import discover_policies, resolve_policy
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -62,80 +60,31 @@ class SimTool(Tool):
         if self.stats_server_uri is not None:
             StatsClient.create(self.stats_server_uri)
 
-        # Load policies directly from checkpoint directories
-        checkpoint_managers_by_uri: dict[str, CheckpointManager] = {}
-        policies_by_uri: dict[str, list[tuple]] = {}  # (agent, metadata, checkpoint_path) tuples
+        # Load policies using policy management system
+        policies_by_uri: dict[str, list[tuple]] = {}  # (agent, metadata, uri) tuples
 
         for policy_uri in self.policy_uris:
-            if policy_uri.startswith("file://"):
-                checkpoint_dir = policy_uri.replace("file://", "")
-                checkpoint_path = Path(checkpoint_dir)
+            # Discover policies with the specified strategy
+            strategy_map = {"top": "best_score", "latest": "latest", "best_score": "best_score", "all": "all"}
+            strategy = strategy_map.get(self.selector_type, "latest")
 
-                # Extract run name from path
-                run_name = checkpoint_path.parent.name
-                run_dir = str(checkpoint_path.parent.parent)
-                checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
-                checkpoint_managers_by_uri[policy_uri] = checkpoint_manager
+            discovered_policies = discover_policies(
+                policy_uri, strategy=strategy, count=self.selector_count, metric=self.selector_metric
+            )
 
-                # Select checkpoints using the new selection system
-                strategy_map = {"top": "best_score", "latest": "latest", "best_score": "best_score", "all": "all"}
-                strategy = strategy_map.get(self.selector_type, "latest")
+            logger.info(f"Discovered {len(discovered_policies)} policies for {policy_uri} using strategy '{strategy}'")
 
-                selected_paths = checkpoint_manager.select_checkpoints(
-                    strategy=strategy, count=self.selector_count, metric=self.selector_metric
-                )
-
-                logger.info(f"Selected {len(selected_paths)} checkpoints for {policy_uri} using strategy '{strategy}'")
-
-                policies_by_uri[policy_uri] = []
-                for checkpoint_path in selected_paths:
-                    try:
-                        agent = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-
-                        yaml_path = checkpoint_path.with_suffix(".yaml")
-                        metadata = {}
-                        if yaml_path.exists():
-                            with open(yaml_path) as f:
-                                metadata = yaml.safe_load(f) or {}
-
-                        policies_by_uri[policy_uri].append((agent, metadata, checkpoint_path))
-                        logger.info(
-                            f"Loaded checkpoint {checkpoint_path.name} with score {metadata.get('score', 'N/A')}"
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to load checkpoint {checkpoint_path}: {e}")
-
-                if not policies_by_uri[policy_uri]:
-                    logger.warning(f"No valid checkpoints loaded for {policy_uri}")
-            elif policy_uri.startswith("wandb://"):
-                # Handle wandb URI - create a simple CheckpointManager for URI operations
-                checkpoint_manager = CheckpointManager(run_name="wandb", run_dir="./temp")
-                checkpoint_managers_by_uri[policy_uri] = checkpoint_manager
-
-                policies_by_uri[policy_uri] = []
+            policies_by_uri[policy_uri] = []
+            for policy_uri_path, metadata in discovered_policies:
                 try:
-                    # Load policy from wandb
-                    agent = checkpoint_manager.load_policy_from_uri(policy_uri, device="cpu")
-
-                    if agent is not None:
-                        # Get metadata from wandb
-                        metadata = checkpoint_manager.get_policy_metadata_from_uri(policy_uri)
-
-                        # Create a dummy path for consistency
-                        dummy_path = Path(f"wandb_artifact_{policy_uri.replace('/', '_').replace(':', '_')}")
-
-                        policies_by_uri[policy_uri].append((agent, metadata, dummy_path))
-                    else:
-                        logger.error(f"Failed to load policy from wandb URI: {policy_uri}")
-
+                    agent = resolve_policy(policy_uri_path, device="cpu")
+                    policies_by_uri[policy_uri].append((agent, metadata, policy_uri_path))
+                    logger.info(f"Loaded policy from {policy_uri_path} with metadata: {metadata}")
                 except Exception as e:
-                    logger.error(f"Failed to load wandb policy {policy_uri}: {e}")
+                    logger.error(f"Failed to load policy from {policy_uri_path}: {e}")
 
-                if not policies_by_uri[policy_uri]:
-                    logger.warning(f"No policies loaded from wandb URI: {policy_uri}")
-            else:
-                logger.error(f"Unsupported URI format: {policy_uri}. Supported: file://, wandb://")
-                policies_by_uri[policy_uri] = []
+            if not policies_by_uri[policy_uri]:
+                logger.warning(f"No valid policies loaded for {policy_uri}")
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
 
