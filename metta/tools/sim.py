@@ -23,16 +23,12 @@ logger = logging.getLogger(__name__)
 
 def _determine_run_name(policy_uri: str) -> str:
     if policy_uri.startswith("file://"):
-        # Extract checkpoint name from file path
         checkpoint_path = Path(policy_uri.replace("file://", ""))
         return f"eval_{checkpoint_path.stem}"
     elif policy_uri.startswith("wandb://"):
-        # Extract artifact name from wandb URI
-        # Format: wandb://entity/project/artifact:version
         artifact_part = policy_uri.split("/")[-1]
         return f"eval_{artifact_part.replace(':', '_')}"
     else:
-        # Fallback to timestamp
         return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
@@ -94,10 +90,8 @@ class SimTool(Tool):
                 policies_by_uri[policy_uri] = []
                 for checkpoint_path in selected_paths:
                     try:
-                        # Load agent
                         agent = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
 
-                        # Load metadata
                         yaml_path = checkpoint_path.with_suffix(".yaml")
                         metadata = {}
                         if yaml_path.exists():
@@ -118,10 +112,6 @@ class SimTool(Tool):
                 policies_by_uri[policy_uri] = []
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
-
-        # Get eval_task_id from config if provided
-        if self.eval_task_id:
-            uuid.UUID(self.eval_task_id)
 
         for policy_uri, agent_metadata_list in policies_by_uri.items():
             _determine_run_name(policy_uri)

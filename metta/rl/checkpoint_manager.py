@@ -138,15 +138,10 @@ class CheckpointManager:
             return None
 
         yaml_file = self.checkpoint_dir / f"agent_epoch_{epoch}.yaml"
-        if not yaml_file.exists():
-            return None
-
-        try:
+        if yaml_file.exists():
             with open(yaml_file) as f:
                 return yaml.safe_load(f)
-        except Exception as e:
-            logger.error(f"Failed to load metadata from {yaml_file}: {e}")
-            return None
+        return None
 
     def find_best_checkpoint(self, metric: str = "score") -> Optional[Path]:
         """Find checkpoint with best score."""
@@ -175,50 +170,41 @@ class CheckpointManager:
         """Select checkpoints using different strategies.
 
         Supports "latest", "best_score", and "all" selection strategies.
-        Optionally filter checkpoints by metadata criteria like minimum score thresholds.
-        """
+        Optionally filter checkpoints by metadata criteria like minimum score thresholds."""
         if not self.checkpoint_dir.exists():
             return []
 
-        # Get all checkpoints with metadata
         checkpoints = []
         for yaml_file in self.checkpoint_dir.glob("agent_epoch_*.yaml"):
             try:
                 with open(yaml_file) as f:
                     metadata = yaml.safe_load(f)
-                    if metadata is None:
-                        continue
 
-                    epoch = metadata.get("epoch")
-                    if epoch is None:
-                        continue
+                epoch = metadata.get("epoch") if metadata else None
+                if not epoch:
+                    continue
 
-                    checkpoint_path = self.checkpoint_dir / f"agent_epoch_{epoch}.pt"
-                    if not checkpoint_path.exists():
-                        continue
+                checkpoint_path = self.checkpoint_dir / f"agent_epoch_{epoch}.pt"
+                if not checkpoint_path.exists():
+                    continue
 
-                    # Apply filters if specified
-                    if filters and not self._matches_filters(metadata, filters):
-                        continue
+                if filters and not self._matches_filters(metadata, filters):
+                    continue
 
-                    checkpoints.append((checkpoint_path, metadata))
-            except Exception as e:
-                logger.warning(f"Failed to process metadata file {yaml_file}: {e}")
+                checkpoints.append((checkpoint_path, metadata))
+            except Exception:
+                continue
 
         if not checkpoints:
             return []
 
-        # Apply selection strategy
         if strategy == "latest":
-            # Sort by epoch descending, take latest
             checkpoints.sort(key=lambda x: x[1].get("epoch", 0), reverse=True)
             return [cp[0] for cp in checkpoints[:count]]
         elif strategy == "best_score":
-            # Sort by metric descending, take best
             checkpoints.sort(key=lambda x: x[1].get(metric, float("-inf")), reverse=True)
             return [cp[0] for cp in checkpoints[:count]]
         elif strategy == "all":
-            # Return all matching checkpoints
             return [cp[0] for cp in checkpoints]
         else:
             raise ValueError(f"Unknown selection strategy: {strategy}")
@@ -246,108 +232,47 @@ class CheckpointManager:
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         """Clean up old checkpoints, keeping only the most recent ones."""
-        try:
-            if not self.checkpoint_dir.exists():
-                logger.info(f"Checkpoint directory does not exist: {self.checkpoint_dir}")
-                return 0
-
-            # Get all agent checkpoint files
-            agent_files = list(self.checkpoint_dir.glob("agent_epoch_*.pt"))
-            if len(agent_files) <= keep_last_n:
-                logger.info(f"Only {len(agent_files)} checkpoints found, nothing to clean up")
-                return 0
-
-            # Sort by epoch number (oldest first)
-            try:
-                agent_files.sort(key=lambda p: self._extract_epoch(p.name))
-            except Exception as e:
-                logger.error(f"Failed to sort checkpoint files: {e}")
-                return 0
-
-            # Determine which files to remove (all except the last N)
-            files_to_remove = agent_files[:-keep_last_n]
-            deleted_count = 0
-
-            for agent_file in files_to_remove:
-                try:
-                    # Remove corresponding YAML metadata file if it exists
-                    yaml_file = agent_file.with_suffix(".yaml")
-                    if yaml_file.exists():
-                        yaml_file.unlink()
-                        logger.debug(f"Deleted metadata file: {yaml_file}")
-
-                    # Remove trainer state file if it exists
-                    epoch = self._extract_epoch(agent_file.name)
-                    trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
-                    if trainer_file.exists():
-                        trainer_file.unlink()
-                        logger.debug(f"Deleted trainer state file: {trainer_file}")
-
-                    # Remove the agent checkpoint file
-                    agent_file.unlink()
-                    logger.info(f"Deleted checkpoint: {agent_file}")
-                    deleted_count += 1
-
-                except Exception as e:
-                    logger.warning(f"Failed to delete checkpoint {agent_file}: {e}")
-
-            logger.info(f"Cleanup complete: deleted {deleted_count} old checkpoints, kept {keep_last_n} most recent")
-            return deleted_count
-
-        except Exception as e:
-            logger.error(f"Checkpoint cleanup failed: {e}")
+        if not self.checkpoint_dir.exists():
             return 0
 
+        agent_files = list(self.checkpoint_dir.glob("agent_epoch_*.pt"))
+        if len(agent_files) <= keep_last_n:
+            return 0
+
+        agent_files.sort(key=lambda p: self._extract_epoch(p.name))
+        files_to_remove = agent_files[:-keep_last_n]
+
+        deleted_count = 0
+        for agent_file in files_to_remove:
+            try:
+                yaml_file = agent_file.with_suffix(".yaml")
+                yaml_file.unlink(missing_ok=True)
+
+                epoch = self._extract_epoch(agent_file.name)
+                trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
+                trainer_file.unlink(missing_ok=True)
+
+                agent_file.unlink()
+                deleted_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to delete checkpoint {agent_file}: {e}")
+
+        if deleted_count > 0:
+            logger.info(f"Deleted {deleted_count} old checkpoints, kept {keep_last_n} most recent")
+        return deleted_count
+
     def _validate_run_name(self, run_name: str) -> str:
-        """Validate run_name to prevent path traversal attacks."""
-        if not run_name:
-            raise ValueError("run_name cannot be empty")
-
-        # Allow only alphanumeric characters, underscores, hyphens, and dots
-        if not re.match(r"^[a-zA-Z0-9._-]+$", run_name):
-            raise ValueError(
-                f"Invalid run_name '{run_name}': only alphanumeric characters, underscores, hyphens, and dots allowed"
-            )
-
-        # Prevent path traversal patterns
-        if ".." in run_name or run_name.startswith(".") or "/" in run_name or "\\" in run_name:
-            raise ValueError(f"Invalid run_name '{run_name}': path traversal patterns not allowed")
-
-        # Reasonable length limit
-        if len(run_name) > 128:
-            raise ValueError(f"run_name too long: {len(run_name)} chars (max 128)")
-
+        if not run_name or not re.match(r"^[a-zA-Z0-9._-]+$", run_name):
+            raise ValueError(f"Invalid run_name: {run_name}")
         return run_name
 
     def _extract_epoch(self, filename: str) -> int:
-        """Extract epoch number from filename with basic error handling."""
-        try:
-            # Expected format: agent_epoch_123.pt or trainer_epoch_123.pt
-            if not filename.endswith(".pt"):
-                raise ValueError(f"Expected .pt file, got: {filename}")
+        """Extract epoch number from filename."""
+        if not filename.endswith(".pt"):
+            raise ValueError(f"Expected .pt file: {filename}")
 
-            # Remove .pt extension
-            name_without_ext = filename[:-3]
+        parts = filename[:-3].split("_")
+        if len(parts) < 3 or parts[1] != "epoch":
+            raise ValueError(f"Invalid checkpoint filename: {filename}")
 
-            # Split by underscore and get last part (epoch number)
-            parts = name_without_ext.split("_")
-            if len(parts) < 3 or parts[1] != "epoch":
-                raise ValueError(f"Expected format '[agent|trainer]_epoch_<number>.pt', got: {filename}")
-
-            epoch_str = parts[-1]
-            epoch = int(epoch_str)
-
-            # Reasonable bounds checking
-            if epoch < 0:
-                raise ValueError(f"Epoch cannot be negative: {epoch}")
-            if epoch > 1000000:  # 1M epochs should be enough for anyone
-                raise ValueError(f"Epoch too large: {epoch}")
-
-            return epoch
-
-        except ValueError as e:
-            logger.error(f"Failed to extract epoch from filename '{filename}': {e}")
-            raise ValueError(f"Invalid filename format '{filename}': {e}") from e
-        except Exception as e:
-            logger.error(f"Unexpected error extracting epoch from '{filename}': {e}")
-            raise RuntimeError(f"Epoch extraction failed: {e}") from e
+        return int(parts[-1])

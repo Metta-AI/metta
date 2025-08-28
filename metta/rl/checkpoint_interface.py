@@ -12,12 +12,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Checkpoint:
-    """Simple checkpoint data container - groups policy, trainer state, and metadata.
-
-    This is NOT backwards compatible with PolicyRecord - it's a clean, simple replacement.
-    Just contains the essential data needed for evaluation: the run name, file location,
-    basic metadata, and the loaded policy.
-    """
+    """Simple checkpoint data container."""
 
     run_name: str
     uri: str
@@ -25,10 +20,7 @@ class Checkpoint:
     _cached_policy: Any = None
 
     def key_and_version(self) -> tuple[str, int]:
-        """Extract (key, version) tuple for database normalization.
-
-        For database integration, we use run_name as key and extract epoch from metadata.
-        """
+        """Extract (key, version) tuple for database integration."""
         epoch = self.metadata.get("epoch", 0)
         return self.run_name, epoch
 

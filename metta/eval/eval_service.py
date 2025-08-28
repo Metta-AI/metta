@@ -33,12 +33,9 @@ def evaluate_policy(
     logger: logging.Logger,
 ) -> EvalResults:
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
-    ckpt = checkpoint
-
     stats_dir = stats_dir or "/tmp/stats"
 
-    # For each checkpoint of the policy, simulate
-    logger.info(f"Evaluating checkpoint {ckpt.uri}")
+    logger.info(f"Evaluating checkpoint {checkpoint.uri}")
     if not is_unique([sim.name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
 
@@ -46,7 +43,7 @@ def evaluate_policy(
         Simulation(
             name=sim.name,
             cfg=sim,
-            checkpoint=ckpt,
+            checkpoint=checkpoint,
             checkpoint_manager=checkpoint_manager,
             replay_dir=replay_dir,
             stats_dir=stats_dir,
@@ -92,7 +89,7 @@ def evaluate_policy(
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
     eval_stats_db = EvalStatsDB(merged_db.path)
-    logger.info("Evaluation complete for checkpoint %s", ckpt.uri)
+    logger.info("Evaluation complete for checkpoint %s", checkpoint.uri)
     scores = extract_scores(checkpoint, simulations, eval_stats_db, logger)
 
     if export_stats_db_uri is not None:

@@ -1,17 +1,8 @@
-"""
-EvalStatsDb adds views on top of SimulationStatsDb
-to make it easier to query policy performance across simulations,
-while handling the fact that some metrics are only logged when non‑zero.
+"""EvalStatsDb adds views on top of SimulationStatsDb for policy performance queries.
 
-Normalisation rule
-------------------
-For every query we:
-1.  Count the **potential** agent‑episode samples for the policy / filter.
-2.  Aggregate the recorded metric values (missing = 0).
-3.  Divide by the potential count.
-
-This yields a true mean even when zeros are omitted from logging.
-"""
+Normalisation rule: For every query we count the potential agent-episode samples,
+aggregate recorded metric values (missing = 0), then divide by potential count.
+This yields a true mean even when zeros are omitted from logging."""
 
 from __future__ import annotations
 
