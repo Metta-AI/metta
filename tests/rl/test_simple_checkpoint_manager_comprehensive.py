@@ -162,7 +162,6 @@ class TestSimpleCheckpointManagerBasicOperations:
         assert loaded_agent is not None
 
         # Test loading trainer state
-        trainer_state = {"optimizer_state": {"lr": 0.001}, "epoch": 15, "agent_step": 15000}
         checkpoint_manager.save_trainer_state(None, epoch=15, agent_step=15000)
 
         loaded_trainer_state = checkpoint_manager.load_trainer_state()
@@ -273,11 +272,10 @@ class TestSimpleCheckpointManagerAdvancedFeatures:
         all_checkpoints = sorted(pt_files, key=lambda p: int(p.stem.split("_")[1]))
         checkpoints_to_remove = all_checkpoints[:-5]  # Remove all but last 5
 
-        for checkpoint_file in checkpoints_to_remove:
-            yaml_file = checkpoint_file.with_suffix(".yaml")
+        for _checkpoint_file in checkpoints_to_remove:
             # In real cleanup, these would be removed:
             # checkpoint_file.unlink()
-            # yaml_file.unlink()
+            # checkpoint_file.with_suffix(".yaml").unlink()
             pass
 
         # After cleanup, should have 5 checkpoints remaining (epochs 6-10)

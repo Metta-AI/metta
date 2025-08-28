@@ -140,7 +140,7 @@ def evaluate_policy_remote_legacy_adapter(
         if checkpoint_path and Path(checkpoint_path).exists():
             run_dir = str(Path(checkpoint_path).parent.parent)
             run_name = Path(run_dir).name
-            checkpoint_manager = SimpleCheckpointManager(run_dir=run_dir, run_name=run_name)
+            checkpoint_manager = TinyCheckpointManager(run_name=run_name, run_dir=run_dir)
 
             return evaluate_policy_remote_with_checkpoint_manager(
                 checkpoint_manager=checkpoint_manager,

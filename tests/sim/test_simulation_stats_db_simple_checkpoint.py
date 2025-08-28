@@ -141,7 +141,6 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
 
     # Create the merged database using SimpleCheckpointManager context
     sim_id = str(uuid.uuid4())
-    merged_db_path = tmp_path / "merged.duckdb"
 
     # This would be the updated interface for SimpleCheckpointManager integration
     merged_db = SimulationStatsDB.from_shards_and_context(
@@ -241,7 +240,7 @@ def test_database_policy_lookup_with_checkpoints(tmp_path: Path):
     db = SimulationStatsDB(db_path)
 
     # Record episodes with different checkpoint associations
-    for i, checkpoint_info in enumerate(checkpoint_infos):
+    for _i, checkpoint_info in enumerate(checkpoint_infos):
         episode_id = str(uuid.uuid4())
         attributes = {"experiment": checkpoint_info.run_name}
         agent_metrics = {0: {"reward": checkpoint_info.metadata["score"] * 10}}  # Scale for testing
@@ -252,10 +251,11 @@ def test_database_policy_lookup_with_checkpoints(tmp_path: Path):
 
         # Associate episode with checkpoint info
         key, version = checkpoint_info.key_and_version()
-        db.con.execute(
-            "INSERT OR REPLACE INTO agent_policies (episode_id, agent_id, policy_key, policy_version) VALUES (?, ?, ?, ?)",
-            [episode_id, 0, key, version],
+        query = (
+            "INSERT OR REPLACE INTO agent_policies "
+            "(episode_id, agent_id, policy_key, policy_version) VALUES (?, ?, ?, ?)"
         )
+        db.con.execute(query, [episode_id, 0, key, version])
 
     # Test querying by policy (equivalent to what dashboard/analysis tools would do)
 

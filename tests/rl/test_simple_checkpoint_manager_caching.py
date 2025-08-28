@@ -226,7 +226,6 @@ class TestSimpleCheckpointManagerCachingIntegration:
         # Get checkpoint paths
         checkpoint_dir = Path(temp_run_dir) / "checkpoints"
         path1 = str(checkpoint_dir / "model_0001.pt")
-        path2 = str(checkpoint_dir / "model_0002.pt")
 
         # First load should read from disk and cache
         with patch("torch.load") as mock_load:
@@ -392,7 +391,7 @@ class TestSimpleCheckpointManagerWithoutCaching:
         # (unlike a cache that would keep multiple agents in memory)
 
         agents_loaded = []
-        for epoch in [1, 3, 5, 7, 9]:
+        for _epoch in [1, 3, 5, 7, 9]:
             agent = checkpoint_manager.load_agent()
             agents_loaded.append(agent)
             # In real usage, each agent would be used and then could be garbage collected
