@@ -8,12 +8,11 @@ import uuid
 from pathlib import Path
 
 import pytest
-import yaml
 from duckdb import DuckDBPyConnection
 
 from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_interface import Checkpoint
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_filename
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
@@ -81,8 +80,11 @@ class TestHelpersSimpleCheckpoint:
 
         checkpoint_manager.save_agent(mock_agent, epoch=epoch, metadata=metadata)
 
-        # Get the actual checkpoint path that CheckpointManager created
-        checkpoint_path = checkpoint_manager.checkpoint_dir / f"agent_epoch_{epoch}.pt"
+        # Get the actual checkpoint path using the new triple-dash format
+        agent_step = metadata.get("agent_step", epoch * 1000)
+        total_time = int(metadata.get("train_time", epoch * 10.0))
+        filename = f"{run_name}---e{epoch}_s{agent_step}_t{total_time}s.pt"
+        checkpoint_path = checkpoint_manager.checkpoint_dir / filename
 
         return Checkpoint(run_name=run_name, uri=f"file://{checkpoint_path}", metadata=metadata)
 
@@ -193,13 +195,12 @@ def test_checkpoint_info_compatibility():
         checkpoint_path = checkpoint_info.uri[7:]  # Remove "file://" prefix
         assert Path(checkpoint_path).exists()
 
-        # Verify metadata file exists and is readable
-        yaml_path = checkpoint_path.replace(".pt", ".yaml")
-        assert Path(yaml_path).exists()
-
-        with open(yaml_path) as f:
-            loaded_metadata = yaml.safe_load(f)
-        assert loaded_metadata["score"] == 0.92
+        # Verify metadata can be parsed from filename
+        filename = Path(checkpoint_path).name
+        parsed_metadata = parse_checkpoint_filename(filename)
+        assert parsed_metadata is not None
+        assert parsed_metadata["run"] == "test_run"
+        assert parsed_metadata["epoch"] == 5
 
         print("✅ Checkpoint compatibility with database operations verified")
 
@@ -315,22 +316,17 @@ def test_checkpoint_metadata_database_integration(tmp_path: Path):
         )
         checkpoint_infos.append((checkpoint_info, metadata))
 
-    # Verify that metadata is properly saved and can be loaded
-    for checkpoint_info, original_metadata in checkpoint_infos:
+    # Verify that metadata is properly embedded in filenames
+    for i, (checkpoint_info, original_metadata) in enumerate(checkpoint_infos):
         checkpoint_path = checkpoint_info.uri[7:]  # Remove "file://" prefix
-        yaml_path = checkpoint_path.replace(".pt", ".yaml")
-        with open(yaml_path) as f:
-            loaded_metadata = yaml.safe_load(f)
 
-        # Check that complex nested metadata is preserved
-        assert (
-            loaded_metadata["experiment_config"]["learning_rate"]
-            == original_metadata["experiment_config"]["learning_rate"]
-        )
-        assert (
-            loaded_metadata["evaluation_metrics"]["success_rate"]
-            == original_metadata["evaluation_metrics"]["success_rate"]
-        )
+        # Verify that basic metadata is embedded in filename
+        filename = Path(checkpoint_path).name
+        parsed_metadata = parse_checkpoint_filename(filename)
+        assert parsed_metadata is not None
+        assert parsed_metadata["run"] == "rich_metadata_run"
+        assert parsed_metadata["epoch"] == i + 1
+        assert parsed_metadata["agent_step"] == original_metadata["agent_step"]
 
         # This metadata could be stored in database for advanced queries
         # (This would require extending SimulationStatsDB to handle checkpoint metadata)

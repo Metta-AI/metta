@@ -38,36 +38,46 @@ class Checkpoint:
 
 
 def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
-    """Get latest checkpoint from directory, supporting both old and new formats."""
+    """Get latest checkpoint from directory, supporting both new triple-dash and old formats."""
     checkpoint_path = Path(checkpoint_dir)
     if not checkpoint_path.exists():
         return None
 
-    # Try new triple-dash format first
     run_name = checkpoint_path.parent.name if checkpoint_path.parent else "unknown"
-    manager = CheckpointManager(run_name, str(checkpoint_path.parent.parent))
 
-    if manager.exists():
-        agent = manager.load_latest_agent()
-        if agent:
-            # Find latest checkpoint file for metadata
-            agent_files = list(checkpoint_path.glob(f"{run_name}---e*_s*_t*s.pt"))
-            if agent_files:
-                latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
-                metadata = parse_checkpoint_filename(latest_file.name) or {}
-                return Checkpoint(
-                    run_name=run_name, uri=f"file://{latest_file}", metadata=metadata, _cached_policy=agent
-                )
+    # Try new triple-dash format first
+    new_format_files = list(checkpoint_path.glob(f"{run_name}---e*_s*_t*s.pt"))
+    if new_format_files:
+        latest_file = max(new_format_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
+        metadata = parse_checkpoint_filename(latest_file.name) or {}
+        agent = torch.load(latest_file, weights_only=False)
+        return Checkpoint(
+            run_name=run_name, 
+            uri=f"file://{latest_file}", 
+            metadata=metadata, 
+            _cached_policy=agent
+        )
 
     # Fallback to old format
-    agent_files = list(checkpoint_path.glob("agent_epoch_*.pt"))
-    if not agent_files:
-        return None
+    old_format_files = list(checkpoint_path.glob("agent_epoch_*.pt"))
+    if old_format_files:
+        latest_file = max(
+            old_format_files, 
+            key=lambda f: int(f.stem.split("_")[-1]) if f.stem.split("_")[-1].isdigit() else 0
+        )
+        agent = torch.load(latest_file, weights_only=False)
+        # Extract epoch from filename for compatibility
+        epoch_str = latest_file.stem.split("_")[-1]
+        epoch = int(epoch_str) if epoch_str.isdigit() else 0
+        metadata = {"epoch": epoch}
+        return Checkpoint(
+            run_name=run_name, 
+            uri=f"file://{latest_file}", 
+            metadata=metadata, 
+            _cached_policy=agent
+        )
 
-    latest_file = max(agent_files, key=lambda f: int(f.stem.split("_")[-1]) if f.stem.split("_")[-1].isdigit() else 0)
-    agent = torch.load(latest_file, weights_only=False)
-
-    return Checkpoint(run_name=run_name, uri=f"file://{latest_file}", metadata={}, _cached_policy=agent)
+    return None
 
 
 def get_checkpoint_tuples_for_stats_integration(checkpoint_dirs: list[str]) -> list[tuple[str, str, str | None]]:

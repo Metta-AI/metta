@@ -17,6 +17,7 @@ import pytest
 from typing_extensions import Generator
 
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.checkpoint_manager import parse_checkpoint_filename
 
 TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]
 
@@ -24,8 +25,10 @@ TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     db = EvalStatsDB(db_path)
 
-    checkpoint_path, epoch = "test_policy", 1
-    pk, pv = db.key_and_version(checkpoint_path, epoch)
+    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    metadata = parse_checkpoint_filename(checkpoint_filename)
+    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
+    pk, pv = metadata["run"], metadata["epoch"]
 
     sim_id = str(uuid.uuid4())
 
@@ -86,11 +89,13 @@ def test_db() -> Generator[TestEvalStatsDb, None, None]:
 # -------- Tests ------------------------------------------------------------ #
 def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_path, epoch = "test_policy", 1
-    pk, pv = db.key_and_version(checkpoint_path, epoch)
+    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    metadata = parse_checkpoint_filename(checkpoint_filename)
+    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
+    pk, pv = metadata["run"], metadata["epoch"]
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
-    avg_hearts = db.get_average_metric_by_filter("hearts_collected", checkpoint_path, epoch)
+    avg_hearts = db.get_average_metric_by_filter("hearts_collected", pk, pv)
     assert avg_hearts is not None
     assert 1.15 <= avg_hearts <= 1.25, f"expected ≈1.2 got {avg_hearts}"
 
@@ -101,23 +106,26 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     assert recorded == 2
 
     # reward recorded for every sample → mean unaffected
-    avg_reward = db.get_average_metric_by_filter("reward", checkpoint_path, epoch)
+    avg_reward = db.get_average_metric_by_filter("reward", pk, pv)
     assert avg_reward is not None
 
     # filter condition
-    avg_filtered = db.get_average_metric_by_filter("hearts_collected", checkpoint_path, epoch, "sim_env = 'test_env'")
+    avg_filtered = db.get_average_metric_by_filter("hearts_collected", pk, pv, "sim_env = 'test_env'")
     assert avg_filtered is not None
     assert 1.15 <= avg_filtered <= 1.25
 
     # non‑matching filter
-    assert db.get_average_metric_by_filter("hearts_collected", checkpoint_path, epoch, "sim_env = 'none'") is None
+    assert db.get_average_metric_by_filter("hearts_collected", pk, pv, "sim_env = 'none'") is None
 
 
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_path, epoch = "test_policy", 1
+    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    metadata = parse_checkpoint_filename(checkpoint_filename)
+    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
+    pk, pv = metadata["run"], metadata["epoch"]
 
-    scores = db.simulation_scores(checkpoint_path, epoch, "hearts_collected")
+    scores = db.simulation_scores(pk, pv, "hearts_collected")
     assert len(scores) == 1
 
     key = next(iter(scores))
@@ -135,28 +143,31 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_path, epoch = "test_policy", 1
+    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    metadata = parse_checkpoint_filename(checkpoint_filename)
+    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
+    pk, pv = metadata["run"], metadata["epoch"]
 
-    sum_norm = db.get_sum_metric_by_filter("hearts_collected", checkpoint_path, epoch)
+    sum_norm = db.get_sum_metric_by_filter("hearts_collected", pk, pv)
     assert sum_norm is not None
     assert 1.15 <= sum_norm <= 1.25  # (6 / 5) ≈ 1.2
 
 
 def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_path, epoch = "test_policy", 1
+    checkpoint_filename = "test_policy---e1_s1000_t10s.pt"
+    metadata = parse_checkpoint_filename(checkpoint_filename)
+    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
+    pk, pv = metadata["run"], metadata["epoch"]
 
-    assert db.get_average_metric_by_filter("nonexistent", checkpoint_path, epoch) == 0.0
+    assert db.get_average_metric_by_filter("nonexistent", pk, pv) == 0.0
 
-    bad_checkpoint_path, bad_epoch = "none", 99
-    assert db.get_average_metric_by_filter("hearts_collected", bad_checkpoint_path, bad_epoch) is None
+    assert db.get_average_metric_by_filter("hearts_collected", "none", 99) is None
 
 
 def test_empty_database():
     with tempfile.TemporaryDirectory() as tmp:
         db = EvalStatsDB(Path(tmp) / "empty.duckdb")
-        checkpoint_path, epoch = "test", 1
-
-        assert db.get_average_metric_by_filter("reward", checkpoint_path, epoch) is None
+        assert db.get_average_metric_by_filter("reward", "test", 1) is None
         assert db.potential_samples_for_metric("test", 1) == 0
         db.close()
