@@ -208,7 +208,7 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        package: [agent, common, app_backend, mettagrid, core]
+        package: [agent, common, app_backend, mettagrid, codebot, core]
       fail-fast: false
     steps:
       - name: Checkout code
