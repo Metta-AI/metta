@@ -17,6 +17,7 @@ from gitta import set_skypilot_test_status
 from metta.common.util.cost_monitor import get_cost_info
 from metta.common.util.skypilot_latency import calculate_queue_latency
 from metta.common.wandb.log_wandb import log_to_wandb
+from metta.common.util.discord import send_to_discord
 
 from .runtime_monitors import start_monitors
 
@@ -154,39 +155,87 @@ def run_training() -> int:
     return exit_code
 
 
+from metta.common.util.discord import send_to_discord
+
 def send_discord_notification(emoji: str, title: str, status_msg: str, additional_info: str = "", exit_code: int = 0):
-    """Send Discord notification via the shell script."""
+    """Send Discord notification directly using the discord module."""
     if not is_master or not enable_discord:
         return
 
     try:
-        # Set required environment variables for the script
-        env = os.environ.copy()
-        env.update(
-            {
-                "IS_MASTER": "true",
-                "ENABLE_DISCORD": "true",
-                "CMD_EXIT": str(exit_code),
-            }
+        # Validate required environment variables
+        required_env_vars = {
+            "GITHUB_REPOSITORY": os.getenv("GITHUB_REPOSITORY"),
+            "METTA_GIT_REF": os.getenv("METTA_GIT_REF"),
+            "METTA_RUN_ID": os.getenv("METTA_RUN_ID"),
+            "TOTAL_NODES": os.getenv("TOTAL_NODES"),
+            "JOB_METADATA_DIR": os.getenv("JOB_METADATA_DIR"),
+            "DISCORD_WEBHOOK_URL": os.getenv("DISCORD_WEBHOOK_URL"),
+        }
+
+        missing_vars = [k for k, v in required_env_vars.items() if not v]
+        if missing_vars:
+            logger.warning(f"Missing required environment variables: {', '.join(missing_vars)}")
+            return
+
+        logger.info(f"[RUN] Sending Discord notification: {title}")
+
+        # Calculate runtime if START_TIME is set
+        runtime_msg = ""
+        start_time = os.getenv("START_TIME")
+        if start_time and start_time != "0":
+            try:
+                current_time = int(time.time())
+                duration = current_time - int(start_time)
+                hours = duration // 3600
+                minutes = (duration % 3600) // 60
+                runtime_msg = f"**Runtime**: {hours}h {minutes}m"
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid START_TIME: {start_time}")
+
+        # Build Discord message
+        message_parts = [
+            f"{emoji} **{title}**",
+            "",
+            f"**Repository**: {required_env_vars['GITHUB_REPOSITORY']}",
+            f"**Git Ref**: {required_env_vars['METTA_GIT_REF']}",
+            f"**Run ID**: {required_env_vars['METTA_RUN_ID'] or 'N/A'}",
+            f"**Status**: {status_msg}",
+        ]
+
+        if runtime_msg:
+            message_parts.append(runtime_msg)
+
+        message_parts.extend([
+            f"**Time**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
+            f"**Nodes**: {required_env_vars['TOTAL_NODES']}",
+        ])
+
+        if additional_info:
+            message_parts.extend(["", additional_info])
+
+        discord_content = "\n".join(message_parts)
+
+        # Save to file (if still needed for debugging/logging purposes)
+        discord_message_path = os.path.join(required_env_vars['JOB_METADATA_DIR'], "discord_message.txt")
+        with open(discord_message_path, "w") as f:
+            f.write(discord_content)
+
+        # Send directly via Discord module
+        success = send_to_discord(
+            webhook_url=required_env_vars['DISCORD_WEBHOOK_URL'],
+            content=discord_content,
+            suppress_embeds=True
         )
 
-        subprocess.run(
-            [
-                "bash",
-                "./devops/skypilot/config/send_discord_notification.sh",
-                emoji,
-                title,
-                status_msg,
-                additional_info,
-            ],
-            env=env,
-            check=False,
-        )
+        if not success:
+            logger.warning("[WARN] Discord notification failed; continuing")
+
     except Exception as e:
         logger.warning(f"Failed to send Discord notification: {e}")
 
 
-def set_github_status(exit_code: int, state: str, description: str, termination_reason: str):
+def set_github_status(exit_code: int, state: str, description: str):
     """Update GitHub commit status."""
     if not is_master or not enable_github_status:
         return
@@ -228,7 +277,7 @@ def set_github_status(exit_code: int, state: str, description: str, termination_
         logger.warning("Failed to set GitHub status")
 
 
-def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, str, str, int]:
+def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, str, int]:
     """
     Determine job status based on exit code and termination reason.
 
@@ -238,7 +287,6 @@ def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, 
     # Default values - assume failure unless proven otherwise
     github_state = "failure"
     github_description = f"Job failed with exit code {exit_code}"
-    final_termination_reason = termination_reason or f"exit_code_{exit_code}"
     final_exit_code = exit_code
 
     if termination_reason == "heartbeat_timeout":
@@ -274,7 +322,7 @@ def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, 
         # Default case - just log the error
         logger.error(f"Job failed with exit code {exit_code}")
 
-    return github_state, github_description, final_termination_reason, final_exit_code
+    return github_state, github_description, final_exit_code
 
 
 def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
@@ -288,7 +336,7 @@ def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
         return exit_code
 
     # Determine job status
-    github_state, github_description, final_termination_reason, final_exit_code = determine_job_status(
+    github_state, github_description, final_exit_code = determine_job_status(
         exit_code, termination_reason
     )
 
@@ -303,7 +351,7 @@ def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
         send_discord_notification("❌", "SkyPilot Job Failed", github_description, "", exit_code)
 
     # Update GitHub status
-    set_github_status(exit_code, github_state, github_description, final_termination_reason)
+    set_github_status(exit_code, github_state, github_description)
 
     return final_exit_code
 
