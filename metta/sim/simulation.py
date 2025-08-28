@@ -30,7 +30,7 @@ from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
-from metta.sim.simulation_stats_db import SimulationStatsDB, CheckpointInfo
+from metta.sim.simulation_stats_db import CheckpointInfo, SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
@@ -435,17 +435,19 @@ class Simulation:
 
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
-        # Make sure we're creating a dictionary of the right type
-        agent_map: Dict[int, PolicyRecord] = {}
+        # Create agent map using CheckpointInfo for database integration
+        agent_map: Dict[int, CheckpointInfo] = {}
 
         # Add policy agents to the map
+        policy_info = CheckpointInfo(self._run_name, 0)  # Use epoch 0 for simulation
         for idx in self._policy_idxs:
-            agent_map[int(idx.item())] = self._policy_pr
+            agent_map[int(idx.item())] = policy_info
 
         # Add NPC agents to the map if they exist
-        if self._npc_pr is not None:
+        if self._npc_policy is not None:
+            npc_info = CheckpointInfo("npc", 0)
             for idx in self._npc_idxs:
-                agent_map[int(idx.item())] = self._npc_pr
+                agent_map[int(idx.item())] = npc_info
 
         db = SimulationStatsDB.from_shards_and_context(
             sim_id=self._id,
@@ -453,15 +455,15 @@ class Simulation:
             agent_map=agent_map,
             sim_name=self._name,
             sim_env=self._config.env.label,
-            policy_record=self._policy_pr,
+            policy_info=policy_info,
         )
         return db
 
     def _get_policy_name(self) -> str:
-        return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.run_name
+        return self._wandb_policy_name if self._wandb_policy_name is not None else self._run_name
 
     def _get_policy_uri(self) -> str:
-        return self._wandb_uri if self._wandb_uri is not None else self._policy_pr.uri
+        return self._wandb_uri if self._wandb_uri is not None else self._policy_uri
 
     def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
@@ -553,9 +555,9 @@ class Simulation:
         return self._vecenv.envs[0]
 
     @property
-    def policy_record(self) -> PolicyRecord:
-        """Get the policy record used in this simulation."""
-        return self._policy_pr
+    def policy_record(self) -> CheckpointInfo:
+        """Get the policy info used in this simulation."""
+        return CheckpointInfo(self._run_name, 0)
 
     @property
     def name(self) -> str:
