@@ -1,6 +1,11 @@
 name: Build mettascope (nim)
 
-on: [push, pull_request]
+on:
+  pull_request:
+    paths:
+      - "mettascope2/**"
+      - ".github/workflows/build-mettascope2.yml"
+  workflow_dispatch: {}
 
 jobs:
   build:
