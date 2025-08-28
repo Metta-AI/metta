@@ -549,7 +549,6 @@ def test_move_all_directions(configured_env, movement_game_map):
         # Assert position changed
         assert position_before != position_after, f"Agent should have moved {direction_name}"
 
-        assert position_after and position_before
         # Assert movement was in correct direction
         dr = position_after[0] - position_before[0]
         dc = position_after[1] - position_before[1]
@@ -587,7 +586,6 @@ def test_move_diagonal_directions(configured_env, movement_game_map):
         # Assert position changed
         assert position_before != position_after, f"Agent should have moved {direction_name}"
 
-        assert position_after and position_before
         # Assert movement was in correct direction
         dr = position_after[0] - position_before[0]
         dc = position_after[1] - position_before[1]
@@ -602,14 +600,13 @@ def test_move_up(configured_env, small_movement_game_map):
 
     # Get position before move
     position_before = get_agent_position(env, 0)
+
     result = move(env, Orientation.NORTH)  # Use Orientation.NORTH for moving up
 
     assert result["success"], f"Move north should succeed. Error: {result.get('error')}"
 
     # Get position after move and verify
     position_after = get_agent_position(env, 0)
-
-    assert position_after and position_before
     assert position_before[0] - position_after[0] == 1, "Should move up by 1 row"
 
 
