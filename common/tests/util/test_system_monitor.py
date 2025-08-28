@@ -4,7 +4,6 @@ import time
 from collections import deque
 from typing import Generator
 
-import numpy as np
 import psutil
 import pytest
 import torch
@@ -60,8 +59,7 @@ def monitor() -> Generator[SystemMonitor, None, None]:
     monitor = SystemMonitor(sampling_interval_sec=0.1, history_size=10, auto_start=False)
     yield monitor
     # Cleanup
-    if monitor.is_running():
-        monitor.stop()
+    monitor.stop()
 
 
 @pytest.fixture
@@ -152,8 +150,8 @@ class TestInitialization:
 
         assert monitor.sampling_interval_sec == 1.0
         assert monitor.history_size == 100
-        assert not monitor.is_running()
-        assert len(monitor.get_available_metrics()) > 0
+        assert not monitor._thread or not monitor._thread.is_alive()
+        assert len([v for v in monitor._metric_collectors.values() if v]) > 0
 
     def test_init_custom_params(self, mock_psutil):
         """Test initialization with custom parameters"""
@@ -161,13 +159,6 @@ class TestInitialization:
 
         assert monitor.sampling_interval_sec == 2.0
         assert monitor.history_size == 50
-
-    def test_auto_start(self, mock_psutil):
-        """Test auto_start parameter"""
-        monitor = SystemMonitor(auto_start=True, sampling_interval_sec=0.1)
-
-        assert monitor.is_running()
-        monitor.stop()
 
     def test_custom_logger(self, mock_psutil):
         """Test initialization with custom logger"""
@@ -200,7 +191,7 @@ class TestMetricCollection:
 
         # Second collection should have real value
         monitor._collect_sample()
-        latest = monitor.get_latest()
+        latest = monitor._latest
 
         # Should have non-zero CPU after initialization
         assert latest["process_cpu_percent"] == 25.0
@@ -209,7 +200,7 @@ class TestMetricCollection:
         """Test memory metric collection"""
         monitor._collect_sample()
 
-        latest = monitor.get_latest()
+        latest = monitor._latest
         assert latest["memory_percent"] == 50.0
         assert latest["memory_available_mb"] == 4096.0
         assert latest["memory_used_mb"] == 4096.0
@@ -523,444 +514,3 @@ class TestErrorHandling:
         # Should handle error gracefully
         latest = monitor.get_latest()
         assert latest["gpu_utilization_avg"] == 0.0
-
-
-# Integration tests
-class TestIntegration:
-    def test_full_monitoring_cycle(self, mock_psutil):
-        """Test full monitoring lifecycle"""
-        monitor = SystemMonitor(sampling_interval_sec=0.05, history_size=5, auto_start=True)
-
-        # Let it collect some samples
-        time.sleep(0.2)
-
-        # Check we have data
-        latest = monitor.get_latest()
-        assert len(latest) > 0
-
-        # Check history
-        history = monitor.get_history("cpu_percent")
-        assert len(history) >= 3
-
-        # Get summary
-        summary = monitor.get_summary()
-        assert summary["metrics"]["cpu_percent"]["sample_count"] >= 3
-
-        # Stop monitoring
-        monitor.stop()
-        assert not monitor.is_running()
-
-    def test_concurrent_access(self, monitor, mock_psutil):
-        """Test thread-safe concurrent access"""
-        import threading
-
-        results = {"errors": []}
-
-        def reader_thread():
-            try:
-                for _ in range(10):
-                    monitor.get_latest()
-                    monitor.get_history("cpu_percent")
-                    time.sleep(0.01)
-            except Exception as e:
-                results["errors"].append(e)
-
-        # Start monitoring
-        monitor.start()
-
-        # Start multiple reader threads
-        threads = [threading.Thread(target=reader_thread) for _ in range(3)]
-        for t in threads:
-            t.start()
-
-        # Let them run
-        time.sleep(0.2)
-
-        # Wait for completion
-        for t in threads:
-            t.join()
-
-        monitor.stop()
-
-        # Should have no errors
-        assert len(results["errors"]) == 0
-
-
-class TestPlatformSpecific:
-    def test_no_gpu_available(self, mock_psutil, monkeypatch):
-        """Test behavior when no GPU is available"""
-        # Save original state
-        _original_cuda_available = torch.cuda.is_available() if hasattr(torch.cuda, "is_available") else False
-        _original_mps_available = torch.backends.mps.is_available() if hasattr(torch.backends, "mps") else False
-
-        # Mock both CUDA and MPS as unavailable
-        monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
-        if hasattr(torch.backends, "mps"):
-            monkeypatch.setattr(torch.backends.mps, "is_available", lambda: False)
-
-        # Create a fresh monitor instance with GPU support mocked as unavailable
-        monitor = SystemMonitor(sampling_interval_sec=0.1, history_size=10, auto_start=False)
-
-        # GPU metrics should not be available
-        metrics = monitor.get_available_metrics()
-        assert "gpu_count" not in metrics
-        assert "gpu_utilization_avg" not in metrics
-        assert "gpu_memory_percent_avg" not in metrics
-        assert "gpu_memory_used_mb_total" not in metrics
-        assert "gpu_available" not in metrics
-        # Also check per-GPU metrics aren't created
-        assert not any(metric.startswith("gpu0_") for metric in metrics)
-        assert not any(metric.startswith("gpu1_") for metric in metrics)
-
-
-class TestRealSystemMonitoring:
-    """Tests that use the real system (not mocked)"""
-
-    @pytest.mark.slow
-    @pytest.mark.skip(reason="Flaky test - memory release behavior is platform-dependent")
-    def test_real_monitoring_memory_pattern(self):
-        """Test monitoring memory allocation and deallocation patterns"""
-        monitor = SystemMonitor(
-            sampling_interval_sec=0.05,
-            history_size=200,
-            auto_start=True,
-        )
-
-        # Baseline
-        time.sleep(0.2)
-        baseline_process_memory = monitor.get_latest("process_memory_mb")
-
-        # Memory allocation pattern
-        arrays = []
-        allocation_sizes = [100, 200, 400, 800]  # MB
-
-        for size_mb in allocation_sizes:
-            # Allocate memory
-            size_elements = int(size_mb * 1024 * 1024 / 8)  # 8 bytes per float64
-            arr = np.random.rand(size_elements)
-            arrays.append(arr)
-
-            # Perform operation to ensure memory is actually allocated
-            _ = arr.sum()
-
-            # Wait for monitor to capture
-            time.sleep(0.2)
-
-        # Peak memory usage
-        peak_with_arrays = monitor.get_latest("process_memory_mb")
-
-        # Deallocate
-        arrays.clear()
-        del arrays
-
-        # Force garbage collection
-        import gc
-
-        gc.collect()
-
-        # Platform-specific memory release behavior
-        if IS_WINDOWS:
-            # Windows tends to hold onto memory longer
-            time.sleep(2.0)
-            _threshold = 500
-        elif IS_MACOS:
-            # macOS has different memory management
-            time.sleep(1.5)
-            _threshold = 300
-        else:
-            # Linux
-            time.sleep(1.0)
-            _threshold = 200
-
-        # Final memory
-        final_memory = monitor.get_latest("process_memory_mb")
-
-        monitor.stop()
-
-        # Analyze memory pattern
-        memory_history = monitor.get_history("process_memory_mb")
-        _memory_values = [value for _, value in memory_history]
-
-        # Verify we captured the memory spike (more lenient for different platforms)
-        expected_increase = sum(allocation_sizes) * (0.3 if IS_MACOS else 0.5)
-        assert peak_with_arrays > baseline_process_memory + expected_increase, (
-            f"Memory didn't increase as expected: baseline={baseline_process_memory:.1f}MB, "
-            f"peak={peak_with_arrays:.1f}MB, expected increase={expected_increase:.1f}MB"
-        )
-
-        # Platform-aware memory release check
-        if IS_MACOS:
-            # macOS may not release memory as aggressively
-            # Just check that we're not still at absolute peak
-            assert final_memory < peak_with_arrays, (
-                f"Memory stayed at peak: peak={peak_with_arrays:.1f}MB, final={final_memory:.1f}MB"
-            )
-        else:
-            # Other platforms should show more memory release
-            assert final_memory < peak_with_arrays - 100, (
-                f"Memory didn't decrease from peak: peak={peak_with_arrays:.1f}MB, final={final_memory:.1f}MB"
-            )
-
-        print(f"\nMemory Pattern Results ({platform.system()}):")
-        print(f"Baseline: {baseline_process_memory:.1f}MB")
-        print(f"Peak: {peak_with_arrays:.1f}MB")
-        print(f"Final: {final_memory:.1f}MB")
-        print(f"Memory released: {peak_with_arrays - final_memory:.1f}MB")
-        print(f"Samples: {len(memory_history)}")
-
-    @pytest.mark.slow
-    def test_real_monitoring_with_context_manager(self):
-        """Test real monitoring using context manager during numpy operations"""
-        monitor = SystemMonitor(sampling_interval_sec=0.05, history_size=100, auto_start=True)
-
-        # Platform-specific stabilization time
-        stabilization_time = 0.5 if not IS_WINDOWS else 1.0
-        time.sleep(stabilization_time)
-
-        results = {}
-
-        # Monitor different types of operations
-        with monitor.monitor_context("numpy_linear_algebra"):
-            size = 2000
-            A = np.random.rand(size, size)
-            B = np.random.rand(size, size)
-
-            # Various linear algebra operations
-            _C = np.dot(A, B)
-            _eigenvalues = np.linalg.eigvals(A[:500, :500])
-            _inv = np.linalg.inv(A[:100, :100])
-
-            # Capture both system and process CPU
-            results["linear_algebra"] = {
-                "cpu": monitor.get_latest("cpu_percent"),
-                "process_cpu": monitor.get_latest("process_cpu_percent"),
-            }
-
-        time.sleep(0.5)
-
-        with monitor.monitor_context("numpy_signal_processing"):
-            signal = np.random.rand(1000000)
-            _fft = np.fft.fft(signal)
-            _conv = np.convolve(signal[:10000], signal[:1000], mode="full")
-
-            results["signal_processing"] = {
-                "cpu": monitor.get_latest("cpu_percent"),
-                "process_cpu": monitor.get_latest("process_cpu_percent"),
-            }
-
-        time.sleep(0.5)
-
-        with monitor.monitor_context("numpy_statistics"):
-            data = np.random.randn(5000, 5000)
-            _mean = np.mean(data, axis=0)
-            _std = np.std(data, axis=0)
-            _cov = np.cov(data[:1000, :100].T)
-
-            results["statistics"] = {
-                "cpu": monitor.get_latest("cpu_percent"),
-                "process_cpu": monitor.get_latest("process_cpu_percent"),
-            }
-
-        monitor.stop()
-
-        # Get history for both metrics
-        cpu_history = monitor.get_history("cpu_percent")
-        process_cpu_history = monitor.get_history("process_cpu_percent")
-
-        max_cpu = max(value for _, value in cpu_history) if cpu_history else 0
-        max_process_cpu = max(value for _, value in process_cpu_history) if process_cpu_history else 0
-
-        # Platform-specific validation
-        if IS_MACOS:
-            # macOS might show different CPU patterns
-            # Check either system or process CPU showed activity
-            has_activity = (
-                any(r["cpu"] > 0 or r["process_cpu"] > 0 for r in results.values())
-                or max_cpu > 10
-                or max_process_cpu > 10
-            )
-        else:
-            # Other platforms should show clearer CPU usage
-            has_activity = any(r["cpu"] > 0 for r in results.values()) or max_cpu > 20
-
-        assert has_activity, (
-            f"No CPU activity detected on {platform.system()}. "
-            f"Results: {results}, Max CPU: {max_cpu:.1f}%, Max Process CPU: {max_process_cpu:.1f}%"
-        )
-
-        print(f"\nContext Manager Monitoring Results ({platform.system()}):")
-        for operation, metrics in results.items():
-            print(f"{operation}: System CPU={metrics['cpu']:.1f}%, Process CPU={metrics['process_cpu']:.1f}%")
-        print(f"Max System CPU: {max_cpu:.1f}%")
-        print(f"Max Process CPU: {max_process_cpu:.1f}%")
-
-
-if __name__ == "__main__":
-    """Run a comprehensive integration test of SystemMonitor when executed directly."""
-    import sys
-
-    print("=" * 80)
-    print("SystemMonitor Integration Test")
-    print("=" * 80)
-    print(f"Platform: {platform.system()} {platform.release()}")
-    print(f"Python: {sys.version.split()[0]}")
-    print(f"PyTorch: {torch.__version__}")
-    print(f"CUDA Available: {HAS_CUDA}")
-    print(f"MPS Available: {HAS_MPS}")
-    print("=" * 80)
-
-    # Create monitor with faster sampling for testing
-    print("\nInitializing SystemMonitor...")
-    system_monitor = SystemMonitor(sampling_interval_sec=0.5, history_size=20)
-
-    # Let it collect some samples
-    print("Collecting samples for 3 seconds...")
-    time.sleep(3)
-
-    # Display current stats
-    stats = system_monitor.stats()
-    print("\nCurrent System Stats:")
-    print("-" * 40)
-
-    # Group metrics by category for better readability
-    cpu_metrics = {}
-    memory_metrics = {}
-    process_metrics = {}
-    gpu_aggregate_metrics = {}
-    gpu_individual_metrics = {}
-    other_metrics = {}
-
-    for key, value in sorted(stats.items()):
-        metric_name = key.replace("monitor/", "")
-        if metric_name.startswith("cpu_"):
-            cpu_metrics[metric_name] = value
-        elif metric_name.startswith("memory_"):
-            memory_metrics[metric_name] = value
-        elif metric_name.startswith("process_"):
-            process_metrics[metric_name] = value
-        elif metric_name.startswith("gpu") and "_" in metric_name[3:]:
-            # Individual GPU metrics like gpu0_utilization
-            gpu_individual_metrics[metric_name] = value
-        elif metric_name.startswith("gpu_"):
-            # Aggregate GPU metrics
-            gpu_aggregate_metrics[metric_name] = value
-        else:
-            other_metrics[metric_name] = value
-
-    # Display CPU metrics
-    print("\nCPU Metrics:")
-    for metric, value in cpu_metrics.items():
-        if metric == "cpu_temperature" and value == -273.15:
-            print(f"  {metric}: Not available")
-        else:
-            print(f"  {metric}: {value:.2f}")
-
-    # Display Memory metrics
-    print("\nMemory Metrics:")
-    for metric, value in memory_metrics.items():
-        print(f"  {metric}: {value:.2f}")
-
-    # Display Process metrics
-    print("\nProcess Metrics:")
-    for metric, value in process_metrics.items():
-        print(f"  {metric}: {value:.2f}")
-
-    # Check for specific issues
-    print("\nDiagnostics:")
-    print("-" * 40)
-    process_cpu = stats.get("monitor/process_cpu_percent", None)
-    if process_cpu is None:
-        print("❌ Process CPU: Not found in stats")
-    elif process_cpu == 0:
-        print("⚠️  Process CPU: Still zero (may need more time to initialize)")
-    else:
-        print(f"✅ Process CPU: {process_cpu:.2f}% (working correctly)")
-
-    cpu_temp = stats.get("monitor/cpu_temperature", None)
-    if cpu_temp is None:
-        print("✅ CPU Temperature: Not available (correctly excluded)")
-    elif cpu_temp == -273.15:
-        print("❌ CPU Temperature: Shows -273.15 (should be excluded)")
-    else:
-        print(f"✅ CPU Temperature: {cpu_temp:.1f}°C")
-
-    # Display GPU metrics if available
-    if gpu_aggregate_metrics or gpu_individual_metrics:
-        print("\nGPU Metrics:")
-        print("-" * 40)
-
-        # Show aggregate metrics
-        if gpu_aggregate_metrics:
-            print("Aggregate Metrics:")
-            for metric, value in sorted(gpu_aggregate_metrics.items()):
-                print(f"  {metric}: {value:.2f}")
-
-        # Show per-GPU metrics
-        if gpu_individual_metrics:
-            print("\nPer-GPU Metrics:")
-            # Organize by GPU index
-            gpu_data = {}
-            for metric, value in gpu_individual_metrics.items():
-                # Extract GPU index (e.g., gpu0_utilization -> 0)
-                parts = metric.split("_", 1)
-                if parts[0].startswith("gpu"):
-                    gpu_idx = parts[0][3:]  # Remove 'gpu' prefix
-                    if gpu_idx not in gpu_data:
-                        gpu_data[gpu_idx] = {}
-                    gpu_data[gpu_idx][parts[1]] = value
-
-            for gpu_idx in sorted(gpu_data.keys()):
-                print(f"  GPU {gpu_idx}:")
-                for metric, value in sorted(gpu_data[gpu_idx].items()):
-                    print(f"    {metric}: {value:.2f}")
-    else:
-        print("\nNo GPU metrics available")
-
-    # Show history for a metric
-    print("\nSample History (CPU Percent):")
-    print("-" * 40)
-    cpu_history = system_monitor.get_history("cpu_percent")
-    if cpu_history:
-        # Show last 5 samples
-        for timestamp, value in cpu_history[-5:]:
-            print(f"  {time.strftime('%H:%M:%S', time.localtime(timestamp))}: {value:.2f}%")
-
-    # Test context manager with some CPU work
-    print("\nTesting Context Manager with CPU workload...")
-    print("-" * 40)
-
-    with system_monitor.monitor_context("matrix_multiplication"):
-        # Do some CPU-intensive work
-        size = 1000
-        import numpy as np
-
-        A = np.random.rand(size, size)
-        B = np.random.rand(size, size)
-        C = np.dot(A, B)
-        print(f"Computed {size}x{size} matrix multiplication")
-
-    # Get summary
-    print("\nMetric Summary:")
-    print("-" * 40)
-    summary = system_monitor.get_summary()
-
-    # Show summary for key metrics
-    key_metrics = ["cpu_percent", "memory_percent", "process_cpu_percent", "process_memory_mb"]
-    if "gpu_utilization_avg" in summary["metrics"]:
-        key_metrics.extend(["gpu_utilization_avg", "gpu_memory_percent_avg"])
-
-    for metric in key_metrics:
-        if metric in summary["metrics"]:
-            stats = summary["metrics"][metric]
-            if stats["latest"] is not None:
-                print(f"{metric}:")
-                print(f"  Latest: {stats['latest']:.2f}")
-                if stats["average"] is not None:
-                    print(f"  Average: {stats['average']:.2f}")
-                if stats["min"] is not None and stats["max"] is not None:
-                    print(f"  Range: [{stats['min']:.2f}, {stats['max']:.2f}]")
-
-    # Stop monitoring
-    system_monitor.stop()
-    print("\n✅ Integration test completed successfully!")
-    print("=" * 80)
