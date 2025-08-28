@@ -106,6 +106,7 @@
     "getpgid",
     "getpid",
     "getsizeof",
+    "gitta",
     "googlebenchmark",
     "googletest",
     "griddly",
