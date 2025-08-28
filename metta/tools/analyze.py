@@ -4,8 +4,6 @@ import logging
 
 from pydantic import Field
 
-# TODO: Update to use CheckpointManager instead of PolicyStore
-# from metta.rl.checkpoint_manager import CheckpointManager
 from metta.common.config.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.analysis import analyze

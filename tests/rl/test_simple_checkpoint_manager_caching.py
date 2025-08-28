@@ -17,7 +17,6 @@ import pytest
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 
 
 @pytest.fixture

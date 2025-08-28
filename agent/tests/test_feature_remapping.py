@@ -8,8 +8,8 @@ from tensordict import TensorDict
 
 from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip
 from metta.agent.mocks import MockAgent
-from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_record import PolicyRecord
+
+# Note: PolicyMetadata and PolicyRecord have been removed in favor of direct CheckpointManager usage
 
 
 class MockObsComponent(torch.nn.Module):

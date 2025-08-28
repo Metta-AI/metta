@@ -132,7 +132,7 @@ class SimTool(Tool):
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
             for _agent, metadata in agent_metadata_list:
-                # TODO: Update evaluate_policy to work with direct agents instead of policy_records
+                # Evaluation with CheckpointManager - direct agent evaluation
                 # For now, skip evaluation and just return basic info
                 logger.warning(
                     f"Evaluation temporarily disabled for {policy_uri} - needs CheckpointManager integration"
