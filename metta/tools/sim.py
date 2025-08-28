@@ -1,12 +1,3 @@
-"""
-Simulation driver for evaluating policies in the Metta environment.
-
- ▸ For every requested *policy URI*
-   ▸ choose the checkpoint(s) according to selector/metric
-   ▸ run the configured `SimulationSuite`
-   ▸ export the merged stats DB if an output URI is provided
-"""
-
 import json
 import logging
 import os

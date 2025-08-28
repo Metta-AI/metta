@@ -1,10 +1,3 @@
-"""
-Unit tests for the Losses class in metta.rl.losses.
-
-This module provides tests for the Losses class, which is responsible for
-tracking and computing various loss metrics during training.
-"""
-
 import pytest
 
 from metta.rl.losses import Losses
