@@ -2,7 +2,7 @@ import pytest
 
 from metta.mettagrid.mapgen.random.int import IntUniformDistribution
 from metta.mettagrid.mapgen.scenes.maze import Maze
-from tests.mapgen.scenes.utils import assert_connected, render_scene
+from metta.mettagrid.test_support.mapgen import assert_connected, render_scene
 
 
 @pytest.mark.parametrize("algorithm", ["kruskal", "dfs"])

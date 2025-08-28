@@ -1,7 +1,7 @@
 from metta.mettagrid.mapgen.scene import ChildrenAction
 from metta.mettagrid.mapgen.scenes.make_connected import MakeConnected
 from metta.mettagrid.mapgen.scenes.room_grid import RoomGrid
-from tests.mapgen.scenes.utils import assert_connected, render_scene
+from metta.mettagrid.test_support.mapgen import assert_connected, render_scene
 
 
 def test_connect_room_grid():

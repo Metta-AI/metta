@@ -1,7 +1,7 @@
 import numpy as np
 
 from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
-from tests.mapgen.scenes.utils import render_scene
+from metta.mettagrid.test_support.mapgen import render_scene
 
 
 def test_basic():

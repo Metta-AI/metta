@@ -1,7 +1,7 @@
 import os
 
 from metta.mettagrid.mapgen.scenes.random_yaml_scene import RandomYamlScene, RandomYamlSceneCandidate
-from tests.mapgen.scenes.utils import render_scene
+from metta.mettagrid.test_support.mapgen import render_scene
 
 
 def test_objects():

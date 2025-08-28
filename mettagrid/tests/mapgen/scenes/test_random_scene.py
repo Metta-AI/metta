@@ -1,6 +1,6 @@
 from metta.mettagrid.mapgen.scenes.inline_ascii import InlineAscii
 from metta.mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate
-from tests.mapgen.scenes.utils import render_scene
+from metta.mettagrid.test_support.mapgen import render_scene
 
 
 def test_objects():

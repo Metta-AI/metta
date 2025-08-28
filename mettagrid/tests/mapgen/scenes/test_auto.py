@@ -13,7 +13,7 @@ from metta.mettagrid.mapgen.scenes.auto import (
 )
 from metta.mettagrid.mapgen.scenes.maze import Maze
 from metta.mettagrid.mapgen.scenes.random_scene import RandomSceneCandidate
-from tests.mapgen.scenes.utils import assert_connected, render_scene
+from metta.mettagrid.test_support.mapgen import assert_connected, render_scene
 
 
 @fixture
