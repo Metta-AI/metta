@@ -25,7 +25,7 @@ def create_base_config(enable_visitation_counts=False):
         enable_visitation_counts: If True, adds visitation_counts extension
 
     Returns:
-        EnvConfig instance
+        MettaGridConfig instance
     """
     base_config = {
         "num_agents": 1,
@@ -63,7 +63,7 @@ def create_base_config(enable_visitation_counts=False):
     if enable_visitation_counts:
         base_config["extensions"] = ["visitation_counts"]
 
-    return EnvConfig(game=GameConfig(**base_config))
+    return MettaGridConfig(game=GameConfig(**base_config))
 
 
 @pytest.fixture

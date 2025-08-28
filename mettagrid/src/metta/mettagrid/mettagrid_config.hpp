@@ -90,15 +90,15 @@ inline void bind_game_config(py::module& m) {
            py::arg("inventory_item_names"),
            py::arg("num_observation_tokens"),
            py::arg("global_obs"),
-           py::arg("actions"),
-           py::arg("objects"),
+           py::arg("actions") = std::map<std::string, std::shared_ptr<ActionConfig>>{},
+           py::arg("objects") = std::map<std::string, std::shared_ptr<GridObjectConfig>>{},
            py::arg("resource_loss_prob") = 0.0f,
 
            // GAME EXTENSIONS
-           py::arg("extensions"),
+           py::arg("extensions") = std::vector<std::string>{},
 
            // FEATURE FLAGS
-           py::arg("track_movement_metrics"),
+           py::arg("track_movement_metrics") = false,
            py::arg("no_agent_interference") = false,
            py::arg("recipe_details_obs") = false,
            py::arg("allow_diagonals") = false)

@@ -58,7 +58,7 @@ def game_config_factory(global_obs_config):
             global_obs=global_obs_config,
             actions={},
             objects={"agent.test_group": agent_config},
-            track_movement_metrics=False,
+            track_movement_metrics=False
         )
 
     return _create
