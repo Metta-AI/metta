@@ -101,26 +101,6 @@ def patch_task(
     return task
 
 
-def launch_task_and_check_logs(task):
-    """Launch task and automatically check logs after a brief delay."""
-    # Capture the output from launch_task to extract the job ID
-    f = io.StringIO()
-    with redirect_stdout(f):
-        launch_task(task)
-    output = f.getvalue()
-    print(output, end='')  # Print the original output
-
-    # Extract job ID from "Check logs with: sky api logs XXXXXXXX"
-    match = re.search(r'- Check logs with: sky api logs ([a-f0-9-]+)', output)
-    if match:
-        job_id = match.group(1)
-        time.sleep(1)
-        print("\n" + "="*60)
-        print("Auto-checking logs...")
-        print("="*60 + "\n")
-        subprocess.run(["sky", "api", "logs", job_id])
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("module_path", help="Module path to run (e.g., experiments.recipes.arena.train)")
@@ -298,16 +278,12 @@ def main():
         sys.exit(0)
 
     # Launch the task(s)
-    if args.copies == 1:
-        launch_task_and_check_logs(task)
-    else:
-        for _ in range(1, args.copies + 1):
-            copy_task = copy.deepcopy(task)
-            copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
-            copy_task.name = run_id
-            copy_task.validate_name()
-            launch_task_and_check_logs(copy_task)
+    request_ids = [launch_task(copy.deepcopy(task)) for _ in range(args.copies)]
 
+    # auto launch log if we have only one task
+    if len(request_ids) == 1:
+        time.sleep(1)
+        subprocess.run(["sky", "api", "logs", request_ids[0]])
 
 if __name__ == "__main__":
     main()
