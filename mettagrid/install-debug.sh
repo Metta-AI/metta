@@ -41,8 +41,8 @@ export SKBUILD_CMAKE_ARGS="--preset debug-gdb"
 
 # Build with debug configuration
 echo "Building with debug symbols..."
-pip install -e . -v --config-settings=cmake.build-type="Debug" \
-                    --config-settings=install.strip=false
+uv pip install -e . -v --config-settings=cmake.build-type="Debug" \
+                      --config-settings=install.strip=false
 
 # Create symlink for compile_commands.json (helps with IDE support)
 echo "Setting up IDE support..."
