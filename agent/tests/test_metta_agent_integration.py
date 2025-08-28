@@ -204,8 +204,6 @@ def test_training_mode_vs_inference(create_env_and_agent):
     assert "values" in output_eval
 
 
-
-
 def test_multi_agent_environment(create_env_and_agent):
     """Test agent with multi-agent environments."""
     # Create multi-agent environment
