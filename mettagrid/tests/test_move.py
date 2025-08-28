@@ -122,7 +122,7 @@ def configured_env(base_config):
 # Tests for MettaGridCore (low-level API)
 def test_8way_movement_all_directions():
     """Test 8-way movement in all eight directions using MettaGridCore."""
-    env_cfg = MettaGridConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
@@ -142,7 +142,7 @@ def test_8way_movement_all_directions():
             allow_diagonals=True,
         )
     )
-    env = MettaGridCore(env_cfg)
+    env = MettaGridCore(cfg)
     env.reset()
 
     objects = env.grid_objects
@@ -186,7 +186,7 @@ def test_8way_movement_all_directions():
 
 def test_8way_movement_obstacles():
     """Test that 8-way movement respects obstacles."""
-    env_cfg = MettaGridConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
@@ -206,7 +206,7 @@ def test_8way_movement_obstacles():
             ),
         )
     )
-    env = MettaGridCore(env_cfg)
+    env = MettaGridCore(cfg)
     env.reset()
 
     objects = env.grid_objects
@@ -239,7 +239,7 @@ def test_8way_movement_obstacles():
 
 def test_orientation_changes_with_8way():
     """Test that orientation changes to match movement direction with 8-way movement."""
-    env_cfg = MettaGridConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
@@ -256,7 +256,7 @@ def test_orientation_changes_with_8way():
             ),
         ),
     )
-    env = MettaGridCore(env_cfg)
+    env = MettaGridCore(cfg)
     env.reset()
 
     objects = env.grid_objects
@@ -325,7 +325,7 @@ def test_orientation_changes_with_8way():
 def test_8way_movement_with_simple_environment():
     """Test 8-way movement using the simple environment builder."""
     # Create a larger environment to test diagonal movements
-    env_cfg = MettaGridConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
@@ -348,7 +348,7 @@ def test_8way_movement_with_simple_environment():
             allow_diagonals=True,
         ),
     )
-    env = MettaGridCore(env_cfg)
+    env = MettaGridCore(cfg)
     env.reset()
 
     objects = env.grid_objects
@@ -391,7 +391,7 @@ def test_8way_movement_with_simple_environment():
 def test_8way_movement_boundary_check():
     """Test 8-way movement respects environment boundaries."""
     # Small environment to easily test boundaries
-    env_cfg = MettaGridConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
@@ -409,7 +409,7 @@ def test_8way_movement_boundary_check():
             allow_diagonals=True,
         )
     )
-    env = MettaGridCore(env_cfg)
+    env = MettaGridCore(cfg)
     env.reset()
 
     objects = env.grid_objects
@@ -452,7 +452,7 @@ def test_8way_movement_boundary_check():
 
 def test_orientation_changes_on_failed_8way_movement():
     """Test that orientation DOES change when 8-way movement fails due to obstacles (new behavior)."""
-    env_cfg = MettaGridConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             allow_diagonals=True,  # Enable diagonal movements for this test
@@ -470,7 +470,7 @@ def test_orientation_changes_on_failed_8way_movement():
             ),
         )
     )
-    env = MettaGridCore(env_cfg)
+    env = MettaGridCore(cfg)
     env.reset()
 
     objects = env.grid_objects
