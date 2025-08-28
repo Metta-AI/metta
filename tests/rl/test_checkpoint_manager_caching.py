@@ -226,9 +226,7 @@ class TestCheckpointManagerCachingIntegration:
         cached_manager.save_agent(mock_agent, epoch=1, metadata={"score": 0.5})
         cached_manager.save_agent(mock_agent, epoch=2, metadata={"score": 0.8})
 
-        # Get checkpoint paths
-        checkpoint_dir = Path(temp_run_dir) / "test_run" / "checkpoints"
-        path1 = str(checkpoint_dir / "agent_epoch_1.pt")
+        # Setup complete - checkpoints saved
 
         # First load should read from disk and cache
         with patch("torch.load") as mock_load:
@@ -299,7 +297,9 @@ class TestCheckpointManagerCachingConcurrency:
         def worker(worker_id):
             try:
                 for i in range(10):
-                    checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / f"worker_{worker_id}_agent_epoch_{i}.pt")
+                    checkpoint_path = str(
+                        Path(temp_run_dir) / "test_run" / "checkpoints" / f"worker_{worker_id}_agent_epoch_{i}.pt"
+                    )
                     agent = MockAgent()
                     cache.put(checkpoint_path, agent)
                     time.sleep(0.001)  # Small delay to increase contention
@@ -332,11 +332,15 @@ class TestCheckpointManagerCachingConcurrency:
                 for i in range(10):
                     if i % 2 == 0:
                         # Put operation
-                        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / f"worker_{worker_id}_agent_epoch_{i}.pt")
+                        checkpoint_path = str(
+                            Path(temp_run_dir) / "test_run" / "checkpoints" / f"worker_{worker_id}_agent_epoch_{i}.pt"
+                        )
                         cache.put(checkpoint_path, MockAgent())
                     else:
                         # Get operation
-                        checkpoint_path = str(Path(temp_run_dir) / "test_run" / "checkpoints" / f"initial_agent_epoch_{i % 5}.pt")
+                        checkpoint_path = str(
+                            Path(temp_run_dir) / "test_run" / "checkpoints" / f"initial_agent_epoch_{i % 5}.pt"
+                        )
                         cache.get(checkpoint_path)
 
                     time.sleep(0.0001)
