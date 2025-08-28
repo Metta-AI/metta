@@ -12,8 +12,6 @@ from omegaconf import DictConfig
 from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
 
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyMissingError, PolicySelectorType, PolicyStore
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import TaskStatus
@@ -40,7 +38,7 @@ class EvalRequest(BaseModel):
 
     git_hash: str | None = None
 
-    policy_select_type: PolicySelectorType = "latest"
+    policy_select_type: str = "latest"  # 'latest', 'top', or 'best'
     policy_select_metric: str = "score"
     policy_select_num: int = 1
 
@@ -238,7 +236,7 @@ async def main() -> None:
         "--policy-select-type",
         type=str,
         default="latest",
-        choices=PolicySelectorType.__args__,
+        choices=["latest", "top", "best"],
         help="Policy selection type.",
     )
 

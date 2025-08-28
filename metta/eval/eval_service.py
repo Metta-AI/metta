@@ -4,13 +4,13 @@ from pathlib import Path
 
 import torch
 
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.checkpoint_info import CheckpointInfo
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -18,7 +18,7 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 
 def evaluate_policy(
     *,
-    policy_record: PolicyRecord,
+    checkpoint_info: CheckpointInfo,
     simulations: list[SimulationConfig],
     device: torch.device,
     vectorization: str,
@@ -28,17 +28,17 @@ def evaluate_policy(
     stats_epoch_id: uuid.UUID | None = None,
     wandb_policy_name: str | None = None,
     eval_task_id: uuid.UUID | None = None,
-    policy_store: PolicyStore,
+    checkpoint_manager: CheckpointManager,
     stats_client: StatsClient | None,
     logger: logging.Logger,
 ) -> EvalResults:
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
-    pr = policy_record
+    ci = checkpoint_info
 
     stats_dir = stats_dir or "/tmp/stats"
 
     # For each checkpoint of the policy, simulate
-    logger.info(f"Evaluating policy {pr.uri}")
+    logger.info(f"Evaluating policy {ci.uri}")
     if not is_unique([sim.name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
 
@@ -46,8 +46,8 @@ def evaluate_policy(
         Simulation(
             name=sim.name,
             cfg=sim,
-            policy_pr=pr,
-            policy_store=policy_store,
+            checkpoint_info=ci,
+            checkpoint_manager=checkpoint_manager,
             replay_dir=replay_dir,
             stats_dir=stats_dir,
             device=device,
@@ -70,7 +70,7 @@ def evaluate_policy(
             merged_db.merge_in(sim_result.stats_db)
             record_heartbeat()
             if replay_dir is not None:
-                key, version = sim_result.stats_db.key_and_version(sim.policy_record)
+                key, version = sim_result.stats_db.key_and_version(sim.checkpoint_info)
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
                 if sim_replay_urls:
                     replay_urls[sim.name] = sim_replay_urls
@@ -92,8 +92,8 @@ def evaluate_policy(
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
     eval_stats_db = EvalStatsDB(merged_db.path)
-    logger.info("Evaluation complete for policy %s", pr.uri)
-    scores = extract_scores(policy_record, simulations, eval_stats_db, logger)
+    logger.info("Evaluation complete for policy %s", ci.uri)
+    scores = extract_scores(checkpoint_info, simulations, eval_stats_db, logger)
 
     if export_stats_db_uri is not None:
         logger.info("Exporting merged stats DB → %s", export_stats_db_uri)
@@ -108,7 +108,7 @@ def evaluate_policy(
 
 
 def extract_scores(
-    policy_record: PolicyRecord,
+    checkpoint_info: CheckpointInfo,
     simulations: list[SimulationConfig],
     stats_db: EvalStatsDB,
     logger: logging.Logger,
@@ -119,13 +119,13 @@ def extract_scores(
 
     category_scores: dict[str, float] = {}
     for category in categories:
-        score = stats_db.get_average_metric_by_filter("reward", policy_record, f"sim_name LIKE '%{category}%'")
+        score = stats_db.get_average_metric_by_filter("reward", checkpoint_info, f"sim_name LIKE '%{category}%'")
         logger.info(f"{category} score: {score}")
         if score is None:
             continue
         category_scores[category] = score
     per_sim_scores: dict[tuple[str, str], float] = {}
-    all_scores = stats_db.simulation_scores(policy_record, "reward")
+    all_scores = stats_db.simulation_scores(checkpoint_info, "reward")
     for (sim_name, _), score in all_scores.items():
         category = sim_name.split("/")[0]
         sim_short_name = sim_name.split("/")[-1]

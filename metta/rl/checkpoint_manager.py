@@ -1,11 +1,14 @@
 """Checkpoint manager using direct torch.save/load with YAML metadata."""
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
 import yaml
+
+from metta.rl.checkpoint_cache import CheckpointCache
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +16,11 @@ logger = logging.getLogger(__name__)
 class CheckpointManager:
     """Checkpoint manager: torch.save/load + YAML metadata for PolicyEvaluator integration."""
 
-    def __init__(self, run_name: str, run_dir: str = "./train_dir"):
-        self.run_name = run_name
+    def __init__(self, run_name: str, run_dir: str = "./train_dir", cache_size: int = 5):
+        self.run_name = self._validate_run_name(run_name)
         self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / run_name / "checkpoints"
+        self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
+        self._cache = CheckpointCache(max_size=cache_size) if cache_size > 0 else None
 
     def exists(self) -> bool:
         """Check if this run has any checkpoints."""
@@ -31,7 +35,7 @@ class CheckpointManager:
         # Get latest by epoch number from filename
         latest_file = max(agent_files, key=lambda p: self._extract_epoch(p.name))
         logger.info(f"Loading agent from {latest_file}")
-        return torch.load(latest_file, weights_only=False)
+        return self._safe_load_checkpoint(latest_file)
 
     def load_agent(self, epoch: Optional[int] = None):
         """Load specific epoch or latest agent."""
@@ -43,7 +47,7 @@ class CheckpointManager:
             return None
 
         logger.info(f"Loading agent from {agent_file}")
-        return torch.load(agent_file, weights_only=False)
+        return self._safe_load_checkpoint(agent_file)
 
     def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Load trainer state (optimizer state, epoch, agent_step)."""
@@ -57,7 +61,7 @@ class CheckpointManager:
             return None
 
         logger.info(f"Loading trainer state from {trainer_file}")
-        return torch.load(trainer_file, weights_only=False)
+        return self._safe_load_trainer_state(trainer_file)
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
         """Save agent with YAML metadata for PolicyEvaluator integration."""
@@ -82,7 +86,7 @@ class CheckpointManager:
 
         yaml_file = self.checkpoint_dir / f"agent_epoch_{epoch}.yaml"
         with open(yaml_file, "w") as f:
-            yaml.dump(yaml_metadata, f, default_flow_style=False)
+            yaml.safe_dump(yaml_metadata, f, default_flow_style=False)
 
         logger.info(f"Saved agent: {agent_file}, metadata: {yaml_file}")
 
@@ -140,8 +144,12 @@ class CheckpointManager:
         if not yaml_file.exists():
             return None
 
-        with open(yaml_file) as f:
-            return yaml.safe_load(f)
+        try:
+            with open(yaml_file) as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            logger.error(f"Failed to load metadata from {yaml_file}: {e}")
+            return None
 
     def find_best_checkpoint(self, metric: str = "score") -> Optional[Path]:
         """Find checkpoint with best score for PolicyEvaluator."""
@@ -149,16 +157,212 @@ class CheckpointManager:
         best_file = None
 
         for yaml_file in self.checkpoint_dir.glob("agent_epoch_*.yaml"):
-            with open(yaml_file) as f:
-                metadata = yaml.safe_load(f)
-                score = metadata.get(metric, 0.0)
-                if score > best_score:
-                    best_score = score
-                    epoch = metadata.get("epoch")
-                    best_file = self.checkpoint_dir / f"agent_epoch_{epoch}.pt"
+            try:
+                with open(yaml_file) as f:
+                    metadata = yaml.safe_load(f)
+                    if metadata is None:
+                        continue
+                    score = metadata.get(metric, 0.0)
+                    if score > best_score:
+                        best_score = score
+                        epoch = metadata.get("epoch")
+                        best_file = self.checkpoint_dir / f"agent_epoch_{epoch}.pt"
+            except Exception as e:
+                logger.warning(f"Failed to process metadata file {yaml_file}: {e}")
 
         return best_file if best_file and best_file.exists() else None
 
+    def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
+        """Clean up old checkpoints, keeping only the most recent ones.
+
+        Args:
+            keep_last_n: Number of most recent checkpoints to keep
+
+        Returns:
+            Number of checkpoints deleted
+        """
+        try:
+            if not self.checkpoint_dir.exists():
+                logger.info(f"Checkpoint directory does not exist: {self.checkpoint_dir}")
+                return 0
+
+            # Get all agent checkpoint files
+            agent_files = list(self.checkpoint_dir.glob("agent_epoch_*.pt"))
+            if len(agent_files) <= keep_last_n:
+                logger.info(f"Only {len(agent_files)} checkpoints found, nothing to clean up")
+                return 0
+
+            # Sort by epoch number (oldest first)
+            try:
+                agent_files.sort(key=lambda p: self._extract_epoch(p.name))
+            except Exception as e:
+                logger.error(f"Failed to sort checkpoint files: {e}")
+                return 0
+
+            # Determine which files to remove (all except the last N)
+            files_to_remove = agent_files[:-keep_last_n]
+            deleted_count = 0
+
+            for agent_file in files_to_remove:
+                try:
+                    # Remove corresponding YAML metadata file if it exists
+                    yaml_file = agent_file.with_suffix(".yaml")
+                    if yaml_file.exists():
+                        yaml_file.unlink()
+                        logger.debug(f"Deleted metadata file: {yaml_file}")
+
+                    # Remove trainer state file if it exists
+                    epoch = self._extract_epoch(agent_file.name)
+                    trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
+                    if trainer_file.exists():
+                        trainer_file.unlink()
+                        logger.debug(f"Deleted trainer state file: {trainer_file}")
+
+                    # Remove the agent checkpoint file
+                    agent_file.unlink()
+                    logger.info(f"Deleted checkpoint: {agent_file}")
+                    deleted_count += 1
+
+                except Exception as e:
+                    logger.warning(f"Failed to delete checkpoint {agent_file}: {e}")
+
+            logger.info(f"Cleanup complete: deleted {deleted_count} old checkpoints, kept {keep_last_n} most recent")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"Checkpoint cleanup failed: {e}")
+            return 0
+
+    def get_checkpoint_disk_usage(self) -> tuple[int, int]:
+        """Get disk usage information for checkpoints.
+
+        Returns:
+            Tuple of (total_size_bytes, file_count)
+        """
+        try:
+            if not self.checkpoint_dir.exists():
+                return 0, 0
+
+            total_size = 0
+            file_count = 0
+
+            for file_path in self.checkpoint_dir.rglob("*"):
+                if file_path.is_file():
+                    total_size += file_path.stat().st_size
+                    file_count += 1
+
+            return total_size, file_count
+
+        except Exception as e:
+            logger.error(f"Failed to calculate disk usage: {e}")
+            return 0, 0
+
+    def _validate_run_name(self, run_name: str) -> str:
+        """Validate run_name to prevent path traversal attacks."""
+        if not run_name:
+            raise ValueError("run_name cannot be empty")
+
+        # Allow only alphanumeric characters, underscores, hyphens, and dots
+        if not re.match(r"^[a-zA-Z0-9._-]+$", run_name):
+            raise ValueError(
+                f"Invalid run_name '{run_name}': only alphanumeric characters, underscores, hyphens, and dots allowed"
+            )
+
+        # Prevent path traversal patterns
+        if ".." in run_name or run_name.startswith(".") or "/" in run_name or "\\" in run_name:
+            raise ValueError(f"Invalid run_name '{run_name}': path traversal patterns not allowed")
+
+        # Reasonable length limit
+        if len(run_name) > 128:
+            raise ValueError(f"run_name too long: {len(run_name)} chars (max 128)")
+
+        return run_name
+
+    def _safe_load_checkpoint(self, file_path: Path):
+        """Safely load agent checkpoint with proper error handling and caching."""
+        try:
+            # Check cache first
+            cache_key = str(file_path)
+            if self._cache:
+                cached_agent = self._cache.get(cache_key)
+                if cached_agent is not None:
+                    logger.debug(f"Cache hit for checkpoint: {file_path}")
+                    return cached_agent
+
+            # Load from disk
+            # For agent models, use weights_only=True for security
+            # This prevents arbitrary code execution via pickle deserialization
+            agent = torch.load(file_path, weights_only=True)
+
+            # Cache the loaded agent
+            if self._cache:
+                self._cache.put(cache_key, agent)
+                logger.debug(f"Cached checkpoint: {file_path}")
+
+            return agent
+        except Exception as e:
+            logger.error(f"Failed to load checkpoint {file_path}: {e}")
+            raise RuntimeError(f"Checkpoint loading failed: {e}") from e
+
+    def _safe_load_trainer_state(self, file_path: Path):
+        """Safely load trainer state which may contain optimizer objects."""
+        try:
+            # Trainer state contains optimizer which needs objects
+            # TODO: Consider separating optimizer state to allow weights_only=True
+            logger.warning(f"Loading trainer state with weights_only=False from {file_path}")
+            return torch.load(file_path, weights_only=False)
+        except Exception as e:
+            logger.error(f"Failed to load trainer state {file_path}: {e}")
+            raise RuntimeError(f"Trainer state loading failed: {e}") from e
+
     def _extract_epoch(self, filename: str) -> int:
-        """Extract epoch number from filename like 'agent_epoch_123.pt'."""
-        return int(filename.split("_")[-1].split(".")[0])
+        """Extract epoch number from filename with comprehensive error handling."""
+        try:
+            # Expected format: agent_epoch_123.pt or trainer_epoch_123.pt
+            if not filename.endswith(".pt"):
+                raise ValueError(f"Expected .pt file, got: {filename}")
+
+            # Remove .pt extension
+            name_without_ext = filename[:-3]
+
+            # Split by underscore and get last part (epoch number)
+            parts = name_without_ext.split("_")
+            if len(parts) < 3 or parts[1] != "epoch":
+                raise ValueError(f"Expected format '[agent|trainer]_epoch_<number>.pt', got: {filename}")
+
+            epoch_str = parts[-1]
+            epoch = int(epoch_str)
+
+            # Reasonable bounds checking
+            if epoch < 0:
+                raise ValueError(f"Epoch cannot be negative: {epoch}")
+            if epoch > 1000000:  # 1M epochs should be enough for anyone
+                raise ValueError(f"Epoch too large: {epoch}")
+
+            return epoch
+
+        except ValueError as e:
+            logger.error(f"Failed to extract epoch from filename '{filename}': {e}")
+            raise ValueError(f"Invalid filename format '{filename}': {e}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error extracting epoch from '{filename}': {e}")
+            raise RuntimeError(f"Epoch extraction failed: {e}") from e
+
+    def clear_cache(self) -> None:
+        """Clear the checkpoint cache."""
+        if self._cache:
+            self._cache.clear()
+            logger.info("Cleared checkpoint cache")
+
+    def get_cache_info(self) -> dict[str, Any]:
+        """Get cache statistics."""
+        if not self._cache:
+            return {"enabled": False}
+
+        return {
+            "enabled": True,
+            "size": self._cache.size(),
+            "max_size": self._cache.max_size(),
+            "hit_ratio": self._cache.hit_ratio(),
+            "keys": self._cache.keys(),
+        }
