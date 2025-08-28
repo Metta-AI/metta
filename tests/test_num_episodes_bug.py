@@ -83,13 +83,13 @@ def test_normalization_bug():
 
         # Calculate metrics
 
-        # Create a mock policy record using the real class to satisfy type checks.
-        # The policy_store isn't used by the methods under test.
+        # Create a mock policy record using PolicyWrapper/PolicyRecord
+        from metta.agent.mocks.mock_agent import MockAgent
         policy_record = PolicyRecord(
-            policy_store=None,  # type: ignore
+            policy=MockAgent(),
             run_name="test_policy",
             uri="test_policy",
-            metadata=PolicyMetadata(epoch=1),
+            epoch=1,
         )
 
         # Check what's in the database

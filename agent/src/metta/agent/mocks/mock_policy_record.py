@@ -21,3 +21,8 @@ class MockPolicyRecord(PolicyRecord):
         # Override metadata with test values
         self.metadata.score = score
         self.metadata.agent_step = agent_step
+    
+    @classmethod
+    def from_key_and_version(cls, policy_key: str, epoch: int):
+        """Create a MockPolicyRecord from policy key and version/epoch."""
+        return cls(uri=policy_key, epoch=epoch)
