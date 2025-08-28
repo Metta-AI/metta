@@ -20,7 +20,6 @@ class Checkpoint:
     _cached_policy: Any = None
 
     def key_and_version(self) -> tuple[str, int]:
-        """Extract (key, version) tuple for database integration."""
         epoch = self.metadata.get("epoch", 0)
         return self.run_name, epoch
 

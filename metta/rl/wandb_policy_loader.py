@@ -51,8 +51,6 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[
 
 
 def _load_from_run(run_name: str, device: str) -> Optional[torch.nn.Module]:
-    """Load latest policy artifact from a wandb run."""
-
     api = wandb.Api()
 
     # Find the run (assume current user/project for simplicity)
@@ -76,8 +74,6 @@ def _load_from_run(run_name: str, device: str) -> Optional[torch.nn.Module]:
 
 
 def _load_from_artifact_path(artifact_path: str, device: str) -> Optional[torch.nn.Module]:
-    """Load policy from direct artifact path."""
-
     api = wandb.Api()
 
     try:
@@ -89,7 +85,6 @@ def _load_from_artifact_path(artifact_path: str, device: str) -> Optional[torch.
 
 
 def _download_and_load_artifact(artifact, device: str) -> Optional[torch.nn.Module]:
-    """Download wandb artifact and load the policy."""
     try:
         # Download artifact to temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:

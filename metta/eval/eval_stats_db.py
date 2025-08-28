@@ -237,5 +237,4 @@ class EvalStatsDB(SimulationStatsDB):
         return scores
 
     def key_and_version(self, checkpoint_path: str, epoch: int) -> tuple[str, int]:
-        """Get policy key and version from checkpoint path and epoch metadata."""
         return checkpoint_path, epoch

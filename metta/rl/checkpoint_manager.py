@@ -22,7 +22,6 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
 
     def exists(self) -> bool:
-        """Check if this run has any checkpoints."""
         return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob("agent_epoch_*.pt"))
 
     def load_latest_agent(self):
@@ -37,7 +36,6 @@ class CheckpointManager:
         return torch.load(latest_file, weights_only=False)
 
     def load_agent(self, epoch: Optional[int] = None):
-        """Load specific epoch or latest agent."""
         if epoch is None:
             return self.load_latest_agent()
 
@@ -63,7 +61,6 @@ class CheckpointManager:
         return torch.load(trainer_file, weights_only=False)
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
-        """Save agent with YAML metadata."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         # Save agent with torch.save
@@ -90,7 +87,6 @@ class CheckpointManager:
         logger.info(f"Saved agent: {agent_file}, metadata: {yaml_file}")
 
     def save_trainer_state(self, optimizer, epoch: int, agent_step: int):
-        """Save trainer state (optimizer state)."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         trainer_state = {
@@ -123,17 +119,14 @@ class CheckpointManager:
                 self.save_trainer_state(optimizer, epoch, agent_step or 0)
 
     def list_epochs(self) -> list[int]:
-        """List all available epochs."""
         agent_files = self.checkpoint_dir.glob("agent_epoch_*.pt")
         return sorted([self._extract_epoch(f.name) for f in agent_files])
 
     def get_latest_epoch(self) -> Optional[int]:
-        """Get the latest epoch number."""
         epochs = self.list_epochs()
         return epochs[-1] if epochs else None
 
     def load_metadata(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        """Load YAML metadata."""
         if epoch is None:
             epoch = self.get_latest_epoch()
         if epoch is None:
