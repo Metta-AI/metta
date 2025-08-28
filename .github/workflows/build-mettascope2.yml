@@ -30,14 +30,14 @@ jobs:
       - run: cd mettascope2 && nimble install -y
 
       - name: Build mettascope2 (release)
-        run: cd mettascope2 && nim c -d:release --out:src/mettascope.out src/mettascope.nim
+        run: cd mettascope2 && nim c -d:release --out:mettascope src/mettascope.nim
 
       - name: Upload mettascope2 artifact
         uses: actions/upload-artifact@v4
         with:
           name: mettascope2
           path: |
-            mettascope2/src/mettascope.out
+            mettascope2/mettascope
             mettascope2/data/
             mettascope2/replays
           if-no-files-found: error
