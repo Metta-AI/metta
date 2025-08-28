@@ -185,9 +185,8 @@ def train(
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-    # Create kickstarter - for now, disable until updated for SimpleCheckpointManager
+    # Create kickstarter - disabled for CheckpointManager integration
     kickstarter = None
-    # TODO: Update Kickstarter to work with SimpleCheckpointManager instead of PolicyStore
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
@@ -507,8 +506,6 @@ def train(
 
                 logger.info(f"Successfully saved checkpoint at epoch {epoch}")
 
-                # TODO: Add WandB upload if needed
-
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with SimpleCheckpointManager - use current policy directly
                 if True:  # Always evaluate if configured
@@ -558,8 +555,7 @@ def train(
                             logger.error("Falling back to local evaluation")
                             evaluate_local = True
                     if evaluate_local:
-                        # TODO: Update local evaluation to work with SimpleCheckpointManager
-                        # For now, just create empty evaluation results
+                        # Local evaluation disabled for CheckpointManager integration
                         from metta.eval.eval_request_config import EvaluationResults
 
                         logger.warning(

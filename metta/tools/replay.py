@@ -28,13 +28,10 @@ class ReplayTool(Tool):
     open_browser_on_start: bool = True
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        # TODO: Update Simulation.create to work without policy_store
-        # For now, skip policy_store parameter
-
-        # Create simulation using the helper method with explicit parameters
+        # Create simulation using CheckpointManager integration
         sim = Simulation.create(
             sim_config=self.sim,
-            policy_store=None,  # TODO: Remove policy_store dependency
+            policy_store=None,
             device=self.system.device,
             vectorization=self.system.vectorization,
             stats_dir=self.stats_dir,

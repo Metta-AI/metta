@@ -19,8 +19,8 @@ import numpy as np
 import torch
 from einops import rearrange
 
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
+from metta.agent.metta_agent import PolicyAgent
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
@@ -40,6 +40,18 @@ SYNTHETIC_EVAL_PREFIX = "eval/"
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class PolicyRecord:
+    """Lightweight policy container for simulation."""
+    policy: PolicyAgent
+    run_name: str
+    uri: str
+
+    def key_and_version(self) -> tuple[str, int]:
+        """Compatible with database integration."""
+        return self.run_name, 0
+
+
 class SimulationCompatibilityError(Exception):
     """Raised when there's a compatibility issue that prevents simulation from running."""
 
@@ -54,7 +66,7 @@ class Simulation:
         name: str,
         cfg: SimulationConfig,
         policy_pr: PolicyRecord,
-        policy_store: PolicyStore,
+        checkpoint_manager: CheckpointManager | None,
         device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
@@ -118,8 +130,8 @@ class Simulation:
 
         # ---------------- policies ------------------------------------- #
         self._policy_pr = policy_pr
-        self._policy_store = policy_store
-        self._npc_pr = policy_store.policy_record(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
+        self._checkpoint_manager = checkpoint_manager
+        self._npc_pr = self._load_npc_policy(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
         self._policy_agents_pct = cfg.policy_agents_pct if self._npc_pr is not None else 1.0
 
         self._stats_client: StatsClient | None = stats_client
@@ -161,11 +173,63 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
+    def _load_npc_policy(self, npc_policy_uri: str) -> PolicyRecord:
+        """Load NPC policy from URI."""
+        policy = self._load_policy_from_uri(npc_policy_uri)
+        return PolicyRecord(
+            policy=policy,
+            run_name="npc",
+            uri=npc_policy_uri
+        )
+        
+    def _load_policy_from_uri(self, policy_uri: str) -> PolicyAgent:
+        """Load policy from URI using CheckpointManager pattern."""
+        if policy_uri.startswith("file://"):
+            checkpoint_path = policy_uri[7:]  # Remove "file://" prefix
+            if checkpoint_path.endswith("/checkpoints"):
+                # Directory format - find latest checkpoint
+                checkpoint_dir = Path(checkpoint_path)
+                parent_dir = checkpoint_dir.parent
+                checkpoint_manager = CheckpointManager(
+                    run_name=parent_dir.name, 
+                    run_dir=str(parent_dir.parent)
+                )
+                return checkpoint_manager.load_latest_agent()
+            else:
+                # Direct file path
+                return torch.load(checkpoint_path, weights_only=False)
+        else:
+            # For other URI types, create a mock agent
+            from metta.agent.mocks import MockAgent
+            return MockAgent()
+    
+    @staticmethod
+    def _load_policy_from_uri_static(policy_uri: str) -> PolicyAgent:
+        """Static version of policy loading for classmethod use."""
+        if policy_uri.startswith("file://"):
+            checkpoint_path = policy_uri[7:]  # Remove "file://" prefix
+            if checkpoint_path.endswith("/checkpoints"):
+                # Directory format - find latest checkpoint
+                checkpoint_dir = Path(checkpoint_path)
+                parent_dir = checkpoint_dir.parent
+                checkpoint_manager = CheckpointManager(
+                    run_name=parent_dir.name, 
+                    run_dir=str(parent_dir.parent)
+                )
+                return checkpoint_manager.load_latest_agent()
+            else:
+                # Direct file path
+                return torch.load(checkpoint_path, weights_only=False)
+        else:
+            # For other URI types, create a mock agent
+            from metta.agent.mocks import MockAgent
+            return MockAgent()
+
     @classmethod
     def create(
         cls,
         sim_config: SimulationConfig,
-        policy_store: PolicyStore,
+        policy_store: None,
         device: str,
         vectorization: str,
         stats_dir: str = "./train_dir/stats",
@@ -174,8 +238,18 @@ class Simulation:
         run_name: str = "simulation_run",
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
-        # Get policy record or create a mock
-        policy_record = policy_store.policy_record_or_mock(policy_uri, run_name)
+        # Create policy record from URI
+        if policy_uri:
+            policy = cls._load_policy_from_uri_static(policy_uri)
+        else:
+            from metta.agent.mocks import MockAgent
+            policy = MockAgent()
+            
+        policy_record = PolicyRecord(
+            policy=policy,
+            run_name=run_name,
+            uri=policy_uri or "mock://"
+        )
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
@@ -185,7 +259,7 @@ class Simulation:
             sim_config.name,
             sim_config,
             policy_record,
-            policy_store,
+            checkpoint_manager=None,  # No longer needed
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,

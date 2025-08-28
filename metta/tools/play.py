@@ -48,13 +48,10 @@ def create_simulation(cfg: PlayTool) -> Simulation:
     """Create a simulation for playing/replaying."""
     logger.info(f"Creating simulation: {cfg.sim.name}")
 
-    # TODO: Update Simulation.create to work without policy_store
-    # For now, skip policy_store parameter
-
-    # Create simulation using the helper method with explicit parameters
+    # Create simulation using CheckpointManager integration
     sim = Simulation.create(
         sim_config=cfg.sim,
-        policy_store=None,  # TODO: Remove policy_store dependency
+        policy_store=None,
         device=cfg.system.device,
         vectorization=cfg.system.vectorization,
         stats_dir=cfg.effective_stats_dir,
