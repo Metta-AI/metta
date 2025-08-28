@@ -1,23 +1,36 @@
 #!/usr/bin/env -S uv run
 import argparse
+import concurrent.futures
 import shutil
 import subprocess
 import sys
+import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 # Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
+from metta.setup.local_commands import LocalCommands
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+from metta.setup.registry import get_all_modules, get_enabled_setup_modules
 from metta.setup.saved_settings import get_saved_settings
-from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success
+from metta.setup.symlink_setup import PathSetup
+from metta.setup.tools.book import BookCommands
+from metta.setup.utils import (
+    error,
+    header,
+    import_all_modules_from_subpackage,
+    info,
+    prompt_choice,
+    spinner,
+    success,
+    warning,
+)
 
 # Type hints only
 if TYPE_CHECKING:
-    from metta.setup.local_commands import LocalCommands
-    from metta.setup.symlink_setup import PathSetup
-    from metta.setup.tools.book import BookCommands
+    pass
 
 # Shared list of test folders for Python tests
 PYTHON_TEST_FOLDERS = [
@@ -220,9 +233,6 @@ class MettaCLI:
         import_all_modules_from_subpackage("metta.setup", "components")
 
         # Initialize core objects
-        from metta.setup.local_commands import LocalCommands
-        from metta.setup.symlink_setup import PathSetup
-
         self._path_setup = PathSetup(self.repo_root)
         self._local_commands = LocalCommands()
         self._components_initialized = True
@@ -230,30 +240,22 @@ class MettaCLI:
     @property
     def path_setup(self):
         if self._path_setup is None:
-            from metta.setup.symlink_setup import PathSetup
-
             self._path_setup = PathSetup(self.repo_root)
         return self._path_setup
 
     @property
     def local_commands(self):
         if self._local_commands is None:
-            from metta.setup.local_commands import LocalCommands
-
             self._local_commands = LocalCommands()
         return self._local_commands
 
     @property
     def book_commands(self):
         if self._book_commands is None:
-            from metta.setup.tools.book import BookCommands
-
             self._book_commands = BookCommands()
         return self._book_commands
 
     def setup_wizard(self) -> None:
-        from metta.setup.profiles import UserType
-
         header("Welcome to Metta!\n\n")
         info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
 
@@ -292,7 +294,6 @@ class MettaCLI:
             info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
     def _custom_setup(self) -> None:
-        from metta.setup.registry import get_all_modules
 
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
@@ -345,7 +346,6 @@ class MettaCLI:
             self.setup_wizard()
 
     def configure_component(self, component_name: str) -> None:
-        from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info
 
         modules = get_all_modules()
@@ -363,7 +363,6 @@ class MettaCLI:
         module.configure()
 
     def cmd_run(self, args, unknown_args=None) -> None:
-        from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info
 
         modules = get_all_modules()
@@ -378,7 +377,6 @@ class MettaCLI:
         module.run(args.args)
 
     def cmd_install(self, args, unknown_args=None) -> None:
-        from metta.setup.registry import get_all_modules, get_enabled_setup_modules
         from metta.setup.utils import error, info, success, warning
 
         if not get_saved_settings().exists():
@@ -436,7 +434,7 @@ class MettaCLI:
         success("Installation complete!")
 
     def cmd_clean(self, args, unknown_args=None, verbose: bool = False) -> None:
-        from metta.setup.utils import info, warning
+        from metta.setup.utils import info
 
         build_dir = self.repo_root / "build"
         if build_dir.exists():
@@ -463,7 +461,6 @@ class MettaCLI:
 
     def cmd_go(self, args, unknown_args=None) -> None:
         """Navigate to a Softmax Home shortcut URL."""
-        import webbrowser
 
         from metta.setup.utils import error, info
 
@@ -631,10 +628,9 @@ class MettaCLI:
             sys.exit(e.returncode)
 
     def cmd_status(self, args, unknown_args=None) -> None:
-        import concurrent.futures
 
         from metta.setup.registry import get_all_modules
-        from metta.setup.utils import error, info, spinner, success, warning
+        from metta.setup.utils import error, info, success, warning
 
         # Get all modules first
         all_modules = get_all_modules()
