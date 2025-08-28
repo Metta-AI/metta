@@ -29,16 +29,10 @@ class ReplayTool(Tool):
     open_browser_on_start: bool = True
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        # TODO: Update this to use SimpleCheckpointManager
-        # For now, keeping PolicyStore to avoid breaking the interactive tools
-        from metta.agent.policy_store import PolicyStore
+        # Use minimal policy store that works with SimpleCheckpointManager
+        from metta.sim.simple_policy_store import SimplePolicyStore
 
-        policy_store = PolicyStore.create(
-            device=self.system.device,
-            wandb_config=self.wandb,
-            data_dir=self.system.data_dir,
-            wandb_run=None,
-        )
+        policy_store = SimplePolicyStore.create(device=self.system.device)
 
         # Create simulation using the helper method with explicit parameters
         sim = Simulation.create(

@@ -185,16 +185,9 @@ def train(
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-    # Create kickstarter (using PolicyStore stub for compatibility)
-    from metta.agent.policy_store import PolicyStore
-
-    policy_store = PolicyStore.create()  # Use stub for compatibility
-    kickstarter = Kickstarter(
-        cfg=trainer_cfg.kickstart,
-        device=device,
-        policy_store=policy_store,
-        metta_grid_env=metta_grid_env,
-    )
+    # Create kickstarter - for now, disable until updated for SimpleCheckpointManager
+    kickstarter = None
+    # TODO: Update Kickstarter to work with SimpleCheckpointManager instead of PolicyStore
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()

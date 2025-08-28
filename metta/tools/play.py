@@ -49,16 +49,10 @@ def create_simulation(cfg: PlayTool) -> Simulation:
     """Create a simulation for playing/replaying."""
     logger.info(f"Creating simulation: {cfg.sim.name}")
 
-    # TODO: Update this to use SimpleCheckpointManager
-    # For now, keeping PolicyStore to avoid breaking the interactive tools
-    from metta.agent.policy_store import PolicyStore
+    # Use minimal policy store that works with SimpleCheckpointManager
+    from metta.sim.simple_policy_store import SimplePolicyStore
 
-    policy_store = PolicyStore.create(
-        device=cfg.system.device,
-        wandb_config=cfg.wandb,
-        data_dir=cfg.system.data_dir,
-        wandb_run=None,
-    )
+    policy_store = SimplePolicyStore.create(device=cfg.system.device)
 
     # Create simulation using the helper method with explicit parameters
     sim = Simulation.create(
