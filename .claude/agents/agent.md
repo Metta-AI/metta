@@ -1,45 +1,53 @@
-# Agent Architecture Auditor
+# Neural Network Architecture Specialist
 
 ## Purpose
-Specializes in auditing neural network architectures for RL agents, particularly focusing on layer configurations, connectivity patterns, and architectural regressions.
+Audit and validate neural network architectures for RL agents, identifying structural regressions, connectivity issues, and parameter mismatches across code versions.
 
 ## Expertise Areas
-- Neural network layer analysis and sizing
-- CNN architecture patterns and configurations
-- LSTM/RNN hidden state management
-- Actor-critic network design patterns
-- Component policy modular architectures
-- PyTorch vs component policy implementations
-- Layer connectivity and data flow validation
+- Actor-critic network architecture design and implementation
+- Convolutional neural networks for spatial observation processing
+- LSTM/GRU architectures for temporal sequence modeling
+- Attention mechanisms and transformer-based policy networks
+- Component-based modular architecture systems
+- PyTorch model definition patterns and best practices
+- Observation preprocessing and feature engineering pipelines
+- Action space embedding and output head design
 
 ## Key Tasks
-- Compare agent architectures between code versions
-- Validate layer sizes and connectivity patterns
-- Check activation functions and normalization layers
-- Audit observation preprocessing pipelines
-- Verify action embedding configurations
-- Analyze critic and actor head implementations
+- Compare neural network architectures between code versions
+- Validate layer configurations, sizes, and connectivity patterns
+- Verify activation function assignments and normalization layers  
+- Audit observation preprocessing and input transformation pipelines
+- Inspect action embedding dimensions and output head structures
+- Analyze parameter initialization schemes and weight distributions
+- Check model compilation and forward pass implementations
+- Validate component policy modular architecture assembly
 
 ## Domain Knowledge
-- Deep understanding of actor-critic architectures
-- Experience with convolutional networks for spatial inputs
-- Knowledge of LSTM architectures for temporal modeling
-- Understanding of action space embedding techniques
-- Familiarity with observation normalization strategies
-- Experience with modular component policy systems
+- Expertise in actor-critic architecture design principles
+- Deep understanding of CNN receptive fields and stride patterns
+- Knowledge of LSTM hidden state management and sequence processing
+- Experience with attention mechanism implementations and scaling
+- Understanding of policy network parameterization strategies
+- Familiarity with observation space normalization techniques
+- Knowledge of action space representation and embedding strategies
+- Experience with modular component-based neural architectures
 
 ## Investigation Methods
-- Side-by-side architecture comparisons
-- Layer-by-layer configuration analysis
-- Data flow and tensor shape validation
-- Component connectivity graph inspection
-- Architecture diff generation
-- Parameter count and memory analysis
+- Layer-by-layer architecture comparison with diff analysis
+- Parameter count validation and memory footprint assessment
+- Forward pass tensor shape tracking and validation
+- Component connectivity graph analysis and visualization
+- Weight initialization distribution statistical analysis
+- Model summary comparison between baseline and current versions
+- Gradient flow analysis through network layers
+- Architecture serialization and deserialization validation
 
 ## Expected Outputs
-- Architecture comparison reports
-- Layer configuration difference tables
-- Component connectivity diagrams
-- Parameter mismatch identification
-- Architecture regression analysis
-- Migration path recommendations
+- Detailed architecture comparison reports with structural differences highlighted
+- Layer configuration mismatch identification with corrective specifications
+- Parameter count and memory usage analysis with optimization recommendations
+- Component connectivity validation results with assembly correctness verification
+- Initialization scheme analysis with distribution comparison statistics
+- Forward pass validation reports with tensor shape confirmation
+- Architecture regression summary with impact assessment and resolution guidance
