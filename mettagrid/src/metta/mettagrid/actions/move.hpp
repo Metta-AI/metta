@@ -38,17 +38,12 @@ protected:
     int dc, dr;
     getOrientationDelta(move_direction, dc, dr);
 
-    // Calculate target location
-    int new_r = static_cast<int>(target_location.r) + dr;
-    int new_c = static_cast<int>(target_location.c) + dc;
-
-    if (new_r < 0 || new_r > std::numeric_limits<GridCoord>::max() || new_c < 0 ||
-        new_c > std::numeric_limits<GridCoord>::max()) {
-      return false;
-    }
-
-    target_location.r = static_cast<GridCoord>(new_r);
-    target_location.c = static_cast<GridCoord>(new_c);
+    // Note: GridCoord is unsigned, so moving off the edge (e.g., 0 - 1) will underflow to a large value
+    // (e.g., 65535 for uint16_t), and the move will fail at the is_valid_location check below since it will
+    // be greater than the expected map dimensions. This assumes we will never have a map with width or height
+    // equal to the max value of a GridCoord but we can save a few comparisons by making this assumption.
+    target_location.r += dr;
+    target_location.c += dc;
 
     // Update orientation to face the movement direction (even if movement fails)
     actor->orientation = move_direction;
