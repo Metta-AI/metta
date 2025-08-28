@@ -74,6 +74,15 @@ class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
+class TransferActionConfig(ActionConfig):
+    """Transfer action configuration for agent-to-agent trading."""
+
+    input_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, int] = Field(default_factory=dict)
+    trader_only: bool = Field(default=False)
+    trader_group_id: int = Field(default=-1)
+
+
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -89,6 +98,7 @@ class ActionsConfig(Config):
     get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
     change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
 

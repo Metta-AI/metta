@@ -20,6 +20,7 @@
 #include "actions/put_recipe_items.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
+#include "actions/transfer.hpp"
 #include "event.hpp"
 #include "grid.hpp"
 #include "hash.hpp"
@@ -112,6 +113,11 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name == "change_color") {
       _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
+    } else if (action_name == "transfer") {
+      auto transfer_cfg = std::dynamic_pointer_cast<const TransferActionConfig>(action_config);
+      if (transfer_cfg) {
+        _action_handlers.push_back(std::make_unique<Transfer>(*transfer_cfg));
+      }
     } else {
       throw std::runtime_error("Unknown action: " + action_name);
     }
@@ -980,6 +986,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_converter_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
+  bind_transfer_action_config(m);
   bind_change_glyph_action_config(m);
   bind_global_obs_config(m);
   bind_game_config(m);

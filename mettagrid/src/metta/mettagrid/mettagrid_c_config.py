@@ -8,6 +8,7 @@ from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyp
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
+from metta.mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import BoxConfig, ConverterConfig, GameConfig, WallConfig
 
@@ -209,6 +210,24 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 "number_of_glyphs": action_config["number_of_glyphs"],
             }
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
+        elif action_name == "transfer":
+            transfer_params = {
+                "required_resources": action_cpp_params.get("required_resources", {}),
+                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
+                "input_resources": {
+                    resource_name_to_id[k]: v
+                    for k, v in action_config.get("input_resources", {}).items()
+                    if k in resource_name_to_id
+                },
+                "output_resources": {
+                    resource_name_to_id[k]: v
+                    for k, v in action_config.get("output_resources", {}).items()
+                    if k in resource_name_to_id
+                },
+                "trader_only": bool(action_config.get("trader_only", False)),
+                "trader_group_id": int(action_config.get("trader_group_id", -1)),
+            }
+            actions_cpp_params[action_name] = CppTransferActionConfig(**transfer_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
