@@ -174,14 +174,8 @@ class CheckpointManager:
     ) -> List[Path]:
         """Select checkpoints using different strategies.
 
-        Args:
-            strategy: Selection strategy - "latest", "best_score", "all"
-            count: Number of checkpoints to return (ignored for "all")
-            metric: Metric to use for "best_score" strategy
-            filters: Optional metadata filters (e.g., {"score": {"min": 0.5}})
-
-        Returns:
-            List of checkpoint paths
+        Supports "latest", "best_score", and "all" selection strategies.
+        Optionally filter checkpoints by metadata criteria like minimum score thresholds.
         """
         if not self.checkpoint_dir.exists():
             return []

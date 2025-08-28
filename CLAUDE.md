@@ -363,6 +363,8 @@ recipe files:
 - Remove unnecessary comments that just restate what the code does
 - Prefer properties over methods for computed attributes using `@property` decorator
 - Implement proper error handling with clear, actionable error messages
+- **Docstring style**: Use concise docstrings without Args: and Returns: blocks. The function signature and type hints provide parameter information; docstrings should focus on purpose and behavior
+- **Multi-line docstring format**: Start with `"""` followed immediately by text on the same line, end with `"""` on its own line
 
 ### Class Member Naming Conventions
 

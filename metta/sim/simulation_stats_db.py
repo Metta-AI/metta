@@ -30,12 +30,7 @@ def create_checkpoint_from_manager(
 ) -> Checkpoint:
     """Create Checkpoint from CheckpointManager.
 
-    Args:
-        checkpoint_manager: CheckpointManager instance
-        checkpoint_path: Specific checkpoint path, or None for best checkpoint
-
-    Returns:
-        Checkpoint with extracted metadata
+    Uses best checkpoint by score if no specific path provided.
     """
     if checkpoint_path is None:
         checkpoint_path = checkpoint_manager.find_best_checkpoint("score")
@@ -126,19 +121,8 @@ class SimulationStatsDB(EpisodeStatsDB):
     ) -> "SimulationStatsDB":
         """Create SimulationStatsDB from checkpoint shards and context.
 
-        Now supports both Checkpoint objects and simple (key, version) tuples.
-        This provides a clean migration path from PolicyRecord to SimpleCheckpointManager.
-
-        Args:
-            sim_id: Unique simulation identifier
-            dir_with_shards: Directory containing .duckdb shard files
-            agent_map: Maps agent_id -> checkpoint info (Checkpoint or (key, version))
-            sim_name: Human-readable simulation name
-            sim_env: Environment name
-            policy_info: Main policy info (Checkpoint or (key, version))
-
-        Returns:
-            SimulationStatsDB with merged data from all shards
+        Supports both Checkpoint objects and simple (key, version) tuples for migration compatibility.
+        Merges all .duckdb shard files in the directory into a unified database.
         """
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"
