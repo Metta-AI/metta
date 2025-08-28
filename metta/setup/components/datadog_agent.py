@@ -137,5 +137,15 @@ class DatadogAgentSetup(SetupModule):
             )
             success("Datadog agent started in background with env vars:")
             info(json.dumps({k: v for k, v in runtime_env.items() if k.startswith("DD_")}, indent=2))
+
+            # Also persist DD env vars to METTA_ENV_FILE if it exists
+            env_file = os.path.expanduser("~/.metta_env_path")
+            if os.path.exists(env_file):
+                info(f"Persisting Datadog env vars to {env_file}")
+                with open(env_file, "a") as f:
+                    for k, v in runtime_env.items():
+                        if k.startswith("DD_"):
+                            f.write(f'export {k}="{v}"\n')
+                info("Datadog env vars persisted to METTA_ENV_FILE")
         except Exception as e:
             warning(f"Failed to start Datadog agent in background: {e}")

@@ -70,10 +70,17 @@ export WANDB_API_KEY="\${WANDB_PASSWORD}"
 export DATA_DIR="\${DATA_DIR:-./train_dir}"
 
 # Datadog configuration
+export DD_TRACE_ENABLED="true"
 export DD_ENV="production"
 export DD_SERVICE="skypilot-worker"
 export DD_AGENT_HOST="localhost"
 export DD_TRACE_AGENT_PORT="8126"
+export DD_SITE="datadoghq.com"
+export DD_VERSION="\${DD_VERSION:-\$(git rev-parse HEAD 2>/dev/null || echo 'unknown')}"
+export DD_API_KEY="\${DD_API_KEY}"
+export DD_TAGS="\${DD_TAGS}"
+export DD_LOGS_ENABLED="true"
+export DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL="true"
 
 export NUM_GPUS="\${SKYPILOT_NUM_GPUS_PER_NODE}"
 export NUM_NODES="\${SKYPILOT_NUM_NODES}"

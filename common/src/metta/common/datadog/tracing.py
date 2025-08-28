@@ -1,4 +1,5 @@
 import functools
+import os
 import sys
 
 from ddtrace.trace import tracer
@@ -8,10 +9,15 @@ from metta.common.datadog.config import datadog_config
 
 @functools.cache
 def init_tracing():
+    # Debug: print env vars to verify they're set
+    dd_trace_enabled_env = os.environ.get("DD_TRACE_ENABLED", "not set")
+    print(f"[DD Debug] DD_TRACE_ENABLED env var: {dd_trace_enabled_env}", file=sys.stderr, flush=True)
+    print(f"[DD Debug] DD_TRACE_ENABLED config value: {datadog_config.DD_TRACE_ENABLED}", file=sys.stderr, flush=True)
+
     if datadog_config.DD_TRACE_ENABLED:
         msg = (
             f"Datadog tracing enabled: service={datadog_config.DD_SERVICE}, "
-            f"env={datadog_config.DD_ENV}, agent={datadog_config.DD_AGENT_HOST}"
+            f"env={datadog_config.DD_ENV}, agent={datadog_config.DD_AGENT_HOST}:{datadog_config.DD_TRACE_AGENT_PORT}"
         )
         print(msg, file=sys.stderr, flush=True)
         tracer.enabled = True

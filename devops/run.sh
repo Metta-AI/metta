@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+# Source the METTA_ENV_FILE if it exists to get Datadog and other env vars
+if [ -f "$HOME/.metta_env_path" ]; then
+  source "$HOME/.metta_env_path"
+fi
+
 NUM_GPUS=${NUM_GPUS:-$(command -v nvidia-smi > /dev/null && nvidia-smi --list-gpus | wc -l || echo 1)}
 NUM_NODES=${NUM_NODES:-1}
 MASTER_ADDR=${MASTER_ADDR:-localhost}
