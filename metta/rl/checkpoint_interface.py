@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 import torch
 
-from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import parse_checkpoint_filename
 
 
 @dataclass
@@ -51,31 +51,20 @@ def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
         latest_file = max(new_format_files, key=lambda p: parse_checkpoint_filename(p.name)["epoch"])
         metadata = parse_checkpoint_filename(latest_file.name) or {}
         agent = torch.load(latest_file, weights_only=False)
-        return Checkpoint(
-            run_name=run_name, 
-            uri=f"file://{latest_file}", 
-            metadata=metadata, 
-            _cached_policy=agent
-        )
+        return Checkpoint(run_name=run_name, uri=f"file://{latest_file}", metadata=metadata, _cached_policy=agent)
 
     # Fallback to old format
     old_format_files = list(checkpoint_path.glob("agent_epoch_*.pt"))
     if old_format_files:
         latest_file = max(
-            old_format_files, 
-            key=lambda f: int(f.stem.split("_")[-1]) if f.stem.split("_")[-1].isdigit() else 0
+            old_format_files, key=lambda f: int(f.stem.split("_")[-1]) if f.stem.split("_")[-1].isdigit() else 0
         )
         agent = torch.load(latest_file, weights_only=False)
         # Extract epoch from filename for compatibility
         epoch_str = latest_file.stem.split("_")[-1]
         epoch = int(epoch_str) if epoch_str.isdigit() else 0
         metadata = {"epoch": epoch}
-        return Checkpoint(
-            run_name=run_name, 
-            uri=f"file://{latest_file}", 
-            metadata=metadata, 
-            _cached_policy=agent
-        )
+        return Checkpoint(run_name=run_name, uri=f"file://{latest_file}", metadata=metadata, _cached_policy=agent)
 
     return None
 

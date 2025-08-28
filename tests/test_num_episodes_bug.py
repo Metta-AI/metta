@@ -108,7 +108,8 @@ def test_normalization_bug():
         print(f"  Checkpoint file: {checkpoint_filename}")
         print(f"  Extracted metadata: {metadata}")
         print(
-            f"  Policy: {checkpoint_path}, Epoch: {epoch}, Steps: {metadata['agent_step']}, Training time: {metadata['total_time']}s"
+            f"  Policy: {checkpoint_path}, Epoch: {epoch}, "
+            f"Steps: {metadata['agent_step']}, Training time: {metadata['total_time']}s"
         )
 
         # Check what's in the database
