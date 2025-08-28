@@ -15,13 +15,14 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
+from metta.rl.wandb import POLICY_EVALUATOR_METRIC_PREFIX, POLICY_EVALUATOR_STEP_METRIC
 
 logger = logging.getLogger(__name__)
 
@@ -129,16 +130,11 @@ def process_training_stats(
 ) -> dict[str, Any]:
     """Process training statistics into a clean format."""
     # Convert lists to means
-    mean_stats = {}
-    for k, v in raw_stats.items():
-        try:
-            mean_stats[k] = np.mean(v)
-        except (TypeError, ValueError):
-            mean_stats[k] = v
+    mean_stats = {k: np.mean(v) if isinstance(v, list) and len(v) > 0 else v for k, v in raw_stats.items()}
 
     # Get loss and experience statistics
-    losses_stats = losses.stats() if hasattr(losses, "stats") else {}
-    experience_stats = experience.stats() if hasattr(experience, "stats") else {}
+    losses_stats = getattr(losses, "stats", lambda: {})()
+    experience_stats = getattr(experience, "stats", lambda: {})()
 
     # Remove unused losses
     if trainer_config.ppo.l2_reg_loss_coef == 0:
@@ -318,13 +314,11 @@ def process_stats(
 
     # Compute weight stats if configured
     weight_stats = {}
-    if hasattr(agent_cfg, "analyze_weights_interval"):
+    if getattr(agent_cfg, "analyze_weights_interval", None):
         if should_run(epoch, agent_cfg.analyze_weights_interval):
             for metrics in policy.compute_weight_metrics():
                 name = metrics.get("name", "unknown")
-                for key, value in metrics.items():
-                    if key != "name":
-                        weight_stats[f"weights/{key}/{name}"] = value
+                weight_stats.update({f"weights/{key}/{name}": value for key, value in metrics.items() if key != "name"})
 
     # Build parameters
     parameters = {
@@ -365,3 +359,19 @@ def process_stats(
 
     # Log to wandb
     wandb_run.log(all_stats, step=agent_step)
+
+
+def process_policy_evaluator_stats(eval_results: EvalResults, wandb_run, agent_step: int, epoch: int) -> None:
+    """Log evaluation results to wandb with policy evaluator metrics."""
+    if not wandb_run:
+        return
+
+    eval_metrics = {
+        f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
+        for k, v in eval_results.scores.to_wandb_metrics_format().items()
+    }
+
+    eval_metrics[POLICY_EVALUATOR_STEP_METRIC] = agent_step
+    eval_metrics["metric/evaluator_epoch"] = epoch
+
+    wandb_run.log(eval_metrics, step=agent_step)
