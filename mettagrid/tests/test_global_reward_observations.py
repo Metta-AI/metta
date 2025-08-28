@@ -1,5 +1,6 @@
 import pytest
 
+# this comment is here to help with a ruff linting bug
 from metta.mettagrid.mettagrid_c import (
     AgentConfig,
     GameConfig,
@@ -58,7 +59,6 @@ def game_config_factory(global_obs_config):
             actions={},
             objects={"agent.test_group": agent_config},
             track_movement_metrics=False,
-            extensions=[],
         )
 
     return _create
