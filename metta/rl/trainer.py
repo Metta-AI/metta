@@ -11,7 +11,6 @@ from torchrl.data import Composite
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
-from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.profiling.stopwatch import Stopwatch
@@ -23,13 +22,12 @@ from metta.core.monitoring import (
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
+
 # from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint  # OLD - REMOVED
-from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
+from metta.rl.evaluate import upload_replay_html
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
@@ -38,6 +36,7 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.rollout import get_observation, send_observation
+from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -45,7 +44,6 @@ from metta.rl.stats import (
 )
 from metta.rl.system_config import SystemConfig
 from metta.rl.torch_profiler import TorchProfiler
-from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import (
     log_training_progress,
@@ -145,7 +143,7 @@ def train(
 
     # Load existing agent from SimpleCheckpointManager
     existing_agent = checkpoint_manager.load_agent()
-    
+
     # Load trainer state (optimizer state, epoch, agent_step)
     trainer_state = checkpoint_manager.load_trainer_state()
     agent_step = trainer_state["agent_step"] if trainer_state else 0
@@ -153,17 +151,14 @@ def train(
 
     if trainer_state:
         logger.info(f"Restored from checkpoint at {agent_step} steps")
-    
+
     # Create or use existing agent
     if existing_agent:
-        logger.info(f"Resuming training with existing agent from checkpoint")
+        logger.info("Resuming training with existing agent from checkpoint")
         policy_agent = existing_agent
-        # Store reference for later use
-        initial_policy_record = latest_saved_policy_record = None  # Not needed with new system
     else:
-        logger.info(f"Creating new agent for training")
+        logger.info("Creating new agent for training")
         policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
-        initial_policy_record = latest_saved_policy_record = None  # Not needed with new system
 
     # Don't proceed until all ranks have the policy
     if torch.distributed.is_initialized():
@@ -184,7 +179,7 @@ def train(
         policy = wrap_agent_distributed(policy, device)
         torch.distributed.barrier()
 
-    # Initialize policy to environment after distributed wrapping  
+    # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
     policy.train()  # Set to training mode for training
     features = metta_grid_env.get_observation_features()
@@ -284,7 +279,6 @@ def train(
 
     if torch_dist_cfg.is_master:
         logger.info(f"Training on {device}")
-    wandb_policy_name: str | None = None
 
     # Main training loop
     try:
@@ -486,34 +480,38 @@ def train(
             # Save checkpoint using SimpleCheckpointManager
             if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
                 logger.info(f"Saving checkpoint at epoch {epoch}")
-                
+
                 # Extract the actual agent from distributed wrapper if needed
-                agent_to_save = policy.module if hasattr(policy, 'module') else policy
-                
+                agent_to_save = policy.module if hasattr(policy, "module") else policy
+
                 # Build metadata from evaluation scores
                 metadata = {
                     "agent_step": agent_step,
                     "total_time": timer.get_elapsed(),
-                    "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
+                    "total_train_time": timer.get_all_elapsed().get("_rollout", 0)
+                    + timer.get_all_elapsed().get("_train", 0),
                 }
-                
+
                 # Add evaluation scores if available
                 if eval_scores.category_scores or eval_scores.simulation_scores:
-                    metadata.update({
-                        "score": eval_scores.avg_simulation_score,
-                        "avg_reward": eval_scores.avg_category_score,
-                        "category_scores": eval_scores.category_scores,
-                        "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in eval_scores.simulation_scores.items()},
-                    })
-                
+                    metadata.update(
+                        {
+                            "score": eval_scores.avg_simulation_score,
+                            "avg_reward": eval_scores.avg_category_score,
+                            "category_scores": eval_scores.category_scores,
+                            "simulation_scores": {
+                                f"{cat}/{sim}": score for (cat, sim), score in eval_scores.simulation_scores.items()
+                            },
+                        }
+                    )
+
                 # Save agent and trainer state
                 checkpoint_manager.save_agent(agent_to_save, epoch, metadata)
                 checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
-                
+
                 logger.info(f"Successfully saved checkpoint at epoch {epoch}")
-                
+
                 # TODO: Add WandB upload if needed
-                wandb_policy_name = None
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with SimpleCheckpointManager - use current policy directly
@@ -548,17 +546,19 @@ def train(
                         # TODO: Update local evaluation to work with SimpleCheckpointManager
                         # For now, just create empty evaluation results
                         from metta.eval.eval_request_config import EvaluationResults
-                        logger.warning("Local evaluation temporarily disabled - needs SimpleCheckpointManager integration")
-                        evaluation_results = EvaluationResults(
-                            scores=EvalRewardSummary(),
-                            replay_urls=[]
+
+                        logger.warning(
+                            "Local evaluation temporarily disabled - needs SimpleCheckpointManager integration"
                         )
+                        evaluation_results = EvaluationResults(scores=EvalRewardSummary(), replay_urls=[])
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
                         category_scores = list(eval_scores.category_scores.values())
                         # Note: With SimpleCheckpointManager, scores are saved with the checkpoint metadata
                         if category_scores:
-                            logger.info(f"Evaluation complete - average category score: {float(np.mean(category_scores)):.4f}")
+                            logger.info(
+                                f"Evaluation complete - average category score: {float(np.mean(category_scores)):.4f}"
+                            )
                         if wandb_run is not None and evaluation_results.replay_urls:
                             upload_replay_html(
                                 replay_urls=evaluation_results.replay_urls,
@@ -615,21 +615,23 @@ def train(
 
     # Final checkpoint save at end of training
     logger.info("Saving final checkpoint")
-    agent_to_save = policy.module if hasattr(policy, 'module') else policy
-    
+    agent_to_save = policy.module if hasattr(policy, "module") else policy
+
     final_metadata = {
         "agent_step": agent_step,
         "total_time": timer.get_elapsed(),
         "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
     }
-    
+
     # Add final evaluation scores if available
     if eval_scores.category_scores or eval_scores.simulation_scores:
-        final_metadata.update({
-            "score": eval_scores.avg_simulation_score,
-            "avg_reward": eval_scores.avg_category_score,
-        })
-    
+        final_metadata.update(
+            {
+                "score": eval_scores.avg_simulation_score,
+                "avg_reward": eval_scores.avg_category_score,
+            }
+        )
+
     checkpoint_manager.save_agent(agent_to_save, epoch, final_metadata)
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
 

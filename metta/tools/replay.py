@@ -5,6 +5,7 @@ import platform
 from urllib.parse import quote
 
 import mettascope.server as server
+
 # TODO: Update to use SimpleCheckpointManager instead of PolicyStore
 # from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.common.config.tool import Tool
@@ -31,7 +32,7 @@ class ReplayTool(Tool):
         # TODO: Update this to use SimpleCheckpointManager
         # For now, keeping PolicyStore to avoid breaking the interactive tools
         from metta.agent.policy_store import PolicyStore
-        
+
         policy_store = PolicyStore.create(
             device=self.system.device,
             wandb_config=self.wandb,

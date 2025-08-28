@@ -10,13 +10,13 @@ import torch
 import gitta as git
 from devops.git.monorepo import REPO_SLUG
 from metta.agent.agent_config import AgentConfig
-from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging_helpers import init_file_logging, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
+from metta.rl.simple_checkpoint_manager import SimpleCheckpointManager
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
@@ -123,10 +123,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
-    checkpoint_manager = SimpleCheckpointManager(
-        run_dir=cfg.run_dir,
-        run_name=cfg.run
-    )
+    checkpoint_manager = SimpleCheckpointManager(run_dir=cfg.run_dir, run_name=cfg.run)
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
         cfg = _minimize_config_for_debugging(cfg)
