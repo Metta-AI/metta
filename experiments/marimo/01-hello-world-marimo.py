@@ -75,7 +75,7 @@ def _():
         replay_available = False
         print("⚠️ MettaScope replay viewer not available")
 
-    from metta.agent.policy_store import PolicyStore
+    from metta.rl.checkpoint_interface import Checkpoint, get_checkpoint_from_dir
 
     from metta.common.wandb.wandb_context import WandbConfig
     from metta.rl.policy_management import initialize_policy_for_environment
@@ -356,7 +356,8 @@ def _():
         MettaGridEnv,
         OpportunisticPolicy,
         Path,
-        PolicyStore,
+        Checkpoint,
+        get_checkpoint_from_dir,
         RendererToolConfig,
         TensorDict,
         TrainTool,
@@ -918,7 +919,8 @@ def _(mo):
 def _(
     MettaGridEnv,
     Path,
-    PolicyStore,
+    Checkpoint,
+    get_checkpoint_from_dir,
     WandbConfig,
     contextlib,
     display,
@@ -990,44 +992,29 @@ def _(
 
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-            # Create policy store (same as tools/sim.py:65-70)
-            policy_store = PolicyStore.create(
-                device="cpu",
-                wandb_config=WandbConfig.Off(),
-                data_dir="train_dir",
-                wandb_run=None,
-            )
+            # Load checkpoint using unified system
+            checkpoint_dir = str(latest_ckpt.parent.absolute())
+            print(f"Checkpoint directory: {checkpoint_dir}")
 
-            # Get policy record (same as tools/sim.py:76-82)
-            policy_uri = f"file://{latest_ckpt.parent.absolute()}"
-            print(f"Policy URI: {policy_uri}")
-            policy_records = policy_store.policy_records(
-                uri_or_config=policy_uri,
-                selector_type="latest",
-                n=1,
-                metric="score",
-            )
+            checkpoint = get_checkpoint_from_dir(checkpoint_dir)
+            if not checkpoint:
+                raise Exception(f"No checkpoint found in directory: {checkpoint_dir}")
 
-            if not policy_records:
-                raise Exception("No policy records found")
-
-            policy_record = policy_records[0]
-            print(f"✅ Successfully loaded policy: {policy_record.run_name}")
+            print(f"Loaded checkpoint: {checkpoint.run_name}, URI: {checkpoint.uri}")
+            print(f"✅ Successfully loaded policy: {checkpoint.run_name}")
 
             # Create evaluation environment
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(env_config, render_mode="human")
 
-            # Initialize policy for environment (same as simulation.py:133-138)
-            initialize_policy_for_environment(
-                policy_record=policy_record,
-                metta_grid_env=eval_env,
-                device=torch.device("cpu"),
-                restore_feature_mapping=True,
-            )
+            # Get the trained policy from the checkpoint
+            # The policy is already loaded by get_checkpoint_from_dir
+            trained_policy = checkpoint._cached_policy
+            if trained_policy is None:
+                raise Exception("No policy found in checkpoint")
 
-            # Get the trained policy from the policy record
-            trained_policy = policy_record.policy
+            # Set device to CPU for evaluation
+            trained_policy = trained_policy.to(torch.device("cpu"))
 
             # Run animated evaluation with the trained policy
             trained_scores: list[int] = []
@@ -1617,7 +1604,8 @@ def _(
     EVAL_EPISODES,
     MettaGridEnv,
     Path,
-    PolicyStore,
+    Checkpoint,
+    get_checkpoint_from_dir,
     TensorDict,
     WandbConfig,
     contextlib,
@@ -1679,44 +1667,28 @@ def _(
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-        # Create policy store (same as tools/sim.py:65-70)
-        policy_store = PolicyStore.create(
-            device="cpu",
-            wandb_config=WandbConfig.Off(),
-            data_dir="train_dir",
-            wandb_run=None,
-        )
+        # Load checkpoint using unified system
+        checkpoint_dir = str(latest_ckpt.parent.absolute())
+        print(f"Checkpoint directory: {checkpoint_dir}")
 
-        # Get policy record (same as tools/sim.py:76-82)
-        policy_uri = f"file://{latest_ckpt.parent.absolute()}"
-        print(f"Policy URI: {policy_uri}")
-        policy_records = policy_store.policy_records(
-            uri_or_config=policy_uri,
-            selector_type="latest",
-            n=1,
-            metric="score",
-        )
+        checkpoint = get_checkpoint_from_dir(checkpoint_dir)
+        if not checkpoint:
+            raise Exception(f"No checkpoint found in directory: {checkpoint_dir}")
 
-        if not policy_records:
-            raise Exception("No policy records found")
-
-        policy_record = policy_records[0]
-        print(f"✅ Successfully loaded policy: {policy_record.run_name}")
+        print(f"✅ Successfully loaded policy: {checkpoint.run_name}")
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):
             eval_env = MettaGridEnv(env_config2, render_mode="human")
 
-        # Initialize policy for environment (same as simulation.py:133-138)
-        initialize_policy_for_environment(
-            policy_record=policy_record,
-            metta_grid_env=eval_env,
-            device=torch.device("cpu"),
-            restore_feature_mapping=True,
-        )
+        # Get the trained policy from the checkpoint
+        # The policy is already loaded by get_checkpoint_from_dir
+        trained_policy = checkpoint._cached_policy
+        if trained_policy is None:
+            raise Exception("No policy found in checkpoint")
 
-        # Get the trained policy from the policy record
-        trained_policy = policy_record.policy
+        # Set device to CPU for evaluation
+        trained_policy = trained_policy.to(torch.device("cpu"))
 
         # Run animated evaluation with the trained policy
         trained_scores: list[int] = []

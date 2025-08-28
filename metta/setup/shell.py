@@ -6,7 +6,6 @@ from omegaconf import DictConfig
 from traitlets.config import Config as IPythonConfig
 
 from metta.common.util.fs import get_repo_root
-from metta.common.wandb.wandb_context import WandbRun
 from metta.setup.utils import header, info, success, warning
 
 __name__ = "__ipython__"
@@ -14,18 +13,14 @@ __name__ = "__ipython__"
 REPO_ROOT = get_repo_root()
 CONFIGS_DIR = REPO_ROOT / "configs"
 
-# Legacy PolicyStore removed in nuclear simplification
-# from metta.agent.policy_store import PolicyStore  # noqa
 
-
-def get_policy_store_from_cfg(cfg: DictConfig, wandb_run: WandbRun | None = None):
-    """Legacy function removed - PolicyStore no longer supported.
-
-    Use CheckpointManager and get_checkpoint_from_dir instead.
-    """
-    raise NotImplementedError(
-        "PolicyStore removed in nuclear simplification. "
-        "Use CheckpointManager and get_checkpoint_from_dir from metta.rl.checkpoint_interface instead."
+def get_checkpoint_manager_from_cfg(cfg: DictConfig, run_name: str = "default") -> "CheckpointManager":
+    """Create CheckpointManager from config for interactive shell use."""
+    from metta.rl.checkpoint_manager import CheckpointManager
+    
+    return CheckpointManager(
+        run_name=run_name,
+        run_dir=getattr(cfg, "data_dir", "./train_dir")
     )
 
 
