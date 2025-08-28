@@ -29,6 +29,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 # from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint  # OLD - REMOVED
 from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
 from metta.rl.experience import Experience
+from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
@@ -185,8 +186,13 @@ def train(
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-    # Create kickstarter - disabled for CheckpointManager integration
-    kickstarter = None
+    # Create kickstarter (will be disabled if no teacher_uri configured)
+    kickstarter = Kickstarter(
+        cfg=trainer_cfg.kickstart,
+        device=device,
+        checkpoint_manager=checkpoint_manager,
+        metta_grid_env=metta_grid_env,
+    )
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
