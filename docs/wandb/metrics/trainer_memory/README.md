@@ -4,13 +4,13 @@
 
 Memory usage by trainer components
 
-**Total metrics in this section:** 18
+**Total metrics in this section:** 16
 
 ## Subsections
 
 ### General Metrics
 
-**Count:** 18 metrics
+**Count:** 16 metrics
 
 **MettaTrainer:** (1 value)
 - `trainer_memory/MettaTrainer`
@@ -30,20 +30,14 @@ Memory usage by trainer components
 **MettaTrainer.experience:** (1 value)
 - `trainer_memory/MettaTrainer.experience`
 
-**MettaTrainer.initial_policy_record:** (1 value)
-- `trainer_memory/MettaTrainer.initial_policy_record`
-
-**MettaTrainer.latest_saved_policy_record:** (1 value)
-- `trainer_memory/MettaTrainer.latest_saved_policy_record`
+**MettaTrainer.checkpoint_manager:** (1 value)
+- `trainer_memory/MettaTrainer.checkpoint_manager`
 
 **MettaTrainer.optimizer:** (1 value)
 - `trainer_memory/MettaTrainer.optimizer`
 
 **MettaTrainer.policy:** (1 value)
 - `trainer_memory/MettaTrainer.policy`
-
-**MettaTrainer.policy_store:** (1 value)
-- `trainer_memory/MettaTrainer.policy_store`
 
 **MettaTrainer.sim_suite_config:** (1 value)
 - `trainer_memory/MettaTrainer.sim_suite_config`

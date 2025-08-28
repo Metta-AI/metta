@@ -146,12 +146,12 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 #### Agent System
 
 - Each agent has a policy with action spaces and observation spaces
-- Policies are stored in `PolicyStore` and managed by `MettaAgent`
+- Policies are stored using `CheckpointManager` and managed by `MettaAgent`
 - Agent architecture is designed to be adaptable to new game rules and environments
 - Neural components can be mixed and matched via configuration
 - Key classes:
   - `agent.src.metta.agent.metta_agent.MettaAgent` - Main agent implementation
-  - `agent.src.metta.agent.policy_store.PolicyStore` - Manages policy checkpoints
+  - `metta.rl.checkpoint_manager.CheckpointManager` - Manages policy checkpoints
   - `agent.src.metta.agent.distributed_metta_agent.DistributedMettaAgent` - Multi-GPU agent
 
 ## Development Guide
@@ -471,7 +471,7 @@ The workflow automatically determines the appropriate base branch:
 #### Commit Message Format
 
 - Follow conventional commit format: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
-- Be specific about what was changed: `fix: add missing return type annotations to PolicyStore methods`
+- Be specific about what was changed: `fix: add missing return type annotations to CheckpointManager methods`
 - Reference issues when applicable: `fix: resolve type safety issues (#657)`
 
 #### PR Structure Requirements
