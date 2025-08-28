@@ -5,11 +5,11 @@ from enum import StrEnum, auto
 import time
 import logging
 import subprocess
-import uuid
 
 from cogweb.cogweb_client import CogwebClient
 
 from metta.common.wandb.wandb_context import WandbConfig
+from metta.sweep.sweep_config import SweepConfig
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,16 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Core Data Models
 # ============================================================================
+
+
+class JobTypes(StrEnum):
+    LAUNCH_TRAINING = auto()
+    LAUNCH_EVAL = auto()
+
+    # For the future
+    PAUSE_TRAINING = auto()
+    RESUME_TRAINING = auto()
+    CANCEL_JOB = auto()
 
 
 @dataclass
@@ -28,9 +38,7 @@ class JobDefinition:
     args: list[str] = field(default_factory=list)  # positional arguments
     overrides: dict[str, Any] = field(default_factory=dict)  # key=value overrides for the tool
     config: dict[str, Any] = field(default_factory=dict)  # additional config from optimizer
-    type: str = "train"  # "train" or "eval"
-    parent_job_id: str | None = None  # For eval jobs, the training job that produced the policy
-    priority: int = 0
+    type: JobTypes = JobTypes.LAUNCH_TRAINING  # JobTypes enum value
     created_at: datetime = field(default_factory=datetime.now)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -38,7 +46,9 @@ class JobDefinition:
 class JobStatus(StrEnum):
     PENDING = auto()
     IN_TRAINING = auto()
+    TRAINING_DONE_NO_EVAL = auto()
     IN_EVAL = auto()
+    EVAL_DONE_NOT_COMPLETED = auto()
     COMPLETED = auto()
 
 
@@ -61,7 +71,6 @@ class RunInfo:
 
     run_id: str
     sweep_id: str
-    status: JobStatus
 
     # Timestamps
     created_at: datetime | None = None
@@ -73,10 +82,29 @@ class RunInfo:
     summary: dict = {}
     has_started_training: bool = False
     has_completed_training: bool = False
+    has_started_eval: bool = False
     has_been_evaluated: bool = False
+    cost: float = 0
+    runtime: float = 0
 
     # Sweep specific
     observation: Observation | None = None
+
+    @property
+    def status(self) -> JobStatus:
+        if not self.has_started_training:
+            return JobStatus.PENDING
+        if self.has_started_training and not self.has_completed_training:
+            return JobStatus.IN_TRAINING
+        if self.has_completed_training and not self.has_started_eval:
+            return JobStatus.TRAINING_DONE_NO_EVAL
+        if self.has_started_eval and not self.has_been_evaluated:
+            return JobStatus.IN_EVAL
+        if self.has_been_evaluated and (self.observation is None or self.observation == {}):
+            return JobStatus.EVAL_DONE_NOT_COMPLETED
+        else:
+            return JobStatus.COMPLETED
+
     # Dispatch info
     # dispatch_id: str | None = None
     # dispatch_type: DispatchType | None = None
@@ -310,9 +338,9 @@ class SweepController:
         optimizer: Optimizer,
         dispatcher: Dispatcher,
         store: Store,
+        sweep_config: SweepConfig,
         max_parallel_jobs: int = 10,
         dispatch_type: DispatchType = DispatchType.SKYPILOT,
-        scheduling_interval: int = 30,
         monitoring_interval: int = 5,
     ):
         # Configuration only - no state
@@ -321,8 +349,8 @@ class SweepController:
         self.optimizer = optimizer
         self.dispatcher = dispatcher
         self.store = store
+        self.sweep_config = sweep_config
         self.dispatch_type = dispatch_type
-        self.scheduling_interval = scheduling_interval
         self.monitoring_interval = monitoring_interval
 
         # For local dispatch, enforce max_parallel_jobs = 1
@@ -332,8 +360,6 @@ class SweepController:
             self.max_parallel_jobs = 1
         else:
             self.max_parallel_jobs = max_parallel_jobs
-
-    # ========== Lifecycle Methods ==========
 
     def _compute_metadata_from_runs(self, all_runs: list[RunInfo]) -> SweepMetadata:
         """Compute sweep metadata from all runs"""
@@ -362,10 +388,39 @@ class SweepController:
 
                 # 4. Execute scheduler's decisions
                 for job in new_jobs:
-                    self.store.init_run(job)
-                    logger.info(f"Created run {job.run_id}")
+                    if job.type == JobTypes.LAUNCH_TRAINING:
+                        self.store.init_run(job)
+                        logger.info(f"Created run {job.run_id}")
+                    elif job.type == JobTypes.LAUNCH_EVAL:
+                        self.store.update_run_summary(
+                            job.run_id,
+                            {
+                                "has_started_eval": True,  # other status properties can be deduced from this.
+                            },
+                        )
+                        logger.info(f"Launching eval for job {job.run_id}")
+
                     dispatch_id = self.dispatcher.dispatch(job, self.dispatch_type)
                     logger.info(f"Dispatched {job.run_id} with PID {dispatch_id}")
+
+                # 5. Finally, update transient states and mark completions
+                # TODO: Refactor: Sweep config and Optimizer config
+                for run in all_run_infos:
+                    if run.status == JobStatus.EVAL_DONE_NOT_COMPLETED:
+                        cost = run.cost if run.cost != 0 else run.runtime
+                        score = run.summary.get(self.sweep_config.protein.metric)
+                        if score is None:
+                            raise ValueError(f"No metric {self.sweep_config.protein.metric} found in run summary.")
+                        self.store.update_run_summary(
+                            run.run_id,
+                            {
+                                "observation": {
+                                    "cost": cost,
+                                    "score": score,
+                                    "suggestion": run.summary.get("suggestion"),
+                                }
+                            },
+                        )
 
                 # 5. Sleep
                 time.sleep(self.monitoring_interval)
@@ -388,9 +443,9 @@ class SweepOrchestratorConfig:
     sweep_name: str
     sweep_server_uri: str
     wandb: WandbConfig
+    sweep_config: SweepConfig
     max_parallel_jobs: int = 10
     dispatch_type: DispatchType = DispatchType.SKYPILOT
-    scheduling_interval: int = 30
     monitoring_interval: int = 5
 
 
@@ -423,9 +478,9 @@ def orchestrate_sweep(
         optimizer=optimizer,
         dispatcher=dispatcher,
         store=store,
+        sweep_config=config.sweep_config,
         max_parallel_jobs=config.max_parallel_jobs,
         dispatch_type=config.dispatch_type,
-        scheduling_interval=config.scheduling_interval,
         monitoring_interval=config.monitoring_interval,
     )
 

@@ -15,6 +15,7 @@ from typing import Any
 from metta.sweep.sweep_orchestrator import (
     JobDefinition,
     JobStatus,
+    JobTypes,
     RunInfo,
     SweepMetadata,
     Scheduler,
@@ -68,7 +69,7 @@ class SequentialScheduler:
         job = JobDefinition(
             run_id=f"{sweep_id}_trial_{self._trial_count:04d}",
             cmd=f"{self.config.recipe_module}.{self.config.train_entrypoint}",
-            type="train",
+            type=JobTypes.LAUNCH_TRAINING,
         )
         
         logger.info(f"Initialized sequential scheduler with first job: {job.run_id}")
@@ -101,8 +102,7 @@ class SequentialScheduler:
             eval_job = JobDefinition(
                 run_id=f"{train_run.run_id}_eval",
                 cmd=f"{self.config.recipe_module}.{self.config.eval_entrypoint}",
-                type="eval",
-                parent_job_id=train_run.run_id,
+                type=JobTypes.LAUNCH_EVAL,
                 args=self.config.eval_args or [],
                 overrides=self.config.eval_overrides or {},
             )
@@ -133,7 +133,7 @@ class SequentialScheduler:
         job = JobDefinition(
             run_id=f"{sweep_metadata.sweep_id}_trial_{self._trial_count:04d}",
             cmd=f"{self.config.recipe_module}.{self.config.train_entrypoint}",
-            type="train",
+            type=JobTypes.LAUNCH_TRAINING,
         )
         
         logger.info(f"Scheduling job {self._trial_count}/{self.config.max_trials}: {job.run_id}")
