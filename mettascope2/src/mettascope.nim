@@ -39,16 +39,13 @@ proc display() =
   bxy.beginFrame(window.size)
   const RibbonHeight = 64
   rootArea.rect = IRect(x: 0, y: RibbonHeight, w: window.size.x, h: window.size.y - RibbonHeight*3)
-  topArea.rect = IRect(x: 0, y: rootArea.rect.y, w: rootArea.rect.w, h: rootArea.rect.h div 2)
-  bottomArea.rect = IRect(x: 0, y: rootArea.rect.y + rootArea.rect.h div 2, w: rootArea.rect.w, h: rootArea.rect.h div 2)
+  topArea.rect = IRect(x: 0, y: rootArea.rect.y, w: rootArea.rect.w, h: (rootArea.rect.h.float32 * 0.75).int)
+  bottomArea.rect = IRect(x: 0, y: rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, w: rootArea.rect.w, h: (rootArea.rect.h.float32 * 0.25).int)
   rootArea.updatePanelsSizes()
 
   globalHeaderPanel.rect = IRect(x: 0, y: 0, w: window.size.x, h: RibbonHeight)
   globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
   globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
-
-
-
 
   globalHeaderPanel.beginDraw()
   drawHeader(globalHeaderPanel)
@@ -82,13 +79,11 @@ proc display() =
   drawEnvConfig(envConfigPanel)
   envConfigPanel.endDraw()
 
-
   rootArea.drawFrame()
 
   bxy.endFrame()
   window.swapBuffers()
   inc frame
-
 
 # Build the atlas.
 for path in walkDirRec("data/"):
