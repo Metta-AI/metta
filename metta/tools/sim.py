@@ -100,7 +100,6 @@ class SimTool(Tool):
                 stats_db = None
 
         for policy_uri, agent_metadata_list in policies_by_uri.items():
-            run_name = _determine_run_name(policy_uri)
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
             for _agent, metadata, checkpoint_path in agent_metadata_list:
