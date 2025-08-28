@@ -31,11 +31,11 @@ class MockEvaluationResults:
         self.eval_time = eval_time
 
 
-class MockPolicyRecord:
-    """Mock policy record for testing."""
+class MockCheckpoint:
+    """Mock checkpoint for testing."""
 
-    def __init__(self, name="test_policy", uri="file://test/path"):
-        self.name = name
+    def __init__(self, run_name="test_policy", uri="file://test/path"):
+        self.run_name = run_name
         self.uri = uri
         self.metadata = {}
 
