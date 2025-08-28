@@ -6,6 +6,7 @@ from metta.common.wandb.wandb_context import WandbConfig
 from metta.setup.components.aws import AWSSetup
 from metta.setup.components.observatory_key import ObservatoryKeySetup
 from metta.setup.components.wandb import WandbSetup
+from metta.setup.profiles import UserType
 
 
 class SupportedWandbEnvOverrides(BaseSettings):
@@ -31,11 +32,27 @@ supported_tool_overrides = SupportedWandbEnvOverrides()
 
 
 def auto_wandb_config(run: str | None = None) -> WandbConfig:
+    from metta.setup.saved_settings import get_saved_settings
+
     wandb_setup_module = WandbSetup()
-    cfg = WandbConfig(
-        **wandb_setup_module.to_config_settings(),  # type: ignore
-        **supported_tool_overrides.to_config_settings(),
-    )
+    saved_settings = get_saved_settings()
+
+    # Start with profile defaults
+    config_dict = wandb_setup_module.to_config_settings()
+
+    # Apply cloud user config if available
+    if saved_settings.user_type == UserType.CLOUD:
+        cloud_config = saved_settings.get_cloud_config()
+        if cloud_config:
+            if "wandb_entity" in cloud_config:
+                config_dict["entity"] = cloud_config["wandb_entity"]
+            if "wandb_project" in cloud_config:
+                config_dict["project"] = cloud_config["wandb_project"]
+
+    # Apply environment variable overrides (highest priority)
+    config_dict.update(supported_tool_overrides.to_config_settings())
+
+    cfg = WandbConfig(**config_dict)
 
     if run:
         cfg.name = run
@@ -97,11 +114,24 @@ supported_aws_env_overrides = SupportedAwsEnvOverrides()
 
 
 def auto_replay_dir() -> str:
+    from metta.setup.saved_settings import get_saved_settings
+
     aws_setup_module = AWSSetup()
-    return {
-        **aws_setup_module.to_config_settings(),  # type: ignore
-        **supported_aws_env_overrides.to_config_settings(),
-    }.get("replay_dir")
+    saved_settings = get_saved_settings()
+
+    # Start with profile defaults
+    config = aws_setup_module.to_config_settings()  # type: ignore
+
+    # Apply cloud user config if available
+    if saved_settings.user_type == UserType.CLOUD:
+        cloud_config = saved_settings.get_cloud_config()
+        if cloud_config and "s3_bucket" in cloud_config:
+            config["replay_dir"] = f"s3://{cloud_config['s3_bucket']}/replays/"
+
+    # Apply environment variable overrides (highest priority)
+    config.update(supported_aws_env_overrides.to_config_settings())
+
+    return config.get("replay_dir")
 
 
 def auto_torch_profile_dir() -> str:
@@ -113,6 +143,13 @@ def auto_torch_profile_dir() -> str:
     # Profile-based defaults
     if saved_settings.user_type.is_softmax:
         profile_default = "s3://softmax-public/torch_traces/"
+    elif saved_settings.user_type == UserType.CLOUD:
+        # Check for cloud user's S3 bucket
+        cloud_config = saved_settings.get_cloud_config()
+        if cloud_config and "s3_bucket" in cloud_config:
+            profile_default = f"s3://{cloud_config['s3_bucket']}/torch_traces/"
+        else:
+            profile_default = "./train_dir/torch_traces/"
     else:
         profile_default = "./train_dir/torch_traces/"
 
