@@ -28,8 +28,7 @@ def base_agent_config():
             freeze_duration=0,
             action_failure_penalty=0.0,
             resource_limits={i: 100 for i in range(len(inventory_items))},
-            resource_rewards=resource_rewards
-            or {i: 0.0 for i in range(len(inventory_items))},
+            resource_rewards=resource_rewards or {i: 0.0 for i in range(len(inventory_items))},
             resource_reward_max={i: 100 for i in range(len(inventory_items))},
             group_reward_pct=0.0,
         )
@@ -121,15 +120,11 @@ class TestGlobalRewardObservations:
         observations, _ = env.reset()
 
         # Check observations shape (1 agent, 50 tokens, 3 values per token)
-        assert observations.shape == (1, 50, 3), (
-            f"Unexpected shape: {observations.shape}"
-        )
+        assert observations.shape == (1, 50, 3), f"Unexpected shape: {observations.shape}"
 
         # Find and verify resource rewards token
         resource_rewards_token = find_resource_rewards_token(observations[0])
-        assert resource_rewards_token is not None, (
-            "Inventory rewards token not found in observation"
-        )
+        assert resource_rewards_token is not None, "Inventory rewards token not found in observation"
 
         # Expected packed value: 10101010 = 0xAA = 170
         expected_packed = 0b10101010
@@ -137,9 +132,7 @@ class TestGlobalRewardObservations:
             f"Incorrect packed inventory rewards value. Expected: {expected_packed}, Got: {resource_rewards_token[2]}"
         )
 
-    def test_resource_rewards_only_for_observing_agent(
-        self, base_agent_config, create_env
-    ):
+    def test_resource_rewards_only_for_observing_agent(self, base_agent_config, create_env):
         """Test that inventory rewards observation is included as global token for each agent."""
         inventory_items = ["item0", "item1", "item2", "item3"]
         resource_rewards = {i: 1.0 for i in range(len(inventory_items))}
@@ -161,18 +154,12 @@ class TestGlobalRewardObservations:
                 if token[0] == center_packed and token[1] == 13:  # Feature ID 13
                     resource_rewards_found_at_center = True
                     # All 4 items have rewards, so packed value should be 0b11110000 = 240
-                    assert token[2] == 0b11110000, (
-                        f"Wrong packed value for agent {agent_idx}: {token[2]}"
-                    )
+                    assert token[2] == 0b11110000, f"Wrong packed value for agent {agent_idx}: {token[2]}"
                     break
 
-            assert resource_rewards_found_at_center, (
-                f"Game rewards not found at center for agent {agent_idx}"
-            )
+            assert resource_rewards_found_at_center, f"Game rewards not found at center for agent {agent_idx}"
 
-    def test_resource_rewards_with_partial_items(
-        self, base_agent_config, create_env, find_resource_rewards_token
-    ):
+    def test_resource_rewards_with_partial_items(self, base_agent_config, create_env, find_resource_rewards_token):
         """Test inventory rewards with fewer than 8 items."""
         inventory_items = ["item0", "item1", "item2"]
         resource_rewards = {
