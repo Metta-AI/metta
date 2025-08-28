@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.constants import METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
-from metta.setup.tools.local.kind import KindLocal
 from metta.setup.utils import error, info
 
 # Type checking imports
@@ -126,6 +125,8 @@ class LocalCommands:
     @property
     def kind_manager(self):
         if self._kind_manager is None:
+            from metta.setup.tools.local.kind import KindLocal
+
             self._kind_manager = KindLocal()
         return self._kind_manager
 

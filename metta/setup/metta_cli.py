@@ -1,32 +1,23 @@
 #!/usr/bin/env -S uv run
 import argparse
-import concurrent.futures
 import shutil
 import subprocess
 import sys
-import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 # Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
-from metta.setup.local_commands import LocalCommands, setup_local_parser
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-from metta.setup.registry import get_all_modules, get_enabled_setup_modules
-from metta.setup.saved_settings import CURRENT_SAVED_SETTINGS_VERSION, get_saved_settings
-from metta.setup.symlink_setup import PathSetup
-from metta.setup.tools.book import BookCommands
-from metta.setup.utils import (
-    error,
-    header,
-    import_all_modules_from_subpackage,
-    info,
-    prompt_choice,
-    spinner,
-    success,
-    warning,
-)
+from metta.setup.saved_settings import get_saved_settings
+from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success
+
+# Type hints only
+if TYPE_CHECKING:
+    from metta.setup.local_commands import LocalCommands
+    from metta.setup.symlink_setup import PathSetup
+    from metta.setup.tools.book import BookCommands
 
 # Shared list of test folders for Python tests
 PYTHON_TEST_FOLDERS = [
@@ -229,6 +220,9 @@ class MettaCLI:
         import_all_modules_from_subpackage("metta.setup", "components")
 
         # Initialize core objects
+        from metta.setup.local_commands import LocalCommands
+        from metta.setup.symlink_setup import PathSetup
+
         self._path_setup = PathSetup(self.repo_root)
         self._local_commands = LocalCommands()
         self._components_initialized = True
@@ -236,22 +230,30 @@ class MettaCLI:
     @property
     def path_setup(self):
         if self._path_setup is None:
+            from metta.setup.symlink_setup import PathSetup
+
             self._path_setup = PathSetup(self.repo_root)
         return self._path_setup
 
     @property
     def local_commands(self):
         if self._local_commands is None:
+            from metta.setup.local_commands import LocalCommands
+
             self._local_commands = LocalCommands()
         return self._local_commands
 
     @property
     def book_commands(self):
         if self._book_commands is None:
+            from metta.setup.tools.book import BookCommands
+
             self._book_commands = BookCommands()
         return self._book_commands
 
     def setup_wizard(self) -> None:
+        from metta.setup.profiles import UserType
+
         header("Welcome to Metta!\n\n")
         info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
 
@@ -290,6 +292,8 @@ class MettaCLI:
             info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
     def _custom_setup(self) -> None:
+        from metta.setup.registry import get_all_modules
+
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
             [(ut, ut.get_description()) for ut in UserType if ut != UserType.CUSTOM],
@@ -341,6 +345,9 @@ class MettaCLI:
             self.setup_wizard()
 
     def configure_component(self, component_name: str) -> None:
+        from metta.setup.registry import get_all_modules
+        from metta.setup.utils import error, info
+
         modules = get_all_modules()
         module_map = {m.name: m for m in modules}
 
@@ -356,6 +363,9 @@ class MettaCLI:
         module.configure()
 
     def cmd_run(self, args, unknown_args=None) -> None:
+        from metta.setup.registry import get_all_modules
+        from metta.setup.utils import error, info
+
         modules = get_all_modules()
         module_map = {m.name: m for m in modules}
 
@@ -368,6 +378,9 @@ class MettaCLI:
         module.run(args.args)
 
     def cmd_install(self, args, unknown_args=None) -> None:
+        from metta.setup.registry import get_all_modules, get_enabled_setup_modules
+        from metta.setup.utils import error, info, success, warning
+
         if not get_saved_settings().exists():
             warning("No configuration found. Running setup wizard first...")
             self.setup_wizard()
@@ -423,6 +436,8 @@ class MettaCLI:
         success("Installation complete!")
 
     def cmd_clean(self, args, unknown_args=None, verbose: bool = False) -> None:
+        from metta.setup.utils import info, warning
+
         build_dir = self.repo_root / "build"
         if build_dir.exists():
             info("  Removing root build directory...")
@@ -448,6 +463,10 @@ class MettaCLI:
 
     def cmd_go(self, args, unknown_args=None) -> None:
         """Navigate to a Softmax Home shortcut URL."""
+        import webbrowser
+
+        from metta.setup.utils import error, info
+
         if not unknown_args:
             error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
             info("\nCommon shortcuts:")
@@ -555,6 +574,8 @@ class MettaCLI:
 
     def cmd_ci(self, args, unknown_args=None) -> None:
         """Run all Python and C++ tests for CI."""
+        from metta.setup.utils import error, info, success
+
         # First run Python tests
         info("Running Python tests...")
         python_test_cmd = [
@@ -610,6 +631,11 @@ class MettaCLI:
             sys.exit(e.returncode)
 
     def cmd_status(self, args, unknown_args=None) -> None:
+        import concurrent.futures
+
+        from metta.setup.registry import get_all_modules
+        from metta.setup.utils import error, info, spinner, success, warning
+
         # Get all modules first
         all_modules = get_all_modules()
 
@@ -816,6 +842,8 @@ Examples:
             if cmd_config.parser_setup:
                 cmd_config.parser_setup(cmd_parser)
             elif cmd_name == "local":
+                from metta.setup.local_commands import setup_local_parser
+
                 setup_local_parser(cmd_parser)
 
             # Special handling for configure --profile
@@ -858,6 +886,8 @@ Examples:
                     print("Error: No configuration found. Please run 'metta configure' first.", file=sys.stderr)
                     sys.exit(1)
                 else:
+                    from metta.setup.saved_settings import CURRENT_SAVED_SETTINGS_VERSION
+
                     if saved_settings.config_version < CURRENT_SAVED_SETTINGS_VERSION:
                         print(
                             f"Warning: Your configuration is from an older version (v{saved_settings.config_version}).",
