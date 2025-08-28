@@ -9,8 +9,6 @@ from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip
 from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
 
-# Note: PolicyMetadata and PolicyRecord have been removed in favor of direct CheckpointManager usage
-
 
 class MockObsComponent(torch.nn.Module):
     """Mock observation component for testing remapping updates."""

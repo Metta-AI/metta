@@ -13,7 +13,6 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-# No PolicyRecord import needed - working directly with checkpoint metadata
 from metta.mettagrid.util.file import local_copy
 from metta.sim.simulation_stats_db import SimulationStatsDB
 

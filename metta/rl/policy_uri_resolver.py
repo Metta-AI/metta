@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.wandb_policy_loader import load_policy_from_wandb_uri, get_wandb_artifact_metadata
+from metta.rl.wandb_policy_loader import get_wandb_artifact_metadata, load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
 

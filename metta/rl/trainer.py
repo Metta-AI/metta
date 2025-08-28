@@ -555,10 +555,7 @@ def train(
                             logger.error("Falling back to local evaluation")
                             evaluate_local = True
                     if evaluate_local:
-                        # Local evaluation disabled for CheckpointManager integration
-                        logger.warning(
-                            "Local evaluation temporarily disabled - needs SimpleCheckpointManager integration"
-                        )
+                        logger.warning("Local evaluation not configured")
                         evaluation_results = EvaluationResults(scores=EvalRewardSummary(), replay_urls=[])
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores

@@ -60,8 +60,6 @@ class SimTool(Tool):
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
 
-        # Note: With CheckpointManager, we work directly with checkpoint directories
-        # No central policy store needed
         if self.stats_server_uri is not None:
             StatsClient.create(self.stats_server_uri)
 

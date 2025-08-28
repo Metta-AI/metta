@@ -8,7 +8,6 @@ import tempfile
 import uuid
 from pathlib import Path
 
-# Working directly with checkpoint metadata - no PolicyRecord needed
 from metta.eval.eval_stats_db import EvalStatsDB
 
 

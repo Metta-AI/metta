@@ -16,7 +16,6 @@ from typing import List
 import pytest
 from typing_extensions import Generator
 
-# No PolicyRecord needed - working directly with checkpoint metadata
 from metta.eval.eval_stats_db import EvalStatsDB
 
 TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]

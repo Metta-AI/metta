@@ -35,7 +35,7 @@ def mock_agent():
 class MockCheckpointCache:
     """
     Mock implementation of what a checkpoint cache could look like for CheckpointManager.
-    This demonstrates the equivalent functionality to PolicyCache.
+    This demonstrates checkpoint caching patterns.
     """
 
     def __init__(self, max_size: int = 3):

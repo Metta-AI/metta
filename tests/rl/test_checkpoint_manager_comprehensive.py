@@ -37,7 +37,7 @@ def mock_policy():
 
 
 class TestCheckpointManagerBasicOperations:
-    """Test basic save/load operations equivalent to PolicyStore functionality."""
+    """Test basic save/load operations."""
 
     def test_save_and_load_agent_without_pydantic_errors(self, checkpoint_manager, mock_agent):
         """Test that we can save and load an agent without pydantic errors."""
@@ -53,7 +53,7 @@ class TestCheckpointManagerBasicOperations:
             "total_time": 120.0,
         }
 
-        # Save the agent (equivalent to PolicyStore.save())
+        # Save the agent
         checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
 
         # Verify checkpoint files exist
@@ -67,7 +67,7 @@ class TestCheckpointManagerBasicOperations:
         # Test that the save format is correct
         checkpoint = torch.load(agent_file, map_location="cpu", weights_only=False)
 
-        # The checkpoint should be the agent directly (not wrapped in PolicyRecord)
+        # The checkpoint should be the agent directly
         assert callable(checkpoint)  # Should be callable (policy-like)
 
         # Verify metadata is properly saved in YAML via CheckpointManager API
@@ -80,7 +80,7 @@ class TestCheckpointManagerBasicOperations:
 
         print("✅ Checkpoint format verified - using direct torch.save + YAML!")
 
-        # Load the agent back and verify it works (equivalent to PolicyStore.load_from_uri())
+        # Load the agent back and verify it works
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
 
         # Verify the loaded agent works with a forward pass
@@ -209,7 +209,7 @@ class TestCheckpointManagerBasicOperations:
 
 
 class TestCheckpointManagerAdvancedFeatures:
-    """Test advanced features that extend beyond the original PolicyStore."""
+    """Test advanced checkpoint features."""
 
     def test_checkpoint_search_and_filtering(self, checkpoint_manager, mock_agent):
         """Test searching for checkpoints by various criteria."""
