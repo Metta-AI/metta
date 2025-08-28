@@ -1,66 +1,15 @@
 """Policy evaluation functionality."""
 
 import logging
-import uuid
 from typing import Any
 
 import wandb
 
-from metta.agent.policy_record import PolicyRecord
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
-from metta.rl.trainer_config import TrainerConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 logger = logging.getLogger(__name__)
-
-
-def evaluate_policy_remote(
-    policy_record: PolicyRecord,
-    simulations: list[SimulationConfig],
-    stats_epoch_id: uuid.UUID | None,
-    wandb_policy_name: str | None,
-    stats_client: StatsClient | None,
-    wandb_run: WandbRun | None,
-    trainer_cfg: TrainerConfig,
-) -> TaskResponse | None:
-    """Create a task to evaluate a policy remotely, ensuring policy is uploaded to wandb.
-    Returns TaskResponse for the policy evaluation task, or None if policy is not uploaded to wandb."""
-    if wandb_run and stats_client and policy_record and wandb_policy_name:
-        # Need to upload policy artifact to wandb first and make sure our name
-        # reflects that in the version
-        if ":" not in wandb_policy_name:
-            logger.warning(f"Remote evaluation: {wandb_policy_name} does not specify a version")
-        else:
-            internal_wandb_policy_name, wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
-            stats_server_policy_id = get_or_create_policy_ids(
-                stats_client,
-                [(internal_wandb_policy_name, wandb_uri, wandb_run.notes)],
-                stats_epoch_id,
-            ).get(internal_wandb_policy_name)
-            if not stats_server_policy_id:
-                logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
-            else:
-                task = stats_client.create_task(
-                    TaskCreateRequest(
-                        policy_id=stats_server_policy_id,
-                        sim_suite=simulations[0].name,
-                        attributes={
-                            "git_hash": (trainer_cfg.evaluation and trainer_cfg.evaluation.git_hash),
-                            "simulations": [sim.model_dump() for sim in simulations],
-                        },
-                    )
-                )
-                logger.info(
-                    f"Policy evaluator: created task {task.id} for {wandb_policy_name} on {simulations[0].name}"
-                )
-
-                return task
-        return None
 
 
 def upload_replay_html(
