@@ -8,8 +8,9 @@ import sky.jobs
 import sky.server.common
 import wandb
 
+import gitta as git
+from devops.git.monorepo import REPO_SLUG
 from metta.app_backend.clients.base_client import get_machine_token
-from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -39,7 +40,7 @@ def launch_task(task: sky.Task):
 def check_git_state(commit_hash: str) -> str | None:
     error_lines = []
 
-    has_changes, status_output = has_unstaged_changes()
+    has_changes, status_output = git.has_unstaged_changes()
     if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
@@ -48,7 +49,7 @@ def check_git_state(commit_hash: str) -> str | None:
         error_lines.append("\nDebug:\n" + status_output)
         return "\n".join(error_lines)
 
-    if not is_commit_pushed(commit_hash):
+    if not git.is_commit_pushed(commit_hash):
         commit_display = commit_hash[:8]
         error_lines.append(
             red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job.")
@@ -179,12 +180,12 @@ def display_job_summary(
 
     print(f"{bold('Commit Hash:')} {yellow(commit_hash)}")
 
-    commit_message = get_commit_message(commit_hash)
+    commit_message = git.get_commit_message(commit_hash)
     if commit_message:
         first_line = commit_message.split("\n")[0]
         print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
-    pr_info = get_matched_pr(commit_hash)
+    pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
     if pr_info:
         pr_number, pr_title = pr_info
         first_line = pr_title.split("\n")[0]

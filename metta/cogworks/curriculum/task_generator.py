@@ -17,7 +17,7 @@ from typing_extensions import Generic
 
 from metta.common.config import Config
 from metta.common.util.module import load_symbol
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 if TYPE_CHECKING:
     pass
@@ -99,14 +99,14 @@ class TaskGenerator(ABC):
         self._config = config
         self._overrides = config.overrides
 
-    def get_task(self, task_id: int) -> EnvConfig:
-        """Generate a task (EnvConfig) using task_id as seed."""
+    def get_task(self, task_id: int) -> MettaGridConfig:
+        """Generate a task (MettaGridConfig) using task_id as seed."""
         rng = random.Random()
         rng.seed(task_id)
         return self._apply_overrides(self._generate_task(task_id, rng), self._config.overrides)
 
     @abstractmethod
-    def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         """Generate a task with the given task_id and RNG.
 
         This method should be overridden by subclasses to implement
@@ -117,12 +117,12 @@ class TaskGenerator(ABC):
             rng: A seeded random number generator
 
         Returns:
-            An EnvConfig for the generated task
+            An MettaGridConfig for the generated task
         """
         raise NotImplementedError("TaskGenerator._generate_task() must be overridden by subclasses")
 
-    def _apply_overrides(self, env_config: EnvConfig, overrides: dict[str, Any]) -> EnvConfig:
-        """Apply overrides to an EnvConfig using dot-separated keys."""
+    def _apply_overrides(self, env_config: MettaGridConfig, overrides: dict[str, Any]) -> MettaGridConfig:
+        """Apply overrides to an MettaGridConfig using dot-separated keys."""
         if not overrides:
             return env_config
 
@@ -134,19 +134,19 @@ class TaskGenerator(ABC):
 # SingleTaskGenerator
 ################################################################################
 class SingleTaskGenerator(TaskGenerator):
-    """TaskGenerator that always returns the same EnvConfig."""
+    """TaskGenerator that always returns the same MettaGridConfig."""
 
     class Config(TaskGeneratorConfig["SingleTaskGenerator"]):
         """Configuration for SingleTaskGenerator."""
 
-        env: EnvConfig = Field(description="The environment configuration to always return")
+        env: MettaGridConfig = Field(description="The environment configuration to always return")
 
     def __init__(self, config: "SingleTaskGenerator.Config"):
         super().__init__(config)
         self._config = config
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
-        """Always return the same EnvConfig."""
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+        """Always return the same MettaGridConfig."""
         return self._config.env.model_copy(deep=True)
 
 
@@ -191,18 +191,27 @@ class TaskGeneratorSet(TaskGenerator):
         self._sub_task_generators = [gen_config.create() for gen_config in self._config.task_generators]
         self._weights = self._config.weights if self._config.weights else [1.0] * len(self._sub_task_generators)
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         return rng.choices(self._sub_task_generators, weights=self._weights)[0].get_task(task_id)
 
 
 ################################################################################
 # BucketedTaskGenerator
 ################################################################################
-class ValueRange(Config):
+class Span(Config):
     """A range of values with minimum and maximum bounds."""
 
     range_min: float | int = Field(description="Range minimum")
     range_max: float | int = Field(description="Range maximum")
+
+    def __init__(self, range_min: float | int | None = None, range_max: float | int | None = None, **kwargs):
+        """Initialize Span with positional arguments or keyword arguments."""
+        if range_min is not None and range_max is not None:
+            # Called with positional arguments
+            super().__init__(range_min=range_min, range_max=range_max, **kwargs)
+        else:
+            # Called with keyword arguments (normal Pydantic behavior)
+            super().__init__(**kwargs)
 
     @field_validator("range_max")
     @classmethod
@@ -212,11 +221,6 @@ class ValueRange(Config):
         if range_min is not None and range_min >= v:
             raise ValueError("range_min must be less than range_max")
         return v
-
-    @classmethod
-    def vr(cls, range_min: float | int, range_max: float | int) -> "ValueRange":
-        """Create a ValueRange from a range_min and range_max."""
-        return cls(range_min=range_min, range_max=range_max)
 
     def __str__(self) -> str:
         return f"{self.range_min}-{self.range_max}"
@@ -228,28 +232,26 @@ class BucketedTaskGenerator(TaskGenerator):
     When get_task() is called:
     1. Sample a value from each bucket
     2. Call the child TaskGenerator's get_task()
-    3. Apply the sampled bucket values as overrides to the returned EnvConfig
+    3. Apply the sampled bucket values as overrides to the returned MettaGridConfig
     """
 
     class Config(TaskGeneratorConfig["BucketedTaskGenerator"]):
         """Configuration for BucketedTaskGenerator."""
 
         child_generator_config: AnyTaskGeneratorConfig = Field(description="Child task generator configuration")
-        buckets: dict[str, Sequence[int | float | str | ValueRange]] = Field(
+        buckets: dict[str, Sequence[int | float | str | Span]] = Field(
             default_factory=dict, description="Buckets for sampling, keys are config paths"
         )
 
-        def add_bucket(
-            self, path: str, values: Sequence[int | float | str | ValueRange]
-        ) -> "BucketedTaskGenerator.Config":
+        def add_bucket(self, path: str, values: Sequence[int | float | str | Span]) -> "BucketedTaskGenerator.Config":
             """Add a bucket of values for a specific configuration path."""
             assert path not in self.buckets, f"Bucket {path} already exists"
             self.buckets[path] = values
             return self
 
         @classmethod
-        def from_env(cls, env_config: EnvConfig) -> "BucketedTaskGenerator.Config":
-            """Create a BucketedTaskGenerator.Config from an EnvConfig."""
+        def from_mg(cls, env_config: MettaGridConfig) -> "BucketedTaskGenerator.Config":
+            """Create a BucketedTaskGenerator.Config from an MettaGridConfig."""
             return cls(child_generator_config=SingleTaskGenerator.Config(env=env_config))
 
     def __init__(self, config: "BucketedTaskGenerator.Config"):
@@ -258,10 +260,10 @@ class BucketedTaskGenerator(TaskGenerator):
         assert config.buckets, "Buckets must be non-empty"
         self._child_generator = config.child_generator_config.create()
 
-    def _get_bucket_value(self, bucket_values: Sequence[int | float | str | ValueRange], rng: random.Random) -> Any:
+    def _get_bucket_value(self, bucket_values: Sequence[int | float | str | Span], rng: random.Random) -> Any:
         bucket_value = rng.choice(bucket_values)
 
-        if isinstance(bucket_value, ValueRange):
+        if isinstance(bucket_value, Span):
             min_val, max_val = bucket_value.range_min, bucket_value.range_max
             if isinstance(min_val, int) and isinstance(max_val, int):
                 bucket_value = rng.randint(min_val, max_val)
@@ -269,7 +271,7 @@ class BucketedTaskGenerator(TaskGenerator):
                 bucket_value = rng.uniform(min_val, max_val)
         return bucket_value
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         """Generate task by calling child generator then applying bucket overrides."""
         # First, sample values from each bucket
         overrides = {}

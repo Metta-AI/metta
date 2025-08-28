@@ -1,19 +1,19 @@
 from metta.map.mapgen import MapGen
 from metta.map.scenes.mean_distance import MeanDistance
 from metta.mettagrid.config.envs import make_navigation
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
 
 
-def make_nav_eval_env(env: EnvConfig) -> EnvConfig:
+def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     """Set the heart reward to 0.333 for normalization"""
-    env.game.agent.rewards.inventory.heart = 0.333
+    env.game.agent.rewards.inventory["heart"] = 0.333
     return env
 
 
 def make_nav_ascii_env(
     name: str, max_steps: int, border_width: int = 1, num_agents=4
-) -> EnvConfig:
+) -> MettaGridConfig:
     ascii_map = f"mettagrid/configs/maps/navigation/{name}.map"
     env = make_navigation(num_agents=num_agents)
     env.game.max_steps = max_steps
@@ -27,7 +27,7 @@ def make_nav_ascii_env(
     return make_nav_eval_env(env)
 
 
-def make_emptyspace_sparse_env() -> EnvConfig:
+def make_emptyspace_sparse_env() -> MettaGridConfig:
     env = make_navigation(num_agents=4)
     env.game.max_steps = 300
     env.game.map_builder = MapGen.Config(

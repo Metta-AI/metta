@@ -19,7 +19,7 @@ from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,
 )
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
 class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
@@ -38,7 +38,7 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
 
     def __init__(
         self,
-        env_config: EnvConfig,
+        env_config: MettaGridConfig,
         render_mode: Optional[str] = None,
         **kwargs: Any,
     ):

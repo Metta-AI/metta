@@ -8,13 +8,13 @@ import numpy as np
 
 from metta.mettagrid.gym_env import MettaGridGymEnv
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, WallConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig, WallConfig
 
 
 def test_single_agent_gym_env():
     """Test single-agent Gymnasium environment."""
     # Create environment with a simple map
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
@@ -68,7 +68,7 @@ def test_single_agent_gym_env():
 def test_gym_env_episode_termination():
     """Test that environment terminates properly."""
     # Create environment with a simple map
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(

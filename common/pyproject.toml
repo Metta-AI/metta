@@ -12,7 +12,9 @@ license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
-dependencies = []
+
+[project.scripts]
+tool = "metta.common.config.run_tool:main"
 
 [dependency-groups]
 dev = [
