@@ -119,12 +119,7 @@ def upload_checkpoint_as_artifact(
     wandb_run: Optional[WandbRun] = None,
     additional_files: Optional[list[str]] = None,
 ) -> Optional[str]:
-    """Upload a checkpoint file to wandb as an artifact.
-
-    This is a minimal implementation of the wandb artifact upload functionality
-    that was previously in PolicyStore. It handles the core use case of uploading
-    trained model checkpoints to wandb for sharing and versioning.
-    """
+    """Upload a checkpoint file to wandb as an artifact."""
     if not wandb:
         logger.warning("Wandb not available, skipping artifact upload")
         return None
