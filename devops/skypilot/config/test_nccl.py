@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any, Optional
-
+from contextlib import redirect_stderr, redirect_stdout
 import torch
 import torch.distributed as dist
 
@@ -479,10 +479,8 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
         print(f"Checking GPU topology...")
         topo_code, topo_stdout, topo_stderr = run_command(["nvidia-smi", "topo", "-m"])
         if topo_code == 0:
-            print(f"Parsing GPU topology...")
             diagnostics["gpu_topology"] = parse_gpu_topology(topo_stdout)
         else:
-            print(f"GPU topology is not available!")
             diagnostics["errors"].append(f"Failed to get GPU topology: {topo_stderr}")
 
     # Get CUDA version from nvcc
@@ -790,7 +788,9 @@ def test_nccl_communication() -> bool:
         device = torch.device(f"cuda:{local_rank}")
 
         # Initialize process group
-        dist.init_process_group(backend="nccl", timeout=datetime.timedelta(seconds=300))
+        with open(os.devnull, 'w') as devnull:
+            with redirect_stderr(devnull), redirect_stdout(devnull):
+                dist.init_process_group(backend="nccl", timeout=datetime.timedelta(seconds=300))
 
         rank = dist.get_rank()
         world_size = dist.get_world_size()
@@ -1003,20 +1003,8 @@ def main():
         print(f"  UMASK           : {sys_info['UMASK']}")
 
     if IS_GPU0:
-        print(f"Collecting GPU diagnostics...")
+        print(f"[Node {node_index}] Collecting GPU diagnostics...")
         gpu_diagnostics = get_gpu_diagnostics(node_index)
-        print_box_header(f"NODE {node_index} GPU DIAGNOSTICS", include_rank=False)
-        print(f"  PyTorch Version        : {gpu_diagnostics['torch_version']}")
-        print(f"  PyTorch CUDA Available : {gpu_diagnostics['pytorch_cuda_available']}")
-        print(f"  PyTorch CUDA Version   : {gpu_diagnostics['pytorch_cuda_version']}")
-        print(f"  CUDA Version           : {gpu_diagnostics['cuda_version']}")
-        print(f"  NCCL Version           : {gpu_diagnostics['nccl_version']}")
-        print(f"  CUDA_VISIBLE_DEVICES   : {gpu_diagnostics['cuda_visible_devices']}")
-        print(f"  GPU Count              : {gpu_diagnostics['gpu_count']}")
-
-        if gpu_diagnostics["nvidia_smi"]:
-            for line in gpu_diagnostics["nvidia_smi"].strip().split("\n"):
-                print(f"  {line}")
 
     # Setup debug environment
     os.environ["NCCL_DEBUG"] = "VERSION"
