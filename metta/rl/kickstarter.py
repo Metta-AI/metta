@@ -70,7 +70,7 @@ class Kickstarter:
             policy: PolicyAgent = CheckpointManager.load_from_uri(teacher_cfg.teacher_uri)
             if policy is None:
                 raise ValueError(f"Failed to load teacher policy from {teacher_cfg.teacher_uri}")
-            
+
             # Initialize policy to environment if needed
             if hasattr(policy, "initialize_to_environment"):
                 features = self.metta_grid_env.get_observation_features()
@@ -80,7 +80,7 @@ class Kickstarter:
                     self.metta_grid_env.max_action_args,
                     self.device,
                 )
-            
+
             # Store as tuple (policy, action_loss_coef, value_loss_coef)
             self.teachers.append((policy, teacher_cfg.action_loss_coef, teacher_cfg.value_loss_coef))
 
@@ -107,7 +107,7 @@ class Kickstarter:
             teacher_td = policy(td)
             teacher_value = teacher_td["value"]
             teacher_normalized_logits = teacher_td["full_log_probs"]
-            
+
             # Calculate action loss (KL divergence)
             ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
             ks_action_loss *= action_loss_coef * self.anneal_factor

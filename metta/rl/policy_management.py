@@ -5,8 +5,7 @@ from typing import List
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
-from metta.rl.checkpoint_manager import CheckpointManager, get_checkpoint_uri_from_dir
-from metta.rl.wandb import load_policy_from_wandb_uri
+from metta.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
 
@@ -18,20 +17,16 @@ def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAg
 
 
 def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
-    """Load a policy from file:// or wandb:// URI using CheckpointManager.load_from_uri."""
-    if uri.startswith("wandb://"):
-        # WandB URIs still need special handling with device mapping
-        return load_policy_from_wandb_uri(uri, device)
-    
-    # For file:// URIs, use the unified loader
+    """Load a policy from any URI (file://, s3://, wandb://) using CheckpointManager.load_from_uri."""
+    # Use the unified loader for all URI types
     policy = CheckpointManager.load_from_uri(uri)
     if policy is None:
         raise FileNotFoundError(f"Could not load policy from {uri}")
-    
+
     # Move to specified device if needed
     if device != "cpu" and hasattr(policy, "to"):
         policy = policy.to(device)
-    
+
     return policy
 
 
