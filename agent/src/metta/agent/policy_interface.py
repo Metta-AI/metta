@@ -62,18 +62,3 @@ class PolicyInterface(ABC, nn.Module):
     def initialize_to_environment(self, full_action_names: list[str], device):
         """Initialize policy components to the environment if needed."""
         pass
-
-    def reset_memory(self):
-        """Reset memory for recurrent policies."""
-        # Default implementation - override for recurrent policies
-        pass
-
-    def get_memory(self) -> dict:
-        """Get memory state for recurrent policies."""
-        # Default implementation - override for recurrent policies
-        return {}
-
-    def has_memory(self) -> bool:
-        """Check if policy has memory/recurrent state."""
-        # Default implementation - override for recurrent policies
-        return False
