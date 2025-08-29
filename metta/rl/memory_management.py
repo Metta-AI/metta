@@ -1,8 +1,11 @@
+import logging
 from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+
+logger = logging.getLogger("memory_management")
 
 
 class Memory:
