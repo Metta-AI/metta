@@ -74,6 +74,7 @@ class TestHelpersSimpleCheckpoint:
                     "score": score,
                     "epoch": epoch,
                     "agent_step": metadata.get("agent_step", epoch * 1000),
+                    "total_time": metadata.get("total_time", metadata.get("train_time", epoch * 10.0)),
                 }
             )
 
