@@ -174,7 +174,7 @@ class EvalStatsDB(SimulationStatsDB):
 
     def get_average_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
         """URI-native version to get average metric."""
-        pk, pv = self.key_and_version_from_uri(policy_uri)
+        pk, pv = key_and_version(policy_uri)
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
     def get_average_metric_by_filter(
@@ -184,12 +184,12 @@ class EvalStatsDB(SimulationStatsDB):
         epoch: int,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = self.key_and_version(checkpoint_path, epoch)
+        pk, pv = checkpoint_path, epoch
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
     def get_std_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
         """URI-native version to get standard deviation metric."""
-        pk, pv = self.key_and_version_from_uri(policy_uri)
+        pk, pv = key_and_version(policy_uri)
         return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
     def get_sum_metric_by_filter(
@@ -199,7 +199,7 @@ class EvalStatsDB(SimulationStatsDB):
         epoch: int,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = self.key_and_version(checkpoint_path, epoch)
+        pk, pv = checkpoint_path, epoch
         return self._normalized_value(pk, pv, metric, "SUM", filter_condition)
 
     def get_std_metric_by_filter(
@@ -209,7 +209,7 @@ class EvalStatsDB(SimulationStatsDB):
         epoch: int,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = self.key_and_version(checkpoint_path, epoch)
+        pk, pv = checkpoint_path, epoch
         return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
     def sample_count_uri(
@@ -221,7 +221,7 @@ class EvalStatsDB(SimulationStatsDB):
         """URI-native version to get sample count."""
         q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
         if policy_uri:
-            pk, pv = self.key_and_version_from_uri(policy_uri)
+            pk, pv = key_and_version(policy_uri)
             q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
         if sim_name:
             q += f" AND sim_name  = '{sim_name}'"
@@ -239,7 +239,7 @@ class EvalStatsDB(SimulationStatsDB):
         """Return potential‑sample count for arbitrary filters."""
         q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
         if checkpoint_path and epoch is not None:
-            pk, pv = self.key_and_version(checkpoint_path, epoch)
+            pk, pv = checkpoint_path, epoch
             q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
         if sim_name:
             q += f" AND sim_name  = '{sim_name}'"
@@ -249,7 +249,7 @@ class EvalStatsDB(SimulationStatsDB):
 
     def simulation_scores(self, checkpoint_path: str, epoch: int, metric: str) -> Dict[tuple[str, str], float]:
         """Return { (name,env) : normalized mean(metric) }."""
-        pk, pv = self.key_and_version(checkpoint_path, epoch)
+        pk, pv = checkpoint_path, epoch
         sim_rows = self.query(f"""
             SELECT DISTINCT sim_name, sim_env
               FROM policy_simulation_agent_samples
@@ -264,6 +264,3 @@ class EvalStatsDB(SimulationStatsDB):
                 scores[(row.sim_name, row.sim_env)] = val
         return scores
 
-    def key_and_version_from_uri(self, policy_uri: str) -> tuple[str, int]:
-        """Extract key and version from a policy URI."""
-        return key_and_version(policy_uri)

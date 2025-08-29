@@ -256,9 +256,6 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
-    def key_and_version_from_uri(self, uri: str) -> tuple[str, int]:
-        """Extract key and version from a policy URI."""
-        return key_and_version(uri) if uri else ("unknown", 0)
 
     def _merge_db(self, other_path: Path) -> None:
         """

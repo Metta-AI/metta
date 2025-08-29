@@ -7,6 +7,7 @@ from tabulate import tabulate
 from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
+from metta.rl.checkpoint_manager import key_and_version
 
 
 def analyze(policy_uri: str, config: AnalysisConfig) -> None:
@@ -40,7 +41,7 @@ def analyze(policy_uri: str, config: AnalysisConfig) -> None:
 #   helpers                                                                   #
 # --------------------------------------------------------------------------- #
 def get_available_metrics(stats_db: EvalStatsDB, policy_uri: str) -> List[str]:
-    pk, pv = stats_db.key_and_version_from_uri(policy_uri)
+    pk, pv = key_and_version(policy_uri)
     result = stats_db.query(
         f"""
         SELECT DISTINCT metric
@@ -76,7 +77,7 @@ def get_metrics_data(
         • K_recorded  – rows in policy_simulation_agent_metrics.
         • N_potential – total agent-episode pairs for that filter.
     """
-    pk, pv = stats_db.key_and_version_from_uri(policy_uri)
+    pk, pv = key_and_version(policy_uri)
     filter_condition = f"sim_name = '{sim_name}'" if sim_name else None
 
     data: Dict[str, Dict[str, float]] = {}
