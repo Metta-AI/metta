@@ -1,14 +1,8 @@
 #!/bin/bash
-# Test script for quick training verification with minimal steps
 set -eou pipefail
 
 CONTAINER="${1}"
-echo "Testing container: $CONTAINER"
 
-docker kill $(docker ps -q) || true
-
-# Run training with minimal steps for quick verification
-# Using default batch sizes to avoid validation errors
 timeout 600 docker run --rm --gpus all "$CONTAINER" "
 cd /workspace/metta && \
 ./tools/run.py experiments.recipes.arena.train \
