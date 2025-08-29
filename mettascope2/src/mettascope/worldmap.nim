@@ -1,7 +1,7 @@
 import
   std/[strformat],
   boxy, vmath, windy,
-  common, panels, actions, minimap, utils, replays, timeline
+  common, panels, actions, minimap, utils, replays
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent.
