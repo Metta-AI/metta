@@ -335,25 +335,12 @@ def train(
                             ),
                         )
 
-                        # Inference with optional memory flow
                         with torch.no_grad():
                             env_id_start = td["training_env_id_start"][0].item()
-                            logger.info(f"env_id_start: {env_id_start}")
-                            prev_state = None
-                            try:
-                                prev_state = mm_policy.get_states(env_id_start)
-                            except Exception:
-                                prev_state = None
-
-                            res = policy(td, state=prev_state) if prev_state is not None else policy(td)
-                            if isinstance(res, tuple):
-                                td, new_state = res
-                                try:
-                                    mm_policy.set_states(new_state, env_id_start)
-                                except Exception:
-                                    pass
-                            else:
-                                td = res
+                            prev_state = mm_policy.get_states(env_id_start)
+                            res, new_state = policy(td, state=prev_state)
+                            mm_policy.set_states(new_state, env_id_start)
+                            td = res
 
                         # Store experience
                         experience.store(
