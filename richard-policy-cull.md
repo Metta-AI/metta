@@ -5,10 +5,18 @@ This document provides a detailed audit of all changes made on the `richard-poli
 ## Overview of Changes
 
 The primary goal was to simplify the checkpoint system by:
-1. Removing the complex PolicyRecord/PolicyStore abstraction
+1. Removing the complex PolicyRecord/PolicyStore abstraction (CONFIRMED: deleted files)
 2. Moving to filename-embedded metadata with the format: `{run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt`
 3. Making everything work directly with URIs
 4. Reducing code complexity by ~40-50%
+
+**VERIFIED DELETIONS:**
+- `agent/src/metta/agent/policy_record.py` (251 lines removed)
+- `agent/src/metta/agent/policy_store.py` (526 lines removed)
+- `agent/src/metta/agent/policy_metadata.py` (98 lines removed)
+- `agent/src/metta/agent/policy_cache.py` (86 lines removed)
+- `agent/src/metta/agent/mocks/mock_policy_record.py` (76 lines removed)
+- `metta/rl/trainer_checkpoint.py` (88 lines removed)
 
 ---
 
@@ -16,7 +24,7 @@ The primary goal was to simplify the checkpoint system by:
 
 ### 1. `/metta/rl/checkpoint_manager.py`
 
-**Overall Change**: Complete rewrite from 313 lines to ~206 lines. Removed PolicyRecord/PolicyStore dependencies, simplified to basic torch.save/load with filename metadata.
+**Overall Change**: Complete rewrite from 313 lines to 204 lines (VERIFIED). Removed PolicyRecord/PolicyStore dependencies, simplified to basic torch.save/load with filename metadata.
 
 #### DELETED Functions/Classes:
 - **Entire old CheckpointManager class** (lines 30-313 in main)
@@ -27,20 +35,20 @@ The primary goal was to simplify the checkpoint system by:
   - `cleanup_old_policies()` integration
 
 #### ADDED Functions:
-- **`parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]`** (lines 35-55)
+- **`parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]`** (VERIFIED: lines 33-50)
   - Parses metadata from filename format
   - Returns: (run_name, epoch, agent_step, total_time, score)
   - Score stored as int×10000 to avoid decimal in filename
 
-- **`get_checkpoint_uri_from_dir(checkpoint_dir: str) -> str`** (lines 58-67)
+- **`get_checkpoint_uri_from_dir(checkpoint_dir: str) -> str`** (VERIFIED: lines 53-62)
   - Simple function to get latest checkpoint URI from directory
   - Raises FileNotFoundError if no checkpoints found
 
 #### MODIFIED Functions:
-- **`key_and_version(uri: str) -> tuple[str, int]`** (lines 13-32)
+- **`key_and_version(uri: str) -> tuple[str, int]`** (VERIFIED: lines 13-29)
   - BEFORE: Complex branching for dirs, non-.pt files, various edge cases
   - AFTER: Simplified to handle only .pt files and basic directory/wandb URIs
-  - Reduced from ~20 lines to ~12 lines
+  - Now uses parse_checkpoint_filename for .pt files
 
 #### NEW CheckpointManager Class (lines 70-206):
 Much simpler implementation:
@@ -66,23 +74,25 @@ Much simpler implementation:
 
 ### 2. `/metta/rl/policy_management.py`
 
-**Overall Change**: Simplified from dependency on CheckpointManager to direct file operations.
+**Overall Change**: Simplified from 102 lines to 66 lines (VERIFIED). Removed PolicyRecord/PolicyStore dependencies.
 
-#### DELETED Imports:
-- `from metta.rl.checkpoint_manager import CheckpointManager` (no longer needed)
+#### DELETED Functions:
+- **`initialize_policy_for_environment()`** - complex policy initialization with feature mapping
+- **`cleanup_old_policies()`** - moved elsewhere
+- **`validate_policy_environment_match()`** - complex validation logic
 
 #### MODIFIED Functions:
 
-- **`resolve_policy(uri: str, device: str = "cpu")`** (lines 22-38)
+- **`resolve_policy(uri: str, device: str = "cpu")`** (VERIFIED: lines 21-37)
   - BEFORE: Complex branching for file/directory handling with multiple checks
   - AFTER: Simplified to handle common cases, lets torch.load raise if file not found
-  - Now raises exceptions instead of returning None
-  - Reduced error handling complexity
+  - Now uses `get_checkpoint_uri_from_dir` for directory URIs
+  - Delegates to `load_policy_from_wandb_uri` for wandb:// URIs
 
-- **`discover_policy_uris(base_uri: str, ...)`** (lines 41-67)
+- **`discover_policy_uris(base_uri: str, ...)`** (VERIFIED: lines 40-66)
   - BEFORE: Created CheckpointManager instance just to list files
   - AFTER: Direct filesystem operations with glob
-  - Added inline parse_checkpoint_filename import
+  - Imports parse_checkpoint_filename from checkpoint_manager
   - Updated metric_idx to include score: `{"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}`
   - No longer creates unnecessary objects
 
@@ -96,25 +106,28 @@ Much simpler implementation:
 
 ### 3. `/metta/sim/simulation.py`
 
-**Overall Change**: Updated to work with new checkpoint system, removed PolicyRecord dependencies.
+**Overall Change**: Updated to work with new checkpoint system, removed PolicyRecord dependencies (VERIFIED).
 
-#### MODIFIED Methods:
+#### MODIFIED Constructor and Methods:
 
-- **`_load_policy_from_uri(policy_uri: str)`** (lines 171-186)
-  - Now uses CheckpointManager for directory-based URIs
-  - Simplified error handling - returns MockAgent for non-file URIs
+- **`__init__`** signature changed:
+  - BEFORE: Takes `policy_pr: PolicyRecord` and `policy_store: PolicyStore`
+  - AFTER: Takes `policy: PolicyAgent`, `run_name: str`, and `policy_uri: str`
 
-- **`create()` classmethod** (lines 189-221)
+- **`_load_policy_from_uri(policy_uri: str)`** (NEW static method)
+  - Loads policy from URI using CheckpointManager pattern
+  - Handles file:// URIs with directory format
+  - Returns MockAgent for unsupported URIs
+
+- **`create()` classmethod**
   - Simplified policy loading using `_load_policy_from_uri()`
-  - Removed PolicyRecord creation
+  - No longer creates PolicyRecord, works directly with PolicyAgent
 
-- **`_from_shards_and_context()`** (lines 414-438)
-  - Now works directly with URIs instead of PolicyRecords
-  - Simplified agent_map to just use URI strings
+- **`_from_shards_and_context()`**
+  - Changed agent_map from `Dict[int, PolicyRecord]` to `Dict[int, str]` (just URIs)
+  - Simplified to work directly with URI strings
 
-- **`generate_actions()`** (lines 249-325)
-  - Updated to use `.cpu()` for policy indices (line 290)
-  - Removed error handling that was using SimulationCompatibilityError (lines 295-301)
+- **Removed property**: `policy_record` property completely deleted
 
 #### Dead Code Identified:
 - Lines 295-301: Error handling code for NPC actions appears to be commented out or simplified
@@ -123,14 +136,20 @@ Much simpler implementation:
 
 ### 4. `/metta/eval/eval_service.py`
 
-**Overall Change**: Minor updates to work with simplified checkpoint system.
+**Overall Change**: Updated to work without PolicyRecord/PolicyStore (VERIFIED).
 
-#### MODIFIED Imports:
-- Removed `CheckpointManager` import (line 12)
+#### MODIFIED Signatures:
+- **`evaluate_policy()`**:
+  - BEFORE: Takes `policy_record: PolicyRecord`
+  - AFTER: Takes `checkpoint_uri: str`
+
+- **`extract_scores()`**:
+  - BEFORE: Takes `policy_record: PolicyRecord`
+  - AFTER: Takes `checkpoint_uri: str`
+
+#### DELETED Imports:
+- Removed `PolicyRecord` and `PolicyStore` imports
 - Still imports `key_and_version` from checkpoint_manager
-
-#### Changes:
-- No significant logic changes, just works with the new simplified checkpoint system
 
 ---
 
@@ -146,7 +165,7 @@ Much simpler implementation:
 
 ### 6. `/tests/rl/test_checkpoint_manager_comprehensive.py`
 
-**Overall Change**: Extensive updates to work with new checkpoint format and API.
+**Overall Change**: NEW FILE (333 lines). Comprehensive tests for new checkpoint system (VERIFIED).
 
 #### MODIFIED Test Methods:
 
@@ -184,7 +203,7 @@ Much simpler implementation:
 
 ### 7. `/tests/rl/test_checkpoint_manager_caching.py`
 
-**Overall Change**: Updated to work with new save_agent signature.
+**Overall Change**: NEW FILE (actually, this is a new test file for caching functionality, VERIFIED).
 
 #### MODIFIED Methods:
 
@@ -227,6 +246,30 @@ Much simpler implementation:
 
 ---
 
+## Additional Changes Not in Original Analysis
+
+### DELETED Test Files:
+- `agent/tests/test_policy_store.py` (208 lines)
+- `agent/tests/test_policy_cache.py` (199 lines)
+- `agent/tests/test_legacy_adapter.py` (199 lines)
+- `agent/tests/test_metta_agent_integration.py` (36 lines)
+
+### Modified Agent Files:
+- `agent/src/metta/agent/metta_agent.py` - removed PolicyRecord dependencies
+- `agent/src/metta/agent/policy_interface.py` - simplified interface
+- Multiple pytorch agent implementations updated (fast.py, latent_attn_*.py)
+
+### Trainer Changes:
+- `metta/rl/trainer.py` - updated to work without PolicyRecord/PolicyStore
+- `metta/rl/kickstarter.py` - simplified initialization
+- `metta/rl/evaluate.py` - works with URIs instead of PolicyRecords
+- `metta/rl/wandb.py` - updated wandb integration
+
+### Other Notable Changes:
+- Many `.claude/agents/*.md` files added/removed (agent system reorganization)
+- Updates to various config files and documentation
+- Extensive updates to mettagrid action system (move.hpp, orientation.hpp, etc.)
+
 ## Summary of Key Patterns
 
 ### Added Patterns:
@@ -264,10 +307,17 @@ Much simpler implementation:
 
 ## Metrics
 
-### Lines of Code Changes:
-- **checkpoint_manager.py**: 313 → 206 lines (-107 lines, -34%)
-- **policy_management.py**: ~100 → ~67 lines (-33 lines, -33%)
-- **Overall reduction**: ~200+ lines removed from checkpoint-related code
+### Lines of Code Changes (VERIFIED):
+- **checkpoint_manager.py**: 313 → 204 lines (-109 lines, -35%)
+- **policy_management.py**: 102 → 66 lines (-36 lines, -35%)
+- **DELETED FILES TOTAL**: 1,125 lines removed
+  - policy_record.py: 251 lines
+  - policy_store.py: 526 lines
+  - policy_metadata.py: 98 lines
+  - policy_cache.py: 86 lines
+  - mock_policy_record.py: 76 lines
+  - trainer_checkpoint.py: 88 lines
+- **Overall reduction**: ~1,270+ lines removed from checkpoint-related code
 
 ### Complexity Reduction:
 - **Cyclomatic complexity**: Significantly reduced due to fewer branches
@@ -307,28 +357,32 @@ Much simpler implementation:
 
 ---
 
-## Final Cleanup Summary (Post-Audit)
+## Correctness Assessment
 
-After the initial audit, the following additional improvements were made:
+### ✅ VERIFIED CORRECT:
+1. **File deletions**: All PolicyRecord/PolicyStore related files confirmed deleted
+2. **Line count reductions**: Actual reductions match or exceed documented amounts
+3. **Filename format**: New checkpoint format with embedded metadata confirmed
+4. **Function changes**: Key function modifications verified in diff
 
-1. **Combined checkpoint selection functions**: `find_best_checkpoint()` is now a simple convenience wrapper around `select_checkpoints()`, eliminating duplicate logic.
+### ⚠️ CORRECTIONS MADE:
+1. **Test files**: test_checkpoint_manager_comprehensive.py and test_checkpoint_manager_caching.py are NEW files, not modifications
+2. **Line counts**: Actual total reduction is ~1,270 lines (not just ~200)
+3. **Additional deletions**: Multiple test files and supporting code not mentioned in original
 
-2. **Cleaned up docstrings**: 
-   - Removed blank lines in multi-line docstrings
-   - Removed Args/Returns sections in favor of concise descriptions
-   - Kept docstrings focused and minimal
-
-3. **Dead code removal**: All identified dead code has been removed or was already cleaned up.
-
-4. **Function consolidation**: Reduced API surface area while maintaining all functionality.
+### 🔍 AREAS OF CONCERN:
+1. **Backward compatibility**: No migration path for old checkpoints
+2. **Score precision**: 4 decimal places may be limiting
+3. **Missing tests**: Some edge cases may not be covered
 
 ## Conclusion
 
 The richard-policy-cull branch successfully achieves its goal of simplifying the checkpoint system while adding score tracking capability. The code is significantly cleaner, more maintainable, and easier to understand. The removal of PolicyRecord/PolicyStore abstractions and the move to filename-embedded metadata represents a major architectural simplification that should make the system more robust and easier to extend.
 
-### Final Statistics:
-- **Total code reduction**: ~40-50% in checkpoint-related files
-- **API simplification**: From ~20 methods to ~10 methods  
-- **Dependency reduction**: Removed 5+ class dependencies
+### Final Statistics (VERIFIED):
+- **Total code reduction**: 1,270+ lines removed (~50% reduction)
+- **Files deleted**: 6 core files + 4 test files  
+- **API simplification**: From ~20 methods to ~10 methods
+- **Dependency reduction**: Removed PolicyRecord, PolicyStore, PolicyMetadata, PolicyCache classes
 - **New capability**: Score tracking in filenames (as int×10000)
-- **All tests passing**: 8/8 checkpoint manager tests pass
+- **Test coverage**: New comprehensive test files added
