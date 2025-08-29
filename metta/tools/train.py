@@ -61,7 +61,7 @@ class TrainTool(Tool):
 
         # Set policy_uri if not set
         if not self.policy_uri:
-            self.policy_uri = f"file://{self.run_dir}/checkpoints"
+            self.policy_uri = CheckpointManager.normalize_uri(f"{self.run_dir}/checkpoints")
 
         # Set up checkpoint and replay directories
         if not self.trainer.checkpoint.checkpoint_dir:
