@@ -121,8 +121,7 @@ class CheckpointManagerWithCache:
         """Save agent (delegated to checkpoint manager)."""
         metadata = {
             "agent_step": agent_step or epoch * 1000,
-            "total_time": total_time or epoch * 30,
-            "score": 0  # Default score
+            "total_time": total_time or epoch * 30
         }
         return self.checkpoint_manager.save_agent(agent, epoch, metadata)
 
@@ -384,7 +383,7 @@ class TestCheckpointManagerWithoutCaching:
 
         # Save several checkpoints
         for epoch in range(1, 6):
-            checkpoint_manager.save_agent(mock_agent, epoch, {"agent_step": epoch * 1000, "total_time": epoch * 30, "score": 0})
+            checkpoint_manager.save_agent(mock_agent, epoch, {"agent_step": epoch * 1000, "total_time": epoch * 30})
 
         # Test loading different checkpoints
         load_times = []
@@ -409,7 +408,7 @@ class TestCheckpointManagerWithoutCaching:
 
         # Save multiple checkpoints
         for epoch in range(1, 11):
-            checkpoint_manager.save_agent(mock_agent, epoch, {"agent_step": epoch * 1000, "total_time": epoch * 30, "score": 0})
+            checkpoint_manager.save_agent(mock_agent, epoch, {"agent_step": epoch * 1000, "total_time": epoch * 30})
 
         # Loading different checkpoints doesn't accumulate memory
         # (unlike a cache that would keep multiple agents in memory)

@@ -46,7 +46,6 @@ class TestCheckpointManagerBasicOperations:
         metadata = {
             "agent_step": 5280,
             "total_time": 120.0,
-            "score": 0.95,
         }
 
         # Save the agent

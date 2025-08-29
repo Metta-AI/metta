@@ -109,9 +109,9 @@ class CheckpointManager:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         agent_step = metadata.get("agent_step", 0)
-        score = metadata.get("score", 0)
+        total_time = metadata.get("total_time", 0)
 
-        filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(score)}.pt"
+        filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(total_time)}.pt"
         torch.save(agent, self.checkpoint_dir / filename)
         logger.info(f"Saved agent: {filename}")
 

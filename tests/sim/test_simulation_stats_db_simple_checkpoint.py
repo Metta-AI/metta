@@ -81,7 +81,7 @@ class TestHelpersSimpleCheckpoint:
 
         # Get the actual checkpoint path using the new dot-separated format
         agent_step = metadata.get("agent_step", epoch * 1000)
-        total_time = int(metadata.get("train_time", epoch * 10.0))
+        total_time = int(metadata.get("total_time", metadata.get("train_time", epoch * 10.0)))
         filename = f"{run_name}.e{epoch}.s{agent_step}.t{total_time}.pt"
         checkpoint_path = checkpoint_manager.checkpoint_dir / filename
 
