@@ -44,7 +44,6 @@ class WandbStore:
 
             # Mark as initialized but not started
             run.summary["initialized"] = True
-            # run.summary["has_started_training"] = False
 
             # Finish immediately - the actual training process will resume this run
             wandb.finish()
@@ -141,12 +140,12 @@ class WandbStore:
                 has_completed_training = False
 
             # Check evaluation status
-            if "has_started_eval" in summary and summary["has_started_eval"] is True:
+            if "has_started_eval" in summary and summary["has_started_eval"] is True:  # type: ignore
                 has_started_eval = True
 
             # Check for evaluator metrics (ONLY keys starting with "evaluator/")
             # This avoids confusion with in-training eval metrics
-            has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())
+            has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
 
             if has_evaluator_metrics:
                 has_started_eval = True
@@ -155,7 +154,7 @@ class WandbStore:
         # Extract observation if present
         observation = None
         if "observation" in summary:
-            obs_data = summary["observation"]
+            obs_data = summary["observation"]  # type: ignore
             if isinstance(obs_data, dict) and "score" in obs_data and "cost" in obs_data:
                 observation = Observation(
                     score=float(obs_data["score"]),  # type: ignore

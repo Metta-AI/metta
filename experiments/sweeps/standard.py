@@ -113,7 +113,6 @@ def ppo(
 
 
 def quick_test(
-    sweep_name: Optional[str] = None,
     recipe: str = "experiments.recipes.arena",
 ) -> SweepOrchestratorTool:
     """Quick test sweep with full PPO config but minimal trials for testing.
@@ -123,8 +122,7 @@ def quick_test(
     that the orchestrator infrastructure is working.
     
     Args:
-        sweep_name: Name for this sweep (will be auto-generated if not provided)
-        recipe: Module path to the recipe
+        recipe: Module path to the recipe (sweep_name comes from args)
     
     Returns:
         Configured SweepOrchestratorTool for quick testing
@@ -188,7 +186,7 @@ def quick_test(
     )
     
     tool = SweepOrchestratorTool(
-        sweep_name=sweep_name,
+        # sweep_name is not set here - it will come from args
         protein_config=protein_config,
         max_trials=5,  # Only 5 trials for quick testing
         recipe_module=recipe,

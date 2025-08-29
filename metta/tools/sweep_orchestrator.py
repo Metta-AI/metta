@@ -10,7 +10,7 @@ from metta.common.util.logging_helpers import init_file_logging, init_logging
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ProteinConfig, ParameterConfig
-from metta.sweep.scheduler.sequential import SequentialScheduler, SequentialSchedulerConfig
+from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
 from metta.sweep.store.wandb import WandbStore
 from metta.sweep.sweep_orchestrator import (
     LocalDispatcher,
@@ -132,14 +132,14 @@ class SweepOrchestratorTool(Tool):
         optimizer = ProteinOptimizer(self.protein_config)
         
         # Create scheduler with configuration
-        scheduler_config = SequentialSchedulerConfig(
+        scheduler_config = OptimizingSchedulerConfig(
             max_trials=self.max_trials,
             recipe_module=self.recipe_module,
             train_entrypoint=self.train_entrypoint,
             eval_entrypoint=self.eval_entrypoint,
             train_overrides=self.train_overrides,  # Pass train overrides to scheduler
         )
-        scheduler = SequentialScheduler(scheduler_config, optimizer)
+        scheduler = OptimizingScheduler(scheduler_config, optimizer)
         
         # Save configuration (similar to TrainTool saving config.json)
         config_path = os.path.join(self.sweep_dir, "sweep_config.json")
