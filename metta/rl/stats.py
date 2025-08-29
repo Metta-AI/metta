@@ -168,7 +168,7 @@ def process_training_stats(
 
     # Add derived trader metrics (counts and simple rates) if present
     try:
-        _add_trader_metrics(environment_stats, mean_stats)
+        _add_trader_metrics(environment_stats, mean_stats, raw_stats)
     except Exception:
         # Keep logging resilient; derived metrics are optional
         pass
@@ -191,7 +191,11 @@ def process_training_stats(
     }
 
 
-def _add_trader_metrics(environment_stats: dict[str, Any], mean_stats: dict[str, Any]) -> None:
+def _add_trader_metrics(
+    environment_stats: dict[str, Any],
+    mean_stats: dict[str, Any],
+    raw_stats: dict[str, Any],
+) -> None:
     """Add trader-related derived metrics into environment_stats.
 
     Reads underlying per-agent counts from mean_stats (keys like
@@ -237,6 +241,30 @@ def _add_trader_metrics(environment_stats: dict[str, Any], mean_stats: dict[str,
     # Downstream reward proxy (hearts)
     environment_stats["env_agent/trader/hearts_gained"] = hearts_gained
     environment_stats["env_agent/trader/hearts_per_trade"] = hearts_gained / denom_with_trader
+
+    # More stable, epoch-aggregated ratios (reduce spikiness)
+    def _sum(name: str) -> float:
+        v = raw_stats.get(name, [])
+        try:
+            return float(sum(v))
+        except TypeError:
+            return 0.0
+
+    ore_total = _sum("agent/ore_red.traded_away")
+    batt_total = _sum("agent/battery_red.received")
+    trade_total = _sum("agent/action.transfer.with_trader")
+    success_total = _sum("agent/action.transfer.success")
+    failed_total = _sum("agent/action.transfer.failed")
+
+    if batt_total > 0:
+        environment_stats["env_agent/trader/ore_per_battery_total"] = ore_total / batt_total
+        environment_stats["env_agent/trader/battery_per_ore_total"] = batt_total / ore_total if ore_total > 0 else 0.0
+    if (success_total + failed_total) > 0:
+        environment_stats["env_agent/trader/success_rate_total"] = success_total / (success_total + failed_total)
+    if success_total > 0:
+        environment_stats["env_agent/trader/usage_rate_total"] = trade_total / success_total
+    if trade_total > 0:
+        environment_stats["env_agent/trader/hearts_per_trade_total"] = _sum("agent/heart.gained") / trade_total
 
 
 def compute_timing_stats(
