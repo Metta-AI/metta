@@ -52,11 +52,12 @@ def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> Optional[str]:
     if not checkpoint_path.exists():
         return None
 
-    run_name = checkpoint_path.parent.name if checkpoint_path.parent else "unknown"
-    checkpoints = list(checkpoint_path.glob(f"{run_name}.e*.s*.t*.pt"))
+    # Find all checkpoint files (any run name)
+    checkpoints = list(checkpoint_path.glob("*.e*.s*.t*.pt"))
     if not checkpoints:
         return None
 
+    # Return the latest by epoch
     latest_file = max(checkpoints, key=lambda p: parse_checkpoint_filename(p.name)[1])
     return f"file://{latest_file}"
 
@@ -133,14 +134,11 @@ class CheckpointManager:
         """Get URI for checkpoint at given epoch (or latest if None)."""
         if epoch is None:
             latest_file = self.find_best_checkpoint("epoch")
-            if not latest_file:
-                return None
-        else:
-            agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
-            if not agent_files:
-                return None
-            latest_file = agent_files[0]
-        return f"file://{latest_file}"
+            return f"file://{latest_file}" if latest_file else None
+        
+        # Find specific epoch
+        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
+        return f"file://{agent_files[0]}" if agent_files else None
 
     def get_latest_epoch(self) -> Optional[int]:
         """Get the latest epoch number."""
@@ -149,29 +147,23 @@ class CheckpointManager:
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
         """Find checkpoint with highest value for the given metric."""
-        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
-        if not checkpoint_files:
-            return None
-        metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3}.get(metric, 1)
-        return max(checkpoint_files, key=lambda f: parse_checkpoint_filename(f.name)[metric_idx])
+        checkpoints = self.select_checkpoints(strategy="latest", count=1, metric=metric)
+        return checkpoints[0] if checkpoints else None
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
-        """Select checkpoints using different strategies."""
+        """Select checkpoints based on strategy. Simplified since all metadata is in filenames."""
         checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
         if not checkpoint_files:
             return []
 
-        if strategy == "latest":
-            checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[1], reverse=True)
-        elif strategy in ["best_score", "top"]:
-            metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3}.get(metric, 1)
-            checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
-        elif strategy == "all":
-            count = len(checkpoint_files)
-        else:
-            raise ValueError(f"Unknown selection strategy: {strategy}")
-
-        return checkpoint_files[:count]
+        # Simple metric index mapping
+        metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3}.get(metric, 1)
+        
+        # Sort by the selected metric (descending)
+        checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
+        
+        # Return all files if strategy is "all", otherwise return count
+        return checkpoint_files if strategy == "all" else checkpoint_files[:count]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         """Clean up old checkpoints, keeping only the most recent ones."""
