@@ -11,7 +11,7 @@ import boto3
 
 # from mcp.server import FastMCP
 from fastmcp import Context, FastMCP
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic.types import Json
 from wandb.apis.public.api import Api as WandbApi
 
@@ -42,13 +42,9 @@ from metta.app_backend.routes.score_routes import PolicyScoresData
 from metta.app_backend.routes.scorecard_routes import PoliciesResponse, ScorecardData
 from metta.app_backend.routes.sql_routes import (
     AIQueryResponse,
+    SQLQueryResponse,
     TableInfo,
-)
-from metta.app_backend.routes.sql_routes import (
-    SQLQueryResponse as BackendSQLQueryResponse,
-)
-from metta.app_backend.routes.sql_routes import (
-    TableSchema as BackendTableSchema,
+    TableSchema,
 )
 from metta.app_backend.routes.stats_routes import (
     EpisodeResponse,
@@ -64,30 +60,10 @@ from metta.app_backend.routes.sweep_routes import (
     SweepInfo,
 )
 from metta.app_backend.routes.token_routes import (
-    TokenListResponse as BackendTokenListResponse,
-)
-from metta.app_backend.routes.token_routes import (
+    TokenListResponse,
     TokenResponse,
 )
-from metta.mcp_server.training_utils import (
-    ReplaySummaryError,
-    ReplaySummarySuccess,
-    TrainingStatus,
-    TrainingUtilsError,
-    generate_replay_summary_with_llm,
-    list_training_runs,
-)
-from metta.mcp_server.training_utils import (
-    get_checkpoint_info as get_checkpoint_info_func,
-)
-from metta.mcp_server.training_utils import (
-    get_training_status as get_training_status_func,
-)
 
-# Import models from organized modules
-from .base_models import (
-    UserInfo,
-)
 from .cloud_models import (
     S3ObjectList,
     S3ObjectMetadata,
@@ -104,6 +80,28 @@ from .ml_models import (
     PolicyIdMapping,
     ScorecardDataWithMetadata,
 )
+from .training_utils import (
+    ReplaySummaryError,
+    ReplaySummarySuccess,
+    TrainingStatus,
+    TrainingUtilsError,
+    generate_replay_summary_with_llm,
+    list_training_runs,
+)
+from .training_utils import (
+    get_checkpoint_info as get_checkpoint_info_func,
+)
+from .training_utils import (
+    get_training_status as get_training_status_func,
+)
+
+
+class UserInfo(BaseModel):
+    """Current user information."""
+
+    email: str = Field(description="User's email address")
+    authenticated: bool = Field(description="Whether user is properly authenticated")
+
 
 backend_url = os.environ.get("METTA_MCP_BACKEND_URL", "http://localhost:8000")
 if backend_url != "http://localhost:8000":
@@ -299,7 +297,7 @@ async def get_eval_names_for_training_runs(
         "idempotentHint": True,
     },
 )
-async def run_sql_query(sql: str, dev_mode: bool = False) -> BackendSQLQueryResponse:
+async def run_sql_query(sql: str, dev_mode: bool = False) -> SQLQueryResponse:
     """Execute a SQL query against the scorecard database API.
 
     Args:
@@ -307,7 +305,7 @@ async def run_sql_query(sql: str, dev_mode: bool = False) -> BackendSQLQueryResp
         dev_mode (bool): When True, use the default/local backend URL; otherwise use production.
 
     Returns:
-        BackendSQLQueryResponse: Backend response containing query execution results
+        SQLQueryResponse: Backend response containing query execution results
             with rows, columns, row count, and execution time information.
     """
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
@@ -348,7 +346,7 @@ async def list_sql_tables(dev_mode: str = "false") -> list[TableInfo]:
         "idempotentHint": True,  # Table schema is stable
     },
 )
-async def get_sql_table_schema(table_name: str, dev_mode: str = "false") -> BackendTableSchema:
+async def get_sql_table_schema(table_name: str, dev_mode: str = "false") -> TableSchema:
     """Get the schema for a specific table.
 
     Args:
@@ -356,7 +354,7 @@ async def get_sql_table_schema(table_name: str, dev_mode: str = "false") -> Back
         dev_mode (bool): When True, use the default/local backend URL; otherwise use production.
 
     Returns:
-        BackendTableSchema: Backend response containing table schema information
+        TableSchema: Backend response containing table schema information
             with table name, column definitions with types and constraints, and table-level constraints.
     """
     async with ScorecardClient(backend_url=_get_backend_url(_parse_dev_mode(dev_mode))) as client:
@@ -1646,7 +1644,7 @@ async def get_next_run_id(sweep_name: str, dev_mode: bool = False) -> RunIdRespo
     },
     meta={"version": "1.0", "team": "auth"},
 )
-async def list_tokens(dev_mode: bool = False) -> BackendTokenListResponse:
+async def list_tokens(dev_mode: bool = False) -> TokenListResponse:
     """List all machine tokens for the authenticated user."""
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
         return await client.list_tokens()
