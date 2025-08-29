@@ -9,11 +9,9 @@ import pytest
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.checkpoint_manager import CheckpointManager
 
-# Type alias for the test database fixture
 TestEvalStatsDb = tuple[EvalStatsDB, str, str]  # (db, policy_key, policy_version)
 
 
-# -------- Test Database Creation ----------------------------------------- #
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     db = EvalStatsDB(db_path)
 
@@ -41,10 +39,7 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
         episode_id = f"episode_{i}"
         db._insert_episode(episode_id, sim_id, step_count=100)
 
-        # Insert agent policy
         db._insert_agent_policy(episode_id=episode_id, agent_id=0, policy_key=pk, policy_version=pv)
-
-        # Insert reward for all episodes (this is always recorded)
         db._insert_agent_metric(episode_id, agent_id=0, metric="reward", value=2.0)
 
         # ONLY insert hearts_collected for episodes 0 and 1 (simulates missing data)
@@ -63,11 +58,9 @@ def test_db():
         db.close()
 
 
-# -------- Tests ------------------------------------------------------------ #
 def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.sc0.pt"
-    # Use CheckpointManager to get metadata and normalize URI
     policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
     metadata = CheckpointManager.get_policy_metadata(policy_uri)
     pk, pv = metadata["run_name"], metadata["epoch"]
@@ -83,11 +76,8 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     recorded = db.count_metric_agents(pk, pv, "hearts_collected")
     assert recorded == 2
 
-    # reward recorded for every sample → mean unaffected
     avg_reward = db.get_average_metric("reward", policy_uri)
     assert avg_reward is not None
-
-    # filter condition
     avg_filtered = db.get_average_metric("hearts_collected", policy_uri, "sim_env = 'test_env'")
     assert avg_filtered is not None
     assert 1.15 <= avg_filtered <= 1.25
@@ -133,7 +123,6 @@ def test_no_metrics(test_db: TestEvalStatsDb) -> None:
 
     assert db.get_average_metric("nonexistent", policy_uri) == 0.0
 
-    # Test with invalid URI
     invalid_uri = CheckpointManager.normalize_uri("/tmp/none.e99.s0.t0.sc0.pt")
     assert db.get_average_metric("hearts_collected", invalid_uri) is None
 
