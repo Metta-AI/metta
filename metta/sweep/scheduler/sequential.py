@@ -32,6 +32,7 @@ class SequentialSchedulerConfig:
     recipe_module: str = "experiments.recipes.arena"  # e.g., "experiments.recipes.arena"
     train_entrypoint: str = "train_shaped"  # Function name for training
     eval_entrypoint: str = "evaluate"  # Function name for evaluation
+    train_overrides: dict[str, Any] | None = None  # Additional overrides for training jobs
     eval_args: list[str] | None = None  # Additional args for evaluation
     eval_overrides: dict[str, Any] | None = None  # Additional overrides for evaluation
 
@@ -70,6 +71,7 @@ class SequentialScheduler:
             run_id=f"{sweep_id}_trial_{self._trial_count:04d}",
             cmd=f"{self.config.recipe_module}.{self.config.train_entrypoint}",
             type=JobTypes.LAUNCH_TRAINING,
+            overrides=self.config.train_overrides or {},
         )
 
         logger.info(f"Initialized sequential scheduler with first job: {job.run_id}")
@@ -127,6 +129,7 @@ class SequentialScheduler:
             run_id=f"{sweep_metadata.sweep_id}_trial_{self._trial_count:04d}",
             cmd=f"{self.config.recipe_module}.{self.config.train_entrypoint}",
             type=JobTypes.LAUNCH_TRAINING,
+            overrides=self.config.train_overrides or {},
         )
 
         logger.info(f"Scheduling job {self._trial_count}/{self.config.max_trials}: {job.run_id}")

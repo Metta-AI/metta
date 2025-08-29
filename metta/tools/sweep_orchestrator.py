@@ -3,7 +3,7 @@
 import logging
 import os
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from metta.common.config.tool import Tool
 from metta.common.util.logging_helpers import init_file_logging, init_logging
@@ -55,6 +55,9 @@ class SweepOrchestratorTool(Tool):
     max_parallel_jobs: int = 1
     monitoring_interval: int = 5
     sweep_server_uri: str = "https://api.observatory.softmax-research.net"
+    
+    # Override configurations
+    train_overrides: dict[str, Any] = {}  # Overrides to apply to all training jobs
     
     # Infrastructure configuration
     wandb: WandbConfig = WandbConfig.Unconfigured()
@@ -134,6 +137,7 @@ class SweepOrchestratorTool(Tool):
             recipe_module=self.recipe_module,
             train_entrypoint=self.train_entrypoint,
             eval_entrypoint=self.eval_entrypoint,
+            train_overrides=self.train_overrides,  # Pass train overrides to scheduler
         )
         scheduler = SequentialScheduler(scheduler_config, optimizer)
         

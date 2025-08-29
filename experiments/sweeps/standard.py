@@ -187,7 +187,7 @@ def quick_test(
         ),
     )
     
-    return SweepOrchestratorTool(
+    tool = SweepOrchestratorTool(
         sweep_name=sweep_name,
         protein_config=protein_config,
         max_trials=5,  # Only 5 trials for quick testing
@@ -196,4 +196,9 @@ def quick_test(
         eval_entrypoint="evaluate",
         max_parallel_jobs=1,
         monitoring_interval=5,
+        train_overrides={
+            "trainer.total_timesteps": "10000",  # Quick 10k timesteps for testing
+        }
     )
+    
+    return tool
