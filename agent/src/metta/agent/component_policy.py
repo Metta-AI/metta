@@ -110,7 +110,7 @@ class ComponentPolicy(nn.Module, ABC):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
+    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> tuple[TensorDict, None]:
         """Forward pass."""
         # Handle BPTT reshaping
         if td.batch_dims > 1:
