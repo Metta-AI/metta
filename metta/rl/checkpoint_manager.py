@@ -165,19 +165,16 @@ class CheckpointManager:
         if uri.startswith("file://"):
             path = Path(uri[7:])
             if path.is_file() and is_valid_checkpoint_filename(path.name):
-                try:
-                    run_name, epoch, agent_step, total_time, score = parse_checkpoint_filename(path.name)
-                    metadata.update(
-                        {
-                            "run_name": run_name,
-                            "epoch": epoch,
-                            "agent_step": agent_step,
-                            "total_time": total_time,
-                            "score": score,
-                        }
-                    )
-                except ValueError:
-                    pass
+                run_name, epoch, agent_step, total_time, score = parse_checkpoint_filename(path.name)
+                metadata.update(
+                    {
+                        "run_name": run_name,
+                        "epoch": epoch,
+                        "agent_step": agent_step,
+                        "total_time": total_time,
+                        "score": score,
+                    }
+                )
         return metadata
 
     def _find_checkpoint_files(self, epoch: Optional[int] = None) -> List[Path]:
