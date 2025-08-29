@@ -8,11 +8,8 @@ from metta.rl.kickstarter import Kickstarter, KickstartTeacherConfig
 
 
 class TestKickstarter:
-    """Test suite for the Kickstarter class."""
-
     @pytest.fixture
     def mock_config(self):
-        """Create a mock configuration for testing."""
         cfg = MagicMock()
         cfg.additional_teachers = None
         cfg.anneal_ratio = 0.2
@@ -25,12 +22,10 @@ class TestKickstarter:
 
     @pytest.fixture
     def mock_policy_store(self):
-        """Create a mock policy store for testing."""
         return MagicMock()
 
     @pytest.fixture
     def mock_metta_grid_env(self):
-        """Create a mock MettaGridEnv for testing."""
         env = MagicMock()
         env.action_names = ["move", "attack"]
         env.max_action_args = [4, 2]
@@ -38,7 +33,6 @@ class TestKickstarter:
         return env
 
     def test_initialization_no_teachers(self, mock_config, mock_policy_store, mock_metta_grid_env):
-        """Test initialization when no teachers are provided."""
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
 
         assert kickstarter.enabled is False

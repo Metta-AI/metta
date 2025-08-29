@@ -267,7 +267,7 @@ class TestComprehensiveEnvironmentIntegration:
             print(f"Temp directory: {temp_dir}")
             print(f"Working directory: {Path.cwd()}")
 
-            # Use the new recipe system instead of old Hydra configs
+            # Use the recipe system
             cmd = [
                 "uv",
                 "run",

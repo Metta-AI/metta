@@ -13,8 +13,6 @@ _DUMMY_AGENT_MAP = {0: ("dummy_policy", 0)}
 
 
 class TestHelpers:
-    """Helper methods for simulation stats database tests."""
-
     @staticmethod
     def get_count(con: DuckDBPyConnection, query: str) -> int:
         result = con.execute(query).fetchone()
@@ -23,7 +21,6 @@ class TestHelpers:
 
     @staticmethod
     def create_worker_db(path: Path, sim_steps: int = 0, replay_url: str | None = None) -> str:
-        """Create a worker database with a single test episode."""
         path.parent.mkdir(parents=True, exist_ok=True)
         db = SimulationStatsDB(path)
 

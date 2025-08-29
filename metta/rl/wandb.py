@@ -45,7 +45,6 @@ def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> b
     return bool(state["cached_result"])
 
 
-# Metrics functions moved from metrics.py
 def setup_wandb_metrics(wandb_run: WandbRun) -> None:
     """Set up wandb metric definitions for consistent tracking across runs."""
     # Define base metrics
@@ -65,9 +64,6 @@ def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     num_params = sum(p.numel() for p in policy.parameters())
     if wandb_run.summary:
         wandb_run.summary["model/total_parameters"] = num_params
-
-
-# Policy Loading Functions (moved from wandb_policy_loader.py)
 
 
 def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:

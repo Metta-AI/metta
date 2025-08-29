@@ -108,7 +108,7 @@ class Experience:
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
-    def _reset_completed_episodes(self, env_id) -> None:  # av used to be not tensor
+    def _reset_completed_episodes(self, env_id) -> None:
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start
         self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments

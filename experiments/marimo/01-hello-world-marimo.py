@@ -143,7 +143,7 @@ def _():
     # Suppress Pydantic deprecation warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
 
-    # Policy implementations (replacing the deprecated tools/renderer.py)
+    # Policy implementations
     from typing import Protocol, List
 
     class RendererToolConfig(Config):

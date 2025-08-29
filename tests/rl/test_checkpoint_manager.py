@@ -18,40 +18,32 @@ from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_file
 
 @pytest.fixture
 def temp_run_dir():
-    """Create a temporary directory for checkpoint tests."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield tmpdir
 
 
 @pytest.fixture
 def checkpoint_manager(temp_run_dir):
-    """Create a CheckpointManager instance for testing."""
     return CheckpointManager(run_dir=temp_run_dir, run_name="test_run")
 
 
 @pytest.fixture
 def cached_checkpoint_manager(temp_run_dir):
-    """Create a CheckpointManager with caching enabled."""
     return CheckpointManager(run_dir=temp_run_dir, run_name="test_run", cache_size=3)
 
 
 @pytest.fixture
 def no_cache_checkpoint_manager(temp_run_dir):
-    """Create a CheckpointManager with caching disabled."""
     return CheckpointManager(run_dir=temp_run_dir, run_name="test_run", cache_size=0)
 
 
 @pytest.fixture
 def mock_agent():
-    """Create a mock agent for testing."""
     return MockAgent()
 
 
 class TestBasicSaveLoad:
-    """Test basic save/load operations."""
-
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent):
-        """Test basic save and load functionality with filename metadata."""
         # Create metadata dictionary
         metadata = {"agent_step": 5280, "total_time": 120.0, "score": 0.75}
 
@@ -84,7 +76,6 @@ class TestBasicSaveLoad:
         assert output["actions"].shape[0] == 1
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent):
-        """Test saving multiple epochs and selecting latest/best."""
         epochs_data = [
             (1, {"agent_step": 1000, "total_time": 30, "score": 0.5}),
             (5, {"agent_step": 5000, "total_time": 150, "score": 0.8}),
@@ -109,7 +100,6 @@ class TestBasicSaveLoad:
         assert "test_run.e10.s10000.t300.sc9000.pt" == best_score_checkpoints[0].name
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent):
-        """Test trainer state persistence."""
         # Save agent checkpoint
         checkpoint_manager.save_agent(mock_agent, epoch=5, metadata={"agent_step": 1000, "total_time": 60})
 
@@ -128,10 +118,7 @@ class TestBasicSaveLoad:
 
 
 class TestCaching:
-    """Test LRU caching functionality."""
-
     def test_cache_hit_on_repeated_load(self, cached_checkpoint_manager, mock_agent):
-        """Test that loading the same checkpoint twice uses cache."""
         # Save a checkpoint
         cached_checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100})
 
@@ -169,7 +156,6 @@ class TestCaching:
             assert mock_load.call_count == 5  # Still 5, used cache
 
     def test_cache_disabled(self, no_cache_checkpoint_manager, mock_agent):
-        """Test that caching can be disabled."""
         # Save checkpoint
         no_cache_checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100})
 
@@ -180,7 +166,6 @@ class TestCaching:
             assert mock_load.call_count == 2  # Loaded twice
 
     def test_cache_invalidation_on_save(self, cached_checkpoint_manager, mock_agent):
-        """Test that cache is invalidated when checkpoint is overwritten."""
         # Save and load to populate cache
         cached_checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100})
         cached_checkpoint_manager.load_agent(epoch=1)
@@ -195,10 +180,7 @@ class TestCaching:
 
 
 class TestCleanup:
-    """Test checkpoint cleanup functionality."""
-
     def test_cleanup_old_checkpoints(self, checkpoint_manager, mock_agent):
-        """Test cleanup functionality."""
         # Save 10 checkpoints
         for epoch in range(1, 11):
             checkpoint_manager.save_agent(
@@ -221,7 +203,6 @@ class TestCleanup:
         assert remaining_epochs == [6, 7, 8, 9, 10]
 
     def test_cleanup_with_trainer_state(self, checkpoint_manager, mock_agent):
-        """Test that cleanup removes both agent and trainer state files."""
         # Save checkpoint and trainer state
         checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 1000, "total_time": 60})
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
@@ -239,10 +220,7 @@ class TestCleanup:
 
 
 class TestUtilities:
-    """Test utility functions."""
-
     def test_parse_checkpoint_filename_valid(self):
-        """Test parsing valid checkpoint filenames."""
         filename = "my_run.e42.s12500.t1800.sc8750.pt"
         parsed = parse_checkpoint_filename(filename)
         assert parsed == ("my_run", 42, 12500, 1800, 0.8750)
@@ -257,7 +235,6 @@ class TestUtilities:
         assert parsed == ("run", 999, 999999, 86400, 0.9999)
 
     def test_parse_checkpoint_filename_invalid(self):
-        """Test parsing invalid checkpoint filenames."""
         invalid_filenames = [
             "invalid.pt",
             "run_e5_s1000_t300.pt",  # Wrong separators
@@ -271,7 +248,6 @@ class TestUtilities:
                 parse_checkpoint_filename(invalid_filename)
 
     def test_exists_functionality(self, checkpoint_manager, mock_agent):
-        """Test the exists() method."""
         # Should not exist initially
         assert not checkpoint_manager.exists()
 
@@ -282,7 +258,6 @@ class TestUtilities:
         assert checkpoint_manager.exists()
 
     def test_get_checkpoint_uri(self, checkpoint_manager, mock_agent):
-        """Test getting checkpoint URIs."""
         # Save checkpoints
         checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 1000, "total_time": 60})
         checkpoint_manager.save_agent(mock_agent, epoch=5, metadata={"agent_step": 5000, "total_time": 300})
@@ -299,10 +274,7 @@ class TestUtilities:
 
 
 class TestErrorHandling:
-    """Test error conditions and edge cases."""
-
     def test_load_from_empty_directory(self, checkpoint_manager):
-        """Test loading when no checkpoints exist."""
         # Should return None when no checkpoints exist
         result = checkpoint_manager.load_agent()
         assert result is None
@@ -315,7 +287,6 @@ class TestErrorHandling:
         assert checkpoints == []
 
     def test_invalid_run_name(self, temp_run_dir):
-        """Test that invalid run names are rejected."""
         invalid_names = ["", "name with spaces", "name/with/slash", "name*with*asterisk"]
 
         for invalid_name in invalid_names:
@@ -323,7 +294,6 @@ class TestErrorHandling:
                 CheckpointManager(run_dir=temp_run_dir, run_name=invalid_name)
 
     def test_missing_checkpoint_error(self, checkpoint_manager):
-        """Test error when trying to get URI for non-existent checkpoint."""
         with pytest.raises(FileNotFoundError):
             checkpoint_manager.get_checkpoint_uri(epoch=999)
 

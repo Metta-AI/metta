@@ -85,7 +85,7 @@ class LSTM(LayerBase):
 
         for name, param in net.named_parameters():
             if "bias" in name:
-                nn.init.constant_(param, 1)  # Joseph originally had this as 0
+                nn.init.constant_(param, 1)
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1)  # torch's default is uniform
 

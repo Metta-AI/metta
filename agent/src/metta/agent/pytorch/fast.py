@@ -221,7 +221,6 @@ class Policy(nn.Module):
         assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
 
         # Don't modify original tensor - ComponentPolicy doesn't do this
-        # token_observations[token_observations == 255] = 0  # REMOVED
 
         # Extract coordinates and attributes (matching ObsTokenToBoxShaper exactly)
         coords_byte = token_observations[..., 0].to(torch.uint8)
