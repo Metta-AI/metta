@@ -11,7 +11,7 @@ get_dd_api_key() {
         echo "$DD_API_KEY"
         return 0
     fi
-    
+
     # Try to get from AWS Secrets Manager
     if command -v aws &> /dev/null; then
         aws secretsmanager get-secret-value \
@@ -45,7 +45,7 @@ echo "[DATADOG] Installing Datadog Agent with Docker integration..."
 # Set installation environment variables
 export DD_API_KEY="$DD_API_KEY"
 export DD_SITE="${DD_SITE:-datadoghq.com}"
-export DD_INSTALL_ONLY="true"  # Don't start automatically, we'll configure first
+# Let the installer start the agent automatically after configuration
 
 # Install Datadog Agent
 DD_AGENT_MAJOR_VERSION=7 bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
@@ -72,8 +72,10 @@ instances:
       - ".*"
 EOF
 
-# Update main Datadog configuration
-sudo tee -a /etc/datadog-agent/datadog.yaml > /dev/null << EOF
+# Update main Datadog configuration (only if not already configured)
+if ! grep -q "container_collection_enabled" /etc/datadog-agent/datadog.yaml 2>/dev/null; then
+    echo "[DATADOG] Adding container monitoring configuration..."
+    sudo tee -a /etc/datadog-agent/datadog.yaml > /dev/null << EOF
 
 # Enable Docker check
 process_config:
@@ -90,7 +92,7 @@ logs_enabled: true
 logs_config:
   container_collect_all: true
   docker_container_use_file: false
-  
+
 # APM configuration for containers
 apm_config:
   enabled: true
@@ -106,31 +108,17 @@ tags:
   - skypilot_num_nodes:${SKYPILOT_NUM_NODES:-1}
   - git_ref:${METTA_GIT_REF:-unknown}
 EOF
+else
+    echo "[DATADOG] Container monitoring already configured in datadog.yaml"
+fi
 
 # Add datadog-agent user to docker group for socket access
 sudo usermod -a -G docker dd-agent 2>/dev/null || true
 
-# Start Datadog Agent - handle both systemd and init.d environments
-echo "[DATADOG] Starting Datadog Agent..."
-
-# Try to start the agent using available init system
-if command -v systemctl >/dev/null 2>&1 && pidof systemd >/dev/null 2>&1; then
-    # Use systemd if available and running
-    echo "[DATADOG] Using systemd to start agent..."
-    sudo systemctl enable datadog-agent 2>/dev/null || true
-    sudo systemctl start datadog-agent 2>/dev/null || true
-elif [ -x /etc/init.d/datadog-agent ]; then
-    # Use init.d script if available
-    echo "[DATADOG] Using init.d to start agent..."
-    sudo /etc/init.d/datadog-agent start 2>/dev/null || true
-else
-    # Try service command as fallback
-    echo "[DATADOG] Using service command to start agent..."
-    sudo service datadog-agent start 2>/dev/null || true
-fi
-
-# Wait for agent to start
-sleep 5
+# The installer script should have started the agent automatically
+# Just wait a moment for it to fully initialize
+echo "[DATADOG] Waiting for agent to initialize..."
+sleep 10
 
 # Check if agent is running using multiple methods
 AGENT_RUNNING=false
@@ -145,9 +133,18 @@ fi
 
 if [ "$AGENT_RUNNING" = true ]; then
     echo "[DATADOG] ✅ Datadog Agent installed and running successfully"
-    echo "[DATADOG] Docker integration configured - will monitor all containers"
+    echo "[DATADOG] Docker integration configured - monitoring all containers"
+    echo "[DATADOG] Metrics should appear in Datadog within 1-2 minutes"
 else
-    echo "[DATADOG] ✅ Datadog Agent installed successfully"
-    echo "[DATADOG] ⚠️  Agent may need manual start after system boot"
-    echo "[DATADOG] The agent will auto-start when the actual EC2 instance boots"
+    echo "[DATADOG] ⚠️ Datadog Agent installed but not yet running"
+    echo "[DATADOG] Attempting to start manually..."
+
+    # Try one more time to start the agent
+    if command -v systemctl >/dev/null 2>&1; then
+        sudo systemctl start datadog-agent 2>/dev/null || true
+    else
+        sudo service datadog-agent start 2>/dev/null || true
+    fi
+
+    echo "[DATADOG] Check agent status in a few moments"
 fi
