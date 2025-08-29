@@ -1,12 +1,15 @@
 #!/usr/bin/env -S uv run
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info
+from metta.sim.utils import get_or_create_policy_ids
 
 # Type checking imports
 if TYPE_CHECKING:
@@ -132,11 +135,7 @@ class LocalCommands:
 
     def load_policies(self, args) -> None:
         """Load local checkpoint directories as policies into stats database."""
-        import json
-
-        from metta.app_backend.clients.stats_client import StatsClient
         from metta.rl.checkpoint_manager import CheckpointManager, is_valid_checkpoint_filename
-        from metta.sim.utils import get_or_create_policy_ids
 
         data_dir = Path(args.data_dir)
         if not data_dir.exists():

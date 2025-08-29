@@ -86,11 +86,6 @@ class Experience:
             raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
 
     @property
-    def full(self) -> bool:
-        """Alias for ready_for_training."""
-        return self.ready_for_training
-
-    @property
     def ready_for_training(self) -> bool:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
