@@ -77,8 +77,8 @@ public:
     // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
     if (actor->location == actor->prev_location) {
       actor->steps_without_motion += 1;
-      if (static_cast<float>(actor->steps_without_motion) > actor->stats.get("status.max_steps_without_motion")) {
-        actor->stats.set("status.max_steps_without_motion", static_cast<float>(actor->steps_without_motion));
+      if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
+        actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
       }
     } else {
       actor->steps_without_motion = 0;
@@ -92,7 +92,7 @@ public:
     if (success) {
       actor->stats.incr("action." + _action_name + ".success");
       for (const auto& [item, amount] : _consumed_resources) {
-        InventoryDelta delta = actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
+        InventoryDelta delta = actor->update_inventory(item, -amount);
         // We consume resources after the action succeeds, but in the future we might have an action that uses the
         // resource. This check will catch that.
         assert(delta == -amount);

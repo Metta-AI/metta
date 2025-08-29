@@ -162,7 +162,7 @@ private:
 
   void _consume_defense_resources(Agent& target) {
     for (const auto& [item, amount] : _defense_resources) {
-      InventoryDelta delta = target.update_inventory(item, -static_cast<InventoryDelta>(amount));
+      InventoryDelta delta = target.update_inventory(item, -amount);
       assert(delta == -amount);
     }
   }
@@ -177,7 +177,7 @@ private:
 
     // Transfer resources
     for (const auto& [item, amount] : snapshot) {
-      InventoryDelta stolen = actor.update_inventory(item, static_cast<InventoryDelta>(amount));
+      InventoryDelta stolen = actor.update_inventory(item, amount);
       target.update_inventory(item, -stolen);
 
       if (stolen > 0) {
