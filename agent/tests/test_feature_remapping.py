@@ -1,5 +1,3 @@
-"""Test feature remapping functionality in MettaAgent."""
-
 import tempfile
 
 import torch

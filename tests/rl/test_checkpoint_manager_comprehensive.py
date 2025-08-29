@@ -1,5 +1,3 @@
-"""Comprehensive tests for CheckpointManager functionality."""
-
 import tempfile
 from pathlib import Path
 

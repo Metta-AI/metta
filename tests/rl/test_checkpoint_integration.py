@@ -1,8 +1,3 @@
-"""
-Integration tests for the checkpoint system with real agents and environments.
-Tests the full pipeline of training, saving, loading, and using checkpoints.
-"""
-
 import tempfile
 from pathlib import Path
 

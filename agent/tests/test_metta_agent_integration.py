@@ -1,8 +1,3 @@
-"""
-Integration tests for MettaAgent using the modern configuration system.
-These tests use real environments and configurations without Hydra/YAML.
-"""
-
 import numpy as np
 import pytest
 import torch

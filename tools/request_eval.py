@@ -1,8 +1,4 @@
 #!/usr/bin/env -S uv run
-"""Request evaluation script.
-
-Simple, minimal version that works directly with CheckpointManager.
-"""
 
 import argparse
 import asyncio

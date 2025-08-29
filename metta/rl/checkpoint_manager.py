@@ -1,5 +1,3 @@
-"""Simple checkpoint manager for training and evaluation."""
-
 import logging
 import re
 from pathlib import Path

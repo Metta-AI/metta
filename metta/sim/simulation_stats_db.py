@@ -1,11 +1,3 @@
-"""
-metta/sim/simulation_stats_db.py
-
-Extends EpisodeStatsDB with tables for simulation metadata:
-- simulations: metadata about each simulation run
-- agent_policies: mapping of episode IDs to agent IDs and policy metadata
-"""
-
 from __future__ import annotations
 
 import logging

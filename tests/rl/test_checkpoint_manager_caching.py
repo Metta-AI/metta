@@ -1,5 +1,3 @@
-"""Tests for CheckpointManager caching patterns."""
-
 import tempfile
 import threading
 import time
