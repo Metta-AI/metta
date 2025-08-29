@@ -64,6 +64,12 @@ class SystemMonitor:
         if auto_start:
             self.start()
 
+    def get_latest(self, metric: str | None = None) -> Any:
+        with self._lock:
+            if metric:
+                return self._latest.get(metric)
+            return self._latest.copy()
+
     def _initialize_default_metrics(self):
         # Always available metrics
         self._metric_collectors = {

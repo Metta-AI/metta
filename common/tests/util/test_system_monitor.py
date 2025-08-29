@@ -96,7 +96,7 @@ class TestMonitoringControl:
 
         # Check that metrics have been collected (internal state)
         assert len(monitor._metrics) > 0
-        assert len(monitor._latest) > 0
+        assert len(monitor.get_latest()) > 0
 
         monitor.stop()
 
@@ -116,15 +116,15 @@ class TestInternalState:
         monitor._collect_sample()
 
         # Check that latest values were recorded
-        assert len(monitor._latest) > 0
-        assert "cpu_percent" in monitor._latest
-        assert "memory_percent" in monitor._latest
+        assert len(monitor.get_latest()) > 0
+        assert "cpu_percent" in monitor.get_latest()
+        assert "memory_percent" in monitor.get_latest()
 
         # Check that values are reasonable
-        cpu_percent = monitor._latest.get("cpu_percent")
+        cpu_percent = monitor.get_latest().get("cpu_percent")
         assert cpu_percent is not None
-        assert 0 <= cpu_percent <= 100 * monitor._latest.get("cpu_count", 1)
+        assert 0 <= cpu_percent <= 100 * monitor.get_latest().get("cpu_count", 1)
 
-        memory_percent = monitor._latest.get("memory_percent")
+        memory_percent = monitor.get_latest().get("memory_percent")
         assert memory_percent is not None
         assert 0 <= memory_percent <= 100
