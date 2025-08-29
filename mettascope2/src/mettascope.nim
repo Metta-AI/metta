@@ -1,6 +1,7 @@
 import std/[random, os, times, strformat, strutils],
   boxy, opengl, windy, chroma, vmath,
-  mettascope/[actions, replays, common, panels, utils, worldmap, header, footer, timeline]
+  mettascope/[actions, replays, common, panels, utils, minimap, worldmap,
+      header, footer, timeline]
 
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
 makeContextCurrent(window)
@@ -43,36 +44,17 @@ proc display() =
   globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
 
   worldMapPanel.beginDraw()
-
   worldMapPanel.beginPanAndZoom()
   useSelections()
   agentControls()
   playControls()
-
-  drawFloor()
-  drawWalls()
-  drawObjects()
-  # drawActions()
-  # drawAgentDecorations()
-
-  if settings.showGrid:
-    drawGrid()
-  if settings.showVisualRange:
-    drawVisualRanges()
-
-  drawSelection()
-  drawInventory()
-
-  if settings.showFogOfWar:
-    drawFogOfWar()
-
-
+  if worldMapPanel.zoom < 3:
+    drawMiniMap()
+  else:
+    drawWorldMap()
   worldMapPanel.endPanAndZoom()
-
   drawInfoText()
-
   worldMapPanel.endDraw()
-
 
   globalHeaderPanel.beginDraw()
   drawHeader(globalHeaderPanel)

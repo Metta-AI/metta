@@ -1,7 +1,7 @@
 import
   std/[strformat],
   boxy, vmath, windy,
-  common, panels, actions, utils, replays
+  common, actions, utils, replays, timeline
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent.
@@ -298,7 +298,6 @@ World
   )
 
 proc drawWorldMap*(panel: Panel) =
-
   panel.beginPanAndZoom()
   useSelections()
   agentControls()
