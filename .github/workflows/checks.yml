@@ -317,7 +317,7 @@ jobs:
           make coverage VERBOSE=1
 
       - name: Upload MettaGrid C++ coverage to Codecov
-        if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: needs.setup-checks.outputs.is_external != 'true'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -381,7 +381,6 @@ jobs:
           make benchmark VERBOSE=1
 
       - name: Collect benchmarks
-        if: steps.benchmark_build_check.outputs.build_success == 'true'
         working-directory: ./mettagrid
         run: |
           mkdir -p benchmark_output
