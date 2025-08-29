@@ -997,8 +997,8 @@ def _(
             metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
             run_name_from_ckpt = metadata["run_name"]
 
-            # Load the policy directly from the checkpoint file
-            trained_policy = torch.load(latest_ckpt, weights_only=False)
+            # Load the policy using CheckpointManager
+            trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
             if trained_policy is None:
                 raise Exception("No policy found in checkpoint")
 

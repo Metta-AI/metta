@@ -196,7 +196,7 @@ class SimTool(Tool):
         try:
             with SimulationStatsDB.from_uri(self.stats_db_uri) as stats_db:
                 for policy_uri in policy_uris:
-                    # Extract policy info from URI using key_and_version
+                    # Extract policy info from URI using CheckpointManager
                     metadata = CheckpointManager.get_policy_metadata(policy_uri)
                     policy_key, policy_version = metadata["run_name"], metadata["epoch"]
 
