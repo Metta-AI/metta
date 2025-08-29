@@ -232,7 +232,7 @@ def test_database_policy_lookup_with_checkpoints(tmp_path: Path):
         db.record_episode(episode_id, attributes, agent_metrics, agent_groups, 100, None, created_at)
 
         # Associate episode with checkpoint info
-        key, version = checkpoint_info.key_and_version()
+        key, version = key_and_version(checkpoint_info)
         query = (
             "INSERT OR REPLACE INTO agent_policies "
             "(episode_id, agent_id, policy_key, policy_version) VALUES (?, ?, ?, ?)"
@@ -312,15 +312,14 @@ def test_checkpoint_metadata_database_integration(tmp_path: Path):
 
     # Verify that metadata is properly embedded in filenames
     for i, (checkpoint_info, original_metadata) in enumerate(checkpoint_infos):
-        checkpoint_path = checkpoint_info.uri[7:]  # Remove "file://" prefix
+        checkpoint_path = checkpoint_info[7:]  # Remove "file://" prefix
 
         # Verify that basic metadata is embedded in filename
         filename = Path(checkpoint_path).name
-        parsed_metadata = parse_checkpoint_filename(filename)
-        assert parsed_metadata is not None
-        assert parsed_metadata["run"] == "rich_metadata_run"
-        assert parsed_metadata["epoch"] == i + 1
-        assert parsed_metadata["agent_step"] == original_metadata["agent_step"]
+        run_name, epoch, agent_step, total_time = parse_checkpoint_filename(filename)
+        assert run_name == "rich_metadata_run"
+        assert epoch == i + 1
+        assert agent_step == original_metadata["agent_step"]
 
         # This metadata could be stored in database for advanced queries
         # (This would require extending SimulationStatsDB to handle checkpoint metadata)
