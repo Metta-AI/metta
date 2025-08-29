@@ -7,25 +7,29 @@ from tabulate import tabulate
 from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
-from metta.rl.checkpoint_manager import Checkpoint
+from metta.rl.checkpoint_manager import metadata_from_uri, name_from_uri
 
 
-def analyze(checkpoint: Checkpoint, config: AnalysisConfig) -> None:
+def analyze(policy_uri: str, config: AnalysisConfig) -> None:
     logger = logging.getLogger(__name__)
-    logger.info(f"Analyzing policy: {checkpoint.uri}")
+    logger.info(f"Analyzing policy: {policy_uri}")
     logger.info(f"Using eval DB: {config.eval_db_uri}")
+
+    # Extract metadata from URI
+    metadata = metadata_from_uri(policy_uri)
+    checkpoint_path = name_from_uri(policy_uri)
+    epoch = metadata.get("epoch", 0)
 
     with local_copy(config.eval_db_uri) as local_path:
         stats_db = EvalStatsDB(local_path)
 
-        sample_count = stats_db.sample_count(checkpoint, sim_name=config.sim_name)
+        sample_count = stats_db.sample_count(checkpoint_path, epoch, sim_name=config.sim_name)
         if sample_count == 0:
-            pk, pv = stats_db.key_and_version(checkpoint)
-            logger.warning(f"No samples found for key, version = {pk}, {pv}")
+            logger.warning(f"No samples found for path={checkpoint_path}, epoch={epoch}")
             return
         logger.info(f"Total sample count for specified policy/suite: {sample_count}")
 
-        available_metrics = get_available_metrics(stats_db, checkpoint)
+        available_metrics = get_available_metrics(stats_db, checkpoint_path, epoch)
         logger.info(f"Available metrics: {available_metrics}")
 
         selected_metrics = filter_metrics(available_metrics, config.metrics)
@@ -34,15 +38,15 @@ def analyze(checkpoint: Checkpoint, config: AnalysisConfig) -> None:
             return
         logger.info(f"Selected metrics: {selected_metrics}")
 
-        metrics_data = get_metrics_data(stats_db, checkpoint, selected_metrics, sim_name=config.sim_name)
-        print_metrics_table(stats_db, metrics_data, checkpoint)
+        metrics_data = get_metrics_data(stats_db, checkpoint_path, epoch, selected_metrics, sim_name=config.sim_name)
+        print_metrics_table(stats_db, metrics_data, policy_uri, checkpoint_path, epoch)
 
 
 # --------------------------------------------------------------------------- #
 #   helpers                                                                   #
 # --------------------------------------------------------------------------- #
-def get_available_metrics(stats_db: EvalStatsDB, checkpoint: Checkpoint) -> List[str]:
-    pk, pv = stats_db.key_and_version(checkpoint)
+def get_available_metrics(stats_db: EvalStatsDB, checkpoint_path: str, epoch: int) -> List[str]:
+    pk, pv = stats_db.key_and_version(checkpoint_path, epoch)
     result = stats_db.query(
         f"""
         SELECT DISTINCT metric
@@ -66,7 +70,8 @@ def filter_metrics(available_metrics: List[str], patterns: List[str]) -> List[st
 
 def get_metrics_data(
     stats_db: EvalStatsDB,
-    checkpoint: Checkpoint,
+    checkpoint_path: str,
+    epoch: int,
     metrics: List[str],
     sim_name: str | None = None,
 ) -> Dict[str, Dict[str, float]]:
@@ -78,15 +83,15 @@ def get_metrics_data(
         • K_recorded  – rows in policy_simulation_agent_metrics.
         • N_potential – total agent-episode pairs for that filter.
     """
-    pk, pv = stats_db.key_and_version(checkpoint)
+    pk, pv = stats_db.key_and_version(checkpoint_path, epoch)
     filter_condition = f"sim_name = '{sim_name}'" if sim_name else None
 
     data: Dict[str, Dict[str, float]] = {}
     for m in metrics:
-        mean = stats_db.get_average_metric_by_filter(m, checkpoint, filter_condition)
+        mean = stats_db.get_average_metric_by_filter(m, checkpoint_path, epoch, filter_condition)
         if mean is None:
             continue
-        std = stats_db.get_std_metric_by_filter(m, checkpoint, filter_condition) or 0.0
+        std = stats_db.get_std_metric_by_filter(m, checkpoint_path, epoch, filter_condition) or 0.0
 
         k_recorded = stats_db.count_metric_agents(pk, pv, m, filter_condition)
         n_potential = stats_db.potential_samples_for_metric(pk, pv, filter_condition)
@@ -101,11 +106,11 @@ def get_metrics_data(
 
 
 def print_metrics_table(
-    stats_db: EvalStatsDB, metrics_data: Dict[str, Dict[str, float]], checkpoint: Checkpoint
+    stats_db: EvalStatsDB, metrics_data: Dict[str, Dict[str, float]], policy_uri: str, checkpoint_path: str, epoch: int
 ) -> None:
     logger = logging.getLogger(__name__)
     if not metrics_data:
-        pk, pv = stats_db.key_and_version(checkpoint)
+        pk, pv = stats_db.key_and_version(checkpoint_path, epoch)
         logger.warning(f"No metrics data available for key, version = {pk}, {pv}")
         return
 
@@ -121,6 +126,6 @@ def print_metrics_table(
         for metric, stats in metrics_data.items()
     ]
 
-    logger.info(f"\nMetrics for policy: {checkpoint.uri}\n")
+    logger.info(f"\nMetrics for policy: {policy_uri}\n")
     print(tabulate(rows, headers=headers, tablefmt="grid"))
     logger.info("")
