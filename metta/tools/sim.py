@@ -12,7 +12,6 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
-from metta.rl.checkpoint_manager import Checkpoint
 from metta.rl.policy_management import discover_policies, resolve_policy
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -105,10 +104,8 @@ class SimTool(Tool):
             for _agent, metadata, checkpoint_path in agent_metadata_list:
                 logger.info(f"Processing checkpoint {checkpoint_path.name} from {policy_uri}")
 
-                # Create Checkpoint object for stats database integration
-                checkpoint = Checkpoint(
-                    run_name=metadata.get("run", checkpoint_path.stem), uri=policy_uri, metadata=metadata
-                )
+                # Use URI directly - no Checkpoint object needed
+                checkpoint_uri = f"file://{checkpoint_path.absolute()}"
 
                 # Perform basic evaluation (placeholder - would run actual simulations in real implementation)
                 # For Phase 3, we focus on the database integration infrastructure
@@ -122,15 +119,15 @@ class SimTool(Tool):
                 # Export to stats database if configured
                 if stats_db and self.export_to_stats_db:
                     try:
-                        self._export_checkpoint_to_stats_db(stats_db, checkpoint, evaluation_metrics)
+                        self._export_checkpoint_to_stats_db(stats_db, checkpoint_uri, evaluation_metrics)
                         logger.info("Exported checkpoint results to stats database")
                     except Exception as e:
                         logger.warning(f"Failed to export to stats database: {e}")
 
                 results["checkpoints"].append(
                     {
-                        "name": checkpoint.run_name,
-                        "uri": checkpoint.uri,
+                        "name": metadata.get("run", checkpoint_path.stem),
+                        "uri": checkpoint_uri,
                         "epoch": metadata.get("epoch", 0),
                         "checkpoint_path": str(checkpoint_path),
                         "metrics": evaluation_metrics,
@@ -150,11 +147,10 @@ class SimTool(Tool):
         print(json.dumps(all_results, indent=2))
         print("===JSON_OUTPUT_END===")
 
-    def _export_checkpoint_to_stats_db(
-        self, stats_db: SimulationStatsDB, checkpoint: Checkpoint, metrics: dict
-    ) -> None:
+    def _export_checkpoint_to_stats_db(self, stats_db: SimulationStatsDB, checkpoint_uri: str, metrics: dict) -> None:
         """Export checkpoint evaluation results to stats database."""
-        policy_key, policy_version = checkpoint.key_and_version()
+        # Extract key and version from URI for database
+        policy_key, policy_version = stats_db._uri_to_key_and_version(checkpoint_uri)
 
         # Record simulation entries for each configured simulation
         for sim_config in self.simulations:
@@ -185,9 +181,7 @@ class SimTool(Tool):
                 [episode_id, agent_id, policy_key, policy_version],
             )
 
-            logger.debug(
-                f"Exported checkpoint {checkpoint.run_name} to stats database for simulation {sim_config.name}"
-            )
+            logger.debug(f"Exported checkpoint {policy_key} to stats database for simulation {sim_config.name}")
 
     def compare_policies(self, policy_uris: list[str], metric: str = "score") -> dict:
         """Simple policy comparison functionality."""

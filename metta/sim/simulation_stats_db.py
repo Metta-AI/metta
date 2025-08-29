@@ -260,10 +260,10 @@ class SimulationStatsDB(EpisodeStatsDB):
         """Extract policy key and version from URI for database compatibility."""
         if not uri:
             return "unknown", 0
-            
+
         # Extract name from URI
         policy_key = name_from_uri(uri)
-        
+
         # Try to extract version/epoch from filename if it's a file:// URI
         version = 0
         if uri.startswith("file://"):
@@ -274,7 +274,7 @@ class SimulationStatsDB(EpisodeStatsDB):
                     version = epoch
                 except (ValueError, ImportError):
                     pass
-        
+
         return policy_key, version
 
     def _merge_db(self, other_path: Path) -> None:

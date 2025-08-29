@@ -267,7 +267,7 @@ class EvalStatsDB(SimulationStatsDB):
     def key_and_version_from_uri(self, policy_uri: str) -> tuple[str, int]:
         """Extract key and version from a policy URI."""
         policy_key = name_from_uri(policy_uri)
-        
+
         # Try to extract version/epoch from filename if it's a file:// URI
         version = 0
         if policy_uri.startswith("file://"):
@@ -278,5 +278,5 @@ class EvalStatsDB(SimulationStatsDB):
                     version = epoch
                 except (ValueError, ImportError):
                     pass
-        
+
         return policy_key, version
