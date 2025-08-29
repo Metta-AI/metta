@@ -25,9 +25,7 @@ def create_test_database(
     # Create a simulation
     sim_id = uuid.uuid4().hex[:8]
     # Use checkpoint filename to extract policy information automatically
-    metadata = parse_checkpoint_filename(checkpoint_filename)
-    policy_key = metadata["run"]
-    policy_version = metadata["epoch"]
+    policy_key, policy_version, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
 
     db.con.execute(
         """

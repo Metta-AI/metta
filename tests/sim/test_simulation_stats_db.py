@@ -274,17 +274,17 @@ def test_from_shards_and_context(tmp_path: Path):
     # Check that the merged database doesn't exist yet
     assert not merged_path.exists(), "Merged DB already exists"
 
-    # Create agent map with simple (key, version) tuples
-    agent_map = {0: ("test_policy", 1)}
+    # Create agent map with URIs (new API)
+    agent_map = {0: "file://test_policy.e1.s1000.t10.pt"}
 
-    # Now call the actual from_shards_and_context method using Checkpoint tuple format
+    # Now call the actual from_shards_and_context method using URI
     merged_db = SimulationStatsDB.from_shards_and_context(
         sim_id="sim_id",
         dir_with_shards=shard_dir,
         agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_info=("test_policy", 1),
+        policy_uri="file://test_policy.e1.s1000.t10.pt",
     )
 
     # Verify merged database was created

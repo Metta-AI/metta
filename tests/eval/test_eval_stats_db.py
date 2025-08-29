@@ -26,9 +26,7 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     db = EvalStatsDB(db_path)
 
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    metadata = parse_checkpoint_filename(checkpoint_filename)
-    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
-    pk, pv = metadata["run"], metadata["epoch"]
+    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
 
     sim_id = str(uuid.uuid4())
 
@@ -90,9 +88,7 @@ def test_db() -> Generator[TestEvalStatsDb, None, None]:
 def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    metadata = parse_checkpoint_filename(checkpoint_filename)
-    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
-    pk, pv = metadata["run"], metadata["epoch"]
+    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
     avg_hearts = db.get_average_metric_by_filter("hearts_collected", pk, pv)
@@ -121,9 +117,7 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    metadata = parse_checkpoint_filename(checkpoint_filename)
-    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
-    pk, pv = metadata["run"], metadata["epoch"]
+    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
 
     scores = db.simulation_scores(pk, pv, "hearts_collected")
     assert len(scores) == 1
@@ -144,9 +138,7 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
 def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    metadata = parse_checkpoint_filename(checkpoint_filename)
-    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
-    pk, pv = metadata["run"], metadata["epoch"]
+    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
 
     sum_norm = db.get_sum_metric_by_filter("hearts_collected", pk, pv)
     assert sum_norm is not None
@@ -156,9 +148,7 @@ def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
 def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    metadata = parse_checkpoint_filename(checkpoint_filename)
-    assert metadata is not None, f"Could not parse checkpoint filename: {checkpoint_filename}"
-    pk, pv = metadata["run"], metadata["epoch"]
+    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
 
     assert db.get_average_metric_by_filter("nonexistent", pk, pv) == 0.0
 
