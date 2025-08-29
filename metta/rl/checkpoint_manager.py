@@ -98,16 +98,19 @@ class CheckpointManager:
         self._cache.clear()
 
     def load_agent(self, epoch: Optional[int] = None):
-        """Load agent from checkpoint by epoch (or latest if None), with caching."""
+        """Load agent from checkpoint by epoch (or latest if None), with caching.
+
+        Returns None if no checkpoints exist."""
         if epoch is None:
             agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
             if not agent_files:
-                raise FileNotFoundError(f"No checkpoints found for {self.run_name}")
+                return None
             agent_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
         else:
             agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.sc*.pt"))
             if not agent_files:
-                raise FileNotFoundError(f"No checkpoint found for {self.run_name} at epoch {epoch}")
+                logger.warning(f"No checkpoint found for {self.run_name} at epoch {epoch}")
+                return None
             agent_file = agent_files[0]
 
         # Check cache first
@@ -119,15 +122,17 @@ class CheckpointManager:
         self._add_to_cache(agent_file, agent)
         return agent
 
-    def load_trainer_state(self, epoch: Optional[int] = None) -> Dict[str, Any]:
-        """Load trainer state (optimizer state, epoch, agent_step)."""
+    def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        """Load trainer state (optimizer state, epoch, agent_step). Returns None if no trainer state exists."""
         if epoch is None:
             latest_file = self.find_best_checkpoint("epoch")
             if not latest_file:
-                raise FileNotFoundError(f"No checkpoints found for {self.run_name}")
+                return None
             epoch = parse_checkpoint_filename(latest_file.name)[1]
 
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
+        if not trainer_file.exists():
+            return None
         return torch.load(trainer_file, weights_only=False)
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):

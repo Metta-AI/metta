@@ -140,10 +140,10 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
-    # Load existing agent from CheckpointManager
+    # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
     existing_agent = checkpoint_manager.load_agent()
 
-    # Load trainer state (optimizer state, epoch, agent_step)
+    # Load trainer state (returns None if no trainer state exists)
     trainer_state = checkpoint_manager.load_trainer_state()
     agent_step = trainer_state["agent_step"] if trainer_state else 0
     epoch = trainer_state["epoch"] if trainer_state else 0
