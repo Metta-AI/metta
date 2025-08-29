@@ -40,10 +40,15 @@ class ReplayTool(Tool):
         )
 
         result = sim.simulate()
-        key, version = result.stats_db.key_and_version(sim.policy_record)
-        replay_url = result.stats_db.get_replay_urls(key, version)[0]
+        # Get all replay URLs (no filtering needed since we just ran this simulation)
+        replay_urls = result.stats_db.get_replay_urls()
+        if not replay_urls:
+            logger.error("No replay URLs found in simulation results")
+            return 1
+        replay_url = replay_urls[0]
 
         open_browser(replay_url, self)
+        return 0
 
 
 def open_browser(replay_url: str, cfg: ReplayTool) -> None:

@@ -11,32 +11,17 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import duckdb
 
 from metta.mettagrid.episode_stats_db import EpisodeStatsDB
 from metta.mettagrid.util.file import exists, local_copy, write_file
-from metta.rl.checkpoint_manager import CheckpointManager, metadata_from_uri, name_from_uri
+from metta.rl.checkpoint_manager import metadata_from_uri, name_from_uri
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
 # ------------------------------------------------------------------ #
-
-
-def create_checkpoint_uri_from_manager(
-    checkpoint_manager: CheckpointManager, checkpoint_path: str | None = None
-) -> Optional[str]:
-    """Create checkpoint URI from CheckpointManager.
-
-    Uses best checkpoint by score if no specific path provided.
-    """
-    if checkpoint_path is None:
-        checkpoint_path = checkpoint_manager.find_best_checkpoint("score")
-        if checkpoint_path is None:
-            return None
-
-    return f"file://{checkpoint_path}"
 
 
 # TODO: add a githash

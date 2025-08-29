@@ -456,17 +456,11 @@ class Simulation:
         )
         return db
 
-    def _get_policy_name(self) -> str:
-        return self._wandb_policy_name or self._run_name
-
-    def _get_policy_uri(self) -> Optional[str]:
-        return self._wandb_uri or self._policy_uri
-
     def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
-            policy_name = self._get_policy_name()
-            policy_uri = self._get_policy_uri()
+            policy_name = self._wandb_policy_name or self._run_name
+            policy_uri = self._wandb_uri or self._policy_uri
             if policy_uri:  # Only add if we have a URI
                 policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
             else:

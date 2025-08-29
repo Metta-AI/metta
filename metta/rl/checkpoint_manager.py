@@ -14,14 +14,22 @@ def name_from_uri(uri: str) -> str:
     """Extract run name from any checkpoint URI."""
     if uri.startswith("file://"):
         path = Path(uri[7:])
-        if path.is_file() and path.suffix == ".pt":
-            # Parse from filename: test_run.e5.s2000.t85.pt
-            return parse_checkpoint_filename(path.name)[0]
-        elif path.is_dir():
+        # Try to parse from filename if it's a .pt file
+        if path.suffix == ".pt":
+            try:
+                return parse_checkpoint_filename(path.name)[0]
+            except ValueError:
+                # If filename doesn't match expected format, use stem
+                return path.stem
+        # For directories or when file doesn't exist but looks like a directory
+        elif path.is_dir() or not path.suffix:
             # Directory structure: .../test_run/checkpoints
             if path.name == "checkpoints":
                 return path.parent.name
             return path.name
+        else:
+            # For other files, use stem
+            return path.stem
     elif uri.startswith("wandb://"):
         # wandb://entity/project/run_name:version → run_name
         parts = uri[8:].split("/")
