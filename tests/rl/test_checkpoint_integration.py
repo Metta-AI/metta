@@ -138,7 +138,7 @@ class TestCheckpointIntegration:
 
         for epoch in range(1, 4):
             # Simulate some training steps
-            for step in range(100):
+            for _step in range(100):
                 output = agent(obs_to_td(obs))
                 actions = output["actions"].numpy()
                 obs, rewards, terminated, truncated, _ = env.step(actions)

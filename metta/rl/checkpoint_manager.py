@@ -202,3 +202,45 @@ class CheckpointManager:
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} old checkpoints, kept {keep_last_n} most recent")
         return deleted_count
+
+    def upload_to_wandb(self, epoch: Optional[int] = None, wandb_run=None) -> Optional[str]:
+        """Upload checkpoint to wandb as an artifact."""
+        from metta.rl.wandb import upload_checkpoint_as_artifact
+
+        if epoch is None:
+            epoch = self.get_latest_epoch()
+            if epoch is None:
+                logger.warning("No checkpoints available to upload")
+                return None
+
+        # Find checkpoint file for this epoch
+        pattern = f"{self.run_name}.e{epoch}.s*.t*.sc*.pt"
+        checkpoint_files = list(self.checkpoint_dir.glob(pattern))
+
+        if not checkpoint_files:
+            logger.warning(f"No checkpoint found for epoch {epoch}")
+            return None
+
+        # Use the first match (should only be one)
+        checkpoint_file = checkpoint_files[0]
+
+        # Parse metadata from filename
+        _, epoch_num, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_file.name)
+
+        # Create metadata dict
+        metadata = {
+            "epoch": epoch_num,
+            "agent_step": agent_step,
+            "total_time": total_time,
+            "score": score,
+            "run_name": self.run_name,
+        }
+
+        # Upload with run name as artifact name (wandb will version it)
+        return upload_checkpoint_as_artifact(
+            checkpoint_path=str(checkpoint_file),
+            artifact_name=self.run_name,
+            artifact_type="model",
+            metadata=metadata,
+            wandb_run=wandb_run,
+        )

@@ -182,20 +182,7 @@ def upload_checkpoint_for_epoch(
     epoch: int,
     wandb_run: Optional[WandbRun] = None,
 ) -> Optional[str]:
-    """Upload a specific epoch's checkpoint as a wandb artifact.
-
-    Convenience function that finds the checkpoint file for a given epoch
-    and uploads it with appropriate naming.
-
-    Args:
-        checkpoint_dir: Directory containing checkpoints
-        run_name: Name of the training run
-        epoch: Epoch number to upload
-        wandb_run: Optional WandbRun instance
-
-    Returns:
-        Qualified artifact name or None if failed
-    """
+    """Upload a specific epoch's checkpoint as a wandb artifact."""
     # Find checkpoint file for this epoch
     checkpoint_path = Path(checkpoint_dir)
     pattern = f"{run_name}.e{epoch}.s*.t*.sc*.pt"
