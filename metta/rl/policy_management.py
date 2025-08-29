@@ -18,16 +18,14 @@ def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAg
 
 
 def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
-    """Load a policy from file:// or wandb:// URI. Simplified to handle common cases."""
+    """Load a policy from file:// or wandb:// URI."""
     if uri.startswith("file://"):
         file_path = Path(uri[7:])
 
-        # If it's a directory, find the latest checkpoint
         if file_path.is_dir():
             uri = get_checkpoint_uri_from_dir(str(file_path))
             file_path = Path(uri[7:])
 
-        # Load the checkpoint file directly - let torch.load raise if not found
         return torch.load(file_path, map_location=device, weights_only=False)
 
     elif uri.startswith("wandb://"):
