@@ -56,14 +56,10 @@ def create_test_database(
 def test_normalization_bug():
     """Test normalization bug: rewards should not be diluted by incomplete episodes."""
     checkpoint_filename = "test_policy.e1.s1000.t30.sc0.pt"
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
-        db1 = create_test_database(
-            Path(tmpdir) / "test1.duckdb", num_episodes_requested=1, num_episodes_completed=1
-        )
-        db2 = create_test_database(
-            Path(tmpdir) / "test2.duckdb", num_episodes_requested=5, num_episodes_completed=2
-        )
+        db1 = create_test_database(Path(tmpdir) / "test1.duckdb", num_episodes_requested=1, num_episodes_completed=1)
+        db2 = create_test_database(Path(tmpdir) / "test2.duckdb", num_episodes_requested=5, num_episodes_completed=2)
 
         policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
         avg_reward_complete = db1.get_average_metric("reward", policy_uri)
