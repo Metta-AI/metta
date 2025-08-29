@@ -139,8 +139,10 @@ class OptimizingScheduler:
             config=suggestion,  # Pass optimizer suggestion as config
             overrides={
                 "trainer.total_timesteps": "100000",  # Override for quick testing
-                "wandb.group": sweep_metadata.sweep_id,  # Ensure correct group when training resumes
             },
+            metadata={
+                "group": sweep_metadata.sweep_id,  # Pass group as an arg
+            }
         )
 
         logger.info(f"🚀 Scheduling trial {trial_num}/{self.config.max_trials}: {job.run_id}")
