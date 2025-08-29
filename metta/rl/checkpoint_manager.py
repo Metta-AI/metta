@@ -85,7 +85,6 @@ class CheckpointManager:
                 else:
                     # It's a run directory
                     run_dir = path
-                    run_name = path.name
                     path = run_dir / "checkpoints"
 
                 # Find latest checkpoint in directory
@@ -199,14 +198,20 @@ class CheckpointManager:
         if str(checkpoint_path) in self._cache:
             del self._cache[str(checkpoint_path)]
 
-    def save_trainer_state(self, optimizer, epoch: int, agent_step: int):
+    def save_trainer_state(
+        self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
+    ):
         """Save trainer optimizer state."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
-        torch.save(
-            {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step},
-            trainer_file,
-        )
+        state = {
+            "optimizer": optimizer.state_dict(),
+            "epoch": epoch,
+            "agent_step": agent_step,
+        }
+        if stopwatch_state is not None:
+            state["stopwatch_state"] = stopwatch_state
+        torch.save(state, trainer_file)
 
     def get_checkpoint_uri(self, epoch: Optional[int] = None) -> str:
         """Get URI for checkpoint at given epoch (or latest if None)."""

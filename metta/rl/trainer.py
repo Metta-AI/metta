@@ -147,9 +147,13 @@ def train(
     trainer_state = checkpoint_manager.load_trainer_state()
     agent_step = trainer_state["agent_step"] if trainer_state else 0
     epoch = trainer_state["epoch"] if trainer_state else 0
+    latest_saved_epoch = epoch  # Track the epoch of the latest saved checkpoint
 
     if trainer_state:
         logger.info(f"Restored from checkpoint at {agent_step} steps")
+        # Restore stopwatch state if available
+        if "stopwatch_state" in trainer_state:
+            timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
     # Create or use existing agent
     if existing_agent:
@@ -460,6 +464,7 @@ def train(
                         system_monitor=system_monitor,  # type: ignore[arg-type]
                         optimizer=optimizer,
                         kickstarter=kickstarter,
+                        latest_saved_epoch=latest_saved_epoch,
                     )
                 # Clear stats after processing
                 stats_tracker.clear_rollout_stats()
@@ -475,7 +480,7 @@ def train(
                 stats_time=timer.get_last_elapsed("_process_stats"),
                 run_name=run,
             )
-            # Save checkpoint using SimpleCheckpointManager
+            # Save checkpoint using CheckpointManager
             if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
                 logger.info(f"Saving checkpoint at epoch {epoch}")
 
@@ -505,12 +510,13 @@ def train(
 
                 # Save agent and trainer state
                 checkpoint_manager.save_agent(agent_to_save, epoch, metadata)
-                checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
+                checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.get_state())
+                latest_saved_epoch = epoch  # Update latest saved epoch
 
                 logger.info(f"Successfully saved checkpoint at epoch {epoch}")
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
-                # Evaluation with SimpleCheckpointManager - use current policy directly
+                # Evaluation with CheckpointManager - use current policy directly
                 if True:  # Always evaluate if configured
                     if stats_client and stats_tracker.stats_run_id:
                         stats_tracker.stats_epoch_id = stats_client.create_epoch(
