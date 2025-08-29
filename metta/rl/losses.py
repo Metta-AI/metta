@@ -11,6 +11,7 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.experience import Experience
+from metta.rl.memory_management import MemoryManager
 from metta.rl.ppo import compute_ppo_losses
 from metta.rl.trainer_config import TrainerConfig
 
@@ -75,6 +76,7 @@ def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dt
 
 
 def process_minibatch_update(
+    mm_policy: MemoryManager,
     policy: PolicyAgent,
     experience: Experience,
     minibatch: TensorDict,
@@ -88,8 +90,14 @@ def process_minibatch_update(
     device: torch.device,
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
-    res = policy(policy_td, action=minibatch["actions"])
-    policy_td = res[0] if isinstance(res, tuple) else res
+    res, state_dict = policy(policy_td, action=minibatch["actions"])
+    logger.info(f"policy_td: {policy_td.keys()}")
+    # todo: check if this is correct
+    env_id = policy_td.get("training_env_id_start", None)
+    if env_id is None:
+        env_id = 0
+    mm_policy.set_states(state_dict["states"], env_id)
+    policy_td = res
 
     old_act_log_prob = minibatch["act_log_prob"]
     new_logprob = policy_td["act_log_prob"].reshape(old_act_log_prob.shape)
