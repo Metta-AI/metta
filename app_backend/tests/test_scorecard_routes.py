@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 from metta.app_backend.metta_repo import MettaRepo
 
 
@@ -2235,9 +2236,6 @@ class TestPolicyScorecardRoutes:
         # to populate the leaderboard_policy_scores table. We'll do this by
         # manually running the update logic using the stats_repo fixture.
 
-        # Import the necessary components for manual leaderboard update
-
-        from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 
         # Create a leaderboard updater instance
         updater = LeaderboardUpdater(stats_repo)

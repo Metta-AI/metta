@@ -3,10 +3,16 @@ from pathlib import Path
 
 import pytest
 
+from experiments.recipes.arena import evaluate, replay, train
 import metta.mettagrid.config.envs as eb
+from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_management import discover_policy_uris
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
+from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 
 
@@ -59,7 +65,6 @@ class TestNewPolicySystem:
 
     def test_policy_discovery_interface(self):
         """Test that policy discovery functions exist and can be called."""
-        from metta.rl.policy_management import discover_policy_uris
 
         try:
             discovered = discover_policy_uris("mock://test", strategy="latest", count=1)
@@ -90,7 +95,6 @@ class TestNewPolicySystem:
 
     def test_simulation_stats_integration(self):
         """Test that simulations integrate with the stats system."""
-        from metta.sim.simulation_stats_db import SimulationStatsDB
 
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test_stats.db"
@@ -101,9 +105,6 @@ class TestNewPolicySystem:
 
     def test_tool_configuration_consistency(self):
         """Test that all tools have consistent configuration interfaces."""
-        from metta.tools.play import PlayTool
-        from metta.tools.replay import ReplayTool
-        from metta.tools.sim import SimTool
 
         env_config = eb.make_navigation(num_agents=2)
         sim_config = SimulationConfig(name="test", env=env_config)
@@ -120,7 +121,6 @@ class TestNewPolicySystem:
     def test_recipe_system_integration(self):
         """Test that recipes work with the new policy system."""
         try:
-            from experiments.recipes.arena import evaluate, replay, train
 
             train_tool = train()
             assert hasattr(train_tool, "trainer")
@@ -136,7 +136,6 @@ class TestNewPolicySystem:
 
     def test_mock_agent_fallback(self):
         """Test that mock agents are used when policies can't be loaded."""
-        from metta.agent.mocks import MockAgent
 
         mock_agent = MockAgent()
         assert mock_agent is not None
