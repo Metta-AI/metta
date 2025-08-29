@@ -19,13 +19,11 @@ logger = logging.getLogger(__name__)
 
 def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) -> None:
     """Validate that policy's observation shape matches environment's."""
-    # Extract agent from distributed wrapper if needed
     agent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
 
     _env_shape = env.single_observation_space.shape
     environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-    # Validate observation shapes match
     found_match = False
     for component_name, component in agent.components.items():
         if hasattr(component, "_obs_shape"):
@@ -51,9 +49,6 @@ def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAg
     if torch.distributed.is_initialized():
         return DistributedMettaAgent(agent, device)
     return agent
-
-
-# URI Resolution Functions (moved from policy_uri_resolver.py)
 
 
 def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:

@@ -102,7 +102,7 @@ class Kickstarter:
             if checkpoint_path.endswith("/checkpoints"):
                 # Find latest checkpoint in directory
                 checkpoint_manager = CheckpointManager(run_name="", run_dir=checkpoint_path.replace("/checkpoints", ""))
-                return checkpoint_manager.load_latest_agent()
+                return checkpoint_manager.load_agent()
             else:
                 # Direct path to specific checkpoint file
                 return torch.load(checkpoint_path, weights_only=False)

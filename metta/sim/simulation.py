@@ -176,7 +176,7 @@ class Simulation:
                 checkpoint_dir = Path(checkpoint_path)
                 parent_dir = checkpoint_dir.parent
                 checkpoint_manager = CheckpointManager(run_name=parent_dir.name, run_dir=str(parent_dir.parent))
-                return checkpoint_manager.load_latest_agent()
+                return checkpoint_manager.load_agent()
             else:
                 # Direct file path
                 return torch.load(checkpoint_path, weights_only=False)
@@ -194,7 +194,7 @@ class Simulation:
                 checkpoint_dir = Path(checkpoint_path)
                 parent_dir = checkpoint_dir.parent
                 checkpoint_manager = CheckpointManager(run_name=parent_dir.name, run_dir=str(parent_dir.parent))
-                return checkpoint_manager.load_latest_agent()
+                return checkpoint_manager.load_agent()
             else:
                 # Direct file path
                 return torch.load(checkpoint_path, weights_only=False)

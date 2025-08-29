@@ -14,24 +14,15 @@ def name_from_uri(uri: str) -> str:
     """Extract run name from any checkpoint URI."""
     if uri.startswith("file://"):
         path = Path(uri[7:])
-        # Try to parse from filename if it's a .pt file
         if path.suffix == ".pt":
-            try:
-                return parse_checkpoint_filename(path.name)[0]
-            except ValueError:
-                # If filename doesn't match expected format, use stem
-                return path.stem
-        # For directories or when file doesn't exist but looks like a directory
+            return parse_checkpoint_filename(path.name)[0]
         elif path.is_dir() or not path.suffix:
-            # Directory structure: .../test_run/checkpoints
             if path.name == "checkpoints":
                 return path.parent.name
             return path.name
         else:
-            # For other files, use stem
             return path.stem
     elif uri.startswith("wandb://"):
-        # wandb://entity/project/run_name:version → run_name
         parts = uri[8:].split("/")
         if len(parts) >= 3:
             run_name = parts[2].split(":")[0]
@@ -48,39 +39,31 @@ def epoch_from_uri(uri: str) -> int:
 
 
 def key_and_version(uri: str) -> tuple[str, int]:
-    """Extract key (run name) and version (epoch) from a policy URI.
-
-    This is the unified function for extracting metadata from URIs.
-    """
+    """Extract key (run name) and version (epoch) from a policy URI."""
     return name_from_uri(uri), epoch_from_uri(uri)
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
-    """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt
-
-    Returns: (run_name, epoch, agent_step, total_time)
-    """
+    """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt"""
     parts = filename.split(".")
     if len(parts) != 5 or parts[-1] != "pt":
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
 
     run_name = parts[0]
-    epoch = int(parts[1][1:])  # Remove 'e' prefix
-    agent_step = int(parts[2][1:])  # Remove 's' prefix
-    total_time = int(parts[3][1:])  # Remove 't' prefix
+    epoch = int(parts[1][1:])
+    agent_step = int(parts[2][1:])
+    total_time = int(parts[3][1:])
 
     return run_name, epoch, agent_step, total_time
 
 
 def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> Optional[str]:
-    """Get URI of latest checkpoint from directory - simpler approach."""
+    """Get URI of latest checkpoint from directory."""
     checkpoint_path = Path(checkpoint_dir)
     if not checkpoint_path.exists():
         return None
 
     run_name = checkpoint_path.parent.name if checkpoint_path.parent else "unknown"
-
-    # Find new format checkpoints
     checkpoints = list(checkpoint_path.glob(f"{run_name}.e*.s*.t*.pt"))
     if not checkpoints:
         return None
