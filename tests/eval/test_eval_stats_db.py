@@ -158,14 +158,14 @@ def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     assert db.get_average_metric("nonexistent", policy_uri) == 0.0
 
     # Test with invalid URI
-    invalid_uri = "file:///tmp/none.e99.s0.t0.pt"
+    invalid_uri = "file:///tmp/none.e99.s0.t0.sc0.pt"
     assert db.get_average_metric("hearts_collected", invalid_uri) is None
 
 
 def test_empty_database():
     with tempfile.TemporaryDirectory() as tmp:
         db = EvalStatsDB(Path(tmp) / "empty.duckdb")
-        test_uri = "file:///tmp/test.e1.s0.t0.pt"
+        test_uri = "file:///tmp/test.e1.s0.t0.sc0.pt"
         assert db.get_average_metric("reward", test_uri) is None
         pk, pv = "test", 1
         assert db.potential_samples_for_metric(pk, pv) == 0

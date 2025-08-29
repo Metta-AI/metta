@@ -63,7 +63,7 @@ class TestHelpersSimpleCheckpoint:
                 "score": score,
                 "agent_step": epoch * 1000,
                 "generation": 1,
-                "train_time": epoch * 10.0,
+                "total_time": epoch * 10.0,
                 "epoch": epoch,
             }
         else:
@@ -81,20 +81,24 @@ class TestHelpersSimpleCheckpoint:
 
         # Get the actual checkpoint path using the new dot-separated format
         agent_step = metadata.get("agent_step", epoch * 1000)
-        total_time = int(metadata.get("total_time", metadata.get("train_time", epoch * 10.0)))
+        total_time = int(metadata.get("total_time", epoch * 10.0))
         score = metadata.get("score", 0.0)
         score_int = int(score * 10000)  # Store as integer to avoid decimal in filename
         filename = f"{run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score_int}.pt"
         checkpoint_path = checkpoint_manager.checkpoint_dir / filename
+        
+        # Verify the file was actually created
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"Checkpoint file was not created: {checkpoint_path}")
 
         return f"file://{checkpoint_path}"
 
     @staticmethod
-    def create_agent_map_from_checkpoint_uris(checkpoint_uris: list[str]) -> dict[int, tuple[str, int]]:
-        """Create agent map from checkpoint URI list."""
+    def create_agent_map_from_checkpoint_uris(checkpoint_uris: list[str]) -> dict[int, str]:
+        """Create agent map from checkpoint URI list - now returns URIs directly."""
         agent_map = {}
         for i, uri in enumerate(checkpoint_uris):
-            agent_map[i] = key_and_version(uri)
+            agent_map[i] = uri
         return agent_map
 
 
@@ -207,34 +211,34 @@ def test_database_policy_lookup_with_checkpoints(tmp_path: Path):
     """
 
     # Create multiple checkpoints for different experiments
-    checkpoint_infos = []
+    checkpoint_data = []
     for run_name, epochs_scores in [
         ("baseline_run", [(1, 0.3), (5, 0.6), (10, 0.8)]),
         ("improved_run", [(1, 0.4), (5, 0.7), (10, 0.95)]),
         ("experimental_run", [(1, 0.2), (5, 0.5), (10, 0.75)]),
     ]:
         for epoch, score in epochs_scores:
-            checkpoint_info = TestHelpersSimpleCheckpoint.create_checkpoint_with_manager(
+            checkpoint_uri = TestHelpersSimpleCheckpoint.create_checkpoint_with_manager(
                 tmp_path / run_name, run_name, epoch, score
             )
-            checkpoint_infos.append(checkpoint_info)
+            checkpoint_data.append((checkpoint_uri, run_name, score))
 
     # Create a database with episode data
     db_path = tmp_path / "test_analysis.duckdb"
     db = SimulationStatsDB(db_path)
 
     # Record episodes with different checkpoint associations
-    for _i, checkpoint_info in enumerate(checkpoint_infos):
+    for _i, (checkpoint_uri, run_name, score) in enumerate(checkpoint_data):
         episode_id = str(uuid.uuid4())
-        attributes = {"experiment": checkpoint_info.run_name}
-        agent_metrics = {0: {"reward": checkpoint_info.metadata["score"] * 10}}  # Scale for testing
+        attributes = {"experiment": run_name}
+        agent_metrics = {0: {"reward": score * 10}}  # Scale for testing
         agent_groups = {0: 0}
         created_at = datetime.datetime.now()
 
         db.record_episode(episode_id, attributes, agent_metrics, agent_groups, 100, None, created_at)
 
-        # Associate episode with checkpoint info
-        key, version = key_and_version(checkpoint_info)
+        # Associate episode with checkpoint
+        key, version = key_and_version(checkpoint_uri)
         query = (
             "INSERT OR REPLACE INTO agent_policies "
             "(episode_id, agent_id, policy_key, policy_version) VALUES (?, ?, ?, ?)"
