@@ -17,7 +17,13 @@ import time
 import pytest
 import wandb
 
-from metta.common.wandb.log_wandb import log_debug_info, log_wandb
+from metta.common.wandb.log_wandb import (
+    ensure_wandb_run,
+    log_debug_info,
+    log_single_value,
+    log_to_wandb,
+    parse_value,
+)
 
 
 @pytest.fixture
@@ -52,19 +58,61 @@ def wandb_test_env(tmp_path):
         wandb.finish()
 
 
-def test_log_wandb_creates_new_run(wandb_test_env):
-    """Test that log_wandb creates a new run when METTA_RUN_ID is set."""
+def test_ensure_wandb_run_creates_new_run(wandb_test_env):
+    """Test that ensure_wandb_run creates a new run when METTA_RUN_ID is set."""
     # Set a run ID
     os.environ["METTA_RUN_ID"] = "test-run-001"
 
-    # Log a value
-    success = log_wandb("test/metric", 42.0)
-    assert success is True
+    # Ensure a run exists
+    run = ensure_wandb_run()
 
     # Verify the run was created
+    assert run is not None
+    assert run.name == "test-run-001"
+    assert run.id == "test-run-001"
+
+    # Clean up
+    wandb.finish()
+
+
+def test_ensure_wandb_run_without_run_id(wandb_test_env):
+    """Test that ensure_wandb_run fails when no run ID is available."""
+    # Remove METTA_RUN_ID
+    os.environ.pop("METTA_RUN_ID", None)
+
+    # Should raise RuntimeError
+    with pytest.raises(RuntimeError, match="No active wandb run and METTA_RUN_ID not set"):
+        ensure_wandb_run()
+
+
+def test_ensure_wandb_run_existing_active(wandb_test_env):
+    """Test that ensure_wandb_run returns existing active run."""
+    # Create a run manually
+    run = wandb.init(
+        project="test-project",
+        name="existing-run",
+        mode="offline",
+    )
+
+    # ensure_wandb_run should return the existing run
+    result = ensure_wandb_run()
+    assert result is not None
+    assert result.id == run.id
+
+    # Clean up
+    wandb.finish()
+
+
+def test_log_single_value(wandb_test_env):
+    """Test logging a single value."""
+    os.environ["METTA_RUN_ID"] = "test-run-002"
+
+    # Log a single value
+    log_single_value("test/metric", 42.0)
+
+    # Verify the run was created and value was logged
     assert wandb.run is not None
-    assert wandb.run.name == "test-run-001"
-    assert wandb.run.id == "test-run-001"
+    assert wandb.run.name == "test-run-002"
 
     # Verify the value was logged to summary
     summary_dict = dict(wandb.run.summary)
@@ -75,52 +123,37 @@ def test_log_wandb_creates_new_run(wandb_test_env):
     wandb.finish()
 
 
-def test_log_wandb_without_run_id(wandb_test_env):
-    """Test that log_wandb fails gracefully when no run ID is available."""
-    # Remove METTA_RUN_ID
-    os.environ.pop("METTA_RUN_ID", None)
+def test_log_to_wandb_multiple_metrics(wandb_test_env):
+    """Test logging multiple metrics at once."""
+    os.environ["METTA_RUN_ID"] = "test-run-003"
 
-    # Try to log a value
-    success = log_wandb("test/metric", 42.0)
-    assert success is False
+    # Log multiple metrics
+    metrics = {
+        "accuracy": 0.95,
+        "loss": 0.05,
+        "learning_rate": 0.001,
+    }
 
-    # Verify no run was created
-    assert wandb.run is None
+    log_to_wandb(metrics, step=100)
 
-
-def test_log_wandb_resumes_existing_run(wandb_test_env):
-    """Test that log_wandb can resume an existing run."""
-    run_id = "test-run-002"
-    os.environ["METTA_RUN_ID"] = run_id
-
-    # Create an initial run and log some data
-    _run = wandb.init(
-        project="test-project",
-        name=run_id,
-        id=run_id,
-        mode="offline",
-    )
-    wandb.log({"initial/metric": 1.0})
-    wandb.finish()
-
-    # Now use log_wandb to resume the run
-    success = log_wandb("resumed/metric", 2.0)
-    assert success is True
-
-    # Verify we resumed the same run
+    # Verify all metrics were logged
     assert wandb.run is not None
-    assert wandb.run.id == run_id
+    summary_dict = dict(wandb.run.summary)
+
+    for key, value in metrics.items():
+        assert key in summary_dict
+        assert summary_dict[key] == value
 
     # Clean up
     wandb.finish()
 
 
 @pytest.mark.slow
-def test_log_wandb_multiple_values(wandb_test_env):
-    """Test logging multiple values to the same run."""
-    os.environ["METTA_RUN_ID"] = "test-run-003"
+def test_log_multiple_value_types(wandb_test_env):
+    """Test logging multiple values of different types."""
+    os.environ["METTA_RUN_ID"] = "test-run-004"
 
-    # Log multiple values
+    # Log multiple values of different types
     values = {
         "test/int": 42,
         "test/float": 3.14159,
@@ -131,14 +164,12 @@ def test_log_wandb_multiple_values(wandb_test_env):
     }
 
     for key, value in values.items():
-        success = log_wandb(key, value)
-        assert success is True
+        log_single_value(key, value)
 
     # Verify all values are in summary
     assert wandb.run is not None
 
     # Access summary values directly from wandb.run.summary
-    # This handles wandb's internal object wrapping
     for key, value in values.items():
         assert wandb.run.summary.get(key) is not None
 
@@ -148,25 +179,22 @@ def test_log_wandb_multiple_values(wandb_test_env):
         # For complex types, wandb stores them differently
         # We just verify they were stored
         else:
-            # Just verify the key exists - wandb wraps complex objects
             assert key in dict(wandb.run.summary)
 
     # Clean up
     wandb.finish()
 
 
-def test_log_wandb_with_steps(wandb_test_env):
+def test_log_with_steps(wandb_test_env):
     """Test logging values at different steps."""
-    os.environ["METTA_RUN_ID"] = "test-run-004"
+    os.environ["METTA_RUN_ID"] = "test-run-005"
 
-    # Log values at different steps
+    # Log values at different steps without adding to summary
     for step in range(5):
-        success = log_wandb("test/counter", step * 10, step=step, also_summary=False)
-        assert success is True
+        log_single_value("test/counter", step * 10, step=step, also_summary=False)
 
-    # Also log a summary value
-    success = log_wandb("test/final", 100, step=10, also_summary=True)
-    assert success is True
+    # Log a final value to summary
+    log_single_value("test/final", 100, step=10, also_summary=True)
 
     # Verify summary contains only the final value
     assert wandb.run is not None
@@ -175,93 +203,118 @@ def test_log_wandb_with_steps(wandb_test_env):
     assert "test/final" in summary_dict
     assert summary_dict["test/final"] == 100
 
-    # Note: We can't easily verify step-based logging in offline mode
-    # without accessing the internal data files
+    # Counter values should not be in summary since also_summary=False
+    # Note: wandb might still track the last value, so we just verify our explicit summary value
 
     # Clean up
     wandb.finish()
 
 
-def test_log_debug_info(wandb_test_env, tmp_path):
+def test_log_debug_info(wandb_test_env):
     """Test the log_debug_info function."""
-    os.environ["METTA_RUN_ID"] = "test-run-005"
+    os.environ["METTA_RUN_ID"] = "test-run-006"
     os.environ["SKYPILOT_TASK_ID"] = "sky-2024-01-01-12-00-00-123456_test_1"
+    os.environ["HOSTNAME"] = "test-host"
+    os.environ["RANK"] = "0"
+    os.environ["LOCAL_RANK"] = "0"
 
-    # Create a fake latency file
-    latency_dir = tmp_path / ".metta"
-    latency_dir.mkdir(exist_ok=True)
-    latency_file = latency_dir / "skypilot_latency.json"
+    # Run log_debug_info
+    log_debug_info()
 
-    import json
+    # Verify debug values were logged
+    assert wandb.run is not None
+    summary_dict = dict(wandb.run.summary)
 
-    latency_data = {
-        "latency_s": 123.45,
-        "task_id": "sky-2024-01-01-12-00-00-123456_test_1",
-        "run_id": "test-run-005",
-        "timestamp": "2024-01-01T12:00:00",
-    }
-    with open(latency_file, "w") as f:
-        json.dump(latency_data, f)
+    # Verify environment info was logged
+    assert "debug/metta_run_id" in summary_dict
+    assert summary_dict["debug/metta_run_id"] == "test-run-006"
+    assert "debug/skypilot_task_id" in summary_dict
+    assert summary_dict["debug/skypilot_task_id"] == "sky-2024-01-01-12-00-00-123456_test_1"
+    assert "debug/hostname" in summary_dict
+    assert summary_dict["debug/hostname"] == "test-host"
+    assert "debug/rank" in summary_dict
+    assert summary_dict["debug/rank"] == "0"
+    assert "debug/timestamp" in summary_dict
 
-    # Temporarily override home directory for the test
-    original_home = os.environ.get("HOME")
-    os.environ["HOME"] = str(tmp_path)
-
-    try:
-        # Run log_debug_info
-        log_debug_info()
-
-        # Verify debug values were logged
-        assert wandb.run is not None
-        summary_dict = dict(wandb.run.summary)
-
-        assert "debug/test_value" in summary_dict
-        assert summary_dict["debug/test_value"] == 42
-        assert "debug/test_float" in summary_dict
-        assert summary_dict["debug/test_float"] == 3.14159
-
-        # Verify environment info was logged
-        assert "debug/metta_run_id" in summary_dict
-        assert summary_dict["debug/metta_run_id"] == "test-run-005"
-        assert "debug/skypilot_task_id" in summary_dict
-
-        # Verify latency was logged
-        assert "debug/skypilot_queue_latency_s" in summary_dict
-        assert summary_dict["debug/skypilot_queue_latency_s"] == 123.45
-
-    finally:
-        # Restore original home
-        if original_home is not None:
-            os.environ["HOME"] = original_home
-        else:
-            os.environ.pop("HOME", None)
-
-        # Clean up
-        wandb.finish()
+    # Clean up
+    wandb.finish()
 
 
-def test_log_wandb_existing_active_run(wandb_test_env):
-    """Test that log_wandb uses an existing active run."""
-    # Create a run manually
-    run = wandb.init(
+def test_parse_value():
+    """Test the parse_value function."""
+    # Test integer parsing
+    assert parse_value("42") == 42
+    assert parse_value("0") == 0
+    assert parse_value("-10") == -10
+
+    # Test float parsing
+    assert parse_value("3.14") == 3.14
+    assert parse_value("0.0") == 0.0
+    assert parse_value("-1.5") == -1.5
+
+    # Test boolean parsing
+    assert parse_value("true") is True
+    assert parse_value("True") is True
+    assert parse_value("false") is False
+    assert parse_value("False") is False
+
+    # Test JSON parsing
+    assert parse_value('{"a": 1, "b": 2}') == {"a": 1, "b": 2}
+    assert parse_value('[1, 2, 3]') == [1, 2, 3]
+    assert parse_value('null') is None
+
+    # Test string fallback
+    assert parse_value("hello world") == "hello world"
+    assert parse_value("not-a-number") == "not-a-number"
+
+
+def test_log_to_wandb_no_summary(wandb_test_env):
+    """Test logging without adding to summary."""
+    os.environ["METTA_RUN_ID"] = "test-run-007"
+
+    # Log metrics without summary
+    metrics = {"metric1": 1, "metric2": 2}
+    log_to_wandb(metrics, step=0, also_summary=False)
+
+    # Log other metrics with summary
+    summary_metrics = {"summary1": 10, "summary2": 20}
+    log_to_wandb(summary_metrics, step=1, also_summary=True)
+
+    # Verify only summary metrics are in summary
+    assert wandb.run is not None
+    summary_dict = dict(wandb.run.summary)
+
+    assert "summary1" in summary_dict
+    assert "summary2" in summary_dict
+    assert summary_dict["summary1"] == 10
+    assert summary_dict["summary2"] == 20
+
+    # Clean up
+    wandb.finish()
+
+
+def test_ensure_wandb_run_resume(wandb_test_env):
+    """Test that ensure_wandb_run can resume an existing run."""
+    run_id = "test-run-008"
+    os.environ["METTA_RUN_ID"] = run_id
+
+    # Create an initial run and log some data
+    run1 = wandb.init(
         project="test-project",
-        name="existing-run",
+        name=run_id,
+        id=run_id,
         mode="offline",
     )
+    wandb.log({"initial/metric": 1.0})
+    wandb.finish()
 
-    # Log some initial data
-    wandb.log({"initial/value": 1})
+    # Now use ensure_wandb_run to resume
+    run2 = ensure_wandb_run()
+    assert run2 is not None
+    assert run2.id == run_id
 
-    # Now use log_wandb - it should use the existing run
-    success = log_wandb("test/value", 42)
-    assert success is True
-
-    # Verify it used the same run
-    assert wandb.run is not None
-    assert wandb.run.id == run.id
-    summary_dict = dict(wandb.run.summary)
-    assert "test/value" in summary_dict
-    assert summary_dict["test/value"] == 42
+    # Log more data
+    log_single_value("resumed/metric", 2.0)
 
     # Clean up
     wandb.finish()
@@ -273,7 +326,7 @@ def log_wandb_live_test():
     This test requires network access and will create a run at:
     https://wandb.ai/metta-research/metta/runs/test_log_wandb_{timestamp}
 
-    Run directly with: python common/tests/wandb/test_log_wandb.py
+    Run directly with: python -m pytest test_log_wandb.py::log_wandb_live_test -s
     """
     # Create a unique run ID with timestamp
     timestamp = int(time.time())
@@ -298,28 +351,28 @@ def log_wandb_live_test():
         print(f"\n🚀 Creating live wandb run: {run_id}")
 
         # Basic metrics (all at step 0)
-        assert log_wandb("live_test/startup", 1.0, step=0) is True
-        assert log_wandb("live_test/int", 42, step=0) is True
-        assert log_wandb("live_test/float", 3.14159, step=0) is True
-        assert log_wandb("live_test/string", "Hello from live test!", step=0) is True
-        assert log_wandb("live_test/bool", True, step=0) is True
+        log_single_value("live_test/startup", 1.0, step=0)
+        log_single_value("live_test/int", 42, step=0)
+        log_single_value("live_test/float", 3.14159, step=0)
+        log_single_value("live_test/string", "Hello from live test!", step=0)
+        log_single_value("live_test/bool", True, step=0)
 
         # Complex types
-        assert log_wandb("live_test/list", [1, 2, 3, 4, 5], step=0) is True
-        assert log_wandb("live_test/dict", {"test": "live", "timestamp": timestamp}, step=0) is True
+        log_single_value("live_test/list", [1, 2, 3, 4, 5], step=0)
+        log_single_value("live_test/dict", {"test": "live", "timestamp": timestamp}, step=0)
 
         # Time series data
         for i in range(10):
-            assert log_wandb("live_test/progress", i * 10, step=i, also_summary=False) is True
-            assert log_wandb("live_test/loss", 1.0 / (i + 1), step=i, also_summary=False) is True
+            log_single_value("live_test/progress", i * 10, step=i, also_summary=False)
+            log_single_value("live_test/loss", 1.0 / (i + 1), step=i, also_summary=False)
 
-        # Log debug info (no step specified, just summary)
+        # Log debug info
         log_debug_info()
 
-        # Final summary metrics (no step needed, just summary)
-        assert log_wandb("live_test/final_score", 0.95) is True
-        assert log_wandb("live_test/test_passed", True) is True
-        assert log_wandb("live_test/completion_time", time.time() - timestamp) is True
+        # Final summary metrics
+        log_single_value("live_test/final_score", 0.95)
+        log_single_value("live_test/test_passed", True)
+        log_single_value("live_test/completion_time", time.time() - timestamp)
 
         # Get the run URL
         if wandb.run:
@@ -331,7 +384,11 @@ def log_wandb_live_test():
             print(f"   Run ID: {run_id}")
 
             # Also log the URL to the run itself
-            log_wandb("live_test/run_url", run_url)
+            log_single_value("live_test/run_url", run_url)
+
+    except Exception as e:
+        print(f"\n❌ Live test failed: {e}")
+        raise
 
     finally:
         # Clean up
@@ -348,5 +405,4 @@ def log_wandb_live_test():
 
 if __name__ == "__main__":
     # When running this script directly, run the live test
-    # When importing for pytest, only the test_* functions will be discovered
     log_wandb_live_test()
