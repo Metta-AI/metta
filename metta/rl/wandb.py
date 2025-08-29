@@ -91,7 +91,6 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[
 
 
 def get_wandb_artifact_metadata(wandb_uri: str) -> dict:
-    """Get metadata from wandb artifact."""
     if not wandb or not wandb_uri.startswith("wandb://"):
         return {}
 
