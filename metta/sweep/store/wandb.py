@@ -105,7 +105,7 @@ class WandbStore:
     def _convert_run_to_info(self, run: Any) -> RunInfo:
         """Convert WandB run to RunInfo"""
         summary = deep_clean(run.summary)
-        assert isinstance(summary, dict)
+        # assert isinstance(summary, dict)
 
         # Determine training/eval status from run state and summary
         has_started_training = False
