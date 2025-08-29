@@ -214,22 +214,16 @@ class CheckpointManager:
             self._cache[path_str] = agent
         return agent
 
-    def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         """Load trainer state for resuming training."""
-        if epoch is None:
-            checkpoint_files = self._find_checkpoint_files()
-            if not checkpoint_files:
-                return None
-            epoch = max(parse_checkpoint_filename(f.name)[1] for f in checkpoint_files)
-
-        trainer_file = self.checkpoint_dir / f"{self.run_name}__e{epoch}__trainer.pt"
+        trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
             return None
 
         state = torch.load(trainer_file, weights_only=False)
         result = {
             "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
-            "epoch": state.get("epoch", epoch),
+            "epoch": state.get("epoch", 0),
             "agent_step": state.get("agent_step", 0),
         }
         if "stopwatch_state" in state:
@@ -252,7 +246,7 @@ class CheckpointManager:
     ):
         """Save trainer state."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        trainer_file = self.checkpoint_dir / f"{self.run_name}__e{epoch}__trainer.pt"
+        trainer_file = self.checkpoint_dir / "trainer_state.pt"
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
@@ -283,10 +277,11 @@ class CheckpointManager:
         agent_files.sort(key=lambda p: parse_checkpoint_filename(p.name)[1])
         files_to_remove = agent_files if keep_last_n == 0 else agent_files[:-keep_last_n]
         for agent_file in files_to_remove:
-            epoch = parse_checkpoint_filename(agent_file.name)[1]
-            trainer_file = self.checkpoint_dir / f"{self.run_name}__e{epoch}__trainer.pt"
-            trainer_file.unlink(missing_ok=True)
             agent_file.unlink()
+        # Clean up trainer state if all checkpoints are being removed
+        if keep_last_n == 0:
+            trainer_file = self.checkpoint_dir / "trainer_state.pt"
+            trainer_file.unlink(missing_ok=True)
         return len(files_to_remove)
 
     def upload_to_wandb(self, epoch: Optional[int] = None, wandb_run=None) -> Optional[str]:

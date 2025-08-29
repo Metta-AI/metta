@@ -109,7 +109,7 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_trainer_state(mock_optimizer, epoch=5, agent_step=1000, stopwatch_state=stopwatch_state)
 
         # Load trainer state
-        loaded_trainer_state = checkpoint_manager.load_trainer_state(epoch=5)
+        loaded_trainer_state = checkpoint_manager.load_trainer_state()
         assert loaded_trainer_state is not None
         assert loaded_trainer_state["epoch"] == 5
         assert loaded_trainer_state["agent_step"] == 1000
@@ -210,13 +210,13 @@ class TestCleanup:
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
         assert (checkpoint_dir / "test_run__e1__s1000__t60__sc0.pt").exists()
-        assert (checkpoint_dir / "test_run__e1__trainer.pt").exists()
+        assert (checkpoint_dir / "trainer_state.pt").exists()
 
         # Cleanup should remove both
         deleted_count = checkpoint_manager.cleanup_old_checkpoints(keep_last_n=0)
         assert deleted_count == 1
         assert not (checkpoint_dir / "test_run__e1__s1000__t60__sc0.pt").exists()
-        assert not (checkpoint_dir / "test_run__e1__trainer.pt").exists()
+        assert not (checkpoint_dir / "trainer_state.pt").exists()
 
 
 class TestUtilities:
