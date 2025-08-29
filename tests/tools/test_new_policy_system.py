@@ -1,7 +1,3 @@
-"""Test suite for the new policy management system.
-Tests checkpoint loading, policy URIs, and integration with the new tools.
-"""
-
 import tempfile
 from pathlib import Path
 

@@ -194,7 +194,6 @@ def train(
         metta_grid_env=metta_grid_env,
     )
 
-    # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
     act_space = vecenv.single_action_space
     act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
