@@ -11,7 +11,7 @@ import pytest
 from duckdb import DuckDBPyConnection
 
 from metta.agent.mocks import MockAgent
-from metta.rl.checkpoint_manager import Checkpoint, CheckpointManager, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import CheckpointManager, key_and_version, parse_checkpoint_filename
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
@@ -52,8 +52,8 @@ class TestHelpersSimpleCheckpoint:
     @staticmethod
     def create_checkpoint_with_manager(
         temp_dir: Path, run_name: str, epoch: int, score: float = 0.5, metadata: dict = None
-    ) -> Checkpoint:
-        """Create a checkpoint using CheckpointManager and return info object."""
+    ) -> str:
+        """Create a checkpoint using CheckpointManager and return URI."""
         checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=str(temp_dir))
 
         # Create a mock agent and save it
@@ -85,15 +85,14 @@ class TestHelpersSimpleCheckpoint:
         filename = f"{run_name}.e{epoch}.s{agent_step}.t{total_time}.pt"
         checkpoint_path = checkpoint_manager.checkpoint_dir / filename
 
-        return Checkpoint(run_name=run_name, uri=f"file://{checkpoint_path}", metadata=metadata)
+        return f"file://{checkpoint_path}"
 
     @staticmethod
-    def create_agent_map_from_checkpoints(checkpoint_infos: list[Checkpoint]) -> dict[int, tuple[str, int]]:
-        """Create agent map from checkpoint info list."""
+    def create_agent_map_from_checkpoint_uris(checkpoint_uris: list[str]) -> dict[int, tuple[str, int]]:
+        """Create agent map from checkpoint URI list."""
         agent_map = {}
-        for i, checkpoint_info in enumerate(checkpoint_infos):
-            key, version = checkpoint_info.key_and_version()
-            agent_map[i] = (key, version)
+        for i, uri in enumerate(checkpoint_uris):
+            agent_map[i] = key_and_version(uri)
         return agent_map
 
 
@@ -107,12 +106,12 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
     checkpoint_temp_dir.mkdir(parents=True)
 
     # Create a checkpoint using CheckpointManager
-    checkpoint_info = TestHelpersSimpleCheckpoint.create_checkpoint_with_manager(
+    checkpoint_uri = TestHelpersSimpleCheckpoint.create_checkpoint_with_manager(
         checkpoint_temp_dir, "test_policy", epoch=1, score=0.85
     )
 
     # Create agent map in the format expected by the database
-    agent_map = TestHelpersSimpleCheckpoint.create_agent_map_from_checkpoints([checkpoint_info])
+    agent_map = TestHelpersSimpleCheckpoint.create_agent_map_from_checkpoint_uris([checkpoint_uri])
 
     # Create a shard with some data
     shard_dir = tmp_path / "shards"
@@ -137,7 +136,7 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
         agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_info=checkpoint_info,
+        policy_uri=checkpoint_uri,
     )
 
     # Verify the merged database contains our data

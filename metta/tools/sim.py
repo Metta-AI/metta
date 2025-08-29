@@ -150,7 +150,8 @@ class SimTool(Tool):
     def _export_checkpoint_to_stats_db(self, stats_db: SimulationStatsDB, checkpoint_uri: str, metrics: dict) -> None:
         """Export checkpoint evaluation results to stats database."""
         # Extract key and version from URI for database
-        policy_key, policy_version = stats_db._uri_to_key_and_version(checkpoint_uri)
+        from metta.rl.checkpoint_manager import key_and_version
+        policy_key, policy_version = key_and_version(checkpoint_uri)
 
         # Record simulation entries for each configured simulation
         for sim_config in self.simulations:

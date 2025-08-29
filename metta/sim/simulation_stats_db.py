@@ -17,7 +17,7 @@ import duckdb
 
 from metta.mettagrid.episode_stats_db import EpisodeStatsDB
 from metta.mettagrid.util.file import exists, local_copy, write_file
-from metta.rl.checkpoint_manager import name_from_uri, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import key_and_version
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
@@ -102,7 +102,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         merged = SimulationStatsDB(merged_path)
 
-        policy_key, policy_version = merged._uri_to_key_and_version(policy_uri)
+        policy_key, policy_version = key_and_version(policy_uri) if policy_uri else ("unknown", 0)
         merged._insert_simulation(
             sim_id=sim_id,
             name=sim_name,
@@ -122,7 +122,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         if all_episode_ids:
             # Convert agent_map with URIs to agent_map with (key, version) tuples
-            agent_tuple_map = {agent_id: merged._uri_to_key_and_version(uri) for agent_id, uri in agent_map.items()}
+            agent_tuple_map = {agent_id: (key_and_version(uri) if uri else ("unknown", 0)) for agent_id, uri in agent_map.items()}
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
             merged._update_episode_simulations(all_episode_ids, sim_id)
@@ -256,26 +256,9 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
-    def _uri_to_key_and_version(self, uri: str) -> tuple[str, int]:
-        """Extract policy key and version from URI for database compatibility."""
-        if not uri:
-            return "unknown", 0
-
-        # Extract name from URI
-        policy_key = name_from_uri(uri)
-
-        # Try to extract version/epoch from filename if it's a file:// URI
-        version = 0
-        if uri.startswith("file://"):
-            path = Path(uri[7:])
-            if path.suffix == ".pt":
-                try:
-                    _, epoch, _, _ = parse_checkpoint_filename(path.name)
-                    version = epoch
-                except (ValueError, ImportError):
-                    pass
-
-        return policy_key, version
+    def key_and_version_from_uri(self, uri: str) -> tuple[str, int]:
+        """Extract key and version from a policy URI."""
+        return key_and_version(uri) if uri else ("unknown", 0)
 
     def _merge_db(self, other_path: Path) -> None:
         """

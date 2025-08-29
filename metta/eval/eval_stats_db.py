@@ -14,7 +14,7 @@ from typing import Dict, Optional
 import pandas as pd
 
 from metta.mettagrid.util.file import local_copy
-from metta.rl.checkpoint_manager import name_from_uri, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import key_and_version
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 # --------------------------------------------------------------------------- #
@@ -266,17 +266,4 @@ class EvalStatsDB(SimulationStatsDB):
 
     def key_and_version_from_uri(self, policy_uri: str) -> tuple[str, int]:
         """Extract key and version from a policy URI."""
-        policy_key = name_from_uri(policy_uri)
-
-        # Try to extract version/epoch from filename if it's a file:// URI
-        version = 0
-        if policy_uri.startswith("file://"):
-            path = Path(policy_uri[7:])
-            if path.suffix == ".pt":
-                try:
-                    _, epoch, _, _ = parse_checkpoint_filename(path.name)
-                    version = epoch
-                except (ValueError, ImportError):
-                    pass
-
-        return policy_key, version
+        return key_and_version(policy_uri)

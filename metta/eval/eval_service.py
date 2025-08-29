@@ -9,7 +9,8 @@ from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import Checkpoint, CheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager, name_from_uri
+from metta.rl.policy_management import resolve_policy
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -17,7 +18,7 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 
 def evaluate_policy(
     *,
-    checkpoint: Checkpoint,
+    checkpoint_uri: str,
     simulations: list[SimulationConfig],
     device: torch.device,
     vectorization: str,
@@ -34,20 +35,25 @@ def evaluate_policy(
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
     stats_dir = stats_dir or "/tmp/stats"
 
-    logger.info(f"Evaluating checkpoint {checkpoint.uri}")
+    logger.info(f"Evaluating checkpoint {checkpoint_uri}")
     if not is_unique([sim.name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
 
+    # Load the policy from URI
+    policy = resolve_policy(checkpoint_uri, str(device))
+    run_name = name_from_uri(checkpoint_uri)
+    
     sims = [
         Simulation(
             name=sim.name,
             cfg=sim,
-            checkpoint=checkpoint,
-            checkpoint_manager=checkpoint_manager,
-            replay_dir=replay_dir,
-            stats_dir=stats_dir,
+            policy=policy,
+            run_name=run_name,
+            policy_uri=checkpoint_uri,
             device=device,
             vectorization=vectorization,
+            stats_dir=stats_dir,
+            replay_dir=replay_dir,
             stats_client=stats_client,
             stats_epoch_id=stats_epoch_id,
             wandb_policy_name=wandb_policy_name,
@@ -66,7 +72,7 @@ def evaluate_policy(
             merged_db.merge_in(sim_result.stats_db)
             record_heartbeat()
             if replay_dir is not None:
-                key, version = sim_result.stats_db.key_and_version(sim.checkpoint)
+                key, version = sim_result.stats_db.key_and_version_from_uri(checkpoint_uri)
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
                 if sim_replay_urls:
                     replay_urls[sim.name] = sim_replay_urls
@@ -88,8 +94,8 @@ def evaluate_policy(
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
     eval_stats_db = EvalStatsDB(merged_db.path)
-    logger.info("Evaluation complete for checkpoint %s", checkpoint.uri)
-    scores = extract_scores(checkpoint, simulations, eval_stats_db, logger)
+    logger.info("Evaluation complete for checkpoint %s", checkpoint_uri)
+    scores = extract_scores(checkpoint_uri, simulations, eval_stats_db, logger)
 
     if export_stats_db_uri is not None:
         logger.info("Exporting merged stats DB → %s", export_stats_db_uri)
@@ -104,7 +110,7 @@ def evaluate_policy(
 
 
 def extract_scores(
-    checkpoint: Checkpoint,
+    checkpoint_uri: str,
     simulations: list[SimulationConfig],
     stats_db: EvalStatsDB,
     logger: logging.Logger,
@@ -115,13 +121,13 @@ def extract_scores(
 
     category_scores: dict[str, float] = {}
     for category in categories:
-        score = stats_db.get_average_metric_by_filter("reward", checkpoint, f"sim_name LIKE '%{category}%'")
+        score = stats_db.get_average_metric_by_filter("reward", checkpoint_uri, f"sim_name LIKE '%{category}%'")
         logger.info(f"{category} score: {score}")
         if score is None:
             continue
         category_scores[category] = score
     per_sim_scores: dict[tuple[str, str], float] = {}
-    all_scores = stats_db.simulation_scores(checkpoint, "reward")
+    all_scores = stats_db.simulation_scores(checkpoint_uri, "reward")
     for (sim_name, _), score in all_scores.items():
         category = sim_name.split("/")[0]
         sim_short_name = sim_name.split("/")[-1]
