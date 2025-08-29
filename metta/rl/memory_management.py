@@ -39,20 +39,28 @@ class MemoryManager:
 
     def get_states(self, env_id: Optional[int] = None) -> Any:
         """Get stored memory for env_id (or global if None)."""
-        if env_id is None:
-            env_id = 0
-        return self.memory.get_memory(env_id)
+        if hasattr(self.policy.policy, "get_states"):
+            return self.policy.policy.get_states()
+        else:
+            if env_id is None:
+                env_id = 0
+            return self.memory.get_memory(env_id)
 
     def set_states(self, states: Any, env_id: Optional[int] = None) -> None:
         """Persist memory for env_id (or global if None)."""
 
-        # print(f"set_states: {states}")
-        self.memory.set_memory(states, env_id)
+        if hasattr(self.policy.policy, "set_states"):
+            self.policy.policy.set_states(states)
+        else:
+            self.memory.set_memory(states, env_id)
 
     def reset_states(self, env_id: Optional[int] = None) -> None:
         """Reset stored memory for env_id (or all if None)."""
         print(f"reset_states: {env_id}")
 
-        # todo: decide which to reset the state, only for a env or entire memory
-        # self.memory.reset_env_memory(env_id)
-        self.memory.reset_memory()
+        if hasattr(self.policy.policy, "reset_states"):
+            self.policy.policy.reset_states()
+        else:
+            # todo: decide which to reset the state, only for a env or entire memory
+            # self.memory.reset_env_memory(env_id)
+            self.memory.reset_memory()
