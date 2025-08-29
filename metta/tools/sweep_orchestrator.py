@@ -98,13 +98,13 @@ class SweepOrchestratorTool(Tool):
         init_file_logging(run_dir=self.sweep_dir)
         init_logging(run_dir=self.sweep_dir)
         
-        logger.info("=" * 60)
-        logger.info(f"Starting sweep: {self.sweep_name}")
-        logger.info(f"Recipe: {self.recipe_module}.{self.train_entrypoint}")
-        logger.info(f"Max trials: {self.max_trials}")
-        logger.info(f"Max parallel jobs: {self.max_parallel_jobs}")
-        logger.info(f"Monitoring interval: {self.monitoring_interval}s")
-        logger.info("=" * 60)
+        logger.info("[SweepOrchestrator] " + "=" * 60)
+        logger.info(f"[SweepOrchestrator] Starting sweep: {self.sweep_name}")
+        logger.info(f"[SweepOrchestrator] Recipe: {self.recipe_module}.{self.train_entrypoint}")
+        logger.info(f"[SweepOrchestrator] Max trials: {self.max_trials}")
+        logger.info(f"[SweepOrchestrator] Max parallel jobs: {self.max_parallel_jobs}")
+        logger.info(f"[SweepOrchestrator] Monitoring interval: {self.monitoring_interval}s")
+        logger.info("[SweepOrchestrator] " + "=" * 60)
         
         # Build the orchestrator config
         orchestrator_config = SweepOrchestratorConfig(
@@ -145,10 +145,10 @@ class SweepOrchestratorTool(Tool):
         config_path = os.path.join(self.sweep_dir, "sweep_config.json")
         with open(config_path, "w") as f:
             f.write(self.model_dump_json(indent=2))
-            logger.info(f"Config saved to {config_path}")
+            logger.info(f"[SweepOrchestrator] Config saved to {config_path}")
         
         try:
-            logger.info("\n🏃 Starting orchestrator control loop...")
+            logger.info("[SweepOrchestrator] 🏃 Starting orchestrator control loop...")
             
             # Use the orchestrate_sweep entry point
             orchestrate_sweep(
@@ -160,19 +160,33 @@ class SweepOrchestratorTool(Tool):
             )
             
         except KeyboardInterrupt:
-            logger.info("\n⚠️  Sweep interrupted by user")
+            logger.info("[SweepOrchestrator] ⚠️  Sweep interrupted by user")
         except Exception as e:
-            logger.error(f"Sweep failed with error: {e}")
+            logger.error(f"[SweepOrchestrator] Sweep failed with error: {e}")
             raise
         finally:
             # Final summary
             final_runs = store.fetch_runs(filters={"group": self.sweep_name})
             
-            logger.info("\n" + "=" * 60)
-            logger.info("SWEEP SUMMARY")
-            logger.info("=" * 60)
-            logger.info(f"Sweep name: {self.sweep_name}")
-            logger.info(f"Total runs: {len(final_runs)}")
+            logger.info("[SweepOrchestrator] " + "=" * 60)
+            logger.info("[SweepOrchestrator] SWEEP SUMMARY")
+            logger.info("[SweepOrchestrator] " + "=" * 60)
+            logger.info(f"[SweepOrchestrator] Sweep name: {self.sweep_name}")
+            logger.info(f"[SweepOrchestrator] Total runs: {len(final_runs)}")
+            
+            # Show detailed status table
+            if final_runs:
+                logger.info(f"[SweepOrchestrator] ")
+                logger.info(f"[SweepOrchestrator] Final Run Status Table:")
+                logger.info(f"[SweepOrchestrator] {'='*80}")
+                logger.info(f"[SweepOrchestrator] {'Run ID':<35} {'Status':<25} {'Score':<20}")
+                logger.info(f"[SweepOrchestrator] {'-'*80}")
+                
+                for run in final_runs:
+                    score_str = f"{run.observation.score:.6f}" if run.observation else "N/A"
+                    logger.info(f"[SweepOrchestrator] {run.run_id:<35} {str(run.status):<25} {score_str:<20}")
+                
+                logger.info(f"[SweepOrchestrator] {'='*80}")
             
             # Count by status
             completed_count = sum(1 for run in final_runs if run.observation is not None)
@@ -180,9 +194,11 @@ class SweepOrchestratorTool(Tool):
             in_progress_count = sum(1 for run in final_runs if 
                                      run.has_started_training and not run.has_completed_training)
             
-            logger.info(f"Completed with observations: {completed_count}")
-            logger.info(f"Failed: {failed_count}")
-            logger.info(f"In progress: {in_progress_count}")
+            logger.info(f"[SweepOrchestrator] ")
+            logger.info(f"[SweepOrchestrator] Summary:")
+            logger.info(f"[SweepOrchestrator] - Completed with observations: {completed_count}")
+            logger.info(f"[SweepOrchestrator] - Failed: {failed_count}")
+            logger.info(f"[SweepOrchestrator] - In progress: {in_progress_count}")
             
             # Show best result if available
             observations = [run for run in final_runs if run.observation is not None]
@@ -192,12 +208,12 @@ class SweepOrchestratorTool(Tool):
                 else:
                     best_run = min(observations, key=lambda r: r.observation.score)
                 
-                logger.info(f"\n📊 Best result:")
-                logger.info(f"   Run: {best_run.run_id}")
-                logger.info(f"   Score: {best_run.observation.score:.4f}")
+                logger.info(f"[SweepOrchestrator] 📊 Best result:")
+                logger.info(f"[SweepOrchestrator]    Run: {best_run.run_id}")
+                logger.info(f"[SweepOrchestrator]    Score: {best_run.observation.score:.4f}")
                 if best_run.observation.suggestion:
-                    logger.info(f"   Config: {best_run.observation.suggestion}")
+                    logger.info(f"[SweepOrchestrator]    Config: {best_run.observation.suggestion}")
             
-            logger.info("=" * 60)
+            logger.info("[SweepOrchestrator] " + "=" * 60)
         
         return 0

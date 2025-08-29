@@ -232,9 +232,9 @@ def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
                 except Exception as e:
                     last_exception = e
                     if attempt == max_attempts:
-                        logger.error(f"Failed after {max_attempts} attempts: {e}")
+                        logger.error(f"[Retry] Failed after {max_attempts} attempts: {e}")
                         raise
-                    logger.warning(f"Attempt {attempt} failed, retrying in {current_delay}s: {e}")
+                    logger.warning(f"[Retry] Attempt {attempt} failed, retrying in {current_delay}s: {e}")
                     time.sleep(current_delay)
                     current_delay *= backoff
                     attempt += 1
@@ -270,7 +270,7 @@ class LocalDispatcher:
             # poll() returns None if process is still running, returncode otherwise
             if process.poll() is not None:
                 finished_pids.append(pid)
-                logger.debug(f"Process {pid} finished with return code {process.returncode}")
+                logger.debug(f"[LocalDispatcher] Process {pid} finished with return code {process.returncode}")
 
         # Clean up finished processes
         for pid in finished_pids:
@@ -285,10 +285,10 @@ class LocalDispatcher:
         self._reap_finished_processes()
         active_count = len(self._processes)
         if active_count > 0:
-            logger.debug(f"Active subprocesses: {active_count}")
+            logger.debug(f"[LocalDispatcher] Active subprocesses: {active_count}")
             for pid, process in self._processes.items():
                 status = "running" if process.poll() is None else f"finished({process.returncode})"
-                logger.debug(f"  PID {pid}: {status}")
+                logger.debug(f"[LocalDispatcher]   PID {pid}: {status}")
         return active_count
 
     def dispatch(self, job: JobDefinition) -> str:
@@ -335,7 +335,7 @@ class LocalDispatcher:
             cmd_parts.append("--overrides")
             cmd_parts.extend(all_overrides)
 
-        logger.info(f"Dispatching local run {job.run_id}: {' '.join(cmd_parts)}")
+        logger.info(f"[LocalDispatcher] Dispatching local run {job.run_id}: {' '.join(cmd_parts)}")
 
         try:
             # Start subprocess - optionally stream output for debugging
@@ -354,12 +354,12 @@ class LocalDispatcher:
             self._processes[pid] = process
             self._run_to_pid[job.run_id] = pid
 
-            logger.info(f"Started run {job.run_id} with PID {pid}")
+            logger.info(f"[LocalDispatcher] Started run {job.run_id} with PID {pid}")
 
             return pid
 
         except Exception as e:
-            logger.error(f"Failed to start local run {job.run_id}: {e}")
+            logger.error(f"[LocalDispatcher] Failed to start local run {job.run_id}: {e}")
             raise
 
 
@@ -440,7 +440,7 @@ class SweepController:
                             training_jobs_count += 1
                         else:
                             logger.debug(
-                                f"At max parallel jobs limit ({self.max_parallel_jobs}), skipping training job {job.run_id}"
+                                f"[SweepController] At max parallel jobs limit ({self.max_parallel_jobs}), skipping training job {job.run_id}"
                             )
                     else:
                         # Other job types (if any) go through
@@ -453,7 +453,7 @@ class SweepController:
                     try:
                         if job.type == JobTypes.LAUNCH_TRAINING:
                             self.store.init_run(job.run_id, sweep_id=self.sweep_id)
-                            logger.info(f"Created run {job.run_id}")
+                            logger.info(f"[SweepController] Created run {job.run_id}")
                         elif job.type == JobTypes.LAUNCH_EVAL:
                             success = self.store.update_run_summary(
                                 job.run_id,
@@ -463,18 +463,18 @@ class SweepController:
                             )
                             if not success:
                                 logger.error(
-                                    f"Failed to update run summary for eval job {job.run_id}, skipping dispatch"
+                                    f"[SweepController] Failed to update run summary for eval job {job.run_id}, skipping dispatch"
                                 )
                                 raise RuntimeError(f"Failed to update run summary for eval job {job.run_id}")
-                            logger.info(f"Launching eval for job {job.run_id}")
+                            logger.info(f"[SweepController] Launching eval for job {job.run_id}")
 
                         # Only dispatch if store operations succeeded
                         dispatch_id = self.dispatcher.dispatch(job)
-                        logger.info(f"Dispatched {job.run_id} with dispatch_id {dispatch_id}")
+                        logger.info(f"[SweepController] Dispatched {job.run_id} with dispatch_id {dispatch_id}")
 
                     except Exception as e:
-                        logger.error(f"Failed to initialize/dispatch job {job.run_id}: {e}")
-                        logger.error(f"Skipping dispatch for {job.run_id} to prevent resource overload")
+                        logger.error(f"[SweepController] Failed to initialize/dispatch job {job.run_id}: {e}")
+                        logger.error(f"[SweepController] Skipping dispatch for {job.run_id} to prevent resource overload")
                         # Continue with next job rather than crashing the whole sweep
                         continue
 
@@ -502,10 +502,10 @@ class SweepController:
                 time.sleep(self.monitoring_interval)
 
             except KeyboardInterrupt:
-                logger.info("Received interrupt signal, stopping sweep")
+                logger.info("[SweepController] Received interrupt signal, stopping sweep")
                 break
             except Exception as e:
-                logger.error(f"Error in control loop: {e}")
+                logger.error(f"[SweepController] Error in control loop: {e}")
                 time.sleep(self.monitoring_interval)
 
 
@@ -543,7 +543,7 @@ def orchestrate_sweep(
 
     sweep_info = sweep_client.get_sweep(config.sweep_name)
     if not sweep_info.exists:
-        logger.info(f"Registering sweep {config.sweep_name}")
+        logger.info(f"[Orchestrator] Registering sweep {config.sweep_name}")
         sweep_client.create_sweep(config.sweep_name, config.wandb.project, config.wandb.entity, config.sweep_name)
 
     # Create the sweep controller (stateless)
@@ -561,4 +561,4 @@ def orchestrate_sweep(
     try:
         controller.run()
     finally:
-        logger.info("Bye")
+        logger.info("[Orchestrator] Bye")
