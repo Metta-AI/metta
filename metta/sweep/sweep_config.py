@@ -1,6 +1,5 @@
 """Configuration for sweep execution."""
 
-
 from pydantic import Field
 
 from metta.common.config import Config
