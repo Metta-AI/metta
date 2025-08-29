@@ -988,7 +988,7 @@ def _(
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
             # Load checkpoint using URI-based system
-            checkpoint_uri = f"file://{latest_ckpt.absolute()}"
+            checkpoint_uri = CheckpointManager.normalize_uri(str(latest_ckpt))
             print(f"Loading checkpoint: {checkpoint_uri}")
 
             # Parse the checkpoint filename to get run_name
@@ -996,8 +996,8 @@ def _(
 
             run_name_from_ckpt, _, _, _, _ = parse_checkpoint_filename(latest_ckpt.name)
 
-            # Load the policy directly from the checkpoint file
-            trained_policy = torch.load(latest_ckpt, weights_only=False)
+            # Load the policy using CheckpointManager for consistency
+            trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
             if trained_policy is None:
                 raise Exception("No policy found in checkpoint")
 
@@ -1658,7 +1658,7 @@ def _(
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
         # Load checkpoint using URI-based system
-        checkpoint_uri = f"file://{latest_ckpt.absolute()}"
+        checkpoint_uri = CheckpointManager.normalize_uri(str(latest_ckpt))
         print(f"Loading checkpoint: {checkpoint_uri}")
 
         # Parse the checkpoint filename to get run_name
@@ -1666,8 +1666,8 @@ def _(
 
         run_name_from_ckpt, _, _, _, _ = parse_checkpoint_filename(latest_ckpt.name)
 
-        # Load the policy directly from the checkpoint file
-        trained_policy = torch.load(latest_ckpt, weights_only=False)
+        # Load the policy using CheckpointManager for consistency
+        trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
         if trained_policy is None:
             raise Exception("No policy found in checkpoint")
 

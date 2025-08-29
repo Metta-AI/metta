@@ -122,7 +122,10 @@ def _get_policies_for_uri(
                     return policy_uri, None
 
             # Return list of (uri, run_name) tuples - keep as URIs!
-            results = [(f"file://{checkpoint_path}", run_name) for checkpoint_path in checkpoint_paths]
+            results = [
+                (CheckpointManager.normalize_uri(str(checkpoint_path)), run_name)
+                for checkpoint_path in checkpoint_paths
+            ]
             return policy_uri, results
 
         else:

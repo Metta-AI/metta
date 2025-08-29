@@ -55,7 +55,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
             return None
 
     # Extract metadata from checkpoint using centralized method
-    checkpoint_uri = f"file://{Path(checkpoint_path).resolve()}"
+    checkpoint_uri = CheckpointManager.normalize_uri(checkpoint_path)
     policy_metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
     metadata = {
         "run": policy_metadata["run_name"],
