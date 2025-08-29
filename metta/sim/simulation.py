@@ -115,7 +115,12 @@ class Simulation:
         self._policy = policy
         self._run_name = run_name
         self._policy_uri = policy_uri
-        self._npc_policy = self._load_policy_from_uri(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
+        # Load NPC policy if specified
+        if cfg.npc_policy_uri:
+            npc_policy = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+            self._npc_policy = npc_policy if npc_policy is not None else MockAgent()
+        else:
+            self._npc_policy = None
         self._npc_policy_uri = cfg.npc_policy_uri
         self._policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
 
@@ -156,18 +161,6 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
-    @staticmethod
-    def _load_policy_from_uri(policy_uri: str) -> PolicyAgent:
-        """Load policy from URI using CheckpointManager.load_from_uri."""
-        try:
-            policy = CheckpointManager.load_from_uri(policy_uri)
-            if policy is None:
-                raise FileNotFoundError(f"Could not load policy from {policy_uri}")
-            return policy
-        except (FileNotFoundError, ValueError):
-            # For unsupported URIs or missing files, create a mock agent
-            return MockAgent()
-
     @classmethod
     def create(
         cls,
@@ -183,7 +176,9 @@ class Simulation:
         """Create a Simulation with sensible defaults."""
         # Create policy record from URI
         if policy_uri:
-            policy = cls._load_policy_from_uri(policy_uri)
+            policy = CheckpointManager.load_from_uri(policy_uri)
+            if policy is None:
+                policy = MockAgent()
         else:
             policy = MockAgent()
 
