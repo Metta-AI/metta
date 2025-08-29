@@ -225,10 +225,23 @@ def set_task_secrets(task: sky.Task) -> None:
     if not wandb.api.api_key:
         raise ValueError("Failed to get wandb api key, run 'metta install' to fix")
 
+    # Try to get Datadog API key
+    dd_api_key = os.environ.get("DD_API_KEY", "")
+    if not dd_api_key:
+        try:
+            import boto3
+
+            client = boto3.client("secretsmanager", region_name="us-east-1")
+            secret_json = client.get_secret_value(SecretId="datadog/api-key")
+            dd_api_key = secret_json.get("SecretString", "")
+        except Exception:
+            pass  # Datadog is optional
+
     task.update_secrets(
         dict(
             WANDB_API_KEY=wandb.api.api_key,
             WANDB_PASSWORD=wandb_password,
             OBSERVATORY_TOKEN=observatory_token,
+            DD_API_KEY=dd_api_key,
         )
     )

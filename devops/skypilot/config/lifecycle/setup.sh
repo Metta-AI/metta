@@ -10,8 +10,8 @@ git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
 git checkout "$METTA_GIT_REF"
 echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
-echo "[SETUP] Installing Datadog agent..."
-uv run metta install datadog-agent || echo "[SETUP] Datadog agent installation failed or skipped"
+echo "[SETUP] Installing Datadog agent on host..."
+bash /workspace/metta/devops/skypilot/config/lifecycle/install_datadog.sh || echo "[SETUP] Datadog agent installation failed or skipped"
 
 # Note that different sets of skypilot environment variables are available in "run" vs "setup"
 # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html

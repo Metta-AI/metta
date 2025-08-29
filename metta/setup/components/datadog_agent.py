@@ -26,7 +26,9 @@ class DatadogAgentSetup(SetupModule):
 
     def _is_applicable(self) -> bool:
         # Only applicable on Linux systems (EC2 instances)
-        return platform.system() == "Linux"
+        # Also check if we're in a Docker container - if so, skip
+        in_docker = os.path.exists("/.dockerenv") or os.path.exists("/workspace/metta/.venv")
+        return platform.system() == "Linux" and not in_docker
 
     def check_installed(self) -> bool:
         # Check if datadog-agent service exists
