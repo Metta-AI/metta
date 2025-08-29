@@ -13,11 +13,11 @@ class Memory:
 
     def get_memory(self, env_id):
         """Return memory for a specific env_id (or key)."""
-        return self.memory_dict[env_id]
+        return self.memory_dict[env_id]["states"]
 
     def set_memory(self, memory, env_id):
         """Set memory for a specific env_id (or key)."""
-        self.memory_dict[env_id] = memory
+        self.memory_dict[env_id]["states"] = memory
 
     def reset_env_memory(self, env_id):
         """Clear memory for a specific env_id (or key)."""
@@ -43,8 +43,11 @@ class MemoryManager:
 
     def set_states(self, states: Any, env_id: Optional[int] = None) -> None:
         """Persist memory for env_id (or global if None)."""
+
+        # print(f"set_states: {states}")
         self.memory.set_memory(states, env_id)
 
     def reset_states(self, env_id: Optional[int] = None) -> None:
         """Reset stored memory for env_id (or all if None)."""
+        print(f"reset_states: {env_id}")
         self.memory.reset_env_memory(env_id)
