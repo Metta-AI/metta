@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import parse_checkpoint_filename
+from metta.rl.checkpoint_manager import CheckpointManager
 
 
 def create_test_database(
@@ -20,8 +20,9 @@ def create_test_database(
 
     # Create a simulation
     sim_id = uuid.uuid4().hex[:8]
-    # Use checkpoint filename to extract policy information automatically
-    policy_key, policy_version, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
+    # Use CheckpointManager to extract policy metadata
+    metadata = CheckpointManager.get_policy_metadata(f"file:///tmp/{checkpoint_filename}")
+    policy_key, policy_version = metadata["run_name"], metadata["epoch"]
 
     db.con.execute(
         """
@@ -92,11 +93,16 @@ def test_normalization_bug():
             Path(tmpdir) / "test1.duckdb", num_episodes_requested=1, num_episodes_completed=1, num_agents=2
         )
 
-        # Demonstrate new filename-based checkpoint metadata system
-        # OLD WAY: checkpoint_path, epoch = "test_policy", 1  # Manual tuple tracking
-        # NEW WAY: Everything extracted automatically from filename
+        # Demonstrate CheckpointManager metadata extraction
         checkpoint_filename = "test_policy.e1.s1000.t30.sc0.pt"
-        checkpoint_path, epoch, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
+        # Use CheckpointManager to extract all metadata
+        metadata = CheckpointManager.get_policy_metadata(f"file:///tmp/{checkpoint_filename}")
+        checkpoint_path, epoch = metadata["run_name"], metadata["epoch"]
+        agent_step, total_time, score = (
+            metadata.get("agent_step", 1000),
+            metadata.get("total_time", 30),
+            metadata.get("score", 0.0),
+        )
 
         print(f"  Checkpoint file: {checkpoint_filename}")
         print(
@@ -118,8 +124,8 @@ def test_normalization_bug():
         print(f"  Agent metrics: {metrics_count}")
 
         # Get average reward
-        # Create proper URI from checkpoint components
-        policy_uri = f"file:///tmp/{checkpoint_path}.e{epoch}.s{agent_step}.t{total_time}.sc{int(score * 10000)}.pt"
+        # Use CheckpointManager to normalize URI
+        policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
         avg_reward_1 = db1.get_average_metric("reward", policy_uri)
         print(f"  Average reward: {avg_reward_1}")
 

@@ -161,10 +161,10 @@ class TestCheckpointIntegration:
         best_checkpoint = checkpoint_manager.find_best_checkpoint(metric="score")
         assert best_checkpoint is not None
 
-        # Parse the best checkpoint to verify it's epoch 3
-        from metta.rl.checkpoint_manager import parse_checkpoint_filename
-
-        _, epoch, _, _, score = parse_checkpoint_filename(Path(best_checkpoint).name)
+        # Parse the best checkpoint to verify it's epoch 3 using CheckpointManager
+        checkpoint_uri = CheckpointManager.normalize_uri(best_checkpoint)
+        metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+        epoch, score = metadata["epoch"], metadata.get("score", 0.0)
         assert epoch == 3
         assert abs(score - 0.8) < 0.001  # Account for float precision
 
@@ -240,10 +240,13 @@ class TestCheckpointIntegration:
         remaining = list(checkpoint_dir.glob("*.pt"))
         assert len(remaining) == 3
 
-        # Verify these are the latest 3 (epochs 5, 6, 7)
-        from metta.rl.checkpoint_manager import parse_checkpoint_filename
-
-        epochs = sorted([parse_checkpoint_filename(f.name)[1] for f in remaining])
+        # Verify these are the latest 3 (epochs 5, 6, 7) using CheckpointManager
+        epochs = []
+        for f in remaining:
+            uri = CheckpointManager.normalize_uri(str(f))
+            metadata = CheckpointManager.get_policy_metadata(uri)
+            epochs.append(metadata["epoch"])
+        epochs = sorted(epochs)
         assert epochs == [5, 6, 7]
 
     def test_trainer_state_integration(self, temp_run_dir, create_env_and_agent):
@@ -327,13 +330,12 @@ class TestCheckpointIntegration:
 
         assert len(top_checkpoints) == 2
 
-        # Parse and verify these are the highest scoring
-        from metta.rl.checkpoint_manager import parse_checkpoint_filename
-
+        # Parse and verify these are the highest scoring using CheckpointManager
         selected_scores = []
         for checkpoint_path in top_checkpoints:
-            _, _, _, _, score = parse_checkpoint_filename(Path(checkpoint_path).name)
-            selected_scores.append(score)
+            uri = CheckpointManager.normalize_uri(str(checkpoint_path))
+            metadata = CheckpointManager.get_policy_metadata(uri)
+            selected_scores.append(metadata.get("score", 0.0))
 
         # Should have selected 0.9 and 0.7
         assert sorted(selected_scores, reverse=True) == [0.9, 0.7]

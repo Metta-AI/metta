@@ -136,7 +136,7 @@ class LocalCommands:
         from pathlib import Path
 
         from metta.app_backend.clients.stats_client import StatsClient
-        from metta.rl.checkpoint_manager import parse_checkpoint_filename
+        from metta.rl.checkpoint_manager import CheckpointManager, is_valid_checkpoint_filename
         from metta.sim.utils import get_or_create_policy_ids
 
         data_dir = Path(args.data_dir)
@@ -153,11 +153,12 @@ class LocalCommands:
 
             checkpoint_subdir = run_dir / "checkpoints"
             if checkpoint_subdir.exists():
-                valid_checkpoints = [
-                    (ckpt, parse_checkpoint_filename(ckpt.name)[1])
-                    for ckpt in checkpoint_subdir.glob("*.pt")
-                    if ckpt.name.count(".") == 5 and ckpt.name.endswith(".pt")
-                ]
+                valid_checkpoints = []
+                for ckpt in checkpoint_subdir.glob("*.pt"):
+                    if is_valid_checkpoint_filename(ckpt.name):
+                        uri = CheckpointManager.normalize_uri(str(ckpt))
+                        metadata = CheckpointManager.get_policy_metadata(uri)
+                        valid_checkpoints.append((ckpt, metadata["epoch"]))
 
                 if valid_checkpoints:
                     latest_ckpt = max(valid_checkpoints, key=lambda x: x[1])[0]

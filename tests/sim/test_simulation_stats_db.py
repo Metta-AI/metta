@@ -6,6 +6,7 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 _DUMMY_AGENT_MAP = {0: ("dummy_policy", 0)}
@@ -207,17 +208,17 @@ def test_get_replay_urls(tmp_path: Path):
         assert url in all_urls
 
     # Test filtering by policy URI (policy1 version 1)
-    policy1_v1_urls = db.get_replay_urls(policy_uri="file://policy1.e1.s0.t0.sc0.pt")
+    policy1_v1_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy1.e1.s0.t0.sc0.pt"))
     assert len(policy1_v1_urls) == 1
     assert replay_urls[0] in policy1_v1_urls
 
     # Test filtering by policy URI (policy1 version 2)
-    policy1_v2_urls = db.get_replay_urls(policy_uri="file://policy1.e2.s0.t0.sc0.pt")
+    policy1_v2_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy1.e2.s0.t0.sc0.pt"))
     assert len(policy1_v2_urls) == 1
     assert replay_urls[1] in policy1_v2_urls
 
     # Test filtering by policy URI (policy2 version 1)
-    policy2_urls = db.get_replay_urls(policy_uri="file://policy2.e1.s0.t0.sc0.pt")
+    policy2_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy2.e1.s0.t0.sc0.pt"))
     assert len(policy2_urls) == 1
     assert replay_urls[2] in policy2_urls
 
@@ -228,7 +229,9 @@ def test_get_replay_urls(tmp_path: Path):
     assert replay_urls[2] in env1_urls
 
     # Test combining policy URI and environment filters
-    combined_urls = db.get_replay_urls(policy_uri="file://policy1.e1.s0.t0.sc0.pt", env="env1")
+    combined_urls = db.get_replay_urls(
+        policy_uri=CheckpointManager.normalize_uri("policy1.e1.s0.t0.sc0.pt"), env="env1"
+    )
     assert len(combined_urls) == 1
     assert replay_urls[0] in combined_urls
 
@@ -278,7 +281,7 @@ def test_from_shards_and_context(tmp_path: Path):
     assert not merged_path.exists(), "Merged DB already exists"
 
     # Create agent map with URIs (new API)
-    agent_map = {0: "file://test_policy.e1.s1000.t10.sc0.pt"}
+    agent_map = {0: CheckpointManager.normalize_uri("test_policy.e1.s1000.t10.sc0.pt")}
 
     # Now call the actual from_shards_and_context method using URI
     merged_db = SimulationStatsDB.from_shards_and_context(
@@ -287,7 +290,7 @@ def test_from_shards_and_context(tmp_path: Path):
         agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_uri="file://test_policy.e1.s1000.t10.sc0.pt",
+        policy_uri=CheckpointManager.normalize_uri("test_policy.e1.s1000.t10.sc0.pt"),
     )
 
     # Verify merged database was created
