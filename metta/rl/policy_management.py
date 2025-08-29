@@ -18,22 +18,21 @@ def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAg
 
 
 def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
-    """Load a policy from file:// or wandb:// URI. Simplified to handle common cases."""
-    if uri.startswith("file://"):
-        file_path = Path(uri[7:])
-
-        # If it's a directory, find the latest checkpoint
-        if file_path.is_dir():
-            uri = get_checkpoint_uri_from_dir(str(file_path))
-            file_path = Path(uri[7:])
-
-        # Load the checkpoint file directly - let torch.load raise if not found
-        return torch.load(file_path, map_location=device, weights_only=False)
-
-    elif uri.startswith("wandb://"):
+    """Load a policy from file:// or wandb:// URI using CheckpointManager.load_from_uri."""
+    if uri.startswith("wandb://"):
+        # WandB URIs still need special handling with device mapping
         return load_policy_from_wandb_uri(uri, device)
-    else:
-        raise ValueError(f"Unsupported URI scheme: {uri}")
+    
+    # For file:// URIs, use the unified loader
+    policy = CheckpointManager.load_from_uri(uri)
+    if policy is None:
+        raise FileNotFoundError(f"Could not load policy from {uri}")
+    
+    # Move to specified device if needed
+    if device != "cpu" and hasattr(policy, "to"):
+        policy = policy.to(device)
+    
+    return policy
 
 
 def discover_policy_uris(base_uri: str, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[str]:

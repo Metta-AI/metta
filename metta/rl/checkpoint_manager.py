@@ -83,6 +83,71 @@ class CheckpointManager:
         self.cache_size = max(0, cache_size)  # 0 means no caching
         self._cache = OrderedDict()  # path -> agent object
 
+    @staticmethod
+    def load_from_uri(uri: str):
+        """Load a policy from any supported URI format.
+        
+        Supports:
+        - file:///absolute/path/to/checkpoint.pt - Direct checkpoint file
+        - file://./relative/path/to/checkpoint.pt - Relative checkpoint file  
+        - file:///path/to/checkpoints - Directory with checkpoints (loads latest)
+        - wandb://project/entity/run:version - WandB artifact (not yet implemented)
+        
+        Returns the loaded policy agent or None if not found.
+        """
+        if uri.startswith("file://"):
+            path_str = uri[7:]  # Remove "file://" prefix
+            path = Path(path_str)
+            
+            if path.is_file() and path.suffix == ".pt":
+                # Direct checkpoint file
+                return torch.load(path, weights_only=False)
+            elif path.is_dir():
+                # Directory - find latest checkpoint
+                if path.name == "checkpoints":
+                    # It's a checkpoints directory, look for parent run dir
+                    run_dir = path.parent
+                    run_name = run_dir.name
+                else:
+                    # It's a run directory
+                    run_dir = path
+                    run_name = path.name
+                    path = run_dir / "checkpoints"
+                
+                # Find latest checkpoint in directory
+                checkpoint_files = list(path.glob("*.pt"))
+                if not checkpoint_files:
+                    logger.warning(f"No checkpoints found in {path}")
+                    return None
+                    
+                # Filter to valid checkpoint files and find latest by epoch
+                valid_checkpoints = []
+                for ckpt in checkpoint_files:
+                    try:
+                        parsed = parse_checkpoint_filename(ckpt.name)
+                        valid_checkpoints.append((ckpt, parsed[1]))  # (file, epoch)
+                    except ValueError:
+                        # Not a valid checkpoint filename, skip
+                        continue
+                
+                if not valid_checkpoints:
+                    # No valid checkpoint files, just load the first .pt file
+                    return torch.load(checkpoint_files[0], weights_only=False)
+                
+                # Load the checkpoint with highest epoch
+                latest_checkpoint = max(valid_checkpoints, key=lambda x: x[1])[0]
+                return torch.load(latest_checkpoint, weights_only=False)
+            else:
+                logger.warning(f"File not found: {path}")
+                return None
+                
+        elif uri.startswith("wandb://"):
+            # TODO: Implement WandB artifact loading
+            # This would require wandb API integration
+            raise NotImplementedError(f"WandB URI loading not yet implemented: {uri}")
+        else:
+            raise ValueError(f"Unsupported URI format: {uri}. Supported formats: file://, wandb://")
+
     def exists(self) -> bool:
         return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
 

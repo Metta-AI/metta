@@ -8,16 +8,6 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
 
 
-class KickstartTeacher:
-    def __init__(self, policy: nn.Module, action_loss_coef: float, value_loss_coef: float):
-        self.policy = policy
-        self.action_loss_coef = action_loss_coef
-        self.value_loss_coef = value_loss_coef
-
-    def __call__(self, td: TensorDict) -> TensorDict:
-        return self.policy(td)
-
-
 class Kickstarter:
     def __init__(
         self,
@@ -74,12 +64,14 @@ class Kickstarter:
         self._load_policies()
 
     def _load_policies(self) -> None:
-        self.teachers: list[KickstartTeacher] = []
+        self.teachers: list[tuple[PolicyAgent, float, float]] = []
         for teacher_cfg in self.teacher_cfgs or []:
-            policy: PolicyAgent = self._load_teacher_policy(teacher_cfg.teacher_uri)
-            policy.action_loss_coef = teacher_cfg.action_loss_coef
-            policy.value_loss_coef = teacher_cfg.value_loss_coef
-            # Support both new and old initialization methods
+            # Use CheckpointManager's static method to load from any URI
+            policy: PolicyAgent = CheckpointManager.load_from_uri(teacher_cfg.teacher_uri)
+            if policy is None:
+                raise ValueError(f"Failed to load teacher policy from {teacher_cfg.teacher_uri}")
+            
+            # Initialize policy to environment if needed
             if hasattr(policy, "initialize_to_environment"):
                 features = self.metta_grid_env.get_observation_features()
                 policy.initialize_to_environment(
@@ -88,29 +80,9 @@ class Kickstarter:
                     self.metta_grid_env.max_action_args,
                     self.device,
                 )
-            teacher = KickstartTeacher(
-                policy=policy,
-                action_loss_coef=teacher_cfg.action_loss_coef,
-                value_loss_coef=teacher_cfg.value_loss_coef,
-            )
-            self.teachers.append(teacher)
-
-    def _load_teacher_policy(self, teacher_uri: str) -> PolicyAgent:
-        """Load teacher policy directly from checkpoint file."""
-        if teacher_uri.startswith("file://"):
-            checkpoint_path = teacher_uri[7:]  # Remove "file://" prefix
-            if checkpoint_path.endswith("/checkpoints"):
-                # Find latest checkpoint in directory
-                checkpoint_manager = CheckpointManager(run_name="", run_dir=checkpoint_path.replace("/checkpoints", ""))
-                return checkpoint_manager.load_agent()
-            else:
-                # Direct path to specific checkpoint file
-                return torch.load(checkpoint_path, weights_only=False)
-        elif teacher_uri.startswith("wandb://"):
-            # For now, skip wandb loading - would need wandb integration
-            raise NotImplementedError(f"Wandb URI loading not implemented yet: {teacher_uri}")
-        else:
-            raise ValueError(f"Unsupported teacher URI format: {teacher_uri}")
+            
+            # Store as tuple (policy, action_loss_coef, value_loss_coef)
+            self.teachers.append((policy, teacher_cfg.action_loss_coef, teacher_cfg.value_loss_coef))
 
     def loss(
         self,
@@ -130,17 +102,19 @@ class Kickstarter:
             progress = (agent_step - self.ramp_down_start_step) / self.anneal_duration
             self.anneal_factor = 1.0 - progress
 
-        for _, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits = self._forward(teacher, td)
+        for policy, action_loss_coef, value_loss_coef in self.teachers:
+            # Forward pass through teacher policy
+            teacher_td = policy(td)
+            teacher_value = teacher_td["value"]
+            teacher_normalized_logits = teacher_td["full_log_probs"]
+            
+            # Calculate action loss (KL divergence)
             ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
-            ks_action_loss *= teacher.action_loss_coef * self.anneal_factor
+            ks_action_loss *= action_loss_coef * self.anneal_factor
 
+            # Calculate value loss (MSE)
             ks_value_loss += (
-                ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef * self.anneal_factor
+                ((teacher_value.squeeze() - student_value) ** 2).mean() * value_loss_coef * self.anneal_factor
             )
 
         return ks_action_loss, ks_value_loss
-
-    def _forward(self, teacher, td):
-        td = teacher(td)
-        return td["value"], td["full_log_probs"]
