@@ -9,6 +9,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import wandb
+import wandb_workspaces.reports.v2 as wr
 from wandb import Api
 
 logger = logging.getLogger(__name__)
@@ -30,14 +31,26 @@ class WandBClient:
     def _initialize_api(self) -> None:
         """Initialize the WandB API client."""
         try:
+            # Try to use existing wandb authentication first
+            try:
+                self.api = Api()
+                # Test the API by getting viewer info
+                _ = self.api.viewer
+                logger.info("WandB API client initialized successfully using cached credentials")
+                return
+            except Exception:
+                logger.info("Cached credentials not working, trying explicit login...")
+
+            # If cached credentials don't work, try explicit login
             if self.api_key:
                 wandb.login(key=self.api_key)
+                self.api = Api()
+                logger.info("WandB API client initialized successfully with provided API key")
             else:
-                # This will use the API key from environment or prompt for login
-                wandb.login()
-
-            self.api = Api()
-            logger.info("WandB API client initialized successfully")
+                logger.warning("No API key provided and cached credentials failed")
+                # Still try to initialize API in case wandb is configured
+                self.api = Api()
+                logger.info("WandB API client initialized (authentication may be limited)")
 
         except Exception as e:
             logger.error(f"Failed to initialize WandB API: {e}")
@@ -57,49 +70,31 @@ class WandBClient:
             List of workspace information dictionaries
         """
         try:
-            # Note: The wandb_workspaces API might not have a direct list method
-            # This is a placeholder that would need to be implemented based on
-            # the actual API capabilities
-
-            # Note: The wandb_workspaces API might not have a direct list method
-            # This is a placeholder that would need to be implemented based on
-            # the actual API capabilities when available
+            workspaces = []
 
             if project:
-                # Get workspaces for specific project
+                # Get reports (workspaces) for specific project
                 try:
-                    # This would need the actual workspace listing API
-                    # project_obj = self.api.project(f"{entity}/{project}")
-                    # workspaces = project_obj.list_workspaces()  # Hypothetical
+                    # Note: Standard WandB API doesn't support reports() properly
+                    # For now, return empty list - reports need to be created via wandb_workspaces
+                    logger.info(f"Listing reports for specific project {entity}/{project} - using fallback")
+                    # Could potentially use wandb_workspaces here in the future
                     pass
+
                 except Exception as e:
-                    logger.warning(f"Could not list workspaces for {entity}/{project}: {e}")
+                    logger.warning(f"Could not list reports for {entity}/{project}: {e}")
             else:
-                # List workspaces across all accessible projects
+                # List reports across all accessible projects
                 try:
-                    projects = self.api.projects(entity=entity)
-                    for proj in projects:
-                        # This would need the actual workspace listing API
-                        # proj_workspaces = proj.list_workspaces()  # Hypothetical
-                        # workspaces.extend(proj_workspaces)
-                        pass
+                    # Note: Standard WandB API doesn't support reports() properly
+                    # For now, return empty list - reports need to be created via wandb_workspaces
+                    logger.info(f"Listing reports for all projects under {entity} - using fallback")
+                    # Could potentially use wandb_workspaces here in the future
+                    pass
                 except Exception as e:
                     logger.warning(f"Could not list projects for entity {entity}: {e}")
 
-            # For now, return placeholder data
-            # This would be replaced with actual workspace data
-            placeholder_workspaces = [
-                {
-                    "name": "Example Workspace",
-                    "url": f"https://wandb.ai/{entity}/{project or 'example'}/workspace",
-                    "entity": entity,
-                    "project": project or "example",
-                    "created_at": "2025-01-25T00:00:00Z",
-                    "sections_count": 2,
-                }
-            ]
-
-            return placeholder_workspaces
+            return workspaces
 
         except Exception as e:
             logger.error(f"Failed to list workspaces: {e}")
@@ -121,34 +116,39 @@ class WandBClient:
         try:
             logger.info(f"Getting metrics for {entity}/{project}")
 
-            # Get the project
-            project_obj = self.api.project(f"{entity}/{project}")
+            # Get runs from the project using the correct API method
+            runs = self.api.runs(f"{entity}/{project}")
 
-            # Get runs from the project
-            runs = project_obj.runs()
+            # Check if we have any runs
+            runs_list = list(runs)
+            if not runs_list:
+                logger.warning(f"No runs found for {entity}/{project}")
+                return []
+
+            logger.info(f"Found {len(runs_list)} runs for {entity}/{project}")
 
             # Collect unique metrics across all runs
             all_metrics = set()
             metric_info = {}
 
-            for run in runs:
+            for run in runs_list:
                 # Apply run filters if provided
-                if run_filters:
+                if run_filters and isinstance(run_filters, dict):
                     # Simple filter implementation - can be expanded
-                    if "state" in run_filters and run.state != run_filters["state"]:
+                    if "state" in run_filters and hasattr(run, "state") and run.state != run_filters["state"]:
                         continue
-                    if "tags" in run_filters:
+                    if "tags" in run_filters and hasattr(run, "tags") and run.tags:
                         run_tags = set(run.tags)
                         filter_tags = set(run_filters["tags"])
                         if not filter_tags.intersection(run_tags):
                             continue
 
                 # Get metrics from run history
-                if hasattr(run, "history"):
+                if hasattr(run, "history") and callable(run.history):
                     try:
                         # Get a sample of the history to identify metrics
                         history_sample = run.history(samples=1)
-                        if not history_sample.empty:
+                        if history_sample is not None and not history_sample.empty:
                             for column in history_sample.columns:
                                 if column not in ["_step", "_runtime", "_timestamp"]:
                                     all_metrics.add(column)
@@ -165,31 +165,51 @@ class WandBClient:
                                     metric_info[column]["runs_count"] += 1
 
                                     # Store sample value
-                                    sample_val = history_sample[column].iloc[0]
-                                    if len(metric_info[column]["sample_values"]) < 5:
-                                        metric_info[column]["sample_values"].append(sample_val)
+                                    try:
+                                        sample_val = history_sample[column].iloc[0]
+                                        if len(metric_info[column]["sample_values"]) < 5:
+                                            # Convert to JSON-serializable type
+                                            serializable_val = self._make_serializable(sample_val)
+                                            metric_info[column]["sample_values"].append(serializable_val)
+                                    except (IndexError, KeyError):
+                                        logger.warning(
+                                            f"Could not get sample value for column {column} in run {run.name}"
+                                        )
+                        else:
+                            logger.debug(f"Run {run.name} has empty history")
 
                     except Exception as e:
                         logger.warning(f"Could not get history for run {run.name}: {e}")
                         continue
 
                 # Get metrics from run summary
-                if hasattr(run, "summary"):
-                    for key, value in run.summary.items():
-                        if not key.startswith("_"):
-                            all_metrics.add(key)
+                if hasattr(run, "summary") and run.summary is not None:
+                    try:
+                        # Additional safety check - ensure summary is dict-like
+                        if hasattr(run.summary, "items") and callable(run.summary.items):
+                            summary_items = run.summary.items()
+                            for key, value in summary_items:
+                                if not key.startswith("_"):
+                                    all_metrics.add(key)
 
-                            if key not in metric_info:
-                                metric_info[key] = {
-                                    "name": key,
-                                    "type": "summary",
-                                    "runs_count": 0,
-                                    "sample_values": [],
-                                }
+                                    if key not in metric_info:
+                                        metric_info[key] = {
+                                            "name": key,
+                                            "type": "summary",
+                                            "runs_count": 0,
+                                            "sample_values": [],
+                                        }
 
-                            metric_info[key]["runs_count"] += 1
-                            if len(metric_info[key]["sample_values"]) < 5:
-                                metric_info[key]["sample_values"].append(value)
+                                metric_info[key]["runs_count"] += 1
+                                if len(metric_info[key]["sample_values"]) < 5:
+                                    # Convert to JSON-serializable type
+                                    serializable_val = self._make_serializable(value)
+                                    metric_info[key]["sample_values"].append(serializable_val)
+                        else:
+                            logger.warning(f"Run {run.name} summary is not dict-like: {type(run.summary)}")
+                    except Exception as e:
+                        logger.warning(f"Could not access summary for run {run.name}: {e}")
+                        continue
 
             # Convert to list format
             metrics_list = []
@@ -246,3 +266,263 @@ class WandBClient:
         except Exception as e:
             logger.warning(f"Authentication check failed: {e}")
             return False
+
+    def _make_serializable(self, value):
+        """Convert WandB objects to JSON-serializable types."""
+        import numpy as np
+        import pandas as pd
+
+        # Handle None
+        if value is None:
+            return None
+
+        # Handle numpy types
+        if isinstance(value, np.integer):
+            return int(value)
+        elif isinstance(value, np.floating):
+            return float(value)
+        elif isinstance(value, np.ndarray):
+            return value.tolist()
+
+        # Handle pandas types
+        if isinstance(value, (pd.Series, pd.DataFrame)):
+            return value.to_dict()
+
+        # Handle WandB specific types - convert to basic types
+        if hasattr(value, "__dict__"):
+            # If it has a simple string representation, use that
+            try:
+                # Try to convert to basic types first
+                if hasattr(value, "item"):  # numpy scalars
+                    return value.item()
+                # For complex objects, try to extract meaningful data
+                return str(value)
+            except Exception:
+                return str(value)
+
+        # Handle standard JSON-serializable types
+        if isinstance(value, (str, int, float, bool, list, dict)):
+            return value
+
+        # Default: convert to string
+        return str(value)
+
+    async def create_dashboard(
+        self, entity: str, project: str, name: str, description: str = "", sections: List[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Create a new WandB dashboard/report."""
+        try:
+            logger.info(f"Creating dashboard '{name}' for {entity}/{project}")
+
+            # Create report blocks based on sections
+            blocks = [wr.H1(name)]
+
+            if description:
+                blocks.append(wr.MarkdownBlock(text=description))
+
+            # Add sections as dashboard panels
+            if sections:
+                for section in sections:
+                    section_name = section.get("name", "Untitled Section")
+                    blocks.append(wr.H2(section_name))
+
+                    panels = section.get("panels", [])
+                    if panels:
+                        # Create panels for this section
+                        section_panels = []
+
+                        for panel in panels:
+                            panel_type = panel.get("type")
+                            config = panel.get("config", {})
+
+                            try:
+                                # Convert panel configurations to WandB report panels
+                                if panel_type == "line_plot":
+                                    # Create a line plot panel
+                                    line_plot = wr.LinePlot(
+                                        title=config.get("title", "Line Plot"),
+                                        x=config.get("x_axis", "step"),
+                                        y=config.get("y_axis", ["value"]),
+                                    )
+                                    section_panels.append(line_plot)
+
+                                elif panel_type == "bar_plot":
+                                    # Create a bar chart - use ScalarChart as closest equivalent
+                                    bar_chart = wr.ScalarChart(
+                                        title=config.get("title", "Bar Chart"),
+                                        metric=config.get("y_axis", ["value"])[0] if config.get("y_axis") else "value",
+                                    )
+                                    section_panels.append(bar_chart)
+
+                                elif panel_type == "scatter_plot":
+                                    # Create a scatter plot
+                                    scatter_plot = wr.ScalarChart(
+                                        title=config.get("title", "Scatter Plot"), metric=config.get("y_axis", "value")
+                                    )
+                                    section_panels.append(scatter_plot)
+
+                                elif panel_type == "scalar_chart":
+                                    scalar_chart = wr.ScalarChart(
+                                        title=config.get("title", "Scalar Chart"),
+                                        metric=config.get("metrics", ["accuracy"])[0]
+                                        if config.get("metrics")
+                                        else "accuracy",
+                                    )
+                                    section_panels.append(scalar_chart)
+
+                            except Exception as panel_error:
+                                logger.warning(f"Failed to create panel {panel_type}: {panel_error}")
+                                continue
+
+                        # Add panels to the section using PanelGrid
+                        if section_panels:
+                            # Wrap panels in a PanelGrid - this is required by WandB workspace
+                            try:
+                                panel_grid = wr.PanelGrid(panels=section_panels)
+                                blocks.append(panel_grid)
+                            except Exception as grid_error:
+                                logger.warning(f"Failed to create PanelGrid: {grid_error}")
+                                # Fallback: try to add panels directly (might not work but worth trying)
+                                blocks.extend(section_panels)
+
+            # Create the report
+            report = wr.Report(entity=entity, project=project, title=name, description=description, blocks=blocks)
+
+            # Save the report
+            report_url = report.save()
+
+            # Return JSON-serializable data
+            result = {
+                "status": "success",
+                "name": name,
+                "entity": entity,
+                "project": project,
+                "url": str(report_url),  # Convert to string for JSON serialization
+                "id": str(report.id) if hasattr(report, "id") else None,
+                "created_at": str(report.created_at) if hasattr(report, "created_at") else None,
+                "sections_created": len(sections) if sections else 0,
+                "total_panels": sum(len(s.get("panels", [])) for s in sections) if sections else 0,
+            }
+
+            logger.info(f"Successfully created dashboard: {result}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to create dashboard: {e}")
+            # Return JSON-serializable error info
+            return {"status": "error", "error": str(e), "name": name, "entity": entity, "project": project}
+
+    async def update_dashboard(self, dashboard_url: str, modifications: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an existing dashboard/report."""
+        try:
+            logger.info(f"Updating dashboard: {dashboard_url}")
+
+            # Extract report ID from URL if possible
+            # WandB report URLs typically look like: https://wandb.ai/{entity}/{project}/reports/{report_id}
+            url_parts = dashboard_url.rstrip("/").split("/")
+            entity = None
+            project = None
+            report_id = None
+
+            if len(url_parts) >= 3:
+                entity = url_parts[-3]
+                project = url_parts[-2]
+                report_id = url_parts[-1] if "reports" in dashboard_url else None
+            elif len(url_parts) >= 2:
+                # Handle shorter URLs
+                entity = url_parts[-2] if len(url_parts) >= 2 else None
+                project = url_parts[-1]
+
+            if not entity or not project:
+                raise ValueError(f"Cannot extract entity/project from URL: {dashboard_url}")
+
+            if not report_id:
+                raise ValueError("Cannot extract report ID from URL")
+
+            # Standard WandB API doesn't support loading reports properly
+            logger.warning("Cannot update existing reports with standard WandB API")
+            raise ValueError(
+                "Updating existing dashboards is not currently supported by the WandB API. "
+                "Please create new dashboards instead."
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to update dashboard: {e}")
+            return {"status": "error", "error": str(e), "url": dashboard_url}
+
+    async def clone_dashboard(self, source_url: str, new_name: str) -> Dict[str, Any]:
+        """Clone an existing dashboard."""
+        try:
+            logger.info(f"Cloning dashboard from {source_url} as '{new_name}'")
+
+            # Extract info from source URL
+            url_parts = source_url.rstrip("/").split("/")
+            entity = None
+            project = None
+            report_id = None
+
+            if len(url_parts) >= 3:
+                entity = url_parts[-3]
+                project = url_parts[-2]
+                report_id = url_parts[-1] if "reports" in source_url else None
+            elif len(url_parts) >= 2:
+                # Handle shorter URLs
+                entity = url_parts[-2] if len(url_parts) >= 2 else None
+                project = url_parts[-1]
+
+            if not entity or not project:
+                raise ValueError(f"Cannot extract entity/project from URL: {source_url}")
+
+            if not report_id:
+                raise ValueError("Cannot extract report ID from source URL")
+
+            # Standard WandB API doesn't support loading reports properly
+            logger.warning("Cannot clone existing reports with standard WandB API")
+            raise ValueError(
+                "Cloning existing dashboards is not currently supported by the WandB API. "
+                "Please create new dashboards instead."
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to clone dashboard: {e}")
+            return {"status": "error", "error": str(e), "source_url": source_url, "new_name": new_name}
+
+    async def get_dashboard_config(self, dashboard_url: str) -> Dict[str, Any]:
+        """Get configuration of an existing dashboard/report."""
+        try:
+            logger.info(f"Getting configuration for dashboard: {dashboard_url}")
+
+            # Standard WandB API doesn't support loading reports properly
+            logger.warning("Cannot load existing reports with standard WandB API")
+            raise ValueError(
+                "Loading existing dashboard configurations is not currently supported by the "
+                "WandB API. Only creation of new dashboards works."
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to get dashboard config: {e}")
+            return {"status": "error", "error": str(e), "url": dashboard_url}
+
+    async def add_panel_to_dashboard(
+        self, dashboard_url: str, section_name: str, panel_type: str, panel_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Add a panel to an existing dashboard."""
+        try:
+            logger.info(f"Adding {panel_type} panel to '{section_name}' in dashboard: {dashboard_url}")
+
+            # Standard WandB API doesn't support loading reports properly
+            logger.warning("Cannot add panels to existing reports with standard WandB API")
+            raise ValueError(
+                "Adding panels to existing dashboards is not currently supported by the "
+                "WandB API. Please create new dashboards instead."
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to add panel to dashboard: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "url": dashboard_url,
+                "section_name": section_name,
+                "panel_type": panel_type,
+            }

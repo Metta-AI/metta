@@ -23,11 +23,20 @@ logger = logging.getLogger(__name__)
 class WandBDashboardMCPServer:
     """MCP Server that exposes WandB dashboard management functionality."""
 
-    def __init__(self, server_name: str = "wandb-dashboard-mcp", version: str = "0.1.0"):
+    def __init__(self, server_name: str = "wandb-mcp", version: str = "0.1.0"):
         self.app = Server(server_name)
         self.version = version
-        self.tools = WandBDashboardTools()
         self.config = WandBMCPConfig()
+
+        # Try to initialize tools, but don't fail if wandb auth fails
+        try:
+            self.tools = WandBDashboardTools()
+            self.authenticated = True
+        except Exception as e:
+            logger.warning(f"WandB authentication failed: {e}. Tools will have limited functionality.")
+            self.tools = None
+            self.authenticated = False
+
         self._setup_tools()
         self._setup_resources()
 
@@ -172,6 +181,18 @@ class WandBDashboardMCPServer:
         async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
             """Handle tool calls by dispatching to appropriate methods."""
             try:
+                # Check if we have authentication
+                if not self.authenticated or self.tools is None:
+                    return [
+                        types.TextContent(
+                            type="text",
+                            text=(
+                                f"❌ WandB authentication failed. Please run 'wandb login' to authenticate.\n\n"
+                                f"Tool '{name}' is not available without authentication."
+                            ),
+                        )
+                    ]
+
                 if name == "create_dashboard":
                     result = await self.tools.create_dashboard(
                         name=arguments["name"],
@@ -269,6 +290,9 @@ async def main():
         logger.info("Server stopped by user")
     except Exception as e:
         logger.error(f"Server error: {e}")
+        import traceback
+
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         sys.exit(1)
 
 
