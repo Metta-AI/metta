@@ -35,7 +35,7 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]
     """Parse checkpoint metadata from filename.
     Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
     - e: epoch
-    - s: agent_step  
+    - s: agent_step
     - t: total_time
     - sc: score (evaluation score, 0 if not evaluated)
     """
@@ -59,7 +59,7 @@ def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> str:
     checkpoints = list(checkpoint_path.glob("*.e*.s*.t*.sc*.pt"))
     if not checkpoints:
         raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
-    
+
     # Return the latest by epoch
     latest_file = max(checkpoints, key=lambda p: parse_checkpoint_filename(p.name)[1])
     return f"file://{latest_file}"
@@ -145,7 +145,7 @@ class CheckpointManager:
             if not latest_file:
                 raise FileNotFoundError(f"No checkpoints found for {self.run_name}")
             return f"file://{latest_file}"
-        
+
         # Find specific epoch
         agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.sc*.pt"))
         if not agent_files:
@@ -165,13 +165,13 @@ class CheckpointManager:
 
         # Simple metric index mapping (parse returns: run_name, epoch, agent_step, total_time, score)
         metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
-        
+
         # Sort by the selected metric (descending)
         checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
-        
+
         # Return all files if strategy is "all", otherwise return count
         return checkpoint_files if strategy == "all" else checkpoint_files[:count]
-    
+
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
         """Find single checkpoint with highest value for the given metric.
         This is a convenience method equivalent to select_checkpoints(count=1)[0].

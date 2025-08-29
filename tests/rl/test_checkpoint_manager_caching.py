@@ -119,10 +119,7 @@ class CheckpointManagerWithCache:
 
     def save_agent(self, agent, epoch: int, agent_step: int = None, total_time: int = None):
         """Save agent (delegated to checkpoint manager)."""
-        metadata = {
-            "agent_step": agent_step or epoch * 1000,
-            "total_time": total_time or epoch * 30
-        }
+        metadata = {"agent_step": agent_step or epoch * 1000, "total_time": total_time or epoch * 30}
         return self.checkpoint_manager.save_agent(agent, epoch, metadata)
 
 

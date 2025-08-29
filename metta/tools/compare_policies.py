@@ -27,6 +27,7 @@ def compare_policies(stats_db_path: str, policy_specs: list[str], metric: str = 
                     policy_uri = policy_spec
                     # Extract path and epoch for display
                     from metta.rl.checkpoint_manager import parse_checkpoint_filename
+
                     filename = Path(policy_uri).name
                     checkpoint_path, epoch, _, _, _ = parse_checkpoint_filename(filename)
                 elif ":" in policy_spec:
