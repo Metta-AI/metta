@@ -17,12 +17,11 @@ import duckdb
 
 from metta.mettagrid.episode_stats_db import EpisodeStatsDB
 from metta.mettagrid.util.file import exists, local_copy, write_file
-from metta.rl.checkpoint_manager import epoch_from_uri, name_from_uri
+from metta.rl.checkpoint_manager import name_from_uri, parse_checkpoint_filename
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
 # ------------------------------------------------------------------ #
-
 
 # TODO: add a githash
 SIMULATION_DB_TABLES = {
@@ -81,16 +80,11 @@ class SimulationStatsDB(EpisodeStatsDB):
         *,
         sim_id: str,
         dir_with_shards: Union[str, Path],
-        agent_map: Dict[int, Union[str, Tuple[str, int]]],
+        agent_map: Dict[int, str],  # Now URIs instead of PolicyRecord
         sim_name: str,
         sim_env: str,
-        policy_info: Union[str, Tuple[str, int]],
+        policy_uri: str,
     ) -> "SimulationStatsDB":
-        """Create SimulationStatsDB from checkpoint shards and context.
-
-        Supports both Checkpoint objects and simple (key, version) tuples for migration compatibility.
-        Merges all .duckdb shard files in the directory into a unified database.
-        """
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"
 
@@ -108,7 +102,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         merged = SimulationStatsDB(merged_path)
 
-        policy_key, policy_version = merged._extract_key_and_version(policy_info)
+        policy_key, policy_version = merged._uri_to_key_and_version(policy_uri)
         merged._insert_simulation(
             sim_id=sim_id,
             name=sim_name,
@@ -127,10 +121,8 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"Found {len(all_episode_ids)} episodes across all shards")
 
         if all_episode_ids:
-            # Convert agent_map to (key, version) tuples
-            agent_tuple_map = {
-                agent_id: merged._extract_key_and_version(record) for agent_id, record in agent_map.items()
-            }
+            # Convert agent_map with URIs to agent_map with (key, version) tuples
+            agent_tuple_map = {agent_id: merged._uri_to_key_and_version(uri) for agent_id, uri in agent_map.items()}
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
             merged._update_episode_simulations(all_episode_ids, sim_id)
@@ -264,20 +256,26 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
-    def _extract_key_and_version(self, info: Union[str, Tuple[str, int]]) -> tuple[str, int]:
-        """Extract (key, version) from URI string or tuple.
-
-        Supports both URI strings and direct (key, version) tuples.
-        """
-        if isinstance(info, tuple) and len(info) == 2:
-            return info
-        elif isinstance(info, str):
-            # Extract from URI
-            metadata = metadata_from_uri(info)
-            return name_from_uri(info), metadata.get("epoch", 0)
-        else:
-            # Fallback for compatibility
-            return str(info), 0
+    def _uri_to_key_and_version(self, uri: str) -> tuple[str, int]:
+        """Extract policy key and version from URI for database compatibility."""
+        if not uri:
+            return "unknown", 0
+            
+        # Extract name from URI
+        policy_key = name_from_uri(uri)
+        
+        # Try to extract version/epoch from filename if it's a file:// URI
+        version = 0
+        if uri.startswith("file://"):
+            path = Path(uri[7:])
+            if path.suffix == ".pt":
+                try:
+                    _, epoch, _, _ = parse_checkpoint_filename(path.name)
+                    version = epoch
+                except (ValueError, ImportError):
+                    pass
+        
+        return policy_key, version
 
     def _merge_db(self, other_path: Path) -> None:
         """
