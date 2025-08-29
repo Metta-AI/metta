@@ -210,13 +210,13 @@ class TestCleanup:
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
         assert (checkpoint_dir / "test_run__e1__s1000__t60__sc0.pt").exists()
-        assert (checkpoint_dir / "test_run.e1.trainer.pt").exists()
+        assert (checkpoint_dir / "test_run__e1__trainer.pt").exists()
 
         # Cleanup should remove both
         deleted_count = checkpoint_manager.cleanup_old_checkpoints(keep_last_n=0)
         assert deleted_count == 1
         assert not (checkpoint_dir / "test_run__e1__s1000__t60__sc0.pt").exists()
-        assert not (checkpoint_dir / "test_run.e1.trainer.pt").exists()
+        assert not (checkpoint_dir / "test_run__e1__trainer.pt").exists()
 
 
 class TestUtilities:

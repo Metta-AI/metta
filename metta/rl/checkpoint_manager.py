@@ -88,6 +88,8 @@ def is_valid_checkpoint_filename(filename: str) -> bool:
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
     """Parse checkpoint metadata from filename."""
+    if not is_valid_checkpoint_filename(filename):
+        raise ValueError(f"Invalid checkpoint filename format: {filename}")
     parts = filename[:-3].split("__")
     run_name = parts[0]
     epoch = int(parts[1][1:])
@@ -205,11 +207,14 @@ class CheckpointManager:
             return self._cache[path_str]
 
         agent = torch.load(agent_file, weights_only=False)
-        if path_str in self._cache:
-            del self._cache[path_str]
-        if len(self._cache) >= self.cache_size:
-            self._cache.popitem(last=False)
-        self._cache[path_str] = agent
+        
+        # Only cache if cache size > 0
+        if self.cache_size > 0:
+            if path_str in self._cache:
+                del self._cache[path_str]
+            if len(self._cache) >= self.cache_size:
+                self._cache.popitem(last=False)
+            self._cache[path_str] = agent
         return agent
 
     def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
@@ -220,7 +225,7 @@ class CheckpointManager:
                 return None
             epoch = max(parse_checkpoint_filename(f.name)[1] for f in checkpoint_files)
 
-        trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
+        trainer_file = self.checkpoint_dir / f"{self.run_name}__e{epoch}__trainer.pt"
         if not trainer_file.exists():
             return None
 
@@ -250,7 +255,7 @@ class CheckpointManager:
     ):
         """Save trainer state."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
+        trainer_file = self.checkpoint_dir / f"{self.run_name}__e{epoch}__trainer.pt"
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
@@ -279,10 +284,10 @@ class CheckpointManager:
         if len(agent_files) <= keep_last_n:
             return 0
         agent_files.sort(key=lambda p: parse_checkpoint_filename(p.name)[1])
-        files_to_remove = agent_files[:-keep_last_n]
+        files_to_remove = agent_files if keep_last_n == 0 else agent_files[:-keep_last_n]
         for agent_file in files_to_remove:
             epoch = parse_checkpoint_filename(agent_file.name)[1]
-            trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
+            trainer_file = self.checkpoint_dir / f"{self.run_name}__e{epoch}__trainer.pt"
             trainer_file.unlink(missing_ok=True)
             agent_file.unlink()
         return len(files_to_remove)
