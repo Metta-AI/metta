@@ -120,11 +120,11 @@ def upload_checkpoint_as_artifact(
     additional_files: Optional[list[str]] = None,
 ) -> Optional[str]:
     """Upload a checkpoint file to wandb as an artifact.
-    
+
     This is a minimal implementation of the wandb artifact upload functionality
     that was previously in PolicyStore. It handles the core use case of uploading
     trained model checkpoints to wandb for sharing and versioning.
-    
+
     Args:
         checkpoint_path: Path to the checkpoint .pt file
         artifact_name: Name for the wandb artifact (e.g., "my-model" or run name)
@@ -132,31 +132,27 @@ def upload_checkpoint_as_artifact(
         metadata: Optional metadata dict to attach to artifact
         wandb_run: Optional WandbRun instance (uses current run if not provided)
         additional_files: Optional list of additional files to include
-        
+
     Returns:
         Qualified artifact name (entity/project/artifact:version) or None if failed
     """
     if not wandb:
         logger.warning("Wandb not available, skipping artifact upload")
         return None
-        
+
     # Use provided run or get current run
     run = wandb_run or wandb.run
     if run is None:
         logger.warning("No wandb run active, cannot upload artifact")
         return None
-        
+
     try:
         # Create artifact with metadata
-        artifact = wandb.Artifact(
-            name=artifact_name,
-            type=artifact_type,
-            metadata=metadata or {}
-        )
-        
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type, metadata=metadata or {})
+
         # Add the main checkpoint file
         artifact.add_file(checkpoint_path, name="model.pt")
-        
+
         # Add any additional files
         if additional_files:
             for file_path in additional_files:
@@ -164,19 +160,60 @@ def upload_checkpoint_as_artifact(
                     artifact.add_file(file_path)
                 else:
                     logger.warning(f"Additional file not found: {file_path}")
-        
+
         # Log artifact to run
         run.log_artifact(artifact)
-        
+
         # Wait for upload to complete
         artifact.wait()
-        
+
         qualified_name = artifact.qualified_name
         logger.info(f"Uploaded checkpoint as wandb artifact: {qualified_name}")
         return qualified_name
-        
+
     except Exception as e:
         logger.error(f"Failed to upload wandb artifact: {e}")
         return None
 
 
+def upload_checkpoint_for_epoch(
+    checkpoint_dir: str,
+    run_name: str,
+    epoch: int,
+    wandb_run: Optional[WandbRun] = None,
+) -> Optional[str]:
+    """Upload a specific epoch's checkpoint as a wandb artifact."""
+    # Find checkpoint file for this epoch
+    checkpoint_path = Path(checkpoint_dir)
+    pattern = f"{run_name}.e{epoch}.s*.t*.sc*.pt"
+    checkpoint_files = list(checkpoint_path.glob(pattern))
+
+    if not checkpoint_files:
+        logger.warning(f"No checkpoint found for epoch {epoch}")
+        return None
+
+    # Use the first match (should only be one)
+    checkpoint_file = checkpoint_files[0]
+
+    # Parse metadata from filename
+    from metta.rl.checkpoint_manager import parse_checkpoint_filename
+
+    _, epoch_num, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_file.name)
+
+    # Create metadata dict
+    metadata = {
+        "epoch": epoch_num,
+        "agent_step": agent_step,
+        "total_time": total_time,
+        "score": score,
+        "run_name": run_name,
+    }
+
+    # Upload with run name as artifact name (wandb will version it)
+    return upload_checkpoint_as_artifact(
+        checkpoint_path=str(checkpoint_file),
+        artifact_name=run_name,
+        artifact_type="model",
+        metadata=metadata,
+        wandb_run=wandb_run,
+    )
