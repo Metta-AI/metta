@@ -11,9 +11,7 @@ from metta.mettagrid.episode_stats_db import EpisodeStatsDB
 from metta.mettagrid.util.file import exists, local_copy, write_file
 from metta.rl.checkpoint_manager import CheckpointManager
 
-# ------------------------------------------------------------------ #
-#   Tables & indexes                                                 #
-# ------------------------------------------------------------------ #
+# Tables & indexes
 
 # TODO: add a githash
 SIMULATION_DB_TABLES = {
@@ -265,7 +263,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         """
         self.con.execute(f"ATTACH '{other_path}' AS other")
 
-        # ---------- helpers -------------------------------------------------
+        # helpers
         def _table_exists(table: str) -> bool:
             """
             Return True if `other.<table>` exists.

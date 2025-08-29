@@ -96,14 +96,8 @@ class CheckpointManager:
     @staticmethod
     def load_from_uri(uri: str):
         """Load a policy from any supported URI format.
-        Supports:
-        - file:///absolute/path/to/checkpoint.pt - Direct checkpoint file
-        - file://./relative/path/to/checkpoint.pt - Relative checkpoint file
-        - file:///path/to/checkpoints - Directory with checkpoints (loads latest)
-        - s3://bucket/key/checkpoint.pt - S3 object
-        - wandb://project/artifact_path:version - WandB artifact
-        Returns the loaded policy agent or None if not found.
-        """
+        Supports file://, s3://, and wandb:// URIs for checkpoint files or directories.
+        Returns the loaded policy agent or None if not found."""
         if uri.startswith("file://"):
             path_str = uri[7:]  # Remove "file://" prefix
             path = Path(path_str)

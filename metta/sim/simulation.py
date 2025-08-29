@@ -70,7 +70,7 @@ class Simulation:
         if wandb_policy_name is not None:
             self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
 
-        # ---------------- env config ----------------------------------- #
+        # env config
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
@@ -80,7 +80,6 @@ class Simulation:
         self._replay_writer = ReplayWriter(replay_dir)
         self._device = device
 
-        # ----------------
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
         max_envs = os.cpu_count() or 1
@@ -111,7 +110,7 @@ class Simulation:
         self._max_time_s = cfg.max_time_s
         self._agents_per_env = cfg.env.game.num_agents
 
-        # ---------------- policies ------------------------------------- #
+        # policies
         self._policy = policy
         self._run_name = run_name
         self._policy_uri = policy_uri
@@ -146,7 +145,7 @@ class Simulation:
                 features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
             )
 
-        # ---------------- agent-index bookkeeping ---------------------- #
+        # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
@@ -207,7 +206,7 @@ class Simulation:
             100 * self._policy_agents_per_env / self._agents_per_env,
         )
         logger.info("Stats dir: %s", self._stats_dir)
-        # ---------------- reset ------------------------------- #
+        # reset
         self._obs, _ = self._vecenv.reset()
         self._env_done_flags = [False] * self._num_envs
 
@@ -261,7 +260,7 @@ class Simulation:
                     f"Policy and NPC indices should not overlap. Overlap: {policy_set.intersection(npc_set)}"
                 )
 
-        # ---------------- forward passes ------------------------- #
+        # forward passes
         with torch.no_grad():
             # Candidate-policy agents
             policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy)
@@ -271,7 +270,7 @@ class Simulation:
             if self._npc_policy is not None and len(self._npc_idxs):
                 npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
 
-        # ---------------- action stitching ----------------------- #
+        # action stitching
         actions = policy_actions
         if self._npc_agents_per_env:
             # Reshape policy and npc actions to (num_envs, agents_per_env, action_dim)
@@ -296,10 +295,10 @@ class Simulation:
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
-        # ---------------- env.step ------------------------------- #
+        # env.step
         obs, rewards, dones, trunc, infos = self._vecenv.step(actions_np)
 
-        # ---------------- episode FSM ---------------------------- #
+        # episode FSM
         done_now = np.logical_or(
             dones.reshape(self._num_envs, self._agents_per_env).all(1),
             trunc.reshape(self._num_envs, self._agents_per_env).all(1),
@@ -343,7 +342,7 @@ class Simulation:
             return None
 
     def end_simulation(self) -> SimulationResults:
-        # ---------------- teardown & DB merge ------------------------ #
+        # teardown & DB merge
         self._vecenv.close()
         db = self._from_shards_and_context()
 
