@@ -76,11 +76,9 @@ class CheckpointManager:
         """Get agent from cache if available, maintaining LRU order."""
         if self.cache_size == 0:
             return None
-
         path_str = str(path)
         if path_str in self._cache:
-            # Move to end (most recently used)
-            self._cache.move_to_end(path_str)
+            self._cache.move_to_end(path_str)  # Move to end (most recently used)
             return self._cache[path_str]
         return None
 
@@ -88,17 +86,11 @@ class CheckpointManager:
         """Add agent to cache, evicting oldest if needed."""
         if self.cache_size == 0:
             return
-
         path_str = str(path)
-
-        # Remove if already exists (to update position)
         if path_str in self._cache:
-            del self._cache[path_str]
-
-        # Evict oldest if cache is full
+            del self._cache[path_str]  # Remove if already exists (to update position)
         if len(self._cache) >= self.cache_size:
             self._cache.popitem(last=False)  # Remove oldest (first item)
-
         self._cache[path_str] = agent
 
     def clear_cache(self):
@@ -123,12 +115,8 @@ class CheckpointManager:
         if cached_agent is not None:
             return cached_agent
 
-        # Load from disk
         agent = torch.load(agent_file, weights_only=False)
-
-        # Add to cache
         self._add_to_cache(agent_file, agent)
-
         return agent
 
     def load_trainer_state(self, epoch: Optional[int] = None) -> Dict[str, Any]:
@@ -150,13 +138,12 @@ class CheckpointManager:
         total_time = metadata.get("total_time", 0)
         score = metadata.get("score", 0.0)  # Default to 0 if no evaluation done yet
 
-        # Format score as integer (multiply by 10000 to preserve 4 decimal places)
-        score_int = int(score * 10000)
+        score_int = int(score * 10000)  # Format score as integer (preserve 4 decimal places)
         filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(total_time)}.sc{score_int}.pt"
         checkpoint_path = self.checkpoint_dir / filename
         torch.save(agent, checkpoint_path)
 
-        # Invalidate cache entry for this file if it exists
+        # Invalidate cache entry if it exists
         if str(checkpoint_path) in self._cache:
             del self._cache[str(checkpoint_path)]
 
@@ -199,13 +186,8 @@ class CheckpointManager:
         if not checkpoint_files:
             return []
 
-        # Simple metric index mapping (parse returns: run_name, epoch, agent_step, total_time, score)
         metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
-
-        # Sort by the selected metric (descending)
         checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
-
-        # Return all files if strategy is "all", otherwise return count
         return checkpoint_files if strategy == "all" else checkpoint_files[:count]
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
@@ -244,33 +226,23 @@ class CheckpointManager:
             if epoch is None:
                 return None
 
-        # Find checkpoint file for this epoch
-        pattern = f"{self.run_name}.e{epoch}.s*.t*.sc*.pt"
-        checkpoint_files = list(self.checkpoint_dir.glob(pattern))
-
+        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.sc*.pt"))
         if not checkpoint_files:
             return None
 
-        # Use the first match (should only be one)
         checkpoint_file = checkpoint_files[0]
-
-        # Parse metadata from filename
         _, epoch_num, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_file.name)
 
-        # Create metadata dict
-        metadata = {
-            "epoch": epoch_num,
-            "agent_step": agent_step,
-            "total_time": total_time,
-            "score": score,
-            "run_name": self.run_name,
-        }
-
-        # Upload with run name as artifact name (wandb will version it)
         return upload_checkpoint_as_artifact(
             checkpoint_path=str(checkpoint_file),
             artifact_name=self.run_name,
             artifact_type="model",
-            metadata=metadata,
+            metadata={
+                "epoch": epoch_num,
+                "agent_step": agent_step,
+                "total_time": total_time,
+                "score": score,
+                "run_name": self.run_name,
+            },
             wandb_run=wandb_run,
         )
