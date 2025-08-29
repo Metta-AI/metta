@@ -150,9 +150,8 @@ class SimulationStatsDB(EpisodeStatsDB):
         self.con.execute("CHECKPOINT")
         write_file(dest, str(self.path))
 
-    def get_replay_urls(
-        self, policy_key: str | None = None, policy_version: int | None = None, env: str | None = None
-    ) -> List[str]:
+    def get_replay_urls(self, policy_uri: str | None = None, env: str | None = None) -> List[str]:
+        """Get replay URLs, optionally filtered by policy URI and/or environment."""
         query = """
         SELECT e.replay_url
         FROM episodes e
@@ -160,13 +159,11 @@ class SimulationStatsDB(EpisodeStatsDB):
         WHERE e.replay_url IS NOT NULL
         """
         params = []
-        if policy_key is not None:
-            query += " AND s.policy_key = ?"
-            params.append(policy_key)
 
-        if policy_version is not None:
-            query += " AND s.policy_version = ?"
-            params.append(policy_version)
+        if policy_uri is not None:
+            policy_key, policy_version = key_and_version(policy_uri)
+            query += " AND s.policy_key = ? AND s.policy_version = ?"
+            params.extend([policy_key, policy_version])
 
         if env is not None:
             query += " AND s.env = ?"
@@ -176,6 +173,11 @@ class SimulationStatsDB(EpisodeStatsDB):
         return [row[0] for row in result if row[0]]  # Filter out None values
 
     def get_all_policy_uris(self) -> List[str]:
+        """Get all unique policy URIs from the database.
+
+        Note: Returns simplified URIs in format 'policy_key:v{version}' since
+        we don't store the full original URI (file:// vs wandb://) in the database.
+        """
         result = self.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
         return [f"{row[0]}:v{row[1]}" for row in result]
 

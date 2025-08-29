@@ -206,17 +206,20 @@ def test_get_replay_urls(tmp_path: Path):
     for url in replay_urls:
         assert url in all_urls
 
-    # Test filtering by policy key
-    policy1_urls = db.get_replay_urls(policy_key="policy1")
-    assert len(policy1_urls) == 2
-    assert replay_urls[0] in policy1_urls
-    assert replay_urls[1] in policy1_urls
+    # Test filtering by policy URI (policy1 version 1)
+    policy1_v1_urls = db.get_replay_urls(policy_uri="file://policy1.e1.s0.t0.sc0.pt")
+    assert len(policy1_v1_urls) == 1
+    assert replay_urls[0] in policy1_v1_urls
 
-    # Test filtering by policy version
-    version1_urls = db.get_replay_urls(policy_version=1)
-    assert len(version1_urls) == 2
-    assert replay_urls[0] in version1_urls
-    assert replay_urls[2] in version1_urls
+    # Test filtering by policy URI (policy1 version 2)
+    policy1_v2_urls = db.get_replay_urls(policy_uri="file://policy1.e2.s0.t0.sc0.pt")
+    assert len(policy1_v2_urls) == 1
+    assert replay_urls[1] in policy1_v2_urls
+
+    # Test filtering by policy URI (policy2 version 1)
+    policy2_urls = db.get_replay_urls(policy_uri="file://policy2.e1.s0.t0.sc0.pt")
+    assert len(policy2_urls) == 1
+    assert replay_urls[2] in policy2_urls
 
     # Test filtering by environment
     env1_urls = db.get_replay_urls(env="env1")
@@ -224,8 +227,8 @@ def test_get_replay_urls(tmp_path: Path):
     assert replay_urls[0] in env1_urls
     assert replay_urls[2] in env1_urls
 
-    # Test combining filters
-    combined_urls = db.get_replay_urls(policy_key="policy1", policy_version=1, env="env1")
+    # Test combining policy URI and environment filters
+    combined_urls = db.get_replay_urls(policy_uri="file://policy1.e1.s0.t0.sc0.pt", env="env1")
     assert len(combined_urls) == 1
     assert replay_urls[0] in combined_urls
 
