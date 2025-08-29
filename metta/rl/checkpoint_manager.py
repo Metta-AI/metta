@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def key_and_version(uri: str) -> tuple[str, int]:
-    """Extract key (run name) and version (epoch) from a policy URI. Since all checkpoints 
+    """Extract key (run name) and version (epoch) from a policy URI. Since all checkpoints
     are .pt files with metadata in filenames, we can simplify this to handle just the common cases."""
     if uri.startswith("file://"):
         path = Path(uri[7:])
@@ -98,7 +98,7 @@ class CheckpointManager:
         return torch.load(trainer_file, weights_only=False)
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
-        """Save agent with metadata embedded in filename. Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt 
+        """Save agent with metadata embedded in filename. Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
         where score defaults to 0 if not provided (e.g., before evaluation)."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
