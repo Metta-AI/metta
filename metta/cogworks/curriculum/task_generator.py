@@ -344,5 +344,5 @@ AnyTaskGeneratorConfig = SerializeAsAny[
 
 # Type aliases for specific task generator configs
 SingleTaskGeneratorConfig = SingleTaskGenerator.Config
-TaskGeneratorSetConfig = TaskGeneratorSet.Config  
+TaskGeneratorSetConfig = TaskGeneratorSet.Config
 BucketedTaskGeneratorConfig = BucketedTaskGenerator.Config

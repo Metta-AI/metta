@@ -507,7 +507,7 @@ def train(
 
                 # Save agent and trainer state
                 checkpoint_manager.save_agent(agent_to_save, epoch, metadata)
-                checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.get_state())
+                checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
                 latest_saved_epoch = epoch  # Update latest saved epoch
 
                 logger.info(f"Successfully saved checkpoint at epoch {epoch}")
