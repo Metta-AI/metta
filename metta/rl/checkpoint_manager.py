@@ -49,7 +49,8 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]
     epoch = int(parts[1][1:])  # Remove 'e' prefix
     agent_step = int(parts[2][1:])  # Remove 's' prefix
     total_time = int(parts[3][1:])  # Remove 't' prefix
-    score = float(parts[4][2:])  # Remove 'sc' prefix
+    score_int = int(parts[4][2:])  # Remove 'sc' prefix (stored as int * 10000)
+    score = score_int / 10000.0  # Convert back to float
 
     return run_name, epoch, agent_step, total_time, score
 
@@ -124,7 +125,9 @@ class CheckpointManager:
         total_time = metadata.get("total_time", 0)
         score = metadata.get("score", 0.0)  # Default to 0 if no evaluation done yet
 
-        filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(total_time)}.sc{score:.4f}.pt"
+        # Format score as integer (multiply by 10000 to preserve 4 decimal places)
+        score_int = int(score * 10000)
+        filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(total_time)}.sc{score_int}.pt"
         torch.save(agent, self.checkpoint_dir / filename)
         logger.info(f"Saved agent: {filename}")
 

@@ -83,7 +83,8 @@ class TestHelpersSimpleCheckpoint:
         agent_step = metadata.get("agent_step", epoch * 1000)
         total_time = int(metadata.get("total_time", metadata.get("train_time", epoch * 10.0)))
         score = metadata.get("score", 0.0)
-        filename = f"{run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score:.4f}.pt"
+        score_int = int(score * 10000)  # Store as integer to avoid decimal in filename
+        filename = f"{run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score_int}.pt"
         checkpoint_path = checkpoint_manager.checkpoint_dir / filename
 
         return f"file://{checkpoint_path}"

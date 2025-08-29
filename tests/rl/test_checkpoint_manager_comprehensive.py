@@ -53,7 +53,7 @@ class TestCheckpointManagerBasicOperations:
 
         # Verify checkpoint file exists with new format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        expected_filename = "test_run.e5.s5280.t120.sc0.0000.pt"
+        expected_filename = "test_run.e5.s5280.t120.sc0.pt"
         agent_file = checkpoint_dir / expected_filename
 
         assert agent_file.exists()
@@ -108,10 +108,10 @@ class TestCheckpointManagerBasicOperations:
         # Verify files were created with correct naming format
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
         expected_files = [
-            "test_run.e1.s1000.t30.sc0.0000.pt",
-            "test_run.e5.s5000.t150.sc0.0000.pt",
-            "test_run.e10.s10000.t300.sc0.0000.pt",
-            "test_run.e15.s15000.t450.sc0.0000.pt",
+            "test_run.e1.s1000.t30.sc0.pt",
+            "test_run.e5.s5000.t150.sc0.pt",
+            "test_run.e10.s10000.t300.sc0.pt",
+            "test_run.e15.s15000.t450.sc0.pt",
         ]
         for expected_file in expected_files:
             assert (checkpoint_dir / expected_file).exists()
@@ -119,12 +119,12 @@ class TestCheckpointManagerBasicOperations:
         # Test find_best_checkpoint functionality (uses epoch by default)
         best_path = checkpoint_manager.find_best_checkpoint("epoch")
         assert best_path is not None
-        assert "test_run.e15.s15000.t450.sc0.0000.pt" == best_path.name  # Epoch 15 is highest
+        assert "test_run.e15.s15000.t450.sc0.pt" == best_path.name  # Epoch 15 is highest
 
         # Test find_best_checkpoint with agent_step metric
         best_step_path = checkpoint_manager.find_best_checkpoint("agent_step")
         assert best_step_path is not None
-        assert "test_run.e15.s15000.t450.sc0.0000.pt" == best_step_path.name  # Highest agent_step
+        assert "test_run.e15.s15000.t450.sc0.pt" == best_step_path.name  # Highest agent_step
 
         # Test loading latest (should be epoch 15)
         loaded_agent = checkpoint_manager.load_agent()  # No epoch specified = latest
@@ -159,11 +159,11 @@ class TestCheckpointManagerAdvancedFeatures:
 
         # Test finding best by epoch (highest epoch number)
         best_epoch_path = checkpoint_manager.find_best_checkpoint("epoch")
-        assert "test_run.e15.s15000.t450.sc0.0000.pt" == best_epoch_path.name
+        assert "test_run.e15.s15000.t450.sc0.pt" == best_epoch_path.name
 
         # Test finding best by agent_step
         best_step_path = checkpoint_manager.find_best_checkpoint("agent_step")
-        assert "test_run.e15.s15000.t450.sc0.0000.pt" == best_step_path.name
+        assert "test_run.e15.s15000.t450.sc0.pt" == best_step_path.name
 
         # Test checkpoint file existence and parsing
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
