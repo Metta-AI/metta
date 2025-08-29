@@ -17,7 +17,7 @@ def create_test_database(
     num_episodes_requested: int,
     num_episodes_completed: int,
     num_agents: int = 2,
-    checkpoint_filename: str = "test_policy.e1.s1000.t30.pt",
+    checkpoint_filename: str = "test_policy.e1.s1000.t30.sc0.pt",
 ):
     """Create a test database that simulates the bug scenario."""
     db = EvalStatsDB(db_path)
@@ -25,7 +25,7 @@ def create_test_database(
     # Create a simulation
     sim_id = uuid.uuid4().hex[:8]
     # Use checkpoint filename to extract policy information automatically
-    policy_key, policy_version, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
+    policy_key, policy_version, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
 
     db.con.execute(
         """
@@ -99,12 +99,12 @@ def test_normalization_bug():
         # Demonstrate new filename-based checkpoint metadata system
         # OLD WAY: checkpoint_path, epoch = "test_policy", 1  # Manual tuple tracking
         # NEW WAY: Everything extracted automatically from filename
-        checkpoint_filename = "test_policy.e1.s1000.t30.pt"
-        checkpoint_path, epoch, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
+        checkpoint_filename = "test_policy.e1.s1000.t30.sc0.pt"
+        checkpoint_path, epoch, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
 
         print(f"  Checkpoint file: {checkpoint_filename}")
-        print(f"  Extracted metadata: (path={checkpoint_path}, epoch={epoch}, step={agent_step}, time={total_time})")
-        print(f"  Policy: {checkpoint_path}, Epoch: {epoch}, Steps: {agent_step}, Training time: {total_time}s")
+        print(f"  Extracted metadata: (path={checkpoint_path}, epoch={epoch}, step={agent_step}, time={total_time}, score={score})")
+        print(f"  Policy: {checkpoint_path}, Epoch: {epoch}, Steps: {agent_step}, Training time: {total_time}s, Score: {score}")
 
         # Check what's in the database
         episodes_count = db1.query("SELECT COUNT(*) as cnt FROM episodes")["cnt"][0]
@@ -117,7 +117,7 @@ def test_normalization_bug():
 
         # Get average reward
         # Create proper URI from checkpoint components
-        policy_uri = f"file:///tmp/{checkpoint_path}.e{epoch}.s{agent_step}.t{total_time}.pt"
+        policy_uri = f"file:///tmp/{checkpoint_path}.e{epoch}.s{agent_step}.t{total_time}.sc{int(score * 10000)}.pt"
         avg_reward_1 = db1.get_average_metric("reward", policy_uri)
         print(f"  Average reward: {avg_reward_1}")
 

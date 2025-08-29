@@ -25,8 +25,8 @@ TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     db = EvalStatsDB(db_path)
 
-    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
+    checkpoint_filename = "test_policy.e1.s1000.t10.sc0.pt"
+    pk, pv, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
 
     sim_id = str(uuid.uuid4())
 
@@ -87,12 +87,12 @@ def test_db() -> Generator[TestEvalStatsDb, None, None]:
 # -------- Tests ------------------------------------------------------------ #
 def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
+    checkpoint_filename = "test_policy.e1.s1000.t10.sc0.pt"
+    pk, pv, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
     # Create proper URI from the checkpoint components
-    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
+    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.sc{int(score * 10000)}.pt"
     avg_hearts = db.get_average_metric("hearts_collected", policy_uri)
     assert avg_hearts is not None
     assert 1.15 <= avg_hearts <= 1.25, f"expected ≈1.2 got {avg_hearts}"
@@ -118,9 +118,9 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
-    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
+    checkpoint_filename = "test_policy.e1.s1000.t10.sc0.pt"
+    pk, pv, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
+    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.sc{int(score * 10000)}.pt"
 
     scores = db.simulation_scores(policy_uri, "hearts_collected")
     assert len(scores) == 1
@@ -140,9 +140,9 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
-    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
+    checkpoint_filename = "test_policy.e1.s1000.t10.sc0.pt"
+    pk, pv, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
+    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.sc{int(score * 10000)}.pt"
 
     sum_norm = db.get_sum_metric("hearts_collected", policy_uri)
     assert sum_norm is not None
@@ -151,9 +151,9 @@ def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy.e1.s1000.t10.pt"
-    pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
-    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
+    checkpoint_filename = "test_policy.e1.s1000.t10.sc0.pt"
+    pk, pv, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
+    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.sc{int(score * 10000)}.pt"
 
     assert db.get_average_metric("nonexistent", policy_uri) == 0.0
 
