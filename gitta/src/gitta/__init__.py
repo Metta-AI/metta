@@ -59,10 +59,9 @@ def run_git_cmd(
     args: Iterable[str],
     cwd: Optional[Path] = None,
     timeout: Optional[float] = None,
-    return_bytes: bool = False,
     env_overrides: Optional[Mapping[str, str]] = None,
     check: bool = True,
-) -> str | bytes:
+) -> str:
     """
     Run a git command with consistent environment and error handling.
 
@@ -70,7 +69,6 @@ def run_git_cmd(
         args: Git command arguments (without 'git' prefix)
         cwd: Working directory for the command
         timeout: Command timeout in seconds (default: 30s)
-        return_bytes: Return raw bytes instead of decoded string
         env_overrides: Additional environment variables to set
         check: If False, return empty string on error instead of raising
 
@@ -143,17 +141,13 @@ def run_git_cmd(
 
         # Handle non-critical errors if check=False
         if not check:
-            return b"" if return_bytes else ""
+            return ""
 
         # Generic error
         cmd_str = " ".join(shlex.quote(str(a)) for a in args)
         raise GitError(f"git {cmd_str} failed ({result.returncode}): {stderr}")
 
-    # Return output
-    if return_bytes:
-        return result.stdout
-    else:
-        return result.stdout.decode("utf-8", errors="surrogateescape").strip()
+    return result.stdout.decode("utf-8", errors="surrogateescape").strip()
 
 
 # ============================================================================
