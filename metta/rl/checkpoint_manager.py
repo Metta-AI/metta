@@ -43,15 +43,19 @@ def metadata_from_uri(uri: str) -> Dict[str, Any]:
     """Extract metadata from checkpoint URI by parsing the filename."""
     if uri.startswith("file://"):
         path = Path(uri[7:])
-        if path.is_file() and path.suffix == ".pt":
-            run_name, epoch, agent_step, total_time = parse_checkpoint_filename(path.name)
-            return {
-                "run": run_name,
-                "epoch": epoch,
-                "agent_step": agent_step,
-                "total_time": total_time,
-                "checkpoint_file": path.name,
-            }
+        if path.suffix == ".pt":
+            try:
+                run_name, epoch, agent_step, total_time = parse_checkpoint_filename(path.name)
+                return {
+                    "run": run_name,
+                    "epoch": epoch,
+                    "agent_step": agent_step,
+                    "total_time": total_time,
+                    "checkpoint_file": path.name,
+                }
+            except ValueError:
+                # Filename doesn't match expected format
+                pass
     # For non-file URIs or directories, return minimal metadata
     return {"run": name_from_uri(uri), "epoch": 0}
 
