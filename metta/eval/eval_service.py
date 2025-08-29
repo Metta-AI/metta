@@ -9,7 +9,7 @@ from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -43,7 +43,8 @@ def evaluate_policy(
         raise FileNotFoundError(f"Could not load policy from {checkpoint_uri}")
     if device != "cpu" and hasattr(policy, "to"):
         policy = policy.to(device)
-    run_name, _ = key_and_version(checkpoint_uri)
+    metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+    run_name = metadata["run_name"]
 
     sims = [
         Simulation(
@@ -74,7 +75,8 @@ def evaluate_policy(
             merged_db.merge_in(sim_result.stats_db)
             record_heartbeat()
             if replay_dir is not None:
-                key, version = key_and_version(checkpoint_uri)
+                checkpoint_metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+                key, version = checkpoint_metadata["run_name"], checkpoint_metadata["epoch"]
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
                 if sim_replay_urls:
                     replay_urls[sim.name] = sim_replay_urls

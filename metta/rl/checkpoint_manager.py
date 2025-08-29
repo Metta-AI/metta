@@ -154,6 +154,59 @@ class CheckpointManager:
         else:
             raise ValueError(f"Unsupported URI format: {uri}. Supported formats: file://, s3://, wandb://")
 
+    @staticmethod
+    def normalize_uri(path_or_uri: str) -> str:
+        """Convert a path or URI to a normalized URI format.
+
+        Examples:
+            "/path/to/checkpoint.pt" -> "file:///path/to/checkpoint.pt"
+            "file://path" -> "file://path" (unchanged)
+            "wandb://run" -> "wandb://run" (unchanged)
+        """
+        if not path_or_uri.startswith(("file://", "wandb://", "s3://")):
+            # Plain path - convert to absolute file URI
+            return f"file://{Path(path_or_uri).resolve()}"
+        return path_or_uri
+
+    @staticmethod
+    def get_policy_metadata(uri: str) -> dict[str, Any]:
+        """Extract all available metadata from a policy URI.
+
+        Returns a dictionary with metadata like:
+        {
+            "run_name": str,
+            "epoch": int,
+            "agent_step": int (if available),
+            "total_time": int (if available),
+            "score": float (if available),
+            "uri": str
+        }
+        """
+        uri = CheckpointManager.normalize_uri(uri)
+        run_name, epoch = key_and_version(uri)
+
+        metadata = {"run_name": run_name, "epoch": epoch, "uri": uri}
+
+        # Try to extract additional metadata from valid checkpoint filenames
+        if uri.startswith("file://"):
+            path = Path(uri[7:])
+            if path.is_file() and is_valid_checkpoint_filename(path.name):
+                try:
+                    run_name, epoch, agent_step, total_time, score = parse_checkpoint_filename(path.name)
+                    metadata.update(
+                        {
+                            "run_name": run_name,
+                            "epoch": epoch,
+                            "agent_step": agent_step,
+                            "total_time": total_time,
+                            "score": score,
+                        }
+                    )
+                except ValueError:
+                    pass  # Keep basic metadata if parsing fails
+
+        return metadata
+
     def exists(self) -> bool:
         return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
 

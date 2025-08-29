@@ -19,11 +19,5 @@ class AnalysisTool(Tool):
     data_dir: str = Field(default="./train_dir")
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        if self.policy_uri.startswith("file://"):
-            # CheckpointManager.load_from_uri handles directories automatically
-            policy_uri = self.policy_uri
-        else:
-            policy_uri = self.policy_uri
-
-        analyze(policy_uri, self.analysis)
+        analyze(self.policy_uri, self.analysis)
         return 0

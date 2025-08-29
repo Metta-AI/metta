@@ -5,7 +5,6 @@ import IPython
 from traitlets.config import Config as IPythonConfig
 
 from metta.common.util.fs import get_repo_root
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.setup.utils import header, info, success, warning
 
 __name__ = "__ipython__"

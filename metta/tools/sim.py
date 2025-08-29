@@ -50,7 +50,7 @@ class SimTool(Tool):
             StatsClient.create(self.stats_server_uri)
 
         # Load policies using policy management system
-        policies_by_uri: dict[str, list[tuple]] = {}  # (agent, metadata, uri) tuples
+        policies_by_uri: dict[str, list[str]] = {}  # Just store URIs, load agents on demand
 
         for policy_uri in self.policy_uris:
             # Discover policies with the specified strategy
@@ -66,13 +66,17 @@ class SimTool(Tool):
             policies_by_uri[policy_uri] = []
             for policy_uri_path in discovered_uris:
                 try:
+                    # Validate that we can load the policy
                     agent = CheckpointManager.load_from_uri(policy_uri_path)
                     if agent is None:
                         raise FileNotFoundError(f"Could not load policy from {policy_uri_path}")
-                    # Extract metadata from URI for logging
-                    key, version = key_and_version(policy_uri_path)
-                    policies_by_uri[policy_uri].append((agent, policy_uri_path))
-                    logger.info(f"Loaded policy from {policy_uri_path} (key={key}, version={version})")
+
+                    # Get metadata for logging using centralized method
+                    metadata = CheckpointManager.get_policy_metadata(policy_uri_path)
+                    policies_by_uri[policy_uri].append(policy_uri_path)
+                    logger.info(
+                        f"Loaded policy from {policy_uri_path} (key={metadata['run_name']}, epoch={metadata['epoch']})"
+                    )
                 except Exception as e:
                     logger.error(f"Failed to load policy from {policy_uri_path}: {e}")
 
@@ -92,14 +96,14 @@ class SimTool(Tool):
                 logger.warning(f"Failed to initialize stats database: {e}")
                 stats_db = None
 
-        for policy_uri, agent_metadata_list in policies_by_uri.items():
+        for policy_uri, checkpoint_uris in policies_by_uri.items():
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
-            for _agent, checkpoint_uri in agent_metadata_list:
+            for checkpoint_uri in checkpoint_uris:
                 logger.info(f"Processing checkpoint {checkpoint_uri}")
 
-                # Extract metadata from URI
-                key, version = key_and_version(checkpoint_uri)
+                # Extract metadata using centralized method
+                metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
 
                 # Perform basic evaluation (placeholder - would run actual simulations in real implementation)
                 # For Phase 3, we focus on the database integration infrastructure
@@ -120,10 +124,9 @@ class SimTool(Tool):
 
                 results["checkpoints"].append(
                     {
-                        "name": key,
+                        "name": metadata["run_name"],
                         "uri": checkpoint_uri,
-                        "epoch": version,
-                        "checkpoint_path": checkpoint_uri,  # Keep URI as is
+                        "epoch": metadata["epoch"],
                         "metrics": evaluation_metrics,
                         "replay_url": [],
                     }

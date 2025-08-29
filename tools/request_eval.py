@@ -73,26 +73,21 @@ def _get_policies_for_uri(
 ) -> tuple[str, list[tuple[str, str]] | None]:
     """Get policies from a URI - working with URIs throughout."""
     try:
-        # Convert plain paths to file:// URIs
-        if not policy_uri.startswith(("file://", "wandb://")):
-            policy_uri = f"file://{Path(policy_uri).resolve()}"
+        # Normalize URI using CheckpointManager
+        policy_uri = CheckpointManager.normalize_uri(policy_uri)
 
         if policy_uri.startswith("wandb://"):
-            # For wandb URIs, extract run name from the URI
-            parts = policy_uri[8:].split("/")
-            run_name = parts[-1].split(":")[0] if parts else "unknown"
-            return policy_uri, [(policy_uri, run_name)]
+            # For wandb URIs, extract run name from metadata
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            return policy_uri, [(policy_uri, metadata["run_name"])]
 
         if policy_uri.startswith("file://"):
             path = Path(policy_uri[7:])
 
             if path.is_file():
-                # Direct file - extract run name from path structure
-                if path.parent.name == "checkpoints":
-                    run_name = path.parent.parent.name
-                else:
-                    run_name = path.stem  # Use filename without extension
-                return policy_uri, [(policy_uri, run_name)]
+                # Direct file - extract metadata using CheckpointManager
+                metadata = CheckpointManager.get_policy_metadata(policy_uri)
+                return policy_uri, [(policy_uri, metadata["run_name"])]
 
             if not path.is_dir():
                 if disallow_missing_policies:
