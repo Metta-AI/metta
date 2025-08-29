@@ -23,42 +23,41 @@ proc drawFooter*(panel: Panel) =
     "ui/rewindToStart",
     pos = vec2(x, 16)
   ):
-    echo "Rewind to start"
+    step = 0
   x += 32 + 5
 
   if drawIconButton(
     "ui/stepBack",
     pos = vec2(x, 16)
   ):
-    echo "Step back"
+    step -= 1
+    step = clamp(step, 0, replay.maxSteps - 1)
   x += 32 + 5
 
   if drawIconButton(
-    "ui/play",
+    if play:
+      "ui/pause"
+    else:
+      "ui/play",
     pos = vec2(x, 16)
   ):
-    echo "Play"
+    play = not play
+    stepFloat = step.float32
   x += 32 + 5
-
-  # if drawIconButton(
-  #   "ui/pause",
-  #   pos = vec2(x, 16)
-  # ):
-  #   echo "Pause"
-  # x += 32 + 5
 
   if drawIconButton(
     "ui/stepForward",
     pos = vec2(x, 16)
   ):
-    echo "Step forward"
+    step += 1
+    step = clamp(step, 0, replay.maxSteps - 1)
   x += 32 + 5
 
   if drawIconButton(
     "ui/rewindToEnd",
     pos = vec2(x, 16)
   ):
-    echo "Rewind to end"
+    step = replay.maxSteps - 1
 
 
   # Draw the middle buttons.

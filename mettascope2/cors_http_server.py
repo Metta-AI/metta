@@ -19,7 +19,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
 
-def run_server(port=2000):
+def run_server(port):
     """Run the HTTP server with CORS headers."""
     handler = CORSHTTPRequestHandler
 
