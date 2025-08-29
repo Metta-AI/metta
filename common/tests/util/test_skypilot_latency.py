@@ -135,7 +135,9 @@ class TestSkyPilotLatency:
         script_path = Path(__file__).parent.parent.parent / "skypilot_latency.py"
         if not script_path.exists():
             # Try alternative path structure
-            script_path = Path(__file__).parent.parent.parent.parent / "src" / "metta" / "common" / "util" / "skypilot_latency.py"
+            script_path = (
+                Path(__file__).parent.parent.parent.parent / "src" / "metta" / "common" / "util" / "skypilot_latency.py"
+            )
 
         result = subprocess.run(
             [sys.executable, str(script_path)],
@@ -165,7 +167,9 @@ class TestSkyPilotLatency:
         # Find the script
         script_path = Path(__file__).parent.parent.parent / "skypilot_latency.py"
         if not script_path.exists():
-            script_path = Path(__file__).parent.parent.parent.parent / "src" / "metta" / "common" / "util" / "skypilot_latency.py"
+            script_path = (
+                Path(__file__).parent.parent.parent.parent / "src" / "metta" / "common" / "util" / "skypilot_latency.py"
+            )
 
         result = subprocess.run(
             [sys.executable, str(script_path)],
@@ -186,7 +190,9 @@ class TestSkyPilotLatency:
         # Find the script
         script_path = Path(__file__).parent.parent.parent / "skypilot_latency.py"
         if not script_path.exists():
-            script_path = Path(__file__).parent.parent.parent.parent / "src" / "metta" / "common" / "util" / "skypilot_latency.py"
+            script_path = (
+                Path(__file__).parent.parent.parent.parent / "src" / "metta" / "common" / "util" / "skypilot_latency.py"
+            )
 
         result = subprocess.run(
             [sys.executable, str(script_path)],
@@ -203,7 +209,9 @@ class TestSkyPilotLatency:
         """Test that latency calculation maintains reasonable precision."""
         # Create timestamps with microsecond precision
         for microseconds in [0, 123456, 999999]:
-            past_time = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0) - datetime.timedelta(seconds=2, microseconds=microseconds)
+            past_time = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0) - datetime.timedelta(
+                seconds=2, microseconds=microseconds
+            )
             task_id = f"sky-{past_time:%Y-%m-%d-%H-%M-%S-%f}_test_123"
             os.environ["SKYPILOT_TASK_ID"] = task_id
 

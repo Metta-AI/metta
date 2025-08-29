@@ -260,8 +260,8 @@ def test_parse_value():
 
     # Test JSON parsing
     assert parse_value('{"a": 1, "b": 2}') == {"a": 1, "b": 2}
-    assert parse_value('[1, 2, 3]') == [1, 2, 3]
-    assert parse_value('null') is None
+    assert parse_value("[1, 2, 3]") == [1, 2, 3]
+    assert parse_value("null") is None
 
     # Test string fallback
     assert parse_value("hello world") == "hello world"
@@ -299,7 +299,7 @@ def test_ensure_wandb_run_resume(wandb_test_env):
     os.environ["METTA_RUN_ID"] = run_id
 
     # Create an initial run and log some data
-    run1 = wandb.init(
+    _run1 = wandb.init(
         project="test-project",
         name=run_id,
         id=run_id,
