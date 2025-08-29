@@ -116,9 +116,11 @@ class WandbStore:
         # Check run state and runtime to determine actual status
         runtime = float(run.summary.get("_runtime", 0))
         
+        logger.debug(f"Run {run.id}: state={run.state}, runtime={runtime}")
+        
         if run.state == self.STATUS_RUNNING:
             has_started_training = True
-        elif run.state == self.STATUS_FINISHED:
+        elif run.state in [self.STATUS_FINISHED, self.STATUS_CRASHED, self.STATUS_FAILED]:
             if runtime > 0:
                 # Actually ran training
                 has_started_training = True

@@ -214,6 +214,12 @@ def run_test():
 
             # Fetch all runs
             logger.info(f"\n--- Iteration {iteration} ---")
+            
+            # Check subprocess status
+            active_processes = dispatcher.check_processes()
+            if active_processes > 0:
+                logger.info(f"Active local processes: {active_processes}")
+            
             all_runs = store.fetch_runs(filters={"group": config.sweep_name})
             logger.info(f"Found {len(all_runs)} runs in sweep")
             

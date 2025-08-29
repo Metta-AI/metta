@@ -277,6 +277,17 @@ class LocalDispatcher:
             if run_id:
                 del self._run_to_pid[run_id]
 
+    def check_processes(self):
+        """Check and log status of all processes"""
+        self._reap_finished_processes()
+        active_count = len(self._processes)
+        if active_count > 0:
+            logger.debug(f"Active subprocesses: {active_count}")
+            for pid, process in self._processes.items():
+                status = "running" if process.poll() is None else f"finished({process.returncode})"
+                logger.debug(f"  PID {pid}: {status}")
+        return active_count
+
     def dispatch(self, job: JobDefinition) -> str:
         """Dispatch a job locally as a subprocess and return its PID as dispatch_id"""
 
