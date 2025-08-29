@@ -14,7 +14,7 @@ from typing import Dict, Optional
 import pandas as pd
 
 from metta.mettagrid.util.file import local_copy
-from metta.rl.checkpoint_manager import metadata_from_uri, name_from_uri
+from metta.rl.checkpoint_manager import epoch_from_uri, name_from_uri
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 # --------------------------------------------------------------------------- #
@@ -266,8 +266,7 @@ class EvalStatsDB(SimulationStatsDB):
 
     def key_and_version_from_uri(self, policy_uri: str) -> tuple[str, int]:
         """Extract key and version from a policy URI."""
-        metadata = metadata_from_uri(policy_uri)
-        return name_from_uri(policy_uri), metadata.get("epoch", 0)
+        return name_from_uri(policy_uri), epoch_from_uri(policy_uri)
 
     def key_and_version(self, checkpoint_path: str, epoch: int) -> tuple[str, int]:
         """Legacy method for backwards compatibility."""

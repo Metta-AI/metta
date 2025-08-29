@@ -39,7 +39,12 @@ def name_from_uri(uri: str) -> str:
     return "unknown"
 
 
-# All metadata extraction removed - we just use URIs now!
+def epoch_from_uri(uri: str) -> int:
+    """Extract epoch directly from URI."""
+    if uri.startswith("file://") and uri.endswith(".pt"):
+        _, epoch, _, _ = parse_checkpoint_filename(Path(uri[7:]).name)
+        return epoch
+    return 0
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:

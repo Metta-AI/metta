@@ -17,7 +17,7 @@ import duckdb
 
 from metta.mettagrid.episode_stats_db import EpisodeStatsDB
 from metta.mettagrid.util.file import exists, local_copy, write_file
-from metta.rl.checkpoint_manager import metadata_from_uri, name_from_uri
+from metta.rl.checkpoint_manager import epoch_from_uri, name_from_uri
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
