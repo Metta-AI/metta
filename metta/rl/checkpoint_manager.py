@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import torch
 
 from metta.mettagrid.util.file import WandbURI, local_copy
-from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb_uri, upload_checkpoint_as_artifact
+from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
 
@@ -252,14 +252,6 @@ class CheckpointManager:
             state["stopwatch_state"] = stopwatch_state
         torch.save(state, trainer_file)
 
-    def get_checkpoint_uri(self, epoch: Optional[int] = None) -> str:
-        """Get URI for checkpoint."""
-        checkpoint = self._get_checkpoint_file(epoch)
-        if not checkpoint:
-            msg = f"No checkpoint found for {self.run_name}" + (f" at epoch {epoch}" if epoch else "")
-            raise FileNotFoundError(msg)
-        return f"file://{checkpoint}"
-
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
         """Select checkpoints."""
         checkpoint_files = self._find_checkpoint_files()
@@ -283,31 +275,3 @@ class CheckpointManager:
             trainer_file = self.checkpoint_dir / "trainer_state.pt"
             trainer_file.unlink(missing_ok=True)
         return len(files_to_remove)
-
-    def upload_to_wandb(self, epoch: Optional[int] = None, wandb_run=None) -> Optional[str]:
-        """Upload checkpoint to wandb."""
-        if epoch is None:
-            checkpoint_files = self._find_checkpoint_files()
-            if not checkpoint_files:
-                return None
-            epoch = max(parse_checkpoint_filename(f.name)[1] for f in checkpoint_files)
-
-        checkpoint_files = self._find_checkpoint_files(epoch)
-        if not checkpoint_files:
-            return None
-
-        checkpoint_file = checkpoint_files[0]
-        _, epoch_num, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_file.name)
-        return upload_checkpoint_as_artifact(
-            checkpoint_path=str(checkpoint_file),
-            artifact_name=self.run_name,
-            artifact_type="model",
-            metadata={
-                "epoch": epoch_num,
-                "agent_step": agent_step,
-                "total_time": total_time,
-                "score": score,
-                "run_name": self.run_name,
-            },
-            wandb_run=wandb_run,
-        )

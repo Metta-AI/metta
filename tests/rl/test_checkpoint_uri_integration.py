@@ -319,8 +319,9 @@ class TestRealEnvironmentIntegration:
             # Save agent
             checkpoint_manager.save_agent(agent, epoch=10, metadata={"agent_step": 5000, "total_time": 300})
 
-            # Get checkpoint URI
-            checkpoint_uri = checkpoint_manager.get_checkpoint_uri(epoch=10)
+            # Get checkpoint URI (manual construction since get_checkpoint_uri was removed)
+            checkpoint_file = checkpoint_manager._get_checkpoint_file(epoch=10)
+            checkpoint_uri = f"file://{checkpoint_file}"
 
             # Load via URI
             loaded_agent = CheckpointManager.load_from_uri(checkpoint_uri)
