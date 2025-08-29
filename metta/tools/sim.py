@@ -151,6 +151,7 @@ class SimTool(Tool):
         """Export checkpoint evaluation results to stats database."""
         # Extract key and version from URI for database
         from metta.rl.checkpoint_manager import key_and_version
+
         policy_key, policy_version = key_and_version(checkpoint_uri)
 
         # Record simulation entries for each configured simulation

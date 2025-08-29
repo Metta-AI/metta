@@ -263,4 +263,3 @@ class EvalStatsDB(SimulationStatsDB):
             if val is not None:
                 scores[(row.sim_name, row.sim_env)] = val
         return scores
-

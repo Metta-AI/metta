@@ -122,7 +122,9 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         if all_episode_ids:
             # Convert agent_map with URIs to agent_map with (key, version) tuples
-            agent_tuple_map = {agent_id: (key_and_version(uri) if uri else ("unknown", 0)) for agent_id, uri in agent_map.items()}
+            agent_tuple_map = {
+                agent_id: (key_and_version(uri) if uri else ("unknown", 0)) for agent_id, uri in agent_map.items()
+            }
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
             merged._update_episode_simulations(all_episode_ids, sim_id)
@@ -255,7 +257,6 @@ class SimulationStatsDB(EpisodeStatsDB):
         self._merge_db(other.path)
         logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
-
 
     def _merge_db(self, other_path: Path) -> None:
         """
