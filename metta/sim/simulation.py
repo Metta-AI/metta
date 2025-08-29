@@ -420,8 +420,13 @@ class Simulation:
                 policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
             else:
                 policy_details = []
-            if self._npc_pr is not None:
-                policy_details.append((self._npc_pr.run_name, self._npc_pr.uri, None))
+
+            # Add NPC policy if it exists
+            npc_name = None
+            if self._npc_policy_uri:
+                # Extract a simple name from the NPC URI
+                npc_name = f"npc_{self._npc_policy_uri.split('/')[-1].split('.')[0]}"
+                policy_details.append((npc_name, self._npc_policy_uri, "NPC policy"))
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 
@@ -429,9 +434,9 @@ class Simulation:
             for idx in self._policy_idxs:
                 agent_map[int(idx.item())] = policy_ids[policy_name]
 
-            if self._npc_pr is not None:
+            if npc_name:
                 for idx in self._npc_idxs:
-                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.run_name]
+                    agent_map[int(idx.item())] = policy_ids[npc_name]
 
             # Get all episodes from the database
             episodes_df = stats_db.query("SELECT * FROM episodes")
