@@ -272,6 +272,93 @@ def test_feature_mapping_persistence_via_metadata():
     assert eval_agent.feature_id_remap[9] == 3  # mineral: 9->3
 
 
+def test_mine_token_remapping_scenario():
+    """Test the specific scenario where mines have different IDs between training runs.
+    
+    This test verifies that agents can handle when features like 'mine' have
+    different token IDs between training sessions, and that new features are
+    properly learned in training mode while unknown features map to 255 in eval mode.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # === PHASE 1: Initial Training with mine=1 ===
+        initial_features = {
+            "empty": {"id": 0, "type": "categorical"},
+            "mine": {"id": 1, "type": "categorical"},  # Mine is 1
+            "wall": {"id": 2, "type": "categorical"},
+            "agent": {"id": 3, "type": "categorical"},
+        }
+        
+        agent = MockAgent()
+        agent.train()
+        agent.initialize_to_environment(
+            initial_features, 
+            action_names=["move", "mine"], 
+            action_max_params=[3, 0],
+            device="cpu"
+        )
+        
+        assert agent.original_feature_mapping["mine"] == 1
+        
+        # Save after initial training
+        checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="mining_agent")
+        checkpoint_manager.save_agent(agent, epoch=1, metadata={"agent_step": 1000, "total_time": 60})
+        
+        # === PHASE 2: Continue Training with mine=2 and new 'gold' feature ===
+        new_features = {
+            "empty": {"id": 0, "type": "categorical"},
+            "wall": {"id": 1, "type": "categorical"},   # Wall is now 1 (was 2)
+            "mine": {"id": 2, "type": "categorical"},   # Mine is now 2 (was 1) 
+            "agent": {"id": 3, "type": "categorical"},
+            "gold": {"id": 4, "type": "categorical"},   # New feature!
+        }
+        
+        loaded_agent = checkpoint_manager.load_agent(epoch=1)
+        mock_obs = MockObsComponent()
+        loaded_agent.components["_obs_"] = mock_obs
+        
+        loaded_agent.train()  # Training mode - will learn new features
+        loaded_agent.initialize_to_environment(
+            new_features,
+            action_names=["move", "mine"],
+            action_max_params=[3, 0], 
+            device="cpu"
+        )
+        
+        # Verify remapping
+        assert loaded_agent.feature_id_remap[2] == 1  # mine: 2 -> 1 (remapped)
+        assert loaded_agent.feature_id_remap[1] == 2  # wall: 1 -> 2 (remapped)
+        assert loaded_agent.original_feature_mapping["gold"] == 4  # New feature learned
+        
+        # === PHASE 3: Evaluation with different IDs and unknown 'diamond' ===
+        eval_features = {
+            "empty": {"id": 10, "type": "categorical"},
+            "mine": {"id": 20, "type": "categorical"},  # Mine is 20 now
+            "wall": {"id": 30, "type": "categorical"},
+            "agent": {"id": 40, "type": "categorical"},
+            "diamond": {"id": 60, "type": "categorical"},  # Unknown feature
+        }
+        
+        # Create fresh agent for eval to test unknown feature handling
+        eval_agent = MockAgent()
+        eval_agent.original_feature_mapping = agent.original_feature_mapping.copy()
+        eval_agent.components["_obs_"] = MockObsComponent()
+        eval_agent.eval()  # Eval mode
+        
+        eval_agent.initialize_to_environment(
+            eval_features,
+            action_names=["move", "mine"],
+            action_max_params=[3, 0],
+            device="cpu"
+        )
+        
+        # Verify known features remapped correctly
+        assert eval_agent.feature_id_remap[10] == 0  # empty
+        assert eval_agent.feature_id_remap[20] == 1  # mine -> original ID 1
+        assert eval_agent.feature_id_remap[30] == 2  # wall
+        assert eval_agent.feature_id_remap[40] == 3  # agent
+        assert eval_agent.feature_id_remap[60] == 255  # diamond -> UNKNOWN
+
+
 def test_end_to_end_initialize_to_environment_workflow():
     """Test the full end-to-end workflow of initialize_to_environment."""
     # Create a temporary directory for saving/loading
