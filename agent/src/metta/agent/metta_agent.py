@@ -126,7 +126,7 @@ class MettaAgent(nn.Module):
         is_training: bool = None,
     ):
         """Initialize the agent to the current environment.
-        
+
         Handles feature remapping to allow agents trained on one environment to work
         on another environment where features may have different IDs but same names.
         """
@@ -227,7 +227,7 @@ class MettaAgent(nn.Module):
         # Apply remapping to policy if it supports it
         if hasattr(self.policy, "_apply_feature_remapping"):
             self.policy._apply_feature_remapping(remap_tensor)
-        
+
         self._update_normalization_factors(features)
 
     def _update_normalization_factors(self, features: dict[str, dict]):
