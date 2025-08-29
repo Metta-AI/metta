@@ -270,9 +270,29 @@ class LocalDispatcher:
     def __init__(self):
         self._processes: dict[str, subprocess.Popen] = {}  # pid -> process
         self._run_to_pid: dict[str, str] = {}  # run_id -> pid for debugging
+    
+    def _reap_finished_processes(self):
+        """Reap any finished child processes to prevent zombies"""
+        finished_pids = []
+        for pid, process in self._processes.items():
+            # poll() returns None if process is still running, returncode otherwise
+            if process.poll() is not None:
+                finished_pids.append(pid)
+                logger.debug(f"Process {pid} finished with return code {process.returncode}")
+        
+        # Clean up finished processes
+        for pid in finished_pids:
+            del self._processes[pid]
+            # Clean up run_id mapping
+            run_id = next((rid for rid, p in self._run_to_pid.items() if p == pid), None)
+            if run_id:
+                del self._run_to_pid[run_id]
 
     def dispatch(self, job: JobDefinition) -> str:
         """Dispatch a job locally as a subprocess and return its PID as dispatch_id"""
+        
+        # Reap any finished processes first to prevent zombie accumulation
+        self._reap_finished_processes()
 
         # Build command
         cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
