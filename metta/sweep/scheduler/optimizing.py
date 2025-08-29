@@ -16,6 +16,7 @@ from metta.sweep.sweep_orchestrator import (
     Optimizer,
     RunInfo,
     SweepMetadata,
+    make_monitor_table,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,15 +78,26 @@ class OptimizingScheduler:
         # Use both fetched runs and our internal tracking (in case fetch fails)
         total_runs = max(len(all_runs), len(self._created_runs))
         if total_runs >= self.config.max_trials:
+            # Show status table when max trials reached
+            table_lines = make_monitor_table(
+                runs=all_runs,
+                title=f"Run Status Table (Max trials {self.config.max_trials} reached)",
+                logger_prefix="[OptimizingScheduler]",
+                include_score=True,
+                truncate_run_id=True,
+            )
+            for line in table_lines:
+                logger.info(line)
+            
             # Check if all runs are complete (either COMPLETED or FAILED)
             all_complete = all(run.status in (JobStatus.COMPLETED, JobStatus.FAILED) for run in all_runs)
             if all_complete:
                 self._is_complete = True
                 logger.info(f"[OptimizingScheduler] All {self.config.max_trials} trials finished!")
             else:
+                incomplete_count = sum(1 for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED))
                 logger.info(
-                    f"[OptimizingScheduler] Reached max trials ({self.config.max_trials}), "
-                    "waiting for remaining jobs to complete"
+                    f"[OptimizingScheduler] Waiting for {incomplete_count} remaining job(s) to complete"
                 )
             return []
 
@@ -95,19 +107,15 @@ class OptimizingScheduler:
 
         if incomplete_jobs:
             # Build a status table for better visibility
-            logger.info("[OptimizingScheduler] Run Status Table:")
-            logger.info(f"[OptimizingScheduler] {'=' * 70}")
-            logger.info(f"[OptimizingScheduler] {'Run ID':<30} {'Status':<25} {'Score':<15}")
-            logger.info(f"[OptimizingScheduler] {'-' * 70}")
-
-            for run in all_runs:
-                score_str = f"{run.observation.score:.4f}" if run.observation else "N/A"
-                # Extract just the trial portion of the run_id for cleaner display
-                display_id = run.run_id.split("_trial_")[-1] if "_trial_" in run.run_id else run.run_id
-                display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
-                logger.info(f"[OptimizingScheduler] {display_id:<30} {str(run.status):<25} {score_str:<15}")
-
-            logger.info(f"[OptimizingScheduler] {'=' * 70}")
+            table_lines = make_monitor_table(
+                runs=all_runs,
+                title="Run Status Table",
+                logger_prefix="[OptimizingScheduler]",
+                include_score=True,
+                truncate_run_id=True,
+            )
+            for line in table_lines:
+                logger.info(line)
             logger.info(
                 f"[OptimizingScheduler] Waiting for {len(incomplete_jobs)} incomplete job(s) "
                 "to finish before scheduling next"
