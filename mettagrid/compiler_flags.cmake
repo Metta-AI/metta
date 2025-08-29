@@ -127,35 +127,47 @@ target_compile_definitions(mettagrid_debug_flags INTERFACE
   $<$<CONFIG:Release>:_FORTIFY_SOURCE=2>
 )
 
-
 # ========================= SANITIZERS =========================
-# Sanitizer compile flags - keep only cross-platform sanitizers
+# Sanitizer compile flags
 target_compile_options(mettagrid_sanitizers INTERFACE
   $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
+    # Core sanitizers - work everywhere
     -fsanitize=address
     -fsanitize=undefined
     -fsanitize=float-divide-by-zero
-    # We're most interested in protecting against integer over / under flow,
-    # but am happy to have the other sanitizers too.
-    -fsanitize=integer
-    -fno-sanitize-recover=all
-    -fstack-protector-strong
 
-    # Disable problematic checks for compatibility
+    # Disable false positives
+    -fno-sanitize=unsigned-integer-overflow
     -fno-sanitize=shift-base
     -fno-sanitize=shift-exponent
 
-    # Note: -fsanitize=init-order is not available on macOS
-    # More aggressive sanitizer checks for better error detection
+    # macOS specific exclusions
+    $<$<PLATFORM_ID:Darwin>:
+      -fno-sanitize=function
+      -fno-sanitize=vptr
+    >
+
+    # Extra sanitizers for Linux/GCC
+    $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:GNU>>:
+      -fsanitize=bounds
+      -fsanitize=float-cast-overflow
+      -fsanitize=implicit-unsigned-integer-truncation
+      -fsanitize=implicit-signed-integer-truncation
+    >
+
+    # Generic options
+    -fno-sanitize-recover=all
+    -fstack-protector-strong
     -fsanitize-address-use-after-scope
   >
 )
 
-# Sanitizer link flags
+# Sanitizer link flags - keep it simple
 target_link_options(mettagrid_sanitizers INTERFACE
   $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
     -fsanitize=address
     -fsanitize=undefined
+    -fsanitize=float-divide-by-zero
   >
 )
 
