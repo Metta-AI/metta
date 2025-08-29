@@ -165,7 +165,7 @@ def quick_test(
         max_parallel_jobs=1,
         monitoring_interval=5,
         train_overrides={
-            "trainer.total_timesteps": "10000",  # Quick 10k timesteps for testing
+            "trainer.total_timesteps": "50000",  # Quick 10k timesteps for testing
         },
     )
 
