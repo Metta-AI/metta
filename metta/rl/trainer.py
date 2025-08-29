@@ -459,7 +459,6 @@ def train(
                         memory_monitor=memory_monitor,  # type: ignore[arg-type]
                         system_monitor=system_monitor,  # type: ignore[arg-type]
                         optimizer=optimizer,
-                        latest_saved_policy_record=None,  # Not used with SimpleCheckpointManager
                         kickstarter=kickstarter,
                     )
                 # Clear stats after processing

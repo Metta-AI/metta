@@ -11,6 +11,48 @@ import torch
 logger = logging.getLogger(__name__)
 
 
+def name_from_uri(uri: str) -> str:
+    """Extract run name from any checkpoint URI."""
+    if uri.startswith("file://"):
+        path = Path(uri[7:])
+        if path.is_file() and path.suffix == ".pt":
+            # Parse from filename: test_run.e5.s2000.t85.pt
+            return parse_checkpoint_filename(path.name)[0]
+        elif path.is_dir():
+            # Directory structure: .../test_run/checkpoints
+            if path.name == "checkpoints":
+                return path.parent.name
+            return path.name
+    elif uri.startswith("checkpoint://"):
+        # checkpoint://test_run/epoch_0000 → test_run
+        parts = uri[13:].split("/")
+        return parts[0] if parts else "unknown"
+    elif uri.startswith("wandb://"):
+        # wandb://entity/project/run_name:version → run_name
+        parts = uri[8:].split("/")
+        if len(parts) >= 3:
+            run_name = parts[2].split(":")[0]
+            return run_name
+    return "unknown"
+
+
+def metadata_from_uri(uri: str) -> Dict[str, Any]:
+    """Extract metadata from checkpoint URI by parsing the filename."""
+    if uri.startswith("file://"):
+        path = Path(uri[7:])
+        if path.is_file() and path.suffix == ".pt":
+            run_name, epoch, agent_step, total_time = parse_checkpoint_filename(path.name)
+            return {
+                "run": run_name,
+                "epoch": epoch,
+                "agent_step": agent_step,
+                "total_time": total_time,
+                "checkpoint_file": path.name,
+            }
+    # For non-file URIs or directories, return minimal metadata
+    return {"run": name_from_uri(uri), "epoch": 0}
+
+
 @dataclass
 class Checkpoint:
     """Simple checkpoint data container."""
@@ -38,8 +80,8 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
     return run_name, epoch, agent_step, total_time
 
 
-def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
-    """Get latest checkpoint from directory."""
+def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> Optional[str]:
+    """Get URI of latest checkpoint from directory - simpler approach."""
     checkpoint_path = Path(checkpoint_dir)
     if not checkpoint_path.exists():
         return None
@@ -52,18 +94,21 @@ def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
         return None
 
     latest_file = max(checkpoints, key=lambda p: parse_checkpoint_filename(p.name)[1])
-    run_name, epoch, agent_step, total_time = parse_checkpoint_filename(latest_file.name)
+    return f"file://{latest_file}"
 
-    metadata = {
-        "run": run_name,
-        "epoch": epoch,
-        "agent_step": agent_step,
-        "total_time": total_time,
-        "checkpoint_file": latest_file.name,
-    }
 
-    agent = torch.load(latest_file, weights_only=False)
-    return Checkpoint(run_name=run_name, uri=f"file://{latest_file}", metadata=metadata, _cached_policy=agent)
+def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
+    """Get latest checkpoint from directory (deprecated - use get_checkpoint_uri_from_dir)."""
+    uri = get_checkpoint_uri_from_dir(checkpoint_dir)
+    if not uri:
+        return None
+
+    path = Path(uri[7:])
+    agent = torch.load(path, weights_only=False)
+    metadata = metadata_from_uri(uri)
+    run_name = name_from_uri(uri)
+
+    return Checkpoint(run_name=run_name, uri=uri, metadata=metadata, _cached_policy=agent)
 
 
 class CheckpointManager:

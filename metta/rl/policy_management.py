@@ -8,7 +8,13 @@ import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.checkpoint_manager import CheckpointManager, get_checkpoint_from_dir, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import (
+    CheckpointManager,
+    get_checkpoint_from_dir,
+    get_checkpoint_uri_from_dir,
+    metadata_from_uri,
+    parse_checkpoint_filename,
+)
 from metta.rl.wandb import get_wandb_artifact_metadata, load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
@@ -73,27 +79,19 @@ def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
 
 
 def get_policy_metadata(uri: str) -> Dict[str, Any]:
-    """Get metadata from a policy URI."""
+    """Get metadata from a policy URI - simplified version."""
     if uri.startswith("file://"):
         file_path = Path(uri[7:])
-        if file_path.is_file():
-            run_name, epoch, agent_step, total_time = parse_checkpoint_filename(file_path.name)
-            return {
-                "run": run_name,
-                "epoch": epoch,
-                "agent_step": agent_step,
-                "total_time": total_time,
-                "checkpoint_file": file_path.name,
-            }
-        elif file_path.is_dir():
-            checkpoint = get_checkpoint_from_dir(str(file_path))
-            return checkpoint.metadata if checkpoint else {}
-        else:
-            return {}
+        if file_path.is_dir():
+            # Convert directory to actual file URI
+            uri = get_checkpoint_uri_from_dir(str(file_path))
+            if not uri:
+                return {}
+        return metadata_from_uri(uri)
     elif uri.startswith("wandb://"):
         return get_wandb_artifact_metadata(uri)
     else:
-        raise ValueError(f"Unsupported URI scheme: {uri}")
+        return metadata_from_uri(uri)
 
 
 def discover_policies(

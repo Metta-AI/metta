@@ -289,7 +289,6 @@ def process_stats(
     memory_monitor: MemoryMonitor,
     system_monitor: SystemMonitor,
     optimizer: torch.optim.Optimizer,
-    latest_saved_policy_record: None = None,
     kickstarter: Kickstarter | None = None,
 ) -> None:
     """Process and log training statistics."""
