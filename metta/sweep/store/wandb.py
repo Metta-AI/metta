@@ -179,7 +179,7 @@ class WandbStore:
             started_at=None,  # WandB doesn't have separate started_at
             completed_at=None,  # Could be derived from state change
             last_heartbeat_at=run.heartbeat_at if hasattr(run, "heartbeat_at") else None,
-            summary=summary,
+            summary=summary,  # type: ignore
             has_started_training=has_started_training,
             has_completed_training=has_completed_training,
             has_started_eval=has_started_eval,

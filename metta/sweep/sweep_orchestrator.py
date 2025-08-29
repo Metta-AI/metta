@@ -1,14 +1,13 @@
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Protocol, Any, runtime_checkable
-from enum import StrEnum, auto
-import time
+import functools
 import logging
 import subprocess
-import functools
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import StrEnum, auto
+from typing import Any, Protocol, runtime_checkable
 
 from cogweb.cogweb_client import CogwebClient
-
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sweep.protein_config import ProteinConfig
 
@@ -335,7 +334,14 @@ class LocalDispatcher:
             cmd_parts.append("--overrides")
             cmd_parts.extend(all_overrides)
 
-        logger.info(f"[LocalDispatcher] Dispatching local run {job.run_id}: {' '.join(cmd_parts)}")
+        # Extract trial portion for cleaner display
+        display_id = job.run_id.split("_trial_")[-1] if "_trial_" in job.run_id else job.run_id
+        display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
+
+        # Get job type name (e.g., "LAUNCH_TRAINING" -> "training")
+        job_type_name = job.type.name
+
+        logger.info(f"[LocalDispatcher] Dispatching local {job_type_name} for {display_id}: {' '.join(cmd_parts)}")
 
         try:
             # Start subprocess - optionally stream output for debugging
@@ -354,7 +360,7 @@ class LocalDispatcher:
             self._processes[pid] = process
             self._run_to_pid[job.run_id] = pid
 
-            logger.info(f"[LocalDispatcher] Started run {job.run_id} with PID {pid}")
+            logger.info(f"[LocalDispatcher] Started {display_id} with PID {pid}")
 
             return pid
 
@@ -440,7 +446,8 @@ class SweepController:
                             training_jobs_count += 1
                         else:
                             logger.debug(
-                                f"[SweepController] At max parallel jobs limit ({self.max_parallel_jobs}), skipping training job {job.run_id}"
+                                f"[SweepController] At max parallel jobs limit ({self.max_parallel_jobs}), "
+                                f"skipping training job {job.run_id}"
                             )
                     else:
                         # Other job types (if any) go through
@@ -453,6 +460,9 @@ class SweepController:
                     try:
                         if job.type == JobTypes.LAUNCH_TRAINING:
                             self.store.init_run(job.run_id, sweep_id=self.sweep_id)
+                            # Store the suggestion (hyperparameters) in the run summary
+                            if job.config:  # job.config contains the optimizer suggestion
+                                self.store.update_run_summary(job.run_id, {"suggestion": job.config})
                             logger.info(f"[SweepController] Created run {job.run_id}")
                         elif job.type == JobTypes.LAUNCH_EVAL:
                             success = self.store.update_run_summary(
@@ -463,7 +473,8 @@ class SweepController:
                             )
                             if not success:
                                 logger.error(
-                                    f"[SweepController] Failed to update run summary for eval job {job.run_id}, skipping dispatch"
+                                    f"[SweepController] Failed to update run summary for eval job {job.run_id}, "
+                                    "skipping dispatch"
                                 )
                                 raise RuntimeError(f"Failed to update run summary for eval job {job.run_id}")
                             logger.info(f"[SweepController] Launching eval for job {job.run_id}")
@@ -474,7 +485,9 @@ class SweepController:
 
                     except Exception as e:
                         logger.error(f"[SweepController] Failed to initialize/dispatch job {job.run_id}: {e}")
-                        logger.error(f"[SweepController] Skipping dispatch for {job.run_id} to prevent resource overload")
+                        logger.error(
+                            f"[SweepController] Skipping dispatch for {job.run_id} to prevent resource overload"
+                        )
                         # Continue with next job rather than crashing the whole sweep
                         continue
 
