@@ -103,8 +103,8 @@ def auto_run_name(prefix: str | None = None) -> str:
     return ".".join(
         remove_falsey(
             [
+                prefix,
                 os.getenv("USER", "unknown"),
-                prefix or "",
                 datetime.now().strftime("%Y%m%d.%H%M%S"),
             ]
         )
