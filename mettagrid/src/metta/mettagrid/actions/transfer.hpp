@@ -118,8 +118,7 @@ protected:
       }
     }
 
-    // Track successful trade
-    actor->stats.incr("action.transfer.success");
+    // Track successful trade (generic success is already incremented by ActionHandler)
     if (_trader_only) {
       actor->stats.incr("action.transfer.with_trader");
     } else {

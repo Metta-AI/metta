@@ -166,6 +166,13 @@ def process_training_stats(
     # Filter movement metrics to only keep core values
     environment_stats = filter_movement_metrics(environment_stats)
 
+    # Add derived trader metrics (counts and simple rates) if present
+    try:
+        _add_trader_metrics(environment_stats, mean_stats)
+    except Exception:
+        # Keep logging resilient; derived metrics are optional
+        pass
+
     # Calculate overview statistics
     overview = {}
 
@@ -182,6 +189,54 @@ def process_training_stats(
         "environment_stats": environment_stats,
         "overview": overview,
     }
+
+
+def _add_trader_metrics(environment_stats: dict[str, Any], mean_stats: dict[str, Any]) -> None:
+    """Add trader-related derived metrics into environment_stats.
+
+    Reads underlying per-agent counts from mean_stats (keys like
+    'agent/action.transfer.success') and writes aggregated/derived
+    values under the 'env_agent/trader/*' namespace so they appear
+    as W&B plots automatically.
+    """
+    # Base counts
+    success = float(mean_stats.get("agent/action.transfer.success", 0.0) or 0.0)
+    failed = float(mean_stats.get("agent/action.transfer.failed", 0.0) or 0.0)
+    with_trader = float(mean_stats.get("agent/action.transfer.with_trader", 0.0) or 0.0)
+    with_agent = float(mean_stats.get("agent/action.transfer.with_agent", 0.0) or 0.0)
+
+    # Resource movement (keep generic but cover common items used in experiments)
+    ore_red_traded = float(mean_stats.get("agent/ore_red.traded_away", 0.0) or 0.0)
+    battery_red_recv = float(mean_stats.get("agent/battery_red.received", 0.0) or 0.0)
+    hearts_gained = float(mean_stats.get("agent/heart.gained", 0.0) or 0.0)
+
+    attempts = success + failed
+    denom_attempts = attempts if attempts > 0 else 1.0
+    denom_success = success if success > 0 else 1.0
+    denom_batt = battery_red_recv if battery_red_recv > 0 else 1.0
+    denom_ore = ore_red_traded if ore_red_traded > 0 else 1.0
+    denom_with_trader = with_trader if with_trader > 0 else 1.0
+
+    # Publish raw counts under a stable namespace
+    environment_stats["env_agent/trader/transfer_success"] = success
+    environment_stats["env_agent/trader/transfer_failed"] = failed
+    environment_stats["env_agent/trader/with_trader"] = with_trader
+    environment_stats["env_agent/trader/with_agent"] = with_agent
+
+    # Rates and efficiencies
+    environment_stats["env_agent/trader/attempts_per_episode"] = attempts
+    environment_stats["env_agent/trader/success_rate"] = success / denom_attempts
+    environment_stats["env_agent/trader/usage_rate"] = with_trader / denom_success
+
+    # Resource conversion summary
+    environment_stats["env_agent/trader/ore_red_traded_away"] = ore_red_traded
+    environment_stats["env_agent/trader/battery_red_received"] = battery_red_recv
+    environment_stats["env_agent/trader/ore_per_battery"] = ore_red_traded / denom_batt
+    environment_stats["env_agent/trader/battery_per_ore"] = battery_red_recv / denom_ore
+
+    # Downstream reward proxy (hearts)
+    environment_stats["env_agent/trader/hearts_gained"] = hearts_gained
+    environment_stats["env_agent/trader/hearts_per_trade"] = hearts_gained / denom_with_trader
 
 
 def compute_timing_stats(
