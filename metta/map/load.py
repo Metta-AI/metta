@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.map.scene import SceneConfigOrFile, make_scene
+from metta.map.scene import SceneConfig
 from metta.map.utils.storable_map import StorableMap
 from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 
@@ -17,7 +17,7 @@ class Load(MapBuilder):
 
     class Config(MapBuilderConfig["Load"]):
         uri: str
-        extra_root: SceneConfigOrFile | None = None
+        extra_root: SceneConfig | None = None
 
     def __init__(self, config: Config):
         self.config = config
@@ -29,7 +29,7 @@ class Load(MapBuilder):
         area = Area.root_area_from_grid(grid)
 
         if self.config.extra_root is not None:
-            root_scene = make_scene(self.config.extra_root, area, rng=np.random.default_rng())
+            root_scene = self.config.extra_root.create(area, np.random.default_rng())
             root_scene.render_with_children()
 
         return GameMap(grid=grid)
