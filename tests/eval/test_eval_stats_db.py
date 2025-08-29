@@ -91,8 +91,8 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
-    # Create URI from the checkpoint components
-    policy_uri = f"{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
+    # Create proper URI from the checkpoint components
+    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
     avg_hearts = db.get_average_metric("hearts_collected", policy_uri)
     assert avg_hearts is not None
     assert 1.15 <= avg_hearts <= 1.25, f"expected ≈1.2 got {avg_hearts}"
@@ -120,7 +120,7 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
-    policy_uri = f"{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
+    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
 
     scores = db.simulation_scores(policy_uri, "hearts_collected")
     assert len(scores) == 1
@@ -142,7 +142,7 @@ def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
-    policy_uri = f"{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
+    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
 
     sum_norm = db.get_sum_metric("hearts_collected", policy_uri)
     assert sum_norm is not None
@@ -153,19 +153,19 @@ def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
-    policy_uri = f"{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
+    policy_uri = f"file:///tmp/{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
 
     assert db.get_average_metric("nonexistent", policy_uri) == 0.0
 
     # Test with invalid URI
-    invalid_uri = "none.e99.s0.t0.pt"
+    invalid_uri = "file:///tmp/none.e99.s0.t0.pt"
     assert db.get_average_metric("hearts_collected", invalid_uri) is None
 
 
 def test_empty_database():
     with tempfile.TemporaryDirectory() as tmp:
         db = EvalStatsDB(Path(tmp) / "empty.duckdb")
-        test_uri = "test.e1.s0.t0.pt"
+        test_uri = "file:///tmp/test.e1.s0.t0.pt"
         assert db.get_average_metric("reward", test_uri) is None
         pk, pv = "test", 1
         assert db.potential_samples_for_metric(pk, pv) == 0

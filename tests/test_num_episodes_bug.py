@@ -116,8 +116,8 @@ def test_normalization_bug():
         print(f"  Agent metrics: {metrics_count}")
 
         # Get average reward
-        # Create URI from checkpoint components
-        policy_uri = f"{checkpoint_path}.e{epoch}.s1000.t10.pt"
+        # Create proper URI from checkpoint components
+        policy_uri = f"file:///tmp/{checkpoint_path}.e{epoch}.s{agent_step}.t{total_time}.pt"
         avg_reward_1 = db1.get_average_metric("reward", policy_uri)
         print(f"  Average reward: {avg_reward_1}")
 
@@ -147,18 +147,17 @@ def test_normalization_bug():
         potential = db2.potential_samples_for_metric(checkpoint_path, epoch)
         print(f"  Potential samples (from agent_policies): {potential}")
 
-        # Get the actual recorded metrics
+        # Get the actual recorded metrics  
         recorded = db2.count_metric_agents(checkpoint_path, epoch, "reward")
         print(f"  Recorded metrics: {recorded}")
 
         # Get the sum
         sum_query = db2.query(
-            """
+            f"""
             SELECT SUM(value) as total
             FROM policy_simulation_agent_metrics
-            WHERE policy_key = ? AND policy_version = ? AND metric = 'reward'
-        """,
-            (checkpoint_path, epoch),
+            WHERE policy_key = '{checkpoint_path}' AND policy_version = {epoch} AND metric = 'reward'
+        """
         )
         total = sum_query["total"][0] if not sum_query.empty else 0
         print(f"  Sum of rewards: {total}")
