@@ -1,6 +1,6 @@
 import torch
 from tensordict import TensorDict
-from torch import Tensor, nn
+from torch import Tensor
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.mettagrid import MettaGridEnv
