@@ -508,76 +508,9 @@ class Simulation:
                     logger.error(f"Failed to record episode {episode_id} remotely: {e}")
                     # Continue with other episodes even if one fails
 
-    def get_replays(self) -> dict:
-        """Get all replays for this simulation."""
-        return self._replay_writer.episodes.values()
-
-    def get_replay(self) -> dict:
-        """Makes sure this sim has a single replay, and return it."""
-        if len(self._replay_writer.episodes) != 1:
-            raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
-        for _, episode_replay in self._replay_writer.episodes.items():
-            return episode_replay.get_replay_data()
-
-    def get_envs(self):
-        """Returns a list of all envs in the simulation."""
-        return self._vecenv.envs
-
-    def get_env(self):
-        """Make sure this sim has a single env, and return it."""
-        if len(self._vecenv.envs) != 1:
-            raise ValueError("Attempting to get single env, but simulation has multiple envs")
-        return self._vecenv.envs[0]
-
     @property
     def name(self) -> str:
         return self._name
-
-    def get_policy_state(self):
-        """Get the policy state for memory manipulation.
-
-        Returns a PolicyState object with lstm_h and lstm_c attributes if available.
-        Note: The actual state management depends on the specific policy implementation."""
-        # The policy is the LSTM wrapper
-        policy = self._policy_pr.policy
-
-        # Try to get LSTM state from the policy
-        # This depends on the specific policy implementation
-        lstm_h = None
-        lstm_c = None
-
-        # Check if it's a pufferlib LSTMWrapper
-        if hasattr(policy, "lstm") and hasattr(policy.lstm, "weight_hh_l0"):
-            # For pufferlib LSTMWrapper, the state is managed internally during forward pass
-            # We would need to track it differently or access it through the forward pass
-            # For now, return None as this requires deeper integration
-            return None
-
-        # Check if policy has direct lstm_h and lstm_c attributes (custom implementations)
-        if hasattr(policy, "lstm_h") and hasattr(policy, "lstm_c"):
-            lstm_h = policy.lstm_h
-            lstm_c = policy.lstm_c
-
-        # Check if policy has a component that manages LSTM state (MettaAgent style)
-        elif hasattr(policy, "component") and hasattr(policy.component, "lstm"):
-            lstm_component = policy.component.lstm
-            if hasattr(lstm_component, "lstm_h") and hasattr(lstm_component, "lstm_c"):
-                # These are dictionaries mapping env_id to tensors
-                # Get the first one for single-env simulations
-                if 0 in lstm_component.lstm_h and 0 in lstm_component.lstm_c:
-                    lstm_h = lstm_component.lstm_h[0]
-                    lstm_c = lstm_component.lstm_c[0]
-
-        if lstm_h is not None and lstm_c is not None:
-            # Return an object-like dict that allows attribute access
-            class PolicyState:
-                def __init__(self, lstm_h, lstm_c):
-                    self.lstm_h = lstm_h
-                    self.lstm_c = lstm_c
-
-            return PolicyState(lstm_h, lstm_c)
-
-        return None
 
 
 @dataclass

@@ -9,7 +9,7 @@ from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
+from metta.rl.checkpoint_manager import key_and_version
 from metta.rl.policy_management import resolve_policy
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
@@ -28,7 +28,6 @@ def evaluate_policy(
     stats_epoch_id: uuid.UUID | None = None,
     wandb_policy_name: str | None = None,
     eval_task_id: uuid.UUID | None = None,
-    checkpoint_manager: CheckpointManager,
     stats_client: StatsClient | None,
     logger: logging.Logger,
 ) -> EvalResults:
@@ -121,7 +120,7 @@ def extract_scores(
 
     category_scores: dict[str, float] = {}
     for category in categories:
-        score = stats_db.get_average_metric_by_filter("reward", checkpoint_uri, f"sim_name LIKE '%{category}%'")
+        score = stats_db.get_average_metric("reward", checkpoint_uri, f"sim_name LIKE '%{category}%'")
         logger.info(f"{category} score: {score}")
         if score is None:
             continue

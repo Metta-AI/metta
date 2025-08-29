@@ -2,7 +2,6 @@ import json
 import logging
 import sys
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import Sequence
 
@@ -19,17 +18,6 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
-
-
-def _determine_run_name(policy_uri: str) -> str:
-    if policy_uri.startswith("file://"):
-        checkpoint_path = Path(policy_uri.replace("file://", ""))
-        return f"eval_{checkpoint_path.stem}"
-    elif policy_uri.startswith("wandb://"):
-        artifact_part = policy_uri.split("/")[-1]
-        return f"eval_{artifact_part.replace(':', '_')}"
-    else:
-        return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
 class SimTool(Tool):
