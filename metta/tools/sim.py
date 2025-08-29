@@ -79,7 +79,6 @@ class SimTool(Tool):
                 try:
                     agent = resolve_policy(policy_uri_path, device="cpu")
                     # Extract metadata from URI for logging
-                    from metta.rl.checkpoint_manager import key_and_version
                     key, version = key_and_version(policy_uri_path)
                     policies_by_uri[policy_uri].append((agent, policy_uri_path))
                     logger.info(f"Loaded policy from {policy_uri_path} (key={key}, version={version})")
@@ -109,7 +108,6 @@ class SimTool(Tool):
                 logger.info(f"Processing checkpoint {checkpoint_uri}")
 
                 # Extract metadata from URI
-                from metta.rl.checkpoint_manager import key_and_version
                 key, version = key_and_version(checkpoint_uri)
 
                 # Perform basic evaluation (placeholder - would run actual simulations in real implementation)
