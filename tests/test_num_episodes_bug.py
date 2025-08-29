@@ -100,14 +100,13 @@ def test_normalization_bug():
         # OLD WAY: checkpoint_path, epoch = "test_policy", 1  # Manual tuple tracking
         # NEW WAY: Everything extracted automatically from filename
         checkpoint_filename = "test_policy.e1.s1000.t30.pt"
-        metadata = parse_checkpoint_filename(checkpoint_filename)
-        checkpoint_path, epoch = metadata["run"], metadata["epoch"]
+        checkpoint_path, epoch, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
 
         print(f"  Checkpoint file: {checkpoint_filename}")
-        print(f"  Extracted metadata: {metadata}")
+        print(f"  Extracted metadata: (path={checkpoint_path}, epoch={epoch}, step={agent_step}, time={total_time})")
         print(
             f"  Policy: {checkpoint_path}, Epoch: {epoch}, "
-            f"Steps: {metadata['agent_step']}, Training time: {metadata['total_time']}s"
+            f"Steps: {agent_step}, Training time: {total_time}s"
         )
 
         # Check what's in the database
