@@ -69,7 +69,12 @@ def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
 
 
 def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[torch.nn.Module]:
-    """Load policy from wandb://entity/project/artifact_name:version format."""
+    """Load policy from wandb://entity/project/artifact_name:version format.
+
+    Note: This loses filename metadata since wandb artifacts store the file as 'model.pt'.
+    The metadata (epoch, agent_step, score, etc.) is stored in the artifact's metadata
+    but not in the filename, so we can't use parse_checkpoint_filename() on wandb downloads.
+    """
     if not wandb or not wandb_uri.startswith("wandb://"):
         return None
 
@@ -88,23 +93,6 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[
         return None
     except Exception:
         return None
-
-
-def get_wandb_artifact_metadata(wandb_uri: str) -> dict:
-    if not wandb or not wandb_uri.startswith("wandb://"):
-        return {}
-
-    try:
-        artifact_path = wandb_uri[8:]  # Remove "wandb://" prefix
-        artifact = wandb.Api().artifact(artifact_path)
-        return {
-            "artifact_name": artifact.name,
-            "version": artifact.version,
-            "type": artifact.type,
-            "created_at": artifact.created_at,
-        }
-    except Exception:
-        return {}
 
 
 # Minimal Wandb Artifact Upload Functions
@@ -133,7 +121,8 @@ def upload_checkpoint_as_artifact(
         # Create artifact with metadata
         artifact = wandb.Artifact(name=artifact_name, type=artifact_type, metadata=metadata or {})
 
-        # Add the main checkpoint file
+        # Add the main checkpoint file - we use a generic name since wandb doesn't preserve paths
+        # The actual metadata is stored in the artifact's metadata field
         artifact.add_file(checkpoint_path, name="model.pt")
 
         # Add any additional files
