@@ -5,6 +5,7 @@ import IPython
 from traitlets.config import Config as IPythonConfig
 
 from metta.common.util.fs import get_repo_root
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.setup.utils import header, info, success, warning
 
 __name__ = "__ipython__"
@@ -20,6 +21,11 @@ def help_configs() -> None:
     info('cfg = load_cfg("trainer/trainer.yaml")')
     success("# Load configs with overrides:")
     info('cfg = load_cfg("train_job.yaml", ["trainer.curriculum=/env/mettagrid/arena/advanced"])')
+    success("# Load checkpoints:")
+    info('policy = CheckpointManager.load_from_uri("file://./train_dir/my_run/checkpoints")')
+    info('policy = CheckpointManager.load_from_uri("wandb://project/artifact:version")')
+    success("# Create checkpoint manager:")
+    info('cm = CheckpointManager("my_run", "./train_dir")')
 
 
 # Create a new IPython config object
@@ -28,8 +34,8 @@ ipython_config.InteractiveShellApp.extensions = ["autoreload"]
 ipython_config.InteractiveShellApp.exec_lines = [
     "%autoreload 2",
     "success('Autoreload enabled: modules will be reloaded automatically when changed.')",
-    "info('Use help_configs() to see available configurations')",
-    "info('Use load_cfg() to load a configuration')",
+    "info('Use help_configs() to see usage examples')",
+    "info('CheckpointManager is available for loading/saving checkpoints')",
 ]
 
 
