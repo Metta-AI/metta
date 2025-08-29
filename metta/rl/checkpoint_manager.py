@@ -197,9 +197,9 @@ class CheckpointManager:
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
         """Save agent with metadata in filename."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        agent_step = metadata.get('agent_step', 0)
-        total_time = int(metadata.get('total_time', 0))
-        score = int(metadata.get('score', 0.0) * 10000)
+        agent_step = metadata.get("agent_step", 0)
+        total_time = int(metadata.get("total_time", 0))
+        score = int(metadata.get("score", 0.0) * 10000)
         filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt"
         checkpoint_path = self.checkpoint_dir / filename
         torch.save(agent, checkpoint_path)

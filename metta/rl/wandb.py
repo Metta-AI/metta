@@ -10,7 +10,7 @@ from typing import Dict, Optional
 import torch
 import torch.nn as nn
 import wandb
-from wandb.apis.public import Artifact
+from wandb import Artifact
 
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import WandbURI
