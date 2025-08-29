@@ -26,6 +26,32 @@ def restore_io():
     sys.stdout = sys.__stdout__
 
 
+def get_node_rank() -> str | None:
+    """Get node/rank index from various distributed environments."""
+    return (
+        os.environ.get("SKYPILOT_NODE_RANK") or
+        os.environ.get("RANK") or  # PyTorch DDP
+        os.environ.get("OMPI_COMM_WORLD_RANK") or  # OpenMPI
+        None
+    )
+
+
+def log_master(message: str, logger: logging.Logger | None = None, level: int = logging.INFO):
+    """
+    Log message only on master node (rank 0).
+
+    Args:
+        message: Message to log
+        logger: Logger to use (default: root logger)
+        level: Log level (default: INFO)
+    """
+    rank = get_node_rank() or "0"
+    if rank == "0":
+        if logger is None:
+            logger = logging.getLogger()
+        logger.log(level, message)
+
+
 # Create a custom formatter that supports milliseconds
 class MillisecondFormatter(logging.Formatter):
     def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
@@ -85,7 +111,8 @@ def init_file_logging(run_dir: str) -> None:
     logs_dir = os.path.join(run_dir, "logs")
     os.makedirs(logs_dir, exist_ok=True)
 
-    node_index = os.environ.get("RANK", "0")
+    # Use node rank if available, otherwise RANK env var
+    node_index = get_node_rank() or "0"
     if node_index == "0":
         log_file = "script.log"
     else:
@@ -108,7 +135,16 @@ def init_file_logging(run_dir: str) -> None:
     file_handler.flush()
 
 
-def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
+def init_logging(level: str | None = None, run_dir: str | None = None, show_rank: bool = False) -> None:
+    """
+    Initialize logging with optional node/rank display.
+
+    Args:
+        level: Log level string
+        run_dir: Directory for log files (optional)
+        show_rank: Whether to show node/rank in log messages (default: False)
+                  If True and rank is detected, prepends [rank] to messages
+    """
     # Get the appropriate log level based on priority
     log_level = get_log_level(level)
 
@@ -128,6 +164,10 @@ def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
         or os.environ.get("NO_HYPERLINKS") is not None  # explicit disable
         or os.environ.get("NO_RICH_LOGS") is not None  # explicit disable rich
     )
+
+    # Get node rank if needed
+    rank = get_node_rank() if show_rank else None
+    rank_prefix = f"[{rank}] " if rank else ""
 
     if use_simple_handler:
         # Use simple handler without Rich formatting
@@ -151,8 +191,8 @@ def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
                     filename = os.path.basename(record.pathname)
                     location = f" [{filename}:{record.lineno}]"
 
-                # Format: [timestamp] LEVEL message [file:line]
-                return f"{timestamp} {level_name:<8} {msg}{location}"
+                # Format: [timestamp] [rank] LEVEL message [file:line]
+                return f"{timestamp} {rank_prefix}{level_name:<8} {msg}{location}"
 
         handler.setFormatter(LevelPrefixFormatter("%(message)s", datefmt="[%H:%M:%S.%f]"))
         root_logger.addHandler(handler)
@@ -163,7 +203,20 @@ def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
             show_path=True,
             enable_link_path=True,  # Enable links in interactive mode
         )
-        formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
+
+        # Create a formatter that includes rank if needed
+        class RankFormatter(MillisecondFormatter):
+            def format(self, record):
+                # Prepend rank to the message if available
+                if rank_prefix:
+                    original_msg = record.getMessage()
+                    record.msg = f"{rank_prefix}{original_msg}"
+                    result = super().format(record)
+                    record.msg = original_msg
+                    return result
+                return super().format(record)
+
+        formatter = RankFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
         rich_handler.setFormatter(formatter)
         root_logger.addHandler(rich_handler)
 
