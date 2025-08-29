@@ -168,37 +168,33 @@ def test_from_shards_and_context_with_simple_checkpoint_manager(tmp_path: Path):
 
 
 def test_checkpoint_info_compatibility():
-    """Test that Checkpoint provides the required interface for database operations."""
+    """Test that checkpoint URIs provide the required interface for database operations."""
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
 
         # Create a checkpoint
-        checkpoint_info = TestHelpersSimpleCheckpoint.create_checkpoint_with_manager(
+        checkpoint_uri = TestHelpersSimpleCheckpoint.create_checkpoint_with_manager(
             temp_path, "test_run", epoch=5, score=0.92
         )
 
         # Test the interface methods that database code expects
-        assert checkpoint_info.uri.startswith("file://")
-        assert checkpoint_info.run_name == "test_run"
-        assert checkpoint_info.metadata["epoch"] == 5
-        assert checkpoint_info.metadata["score"] == 0.92
-
-        # Test key_and_version method (equivalent to what SimulationStatsDB.key_and_version() does)
-        key, version = checkpoint_info.key_and_version()
+        assert checkpoint_uri.startswith("file://")
+        
+        # Test key_and_version function
+        key, version = key_and_version(checkpoint_uri)
         assert key == "test_run"
         assert version == 5
 
         # Verify the checkpoint file actually exists (extract path from URI)
-        checkpoint_path = checkpoint_info.uri[7:]  # Remove "file://" prefix
+        checkpoint_path = checkpoint_uri[7:]  # Remove "file://" prefix
         assert Path(checkpoint_path).exists()
 
         # Verify metadata can be parsed from filename
         filename = Path(checkpoint_path).name
-        parsed_metadata = parse_checkpoint_filename(filename)
-        assert parsed_metadata is not None
-        assert parsed_metadata["run"] == "test_run"
-        assert parsed_metadata["epoch"] == 5
+        run_name, epoch, agent_step, total_time = parse_checkpoint_filename(filename)
+        assert run_name == "test_run"
+        assert epoch == 5
 
         print("✅ Checkpoint compatibility with database operations verified")
 
