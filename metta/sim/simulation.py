@@ -269,8 +269,9 @@ class Simulation:
             policy = self._policy_pr.policy
             states = self._mm_policy.get_states()
             td, states = policy(td, states)
-            env_id = td["training_env_id_start"]
-            logger.info(f"env_id: {env_id}")
+
+            # TODO (Richard): check if this is correct
+            env_id = td.get("training_env_id_start", 0)
             self._mm_policy.set_states(states, env_id)
             policy_actions = td["actions"]
 
@@ -280,7 +281,6 @@ class Simulation:
                 td = obs_to_td(npc_obs, self._device)  # One-liner conversion
                 npc_policy = self._npc_pr.policy
                 try:
-
                     # Get NPC-specific states from the NPC memory manager
                     npc_states = self._mm_npc.get_states()
                     td, npc_states = npc_policy(td, states=npc_states)
