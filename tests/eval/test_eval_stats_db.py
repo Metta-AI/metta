@@ -13,6 +13,8 @@ TestEvalStatsDb = tuple[EvalStatsDB, str, str]  # (db, policy_key, policy_versio
 
 
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
+    import datetime
+
     db = EvalStatsDB(db_path)
 
     checkpoint_filename = "test_policy.e1.s1000.t10.sc0.pt"
@@ -35,16 +37,33 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     )
 
     # Create 5 episodes, each with 1 agent
+    episode_ids = []
     for i in range(5):
         episode_id = f"episode_{i}"
-        db._insert_episode(episode_id, sim_id, step_count=100)
+        episode_ids.append(episode_id)
 
-        db._insert_agent_policy(episode_id=episode_id, agent_id=0, policy_key=pk, policy_version=pv)
-        db._insert_agent_metric(episode_id, agent_id=0, metric="reward", value=2.0)
-
-        # ONLY insert hearts_collected for episodes 0 and 1 (simulates missing data)
+        # Create agent metrics - hearts_collected only for episodes 0 and 1
+        agent_metrics = {0: {"reward": 2.0}}
         if i < 2:
-            db._insert_agent_metric(episode_id, agent_id=0, metric="hearts_collected", value=3.0)
+            agent_metrics[0]["hearts_collected"] = 3.0
+
+        # Record the episode with metrics
+        db.record_episode(
+            episode_id=episode_id,
+            attributes={},
+            agent_metrics=agent_metrics,
+            agent_groups={0: 0},  # agent 0 in group 0
+            step_count=100,
+            replay_url=None,
+            created_at=datetime.datetime.now(),
+        )
+
+        # Update the episode to link it to our simulation
+        db.con.execute("UPDATE episodes SET simulation_id = ? WHERE id = ?", (sim_id, episode_id))
+
+    # Insert agent policy mappings for all episodes
+    agent_map = {0: (pk, pv)}  # agent 0 uses our policy
+    db._insert_agent_policies(episode_ids, agent_map)
 
     return db, pk, str(pv)
 
