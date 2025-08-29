@@ -58,6 +58,8 @@ def setup_logging():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
     # Configure scorecard performance logger specifically
     scorecard_logger = logging.getLogger("dashboard_performance")
     scorecard_logger.setLevel(logging.INFO)

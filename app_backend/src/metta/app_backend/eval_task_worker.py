@@ -21,7 +21,6 @@ from datetime import datetime
 
 import boto3
 
-import gitta as git
 from devops.observatory_login import CLIAuthenticator
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
@@ -33,6 +32,7 @@ from metta.app_backend.routes.eval_task_routes import (
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
+from metta.common.util.git_repo import REPO_URL
 from metta.common.util.logging_helpers import init_logging
 
 
@@ -112,7 +112,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
         result = subprocess.run(
-            ["git", "clone", git.METTA_API_REPO_URL, self._versioned_path],
+            ["git", "clone", REPO_URL, self._versioned_path],
             capture_output=True,
             text=True,
         )

@@ -8,15 +8,15 @@ from typing import Optional
 import torch
 
 import gitta as git
-from devops.git.monorepo import REPO_SLUG
 from metta.agent.agent_config import AgentConfig
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
+from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging_helpers import init_file_logging, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
-from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
+from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
@@ -100,8 +100,7 @@ class TrainTool(Tool):
         else:
             handle_train(self, torch_dist_cfg, None, logger)
 
-        if torch.distributed.is_initialized():
-            torch.distributed.destroy_process_group()
+        cleanup_distributed()
 
         return 0
 
