@@ -1,10 +1,8 @@
 """Configuration for sweep execution."""
 
-from typing import Optional
 
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config import Config
 from metta.sweep.protein_config import ProteinConfig
 

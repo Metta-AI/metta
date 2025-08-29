@@ -2,7 +2,6 @@
 
 from unittest.mock import Mock, patch
 
-import numpy as np
 import pytest
 
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
