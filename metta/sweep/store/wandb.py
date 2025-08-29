@@ -20,7 +20,7 @@ class WandbStore:
     def __init__(self, entity: str, project: str):
         self.entity = entity
         self.project = project
-        self.api = wandb.Api()
+        # Don't store api instance - create fresh one each time to avoid caching
 
     def init_run(self, run_id: str, sweep_id: str | None = None) -> None:
         """Initialize a new run in WandB with proper metadata for sweep tracking"""
@@ -56,6 +56,9 @@ class WandbStore:
 
     def fetch_runs(self, filters: dict) -> List[RunInfo]:
         """Fetch runs matching filter criteria"""
+        # Create fresh API instance to avoid caching
+        api = wandb.Api()
+        
         # Convert sweep_id filter to group filter for WandB
         wandb_filters = {}
         if "sweep_id" in filters:
@@ -66,7 +69,7 @@ class WandbStore:
         logger.debug(f"[WandbStore] Fetching runs with filters: {wandb_filters}")
 
         try:
-            runs = self.api.runs(f"{self.entity}/{self.project}", filters=wandb_filters)
+            runs = api.runs(f"{self.entity}/{self.project}", filters=wandb_filters)
             run_infos = []
             for run in runs:
                 try:
@@ -86,7 +89,9 @@ class WandbStore:
     def update_run_summary(self, run_id: str, summary_update: dict) -> bool:
         """Update the summary of a WandB run"""
         try:
-            run = self.api.run(f"{self.entity}/{self.project}/{run_id}")
+            # Create fresh API instance to avoid caching
+            api = wandb.Api()
+            run = api.run(f"{self.entity}/{self.project}/{run_id}")
 
             # Deep clean the update to ensure it's JSON serializable
             clean_update = deep_clean(summary_update)
