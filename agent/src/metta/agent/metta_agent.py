@@ -85,9 +85,8 @@ class MettaAgent(nn.Module):
         if self.policy is not None:
             # Move policy to device - this matches how main branch handled it
             self.policy = self.policy.to(self.device)
-            # Set device attribute if the policy supports it
-            if hasattr(self.policy, "device"):
-                self.policy.device = self.device
+            # Set device attribute on policy
+            self.policy.device = self.device
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
