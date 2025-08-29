@@ -33,7 +33,12 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
-    """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt"""
+    """Parse checkpoint metadata from filename.
+    
+    Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt
+    Note: We use 't' for total_time to maintain backward compatibility.
+    Score is tracked in metadata/database but not in filename.
+    """
     parts = filename.split(".")
     if len(parts) != 5 or parts[-1] != "pt":
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
@@ -41,7 +46,7 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
     run_name = parts[0]
     epoch = int(parts[1][1:])
     agent_step = int(parts[2][1:])
-    total_time = int(parts[3][1:])
+    total_time = int(parts[3][1:])  # 't' field represents total_time
 
     return run_name, epoch, agent_step, total_time
 
@@ -105,11 +110,16 @@ class CheckpointManager:
         return torch.load(trainer_file, weights_only=False)
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
-        """Save agent with metadata embedded in filename."""
+        """Save agent with metadata embedded in filename.
+        
+        Filename format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt
+        Additional metadata like 'score' can be passed but is not included in filename.
+        """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         agent_step = metadata.get("agent_step", 0)
         total_time = metadata.get("total_time", 0)
+        # Note: score can be in metadata for database storage but not in filename
 
         filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(total_time)}.pt"
         torch.save(agent, self.checkpoint_dir / filename)
