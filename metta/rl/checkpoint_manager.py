@@ -301,8 +301,6 @@ class CheckpointManager:
 
     def upload_to_wandb(self, epoch: Optional[int] = None, wandb_run=None) -> Optional[str]:
         """Upload checkpoint to wandb as an artifact."""
-        from metta.rl.wandb import upload_checkpoint_as_artifact
-
         if epoch is None:
             checkpoints = self.select_checkpoints(count=1, metric="epoch")
             if not checkpoints:
