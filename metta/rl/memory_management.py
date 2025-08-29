@@ -1,4 +1,3 @@
-from threading import RLock
 from typing import Any, Optional
 
 import torch
@@ -34,17 +33,6 @@ class MemoryManager:
 
     def __init__(self, policy: nn.Module):
         self.policy = policy
-        self._lock = RLock()
-
-        # Cache method availability for quick checks
-        self._has_get_states = hasattr(policy, "get_states")
-        self._has_set_states = hasattr(policy, "set_states")
-        self._has_reset_states = hasattr(policy, "reset_states")
-
-        self._has_get_memory = hasattr(policy, "get_memory")
-        self._has_set_memory = hasattr(policy, "set_memory")
-        self._has_reset_memory = hasattr(policy, "reset_memory")
-        self._has_reset_env_memory = hasattr(policy, "reset_env_memory")
 
         self.memory = Memory()
         self.memory.reset_memory()
