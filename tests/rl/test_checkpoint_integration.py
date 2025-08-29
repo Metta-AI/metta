@@ -9,8 +9,7 @@ from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.utils import obs_to_td
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.checkpoint_manager import CheckpointManager, get_checkpoint_uri_from_dir
-from metta.rl.policy_management import resolve_policy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 
 
@@ -103,15 +102,19 @@ class TestCheckpointIntegration:
         checkpoint_dir = Path(temp_run_dir) / "uri_test" / "checkpoints"
         dir_uri = f"file://{checkpoint_dir}"
 
-        # Load using resolve_policy with directory URI
-        loaded_policy = resolve_policy(dir_uri, device="cpu")
+        # Load using CheckpointManager.load_from_uri with directory URI
+        loaded_policy = CheckpointManager.load_from_uri(dir_uri)
+        assert loaded_policy is not None
 
         # Verify it's a valid agent
         assert callable(loaded_policy)
 
-        # Test with direct file URI
-        file_uri = get_checkpoint_uri_from_dir(str(checkpoint_dir))
-        loaded_from_file = resolve_policy(file_uri, device="cpu")
+        # Test with direct file URI by getting the latest checkpoint
+        checkpoint_files = list(checkpoint_dir.glob("*.pt"))
+        assert checkpoint_files
+        file_uri = f"file://{checkpoint_files[0]}"
+        loaded_from_file = CheckpointManager.load_from_uri(file_uri)
+        assert loaded_from_file is not None
 
         # Both should work
         obs, _ = env.reset()

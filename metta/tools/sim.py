@@ -12,8 +12,8 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
-from metta.rl.checkpoint_manager import key_and_version
-from metta.rl.policy_management import discover_policy_uris, resolve_policy
+from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
+from metta.rl.policy_management import discover_policy_uris
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -66,7 +66,9 @@ class SimTool(Tool):
             policies_by_uri[policy_uri] = []
             for policy_uri_path in discovered_uris:
                 try:
-                    agent = resolve_policy(policy_uri_path, device="cpu")
+                    agent = CheckpointManager.load_from_uri(policy_uri_path)
+                    if agent is None:
+                        raise FileNotFoundError(f"Could not load policy from {policy_uri_path}")
                     # Extract metadata from URI for logging
                     key, version = key_and_version(policy_uri_path)
                     policies_by_uri[policy_uri].append((agent, policy_uri_path))

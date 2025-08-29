@@ -179,11 +179,15 @@ class CheckpointManager:
 
         state = torch.load(trainer_file, weights_only=False)
         # Normalize field names for backward compatibility
-        return {
+        result = {
             "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
             "epoch": state.get("epoch", epoch),
             "agent_step": state.get("agent_step", 0),
         }
+        # Include stopwatch state if present
+        if "stopwatch_state" in state:
+            result["stopwatch_state"] = state["stopwatch_state"]
+        return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
         """Save agent with metadata embedded in filename."""
@@ -202,17 +206,23 @@ class CheckpointManager:
         if str(checkpoint_path) in self._cache:
             del self._cache[str(checkpoint_path)]
 
-    def save_trainer_state(self, optimizer, epoch: int, agent_step: int) -> None:
+    def save_trainer_state(
+        self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Save trainer optimizer state in a separate file alongside the checkpoint.
         This is optional - training can work without trainer state, but having it
         allows resuming with the exact optimizer state (momentum, learning rate schedules, etc).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
-        torch.save(
-            {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step},
-            trainer_file,
-        )
+        state = {
+            "optimizer": optimizer.state_dict(),
+            "epoch": epoch,
+            "agent_step": agent_step,
+        }
+        if stopwatch_state is not None:
+            state["stopwatch_state"] = stopwatch_state
+        torch.save(state, trainer_file)
 
     def get_checkpoint_uri(self, epoch: Optional[int] = None) -> str:
         """Get URI for checkpoint at given epoch (or latest if None)."""

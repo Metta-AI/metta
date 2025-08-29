@@ -16,20 +16,6 @@ def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAg
     return agent
 
 
-def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
-    """Load a policy from any URI (file://, s3://, wandb://) using CheckpointManager.load_from_uri."""
-    # Use the unified loader for all URI types
-    policy = CheckpointManager.load_from_uri(uri)
-    if policy is None:
-        raise FileNotFoundError(f"Could not load policy from {uri}")
-
-    # Move to specified device if needed
-    if device != "cpu" and hasattr(policy, "to"):
-        policy = policy.to(device)
-
-    return policy
-
-
 def discover_policy_uris(base_uri: str, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[str]:
     """Discover policy URIs from a base URI using CheckpointManager."""
     if base_uri.startswith("file://"):

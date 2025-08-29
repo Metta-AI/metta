@@ -21,7 +21,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.rl.policy_management import resolve_policy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -158,9 +158,12 @@ class Simulation:
 
     @staticmethod
     def _load_policy_from_uri(policy_uri: str) -> PolicyAgent:
-        """Load policy from URI using resolve_policy for consistency."""
+        """Load policy from URI using CheckpointManager.load_from_uri."""
         try:
-            return resolve_policy(policy_uri, device="cpu")
+            policy = CheckpointManager.load_from_uri(policy_uri)
+            if policy is None:
+                raise FileNotFoundError(f"Could not load policy from {policy_uri}")
+            return policy
         except (FileNotFoundError, ValueError):
             # For unsupported URIs or missing files, create a mock agent
             return MockAgent()

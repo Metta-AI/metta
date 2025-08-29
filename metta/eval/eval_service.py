@@ -9,8 +9,7 @@ from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import key_and_version
-from metta.rl.policy_management import resolve_policy
+from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -39,7 +38,11 @@ def evaluate_policy(
         raise ValueError("Simulation names must be unique")
 
     # Load the policy from URI
-    policy = resolve_policy(checkpoint_uri, str(device))
+    policy = CheckpointManager.load_from_uri(checkpoint_uri)
+    if policy is None:
+        raise FileNotFoundError(f"Could not load policy from {checkpoint_uri}")
+    if device != "cpu" and hasattr(policy, "to"):
+        policy = policy.to(device)
     run_name, _ = key_and_version(checkpoint_uri)
 
     sims = [
