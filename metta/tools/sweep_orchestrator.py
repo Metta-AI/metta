@@ -23,7 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 class SweepOrchestratorTool(Tool):
-    """Tool for running hyperparameter sweeps."""
+    """Tool for running hyperparameter sweeps.
+
+    Attributes:
+        capture_output: If True, forward subprocess output to stdout/stderr
+            instead of discarding it.
+    """
 
     # Sweep identity - optional, will be generated if not provided
     sweep_name: Optional[str] = None
@@ -64,8 +69,9 @@ class SweepOrchestratorTool(Tool):
 
     # Dispatcher configuration
     dispatcher_type: str = "local"  # Only local supported for now
+    capture_output: bool = False  # Forward subprocess logs to console
 
-    consumed_args: list[str] = ["sweep_name", "max_trials"]
+    consumed_args: list[str] = ["sweep_name", "max_trials", "capture_output"]
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         """Execute the sweep."""
@@ -121,7 +127,7 @@ class SweepOrchestratorTool(Tool):
 
         # Create dispatcher based on type
         if self.dispatcher_type == "local":
-            dispatcher = LocalDispatcher()
+            dispatcher = LocalDispatcher(capture_output=self.capture_output)
         else:
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
 
