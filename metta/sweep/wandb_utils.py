@@ -60,7 +60,7 @@ def fetch_protein_observations_from_wandb(
             "is_failure": bool,     # Whether the run failed
 
         }
-    """
+     ."""
     api = wandb.Api()
     wandb_path = f"{wandb_entity}/{wandb_project}"
 

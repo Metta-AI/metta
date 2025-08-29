@@ -10,7 +10,7 @@ import functools
 from cogweb.cogweb_client import CogwebClient
 
 from metta.common.wandb.wandb_context import WandbConfig
-from metta.sweep.sweep_config import SweepConfig
+from metta.sweep.protein_config import ProteinConfig
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class JobDefinition:
 
 
 class JobStatus(StrEnum):
-    PENDING = auto()
+    PENDING = auto()  # Initialized but not started
     IN_TRAINING = auto()
     TRAINING_DONE_NO_EVAL = auto()
     IN_EVAL = auto()
@@ -68,7 +68,8 @@ class RunInfo:
     """Standardized run information returned by Store"""
 
     run_id: str
-    sweep_id: str
+    group: str | None = None
+    tags: list | None = None
 
     # Timestamps
     created_at: datetime | None = None
@@ -170,28 +171,16 @@ class Store(Protocol):
     All operations are synchronous with retry logic built in.
     """
 
-    # Sweep metadata operations
-    def fetch_sweep_metadata(self, sweep_id: str) -> SweepMetadata | None:
-        """Fetch sweep metadata, returns None if sweep doesn't exist"""
-        ...
-
     # Run operations
-    def init_run(self, job: JobDefinition) -> None:
+    def init_run(self, run_id: str, sweep_id: str | None = None) -> None:
         """Initialize a new run"""
         ...
 
-    def fetch_runs_by_status(self, status: JobStatus) -> list[RunInfo]:
-        """Fetch all runs with a given status"""
-        ...
-
-    def fetch_runs(self, filter: dict) -> list[RunInfo]:
+    def fetch_runs(self, filters: dict) -> list[RunInfo]:
         """Fetch runs matching filter criteria, returns standardized RunInfo objects"""
         ...
 
-    def update_run_summary(self, run_id, summary: dict) -> bool: ...
-    def get_dispatch_id(self, run_id: str) -> str | None:
-        """Get the dispatch ID for a run"""
-        ...
+    def update_run_summary(self, run_id, summary_update: dict) -> bool: ...
 
 
 @runtime_checkable
@@ -270,7 +259,7 @@ class LocalDispatcher:
     def __init__(self):
         self._processes: dict[str, subprocess.Popen] = {}  # pid -> process
         self._run_to_pid: dict[str, str] = {}  # run_id -> pid for debugging
-    
+
     def _reap_finished_processes(self):
         """Reap any finished child processes to prevent zombies"""
         finished_pids = []
@@ -279,7 +268,7 @@ class LocalDispatcher:
             if process.poll() is not None:
                 finished_pids.append(pid)
                 logger.debug(f"Process {pid} finished with return code {process.returncode}")
-        
+
         # Clean up finished processes
         for pid in finished_pids:
             del self._processes[pid]
@@ -290,35 +279,58 @@ class LocalDispatcher:
 
     def dispatch(self, job: JobDefinition) -> str:
         """Dispatch a job locally as a subprocess and return its PID as dispatch_id"""
-        
+
         # Reap any finished processes first to prevent zombie accumulation
         self._reap_finished_processes()
 
         # Build command
         cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
 
-        # Add positional arguments
+        # Add positional arguments first (if any)
         cmd_parts.extend(job.args)
+        
+        # Collect all args
+        all_args = []
+        
+        # Add run_id for training jobs only (not for eval)
+        if job.type == JobTypes.LAUNCH_TRAINING:
+            all_args.append(f"run={job.run_id}")
+        
+        # Add metadata fields as args (used for evaluation jobs)
+        for key, value in job.metadata.items():
+            all_args.append(f"{key}={value}")
+        
+        # Add all args with --args flag
+        if all_args:
+            cmd_parts.append("--args")
+            cmd_parts.extend(all_args)
 
-        # Add overrides
+        # Collect all overrides (from both overrides and config)
+        all_overrides = []
+        
+        # Add explicit overrides
         for key, value in job.overrides.items():
-            cmd_parts.append(f"{key}={value}")
+            all_overrides.append(f"{key}={value}")
 
         # Add config from optimizer as additional overrides
         for key, value in job.config.items():
-            cmd_parts.append(f"{key}={value}")
-
-        # Add run ID
-        cmd_parts.append(f"run={job.run_id}")
+            all_overrides.append(f"{key}={value}")
+        
+        # Add all overrides with --overrides flag
+        if all_overrides:
+            cmd_parts.append("--overrides")
+            cmd_parts.extend(all_overrides)
 
         logger.info(f"Dispatching local run {job.run_id}: {' '.join(cmd_parts)}")
 
         try:
-            # Start subprocess without piping to avoid deadlock
+            # Start subprocess - optionally stream output for debugging
+            # For production, use DEVNULL to avoid deadlock
+            # For debugging, comment out the DEVNULL lines
             process = subprocess.Popen(
                 cmd_parts,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,  # Comment out for debugging
+                stderr=subprocess.DEVNULL,  # Comment out for debugging
                 text=True,
             )
 
@@ -355,7 +367,7 @@ class SweepController:
         optimizer: Optimizer,
         dispatcher: Dispatcher,
         store: Store,
-        sweep_config: SweepConfig,
+        protein_config: ProteinConfig,
         max_parallel_jobs: int = 10,
         monitoring_interval: int = 5,
     ):
@@ -365,7 +377,7 @@ class SweepController:
         self.optimizer = optimizer
         self.dispatcher = dispatcher
         self.store = store
-        self.sweep_config = sweep_config
+        self.protein_config = protein_config
         self.monitoring_interval = monitoring_interval
         self.max_parallel_jobs = max_parallel_jobs
 
@@ -389,7 +401,7 @@ class SweepController:
         while True:
             try:
                 # 1. Fetch ALL runs from store
-                all_run_infos = self.store.fetch_runs(filter={"sweep_id": self.sweep_id})  # Returns list[RunInfo]
+                all_run_infos = self.store.fetch_runs(filters={"group": self.sweep_id})  # Returns list[RunInfo]
 
                 # 2. Update sweep metadata based on ALL runs
                 metadata = self._compute_metadata_from_runs(all_run_infos)
@@ -409,20 +421,31 @@ class SweepController:
 
                 # 4. Execute scheduler's decisions
                 for job in new_jobs:
-                    if job.type == JobTypes.LAUNCH_TRAINING:
-                        self.store.init_run(job)
-                        logger.info(f"Created run {job.run_id}")
-                    elif job.type == JobTypes.LAUNCH_EVAL:
-                        self.store.update_run_summary(
-                            job.run_id,
-                            {
-                                "has_started_eval": True,  # other status properties can be deduced from this.
-                            },
-                        )
-                        logger.info(f"Launching eval for job {job.run_id}")
+                    try:
+                        if job.type == JobTypes.LAUNCH_TRAINING:
+                            self.store.init_run(job.run_id, sweep_id=self.sweep_id)
+                            logger.info(f"Created run {job.run_id}")
+                        elif job.type == JobTypes.LAUNCH_EVAL:
+                            success = self.store.update_run_summary(
+                                job.run_id,
+                                {
+                                    "has_started_eval": True,  # other status properties can be deduced from this.
+                                },
+                            )
+                            if not success:
+                                logger.error(f"Failed to update run summary for eval job {job.run_id}, skipping dispatch")
+                                continue
+                            logger.info(f"Launching eval for job {job.run_id}")
 
-                    dispatch_id = self.dispatcher.dispatch(job)
-                    logger.info(f"Dispatched {job.run_id} with dispatch_id {dispatch_id}")
+                        # Only dispatch if store operations succeeded
+                        dispatch_id = self.dispatcher.dispatch(job)
+                        logger.info(f"Dispatched {job.run_id} with dispatch_id {dispatch_id}")
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to initialize/dispatch job {job.run_id}: {e}")
+                        logger.error(f"Skipping dispatch for {job.run_id} to prevent resource overload")
+                        # Continue with next job rather than crashing the whole sweep
+                        continue
 
                 # 5. Finally, update transient states and mark completions
                 # TODO: Refactor: Sweep config and Optimizer config
@@ -430,9 +453,9 @@ class SweepController:
                     if run.status == JobStatus.EVAL_DONE_NOT_COMPLETED:
                         assert run.summary is not None
                         cost = run.cost if run.cost != 0 else run.runtime
-                        score = run.summary.get(self.sweep_config.protein.metric)
+                        score = run.summary.get(self.protein_config.metric)
                         if score is None:
-                            raise ValueError(f"No metric {self.sweep_config.protein.metric} found in run summary.")
+                            raise ValueError(f"No metric {self.protein_config.metric} found in run summary.")
                         self.store.update_run_summary(
                             run.run_id,
                             {
@@ -465,7 +488,7 @@ class SweepOrchestratorConfig:
     sweep_name: str
     sweep_server_uri: str
     wandb: WandbConfig
-    sweep_config: SweepConfig
+    protein_config: ProteinConfig
     max_parallel_jobs: int = 10
     monitoring_interval: int = 5
 
@@ -499,7 +522,7 @@ def orchestrate_sweep(
         optimizer=optimizer,
         dispatcher=dispatcher,
         store=store,
-        sweep_config=config.sweep_config,
+        protein_config=config.protein_config,
         max_parallel_jobs=config.max_parallel_jobs,
         monitoring_interval=config.monitoring_interval,
     )
