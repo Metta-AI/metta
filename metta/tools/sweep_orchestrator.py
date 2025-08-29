@@ -1,0 +1,197 @@
+"""SweepOrchestratorTool for hyperparameter optimization using the new orchestrator."""
+
+import logging
+import os
+import uuid
+from typing import Optional
+
+from metta.common.config.tool import Tool
+from metta.common.util.logging_helpers import init_file_logging, init_logging
+from metta.common.wandb.wandb_context import WandbConfig
+from metta.sweep.optimizer.protein import ProteinOptimizer
+from metta.sweep.protein_config import ProteinConfig, ParameterConfig
+from metta.sweep.scheduler.sequential import SequentialScheduler, SequentialSchedulerConfig
+from metta.sweep.store.wandb import WandbStore
+from metta.sweep.sweep_orchestrator import (
+    LocalDispatcher,
+    orchestrate_sweep,
+    SweepOrchestratorConfig,
+)
+from metta.tools.utils.auto_config import auto_wandb_config
+
+logger = logging.getLogger(__name__)
+
+
+class SweepOrchestratorTool(Tool):
+    """Tool for running hyperparameter sweeps with the new orchestrator architecture."""
+    
+    # Sweep identity - optional, will be generated if not provided
+    sweep_name: Optional[str] = None
+    sweep_dir: Optional[str] = None
+    
+    # Core sweep configuration - always required with defaults
+    protein_config: ProteinConfig = ProteinConfig(
+        metric="evaluator/eval_arena/score",
+        goal="maximize",
+        method="random",
+        parameters={
+            "trainer.optimizer.learning_rate": ParameterConfig(
+                min=1e-5,
+                max=1e-3,
+                distribution="log_normal"
+            )
+        }
+    )
+    
+    # Scheduler configuration
+    max_trials: int = 10
+    recipe_module: str = "experiments.recipes.arena"
+    train_entrypoint: str = "train_shaped"
+    eval_entrypoint: str = "evaluate"
+    
+    # Orchestrator settings
+    max_parallel_jobs: int = 1
+    monitoring_interval: int = 5
+    sweep_server_uri: str = "https://api.observatory.softmax-research.net"
+    
+    # Infrastructure configuration
+    wandb: WandbConfig = WandbConfig.Unconfigured()
+    
+    # Dispatcher configuration
+    dispatcher_type: str = "local"  # Only local supported for now
+    
+    consumed_args: list[str] = ["sweep_name", "max_trials"]
+    
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+        """Execute the sweep using the orchestrator."""
+        
+        # Handle sweep_name being passed via cmd line
+        if "sweep_name" in args:
+            assert self.sweep_name is None, "sweep_name cannot be set via args and config"
+            self.sweep_name = args["sweep_name"]
+        
+        # Generate sweep name if not provided (similar to TrainTool's run name)
+        if self.sweep_name is None:
+            self.sweep_name = f"sweep.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())[:8]}"
+        
+        # Handle max_trials from args
+        if "max_trials" in args:
+            self.max_trials = int(args["max_trials"])
+        
+        # Set sweep_dir based on sweep name if not explicitly set
+        if self.sweep_dir is None:
+            self.sweep_dir = f"{self.system.data_dir}/sweeps/{self.sweep_name}"
+        
+        # Auto-configure wandb if not set (similar to TrainTool)
+        if self.wandb == WandbConfig.Unconfigured():
+            self.wandb = auto_wandb_config(self.sweep_name)
+        
+        # Create sweep directory
+        os.makedirs(self.sweep_dir, exist_ok=True)
+        
+        # Initialize logging
+        init_file_logging(run_dir=self.sweep_dir)
+        init_logging(run_dir=self.sweep_dir)
+        
+        logger.info("=" * 60)
+        logger.info(f"Starting sweep: {self.sweep_name}")
+        logger.info(f"Recipe: {self.recipe_module}.{self.train_entrypoint}")
+        logger.info(f"Max trials: {self.max_trials}")
+        logger.info(f"Max parallel jobs: {self.max_parallel_jobs}")
+        logger.info(f"Monitoring interval: {self.monitoring_interval}s")
+        logger.info("=" * 60)
+        
+        # Build the orchestrator config
+        orchestrator_config = SweepOrchestratorConfig(
+            sweep_name=self.sweep_name,
+            sweep_server_uri=self.sweep_server_uri,
+            wandb=self.wandb,
+            protein_config=self.protein_config,
+            max_parallel_jobs=self.max_parallel_jobs,
+            monitoring_interval=self.monitoring_interval,
+        )
+        
+        # Create components
+        store = WandbStore(
+            entity=self.wandb.entity,
+            project=self.wandb.project
+        )
+        
+        # Create dispatcher based on type
+        if self.dispatcher_type == "local":
+            dispatcher = LocalDispatcher()
+        else:
+            raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
+        
+        # Create optimizer
+        optimizer = ProteinOptimizer(self.protein_config)
+        
+        # Create scheduler with configuration
+        scheduler_config = SequentialSchedulerConfig(
+            max_trials=self.max_trials,
+            recipe_module=self.recipe_module,
+            train_entrypoint=self.train_entrypoint,
+            eval_entrypoint=self.eval_entrypoint,
+        )
+        scheduler = SequentialScheduler(scheduler_config, optimizer)
+        
+        # Save configuration (similar to TrainTool saving config.json)
+        config_path = os.path.join(self.sweep_dir, "sweep_config.json")
+        with open(config_path, "w") as f:
+            f.write(self.model_dump_json(indent=2))
+            logger.info(f"Config saved to {config_path}")
+        
+        try:
+            logger.info("\n🏃 Starting orchestrator control loop...")
+            
+            # Use the orchestrate_sweep entry point
+            orchestrate_sweep(
+                config=orchestrator_config,
+                scheduler=scheduler,
+                optimizer=optimizer,
+                dispatcher=dispatcher,
+                store=store,
+            )
+            
+        except KeyboardInterrupt:
+            logger.info("\n⚠️  Sweep interrupted by user")
+        except Exception as e:
+            logger.error(f"Sweep failed with error: {e}")
+            raise
+        finally:
+            # Final summary
+            final_runs = store.fetch_runs(filters={"group": self.sweep_name})
+            
+            logger.info("\n" + "=" * 60)
+            logger.info("SWEEP SUMMARY")
+            logger.info("=" * 60)
+            logger.info(f"Sweep name: {self.sweep_name}")
+            logger.info(f"Total runs: {len(final_runs)}")
+            
+            # Count by status
+            completed_count = sum(1 for run in final_runs if run.observation is not None)
+            failed_count = sum(1 for run in final_runs if run.has_failed)
+            in_progress_count = sum(1 for run in final_runs if 
+                                     run.has_started_training and not run.has_completed_training)
+            
+            logger.info(f"Completed with observations: {completed_count}")
+            logger.info(f"Failed: {failed_count}")
+            logger.info(f"In progress: {in_progress_count}")
+            
+            # Show best result if available
+            observations = [run for run in final_runs if run.observation is not None]
+            if observations:
+                if self.protein_config.goal == "maximize":
+                    best_run = max(observations, key=lambda r: r.observation.score)
+                else:
+                    best_run = min(observations, key=lambda r: r.observation.score)
+                
+                logger.info(f"\n📊 Best result:")
+                logger.info(f"   Run: {best_run.run_id}")
+                logger.info(f"   Score: {best_run.observation.score:.4f}")
+                if best_run.observation.suggestion:
+                    logger.info(f"   Config: {best_run.observation.suggestion}")
+            
+            logger.info("=" * 60)
+        
+        return 0
