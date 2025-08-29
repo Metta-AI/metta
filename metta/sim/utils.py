@@ -27,9 +27,12 @@ def get_or_create_policy_ids(
 
 
 def wandb_policy_name_to_uri(wandb_policy_name: str) -> tuple[str, str]:
-    # wandb_policy_name is a qualified name like 'entity/project/artifact:version'
-    # we store the uris as 'wandb://project/artifact:version', so need to strip 'entity'
-    arr = wandb_policy_name.split("/")
-    internal_wandb_policy_name = arr[2]
-    wandb_uri = "wandb://" + arr[1] + "/" + arr[2]
+    """Convert wandb qualified name like 'entity/project/artifact:version' to URI format."""
+    parts = wandb_policy_name.split("/")
+    if len(parts) != 3:
+        raise ValueError(f"Invalid wandb policy name format: {wandb_policy_name}")
+
+    entity, project, artifact_with_version = parts
+    internal_wandb_policy_name = artifact_with_version
+    wandb_uri = f"wandb://{project}/{artifact_with_version}"
     return (internal_wandb_policy_name, wandb_uri)

@@ -7,7 +7,7 @@ from typing import List
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
-from metta.rl.checkpoint_manager import get_checkpoint_uri_from_dir
+from metta.rl.checkpoint_manager import CheckpointManager, get_checkpoint_uri_from_dir
 from metta.rl.wandb import load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
@@ -39,28 +39,24 @@ def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
 
 
 def discover_policy_uris(base_uri: str, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[str]:
-    """Discover policy URIs from a base URI. Simplified to work directly with files."""
+    """Discover policy URIs from a base URI using CheckpointManager."""
     if base_uri.startswith("file://"):
         dir_path = Path(base_uri[7:])
 
-        # Look for checkpoint files directly - no need for CheckpointManager
-        checkpoint_dir = dir_path / "checkpoints" if (dir_path / "checkpoints").exists() else dir_path
-        run_name = dir_path.name
+        # Determine run_dir and run_name
+        if dir_path.name == "checkpoints":
+            run_name = dir_path.parent.name
+            run_dir = str(dir_path.parent.parent)
+        else:
+            run_name = dir_path.name
+            run_dir = str(dir_path.parent)
 
-        # Find all checkpoint files matching the pattern
-        checkpoint_files = list(checkpoint_dir.glob(f"{run_name}.e*.s*.t*.sc*.pt"))
-        if not checkpoint_files:
-            return []
+        # Use CheckpointManager to select checkpoints
+        checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
+        checkpoint_paths = checkpoint_manager.select_checkpoints(strategy=strategy, count=count, metric=metric)
 
-        # Parse and sort by the selected metric
-        from metta.rl.checkpoint_manager import parse_checkpoint_filename
-
-        metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
-        checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
-
-        # Return requested number of URIs
-        selected = checkpoint_files if strategy == "all" else checkpoint_files[:count]
-        return [f"file://{checkpoint}" for checkpoint in selected]
+        # Convert paths to URIs
+        return [f"file://{path}" for path in checkpoint_paths]
     elif base_uri.startswith("wandb://"):
         return [base_uri]
     else:

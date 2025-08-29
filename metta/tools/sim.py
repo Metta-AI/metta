@@ -121,9 +121,7 @@ class SimTool(Tool):
                         "name": key,
                         "uri": checkpoint_uri,
                         "epoch": version,
-                        "checkpoint_path": checkpoint_uri[7:]
-                        if checkpoint_uri.startswith("file://")
-                        else checkpoint_uri,
+                        "checkpoint_path": checkpoint_uri,  # Keep URI as is
                         "metrics": evaluation_metrics,
                         "replay_url": [],
                     }
@@ -187,27 +185,21 @@ class SimTool(Tool):
         try:
             with SimulationStatsDB.from_uri(self.stats_db_uri) as stats_db:
                 for policy_uri in policy_uris:
-                    # Extract policy info from URI
-                    if policy_uri.startswith("file://"):
-                        checkpoint_path = Path(policy_uri.replace("file://", ""))
-                        run_name = checkpoint_path.parent.name
-                        # For file URIs, we'd need to determine epoch from the checkpoint
-                        epoch = 0  # Simplified for Phase 3
+                    # Extract policy info from URI using key_and_version
+                    policy_key, policy_version = key_and_version(policy_uri)
 
-                        # Get policy performance from stats database
-                        policy_scores = stats_db.simulation_scores(str(checkpoint_path), epoch, metric)
+                    # Get policy performance from stats database
+                    policy_scores = stats_db.simulation_scores(policy_key, policy_version, metric)
 
-                        comparison_results["policies"].append(
-                            {
-                                "policy_uri": policy_uri,
-                                "run_name": run_name,
-                                "epoch": epoch,
-                                "scores": dict(policy_scores),
-                                "average_score": sum(policy_scores.values()) / len(policy_scores)
-                                if policy_scores
-                                else 0.0,
-                            }
-                        )
+                    comparison_results["policies"].append(
+                        {
+                            "policy_uri": policy_uri,
+                            "policy_key": policy_key,
+                            "policy_version": policy_version,
+                            "scores": dict(policy_scores),
+                            "average_score": sum(policy_scores.values()) / len(policy_scores) if policy_scores else 0.0,
+                        }
+                    )
 
         except Exception as e:
             logger.error(f"Policy comparison failed: {e}")

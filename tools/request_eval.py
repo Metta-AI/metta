@@ -68,69 +68,79 @@ class EvalRequest(BaseModel):
         return self
 
 
-def _get_policies_for_path(
-    policy_path: str,
+def _get_policies_for_uri(
+    policy_uri: str,
     selector_type: str,
     select_num: int,
     select_metric: str,
     disallow_missing_policies: bool = False,
 ) -> tuple[str, list[tuple[str, str]] | None]:
-    """Get policies from a file path - minimal approach."""
+    """Get policies from a URI - working with URIs throughout."""
     try:
-        # Remove file:// prefix if present
-        if policy_path.startswith("file://"):
-            policy_path = policy_path[7:]
+        # Convert plain paths to file:// URIs
+        if not policy_uri.startswith(("file://", "wandb://")):
+            policy_uri = f"file://{Path(policy_uri).resolve()}"
 
-        path = Path(policy_path)
+        if policy_uri.startswith("wandb://"):
+            # For wandb URIs, extract run name from the URI
+            parts = policy_uri[8:].split("/")
+            run_name = parts[-1].split(":")[0] if parts else "unknown"
+            return policy_uri, [(policy_uri, run_name)]
 
-        if path.is_file():
-            # Direct file - extract run name from path structure
-            if path.parent.name == "checkpoints":
-                run_name = path.parent.parent.name
+        if policy_uri.startswith("file://"):
+            path = Path(policy_uri[7:])
+
+            if path.is_file():
+                # Direct file - extract run name from path structure
+                if path.parent.name == "checkpoints":
+                    run_name = path.parent.parent.name
+                else:
+                    run_name = path.stem  # Use filename without extension
+                return policy_uri, [(policy_uri, run_name)]
+
+            if not path.is_dir():
+                if disallow_missing_policies:
+                    raise FileNotFoundError(f"Path does not exist: {path}")
+                else:
+                    warning(f"Path does not exist: {path}")
+                    return policy_uri, None
+
+            # Directory with checkpoints
+            if path.name == "checkpoints":
+                run_name = path.parent.name
+                run_dir = str(path.parent.parent)
             else:
-                run_name = path.stem  # Use filename without extension
-            return policy_path, [(str(path), run_name)]
+                run_name = path.name
+                run_dir = str(path.parent)
 
-        if not path.is_dir():
-            if disallow_missing_policies:
-                raise FileNotFoundError(f"Path does not exist: {path}")
-            else:
-                warning(f"Path does not exist: {path}")
-                return policy_path, None
+            checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
 
-        # Directory with checkpoints
-        if path.name == "checkpoints":
-            run_name = path.parent.name
-            run_dir = str(path.parent.parent)
+            # Map selector types to strategies
+            strategy_map = {"latest": "latest", "top": "best_score", "best_score": "best_score", "all": "all"}
+            strategy = strategy_map.get(selector_type, "latest")
+
+            checkpoint_paths = checkpoint_manager.select_checkpoints(
+                strategy=strategy, count=select_num, metric=select_metric
+            )
+
+            if not checkpoint_paths:
+                if disallow_missing_policies:
+                    raise FileNotFoundError(f"No checkpoints found in: {path}")
+                else:
+                    warning(f"No checkpoints found in: {path}")
+                    return policy_uri, None
+
+            # Return list of (uri, run_name) tuples - keep as URIs!
+            results = [(f"file://{checkpoint_path}", run_name) for checkpoint_path in checkpoint_paths]
+            return policy_uri, results
+
         else:
-            run_name = path.name
-            run_dir = str(path.parent)
-
-        checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
-
-        # Map selector types to strategies
-        strategy_map = {"latest": "latest", "top": "best_score", "best_score": "best_score", "all": "all"}
-        strategy = strategy_map.get(selector_type, "latest")
-
-        checkpoint_paths = checkpoint_manager.select_checkpoints(
-            strategy=strategy, count=select_num, metric=select_metric
-        )
-
-        if not checkpoint_paths:
-            if disallow_missing_policies:
-                raise FileNotFoundError(f"No checkpoints found in: {path}")
-            else:
-                warning(f"No checkpoints found in: {path}")
-                return policy_path, None
-
-        # Return list of (path, run_name) tuples
-        results = [(str(checkpoint_path), run_name) for checkpoint_path in checkpoint_paths]
-        return policy_path, results
+            raise ValueError(f"Unsupported URI scheme: {policy_uri}")
 
     except Exception as e:
         if not disallow_missing_policies:
-            warning(f"Error processing {policy_path}: {e}")
-            return policy_path, None
+            warning(f"Error processing {policy_uri}: {e}")
+            return policy_uri, None
         else:
             raise
 
@@ -144,26 +154,26 @@ async def _create_remote_eval_tasks(request: EvalRequest) -> None:
 
     info(f"Retrieving {request.policy_select_type} policies for {len(request.policies)} paths...")
 
-    # Process all policy paths
+    # Process all policy URIs
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        future_to_path = {
+        future_to_uri = {
             executor.submit(
-                _get_policies_for_path,
-                policy_path=policy_path,
+                _get_policies_for_uri,
+                policy_uri=policy_uri,
                 selector_type=request.policy_select_type,
                 select_num=request.policy_select_num,
                 select_metric=request.policy_select_metric,
                 disallow_missing_policies=request.disallow_missing_policies,
-            ): policy_path
-            for policy_path in request.policies
+            ): policy_uri
+            for policy_uri in request.policies
         }
 
-        all_policies = {}  # run_name -> (path, run_name)
-        for future in concurrent.futures.as_completed(future_to_path):
-            policy_path, results = future.result()
+        all_policies = {}  # run_name -> (uri, run_name)
+        for future in concurrent.futures.as_completed(future_to_uri):
+            policy_uri, results = future.result()
             if results is not None:
-                for path, run_name in results:
-                    all_policies[run_name] = (path, run_name)
+                for uri, run_name in results:
+                    all_policies[run_name] = (uri, run_name)
 
     if not all_policies:
         warning("No policies found")
@@ -171,7 +181,7 @@ async def _create_remote_eval_tasks(request: EvalRequest) -> None:
 
     # Create policy IDs in stats database
     policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(
-        stats_client, [(run_name, f"file://{path}", None) for path, run_name in all_policies.values()]
+        stats_client, [(run_name, uri, None) for uri, run_name in all_policies.values()]
     )
 
     if not policy_ids:
@@ -261,11 +271,12 @@ async def main() -> None:
         "--policy",
         action="append",
         dest="policies",
-        help="""Policy path. Can be specified multiple times for multiple policies.
+        help="""Policy URI or path. Can be specified multiple times for multiple policies.
         Supports:
-        - Direct file paths: /path/to/checkpoint.pt
-        - Checkpoint directories: /path/to/run/checkpoints
-        - file:// URIs: file:///path/to/checkpoint""",
+        - file:// URIs: file:///path/to/checkpoint.pt or file:///path/to/run/checkpoints
+        - wandb:// URIs: wandb://project/artifact:version
+        - Direct file paths: /path/to/checkpoint.pt (will be converted to file:// URI)
+        - Checkpoint directories: /path/to/run/checkpoints (will be converted to file:// URI)""",
         required=True,
     )
 

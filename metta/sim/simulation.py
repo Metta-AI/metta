@@ -28,7 +28,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_management import resolve_policy
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -169,20 +169,11 @@ class Simulation:
 
     @staticmethod
     def _load_policy_from_uri(policy_uri: str) -> PolicyAgent:
-        """Load policy from URI using CheckpointManager pattern."""
-        if policy_uri.startswith("file://"):
-            checkpoint_path = policy_uri[7:]  # Remove "file://" prefix
-            if checkpoint_path.endswith("/checkpoints"):
-                # Directory format - find latest checkpoint
-                checkpoint_dir = Path(checkpoint_path)
-                parent_dir = checkpoint_dir.parent
-                checkpoint_manager = CheckpointManager(run_name=parent_dir.name, run_dir=str(parent_dir.parent))
-                return checkpoint_manager.load_agent()
-            else:
-                # Direct file path
-                return torch.load(checkpoint_path, weights_only=False)
-        else:
-            # For other URI types, create a mock agent
+        """Load policy from URI using resolve_policy for consistency."""
+        try:
+            return resolve_policy(policy_uri, device="cpu")
+        except (FileNotFoundError, ValueError):
+            # For unsupported URIs or missing files, create a mock agent
             return MockAgent()
 
     @classmethod

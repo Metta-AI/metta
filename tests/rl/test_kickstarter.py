@@ -54,7 +54,9 @@ class TestKickstarter:
         assert kickstarter.device == "cpu"
 
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
-    def test_initialization_with_teacher_uri(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
+    def test_initialization_with_teacher_uri(
+        self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env
+    ):
         """Test initialization when a teacher URI is provided."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
@@ -68,7 +70,9 @@ class TestKickstarter:
         assert kickstarter.teacher_cfgs[0].value_loss_coef == 0.5
 
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
-    def test_initialization_with_additional_teachers(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
+    def test_initialization_with_additional_teachers(
+        self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env
+    ):
         """Test initialization when additional teachers are provided."""
         mock_config.additional_teachers = [
             KickstartTeacherConfig(teacher_uri="wandb://teacher1/uri", action_loss_coef=0.3, value_loss_coef=0.7),
