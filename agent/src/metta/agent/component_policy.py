@@ -217,7 +217,7 @@ class ComponentPolicy(nn.Module, ABC):
     # Memory-related Methods
     # ============================================================================
 
-    def reset_memory(self) -> None:
+    def reset_states(self) -> None:
         """Reset memory for all components that have memory."""
         for name in self.components_with_memory:
             comp = self.components[name]
@@ -238,10 +238,6 @@ class ComponentPolicy(nn.Module, ABC):
             if hasattr(self.components[name], "get_memory"):
                 states[name] = self.components[name].get_memory()
         return states
-
-    def reset_states(self) -> None:
-        """Reset all component states (alias to reset_memory)."""
-        self.reset_memory()
 
     # ============================================================================
     # Weight/Training Utility Methods
