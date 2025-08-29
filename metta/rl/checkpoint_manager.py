@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import torch
 
 from metta.mettagrid.util.file import WandbURI, local_copy
-from metta.rl.wandb import load_policy_from_wandb_uri
+from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb_uri, upload_checkpoint_as_artifact
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,6 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
     elif uri.startswith("wandb://"):
         # Get metadata from wandb artifact
-        from metta.rl.wandb import get_wandb_checkpoint_metadata
-
         metadata = get_wandb_checkpoint_metadata(uri)
         if metadata:
             return metadata["run_name"], metadata["epoch"]
