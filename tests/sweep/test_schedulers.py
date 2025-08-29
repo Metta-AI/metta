@@ -1,7 +1,5 @@
 """Tests for sweep schedulers."""
 
-
-
 from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
 from metta.sweep.scheduler.sequential import SequentialScheduler, SequentialSchedulerConfig
 from metta.sweep.sweep_orchestrator import (
