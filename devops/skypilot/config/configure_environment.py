@@ -60,7 +60,7 @@ def setup_job_metadata():
     # Only update restart count on master node
     if is_master:
         restart_count_file.write_text(str(restart_count))
-        log_master("Updated restart count file to restart_count")
+        log_master(f"Updated restart count file to {restart_count}")
     else:
         log_all("Skipping RESTART_COUNT_FILE updates on non-master node")
 
