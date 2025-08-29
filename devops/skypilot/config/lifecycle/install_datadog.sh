@@ -45,7 +45,7 @@ echo "[DATADOG] Installing Datadog Agent with Docker integration..."
 # Set installation environment variables
 export DD_API_KEY="$DD_API_KEY"
 export DD_SITE="${DD_SITE:-datadoghq.com}"
-# Let the installer start the agent automatically after configuration
+export DD_INSTALL_ONLY="true"  # Don't try to start in setup phase - will start in run phase
 
 # Install Datadog Agent
 DD_AGENT_MAJOR_VERSION=7 bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
@@ -115,36 +115,8 @@ fi
 # Add datadog-agent user to docker group for socket access
 sudo usermod -a -G docker dd-agent 2>/dev/null || true
 
-# The installer script should have started the agent automatically
-# Just wait a moment for it to fully initialize
-echo "[DATADOG] Waiting for agent to initialize..."
-sleep 10
-
-# Check if agent is running using multiple methods
-AGENT_RUNNING=false
-
-# Method 1: Check with datadog-agent status command
-if sudo -u dd-agent datadog-agent status 2>/dev/null | grep -q "Agent is running"; then
-    AGENT_RUNNING=true
-# Method 2: Check if process is running
-elif pgrep -f "datadog-agent" >/dev/null 2>&1; then
-    AGENT_RUNNING=true
-fi
-
-if [ "$AGENT_RUNNING" = true ]; then
-    echo "[DATADOG] ✅ Datadog Agent installed and running successfully"
-    echo "[DATADOG] Docker integration configured - monitoring all containers"
-    echo "[DATADOG] Metrics should appear in Datadog within 1-2 minutes"
-else
-    echo "[DATADOG] ⚠️ Datadog Agent installed but not yet running"
-    echo "[DATADOG] Attempting to start manually..."
-
-    # Try one more time to start the agent
-    if command -v systemctl >/dev/null 2>&1; then
-        sudo systemctl start datadog-agent 2>/dev/null || true
-    else
-        sudo service datadog-agent start 2>/dev/null || true
-    fi
-
-    echo "[DATADOG] Check agent status in a few moments"
-fi
+# Agent is installed but not started (DD_INSTALL_ONLY=true)
+echo "[DATADOG] ✅ Datadog Agent installed successfully"
+echo "[DATADOG] ✅ Docker integration configured"
+echo "[DATADOG] ℹ️  Agent will start automatically in the run phase"
+echo "[DATADOG] Metrics will appear in Datadog 1-2 minutes after job starts"

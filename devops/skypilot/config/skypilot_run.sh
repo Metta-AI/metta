@@ -63,6 +63,28 @@ fi
 bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 source "$METTA_ENV_FILE"
 
+# Start Datadog Agent (installed during setup phase)
+if command -v datadog-agent >/dev/null 2>&1; then
+    echo "[DATADOG] Starting Datadog Agent..."
+    if command -v systemctl >/dev/null 2>&1 && pidof systemd >/dev/null 2>&1; then
+        sudo systemctl start datadog-agent 2>/dev/null || sudo service datadog-agent start 2>/dev/null || true
+    else
+        sudo service datadog-agent start 2>/dev/null || true
+    fi
+
+    # Give agent a moment to start
+    sleep 5
+
+    # Check if running
+    if pgrep -f "datadog-agent" >/dev/null 2>&1; then
+        echo "[DATADOG] ✅ Agent started successfully - monitoring containers"
+    else
+        echo "[DATADOG] ⚠️ Agent may not have started - check logs later"
+    fi
+else
+    echo "[DATADOG] Agent not installed - skipping startup"
+fi
+
 export EXIT_SUCCESS=0
 export EXIT_FAILURE=1
 export EXIT_NCCL_TEST_FAILURE=42

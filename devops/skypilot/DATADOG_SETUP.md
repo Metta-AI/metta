@@ -18,14 +18,17 @@ EC2 Host Instance
 
 ## How It Works
 
-1. **Setup Phase** (runs on host):
+1. **Setup Phase** (runs on host during provisioning):
    - Installs Datadog Agent on EC2 instance
    - Configures Docker integration
    - Sets up container auto-discovery
    - Applies SkyPilot tags (run_id, task_id, node_rank)
+   - Agent is installed but NOT started (DD_INSTALL_ONLY=true)
 
-2. **Run Phase** (runs in container):
-   - Datadog Agent on host automatically detects new container
+2. **Run Phase** (runs when job starts):
+   - Datadog Agent is started at beginning of run phase
+   - Agent begins monitoring the host and all containers
+   - Automatically detects your application container
    - Collects container metrics (CPU, memory, network, disk I/O)
    - Forwards container logs to Datadog
    - Tags all metrics with container metadata
