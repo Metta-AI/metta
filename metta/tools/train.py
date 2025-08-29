@@ -54,7 +54,7 @@ class TrainTool(Tool):
 
         if self.run is None:
             self.run = f"local.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())}"
-        
+
         # Store group from args if provided (for sweep support)
         group_override = args.get("group")
 
@@ -76,7 +76,7 @@ class TrainTool(Tool):
 
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
-        
+
         # Override group if provided via args (for sweep support)
         if group_override:
             self.wandb.group = group_override

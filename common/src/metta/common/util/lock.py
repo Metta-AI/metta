@@ -58,21 +58,21 @@ def run_once(fn: Callable[[], T]) -> T | None:
 
 def broadcast_state(state: T, src: int = 0) -> T:
     """Broadcast state from source rank to all other ranks.
-    
+
     This is used to synchronize state after master_process_only operations
     to prevent state drift across workers.
-    
+
     Args:
         state: The state object to broadcast
         src: Source rank (default 0 for master)
-        
+
     Returns:
         The synchronized state object (same on all ranks after broadcast)
     """
     if not dist.is_initialized():
         # No distributed setup, just return the state as-is
         return state
-    
+
     state_list = [state]
     dist.broadcast_object_list(state_list, src=src)
     return state_list[0]

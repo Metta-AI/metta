@@ -102,4 +102,7 @@ class MettaProtein:
         """
         Get the number of observations.
         """
-        return len(self._protein.success_observations) + len(self._protein.failure_observations)
+        # Only Protein class has failure_observations, Random and ParetoGenetic don't
+        success_count = len(getattr(self._protein, "success_observations", []))
+        failure_count = len(getattr(self._protein, "failure_observations", []))
+        return success_count + failure_count

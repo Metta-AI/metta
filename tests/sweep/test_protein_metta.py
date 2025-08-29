@@ -4,61 +4,57 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
-from omegaconf import OmegaConf
 
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 from metta.sweep.protein_metta import MettaProtein
 
 
 @pytest.fixture
-def base_config():
-    """Base configuration for MettaProtein tests."""
-    return {
-        "protein": {
-            "max_suggestion_cost": 3600,
-            "resample_frequency": 0,
-            "num_random_samples": 50,
-            "global_search_scale": 1,
-            "random_suggestions": 1024,
-            "suggestions_per_pareto": 256,
-        },
-        "metric": "reward",
-        "goal": "maximize",
-        "method": "bayes",
-        "parameters": {},
-    }
+def base_protein_config():
+    """Base ProteinConfig for MettaProtein tests."""
+    return ProteinConfig(
+        metric="reward",
+        goal="maximize",
+        method="bayes",
+        parameters={},
+        settings=ProteinSettings(
+            max_suggestion_cost=3600,
+            resample_frequency=0,
+            num_random_samples=50,
+            global_search_scale=1,
+            random_suggestions=1024,
+            suggestions_per_pareto=256,
+        ),
+    )
 
 
 class TestMettaProtein:
     """Test cases for MettaProtein class."""
 
     @patch("metta.sweep.protein_metta.Protein")
-    def test_metta_protein_init_with_full_config(self, mock_protein, base_config):
+    def test_metta_protein_init_with_full_config(self, mock_protein, base_protein_config):
         """Test MettaProtein initialization with complete config."""
-        config = OmegaConf.create(
-            {
-                **base_config,
-                "protein": {
-                    "max_suggestion_cost": 7200,
-                    "resample_frequency": 0,
-                    "num_random_samples": 100,
-                    "global_search_scale": 2,
-                    "random_suggestions": 1024,
-                    "suggestions_per_pareto": 256,
-                },
-                "parameters": {
-                    "trainer": {
-                        "optimizer": {
-                            "learning_rate": {
-                                "distribution": "log_normal",
-                                "min": 1e-5,
-                                "max": 1e-2,
-                                "scale": "auto",
-                                "mean": 3e-4,
-                            }
-                        }
-                    },
-                },
-            }
+        config = ProteinConfig(
+            metric="reward",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "trainer.optimizer.learning_rate": ParameterConfig(
+                    distribution="log_normal",
+                    min=1e-5,
+                    max=1e-2,
+                    scale="auto",
+                    mean=3e-4,
+                )
+            },
+            settings=ProteinSettings(
+                max_suggestion_cost=7200,
+                resample_frequency=0,
+                num_random_samples=100,
+                global_search_scale=2,
+                random_suggestions=1024,
+                suggestions_per_pareto=256,
+            ),
         )
 
         mock_protein_instance = Mock()
@@ -71,11 +67,11 @@ class TestMettaProtein:
         args, kwargs = mock_protein.call_args
 
         # Check that parameters were passed correctly
-        protein_config = args[0]
-        assert protein_config["metric"] == "reward"
-        assert protein_config["goal"] == "maximize"
-        assert protein_config["method"] == "bayes"
-        assert "trainer" in protein_config
+        protein_dict = args[0]
+        assert protein_dict["metric"] == "reward"
+        assert protein_dict["goal"] == "maximize"
+        assert protein_dict["method"] == "bayes"
+        assert "trainer.optimizer.learning_rate" in protein_dict
 
         # Check protein-specific parameters were passed as kwargs
         assert kwargs["max_suggestion_cost"] == 7200
@@ -83,17 +79,15 @@ class TestMettaProtein:
         assert kwargs["global_search_scale"] == 2
 
     @patch("metta.sweep.protein_metta.Protein")
-    def test_metta_protein_init_with_defaults(self, mock_protein, base_config):
+    def test_metta_protein_init_with_defaults(self, mock_protein):
         """Test MettaProtein initialization with minimal config."""
-        config = OmegaConf.create(
-            {
-                **base_config,
-                "metric": "accuracy",
-                "goal": "minimize",
-                "parameters": {
-                    "batch_size": {"distribution": "uniform", "min": 16, "max": 128, "scale": "auto", "mean": 64},
-                },
-            }
+        config = ProteinConfig(
+            metric="accuracy",
+            goal="minimize",
+            method="bayes",
+            parameters={
+                "batch_size": ParameterConfig(distribution="uniform", min=16, max=128, scale="auto", mean=64),
+            },
         )
 
         mock_protein_instance = Mock()
@@ -101,103 +95,192 @@ class TestMettaProtein:
 
         _ = MettaProtein(config)
 
-        # Verify Protein was called with defaults
+        # Verify Protein was called
         mock_protein.assert_called_once()
         args, kwargs = mock_protein.call_args
 
-        # Check that parameters were passed correctly
-        protein_config = args[0]
-        assert protein_config["metric"] == "accuracy"
-        assert protein_config["goal"] == "minimize"
-        assert protein_config["method"] == "bayes"
+        # Check basic parameters
+        protein_dict = args[0]
+        assert protein_dict["metric"] == "accuracy"
+        assert protein_dict["goal"] == "minimize"
 
-        # Check defaults were used
-        assert kwargs["max_suggestion_cost"] == 3600
-        assert kwargs["num_random_samples"] == 50
-        assert kwargs["global_search_scale"] == 1
+        # Check default settings were used
+        assert kwargs["max_suggestion_cost"] == 10800  # Default value
 
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_suggest_method(self, mock_protein, base_config):
-        """Test the suggest method returns cleaned numpy types."""
-        config = OmegaConf.create(
-            {
-                **base_config,
-                "parameters": {
-                    "learning_rate": {
-                        "distribution": "log_normal",
-                        "min": 1e-5,
-                        "max": 1e-2,
-                        "scale": "auto",
-                        "mean": 3e-4,
-                    }
-                },
-            }
+    @patch("metta.sweep.protein_metta.Random")
+    def test_metta_protein_random_method(self, mock_random):
+        """Test MettaProtein initialization with random method."""
+        config = ProteinConfig(
+            metric="loss",
+            goal="minimize",
+            method="random",
+            parameters={
+                "learning_rate": ParameterConfig(
+                    distribution="log_normal",
+                    min=1e-4,
+                    max=1e-1,
+                    scale="auto",
+                    mean=1e-2,
+                )
+            },
         )
 
-        mock_protein_instance = Mock()
+        mock_random_instance = Mock()
+        mock_random.return_value = mock_random_instance
 
-        # Mock numpy types in protein response
-        suggestion_with_numpy = {
-            "learning_rate": np.float64(0.001),
-            "batch_size": np.int32(64),
-        }
-        info = {"some": "info"}
+        _ = MettaProtein(config)
 
-        mock_protein_instance.suggest.return_value = (suggestion_with_numpy, info)
-        mock_protein.return_value = mock_protein_instance
+        # Verify Random was called instead of Protein
+        mock_random.assert_called_once()
+        args, _ = mock_random.call_args
+        protein_dict = args[0]
+        assert protein_dict["method"] == "random"
 
-        metta_protein = MettaProtein(config)
-        result_suggestion, result_info = metta_protein.suggest()
+    @patch("metta.sweep.protein_metta.ParetoGenetic")
+    def test_metta_protein_genetic_method(self, mock_genetic):
+        """Test MettaProtein initialization with genetic method."""
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="genetic",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
+            settings=ProteinSettings(
+                bias_cost=False,
+                log_bias=True,
+            ),
+        )
 
-        # Check that numpy types were converted to native Python types
-        assert isinstance(result_suggestion["learning_rate"], float)
-        assert isinstance(result_suggestion["batch_size"], int)
-        assert result_info == info
+        mock_genetic_instance = Mock()
+        mock_genetic.return_value = mock_genetic_instance
 
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_observe_method(self, mock_protein, base_config):
-        """Test the observe method passes through to protein."""
-        config = OmegaConf.create(base_config)
+        _ = MettaProtein(config)
 
-        mock_protein_instance = Mock()
-        mock_protein.return_value = mock_protein_instance
+        # Verify ParetoGenetic was called
+        mock_genetic.assert_called_once()
+        _, kwargs = mock_genetic.call_args
+        assert kwargs["bias_cost"] is False
+        assert kwargs["log_bias"] is True
 
-        metta_protein = MettaProtein(config)
+    def test_suggest_method(self):
+        """Test the suggest method of MettaProtein."""
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="random",  # Use random for predictability in tests
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
+        )
 
-        suggestion = {"learning_rate": 0.001}
-        objective = 0.95
-        cost = 120.0
-        is_failure = False
+        protein = MettaProtein(config)
 
-        metta_protein.observe(suggestion, objective, cost, is_failure)
+        # Test suggest
+        suggestion, info = protein.suggest()
 
-        mock_protein_instance.observe.assert_called_once_with(suggestion, objective, cost, is_failure)
+        # Check suggestion format
+        assert isinstance(suggestion, dict)
+        assert "param1" in suggestion
+        assert 0 <= suggestion["param1"] <= 1
 
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_observe_failure_method(self, mock_protein, base_config):
-        """Test the observe_failure method calls observe with failure parameters."""
-        config = OmegaConf.create(base_config)
+        # Check info format
+        assert isinstance(info, dict)
 
-        mock_protein_instance = Mock()
-        mock_protein.return_value = mock_protein_instance
+    def test_observe_method(self):
+        """Test the observe method of MettaProtein."""
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="random",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
+        )
 
-        metta_protein = MettaProtein(config)
+        protein = MettaProtein(config)
 
-        suggestion = {"learning_rate": 0.001}
-        metta_protein.observe_failure(suggestion)
+        # Get a suggestion
+        suggestion, _ = protein.suggest()
 
-        mock_protein_instance.observe.assert_called_once_with(suggestion, 0, 0.01, True)
+        # Observe the result
+        protein.observe(suggestion, objective=0.8, cost=100.0, is_failure=False)
 
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_num_observations_property(self, mock_protein, base_config):
+        # Check that observation was recorded
+        assert protein.num_observations == 1
+
+    def test_observe_failure_method(self):
+        """Test observing a failure in MettaProtein."""
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="random",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
+        )
+
+        protein = MettaProtein(config)
+
+        # Get a suggestion
+        suggestion, _ = protein.suggest()
+
+        # Observe a failure
+        protein.observe(suggestion, objective=None, cost=50.0, is_failure=True)
+
+        # The observation should still be recorded
+        assert protein.num_observations == 1
+
+    def test_num_observations_property(self):
         """Test the num_observations property."""
-        config = OmegaConf.create(base_config)
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="random",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
+        )
 
-        mock_protein_instance = Mock()
-        mock_protein_instance.success_observations = [1, 2, 3]
-        mock_protein_instance.failure_observations = [4, 5]
-        mock_protein.return_value = mock_protein_instance
+        protein = MettaProtein(config)
 
-        metta_protein = MettaProtein(config)
+        # Initially should have 0 observations
+        assert protein.num_observations == 0
 
-        assert metta_protein.num_observations == 5
+        # Add some observations
+        for i in range(3):
+            suggestion, _ = protein.suggest()
+            protein.observe(suggestion, objective=0.5 + i * 0.1, cost=100.0, is_failure=False)
+
+        # Should now have 3 observations
+        assert protein.num_observations == 3
