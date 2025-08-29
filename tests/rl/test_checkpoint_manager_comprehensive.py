@@ -300,7 +300,7 @@ class TestCheckpointManagerErrorHandling:
         for invalid_filename in invalid_filenames:
             try:
                 parse_checkpoint_filename(invalid_filename)
-                assert False, f"Should have raised ValueError for {invalid_filename}"
+                raise AssertionError(f"Should have raised ValueError for {invalid_filename}")
             except ValueError:
                 pass  # Expected
 

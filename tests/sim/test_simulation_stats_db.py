@@ -275,7 +275,7 @@ def test_from_shards_and_context(tmp_path: Path):
     assert not merged_path.exists(), "Merged DB already exists"
 
     # Create agent map with URIs (new API)
-    agent_map = {0: "file://test_policy.e1.s1000.t10.pt"}
+    agent_map = {0: "file://test_policy.e1.s1000.t10.sc0.pt"}
 
     # Now call the actual from_shards_and_context method using URI
     merged_db = SimulationStatsDB.from_shards_and_context(
@@ -284,7 +284,7 @@ def test_from_shards_and_context(tmp_path: Path):
         agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_uri="file://test_policy.e1.s1000.t10.pt",
+        policy_uri="file://test_policy.e1.s1000.t10.sc0.pt",
     )
 
     # Verify merged database was created
