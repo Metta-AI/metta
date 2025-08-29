@@ -11,23 +11,24 @@ logger = logging.getLogger(__name__)
 
 
 def key_and_version(uri: str) -> tuple[str, int]:
-    """Extract key (run name) and version (epoch) from a policy URI."""
+    """Extract key (run name) and version (epoch) from a policy URI.
+    
+    Since all checkpoints are .pt files with metadata in filenames,
+    we can simplify this to handle just the common cases.
+    """
     if uri.startswith("file://"):
         path = Path(uri[7:])
         if path.suffix == ".pt":
+            # All checkpoints are .pt files with embedded metadata
             parsed = parse_checkpoint_filename(path.name)
-            return parsed[0], parsed[1]
-        elif path.is_dir() or not path.suffix:
-            if path.name == "checkpoints":
-                return path.parent.name, 0
-            return path.name, 0
-        else:
-            return path.stem, 0
+            return parsed[0], parsed[1]  # run_name, epoch
+        # For directory URIs, extract run name from path
+        return path.stem if path.suffix else path.name, 0
     elif uri.startswith("wandb://"):
+        # Extract run name from wandb URI format
         parts = uri[8:].split("/")
-        if len(parts) >= 3:
-            run_name = parts[2].split(":")[0]
-            return run_name, 0
+        run_name = parts[2].split(":")[0] if len(parts) >= 3 else "unknown"
+        return run_name, 0
     return "unknown", 0
 
 
