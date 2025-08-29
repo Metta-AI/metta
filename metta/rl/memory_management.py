@@ -77,17 +77,7 @@ class MemoryManager:
 
         Falls back to set_memory when set_states is not present. No-op otherwise.
         """
-        with self._lock:
-            if self._has_set_states:
-                # Prefer simple no-arg API for states
-                try:
-                    self.policy.set_states(states)
-                    return
-                except TypeError:
-                    pass
-
-            if self._has_set_memory:
-                self.policy.set_memory(states)
+        self.memory.set_memory(states, env_id)
 
     def reset_states(self, env_id: Optional[int] = None) -> None:
         """Reset policy states; supports per-env when available on policy."""
