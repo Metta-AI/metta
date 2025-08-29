@@ -207,7 +207,7 @@ class CheckpointManager:
             return self._cache[path_str]
 
         agent = torch.load(agent_file, weights_only=False)
-        
+
         # Only cache if cache size > 0
         if self.cache_size > 0:
             if path_str in self._cache:

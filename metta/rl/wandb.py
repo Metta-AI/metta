@@ -17,7 +17,6 @@ from metta.mettagrid.util.file import WandbURI
 
 logger = logging.getLogger(__name__)
 
-# Use WeakKeyDictionary to associate state with each wandb.Run without mutating the object
 _ABORT_STATE: weakref.WeakKeyDictionary[WandbRun, Dict[str, float | bool]] = weakref.WeakKeyDictionary()
 
 

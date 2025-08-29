@@ -82,7 +82,6 @@ def _update_training_status_on_failure(stats_client: StatsClient | None, stats_r
             logger.warning(f"Failed to update training run status to failed: {e}", exc_info=True)
 
 
-# TODO: dehydrate to just take in an agent and curriculum
 def train(
     run_dir: str,
     run: str,
@@ -98,7 +97,7 @@ def train(
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
 
-    checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir  # Log recent checkpoints for debugging
+    checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir
     if os.path.exists(checkpoints_dir):
         files = sorted(os.listdir(checkpoints_dir))[-3:]
         if files:
@@ -287,7 +286,7 @@ def train(
             record_heartbeat()
 
             with torch_profiler:
-                # ---- ROLLOUT PHASE ----
+                # Rollout phase
                 with timer("_rollout"):
                     raw_infos = []
                     experience.reset_for_rollout()
@@ -297,7 +296,6 @@ def train(
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
                     while not experience.ready_for_training:
-                        # Get observation
                         o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                         total_steps += num_steps
 
@@ -316,17 +314,14 @@ def train(
                             ),
                         )
 
-                        # Inference
                         with torch.no_grad():
                             policy(td)
 
-                        # Store experience
                         experience.store(
                             data_td=td,
                             env_id=training_env_id,
                         )
 
-                        # Send observation
                         send_observation(vecenv, td["actions"], dtype_actions, timer)
 
                         if info:
@@ -335,13 +330,11 @@ def train(
                     agent_step += total_steps * torch_dist_cfg.world_size
                 accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
-                # ---- TRAINING PHASE ----
+                # Training phase
                 with timer("_train"):
-                    # Inline PPO training
                     losses.zero()
                     experience.reset_importance_sampling_ratios()
 
-                    # Calculate prioritized sampling parameters
                     anneal_beta = calculate_prioritized_sampling_params(
                         epoch=epoch,
                         total_timesteps=trainer_cfg.total_timesteps,
@@ -350,7 +343,6 @@ def train(
                         prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
                     )
 
-                    # Compute initial advantages
                     advantages = torch.zeros(experience.buffer["values"].shape, device=device)
                     initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
@@ -367,7 +359,6 @@ def train(
                         device,
                     )
 
-                    # Train for multiple epochs
                     minibatch_idx = 0
                     epochs_trained = 0
                     policy_spec = policy.get_agent_experience_spec()
@@ -375,7 +366,6 @@ def train(
                     for _update_epoch in range(trainer_cfg.update_epochs):
                         for _ in range(experience.num_minibatches):
                             policy.reset_memory()
-                            # Sample minibatch
                             minibatch, indices, prio_weights = experience.sample_minibatch(
                                 advantages=advantages,
                                 prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
@@ -384,7 +374,6 @@ def train(
 
                             policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
-                            # Process minibatch
                             loss = process_minibatch_update(
                                 policy=policy,
                                 experience=experience,
@@ -399,7 +388,6 @@ def train(
                                 device=device,
                             )
 
-                            # Optimizer step
                             optimizer.zero_grad()
 
                             # This also serves as a barrier for all ranks
@@ -409,7 +397,6 @@ def train(
                                 torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
                                 optimizer.step()
 
-                                # Optional weight clipping
                                 policy.clip_weights()
 
                                 if device.type == "cuda":

@@ -225,9 +225,6 @@ class Simulation:
     def generate_actions(self) -> np.ndarray:
         """Generate actions for the simulation."""
         if __debug__:
-            # Debug assertion: verify indices are correctly ordered
-            # Policy indices should be 0 to N-1
-            # NPC indices should be N to M-1
             num_policy = len(self._policy_idxs)
             num_npc = len(self._npc_idxs)
 
@@ -252,7 +249,6 @@ class Simulation:
                     f"NPC indices should be continuous sequence from {expected_npc_start}"
                 )
 
-            # Verify no overlap between policy and NPC indices
             if num_policy > 0 and num_npc > 0:
                 policy_set = set(self._policy_idxs)
                 npc_set = set(self._npc_idxs)
@@ -260,20 +256,15 @@ class Simulation:
                     f"Policy and NPC indices should not overlap. Overlap: {policy_set.intersection(npc_set)}"
                 )
 
-        # forward passes
         with torch.no_grad():
-            # Candidate-policy agents
             policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy)
 
-            # NPC agents (if any)
             npc_actions = None
             if self._npc_policy is not None and len(self._npc_idxs):
                 npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
 
-        # action stitching
         actions = policy_actions
         if self._npc_agents_per_env:
-            # Reshape policy and npc actions to (num_envs, agents_per_env, action_dim)
             policy_actions = rearrange(
                 policy_actions,
                 "(envs policy_agents) act -> envs policy_agents act",
