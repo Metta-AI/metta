@@ -67,7 +67,9 @@ class CheckpointManager:
     """Simple checkpoint manager: torch.save/load + filename-embedded metadata."""
 
     def __init__(self, run_name: str, run_dir: str = "./train_dir"):
-        self.run_name = self._validate_run_name(run_name)
+        if not run_name or not re.match(r"^[a-zA-Z0-9._-]+$", run_name):
+            raise ValueError(f"Invalid run_name: {run_name}")
+        self.run_name = run_name
         self.run_dir = Path(run_dir)
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
 
@@ -133,15 +135,19 @@ class CheckpointManager:
         )
         logger.info(f"Saved trainer state: {trainer_file}")
 
-    def get_checkpoint_uri(self, epoch: Optional[int] = None) -> Optional[str]:
+    def get_checkpoint_uri(self, epoch: Optional[int] = None) -> str:
         """Get URI for checkpoint at given epoch (or latest if None)."""
         if epoch is None:
             latest_file = self.find_best_checkpoint("epoch")
-            return f"file://{latest_file}" if latest_file else None
+            if not latest_file:
+                raise FileNotFoundError(f"No checkpoints found for {self.run_name}")
+            return f"file://{latest_file}"
         
         # Find specific epoch
         agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
-        return f"file://{agent_files[0]}" if agent_files else None
+        if not agent_files:
+            raise FileNotFoundError(f"No checkpoint found for {self.run_name} at epoch {epoch}")
+        return f"file://{agent_files[0]}"
 
     def get_latest_epoch(self) -> Optional[int]:
         """Get the latest epoch number."""
@@ -191,8 +197,3 @@ class CheckpointManager:
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} old checkpoints, kept {keep_last_n} most recent")
         return deleted_count
-
-    def _validate_run_name(self, run_name: str) -> str:
-        if not run_name or not re.match(r"^[a-zA-Z0-9._-]+$", run_name):
-            raise ValueError(f"Invalid run_name: {run_name}")
-        return run_name
