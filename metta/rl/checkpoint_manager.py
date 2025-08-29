@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI.
-    
     Since all checkpoints are .pt files with metadata in filenames,
     we can simplify this to handle just the common cases.
     """
@@ -34,7 +33,6 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
     """Parse checkpoint metadata from filename.
-    
     Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
     - e: epoch
     - s: agent_step  
@@ -110,7 +108,6 @@ class CheckpointManager:
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
         """Save agent with metadata embedded in filename.
-        
         Filename format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
         Score defaults to 0 if not provided (e.g., before evaluation).
         """
@@ -160,11 +157,6 @@ class CheckpointManager:
         checkpoints = self.select_checkpoints(strategy="latest", count=1, metric="epoch")
         return parse_checkpoint_filename(checkpoints[0].name)[1] if checkpoints else None
 
-    def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
-        """Find checkpoint with highest value for the given metric."""
-        checkpoints = self.select_checkpoints(strategy="latest", count=1, metric=metric)
-        return checkpoints[0] if checkpoints else None
-
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
         """Select checkpoints based on strategy. Simplified since all metadata is in filenames."""
         checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
@@ -179,6 +171,13 @@ class CheckpointManager:
         
         # Return all files if strategy is "all", otherwise return count
         return checkpoint_files if strategy == "all" else checkpoint_files[:count]
+    
+    def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
+        """Find single checkpoint with highest value for the given metric.
+        This is a convenience method equivalent to select_checkpoints(count=1)[0].
+        """
+        checkpoints = self.select_checkpoints(count=1, metric=metric)
+        return checkpoints[0] if checkpoints else None
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         """Clean up old checkpoints, keeping only the most recent ones."""
