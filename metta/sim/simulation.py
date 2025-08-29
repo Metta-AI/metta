@@ -13,7 +13,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -547,11 +547,6 @@ class Simulation:
         if len(self._vecenv.envs) != 1:
             raise ValueError("Attempting to get single env, but simulation has multiple envs")
         return self._vecenv.envs[0]
-
-    @property
-    def policy_record(self) -> Optional[str]:
-        """Get the policy URI used in this simulation."""
-        return self._policy_uri
 
     @property
     def name(self) -> str:

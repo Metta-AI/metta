@@ -14,6 +14,7 @@ from typing import Dict, Optional
 import pandas as pd
 
 from metta.mettagrid.util.file import local_copy
+from metta.rl.checkpoint_manager import metadata_from_uri, name_from_uri
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 # --------------------------------------------------------------------------- #
@@ -171,6 +172,11 @@ class EvalStatsDB(SimulationStatsDB):
             return math.sqrt(max(var, 0.0))
         raise ValueError(f"Unknown aggregation {agg}")
 
+    def get_average_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
+        """URI-native version to get average metric."""
+        pk, pv = self.key_and_version_from_uri(policy_uri)
+        return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
+
     def get_average_metric_by_filter(
         self,
         metric: str,
@@ -180,6 +186,11 @@ class EvalStatsDB(SimulationStatsDB):
     ) -> Optional[float]:
         pk, pv = self.key_and_version(checkpoint_path, epoch)
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
+
+    def get_std_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
+        """URI-native version to get standard deviation metric."""
+        pk, pv = self.key_and_version_from_uri(policy_uri)
+        return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
     def get_sum_metric_by_filter(
         self,
@@ -200,6 +211,23 @@ class EvalStatsDB(SimulationStatsDB):
     ) -> Optional[float]:
         pk, pv = self.key_and_version(checkpoint_path, epoch)
         return self._normalized_value(pk, pv, metric, "STD", filter_condition)
+
+    def sample_count_uri(
+        self,
+        policy_uri: Optional[str] = None,
+        sim_name: Optional[str] = None,
+        sim_env: Optional[str] = None,
+    ) -> int:
+        """URI-native version to get sample count."""
+        q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
+        if policy_uri:
+            pk, pv = self.key_and_version_from_uri(policy_uri)
+            q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
+        if sim_name:
+            q += f" AND sim_name  = '{sim_name}'"
+        if sim_env:
+            q += f" AND sim_env   = '{sim_env}'"
+        return int(self.query(q)["cnt"].iloc[0])
 
     def sample_count(
         self,
@@ -236,5 +264,11 @@ class EvalStatsDB(SimulationStatsDB):
                 scores[(row.sim_name, row.sim_env)] = val
         return scores
 
+    def key_and_version_from_uri(self, policy_uri: str) -> tuple[str, int]:
+        """Extract key and version from a policy URI."""
+        metadata = metadata_from_uri(policy_uri)
+        return name_from_uri(policy_uri), metadata.get("epoch", 0)
+
     def key_and_version(self, checkpoint_path: str, epoch: int) -> tuple[str, int]:
+        """Legacy method for backwards compatibility."""
         return checkpoint_path, epoch
