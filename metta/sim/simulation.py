@@ -268,7 +268,8 @@ class Simulation:
             td = obs_to_td(my_obs, self._device)  # One-liner conversion
             policy = self._policy_pr.policy
             states = self._mm_policy.get_states()
-            policy(td, states)
+            td, states = policy(td, states)
+            self._mm_policy.set_states(states)
             policy_actions = td["actions"]
 
             # NPC agents (if any)
@@ -278,7 +279,8 @@ class Simulation:
                 npc_policy = self._npc_pr.policy
                 try:
                     # todo: states should be None for npc policy
-                    npc_policy(td, states=None)
+                    td, states = npc_policy(td, states=None)
+                    self._mm_npc.set_states(states)
                     npc_actions = td["actions"]
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
