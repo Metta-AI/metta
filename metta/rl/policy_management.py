@@ -52,13 +52,13 @@ def discover_policy_uris(base_uri: str, strategy: str = "latest", count: int = 1
         run_name = dir_path.name
         
         # Find all checkpoint files matching the pattern
-        checkpoint_files = list(checkpoint_dir.glob(f"{run_name}.e*.s*.t*.pt"))
+        checkpoint_files = list(checkpoint_dir.glob(f"{run_name}.e*.s*.t*.sc*.pt"))
         if not checkpoint_files:
             return []
         
         # Parse and sort by the selected metric
         from metta.rl.checkpoint_manager import parse_checkpoint_filename
-        metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3}.get(metric, 1)
+        metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
         checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
         
         # Return requested number of URIs

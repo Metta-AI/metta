@@ -32,23 +32,26 @@ def key_and_version(uri: str) -> tuple[str, int]:
     return "unknown", 0
 
 
-def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
+def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
     """Parse checkpoint metadata from filename.
     
-    Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt
-    Note: We use 't' for total_time to maintain backward compatibility.
-    Score is tracked in metadata/database but not in filename.
+    Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
+    - e: epoch
+    - s: agent_step  
+    - t: total_time
+    - sc: score (evaluation score, 0 if not evaluated)
     """
     parts = filename.split(".")
-    if len(parts) != 5 or parts[-1] != "pt":
+    if len(parts) != 6 or parts[-1] != "pt":
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
 
     run_name = parts[0]
-    epoch = int(parts[1][1:])
-    agent_step = int(parts[2][1:])
-    total_time = int(parts[3][1:])  # 't' field represents total_time
+    epoch = int(parts[1][1:])  # Remove 'e' prefix
+    agent_step = int(parts[2][1:])  # Remove 's' prefix
+    total_time = int(parts[3][1:])  # Remove 't' prefix
+    score = float(parts[4][2:])  # Remove 'sc' prefix
 
-    return run_name, epoch, agent_step, total_time
+    return run_name, epoch, agent_step, total_time, score
 
 
 def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> Optional[str]:
@@ -58,7 +61,7 @@ def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> Optional[str]:
         return None
 
     # Find all checkpoint files (any run name)
-    checkpoints = list(checkpoint_path.glob("*.e*.s*.t*.pt"))
+    checkpoints = list(checkpoint_path.glob("*.e*.s*.t*.sc*.pt"))
     if not checkpoints:
         return None
 
@@ -76,12 +79,12 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
 
     def exists(self) -> bool:
-        return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
+        return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
 
     def load_agent(self, epoch: Optional[int] = None):
         """Load agent from checkpoint by epoch (or latest if None)."""
         if epoch is None:
-            agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
+            agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
             if not agent_files:
                 return None
             agent_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
@@ -112,16 +115,16 @@ class CheckpointManager:
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
         """Save agent with metadata embedded in filename.
         
-        Filename format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.pt
-        Additional metadata like 'score' can be passed but is not included in filename.
+        Filename format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
+        Score defaults to 0 if not provided (e.g., before evaluation).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         agent_step = metadata.get("agent_step", 0)
         total_time = metadata.get("total_time", 0)
-        # Note: score can be in metadata for database storage but not in filename
+        score = metadata.get("score", 0.0)  # Default to 0 if no evaluation done yet
 
-        filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(total_time)}.pt"
+        filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(total_time)}.sc{score:.4f}.pt"
         torch.save(agent, self.checkpoint_dir / filename)
         logger.info(f"Saved agent: {filename}")
 
@@ -162,12 +165,12 @@ class CheckpointManager:
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
         """Select checkpoints based on strategy. Simplified since all metadata is in filenames."""
-        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
+        checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
         if not checkpoint_files:
             return []
 
-        # Simple metric index mapping
-        metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3}.get(metric, 1)
+        # Simple metric index mapping (parse returns: run_name, epoch, agent_step, total_time, score)
+        metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
         
         # Sort by the selected metric (descending)
         checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
@@ -180,7 +183,7 @@ class CheckpointManager:
         if not self.checkpoint_dir.exists():
             return 0
 
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
+        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
         if len(agent_files) <= keep_last_n:
             return 0
 
