@@ -143,18 +143,6 @@ class SystemMonitor:
 
             self.logger.info(f"GPU monitoring enabled via CUDA ({gpu_count} devices)")
 
-        # Try PyTorch MPS (Apple Silicon)
-        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            self._has_gpu = True
-            self._gpu_backend = "mps"
-            self._metric_collectors.update(
-                {
-                    "gpu_count": lambda: 1,  # MPS presents as single device
-                    "gpu_available": lambda: torch.backends.mps.is_available(),
-                }
-            )
-            self.logger.info("GPU monitoring enabled via MPS (Apple Silicon)")
-
         # Initialize history storage for all metrics
         for name in self._metric_collectors:
             self._metrics[name] = deque(maxlen=self.history_size)
