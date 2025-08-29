@@ -479,8 +479,10 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
         print(f"Checking GPU topology...")
         topo_code, topo_stdout, topo_stderr = run_command(["nvidia-smi", "topo", "-m"])
         if topo_code == 0:
+            print(f"Parsing GPU topology...")
             diagnostics["gpu_topology"] = parse_gpu_topology(topo_stdout)
         else:
+            print(f"GPU topology is not available!")
             diagnostics["errors"].append(f"Failed to get GPU topology: {topo_stderr}")
 
     # Get CUDA version from nvcc
@@ -718,11 +720,8 @@ def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
 
     # nvidia-smi output (if available)
     if diagnostics["nvidia_smi"]:
-        output.write("\n  NVIDIA-SMI Output:\n")
-        output.write("  " + "-" * 70 + "\n")
         for line in diagnostics["nvidia_smi"].strip().split("\n"):
             output.write(f"  {line}\n")
-        output.write("  " + "-" * 70 + "\n")
 
     # Add topology section if available
     if diagnostics.get("gpu_topology") and diagnostics["gpu_topology"].get("matrix"):
@@ -772,24 +771,6 @@ def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
 def print_diagnostics(diagnostics: dict[str, Any]) -> None:
     """Pretty print GPU diagnostics information - kept for backward compatibility."""
     print(format_gpu_diagnostics(diagnostics))
-
-
-def setup_nccl_debug_env(master_addr: str | None = None) -> None:
-    """Set minimal NCCL settings for test runs."""
-    if not master_addr:
-        master_addr = os.environ.get("MASTER_ADDR")
-
-    os.environ["NCCL_DEBUG"] = "VERSION"
-    os.environ["NCCL_DEBUG_SUBSYS"] = "INIT,IPC"
-    os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
-
-    # Log current NCCL settings
-    print("Setting NCCL Environment for testing:")
-    for key, value in sorted(os.environ.items()):
-        if key.startswith("NCCL_"):
-            print(f"  {key} = {value}")
-
-    print(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
 
 
 def test_nccl_communication() -> bool:
@@ -1042,24 +1023,13 @@ def main():
         print(f"  GPU Count              : {gpu_diagnostics['gpu_count']}")
 
         if gpu_diagnostics["nvidia_smi"]:
-            print("\n  NVIDIA-SMI Output:")
-            print("  " + "-" * 70)
             for line in gpu_diagnostics["nvidia_smi"].strip().split("\n"):
                 print(f"  {line}")
-            print("  " + "-" * 70)
-
-    # NCCL environment - print from each rank as it can differ
-    print_box_header("NCCL ENVIRONMENT", include_rank=True)
-    nccl_env = system_diagnostics["nccl_env"]
-    nccl_vars = sorted([(k, v) for k, v in nccl_env.items() if k.startswith("NCCL_")])
-    for k, v in nccl_vars:
-        print(f"  {k:<25} : {v}")
 
     # Setup debug environment
-    setup_nccl_debug_env()
-
-    # Run tests - each rank runs but only master logs key info
-    print_box_header("RUNNING TESTS", include_rank=True)
+    os.environ["NCCL_DEBUG"] = "VERSION"
+    os.environ["NCCL_DEBUG_SUBSYS"] = "INIT,IPC"
+    os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
 
     all_passed = True
     test_results = []
@@ -1067,7 +1037,7 @@ def main():
     # Single GPU test
     if torch.cuda.is_available():
         if IS_GPU0:
-            print(f"\n  🔧 Running single GPU tests...")
+            print(f"[Node {node_index}] 🔧 Running single GPU tests...")
         if test_single_gpu():
             test_results.append((f"Single GPU Test [Rank {rank}]", "✔ PASSED"))
         else:
@@ -1080,7 +1050,7 @@ def main():
     # NCCL communication test
     if all_passed and world_size > 1:
         if IS_GPU0:
-            print(f"\n  🔧 Running NCCL communication tests...")
+            print(f"[Node {node_index}] 🔧 Running NCCL communication tests...")
 
         if test_nccl_communication():
             test_results.append((f"NCCL Communication Test [Rank {rank}]", "✔ PASSED"))
@@ -1094,7 +1064,7 @@ def main():
     benchmark_results = None
     if all_passed and world_size > 1:
         if IS_GPU0:
-            print(f"\n  🔊 Running benchmarks...")
+            print(f"[Node {node_index}] 🔊 Running benchmarks...")
 
         bench_result = collect_nccl_benchmarks()
 

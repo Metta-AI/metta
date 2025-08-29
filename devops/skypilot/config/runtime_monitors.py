@@ -76,17 +76,12 @@ class HeartbeatMonitor(JobMonitor):
 
         self.heartbeat_file = Path(heartbeat_file_path)
 
-        # Only master node manages the heartbeat file
-        if self.is_master:
-            try:
-                self.heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
-                self.heartbeat_file.touch()  # Updates mtime on restart
-                log_all(f"Updated heartbeat file at {self.heartbeat_file}")
-            except Exception as e:
-                log_error(f"Failed to update heartbeat file: {e}")
-        else:
-            time.sleep(5) # give the master node time to update the file
-
+        try:
+            self.heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+            self.heartbeat_file.touch()  # Updates mtime on restart
+            log_all(f"Updated heartbeat file at {self.heartbeat_file}")
+        except Exception as e:
+            log_error(f"Failed to update heartbeat file: {e}")
 
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if heartbeat has timed out."""
