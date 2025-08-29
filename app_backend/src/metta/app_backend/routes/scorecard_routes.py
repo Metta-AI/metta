@@ -96,7 +96,7 @@ class ScorecardCell(BaseModel):
 
     evalName: str
     replayUrl: Optional[str]
-    thumbnailUrl: Optional[str] = Field(default=None, alias="chartUrl")
+    thumbnailUrl: Optional[str] = Field(default=None)
     value: float
 
 
