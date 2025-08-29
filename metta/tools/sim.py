@@ -132,7 +132,9 @@ class SimTool(Tool):
                         "name": key,
                         "uri": checkpoint_uri,
                         "epoch": version,
-                        "checkpoint_path": checkpoint_uri[7:] if checkpoint_uri.startswith("file://") else checkpoint_uri,
+                        "checkpoint_path": checkpoint_uri[7:]
+                        if checkpoint_uri.startswith("file://")
+                        else checkpoint_uri,
                         "metrics": evaluation_metrics,
                         "replay_url": [],
                     }

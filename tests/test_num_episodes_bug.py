@@ -104,10 +104,7 @@ def test_normalization_bug():
 
         print(f"  Checkpoint file: {checkpoint_filename}")
         print(f"  Extracted metadata: (path={checkpoint_path}, epoch={epoch}, step={agent_step}, time={total_time})")
-        print(
-            f"  Policy: {checkpoint_path}, Epoch: {epoch}, "
-            f"Steps: {agent_step}, Training time: {total_time}s"
-        )
+        print(f"  Policy: {checkpoint_path}, Epoch: {epoch}, Steps: {agent_step}, Training time: {total_time}s")
 
         # Check what's in the database
         episodes_count = db1.query("SELECT COUNT(*) as cnt FROM episodes")["cnt"][0]
