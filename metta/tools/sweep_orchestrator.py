@@ -38,7 +38,9 @@ class SweepOrchestratorTool(Tool):
             "trainer.optimizer.learning_rate": ParameterConfig(
                 min=1e-5,
                 max=1e-3,
-                distribution="log_normal"
+                distribution="log_normal",
+                mean=1e-4,  # Geometric mean
+                scale="auto"
             )
         }
     )
