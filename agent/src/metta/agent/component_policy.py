@@ -137,7 +137,7 @@ class ComponentPolicy(nn.Module, ABC):
             bptt_size = td["bptt"][0].item()
             output_td = output_td.reshape(batch_size, bptt_size)
 
-        return output_td
+        return output_td, None
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Sample actions for inference."""
