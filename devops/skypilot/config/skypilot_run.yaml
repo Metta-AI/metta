@@ -34,6 +34,7 @@ config:
       - --ulimit memlock=-1:-1
       - --ipc=host
       - --userns=host
+      - -v /var/run/docker.sock:/var/run/docker.sock
 
 file_mounts:
   /mnt/s3/softmax-public:
@@ -44,7 +45,11 @@ file_mounts:
     mode: MOUNT_CACHED
 
 # `set -u`: Exit on undefined variables to catch missing env vars early
-setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
+setup: |
+  set -u
+  apt-get update
+  apt-get install -y docker.io
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
 
 # `set -e`: Ensure SkyPilot propagates exit codes from skypilot_run.sh (otherwise restart test fails)
 run: set -e && /workspace/metta/devops/skypilot/config/skypilot_run.sh

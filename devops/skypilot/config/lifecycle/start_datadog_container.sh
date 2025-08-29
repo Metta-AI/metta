@@ -4,6 +4,13 @@
 
 echo "[DATADOG] Starting Datadog Agent container..."
 
+# Check if docker command is available
+if ! command -v docker &> /dev/null; then
+    echo "[DATADOG] Docker CLI not found in container - cannot start Datadog container"
+    echo "[DATADOG] Consider adding docker-cli to the application container image"
+    exit 0
+fi
+
 # Get DD_API_KEY from environment or AWS Secrets Manager
 if [ -z "${DD_API_KEY:-}" ]; then
     if command -v aws &> /dev/null; then
