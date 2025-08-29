@@ -14,13 +14,10 @@ def key_and_version(uri: str) -> tuple[str, int]:
     if uri.startswith("file://"):
         path = Path(uri[7:])
         if path.suffix == ".pt":
-            # All checkpoints are .pt files with embedded metadata
             parsed = parse_checkpoint_filename(path.name)
             return parsed[0], parsed[1]  # run_name, epoch
-        # For directory URIs, extract run name from path
         return path.stem if path.suffix else path.name, 0
     elif uri.startswith("wandb://"):
-        # Extract run name from wandb URI format
         parts = uri[8:].split("/")
         run_name = parts[2].split(":")[0] if len(parts) >= 3 else "unknown"
         return run_name, 0
@@ -39,17 +36,14 @@ def get_checkpoint_uri_from_dir(checkpoint_dir: str, epoch: int | None = None) -
     if not dir_path.exists():
         return None
 
-    # Find all checkpoint files
     checkpoint_files = list(dir_path.glob("*.pt"))
     if not checkpoint_files:
         return None
 
     if epoch is None:
-        # Get latest by epoch number
         latest = max(checkpoint_files, key=lambda p: parse_checkpoint_filename(p.name)[1] if p.suffix == ".pt" else -1)
         return f"file://{latest.absolute()}"
     else:
-        # Find specific epoch
         for ckpt in checkpoint_files:
             try:
                 _, ckpt_epoch, _, _, _ = parse_checkpoint_filename(ckpt.name)
@@ -70,8 +64,8 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]
     epoch = int(parts[1][1:])  # Remove 'e' prefix
     agent_step = int(parts[2][1:])  # Remove 's' prefix
     total_time = int(parts[3][1:])  # Remove 't' prefix
-    score_int = int(parts[4][2:])  # Remove 'sc' prefix (stored as int * 10000)
-    score = score_int / 10000.0  # Convert back to float
+    score_int = int(parts[4][2:])  # Remove 'sc' prefix
+    score = score_int / 10000.0
 
     return run_name, epoch, agent_step, total_time, score
 
@@ -86,7 +80,6 @@ class CheckpointManager:
         self.run_dir = Path(run_dir)
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
 
-        # Simple LRU cache using OrderedDict
         self.cache_size = max(0, cache_size)  # 0 means no caching
         self._cache = OrderedDict()  # path -> agent object
 
@@ -99,7 +92,7 @@ class CheckpointManager:
             return None
         path_str = str(path)
         if path_str in self._cache:
-            self._cache.move_to_end(path_str)  # Move to end (most recently used)
+            self._cache.move_to_end(path_str)
             return self._cache[path_str]
         return None
 
@@ -109,9 +102,9 @@ class CheckpointManager:
             return
         path_str = str(path)
         if path_str in self._cache:
-            del self._cache[path_str]  # Remove if already exists (to update position)
+            del self._cache[path_str]
         if len(self._cache) >= self.cache_size:
-            self._cache.popitem(last=False)  # Remove oldest (first item)
+            self._cache.popitem(last=False)  # Remove oldest
         self._cache[path_str] = agent
 
     def clear_cache(self):
@@ -133,7 +126,6 @@ class CheckpointManager:
                 return None
             agent_file = agent_files[0]
 
-        # Check cache first
         cached_agent = self._get_from_cache(agent_file)
         if cached_agent is not None:
             return cached_agent
@@ -161,14 +153,13 @@ class CheckpointManager:
 
         agent_step = metadata.get("agent_step", 0)
         total_time = metadata.get("total_time", 0)
-        score = metadata.get("score", 0.0)  # Default to 0 if no evaluation done yet
+        score = metadata.get("score", 0.0)
 
-        score_int = int(score * 10000)  # Format score as integer (preserve 4 decimal places)
+        score_int = int(score * 10000)  # Preserve 4 decimal places
         filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(total_time)}.sc{score_int}.pt"
         checkpoint_path = self.checkpoint_dir / filename
         torch.save(agent, checkpoint_path)
 
-        # Invalidate cache entry if it exists
         if str(checkpoint_path) in self._cache:
             del self._cache[str(checkpoint_path)]
 
@@ -193,7 +184,6 @@ class CheckpointManager:
                 raise FileNotFoundError(f"No checkpoints found for {self.run_name}")
             return f"file://{latest_file}"
 
-        # Find specific epoch
         agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.sc*.pt"))
         if not agent_files:
             raise FileNotFoundError(f"No checkpoint found for {self.run_name} at epoch {epoch}")
