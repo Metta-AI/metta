@@ -38,6 +38,11 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
+        states = state.get("states", None) if state is not None else None
+        env_id = state.get("env_id", 0) if state is not None else None
+
+        # logger.info(f"LSTM state: {states.get('lstm_h', None) if states is not None else None}")
+
         observations = td["env_obs"]
 
         if state is None:
@@ -61,12 +66,23 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
         hidden = self.policy.encode_observations(observations, state)
 
         # Use base class method for LSTM state management
-        lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
+
+        if states is None:
+            lstm_h = torch.zeros(self.num_layers, B, self.hidden_size, device=observations.device)
+            lstm_c = torch.zeros(self.num_layers, B, self.hidden_size, device=observations.device)
+
+        else:
+            lstm_h = states.get("lstm_h").to(observations.device)
+            lstm_c = states.get("lstm_c").to(observations.device)
+
+        # lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
         lstm_state = (lstm_h, lstm_c)
 
         # Forward LSTM
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
+
+        logger.info(f"LSTM state: {new_lstm_h.shape}")
 
         # Use base class method to store state with automatic detachment
         # self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)

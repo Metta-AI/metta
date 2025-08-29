@@ -269,7 +269,9 @@ class Simulation:
             policy = self._policy_pr.policy
             states = self._mm_policy.get_states()
             td, states = policy(td, states)
-            self._mm_policy.set_states(states)
+            env_id = td["training_env_id_start"]
+            logger.info(f"env_id: {env_id}")
+            self._mm_policy.set_states(states, env_id)
             policy_actions = td["actions"]
 
             # NPC agents (if any)

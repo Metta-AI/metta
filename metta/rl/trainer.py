@@ -338,6 +338,7 @@ def train(
                         # Inference with optional memory flow
                         with torch.no_grad():
                             env_id_start = td["training_env_id_start"][0].item()
+                            logger.info(f"env_id_start: {env_id_start}")
                             prev_state = None
                             try:
                                 prev_state = mm_policy.get_states(env_id_start)
