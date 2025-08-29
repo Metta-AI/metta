@@ -118,13 +118,7 @@ class MettaAgent(nn.Module):
 
         return self.policy(td, state, action)
 
-    def reset_memory(self) -> None:
-        """Reset memory - delegates to policy."""
-        self.policy.reset_memory()
-
-    def get_memory(self) -> dict:
-        """Get memory state - delegates to policy if it supports memory."""
-        return getattr(self.policy, "get_memory", lambda: {})()
+    # Removed agent-level memory helpers; memory/state is coordinated externally
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
