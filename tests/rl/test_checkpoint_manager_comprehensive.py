@@ -65,13 +65,12 @@ class TestCheckpointManagerBasicOperations:
         # The checkpoint should be the agent directly
         assert callable(checkpoint)  # Should be callable (policy-like)
 
-        # Verify metadata is properly embedded in filename
-        saved_metadata = checkpoint_manager.load_metadata(epoch=5)
-
-        assert saved_metadata["run"] == "test_run"
-        assert saved_metadata["agent_step"] == 5280
-        assert saved_metadata["epoch"] == 5
-        assert saved_metadata["total_time"] == 120
+        # Verify metadata is properly embedded in filename by parsing it
+        parsed = parse_checkpoint_filename(expected_filename)
+        assert parsed[0] == "test_run"  # run name
+        assert parsed[1] == 5  # epoch
+        assert parsed[2] == 5280  # agent_step
+        assert parsed[3] == 120  # total_time
 
         print("✅ Checkpoint format verified - using filename-embedded metadata!")
 
@@ -173,12 +172,12 @@ class TestCheckpointManagerAdvancedFeatures:
 
         # Test that we can parse metadata from all checkpoint filenames
         for checkpoint_file in checkpoint_files:
-            metadata = parse_checkpoint_filename(checkpoint_file.name)
-            assert metadata is not None
-            assert metadata["run"] == "test_run"
-            assert "epoch" in metadata
-            assert "agent_step" in metadata
-            assert "total_time" in metadata
+            parsed = parse_checkpoint_filename(checkpoint_file.name)
+            assert parsed is not None
+            assert parsed[0] == "test_run"  # run name
+            assert isinstance(parsed[1], int)  # epoch
+            assert isinstance(parsed[2], int)  # agent_step
+            assert isinstance(parsed[3], int)  # total_time
 
         print("✅ Checkpoint search and filtering capabilities verified")
 
@@ -228,10 +227,9 @@ class TestCheckpointManagerAdvancedFeatures:
         loaded_agent = checkpoint_manager.load_agent()  # Latest
         assert loaded_agent is not None
 
-        # Verify the latest is indeed epoch 2
-        latest_metadata = checkpoint_manager.load_metadata()
-        assert latest_metadata["epoch"] == 2
-        assert latest_metadata["agent_step"] == 2000
+        # Verify the latest is indeed epoch 2 by checking the latest epoch
+        latest_epoch = checkpoint_manager.get_latest_epoch()
+        assert latest_epoch == 2
 
         # Verify trainer state save/load doesn't interfere
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
@@ -255,8 +253,9 @@ class TestCheckpointManagerAdvancedFeatures:
         for epoch, metadata in epochs_data:
             checkpoint_manager.save_agent(mock_agent, epoch=epoch, metadata=metadata)
 
-        # Test list_epochs returns sorted list
-        epochs = checkpoint_manager.list_epochs()
+        # Test that we can list epochs by finding all checkpoints and extracting epochs
+        checkpoint_files = list((Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints").glob("test_run.e*.s*.t*.pt"))
+        epochs = sorted([parse_checkpoint_filename(f.name)[1] for f in checkpoint_files])
         assert epochs == [1, 3, 5, 10]
 
         # Test get_latest_epoch
@@ -277,16 +276,15 @@ class TestCheckpointManagerErrorHandling:
 
         # Test valid filename
         valid_filename = "test_run.e5.s1000.t300.pt"
-        metadata = parse_checkpoint_filename(valid_filename)
+        parsed = parse_checkpoint_filename(valid_filename)
 
-        assert metadata is not None
-        assert metadata["run"] == "test_run"
-        assert metadata["epoch"] == 5
-        assert metadata["agent_step"] == 1000
-        assert metadata["total_time"] == 300
-        assert metadata["checkpoint_file"] == valid_filename
+        assert parsed is not None
+        assert parsed[0] == "test_run"  # run name
+        assert parsed[1] == 5  # epoch
+        assert parsed[2] == 1000  # agent_step
+        assert parsed[3] == 300  # total_time
 
-        # Test invalid filename formats
+        # Test invalid filename formats should raise ValueError
         invalid_filenames = [
             "invalid.pt",
             "test_run_e5_s1000_t300.pt",  # Wrong separator
@@ -296,8 +294,11 @@ class TestCheckpointManagerErrorHandling:
         ]
 
         for invalid_filename in invalid_filenames:
-            metadata = parse_checkpoint_filename(invalid_filename)
-            assert metadata is None
+            try:
+                parse_checkpoint_filename(invalid_filename)
+                assert False, f"Should have raised ValueError for {invalid_filename}"
+            except ValueError:
+                pass  # Expected
 
         print("✅ parse_checkpoint_filename utility function verified")
 
@@ -314,13 +315,9 @@ class TestCheckpointManagerErrorHandling:
         best_path = checkpoint_manager.find_best_checkpoint("epoch")
         assert best_path is None
 
-        # Test metadata loading from empty directory
-        metadata = checkpoint_manager.load_metadata()
-        assert metadata is None
-
-        # Test list_epochs from empty directory
-        epochs = checkpoint_manager.list_epochs()
-        assert epochs == []
+        # Test get_latest_epoch from empty directory
+        latest_epoch = checkpoint_manager.get_latest_epoch()
+        assert latest_epoch is None
 
         # Test exists on empty directory
         assert not checkpoint_manager.exists()
