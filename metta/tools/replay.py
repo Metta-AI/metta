@@ -30,7 +30,6 @@ class ReplayTool(Tool):
         # Create simulation using CheckpointManager integration
         sim = Simulation.create(
             sim_config=self.sim,
-            policy_store=None,
             device=self.system.device,
             vectorization=self.system.vectorization,
             stats_dir=self.stats_dir,

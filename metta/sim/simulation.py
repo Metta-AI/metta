@@ -165,7 +165,6 @@ class Simulation:
     def create(
         cls,
         sim_config: SimulationConfig,
-        policy_store: None,
         device: str,
         vectorization: str,
         stats_dir: str = "./train_dir/stats",
