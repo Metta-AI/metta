@@ -280,8 +280,12 @@ class Simulation:
                 td = obs_to_td(npc_obs, self._device)  # One-liner conversion
                 npc_policy = self._npc_pr.policy
                 try:
-                    # todo: states should be None for npc policy
-                    td, states = npc_policy(td, states=None)
+
+                    # Get NPC-specific states from the NPC memory manager
+                    npc_states = self._mm_npc.get_states()
+                    td, npc_states = npc_policy(td, states=npc_states)
+                    self._mm_npc.set_states(npc_states)
+
                     self._mm_npc.set_states(states)
                     npc_actions = td["actions"]
                 except Exception as e:
