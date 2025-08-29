@@ -2,12 +2,14 @@ import logging
 import os
 import time
 from collections import deque
-from contextlib import contextmanager
 from threading import Lock, Thread
-from typing import Any, Callable, Tuple
+from typing import Any, Callable
 
 import psutil
 import torch
+from typing_extensions import TypeVar
+
+T = TypeVar("T")
 
 
 class SystemMonitor:
@@ -62,24 +64,29 @@ class SystemMonitor:
         if auto_start:
             self.start()
 
+    def get_latest(self, metric: str | None = None) -> Any:
+        with self._lock:
+            if metric:
+                return self._latest.get(metric)
+            return self._latest.copy()
+
     def _initialize_default_metrics(self):
-        """Set up all system metrics with cross-platform compatibility."""
         # Always available metrics
         self._metric_collectors = {
             # CPU metrics
-            "cpu_percent": lambda: self._safe_get_cpu_percent(),
-            "cpu_count": lambda: self._safe_get_cpu_count(),
-            "cpu_count_logical": lambda: self._safe_get_cpu_count_logical(),
-            "cpu_count_physical": lambda: self._safe_get_cpu_count_physical(),
+            "cpu_percent": lambda: psutil.cpu_percent(interval=0),
+            "cpu_count": lambda: psutil.cpu_count(),
+            "cpu_count_logical": lambda: psutil.cpu_count(logical=True),
+            "cpu_count_physical": lambda: psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True),
             # Memory metrics
-            "memory_percent": lambda: self._safe_get_memory_percent(),
-            "memory_available_mb": lambda: self._safe_get_memory_available_mb(),
-            "memory_used_mb": lambda: self._safe_get_memory_used_mb(),
-            "memory_total_mb": lambda: self._safe_get_memory_total_mb(),
+            "memory_percent": lambda: psutil.virtual_memory().percent,
+            "memory_available_mb": lambda: psutil.virtual_memory().available / (1024 * 1024),
+            "memory_used_mb": lambda: psutil.virtual_memory().used / (1024 * 1024),
+            "memory_total_mb": lambda: psutil.virtual_memory().total / (1024 * 1024),
             # Process-specific metrics
-            "process_memory_mb": self._get_process_memory_mb,
-            "process_cpu_percent": lambda: self._safe_get_process_cpu_percent(),
-            "process_threads": self._get_process_threads,
+            "process_memory_mb": lambda: psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024),
+            "process_cpu_percent": lambda: self._process.cpu_percent(),
+            "process_threads": lambda: psutil.Process().num_threads(),
         }
 
         # Platform-specific metrics
@@ -94,11 +101,6 @@ class SystemMonitor:
             except (AttributeError, OSError, NotImplementedError):
                 # Some platforms have the method but it doesn't work
                 self.logger.debug("Temperature sensors not functional on this platform")
-
-        # Docker/container detection
-        self._is_container = self._detect_container()
-        if self._is_container:
-            self.logger.info("Running in container environment")
 
         # Check for cost env var
         hourly_cost_str = os.environ.get("METTA_HOURLY_COST")
@@ -135,7 +137,7 @@ class SystemMonitor:
             for i in range(gpu_count):
                 self._metric_collectors.update(
                     {
-                        f"gpu{i}_utilization": lambda idx=i: self._get_single_gpu_utilization(idx),
+                        f"gpu{i}_utilization": lambda idx=i: torch.cuda.utilization(idx),
                         f"gpu{i}_memory_percent": lambda idx=i: self._get_single_gpu_memory_percent(idx),
                         f"gpu{i}_memory_used_mb": lambda idx=i: self._get_single_gpu_memory_used_mb(idx),
                     }
@@ -143,121 +145,11 @@ class SystemMonitor:
 
             self.logger.info(f"GPU monitoring enabled via CUDA ({gpu_count} devices)")
 
-        # Try PyTorch MPS (Apple Silicon)
-        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            self._has_gpu = True
-            self._gpu_backend = "mps"
-            self._metric_collectors.update(
-                {
-                    "gpu_count": lambda: 1,  # MPS presents as single device
-                    "gpu_available": lambda: torch.backends.mps.is_available(),
-                }
-            )
-            self.logger.info("GPU monitoring enabled via MPS (Apple Silicon)")
-
         # Initialize history storage for all metrics
         for name in self._metric_collectors:
             self._metrics[name] = deque(maxlen=self.history_size)
 
-    def _detect_container(self) -> bool:
-        """Detect if running in a container (Docker, Kubernetes, etc)."""
-        # Check for /.dockerenv file
-        if os.path.exists("/.dockerenv"):
-            return True
-
-        # Check cgroup for docker/kubernetes
-        # Note: /proc/1/cgroup only exists on Linux systems
-        try:
-            # We have a blanket catch below, so this isn't strictly necessary; but it makes things
-            # less disruptive if you're debugging and running with "break on all raised exceptions".
-            if os.path.exists("/proc/1/cgroup"):
-                with open("/proc/1/cgroup", "r") as f:
-                    if any("docker" in line or "kubepods" in line for line in f):
-                        return True
-        except Exception:
-            # Catch all exceptions to ensure this doesn't crash on any platform
-            # This includes PermissionError (no permission) and any other OS-specific errors
-            pass
-
-        # Check for container environment variables
-        return any(var in os.environ for var in ["KUBERNETES_SERVICE_HOST", "DOCKER_CONTAINER", "container"])
-
-    # Safe wrapper methods for CPU metrics
-    def _safe_get_cpu_percent(self) -> float | None:
-        """Get CPU percent safely."""
-        try:
-            return psutil.cpu_percent(interval=0)
-        except Exception as e:
-            self.logger.debug(f"Failed to get CPU percent: {e}")
-            return None
-
-    def _safe_get_cpu_count(self) -> int | None:
-        """Get CPU count safely."""
-        try:
-            return psutil.cpu_count()
-        except Exception as e:
-            self.logger.debug(f"Failed to get CPU count: {e}")
-            return None
-
-    def _safe_get_cpu_count_logical(self) -> int | None:
-        """Get logical CPU count safely."""
-        try:
-            return psutil.cpu_count(logical=True)
-        except Exception as e:
-            self.logger.debug(f"Failed to get logical CPU count: {e}")
-            return None
-
-    def _safe_get_cpu_count_physical(self) -> int | None:
-        """Get physical CPU count safely."""
-        try:
-            return psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
-        except Exception as e:
-            self.logger.debug(f"Failed to get physical CPU count: {e}")
-            return None
-
-    # Safe wrapper methods for memory metrics
-    def _safe_get_memory_percent(self) -> float | None:
-        """Get memory percent safely."""
-        try:
-            return psutil.virtual_memory().percent
-        except Exception as e:
-            self.logger.debug(f"Failed to get memory percent: {e}")
-            return None
-
-    def _safe_get_memory_available_mb(self) -> float | None:
-        """Get available memory in MB safely."""
-        try:
-            return psutil.virtual_memory().available / (1024 * 1024)
-        except Exception as e:
-            self.logger.debug(f"Failed to get available memory: {e}")
-            return None
-
-    def _safe_get_memory_used_mb(self) -> float | None:
-        """Get used memory in MB safely."""
-        try:
-            return psutil.virtual_memory().used / (1024 * 1024)
-        except Exception as e:
-            self.logger.debug(f"Failed to get used memory: {e}")
-            return None
-
-    def _safe_get_memory_total_mb(self) -> float | None:
-        """Get total memory in MB safely."""
-        try:
-            return psutil.virtual_memory().total / (1024 * 1024)
-        except Exception as e:
-            self.logger.debug(f"Failed to get total memory: {e}")
-            return None
-
-    def _safe_get_process_cpu_percent(self) -> float | None:
-        """Get process CPU percent safely."""
-        try:
-            return self._process.cpu_percent()
-        except Exception as e:
-            self.logger.debug(f"Failed to get process CPU percent: {e}")
-            return None
-
     def _get_cpu_temperature(self) -> float | None:
-        """Get CPU temperature if available (cross-platform)."""
         try:
             sensors_temperatures = getattr(psutil, "sensors_temperatures", None)
             if sensors_temperatures is None:
@@ -296,26 +188,7 @@ class SystemMonitor:
 
         return None
 
-    def _get_process_memory_mb(self) -> float | None:
-        """Get current process memory usage in MB."""
-        try:
-            process = psutil.Process(os.getpid())
-            return process.memory_info().rss / (1024 * 1024)
-        except Exception as e:
-            self.logger.debug(f"Failed to get process memory: {e}")
-            return None
-
-    def _get_process_threads(self) -> int | None:
-        """Get current process thread count."""
-        try:
-            process = psutil.Process()
-            return process.num_threads()
-        except Exception as e:
-            self.logger.debug(f"Failed to get process threads: {e}")
-            return None
-
     def _get_gpu_utilization_cuda(self) -> float | None:
-        """Get average GPU utilization across all CUDA GPUs."""
         try:
             utils = []
             for i in range(torch.cuda.device_count()):
@@ -350,11 +223,6 @@ class SystemMonitor:
                     free, total = torch.cuda.mem_get_info(i)
                     if total > 0:  # Defensive check
                         percents.append((total - free) / total * 100)
-                except (RuntimeError, torch.cuda.CudaError) as e:
-                    # RuntimeError: Device not available or CUDA error
-                    # CudaError: Specific CUDA memory query errors
-                    self.logger.debug(f"Failed to get memory info for GPU {i}: {type(e).__name__}: {e}")
-                    continue
                 except ZeroDivisionError:
                     # In case total memory is reported as 0 (shouldn't happen but defensive programming)
                     self.logger.warning(f"GPU {i} reports 0 total memory")
@@ -363,9 +231,6 @@ class SystemMonitor:
                     self.logger.warning(f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}")
                     continue
             return sum(percents) / len(percents) if percents else None
-        except (RuntimeError, AttributeError) as e:
-            self.logger.debug(f"Failed to get GPU memory percent: {type(e).__name__}: {e}")
-            return None
         except Exception as e:
             self.logger.warning(f"Unexpected error in GPU memory percent: {type(e).__name__}: {e}")
             return None
@@ -380,52 +245,25 @@ class SystemMonitor:
                     free, total = torch.cuda.mem_get_info(i)
                     total_used += (total - free) / (1024 * 1024)
                     count += 1
-                except (RuntimeError, torch.cuda.CudaError) as e:
-                    # RuntimeError: Device not available or CUDA error
-                    # CudaError: Specific CUDA memory query errors
-                    self.logger.debug(f"Failed to get memory info for GPU {i}: {type(e).__name__}: {e}")
-                    continue
                 except Exception as e:
                     self.logger.warning(f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}")
                     continue
             return total_used if count > 0 else None
-        except (RuntimeError, AttributeError) as e:
-            self.logger.debug(f"Failed to get GPU memory used: {type(e).__name__}: {e}")
-            return None
         except Exception as e:
             self.logger.warning(f"Unexpected error in GPU memory used: {type(e).__name__}: {e}")
             return None
 
-    def _get_single_gpu_utilization(self, gpu_idx: int) -> float | None:
-        """Get utilization for a specific GPU."""
-        try:
-            return torch.cuda.utilization(gpu_idx)
-        except Exception as e:
-            self.logger.debug(f"Failed to get utilization for GPU {gpu_idx}: {e}")
-            return None
-
     def _get_single_gpu_memory_percent(self, gpu_idx: int) -> float | None:
-        """Get memory usage percent for a specific GPU."""
-        try:
-            free, total = torch.cuda.mem_get_info(gpu_idx)
-            if total > 0:
-                return (total - free) / total * 100
-            return None
-        except Exception as e:
-            self.logger.debug(f"Failed to get memory percent for GPU {gpu_idx}: {e}")
-            return None
+        free, total = torch.cuda.mem_get_info(gpu_idx)
+        if total > 0:
+            return (total - free) / total * 100
+        return None
 
     def _get_single_gpu_memory_used_mb(self, gpu_idx: int) -> float | None:
-        """Get memory used in MB for a specific GPU."""
-        try:
-            free, total = torch.cuda.mem_get_info(gpu_idx)
-            return (total - free) / (1024 * 1024)
-        except Exception as e:
-            self.logger.debug(f"Failed to get memory used for GPU {gpu_idx}: {e}")
-            return None
+        free, total = torch.cuda.mem_get_info(gpu_idx)
+        return (total - free) / (1024 * 1024)
 
     def _collect_sample(self) -> None:
-        """Collect a single sample of all metrics."""
         timestamp = time.time()
 
         for name, collector in self._metric_collectors.items():
@@ -440,7 +278,6 @@ class SystemMonitor:
                 self.logger.warning(f"Failed to collect metric '{name}': {e}")
 
     def _monitor_loop(self) -> None:
-        """Main monitoring loop (runs in separate thread)."""
         self.logger.debug("Monitor thread started")
 
         while not self._stop_flag:
@@ -450,7 +287,6 @@ class SystemMonitor:
         self.logger.debug("Monitor thread stopped")
 
     def start(self) -> None:
-        """Start the monitoring thread."""
         with self._lock:
             if self._thread and self._thread.is_alive():
                 self.logger.warning("Monitor already running")
@@ -464,7 +300,6 @@ class SystemMonitor:
             self.logger.info("System monitoring started")
 
     def stop(self) -> None:
-        """Stop the monitoring thread."""
         if not self._thread or not self._thread.is_alive():
             return
 
@@ -472,151 +307,7 @@ class SystemMonitor:
         self._thread.join(timeout=self.sampling_interval_sec * 2)
         self.logger.info("System monitoring stopped")
 
-    def is_running(self) -> bool:
-        """Check if monitoring is active."""
-        return self._thread is not None and self._thread.is_alive()
-
-    def get_latest(self, metric: str | None = None) -> Any:
-        """Get the most recent value(s).
-
-        Args:
-            metric: Specific metric name, or None for all metrics
-
-        Returns:
-            Single metric value or dict of all latest values
-        """
-        with self._lock:
-            if metric:
-                return self._latest.get(metric)
-            return self._latest.copy()
-
-    def get_history(self, metric: str) -> list[Tuple[float, Any]]:
-        """Get historical values for a metric.
-
-        Args:
-            metric: Metric name
-
-        Returns:
-            List of (timestamp, value) tuples
-        """
-        with self._lock:
-            if metric not in self._metrics:
-                return []
-            return list(self._metrics[metric])
-
-    @contextmanager
-    def monitor_context(self, tag: str | None = None):
-        """Context manager for monitoring a code block.
-
-        Records metrics before and after the block execution.
-
-        Args:
-            tag: Optional tag for logging
-
-        Usage:
-            with monitor.monitor_context("heavy_computation"):
-                # code to monitor
-                pass
-        """
-        start_time = time.time()
-
-        yield
-
-        elapsed = time.time() - start_time
-
-        if tag:
-            self.logger.info(f"Monitor context '{tag}' completed in {elapsed:.3f}s")
-
-        self.log_summary()
-
-    def get_summary(self) -> dict[str, Any]:
-        """Get comprehensive summary of all metrics.
-
-        Returns:
-            Dict with current values and statistics over all history
-        """
-        summary = {"timestamp": time.time(), "metrics": {}}
-
-        for metric in self._metric_collectors:
-            # Get all history for this metric
-            history = self.get_history(metric)
-
-            # Calculate statistics from history
-            latest = self.get_latest(metric)
-            avg = None
-            min_val = None
-            max_val = None
-
-            if history:
-                values = [val for ts, val in history if val is not None]
-                if values:
-                    avg = sum(values) / len(values)
-                    min_val = min(values)
-                    max_val = max(values)
-
-            summary["metrics"][metric] = {
-                "latest": latest,
-                "average": avg,
-                "min": min_val,
-                "max": max_val,
-                "sample_count": len(history),
-            }
-
-        return summary
-
-    def log_summary(self, level: int = logging.INFO) -> None:
-        """Log a summary of current metrics.
-
-        Args:
-            level: Logging level
-        """
-        summary = self.get_summary()
-
-        self.logger.log(level, f"System Monitor Summary (buffer size: {self.history_size}):")
-
-        for metric, stats in summary["metrics"].items():
-            parts = [f"{metric}:"]
-
-            if stats["latest"] is not None:
-                parts.append(f"current={stats['latest']:.1f}")
-            if stats["average"] is not None:
-                parts.append(f"avg={stats['average']:.1f}")
-            if stats["min"] is not None and stats["max"] is not None:
-                parts.append(f"range=[{stats['min']:.1f}, {stats['max']:.1f}]")
-            parts.append(f"samples={stats['sample_count']}")
-
-            self.logger.log(level, "  " + " ".join(parts))
-
-    def get_available_metrics(self) -> list[str]:
-        """Get list of all available metrics.
-
-        Returns:
-            List of metric names
-        """
-        return list(self._metric_collectors.keys())
-
-    def stats(self) -> dict[str, float]:
-        """Get current stats, skipping any None values.
-
-        Returns:
-            Dict of metric names to float values, excluding any None values
-        """
-        stats = {}
-        summary = self.get_summary()
-        for metric_name, metric_data in summary["metrics"].items():
-            if metric_data["latest"] is not None:
-                stats[f"monitor/{metric_name}"] = metric_data["latest"]
-        return stats
-
     def _calculate_accrued_cost(self, hourly_cost: float) -> float | None:
-        """Calculate the total accrued cost based on elapsed time.
-
-        Args:
-            hourly_cost: Cost per hour
-
-        Returns:
-            Total accrued cost or None if monitoring hasn't started
-        """
         # Prefer external timer if available (e.g., trainer's timer that persists across restarts)
         if self._external_timer is not None:
             try:
