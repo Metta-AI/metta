@@ -77,11 +77,11 @@ class OptimizingScheduler:
         # Use both fetched runs and our internal tracking (in case fetch fails)
         total_runs = max(len(all_runs), len(self._created_runs))
         if total_runs >= self.config.max_trials:
-            # Check if all runs are complete
-            all_complete = all(run.status == JobStatus.COMPLETED for run in all_runs)
+            # Check if all runs are complete (either COMPLETED or FAILED)
+            all_complete = all(run.status in (JobStatus.COMPLETED, JobStatus.FAILED) for run in all_runs)
             if all_complete:
                 self._is_complete = True
-                logger.info(f"[OptimizingScheduler] All {self.config.max_trials} trials completed successfully!")
+                logger.info(f"[OptimizingScheduler] All {self.config.max_trials} trials finished!")
             else:
                 logger.info(
                     f"[OptimizingScheduler] Reached max trials ({self.config.max_trials}), "
@@ -90,7 +90,8 @@ class OptimizingScheduler:
             return []
 
         # For sequential scheduler, wait for ALL runs to complete before starting new ones
-        incomplete_jobs = [run for run in all_runs if run.status != JobStatus.COMPLETED]
+        # Treat both COMPLETED and FAILED as finished
+        incomplete_jobs = [run for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED)]
 
         if incomplete_jobs:
             # Build a status table for better visibility
