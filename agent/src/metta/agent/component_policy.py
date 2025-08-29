@@ -239,14 +239,6 @@ class ComponentPolicy(nn.Module, ABC):
                 states[name] = self.components[name].get_memory()
         return states
 
-    def set_states(self, states: dict) -> None:
-        """Distribute states to components when available."""
-        if not isinstance(states, dict):
-            return
-        for name in self.components_with_memory:
-            if name in states and hasattr(self.components[name], "set_memory"):
-                self.components[name].set_memory(states[name])
-
     def reset_states(self) -> None:
         """Reset all component states (alias to reset_memory)."""
         self.reset_memory()
