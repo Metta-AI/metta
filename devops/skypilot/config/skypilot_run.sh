@@ -63,27 +63,10 @@ fi
 bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 source "$METTA_ENV_FILE"
 
-# Start Datadog Agent (installed during setup phase)
-if command -v datadog-agent >/dev/null 2>&1; then
-    echo "[DATADOG] Starting Datadog Agent..."
-    if command -v systemctl >/dev/null 2>&1 && pidof systemd >/dev/null 2>&1; then
-        sudo systemctl start datadog-agent 2>/dev/null || sudo service datadog-agent start 2>/dev/null || true
-    else
-        sudo service datadog-agent start 2>/dev/null || true
-    fi
-
-    # Give agent a moment to start
-    sleep 5
-
-    # Check if running
-    if pgrep -f "datadog-agent" >/dev/null 2>&1; then
-        echo "[DATADOG] ✅ Agent started successfully - monitoring containers"
-    else
-        echo "[DATADOG] ⚠️ Agent may not have started - check logs later"
-    fi
-else
-    echo "[DATADOG] Agent not installed - skipping startup"
-fi
+# Start Datadog Agent as a Docker container (on host, not inside our container)
+# This needs to run on the host to monitor all containers
+# Note: We're inside a container, so we need to use docker commands that reach the host's Docker daemon
+bash ./devops/skypilot/config/lifecycle/start_datadog_container.sh || echo "[DATADOG] Container startup skipped or failed"
 
 export EXIT_SUCCESS=0
 export EXIT_FAILURE=1
