@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -8,7 +8,9 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "codebot",
     "experiments",
+    "gitta",
     "metta",
     "metta-agent",
     "metta-app-backend",
@@ -559,6 +561,23 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/52/39/069100b84d7418bc358d81669d5748efb14b9cceacd2f9c75f550424132f/cloudpickle-3.1.1.tar.gz", hash = "sha256:b216fa8ae4019d5482a8ac3c95d8f6346115d8835911fd4aefd1a445e4242c64", size = 22113, upload-time = "2025-01-14T17:02:05.085Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/e8/64c37fadfc2816a7701fa8a6ed8d87327c7d54eacfbfb6edab14a2f2be75/cloudpickle-3.1.1-py3-none-any.whl", hash = "sha256:c8c5a44295039331ee9dad40ba100a9c7297b6f988e50e87ccdf3765a668350e", size = 20992, upload-time = "2025-01-14T17:02:02.417Z" },
+]
+
+[[package]]
+name = "codebot"
+version = "0.1.0"
+source = { editable = "codebot" }
+dependencies = [
+    { name = "click" },
+    { name = "gitta" },
+    { name = "tiktoken" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "click", specifier = ">=8.0" },
+    { name = "gitta", editable = "gitta" },
+    { name = "tiktoken", specifier = ">=0.9.0" },
 ]
 
 [[package]]
@@ -1121,6 +1140,29 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/11/d1/48fe5d7a43d278e9f6b5ada810b0a3530bbeac7ed7fcbcd366f932f05316/google_ai_generativelanguage-0.6.15.tar.gz", hash = "sha256:8f6d9dc4c12b065fe2d0289026171acea5183ebf2d0b11cefe12f3821e159ec3", size = 1375443, upload-time = "2025-01-13T21:50:47.459Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7c/a3/67b8a6ff5001a1d8864922f2d6488dc2a14367ceb651bc3f09a947f2f306/google_ai_generativelanguage-0.6.15-py3-none-any.whl", hash = "sha256:5a03ef86377aa184ffef3662ca28f19eeee158733e45d7947982eb953c6ebb6c", size = 1327356, upload-time = "2025-01-13T21:50:44.174Z" },
+]
+
+[[package]]
+name = "gitta"
+version = "0.1.0"
+source = { editable = "gitta" }
+dependencies = [
+    { name = "httpx" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "httpx", specifier = ">=0.24.0" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
 ]
 
 [[package]]
@@ -2312,6 +2354,7 @@ dependencies = [
     { name = "anywidget" },
     { name = "bidict" },
     { name = "boto3" },
+    { name = "codebot" },
     { name = "colorama" },
     { name = "cpplint" },
     { name = "ddtrace" },
@@ -2394,6 +2437,7 @@ requires-dist = [
     { name = "anywidget", specifier = ">=0.9.18" },
     { name = "bidict", specifier = ">=0.23.1" },
     { name = "boto3", specifier = ">=1.38.32" },
+    { name = "codebot", editable = "codebot" },
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "cpplint", specifier = ">=2.0.2" },
     { name = "ddtrace", specifier = ">=2.6.0" },
@@ -2509,6 +2553,7 @@ dependencies = [
     { name = "boto3" },
     { name = "ddtrace" },
     { name = "fastapi" },
+    { name = "gitta" },
     { name = "httpx" },
     { name = "metta-common" },
     { name = "psycopg", extra = ["binary", "pool"] },
@@ -2533,6 +2578,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.38.32" },
     { name = "ddtrace", specifier = ">=2.6.0" },
     { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "gitta", editable = "gitta" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "metta-common", editable = "common" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },

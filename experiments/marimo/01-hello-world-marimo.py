@@ -483,7 +483,7 @@ def _(
     mo.stop(not observe_button.value)
 
     def _():
-        # Create environment with proper EnvConfig
+        # Create environment with proper MettaGridConfig
         env = MettaGridEnv(env_config, render_mode="human")
         policy = get_policy(renderer_config.policy_type, env, renderer_config)
 
@@ -1165,7 +1165,7 @@ def _(
     mo.stop(not observe_button2.value)
 
     def observe_agent2():
-        # Create environment with proper EnvConfig
+        # Create environment with proper MettaGridConfig
         env = MettaGridEnv(env_config2, render_mode="human")
         policy = get_policy(renderer_config2.policy_type, env, renderer_config2)
 

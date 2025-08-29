@@ -120,6 +120,15 @@ class PolicyRecord:
                 # access _cached_policy directly to avoid recursion
                 self._cached_policy = pr._cached_policy
 
+        # Ensure policy has original_feature_mapping from metadata (if available)
+        if (
+            self._cached_policy is not None
+            and "original_feature_mapping" in self.metadata
+            and not hasattr(self._cached_policy, "original_feature_mapping")
+        ):
+            self._cached_policy.original_feature_mapping = self.metadata["original_feature_mapping"].copy()
+            logger.info("Transferred original_feature_mapping from metadata to policy")
+
         return self._cached_policy
 
     @policy.setter

@@ -967,7 +967,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("type_name", &BoxConfig::type_name)
       .def_readwrite("resources_to_create", &BoxConfig::resources_to_create);
 
-  // ##MettagridConfig
+  // ##MettaGridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means
   // we can create these in Python as AgentConfig(**agent_config_dict). And then we expose the fields individually.
   // This is verbose! But it seems like it's the best way to do it.

@@ -25,6 +25,7 @@ dependencies = [
   "metta-agent",
   "metta-common",
   "metta-mcp-server",
+  "codebot",
   "numpy>=1.26.4,<2",
   "omegaconf>=2.4.0.dev3",
   "pandas>=2.3.0",
@@ -139,6 +140,7 @@ members = [
   "agent",
   "experiments",
   "mcp_server",
+  "codebot",
 ]
 
 [tool.uv.sources]
@@ -147,6 +149,8 @@ metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
 metta-mcp-server = { workspace = true }
+gitta = { workspace = true }
+codebot = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]
