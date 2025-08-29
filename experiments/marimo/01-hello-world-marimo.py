@@ -96,6 +96,21 @@ def _():
         CurriculumConfig,
     )
 
+    # Additional imports for cells
+    from metta.mettagrid.config.envs import make_arena
+    from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
+    from metta.mettagrid.mettagrid_config import (
+        AgentRewards,
+        StatsRewards,
+    )
+    from metta.common.config import Config
+    from metta.mettagrid.test_support.actions import generate_valid_random_actions
+    from metta.sim.simulation_config import SimulationConfig
+    from metta.agent.utils import obs_to_td
+    import pprint
+    import textwrap
+    import signal
+
     # Define a minimal HTML widget using anywidget so we can drop ipywidgets
     class HTMLWidget(anywidget.AnyWidget):
         """A simple widget that renders arbitrary HTML content.
@@ -129,17 +144,7 @@ def _():
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
 
     # Policy implementations (replacing the deprecated tools/renderer.py)
-    from metta.common.config import Config
-    from metta.mettagrid.test_support.actions import generate_valid_random_actions
     from typing import Protocol, List
-    import numpy as np
-
-    import multiprocessing
-
-    from metta.sim.simulation_config import SimulationConfig
-
-    import os
-    from metta.common.util.fs import get_repo_root
 
     class RendererToolConfig(Config):
         policy_type: str = "random"
@@ -284,11 +289,6 @@ def _():
         else:
             raise Exception("Unknown policy type")
 
-    import signal
-    import sys
-    from contextlib import contextmanager
-    import wandb
-
     @contextmanager
     def cancellable_context():
         """Base context manager for clean cancellation with signal handling"""
@@ -350,13 +350,18 @@ def _():
 
     print("Setup done")
     return (
+        AgentRewards,
+        AsciiMapBuilder,
         CheckpointConfig,
+        Config,
         EvaluationConfig,
         MettaGridEnv,
         OpportunisticPolicy,
         Path,
         CheckpointManager,
         RendererToolConfig,
+        SimulationConfig,
+        StatsRewards,
         TensorDict,
         TrainTool,
         TrainerConfig,
@@ -365,18 +370,25 @@ def _():
         datetime,
         display,
         env_curriculum,
+        generate_valid_random_actions,
         get_repo_root,
         io,
         logging,
+        make_arena,
         mo,
         multiprocessing,
         np,
+        obs_to_td,
         os,
         pd,
+        pprint,
         show_replay,
+        signal,
         simulation_context,
+        textwrap,
         time,
         torch,
+        traceback,
         training_context,
         wandb,
         widgets,
@@ -434,20 +446,15 @@ def _(mo):
 
 
 @app.cell
-def _(RendererToolConfig):
-    # Simple approach: use the built-in arena and add a custom map - just like the demos do
-    from metta.mettagrid.config.envs import make_arena
-    from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-
-    from metta.mettagrid.mettagrid_config import (
-        AgentRewards,
-        StatsRewards,
-    )
-    import pprint
-
-    # Define simple hallway map as ASCII string
-    import textwrap
-
+def _(
+    RendererToolConfig,
+    make_arena,
+    AsciiMapBuilder,
+    AgentRewards,
+    StatsRewards,
+    pprint,
+    textwrap,
+):
     hallway_map = textwrap.dedent("""
         ###########
         #@.......m#
@@ -865,7 +872,6 @@ def _(
             return run_name
         except Exception as e:
             print(f"❌ Training failed: {e}")
-            import traceback
 
             traceback.print_exc()
 
@@ -987,17 +993,12 @@ def _(
 
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-            # Load checkpoint using URI-based system
             checkpoint_uri = CheckpointManager.normalize_uri(str(latest_ckpt))
             print(f"Loading checkpoint: {checkpoint_uri}")
-
-            # Parse the checkpoint filename to get run_name
-            from metta.rl.checkpoint_manager import CheckpointManager
 
             metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
             run_name_from_ckpt = metadata["run_name"]
 
-            # Load the policy using CheckpointManager
             trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
             if trained_policy is None:
                 raise Exception("No policy found in checkpoint")
@@ -1037,8 +1038,6 @@ def _(
                     )
                     for _step in range(steps):
                         # Use proper observation processing pipeline that matches training
-                        from metta.agent.utils import obs_to_td
-
                         td = obs_to_td(_obs, torch.device("cpu"))
 
                         # The dimension fix in simulation.py ensures proper tensor shapes automatically
@@ -1205,8 +1204,6 @@ def _(mo, run_name, show_replay):
 
 @app.cell
 def _(mo, wandb):
-    import IPython
-
     def display_by_wandb_path(path: str, *, height: int) -> None:
         """Display a wandb object (usually in an iframe) given its URI.
 
@@ -1219,8 +1216,6 @@ def _(mo, wandb):
 
             return mo.md(obj.to_html(height=height))
         except wandb.Error:
-            import traceback
-
             traceback.print_exc()
             return mo.md(
                 f"Path {path!r} does not refer to a W&B object you can access."
@@ -1575,7 +1570,6 @@ def _(
                 print(f"✅ Training completed successfully! Result: {result}")
         except Exception as e:
             print(f"❌ Training failed: {e}")
-            import traceback
 
             traceback.print_exc()
 
@@ -1658,17 +1652,12 @@ def _(
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-        # Load checkpoint using URI-based system
         checkpoint_uri = CheckpointManager.normalize_uri(str(latest_ckpt))
         print(f"Loading checkpoint: {checkpoint_uri}")
-
-        # Parse the checkpoint filename to get run_name
-        from metta.rl.checkpoint_manager import CheckpointManager
 
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
-        # Load the policy using CheckpointManager for consistency
         trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
         if trained_policy is None:
             raise Exception("No policy found in checkpoint")
