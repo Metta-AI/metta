@@ -42,10 +42,12 @@ docker run -d \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
     -v /proc/:/host/proc/:ro \
     -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro \
+    -v /home/ubuntu/sky_logs:/var/log/sky_logs:ro \
     -e DD_API_KEY="$DD_API_KEY" \
     -e DD_SITE="${DD_SITE:-datadoghq.com}" \
     -e DD_LOGS_ENABLED=true \
     -e DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true \
+    -e DD_LOGS_CONFIG_LOGS_COLLECTED='[{"type":"file","path":"/var/log/sky_logs/*/run.log","service":"skypilot-worker","source":"skypilot","tags":["metta_run_id:'${METTA_RUN_ID:-unknown}'"]}]' \
     -e DD_PROCESS_AGENT_ENABLED=true \
     -e DD_CONTAINER_EXCLUDE="name:dd-agent" \
     -e DD_TAGS="env:production service:skypilot-worker metta_run_id:${METTA_RUN_ID:-unknown} skypilot_task_id:${SKYPILOT_TASK_ID:-unknown}" \
