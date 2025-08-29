@@ -420,8 +420,11 @@ class Simulation:
             # Add NPC policy if it exists
             npc_name = None
             if self._npc_policy_uri:
-                # Extract a simple name from the NPC URI
-                npc_name = f"npc_{self._npc_policy_uri.split('/')[-1].split('.')[0]}"
+                # Extract a simple name from the NPC URI using CheckpointManager
+                from metta.rl.checkpoint_manager import CheckpointManager
+
+                metadata = CheckpointManager.get_policy_metadata(self._npc_policy_uri)
+                npc_name = f"npc_{metadata['run_name']}"
                 policy_details.append((npc_name, self._npc_policy_uri, "NPC policy"))
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)

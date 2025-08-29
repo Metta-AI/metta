@@ -992,9 +992,10 @@ def _(
             print(f"Loading checkpoint: {checkpoint_uri}")
 
             # Parse the checkpoint filename to get run_name
-            from metta.rl.checkpoint_manager import parse_checkpoint_filename
+            from metta.rl.checkpoint_manager import CheckpointManager
 
-            run_name_from_ckpt, _, _, _, _ = parse_checkpoint_filename(latest_ckpt.name)
+            metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+            run_name_from_ckpt = metadata["run_name"]
 
             # Load the policy directly from the checkpoint file
             trained_policy = torch.load(latest_ckpt, weights_only=False)
@@ -1662,9 +1663,10 @@ def _(
         print(f"Loading checkpoint: {checkpoint_uri}")
 
         # Parse the checkpoint filename to get run_name
-        from metta.rl.checkpoint_manager import parse_checkpoint_filename
+        from metta.rl.checkpoint_manager import CheckpointManager
 
-        run_name_from_ckpt, _, _, _, _ = parse_checkpoint_filename(latest_ckpt.name)
+        metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+        run_name_from_ckpt = metadata["run_name"]
 
         # Load the policy directly from the checkpoint file
         trained_policy = torch.load(latest_ckpt, weights_only=False)
