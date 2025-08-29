@@ -173,11 +173,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         return [row[0] for row in result if row[0]]  # Filter out None values
 
     def get_all_policy_uris(self) -> List[str]:
-        """Get all unique policy URIs from the database.
-
-        Note: Returns simplified URIs in format 'policy_key:v{version}' since
-        we don't store the full original URI (file:// vs wandb://) in the database.
-        """
+        """Get all unique policy identifiers from the database."""
         result = self.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
         return [f"{row[0]}:v{row[1]}" for row in result]
 
