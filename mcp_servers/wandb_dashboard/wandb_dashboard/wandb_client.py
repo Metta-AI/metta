@@ -73,13 +73,28 @@ class WandBClient:
             workspaces = []
 
             if project:
-                # Get reports (workspaces) for specific project
+                # Get reports for specific project using correct API call
                 try:
-                    # Note: Standard WandB API doesn't support reports() properly
-                    # For now, return empty list - reports need to be created via wandb_workspaces
-                    logger.info(f"Listing reports for specific project {entity}/{project} - using fallback")
-                    # Could potentially use wandb_workspaces here in the future
-                    pass
+                    # Use the correct project path format for reports API
+                    project_path = f"{entity}/{project}"
+                    reports = self.api.reports(project_path)
+
+                    for report in reports:
+                        workspace_info = {
+                            "name": getattr(report, "display_name", getattr(report, "name", "Untitled")),
+                            "id": getattr(report, "id", "unknown"),
+                            "url": getattr(report, "url", ""),
+                            "entity": entity,
+                            "project": project,
+                            "created_at": str(report.created_at)
+                            if hasattr(report, "created_at") and report.created_at
+                            else None,
+                            "updated_at": str(report.updated_at)
+                            if hasattr(report, "updated_at") and report.updated_at
+                            else None,
+                            "description": getattr(report, "description", ""),
+                        }
+                        workspaces.append(workspace_info)
 
                 except Exception as e:
                     logger.warning(f"Could not list reports for {entity}/{project}: {e}")
@@ -417,34 +432,27 @@ class WandBClient:
         try:
             logger.info(f"Updating dashboard: {dashboard_url}")
 
-            # Extract report ID from URL if possible
-            # WandB report URLs typically look like: https://wandb.ai/{entity}/{project}/reports/{report_id}
-            url_parts = dashboard_url.rstrip("/").split("/")
-            entity = None
-            project = None
-            report_id = None
+            # First, get the current dashboard config
+            current_config = await self.get_dashboard_config(dashboard_url)
 
-            if len(url_parts) >= 3:
-                entity = url_parts[-3]
-                project = url_parts[-2]
-                report_id = url_parts[-1] if "reports" in dashboard_url else None
-            elif len(url_parts) >= 2:
-                # Handle shorter URLs
-                entity = url_parts[-2] if len(url_parts) >= 2 else None
-                project = url_parts[-1]
+            if current_config.get("status") == "error":
+                return current_config
 
-            if not entity or not project:
-                raise ValueError(f"Cannot extract entity/project from URL: {dashboard_url}")
+            # WandB workspaces reports cannot be modified after creation
+            # But we can provide helpful information and suggestions
+            logger.warning("WandB reports created via wandb_workspaces cannot be modified after creation")
 
-            if not report_id:
-                raise ValueError("Cannot extract report ID from URL")
-
-            # Standard WandB API doesn't support loading reports properly
-            logger.warning("Cannot update existing reports with standard WandB API")
-            raise ValueError(
-                "Updating existing dashboards is not currently supported by the WandB API. "
-                "Please create new dashboards instead."
-            )
+            return {
+                "status": "limitation",
+                "message": (
+                    "WandB reports cannot be modified after creation. "
+                    "Consider creating a new dashboard with your desired changes."
+                ),
+                "current_config": current_config,
+                "requested_modifications": modifications,
+                "suggestion": "Use the create_dashboard tool to create a new dashboard with your modifications",
+                "url": dashboard_url,
+            }
 
         except Exception as e:
             logger.error(f"Failed to update dashboard: {e}")
@@ -455,33 +463,59 @@ class WandBClient:
         try:
             logger.info(f"Cloning dashboard from {source_url} as '{new_name}'")
 
-            # Extract info from source URL
-            url_parts = source_url.rstrip("/").split("/")
-            entity = None
-            project = None
-            report_id = None
+            # First, get the source dashboard config
+            source_config = await self.get_dashboard_config(source_url)
 
-            if len(url_parts) >= 3:
-                entity = url_parts[-3]
-                project = url_parts[-2]
-                report_id = url_parts[-1] if "reports" in source_url else None
-            elif len(url_parts) >= 2:
-                # Handle shorter URLs
-                entity = url_parts[-2] if len(url_parts) >= 2 else None
-                project = url_parts[-1]
+            if source_config.get("status") == "error":
+                return {
+                    "status": "error",
+                    "error": f"Cannot access source dashboard: {source_config.get('error')}",
+                    "source_url": source_url,
+                    "new_name": new_name,
+                }
 
-            if not entity or not project:
-                raise ValueError(f"Cannot extract entity/project from URL: {source_url}")
+            entity = source_config["entity"]
+            project = source_config["project"]
 
-            if not report_id:
-                raise ValueError("Cannot extract report ID from source URL")
+            # Create a basic clone with the same entity/project
+            # Note: We can't copy the exact structure, but we can create a new dashboard with the same metadata
+            logger.warning("Creating a basic clone - cannot copy exact dashboard structure")
 
-            # Standard WandB API doesn't support loading reports properly
-            logger.warning("Cannot clone existing reports with standard WandB API")
-            raise ValueError(
-                "Cloning existing dashboards is not currently supported by the WandB API. "
-                "Please create new dashboards instead."
+            clone_result = await self.create_dashboard(
+                name=new_name,
+                entity=entity,
+                project=project,
+                description=(
+                    f"Clone of: {source_config.get('name', 'Unknown')} - {source_config.get('description', '')}"
+                ),
+                sections=[
+                    {
+                        "name": "Cloned Content",
+                        "panels": [
+                            {"type": "line_plot", "config": {"title": "Cloned Dashboard - Please Add Your Panels"}}
+                        ],
+                    }
+                ],
             )
+
+            if clone_result.get("status") == "success":
+                return {
+                    "status": "partial_success",
+                    "message": "Basic clone created. Manual configuration needed for panels and sections.",
+                    "cloned_dashboard": clone_result,
+                    "source_config": source_config,
+                    "limitation": "Cannot copy exact dashboard structure - WandB API limitations",
+                    "new_name": new_name,
+                    "source_url": source_url,
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error": "Failed to create clone dashboard",
+                    "create_result": clone_result,
+                    "source_url": source_url,
+                    "new_name": new_name,
+                }
 
         except Exception as e:
             logger.error(f"Failed to clone dashboard: {e}")
@@ -492,12 +526,67 @@ class WandBClient:
         try:
             logger.info(f"Getting configuration for dashboard: {dashboard_url}")
 
-            # Standard WandB API doesn't support loading reports properly
-            logger.warning("Cannot load existing reports with standard WandB API")
-            raise ValueError(
-                "Loading existing dashboard configurations is not currently supported by the "
-                "WandB API. Only creation of new dashboards works."
-            )
+            # Parse the URL to extract entity, project, and report ID
+            # URL format: https://wandb.ai/{entity}/{project}/reports/{report_name}--{report_id}
+            if "wandb.ai" not in dashboard_url:
+                raise ValueError(f"Invalid WandB URL format: {dashboard_url}")
+
+            # Extract components from URL
+            url_parts = dashboard_url.replace("https://wandb.ai/", "").split("/")
+            if len(url_parts) < 3 or "reports" not in url_parts:
+                raise ValueError(f"Cannot parse dashboard URL: {dashboard_url}")
+
+            entity = url_parts[0]
+            project = url_parts[1]
+
+            # Extract report ID from the last part (after the double dash)
+            report_part = url_parts[-1]  # e.g., "Report-Name--VmlldzoxNDE4ODY1Ng"
+            if "--" not in report_part:
+                raise ValueError(f"Cannot extract report ID from URL: {dashboard_url}")
+
+            target_report_id = report_part.split("--")[-1]
+
+            # Find the report using the standard API
+            project_path = f"{entity}/{project}"
+            reports = self.api.reports(project_path)
+
+            found_report = None
+            for report in reports:
+                # Handle both cases: URL may be missing trailing == padding
+                if report.id == target_report_id or report.id == target_report_id + "==":
+                    found_report = report
+                    break
+
+            if not found_report:
+                raise ValueError(f"Report not found: {target_report_id}")
+
+            # Return report configuration
+            config = {
+                "id": found_report.id,
+                "name": getattr(found_report, "display_name", getattr(found_report, "name", "Untitled")),
+                "url": found_report.url,
+                "entity": entity,
+                "project": project,
+                "description": getattr(found_report, "description", ""),
+                "created_at": str(found_report.created_at)
+                if hasattr(found_report, "created_at") and found_report.created_at
+                else None,
+                "updated_at": str(found_report.updated_at)
+                if hasattr(found_report, "updated_at") and found_report.updated_at
+                else None,
+                "status": "success",
+            }
+
+            # Try to get sections if available (may have limitations)
+            try:
+                sections = getattr(found_report, "sections", None)
+                if sections:
+                    config["sections"] = sections
+            except Exception as e:
+                logger.warning(f"Could not get sections for report {target_report_id}: {e}")
+                config["sections"] = "unavailable"
+
+            return config
 
         except Exception as e:
             logger.error(f"Failed to get dashboard config: {e}")
@@ -510,12 +599,27 @@ class WandBClient:
         try:
             logger.info(f"Adding {panel_type} panel to '{section_name}' in dashboard: {dashboard_url}")
 
-            # Standard WandB API doesn't support loading reports properly
-            logger.warning("Cannot add panels to existing reports with standard WandB API")
-            raise ValueError(
-                "Adding panels to existing dashboards is not currently supported by the "
-                "WandB API. Please create new dashboards instead."
-            )
+            # Get current dashboard config
+            current_config = await self.get_dashboard_config(dashboard_url)
+
+            if current_config.get("status") == "error":
+                return current_config
+
+            # WandB workspaces reports cannot be modified after creation
+            logger.warning("Cannot add panels to existing reports - WandB API limitation")
+
+            return {
+                "status": "limitation",
+                "message": "Cannot add panels to existing dashboards. WandB reports cannot be modified after creation.",
+                "current_config": current_config,
+                "requested_panel": {
+                    "section_name": section_name,
+                    "panel_type": panel_type,
+                    "panel_config": panel_config,
+                },
+                "suggestion": "Create a new dashboard that includes this panel",
+                "url": dashboard_url,
+            }
 
         except Exception as e:
             logger.error(f"Failed to add panel to dashboard: {e}")
