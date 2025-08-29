@@ -140,6 +140,7 @@ members = [
   "agent",
   "experiments",
   "mcp_server",
+  "gitta",
   "codebot",
 ]
 

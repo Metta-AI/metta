@@ -940,7 +940,9 @@ async def get_training_runs(dev_mode: bool = False) -> TrainingRunListResponse:
             with metadata, names, descriptions, tags, and total count.
     """
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
-        return await client.get_training_runs()
+        response = await client.get_training_runs()
+        response.training_runs = response.training_runs[:1024]
+        return response
 
 
 @mcp.resource(
