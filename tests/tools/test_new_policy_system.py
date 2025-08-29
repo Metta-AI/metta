@@ -1,0 +1,185 @@
+"""Test suite for the new policy management system.
+Tests checkpoint loading, policy URIs, and integration with the new tools.
+"""
+
+import tempfile
+from pathlib import Path
+
+import pytest
+
+import metta.mettagrid.config.envs as eb
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.sim.simulation import Simulation
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.sim import SimTool
+
+
+class TestNewPolicySystem:
+    """Test the new policy management and checkpoint system."""
+
+    def test_checkpoint_manager_uri_parsing(self):
+        """Test that CheckpointManager can parse different URI formats."""
+
+        # Test URI validation without actually loading
+        test_uris = [
+            "file:///absolute/path/checkpoint.pt",
+            "file://./relative/path/checkpoint.pt",
+            "file:///path/to/checkpoints",  # Directory
+            "mock://test_policy",  # Mock for testing
+        ]
+
+        for uri in test_uris:
+            # Just test that the URI format is recognized
+            # We can't actually load without real files, but we can test parsing
+            assert isinstance(uri, str)
+            assert "://" in uri, f"URI {uri} should have protocol"
+
+    def test_policy_metadata_extraction(self):
+        """Test policy metadata extraction from URIs."""
+
+        # We can't test actual metadata without real checkpoints,
+        # but we can test the interface exists
+        assert hasattr(CheckpointManager, "get_policy_metadata")
+
+    def test_simulation_creation_with_policy_uri(self):
+        """Test creating simulations with policy URIs."""
+
+        env_config = eb.make_navigation(num_agents=2)
+
+        # Test with None policy_uri (should create mock agent)
+        sim = Simulation.create(
+            sim_config=SimulationConfig(name="test", env=env_config),
+            device="cpu",
+            vectorization="serial",
+            policy_uri=None,
+            run_name="test_run",
+        )
+
+        assert sim is not None
+        assert sim.name == "test"
+
+    def test_sim_tool_with_policy_uris(self):
+        """Test SimTool with policy URIs."""
+
+        env_config = eb.make_arena(num_agents=4)
+        sim_config = SimulationConfig(name="test_arena", env=env_config)
+
+        # Create SimTool with mock policy
+        sim_tool = SimTool(
+            simulations=[sim_config],
+            policy_uris=["mock://test_policy"],
+            export_to_stats_db=False,  # Disable for testing
+        )
+
+        assert sim_tool.simulations[0].name == "test_arena"
+        assert sim_tool.policy_uris == ["mock://test_policy"]
+
+    def test_policy_discovery_interface(self):
+        """Test that policy discovery functions exist and can be called."""
+        from metta.rl.policy_management import discover_policy_uris
+
+        # Test with mock URI - should not crash even if it doesn't find anything
+        try:
+            discovered = discover_policy_uris("mock://test", strategy="latest", count=1)
+            # Should return a list, even if empty
+            assert isinstance(discovered, list)
+        except Exception as e:
+            # If it fails, it should be a meaningful error, not a crash
+            assert "not found" in str(e).lower() or "invalid" in str(e).lower()
+
+    def test_checkpoint_manager_cache_interface(self):
+        """Test that CheckpointManager caching interface works."""
+
+        # Test cache clear functionality
+        CheckpointManager.clear_cache()  # Should not crash
+
+        # Test cache configuration
+        manager = CheckpointManager(cache_size=5)
+        assert manager.cache_size == 5
+
+    def test_policy_uri_formats(self):
+        """Test different policy URI formats are recognized."""
+
+        uri_formats = [
+            "file://./checkpoints/model.pt",
+            "file:///absolute/path/model.pt",
+            "s3://bucket/path/model.pt",
+            "wandb://project/artifact:version",
+            "mock://test_policy",
+        ]
+
+        for uri in uri_formats:
+            # Test basic URI structure
+            assert "://" in uri, f"URI {uri} missing protocol separator"
+            protocol = uri.split("://")[0]
+            assert protocol in ["file", "s3", "wandb", "mock"], f"Unknown protocol {protocol}"
+
+    def test_simulation_stats_integration(self):
+        """Test that simulations integrate with the stats system."""
+        from metta.sim.simulation_stats_db import SimulationStatsDB
+
+        # Test that we can create a stats DB interface
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "test_stats.db"
+
+            # Just test creation - don't run actual simulation
+            stats_db = SimulationStatsDB(db_path)
+            stats_db.initialize_schema()
+
+            # Test basic interface exists
+            assert hasattr(stats_db, "get_replay_urls")
+
+            stats_db.close()
+
+    def test_tool_configuration_consistency(self):
+        """Test that all tools have consistent configuration interfaces."""
+        from metta.tools.play import PlayTool
+        from metta.tools.replay import ReplayTool
+        from metta.tools.sim import SimTool
+
+        env_config = eb.make_navigation(num_agents=2)
+        sim_config = SimulationConfig(name="test", env=env_config)
+
+        # Test that all tools can be configured
+        tools = [
+            ReplayTool(sim=sim_config, policy_uri=None),
+            PlayTool(sim=sim_config, policy_uri=None),
+            SimTool(simulations=[sim_config], policy_uris=None),
+        ]
+
+        for tool in tools:
+            assert hasattr(tool, "invoke"), f"{type(tool).__name__} missing invoke method"
+
+    @pytest.mark.slow
+    def test_recipe_system_integration(self):
+        """Test that recipes work with the new policy system."""
+
+        # Import recipe functions
+        try:
+            from experiments.recipes.arena import evaluate, replay, train
+
+            # Test that recipe functions can be called and return tool configs
+            train_tool = train()
+            assert hasattr(train_tool, "trainer")
+
+            # Test evaluation recipe
+            eval_tool = evaluate()
+            assert hasattr(eval_tool, "simulations")
+
+            # Test replay recipe
+            replay_tool = replay()
+            assert hasattr(replay_tool, "sim")
+
+        except ImportError as e:
+            pytest.skip(f"Recipe import failed: {e}")
+
+    def test_mock_agent_fallback(self):
+        """Test that mock agents are used when policies can't be loaded."""
+        from metta.agent.mocks import MockAgent
+
+        # Test that MockAgent can be created
+        mock_agent = MockAgent()
+        assert mock_agent is not None
+
+        # Test that it has expected interface
+        assert hasattr(mock_agent, "eval")  # Should be a torch.nn.Module

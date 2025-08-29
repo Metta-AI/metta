@@ -26,6 +26,7 @@ class SimTool(Tool):
     Loads policies, runs evaluations, and exports metrics to databases or JSON output.
     This tool focuses on batch policy evaluation and statistical analysis, not replay
     visualization (use ReplayTool for that)."""
+
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
