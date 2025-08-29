@@ -50,6 +50,7 @@ class OptimizingScheduler:
         self.config = config
         self.optimizer = optimizer
         self._created_runs = set()  # Track runs we've created to avoid duplicates
+        self._is_complete = False  # Track if sweep is complete
         logger.info(f"[OptimizingScheduler] Initialized with max_trials={config.max_trials}")
 
     def schedule(self, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]) -> list[JobDefinition]:
@@ -85,7 +86,16 @@ class OptimizingScheduler:
         # Use both fetched runs and our internal tracking (in case fetch fails)
         total_runs = max(len(all_runs), len(self._created_runs))
         if total_runs >= self.config.max_trials:
-            logger.info(f"[OptimizingScheduler] ✅ Reached max trials ({self.config.max_trials})")
+            # Check if all runs are complete
+            all_complete = all(run.status == JobStatus.COMPLETED for run in all_runs)
+            if all_complete:
+                self._is_complete = True
+                logger.info(f"[OptimizingScheduler] 🎉 All {self.config.max_trials} trials completed successfully!")
+            else:
+                logger.info(
+                    f"[OptimizingScheduler] ✅ Reached max trials ({self.config.max_trials}), "
+                    "waiting for remaining jobs to complete"
+                )
             return []
 
         # For sequential scheduler, wait for ALL runs to complete before starting new ones
@@ -165,3 +175,8 @@ class OptimizingScheduler:
                 logger.info(f"[OptimizingScheduler]    {key}: {suggestion[key]}")
 
         return [job]
+
+    @property
+    def is_complete(self) -> bool:
+        """Check if the sweep is complete."""
+        return self._is_complete

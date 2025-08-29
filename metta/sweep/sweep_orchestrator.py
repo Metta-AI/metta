@@ -430,6 +430,11 @@ class SweepController:
                 # Always get jobs from scheduler (including eval jobs)
                 new_jobs = self.scheduler.schedule(sweep_metadata=metadata, all_runs=all_run_infos)
 
+                # Check if the sweep is complete
+                if hasattr(self.scheduler, "is_complete") and self.scheduler.is_complete:
+                    logger.info("[SweepController] 🏁 Sweep completed successfully!")
+                    break
+
                 # Filter jobs based on capacity constraints
                 # EVAL jobs always go through, TRAINING jobs respect the limit
                 filtered_jobs = []
