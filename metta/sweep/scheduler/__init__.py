@@ -8,6 +8,6 @@ from metta.sweep.scheduler.sequential import (
 
 __all__ = [
     "SequentialScheduler",
-    "SequentialSchedulerConfig", 
+    "SequentialSchedulerConfig",
     "create_sequential_scheduler",
 ]
