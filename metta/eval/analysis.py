@@ -7,7 +7,7 @@ from tabulate import tabulate
 from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
-from metta.rl.checkpoint_interface import Checkpoint
+from metta.rl.checkpoint_manager import Checkpoint
 
 
 def analyze(checkpoint: Checkpoint, config: AnalysisConfig) -> None:

@@ -75,7 +75,7 @@ def _():
         replay_available = False
         print("⚠️ MettaScope replay viewer not available")
 
-    from metta.rl.checkpoint_interface import Checkpoint, get_checkpoint_from_dir
+    from metta.rl.checkpoint_manager import Checkpoint, get_checkpoint_from_dir
 
     from metta.common.wandb.wandb_context import WandbConfig
     import torch

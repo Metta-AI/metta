@@ -11,8 +11,7 @@ import pytest
 from duckdb import DuckDBPyConnection
 
 from metta.agent.mocks import MockAgent
-from metta.rl.checkpoint_interface import Checkpoint
-from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import Checkpoint, CheckpointManager, parse_checkpoint_filename
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 

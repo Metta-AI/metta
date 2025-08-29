@@ -8,7 +8,7 @@ from metta.common.config.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
-from metta.rl.checkpoint_interface import Checkpoint, get_checkpoint_from_dir
+from metta.rl.checkpoint_manager import Checkpoint, get_checkpoint_from_dir
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
