@@ -82,7 +82,9 @@ class TestHelpersSimpleCheckpoint:
         # Get the actual checkpoint path using the new dot-separated format
         agent_step = metadata.get("agent_step", epoch * 1000)
         total_time = int(metadata.get("total_time", metadata.get("train_time", epoch * 10.0)))
-        filename = f"{run_name}.e{epoch}.s{agent_step}.t{total_time}.pt"
+        score = metadata.get("score", 0.0)
+        score_int = int(score * 10000)  # Store as integer to avoid decimal in filename
+        filename = f"{run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score_int}.pt"
         checkpoint_path = checkpoint_manager.checkpoint_dir / filename
 
         return f"file://{checkpoint_path}"
@@ -192,7 +194,7 @@ def test_checkpoint_info_compatibility():
 
         # Verify metadata can be parsed from filename
         filename = Path(checkpoint_path).name
-        run_name, epoch, agent_step, total_time = parse_checkpoint_filename(filename)
+        run_name, epoch, agent_step, total_time, score = parse_checkpoint_filename(filename)
         assert run_name == "test_run"
         assert epoch == 5
 
@@ -316,10 +318,11 @@ def test_checkpoint_metadata_database_integration(tmp_path: Path):
 
         # Verify that basic metadata is embedded in filename
         filename = Path(checkpoint_path).name
-        run_name, epoch, agent_step, total_time = parse_checkpoint_filename(filename)
+        run_name, epoch, agent_step, total_time, score = parse_checkpoint_filename(filename)
         assert run_name == "rich_metadata_run"
         assert epoch == i + 1
         assert agent_step == original_metadata["agent_step"]
+        assert score == original_metadata.get("score", 0.0)
 
         # This metadata could be stored in database for advanced queries
         # (This would require extending SimulationStatsDB to handle checkpoint metadata)
