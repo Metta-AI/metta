@@ -16,7 +16,7 @@ class Memory:
 
     def get_memory(self, env_id):
         """Return memory for a specific env_id (or key)."""
-        return self.memory_dict[env_id]
+        return self.memory_dict.get(env_id, None)
 
     def set_memory(self, memory, env_id):
         """Set memory for a specific env_id (or key)."""
