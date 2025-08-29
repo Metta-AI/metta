@@ -55,10 +55,10 @@ void VisitationCounts::addVisitationCountsToObservations(MettaGrid* env) {
     // Find the first completely empty slot
     size_t insert_pos = 0;
     bool found_empty = false;
-    for (ssize_t token_idx = 0; token_idx < obs_view.shape(1); token_idx++) {
+    for (size_t token_idx = 0; token_idx < obs_view.shape(1); token_idx++) {
       if (obs_view(agent_idx, token_idx, 0) == 0xFF && obs_view(agent_idx, token_idx, 1) == 0xFF &&
           obs_view(agent_idx, token_idx, 2) == 0xFF) {
-        insert_pos = static_cast<size_t>(token_idx);
+        insert_pos = token_idx;
         found_empty = true;
         break;
       }
