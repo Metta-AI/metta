@@ -44,11 +44,12 @@ class TestConfig:
     num_trials: int = 5
     max_parallel_jobs: int = 1
     monitoring_interval: int = 5
-    
+
     def __post_init__(self):
         if self.sweep_name is None:
             # Generate unique sweep name with timestamp
             from datetime import datetime
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.sweep_name = f"test_sweep_{timestamp}"
 
@@ -82,7 +83,7 @@ class OptimizingScheduler:
                 },
                 metadata={
                     "policy_uri": f"wandb://run/{train_run.run_id}",  # This is an arg
-                }
+                },
             )
             logger.info(f"📊 Scheduling evaluation for {train_run.run_id}")
             return [eval_job]
@@ -95,10 +96,7 @@ class OptimizingScheduler:
             return []
 
         # For sequential scheduler, wait for ALL runs to complete before starting new ones
-        incomplete_jobs = [
-            run for run in all_runs 
-            if run.status != JobStatus.COMPLETED
-        ]
+        incomplete_jobs = [run for run in all_runs if run.status != JobStatus.COMPLETED]
 
         if incomplete_jobs:
             logger.info(f"Waiting for {len(incomplete_jobs)} incomplete jobs to finish (including PENDING)")
@@ -124,14 +122,14 @@ class OptimizingScheduler:
         # Create new training job with suggestion
         trial_num = len(self._created_runs) + 1
         run_id = f"{sweep_metadata.sweep_id}_trial_{trial_num:04d}"
-        
+
         # Check if we've already created this run
         if run_id in self._created_runs:
             logger.warning(f"Run {run_id} already created, skipping")
             return []
-            
+
         self._created_runs.add(run_id)
-        
+
         job = JobDefinition(
             run_id=run_id,
             cmd=f"{self.config.recipe_module}.{self.config.train_entrypoint}",
@@ -142,7 +140,7 @@ class OptimizingScheduler:
             },
             metadata={
                 "group": sweep_metadata.sweep_id,  # Pass group as an arg
-            }
+            },
         )
 
         logger.info(f"🚀 Scheduling trial {trial_num}/{self.config.max_trials}: {job.run_id}")
@@ -177,7 +175,7 @@ def run_test():
     store = WandbStore(entity=config.entity, project=config.project)
     dispatcher = LocalDispatcher()
     optimizer = ProteinOptimizer(protein_config)
-    
+
     logger.info(f"Using sweep name: {config.sweep_name}")
 
     # Create scheduler with optimizer integration
@@ -214,26 +212,31 @@ def run_test():
 
             # Fetch all runs
             logger.info(f"\n--- Iteration {iteration} ---")
-            
+
             # Check subprocess status
             active_processes = dispatcher.check_processes()
             if active_processes > 0:
                 logger.info(f"Active local processes: {active_processes}")
-            
+
             all_runs = store.fetch_runs(filters={"group": config.sweep_name})
             logger.info(f"Found {len(all_runs)} runs in sweep")
-            
+
             # Log detailed status for each run
             for run in all_runs:
                 flags = []
-                if run.has_started_training: flags.append("train_started")
-                if run.has_completed_training: flags.append("train_done")
-                if run.has_started_eval: flags.append("eval_started")
-                if run.has_been_evaluated: flags.append("eval_done")
-                if run.observation: flags.append("has_obs")
-                
+                if run.has_started_training:
+                    flags.append("train_started")
+                if run.has_completed_training:
+                    flags.append("train_done")
+                if run.has_started_eval:
+                    flags.append("eval_started")
+                if run.has_been_evaluated:
+                    flags.append("eval_done")
+                if run.observation:
+                    flags.append("has_obs")
+
                 logger.info(f"  Run {run.run_id}: status={run.status}, flags={','.join(flags)}")
-                
+
             # Log status summary
             status_counts = {}
             for run in all_runs:
@@ -355,4 +358,3 @@ def run_test():
 
 if __name__ == "__main__":
     exit(run_test())
-

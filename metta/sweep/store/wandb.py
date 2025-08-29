@@ -64,7 +64,7 @@ class WandbStore:
             wandb_filters["group"] = filters["group"]
 
         logger.debug(f"[WandbStore] Fetching runs with filters: {wandb_filters}")
-        
+
         try:
             runs = self.api.runs(f"{self.entity}/{self.project}", filters=wandb_filters)
             run_infos = []
@@ -76,7 +76,7 @@ class WandbStore:
                 except Exception as e:
                     logger.warning(f"[WandbStore] Failed to convert run {run.id}: {e}")
                     continue
-            
+
             logger.debug(f"[WandbStore] Found {len(run_infos)} runs")
             return run_infos
         except Exception as e:
@@ -115,9 +115,9 @@ class WandbStore:
 
         # Check run state and runtime to determine actual status
         runtime = float(run.summary.get("_runtime", 0))
-        
-        logger.debug(f"Run {run.id}: state={run.state}, runtime={runtime}")
-        
+
+        logger.info(f"Run {run.id}: state={run.state}, runtime={runtime}")
+
         if run.state == self.STATUS_RUNNING:
             has_started_training = True
         elif run.state in [self.STATUS_FINISHED, self.STATUS_CRASHED, self.STATUS_FAILED]:
