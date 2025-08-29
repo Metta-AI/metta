@@ -40,8 +40,6 @@ class CLIAuthenticator:
 
         # Use YAML file for multiple tokens
         self.yaml_file = self.config_dir / "observatory_tokens.yaml"
-        # Keep reference to legacy file for migration
-        self.legacy_file = self.config_dir / "observatory_token"
 
     def create_app(self) -> FastAPI:
         app = FastAPI(title="CLI OAuth2 Callback Server")
@@ -265,32 +263,6 @@ class CLIAuthenticator:
         return False
 
 
-def migrate_legacy_token(authenticator: CLIAuthenticator) -> None:
-    """Migrate legacy token to new YAML format if needed"""
-    if authenticator.legacy_file.exists() and not authenticator.yaml_file.exists():
-        try:
-            # Read legacy token
-            with open(authenticator.legacy_file, "r") as f:
-                token = f.read().strip()
-
-            if token:
-                # Assume it's for production server by default
-                production_url = f"{PROD_OBSERVATORY_FRONTEND_URL}/api"
-
-                # Write in new YAML format
-                tokens = {production_url: token}
-                for extra_uri in _EXTRA_URIS.get(production_url, []):
-                    tokens[extra_uri] = token
-
-                with open(authenticator.yaml_file, "w") as f:
-                    yaml.safe_dump(tokens, f, default_flow_style=False)
-
-                os.chmod(authenticator.yaml_file, 0o600)
-                print(f"Migrated legacy token to new YAML format (associated with {production_url})")
-        except Exception as e:
-            print(f"Failed to migrate legacy token: {e}")
-
-
 def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(description="Authenticate with Observatory")
@@ -304,9 +276,6 @@ def main():
 
     # Create authenticator
     authenticator = CLIAuthenticator(auth_server_url=args.auth_server_url)
-
-    # Try to migrate legacy token if applicable
-    migrate_legacy_token(authenticator)
 
     # Check if we already have a token
     if authenticator.has_saved_token():
