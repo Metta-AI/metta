@@ -11,6 +11,8 @@ echo "Skypilot might ask you to copy the token. What you need to do is:
 1. Copy the token in browser
 2. Press Ctrl+C once
 3. Paste it into the terminal
+
+If this fails with errors about an invalid token after pasting, try using using Chrome or a Chrome-based browser.
 "
 
 uv run sky api login -e "$SERVER"
