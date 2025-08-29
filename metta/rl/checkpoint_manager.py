@@ -39,28 +39,7 @@ def name_from_uri(uri: str) -> str:
     return "unknown"
 
 
-def metadata_from_uri(uri: str) -> Dict[str, Any]:
-    """Extract metadata from checkpoint URI by parsing the filename."""
-    if uri.startswith("file://"):
-        path = Path(uri[7:])
-        if path.suffix == ".pt":
-            try:
-                run_name, epoch, agent_step, total_time = parse_checkpoint_filename(path.name)
-                return {
-                    "run": run_name,
-                    "epoch": epoch,
-                    "agent_step": agent_step,
-                    "total_time": total_time,
-                    "checkpoint_file": path.name,
-                }
-            except ValueError:
-                # Filename doesn't match expected format
-                pass
-    # For non-file URIs or directories, return minimal metadata
-    return {"run": name_from_uri(uri), "epoch": 0}
-
-
-# Checkpoint class removed - we just use URIs now!
+# All metadata extraction removed - we just use URIs now!
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
@@ -97,15 +76,14 @@ def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> Optional[str]:
     return f"file://{latest_file}"
 
 
-def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[tuple[str, Any]]:
-    """Get latest checkpoint from directory - returns (uri, policy) tuple."""
+def load_policy_from_dir(checkpoint_dir: str) -> Optional[Any]:
+    """Load latest policy from directory."""
     uri = get_checkpoint_uri_from_dir(checkpoint_dir)
     if not uri:
         return None
 
     path = Path(uri[7:])
-    agent = torch.load(path, weights_only=False)
-    return (uri, agent)
+    return torch.load(path, weights_only=False)
 
 
 class CheckpointManager:
@@ -174,26 +152,18 @@ class CheckpointManager:
         )
         logger.info(f"Saved trainer state: {trainer_file}")
 
-    def load_metadata(self, epoch: Optional[int] = None) -> Dict[str, Any]:
-        """Get metadata by parsing filename - no separate loading needed."""
+    def get_checkpoint_uri(self, epoch: Optional[int] = None) -> Optional[str]:
+        """Get URI for checkpoint at given epoch (or latest if None)."""
         if epoch is None:
             latest_file = self.find_best_checkpoint("epoch")
             if not latest_file:
-                return {}
+                return None
         else:
             agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
             if not agent_files:
-                return {}
+                return None
             latest_file = agent_files[0]
-
-        run_name, epoch, agent_step, total_time = parse_checkpoint_filename(latest_file.name)
-        return {
-            "run": run_name,
-            "epoch": epoch,
-            "agent_step": agent_step,
-            "total_time": total_time,
-            "checkpoint_file": latest_file.name,
-        }
+        return f"file://{latest_file}"
 
     def get_latest_epoch(self) -> Optional[int]:
         """Get the latest epoch number."""
