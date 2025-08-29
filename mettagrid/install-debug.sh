@@ -49,7 +49,13 @@ echo "Setting up IDE support..."
 if [ -d "_skbuild" ]; then
     COMPILE_COMMANDS=$(find _skbuild -name "compile_commands.json" | head -1)
     if [ -n "$COMPILE_COMMANDS" ]; then
-        ln -sf "$COMPILE_COMMANDS" compile_commands.json
+        if [[ "$COMPILE_COMMANDS" == "$PWD/_skbuild/"* ]]; then
+            ln -sf "$COMPILE_COMMANDS" compile_commands.json
+            echo "✓ Created compile_commands.json symlink"
+        else
+            echo "⚠️ Found compile_commands.json at unexpected location: $COMPILE_COMMANDS"
+            echo "⚠️ Symlink not created for security reasons"
+        fi
         echo "✓ Created compile_commands.json symlink"
     fi
 fi
