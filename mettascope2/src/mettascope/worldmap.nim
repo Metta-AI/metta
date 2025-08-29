@@ -1,7 +1,7 @@
 import
   std/[strformat],
   boxy, vmath, windy,
-  common, actions, utils, replays, timeline, panels
+  common, panels, actions, minimap, utils, replays, timeline
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent.
@@ -297,12 +297,52 @@ World
     color(1, 1, 1, 1)
   )
 
-proc drawWorldMap*(panel: Panel) =
 
-  panel.beginPanAndZoom()
-  useSelections()
-  agentControls()
+proc drawWorldMini*() =
+  let wallTypeId = replay.typeNames.find("wall")
+  let agentTypeId = replay.typeNames.find("agent")
 
+  # Floor
+  bxy.drawRect(rect(0, 0, replay.mapSize[0].float32 - 0.5,
+      replay.mapSize[1].float32 - 0.5),
+      color(0.906, 0.831, 0.718, 1))
+
+  # Walls
+  for obj in replay.objects:
+    if obj.typeId == agentTypeId:
+      continue
+    let color =
+      if obj.typeId == wallTypeId:
+        color(0.380, 0.341, 0.294, 1)
+      else:
+        color(1, 1, 1, 1)
+
+    let loc = obj.location.at(step).xy
+    bxy.drawRect(rect(loc.x.float32 - 0.5, loc.y.float32 - 0.5, 1, 1), color)
+
+  # Agents
+  let scale = 3.0
+  bxy.saveTransform()
+  bxy.scale(vec2(scale, scale))
+
+  for obj in replay.objects:
+    if obj.typeId != agentTypeId:
+      continue
+
+    let loc = obj.location.at(step).xy
+    bxy.drawImage("minimapPip", rect((loc.x.float32) / scale - 0.5, (loc.y.float32) / scale - 0.5,
+        1, 1), agentColor(obj.agentId))
+
+  bxy.restoreTransform()
+
+  # Overlays
+  if settings.showVisualRange:
+    drawVisualRanges()
+  elif settings.showFogOfWar:
+    drawFogOfWar()
+
+
+proc drawWorldMain*() =
   drawFloor()
   drawWalls()
   drawObjects()
@@ -319,6 +359,17 @@ proc drawWorldMap*(panel: Panel) =
 
   if settings.showFogOfWar:
     drawFogOfWar()
+
+
+proc drawWorldMap*(panel: Panel) =
+  panel.beginPanAndZoom()
+  useSelections()
+  agentControls()
+
+  if panel.zoom < 3:
+    drawWorldMini()
+  else:
+    drawWorldMain()
 
   panel.endPanAndZoom()
 
