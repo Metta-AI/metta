@@ -258,7 +258,7 @@ def run_test():
                     if job.type == JobTypes.LAUNCH_TRAINING:
                         # Verify training override
                         assert "trainer.total_timesteps" in job.overrides
-                        assert job.overrides["trainer.total_timesteps"] == "100000"
+                        assert job.overrides["trainer.total_timesteps"] == "10000"
 
                         store.init_run(job.run_id, sweep_id=config.sweep_name)
                         dispatch_id = dispatcher.dispatch(job)
