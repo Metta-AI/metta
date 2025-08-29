@@ -1,7 +1,6 @@
 """Tests for the sweep orchestrator core components."""
 
-import time
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -13,7 +12,6 @@ from metta.sweep.sweep_orchestrator import (
     Observation,
     RunInfo,
     SweepMetadata,
-    orchestrate_sweep,
 )
 
 
@@ -76,14 +74,14 @@ class TestJobStatus:
         """Test that a failed run has FAILED status."""
         # The JobStatus enum doesn't have a FAILED value, but has_failed flag exists
         # This needs to be fixed in the implementation
-        run = RunInfo(
-            run_id="test_run_001",
-            has_started_training=True,
-            has_completed_training=False,
-            has_started_eval=False,
-            has_been_evaluated=False,
-            has_failed=True,
-        )
+        # run = RunInfo(
+        #     run_id="test_run_001",
+        #     has_started_training=True,
+        #     has_completed_training=False,
+        #     has_started_eval=False,
+        #     has_been_evaluated=False,
+        #     has_failed=True,
+        # )
         # This would fail - JobStatus.FAILED doesn't exist
         # assert run.status == JobStatus.FAILED
         pass
@@ -101,7 +99,7 @@ class TestLocalDispatcher:
         mock_popen.return_value = mock_process
 
         dispatcher = LocalDispatcher()
-        
+
         job = JobDefinition(
             run_id="test_run_001",
             cmd="experiments.recipes.arena.train",
@@ -116,7 +114,7 @@ class TestLocalDispatcher:
         # Verify subprocess was created with correct command
         mock_popen.assert_called_once()
         call_args = mock_popen.call_args[0][0]
-        
+
         # Check command structure
         assert "uv" in call_args[0]
         assert "run" in call_args
@@ -135,7 +133,7 @@ class TestLocalDispatcher:
         mock_popen.return_value = mock_process
 
         dispatcher = LocalDispatcher()
-        
+
         job = JobDefinition(
             run_id="test_run_001",
             cmd="experiments.recipes.arena.train",
@@ -145,14 +143,14 @@ class TestLocalDispatcher:
         # Dispatch and check active count
         dispatcher.dispatch(job)
         active_count = dispatcher.check_processes()
-        
+
         assert active_count == 1
         assert len(dispatcher._processes) == 1
 
         # Simulate process completion
         mock_process.poll.return_value = 0
         active_count = dispatcher.check_processes()
-        
+
         # After reaping, should have 0 active processes
         assert active_count == 0
         assert len(dispatcher._processes) == 0
@@ -163,10 +161,10 @@ class TestProtocolCompliance:
 
     def test_scheduler_protocol(self):
         """Test that schedulers follow the Scheduler protocol."""
-        from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
         from metta.sweep.optimizer.protein import ProteinOptimizer
         from metta.sweep.protein_config import ProteinConfig
-        
+        from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
+
         # Create a simple protein config
         protein_config = ProteinConfig(
             metric="test_metric",
@@ -174,7 +172,7 @@ class TestProtocolCompliance:
             method="random",
             parameters={"test_param": {"min": 0, "max": 1}},
         )
-        
+
         optimizer = ProteinOptimizer(protein_config)
         scheduler_config = OptimizingSchedulerConfig(
             max_trials=5,
@@ -183,7 +181,7 @@ class TestProtocolCompliance:
             eval_entrypoint="evaluate",
         )
         scheduler = OptimizingScheduler(scheduler_config, optimizer)
-        
+
         # Verify protocol methods exist (Scheduler only requires schedule)
         assert hasattr(scheduler, "schedule")
         assert callable(scheduler.schedule)
@@ -191,9 +189,9 @@ class TestProtocolCompliance:
     def test_store_protocol(self):
         """Test that stores follow the Store protocol."""
         from metta.sweep.store.wandb import WandbStore
-        
+
         store = WandbStore(entity="test_entity", project="test_project")
-        
+
         # Verify protocol methods exist
         assert hasattr(store, "init_run")
         assert hasattr(store, "fetch_runs")
@@ -205,11 +203,11 @@ class TestProtocolCompliance:
     def test_dispatcher_protocol(self):
         """Test that dispatchers follow the Dispatcher protocol."""
         dispatcher = LocalDispatcher()
-        
+
         # Verify protocol methods exist (Dispatcher only requires dispatch)
         assert hasattr(dispatcher, "dispatch")
         assert callable(dispatcher.dispatch)
-        
+
         # LocalDispatcher has check_processes instead of get_status
         assert hasattr(dispatcher, "check_processes")
         assert callable(dispatcher.check_processes)
@@ -221,11 +219,11 @@ class TestSweepMetadata:
     def test_sweep_metadata_creation(self):
         """Test creating SweepMetadata."""
         from datetime import datetime
-        
+
         metadata = SweepMetadata(
             sweep_id="test_sweep_001",
         )
-        
+
         assert metadata.sweep_id == "test_sweep_001"
         assert isinstance(metadata.start_time, datetime)
         assert metadata.runs_created == 0
@@ -242,7 +240,7 @@ class TestObservation:
             cost=100.5,
             suggestion={"learning_rate": 0.001},
         )
-        
+
         assert obs.score == 0.85
         assert obs.cost == 100.5
         assert obs.suggestion["learning_rate"] == 0.001
