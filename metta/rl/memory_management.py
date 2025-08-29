@@ -13,11 +13,11 @@ class Memory:
 
     def get_memory(self, env_id):
         """Return memory for a specific env_id (or key)."""
-        return self.memory_dict[env_id]["states"]
+        return self.memory_dict[env_id]
 
     def set_memory(self, memory, env_id):
         """Set memory for a specific env_id (or key)."""
-        self.memory_dict[env_id]["states"] = memory
+        self.memory_dict[env_id] = memory
 
     def reset_env_memory(self, env_id):
         """Clear memory for a specific env_id (or key)."""
