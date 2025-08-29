@@ -34,10 +34,11 @@ if docker ps | grep -q dd-agent; then
 fi
 
 # Start Datadog agent container
+# Using the recommended flags for Amazon Linux v2 / Ubuntu
 docker run -d \
-    --name dd-agent \
-    --network host \
+    --cgroupns host \
     --pid host \
+    --name dd-agent \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
     -v /proc/:/host/proc/:ro \
     -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro \
