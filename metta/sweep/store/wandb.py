@@ -122,8 +122,6 @@ class WandbStore:
         # Check run state and runtime to determine actual status
         runtime = float(run.summary.get("_runtime", 0))
 
-        logger.info(f"Run {run.id}: state={run.state}, runtime={runtime}")
-
         if run.state == self.STATUS_CRASHED or run.state == self.STATUS_FAILED or run.state == self.STATUS_CANCELLED:
             has_failed = True
         if run.state == self.STATUS_RUNNING:
@@ -135,7 +133,6 @@ class WandbStore:
                 has_completed_training = True
             else:
                 # Just initialized, never actually ran - stays PENDING
-                logger.debug(f"Run {run.id} finished but has no runtime, treating as PENDING")
                 has_started_training = False
                 has_completed_training = False
 
