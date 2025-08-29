@@ -12,8 +12,6 @@ Tests for the SkyPilot latency calculation utility.
 import datetime
 import os
 import subprocess
-import sys
-from pathlib import Path
 
 import pytest
 
@@ -122,6 +120,15 @@ class TestSkyPilotLatency:
         # Should be very close to 0 since we just created it
         assert 0 <= latency < 1
 
+    def _run_script_subprocess(self, env):
+        return subprocess.run(
+            ["uv", "run", "python", "-m", "metta.common.util.skypilot_latency"],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,  # We check returncode manually in tests
+        )
+
     def test_main_function_success(self):
         """Test the main() function with valid task ID."""
         # Create a timestamp 10 seconds ago
@@ -131,20 +138,10 @@ class TestSkyPilotLatency:
         env = os.environ.copy()
         env["SKYPILOT_TASK_ID"] = task_id
 
-        # Find the script
-        script_path = Path(__file__).parent.parent.parent / "skypilot_latency.py"
-        if not script_path.exists():
-            # Try alternative path structure
-            script_path = (
-                Path(__file__).parent.parent.parent.parent / "src" / "metta" / "common" / "util" / "skypilot_latency.py"
-            )
-
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
+        try:
+            result = self._run_script_subprocess(env)
+        except FileNotFoundError:
+            pytest.skip("Could not find skypilot_latency script/module")
 
         assert result.returncode == 0
 
@@ -164,19 +161,10 @@ class TestSkyPilotLatency:
         env = os.environ.copy()
         env.pop("SKYPILOT_TASK_ID", None)
 
-        # Find the script
-        script_path = Path(__file__).parent.parent.parent / "skypilot_latency.py"
-        if not script_path.exists():
-            script_path = (
-                Path(__file__).parent.parent.parent.parent / "src" / "metta" / "common" / "util" / "skypilot_latency.py"
-            )
-
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
+        try:
+            result = self._run_script_subprocess(env)
+        except FileNotFoundError:
+            pytest.skip("Could not find skypilot_latency script/module")
 
         assert result.returncode == 1
         assert "Error:" in result.stderr
@@ -187,37 +175,44 @@ class TestSkyPilotLatency:
         env = os.environ.copy()
         env["SKYPILOT_TASK_ID"] = "not-a-valid-task-id"
 
-        # Find the script
-        script_path = Path(__file__).parent.parent.parent / "skypilot_latency.py"
-        if not script_path.exists():
-            script_path = (
-                Path(__file__).parent.parent.parent.parent / "src" / "metta" / "common" / "util" / "skypilot_latency.py"
-            )
-
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
+        try:
+            result = self._run_script_subprocess(env)
+        except FileNotFoundError:
+            pytest.skip("Could not find skypilot_latency script/module")
 
         assert result.returncode == 1
         assert "Error:" in result.stderr
         assert "Invalid task ID format" in result.stderr
 
     def test_queue_latency_precision(self):
-        """Test that latency calculation maintains reasonable precision."""
-        # Create timestamps with microsecond precision
+        """Test that latency calculation maintains microsecond precision."""
+        # Test that the parsing correctly handles microseconds
+        # by checking multiple timestamps with known microsecond values
+
+        # Use a fixed reference time to ensure consistent behavior
+        reference_time = datetime.datetime(2024, 1, 15, 14, 30, 45, tzinfo=datetime.timezone.utc)
+
         for microseconds in [0, 123456, 999999]:
-            past_time = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0) - datetime.timedelta(
-                seconds=2, microseconds=microseconds
+            # Create timestamp with specific microseconds
+            test_time = reference_time.replace(microsecond=microseconds)
+            task_id = f"sky-{test_time:%Y-%m-%d-%H-%M-%S-%f}_test_123"
+
+            # Parse the timestamp back
+            parsed_time = parse_submission_timestamp(task_id)
+
+            # Verify microseconds are preserved correctly
+            assert parsed_time.microsecond == microseconds, (
+                f"Expected microsecond={microseconds}, got {parsed_time.microsecond}"
             )
-            task_id = f"sky-{past_time:%Y-%m-%d-%H-%M-%S-%f}_test_123"
-            os.environ["SKYPILOT_TASK_ID"] = task_id
+            assert parsed_time == test_time, "Timestamp not parsed correctly"
 
-            latency = calculate_queue_latency()
+        # Additionally test that latency calculation works with recent timestamps
+        # Create a timestamp 0.1 seconds ago to minimize variance
+        recent_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=0.1)
+        task_id = f"sky-{recent_time:%Y-%m-%d-%H-%M-%S-%f}_test_123"
+        os.environ["SKYPILOT_TASK_ID"] = task_id
 
-            # Should be approximately 2 seconds plus the microseconds
-            expected = 2 + (microseconds / 1_000_000)
-            # Allow 0.1 second tolerance for test execution time
-            assert abs(latency - expected) < 0.1
+        latency = calculate_queue_latency()
+
+        # Should be approximately 0.1 seconds (allow for execution time)
+        assert 0.05 < latency < 0.5, f"Latency {latency} out of expected range"

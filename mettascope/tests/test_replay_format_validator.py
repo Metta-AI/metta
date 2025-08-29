@@ -545,7 +545,6 @@ def test_validate_real_generated_replay_fast() -> None:
         print(f"✓ Successfully generated and validated fresh replay: {replay_path.name}")
 
 
-@pytest.mark.integration
 def test_validate_real_generated_replay_comprehensive() -> None:
     """Generate a full-length replay using the CI setup and validate it against the strict schema."""
     with tempfile.TemporaryDirectory() as tmp_dir:
