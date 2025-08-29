@@ -145,7 +145,7 @@ class SweepOrchestratorTool(Tool):
             logger.info(f"[SweepOrchestrator] Config saved to {config_path}")
 
         try:
-            logger.info("[SweepOrchestrator] 🏃 Starting orchestrator control loop...")
+            logger.info("[SweepOrchestrator] Starting orchestrator control loop...")
 
             # Use the orchestrate_sweep entry point
             orchestrate_sweep(
@@ -157,7 +157,7 @@ class SweepOrchestratorTool(Tool):
             )
 
         except KeyboardInterrupt:
-            logger.info("[SweepOrchestrator] ⚠️  Sweep interrupted by user")
+            logger.info("[SweepOrchestrator] Sweep interrupted by user")
         except Exception as e:
             logger.error(f"[SweepOrchestrator] Sweep failed with error: {e}")
             raise
@@ -206,7 +206,7 @@ class SweepOrchestratorTool(Tool):
                 else:
                     best_run = min(observations, key=lambda r: r.observation.score)
 
-                logger.info("[SweepOrchestrator] 📊 Best result:")
+                logger.info("[SweepOrchestrator] Best result:")
                 logger.info(f"[SweepOrchestrator]    Run: {best_run.run_id}")
                 logger.info(f"[SweepOrchestrator]    Score: {best_run.observation.score:.4f}")
                 if best_run.observation.suggestion:

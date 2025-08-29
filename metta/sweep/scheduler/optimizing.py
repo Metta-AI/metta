@@ -70,7 +70,7 @@ class OptimizingScheduler:
             # Extract just the trial portion for cleaner display
             display_id = train_run.run_id.split("_trial_")[-1] if "_trial_" in train_run.run_id else train_run.run_id
             display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
-            logger.info(f"[OptimizingScheduler] 📊 Scheduling evaluation for {display_id}")
+            logger.info(f"[OptimizingScheduler] Scheduling evaluation for {display_id}")
             return [eval_job]
 
         # Check if we've hit the trial limit based on total runs created
@@ -81,10 +81,10 @@ class OptimizingScheduler:
             all_complete = all(run.status == JobStatus.COMPLETED for run in all_runs)
             if all_complete:
                 self._is_complete = True
-                logger.info(f"[OptimizingScheduler] 🎉 All {self.config.max_trials} trials completed successfully!")
+                logger.info(f"[OptimizingScheduler] All {self.config.max_trials} trials completed successfully!")
             else:
                 logger.info(
-                    f"[OptimizingScheduler] ✅ Reached max trials ({self.config.max_trials}), "
+                    f"[OptimizingScheduler] Reached max trials ({self.config.max_trials}), "
                     "waiting for remaining jobs to complete"
                 )
             return []
