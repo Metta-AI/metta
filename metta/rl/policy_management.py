@@ -8,7 +8,7 @@ import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import CheckpointManager, get_checkpoint_from_dir, parse_checkpoint_filename
 from metta.rl.wandb import get_wandb_artifact_metadata, load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
@@ -60,11 +60,10 @@ def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
         if file_path.is_file():
             return torch.load(file_path, map_location=device, weights_only=False)
         elif file_path.is_dir():
-            # Use CheckpointManager to find latest checkpoint
-            run_name = file_path.name
-            run_dir = file_path.parent
-            manager = CheckpointManager(run_name, str(run_dir))
-            return manager.load_agent()
+            checkpoint = get_checkpoint_from_dir(str(file_path))
+            if checkpoint and checkpoint._cached_policy:
+                return checkpoint._cached_policy
+            raise FileNotFoundError(f"No checkpoint found in directory: {file_path}")
         else:
             raise FileNotFoundError(f"Path does not exist: {file_path}")
     elif uri.startswith("wandb://"):
@@ -87,25 +86,8 @@ def get_policy_metadata(uri: str) -> Dict[str, Any]:
                 "checkpoint_file": file_path.name,
             }
         elif file_path.is_dir():
-            run_name = file_path.name
-            run_dir = file_path.parent
-            manager = CheckpointManager(run_name, str(run_dir))
-            latest_epoch = manager.get_latest_epoch()
-            if latest_epoch is None:
-                return {}
-
-            # Get the latest checkpoint file to extract metadata
-            latest_file = manager.find_best_checkpoint("epoch")
-            if latest_file:
-                run_name, epoch, agent_step, total_time = parse_checkpoint_filename(latest_file.name)
-                return {
-                    "run": run_name,
-                    "epoch": epoch,
-                    "agent_step": agent_step,
-                    "total_time": total_time,
-                    "checkpoint_file": latest_file.name,
-                }
-            return {}
+            checkpoint = get_checkpoint_from_dir(str(file_path))
+            return checkpoint.metadata if checkpoint else {}
         else:
             return {}
     elif uri.startswith("wandb://"):

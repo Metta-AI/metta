@@ -132,12 +132,31 @@ class CheckpointManager:
         )
         logger.info(f"Saved trainer state: {trainer_file}")
 
+    def load_metadata(self, epoch: Optional[int] = None) -> Dict[str, Any]:
+        """Get metadata by parsing filename - no separate loading needed."""
+        if epoch is None:
+            latest_file = self.find_best_checkpoint("epoch")
+            if not latest_file:
+                return {}
+        else:
+            agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
+            if not agent_files:
+                return {}
+            latest_file = agent_files[0]
+
+        run_name, epoch, agent_step, total_time = parse_checkpoint_filename(latest_file.name)
+        return {
+            "run": run_name,
+            "epoch": epoch,
+            "agent_step": agent_step,
+            "total_time": total_time,
+            "checkpoint_file": latest_file.name,
+        }
+
     def get_latest_epoch(self) -> Optional[int]:
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
-        if not agent_files:
-            return None
-        latest_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
-        return parse_checkpoint_filename(latest_file.name)[1]
+        """Get the latest epoch number."""
+        latest_file = self.find_best_checkpoint("epoch")
+        return parse_checkpoint_filename(latest_file.name)[1] if latest_file else None
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
         """Find checkpoint with highest value for the given metric."""
