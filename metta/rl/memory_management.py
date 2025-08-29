@@ -56,11 +56,10 @@ class MemoryManager:
 
     def reset_states(self, env_id: Optional[int] = None) -> None:
         """Reset stored memory for env_id (or all if None)."""
-        print(f"reset_states: {env_id}")
 
         if hasattr(self.policy.policy, "reset_states"):
             self.policy.policy.reset_states()
         else:
-            # todo: decide which to reset the state, only for a env or entire memory
+            # TODO (Richard): decide which to reset the state, only for a env or entire memory
             # self.memory.reset_env_memory(env_id)
             self.memory.reset_memory()

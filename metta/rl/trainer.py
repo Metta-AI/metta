@@ -339,6 +339,7 @@ def train(
                             env_id_start = td["training_env_id_start"][0].item()
                             prev_state = mm_policy.get_states(env_id_start)
                             res, new_state = policy(td, state=prev_state)
+                            # new_state will be None if using component policy
                             mm_policy.set_states(new_state, env_id_start)
                             td = res
 
