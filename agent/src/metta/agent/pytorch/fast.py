@@ -40,9 +40,6 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
     def forward(self, td: TensorDict, state=None, action=None):
         states = state.get("states", None) if state is not None else None
         env_id = state.get("env_id", 0) if state is not None else None
-
-        # logger.info(f"LSTM state: {states.get('lstm_h', None) if states is not None else None}")
-
         observations = td["env_obs"]
 
         if state is None:

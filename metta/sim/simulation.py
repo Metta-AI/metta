@@ -541,7 +541,6 @@ class Simulation:
         Returns a PolicyState object with lstm_h and lstm_c attributes if available.
         Note: The actual state management depends on the specific policy implementation.
         """
-        # Prefer state API through MemoryManager; tools can introspect whatever the policy returns
         return self._mm_policy.get_states()
 
 
