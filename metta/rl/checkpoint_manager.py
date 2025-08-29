@@ -6,6 +6,9 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+from metta.mettagrid.util.file import local_copy
+from metta.rl.wandb import load_policy_from_wandb_uri
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,7 +52,7 @@ class CheckpointManager:
         self.run_name = run_name
         self.run_dir = Path(run_dir)
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
-        
+
         self.cache_size = max(0, cache_size)
         self._cache = OrderedDict()
 
@@ -66,10 +69,6 @@ class CheckpointManager:
 
         Returns the loaded policy agent or None if not found.
         """
-        # Import here to avoid circular dependency
-        from metta.mettagrid.util.file import local_copy, read
-        from metta.rl.wandb import load_policy_from_wandb_uri
-
         if uri.startswith("file://"):
             path_str = uri[7:]  # Remove "file://" prefix
             path = Path(path_str)
@@ -141,27 +140,27 @@ class CheckpointManager:
 
     def load_agent(self, epoch: Optional[int] = None):
         """Load agent from checkpoint by epoch (or latest if None), with caching.
-        
+
         Returns None if no checkpoints exist."""
         pattern = f"{self.run_name}.e{epoch}.s*.t*.sc*.pt" if epoch else f"{self.run_name}.e*.s*.t*.sc*.pt"
         agent_files = list(self.checkpoint_dir.glob(pattern))
-        
+
         if not agent_files:
             if epoch:
                 logger.warning(f"No checkpoint found for {self.run_name} at epoch {epoch}")
             return None
-            
+
         agent_file = agent_files[0] if epoch else max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
-        
+
         # Check cache (inline for simplicity)
         path_str = str(agent_file)
         if self.cache_size > 0 and path_str in self._cache:
             self._cache.move_to_end(path_str)  # LRU: move to end
             return self._cache[path_str]
-        
+
         # Load from disk
         agent = torch.load(agent_file, weights_only=False)
-        
+
         # Add to cache if enabled
         if self.cache_size > 0:
             if path_str in self._cache:
@@ -169,7 +168,7 @@ class CheckpointManager:
             if len(self._cache) >= self.cache_size:
                 self._cache.popitem(last=False)  # Evict oldest
             self._cache[path_str] = agent
-            
+
         return agent
 
     def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
@@ -213,11 +212,11 @@ class CheckpointManager:
         """Get URI for checkpoint at given epoch (or latest if None)."""
         pattern = f"{self.run_name}.e{epoch}.s*.t*.sc*.pt" if epoch else f"{self.run_name}.e*.s*.t*.sc*.pt"
         files = list(self.checkpoint_dir.glob(pattern))
-        
+
         if not files:
             msg = f"No checkpoint found for {self.run_name}" + (f" at epoch {epoch}" if epoch else "")
             raise FileNotFoundError(msg)
-            
+
         checkpoint = files[0] if epoch else max(files, key=lambda p: parse_checkpoint_filename(p.name)[1])
         return f"file://{checkpoint}"
 
