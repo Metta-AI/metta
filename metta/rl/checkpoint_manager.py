@@ -2,7 +2,6 @@
 
 import logging
 import re
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -23,10 +22,6 @@ def name_from_uri(uri: str) -> str:
             if path.name == "checkpoints":
                 return path.parent.name
             return path.name
-    elif uri.startswith("checkpoint://"):
-        # checkpoint://test_run/epoch_0000 → test_run
-        parts = uri[13:].split("/")
-        return parts[0] if parts else "unknown"
     elif uri.startswith("wandb://"):
         # wandb://entity/project/run_name:version → run_name
         parts = uri[8:].split("/")
@@ -53,14 +48,7 @@ def metadata_from_uri(uri: str) -> Dict[str, Any]:
     return {"run": name_from_uri(uri), "epoch": 0}
 
 
-@dataclass
-class Checkpoint:
-    """Simple checkpoint data container."""
-
-    run_name: str
-    uri: str
-    metadata: Dict[str, Any]
-    _cached_policy: Any = None
+# Checkpoint class removed - we just use URIs now!
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
@@ -97,18 +85,15 @@ def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> Optional[str]:
     return f"file://{latest_file}"
 
 
-def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[Checkpoint]:
-    """Get latest checkpoint from directory (deprecated - use get_checkpoint_uri_from_dir)."""
+def get_checkpoint_from_dir(checkpoint_dir: str) -> Optional[tuple[str, Any]]:
+    """Get latest checkpoint from directory - returns (uri, policy) tuple."""
     uri = get_checkpoint_uri_from_dir(checkpoint_dir)
     if not uri:
         return None
 
     path = Path(uri[7:])
     agent = torch.load(path, weights_only=False)
-    metadata = metadata_from_uri(uri)
-    run_name = name_from_uri(uri)
-
-    return Checkpoint(run_name=run_name, uri=uri, metadata=metadata, _cached_policy=agent)
+    return (uri, agent)
 
 
 class CheckpointManager:
@@ -144,7 +129,7 @@ class CheckpointManager:
         if epoch is None:
             return None
 
-        trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
+        trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
         if not trainer_file.exists():
             return None
 
@@ -166,7 +151,7 @@ class CheckpointManager:
         """Save trainer optimizer state."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-        trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
+        trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
         torch.save(
             {
                 "optimizer": optimizer.state_dict(),
@@ -245,7 +230,7 @@ class CheckpointManager:
         for agent_file in files_to_remove:
             try:
                 _, epoch, _, _ = parse_checkpoint_filename(agent_file.name)
-                trainer_file = self.checkpoint_dir / f"trainer_epoch_{epoch}.pt"
+                trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
                 trainer_file.unlink(missing_ok=True)
 
                 agent_file.unlink()

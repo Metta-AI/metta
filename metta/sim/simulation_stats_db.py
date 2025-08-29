@@ -11,49 +11,32 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import duckdb
 
 from metta.mettagrid.episode_stats_db import EpisodeStatsDB
 from metta.mettagrid.util.file import exists, local_copy, write_file
-from metta.rl.checkpoint_manager import Checkpoint, CheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager, metadata_from_uri, name_from_uri
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
 # ------------------------------------------------------------------ #
 
 
-def create_checkpoint_from_manager(
+def create_checkpoint_uri_from_manager(
     checkpoint_manager: CheckpointManager, checkpoint_path: str | None = None
-) -> Checkpoint:
-    """Create Checkpoint from CheckpointManager.
+) -> Optional[str]:
+    """Create checkpoint URI from CheckpointManager.
 
     Uses best checkpoint by score if no specific path provided.
     """
     if checkpoint_path is None:
         checkpoint_path = checkpoint_manager.find_best_checkpoint("score")
         if checkpoint_path is None:
-            raise ValueError("No checkpoints found in checkpoint manager")
+            return None
 
-    # Extract epoch from checkpoint path
-    checkpoint_name = Path(checkpoint_path).stem
-    if checkpoint_name.startswith("model_"):
-        try:
-            epoch = int(checkpoint_name.split("_")[1])
-        except (IndexError, ValueError):
-            epoch = 0
-    else:
-        epoch = 0
-
-    # Load metadata if available
-    metadata = checkpoint_manager.load_metadata(checkpoint_path) or {}
-    metadata["epoch"] = epoch  # Ensure epoch is in metadata for key_and_version() method
-
-    # Generate consistent URI format
-    uri = f"checkpoint://{checkpoint_manager.run_name}/epoch_{epoch:04d}"
-
-    return Checkpoint(run_name=checkpoint_manager.run_name, uri=uri, metadata=metadata)
+    return f"file://{checkpoint_path}"
 
 
 # TODO: add a githash
@@ -113,10 +96,10 @@ class SimulationStatsDB(EpisodeStatsDB):
         *,
         sim_id: str,
         dir_with_shards: Union[str, Path],
-        agent_map: Dict[int, Union["Checkpoint", Tuple[str, int]]],
+        agent_map: Dict[int, Union[str, Tuple[str, int]]],
         sim_name: str,
         sim_env: str,
-        policy_info: Union["Checkpoint", Tuple[str, int]],
+        policy_info: Union[str, Tuple[str, int]],
     ) -> "SimulationStatsDB":
         """Create SimulationStatsDB from checkpoint shards and context.
 
@@ -296,15 +279,17 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
-    def _extract_key_and_version(self, info: Union["Checkpoint", Tuple[str, int]]) -> tuple[str, int]:
-        """Extract (key, version) from various input formats.
+    def _extract_key_and_version(self, info: Union[str, Tuple[str, int]]) -> tuple[str, int]:
+        """Extract (key, version) from URI string or tuple.
 
-        Supports both Checkpoint objects and direct (key, version) tuples.
+        Supports both URI strings and direct (key, version) tuples.
         """
         if isinstance(info, tuple) and len(info) == 2:
             return info
-        elif hasattr(info, "key_and_version"):
-            return info.key_and_version()
+        elif isinstance(info, str):
+            # Extract from URI
+            metadata = metadata_from_uri(info)
+            return name_from_uri(info), metadata.get("epoch", 0)
         else:
             # Fallback for compatibility
             return str(info), 0

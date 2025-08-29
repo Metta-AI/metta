@@ -66,9 +66,10 @@ def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
         if file_path.is_file():
             return torch.load(file_path, map_location=device, weights_only=False)
         elif file_path.is_dir():
-            checkpoint = get_checkpoint_from_dir(str(file_path))
-            if checkpoint and checkpoint._cached_policy:
-                return checkpoint._cached_policy
+            result = get_checkpoint_from_dir(str(file_path))
+            if result:
+                uri, policy = result
+                return policy
             raise FileNotFoundError(f"No checkpoint found in directory: {file_path}")
         else:
             raise FileNotFoundError(f"Path does not exist: {file_path}")

@@ -13,7 +13,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -28,7 +28,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.rl.checkpoint_manager import Checkpoint, CheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -430,21 +430,21 @@ class Simulation:
 
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
-        # Create agent map using Checkpoint for database integration
-        agent_map: Dict[int, Checkpoint] = {}
+        # Create agent map using URIs for database integration
+        agent_map: Dict[int, str] = {}  # Just URIs now!
 
-        # Add policy agents to the map
-        policy_info = Checkpoint(
-            run_name=self._run_name, uri=f"checkpoint://{self._run_name}/epoch_0000", metadata={"epoch": 0}
-        )  # Use epoch 0 for simulation
-        for idx in self._policy_idxs:
-            agent_map[int(idx.item())] = policy_info
+        # Add policy agents to the map if they have a URI
+        if self._policy_uri:
+            for idx in self._policy_idxs:
+                agent_map[int(idx.item())] = self._policy_uri
 
         # Add NPC agents to the map if they exist
-        if self._npc_policy is not None:
-            npc_info = Checkpoint(run_name="npc", uri="checkpoint://npc/epoch_0000", metadata={"epoch": 0})
+        if self._npc_policy is not None and self._npc_policy_uri:
             for idx in self._npc_idxs:
-                agent_map[int(idx.item())] = npc_info
+                agent_map[int(idx.item())] = self._npc_policy_uri
+
+        # Use policy URI as policy_info, or empty string if none
+        policy_uri = self._policy_uri or ""
 
         db = SimulationStatsDB.from_shards_and_context(
             sim_id=self._id,
@@ -452,22 +452,25 @@ class Simulation:
             agent_map=agent_map,
             sim_name=self._name,
             sim_env=self._config.env.label,
-            policy_info=policy_info,
+            policy_info=policy_uri,
         )
         return db
 
     def _get_policy_name(self) -> str:
-        return self._wandb_policy_name if self._wandb_policy_name is not None else self._run_name
+        return self._wandb_policy_name or self._run_name
 
-    def _get_policy_uri(self) -> str:
-        return self._wandb_uri if self._wandb_uri is not None else self._policy_uri
+    def _get_policy_uri(self) -> Optional[str]:
+        return self._wandb_uri or self._policy_uri
 
     def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
             policy_name = self._get_policy_name()
             policy_uri = self._get_policy_uri()
-            policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
+            if policy_uri:  # Only add if we have a URI
+                policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
+            else:
+                policy_details = []
             if self._npc_pr is not None:
                 policy_details.append((self._npc_pr.run_name, self._npc_pr.uri, None))
 
@@ -552,11 +555,9 @@ class Simulation:
         return self._vecenv.envs[0]
 
     @property
-    def policy_record(self) -> Checkpoint:
-        """Get the policy info used in this simulation."""
-        return Checkpoint(
-            run_name=self._run_name, uri=f"checkpoint://{self._run_name}/epoch_0000", metadata={"epoch": 0}
-        )
+    def policy_record(self) -> Optional[str]:
+        """Get the policy URI used in this simulation."""
+        return self._policy_uri
 
     @property
     def name(self) -> str:
