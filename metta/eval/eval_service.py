@@ -42,7 +42,7 @@ def evaluate_policy(
     # Load the policy from URI
     policy = resolve_policy(checkpoint_uri, str(device))
     run_name = name_from_uri(checkpoint_uri)
-    
+
     sims = [
         Simulation(
             name=sim.name,
@@ -72,7 +72,9 @@ def evaluate_policy(
             merged_db.merge_in(sim_result.stats_db)
             record_heartbeat()
             if replay_dir is not None:
-                key, version = sim_result.stats_db.key_and_version_from_uri(checkpoint_uri)
+                from metta.rl.checkpoint_manager import key_and_version
+
+                key, version = key_and_version(checkpoint_uri)
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
                 if sim_replay_urls:
                     replay_urls[sim.name] = sim_replay_urls

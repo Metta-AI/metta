@@ -180,7 +180,7 @@ def test_checkpoint_info_compatibility():
 
         # Test the interface methods that database code expects
         assert checkpoint_uri.startswith("file://")
-        
+
         # Test key_and_version function
         key, version = key_and_version(checkpoint_uri)
         assert key == "test_run"

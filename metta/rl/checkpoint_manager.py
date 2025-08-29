@@ -49,7 +49,7 @@ def epoch_from_uri(uri: str) -> int:
 
 def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI.
-    
+
     This is the unified function for extracting metadata from URIs.
     """
     return name_from_uri(uri), epoch_from_uri(uri)
