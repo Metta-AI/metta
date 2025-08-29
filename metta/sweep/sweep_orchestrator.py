@@ -465,7 +465,7 @@ class SweepController:
                                 logger.error(
                                     f"Failed to update run summary for eval job {job.run_id}, skipping dispatch"
                                 )
-                                continue
+                                raise RuntimeError(f"Failed to update run summary for eval job {job.run_id}")
                             logger.info(f"Launching eval for job {job.run_id}")
 
                         # Only dispatch if store operations succeeded
@@ -521,7 +521,7 @@ class SweepOrchestratorConfig:
     wandb: WandbConfig
     protein_config: ProteinConfig
     max_parallel_jobs: int = 10
-    monitoring_interval: int = 5
+    monitoring_interval: int = 60
 
 
 def orchestrate_sweep(
