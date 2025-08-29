@@ -223,6 +223,7 @@
     "raylib",
     "readlink",
     "reinit",
+    "relogin",
     "relu",
     "repr",
     "representer",

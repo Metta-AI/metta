@@ -44,18 +44,21 @@ def ensure_wandb_run():
     if not run_id:
         raise RuntimeError("No active wandb run and METTA_RUN_ID not set")
 
-    # Check credentials
-    api_key = os.environ.get("WANDB_API_KEY")
-    has_netrc = os.path.exists(os.path.expanduser("~/.netrc"))
+    # Check if we're in offline mode (no credentials needed)
+    wandb_mode = os.environ.get("WANDB_MODE", "").lower()
+    if wandb_mode != "offline":
+        # Check credentials only if not in offline mode
+        api_key = os.environ.get("WANDB_API_KEY")
+        has_netrc = os.path.exists(os.path.expanduser("~/.netrc"))
 
-    if not api_key and not has_netrc:
-        raise RuntimeError("No wandb credentials (need WANDB_API_KEY or ~/.netrc)")
+        if not api_key and not has_netrc:
+            raise RuntimeError("No wandb credentials (need WANDB_API_KEY or ~/.netrc)")
+
+        # Login if API key provided
+        if api_key:
+            wandb.login(key=api_key, relogin=True, anonymous="never")
 
     project = os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT)
-
-    # Login if API key provided
-    if api_key:
-        wandb.login(key=api_key, relogin=True, anonymous="never")
 
     # Create/resume run
     run = wandb.init(
@@ -66,8 +69,10 @@ def ensure_wandb_run():
         reinit=True,
     )
 
-    entity = os.environ.get("WANDB_ENTITY", wandb.api.default_entity)
-    print(f"✅ Wandb run: https://wandb.ai/{entity}/{project}/runs/{run_id}", file=sys.stderr)
+    # Only print URL if not in offline mode
+    if wandb_mode != "offline":
+        entity = os.environ.get("WANDB_ENTITY", wandb.api.default_entity)
+        print(f"✅ Wandb run: https://wandb.ai/{entity}/{project}/runs/{run_id}", file=sys.stderr)
 
     return run
 
