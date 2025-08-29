@@ -137,19 +137,17 @@ class WandbStore:
                 has_started_training = False
                 has_completed_training = False
 
-        # Check evaluation status
-        if "has_started_eval" in summary and summary["has_started_eval"] is True:  # type: ignore
-            has_started_eval = True
+            # Check evaluation status
+            if "has_started_eval" in summary and summary["has_started_eval"] is True:  # type: ignore
+                has_started_eval = True
 
-        # Check for evaluator metrics (ONLY keys starting with "evaluator/")
-        # This avoids confusion with in-training eval metrics
-        has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
+            # Check for evaluator metrics (ONLY keys starting with "evaluator/")
+            # This avoids confusion with in-training eval metrics
+            has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
 
-        if has_evaluator_metrics:
-            has_started_eval = True
-            has_been_evaluated = True
-            has_completed_training = True
-            has_started_training = True
+            if has_evaluator_metrics:
+                has_started_eval = True
+                has_been_evaluated = True
 
         # Extract observation if present
         observation = None
