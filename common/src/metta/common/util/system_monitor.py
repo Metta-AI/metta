@@ -64,6 +64,50 @@ class SystemMonitor:
         if auto_start:
             self.start()
 
+    def stats(self) -> dict[str, float]:
+        stats = {}
+        summary = self.get_summary()
+        for metric_name, metric_data in summary["metrics"].items():
+            if metric_data["latest"] is not None:
+                stats[f"monitor/{metric_name}"] = metric_data["latest"]
+        return stats
+
+    def get_summary(self) -> dict[str, Any]:
+        summary = {"timestamp": time.time(), "metrics": {}}
+
+        for metric in self._metric_collectors:
+            # Get all history for this metric
+            history = self.get_history(metric)
+
+            # Calculate statistics from history
+            latest = self.get_latest(metric)
+            avg = None
+            min_val = None
+            max_val = None
+
+            if history:
+                values = [val for ts, val in history if val is not None]
+                if values:
+                    avg = sum(values) / len(values)
+                    min_val = min(values)
+                    max_val = max(values)
+
+            summary["metrics"][metric] = {
+                "latest": latest,
+                "average": avg,
+                "min": min_val,
+                "max": max_val,
+                "sample_count": len(history),
+            }
+
+        return summary
+
+    def get_history(self, metric: str) -> list[tuple[float, Any]]:
+        with self._lock:
+            if metric not in self._metrics:
+                return []
+            return list(self._metrics[metric])
+
     def get_latest(self, metric: str | None = None) -> Any:
         with self._lock:
             if metric:
