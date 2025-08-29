@@ -30,22 +30,18 @@ class LSTMWrapper(nn.Module):
         self.num_layers = num_layers
         self.is_continuous = getattr(self.policy, "is_continuous", False)
 
-        # Create multi-layer LSTM
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers)
 
-        # Initialize parameters after LSTM creation to match ComponentPolicy
-        for name, param in self.lstm.named_parameters():
+        for name, param in self.lstm.named_parameters():  # Initialize to match ComponentPolicy
             if "bias" in name:
-                nn.init.constant_(param, 1)  # Match ComponentPolicy initialization
+                nn.init.constant_(param, 1)
             elif "weight" in name:
-                nn.init.orthogonal_(param, 1)  # Match ComponentPolicy initialization
+                nn.init.orthogonal_(param, 1)
 
-        # Store action conversion tensors (will be set by MettaAgent)
-        self.action_index_tensor = None
+        self.action_index_tensor = None  # Action conversion tensors (set by MettaAgent)
         self.cum_action_max_params = None
 
-        # LSTM memory management - critical for stable training
-        self.lstm_h = {}  # Hidden states per environment
+        self.lstm_h = {}  # Hidden states per environment - critical for stable training
         self.lstm_c = {}  # Cell states per environment
 
     # ============================================================================

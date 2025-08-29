@@ -67,8 +67,7 @@ except ImportError:
 
 torch.set_float32_matmul_precision("high")
 
-# Get rank for logger name
-_rank = int(os.environ.get("RANK", 0))
+_rank = int(os.environ.get("RANK", 0))  # Get rank for logger name
 _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 
@@ -99,8 +98,7 @@ def train(
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
 
-    # Log recent checkpoints for debugging
-    checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir
+    checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir  # Log recent checkpoints for debugging
     if os.path.exists(checkpoints_dir):
         files = sorted(os.listdir(checkpoints_dir))[-3:]
         if files:
