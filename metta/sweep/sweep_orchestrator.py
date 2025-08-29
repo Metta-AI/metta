@@ -418,17 +418,30 @@ class SweepController:
                 metadata = self._compute_metadata_from_runs(all_run_infos)
 
                 # 3. Hand everything to scheduler - it decides what to do
-                # But enforce max_parallel_jobs limit
-                if metadata.runs_in_progress >= self.max_parallel_jobs:
-                    logger.debug(f"At max parallel jobs limit ({self.max_parallel_jobs}), skipping scheduling")
-                    new_jobs = []
-                else:
-                    new_jobs = self.scheduler.schedule(sweep_metadata=metadata, all_runs=all_run_infos)
-                    # Limit jobs to not exceed max_parallel
-                    max_to_schedule = self.max_parallel_jobs - metadata.runs_in_progress
-                    if len(new_jobs) > max_to_schedule:
-                        logger.info(f"Scheduler returned {len(new_jobs)} jobs, limiting to {max_to_schedule}")
-                        new_jobs = new_jobs[:max_to_schedule]
+                # Always get jobs from scheduler (including eval jobs)
+                new_jobs = self.scheduler.schedule(sweep_metadata=metadata, all_runs=all_run_infos)
+                
+                # Filter jobs based on capacity constraints
+                # EVAL jobs always go through, TRAINING jobs respect the limit
+                filtered_jobs = []
+                training_jobs_count = 0
+                
+                for job in new_jobs:
+                    if job.type == JobTypes.LAUNCH_EVAL:
+                        # Always allow eval jobs
+                        filtered_jobs.append(job)
+                    elif job.type == JobTypes.LAUNCH_TRAINING:
+                        # Check if we have capacity for training jobs
+                        if metadata.runs_in_progress + training_jobs_count < self.max_parallel_jobs:
+                            filtered_jobs.append(job)
+                            training_jobs_count += 1
+                        else:
+                            logger.debug(f"At max parallel jobs limit ({self.max_parallel_jobs}), skipping training job {job.run_id}")
+                    else:
+                        # Other job types (if any) go through
+                        filtered_jobs.append(job)
+                
+                new_jobs = filtered_jobs
 
                 # 4. Execute scheduler's decisions
                 for job in new_jobs:
