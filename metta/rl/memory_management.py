@@ -39,7 +39,9 @@ class MemoryManager:
 
     def get_states(self, env_id: Optional[int] = None) -> Any:
         """Get stored memory for env_id (or global if None)."""
-        self.memory.get_memory(env_id)
+        if env_id is None:
+            env_id = 0
+        return self.memory.get_memory(env_id)
 
     def set_states(self, states: Any, env_id: Optional[int] = None) -> None:
         """Persist memory for env_id (or global if None)."""
