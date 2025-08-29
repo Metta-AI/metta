@@ -1,7 +1,26 @@
 from threading import RLock
 from typing import Any, Optional
 
+import torch
 import torch.nn as nn
+from tensordict import TensorDict
+
+
+class Memory:
+    def __init__(self):
+        self.memory_dict = TensorDict({}, batch_size=torch.Size([1]))
+
+    def get_memory(self, env_id):
+        return self.memory_dict[env_id]
+
+    def set_memory(self, memory, env_id):
+        self.memory_dict[env_id] = memory
+
+    def reset_env_memory(self, env_id):
+        self.memory_dict[env_id] = {}
+
+    def reset_memory(self):
+        self.memory_dict = TensorDict({}, batch_size=torch.Size([1]))
 
 
 class MemoryManager:
