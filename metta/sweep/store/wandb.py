@@ -12,10 +12,12 @@ class WandbStore:
     """WandB implementation of the Store protocol"""
 
     # WandB run states
+    # TODO We shuold probably just put this into a strong enum
     STATUS_RUNNING = "running"
     STATUS_FINISHED = "finished"
     STATUS_CRASHED = "crashed"
     STATUS_FAILED = "failed"
+    STATUS_CANCELLED = "cancelled"
 
     def __init__(self, entity: str, project: str):
         self.entity = entity
@@ -58,7 +60,7 @@ class WandbStore:
         """Fetch runs matching filter criteria"""
         # Create fresh API instance to avoid caching
         api = wandb.Api()
-        
+
         # Convert sweep_id filter to group filter for WandB
         wandb_filters = {}
         if "sweep_id" in filters:
@@ -117,12 +119,14 @@ class WandbStore:
         has_completed_training = False
         has_started_eval = False
         has_been_evaluated = False
-
+        has_failed = False
         # Check run state and runtime to determine actual status
         runtime = float(run.summary.get("_runtime", 0))
 
         logger.info(f"Run {run.id}: state={run.state}, runtime={runtime}")
 
+        if run.state == self.STATUS_CRASHED or run.state == self.STATUS_FAILED or run.state == self.STATUS_CANCELLED:
+            has_failed = True
         if run.state == self.STATUS_RUNNING:
             has_started_training = True
         elif run.state in [self.STATUS_FINISHED, self.STATUS_CRASHED, self.STATUS_FAILED]:
@@ -181,6 +185,7 @@ class WandbStore:
             has_completed_training=has_completed_training,
             has_started_eval=has_started_eval,
             has_been_evaluated=has_been_evaluated,
+            has_failed=has_failed,
             cost=cost,
             runtime=runtime,
             observation=observation,

@@ -83,6 +83,7 @@ class RunInfo:
     has_completed_training: bool = False
     has_started_eval: bool = False
     has_been_evaluated: bool = False
+    has_failed: bool = False
     cost: float = 0
     runtime: float = 0
 
@@ -91,6 +92,8 @@ class RunInfo:
 
     @property
     def status(self) -> JobStatus:
+        if self.has_failed:
+            return JobStatus.COMPLETED  # For the moment, failed == we ignore it
         if not self.has_started_training:
             return JobStatus.PENDING
         if self.has_started_training and not self.has_completed_training:
@@ -299,18 +302,18 @@ class LocalDispatcher:
 
         # Add positional arguments first (if any)
         cmd_parts.extend(job.args)
-        
+
         # Collect all args
         all_args = []
-        
+
         # Add run_id for training jobs only (not for eval)
         if job.type == JobTypes.LAUNCH_TRAINING:
             all_args.append(f"run={job.run_id}")
-        
+
         # Add metadata fields as args (used for evaluation jobs)
         for key, value in job.metadata.items():
             all_args.append(f"{key}={value}")
-        
+
         # Add all args with --args flag
         if all_args:
             cmd_parts.append("--args")
@@ -318,7 +321,7 @@ class LocalDispatcher:
 
         # Collect all overrides (from both overrides and config)
         all_overrides = []
-        
+
         # Add explicit overrides
         for key, value in job.overrides.items():
             all_overrides.append(f"{key}={value}")
@@ -326,7 +329,7 @@ class LocalDispatcher:
         # Add config from optimizer as additional overrides
         for key, value in job.config.items():
             all_overrides.append(f"{key}={value}")
-        
+
         # Add all overrides with --overrides flag
         if all_overrides:
             cmd_parts.append("--overrides")
@@ -420,12 +423,12 @@ class SweepController:
                 # 3. Hand everything to scheduler - it decides what to do
                 # Always get jobs from scheduler (including eval jobs)
                 new_jobs = self.scheduler.schedule(sweep_metadata=metadata, all_runs=all_run_infos)
-                
+
                 # Filter jobs based on capacity constraints
                 # EVAL jobs always go through, TRAINING jobs respect the limit
                 filtered_jobs = []
                 training_jobs_count = 0
-                
+
                 for job in new_jobs:
                     if job.type == JobTypes.LAUNCH_EVAL:
                         # Always allow eval jobs
@@ -436,11 +439,13 @@ class SweepController:
                             filtered_jobs.append(job)
                             training_jobs_count += 1
                         else:
-                            logger.debug(f"At max parallel jobs limit ({self.max_parallel_jobs}), skipping training job {job.run_id}")
+                            logger.debug(
+                                f"At max parallel jobs limit ({self.max_parallel_jobs}), skipping training job {job.run_id}"
+                            )
                     else:
                         # Other job types (if any) go through
                         filtered_jobs.append(job)
-                
+
                 new_jobs = filtered_jobs
 
                 # 4. Execute scheduler's decisions
@@ -457,14 +462,16 @@ class SweepController:
                                 },
                             )
                             if not success:
-                                logger.error(f"Failed to update run summary for eval job {job.run_id}, skipping dispatch")
+                                logger.error(
+                                    f"Failed to update run summary for eval job {job.run_id}, skipping dispatch"
+                                )
                                 continue
                             logger.info(f"Launching eval for job {job.run_id}")
 
                         # Only dispatch if store operations succeeded
                         dispatch_id = self.dispatcher.dispatch(job)
                         logger.info(f"Dispatched {job.run_id} with dispatch_id {dispatch_id}")
-                        
+
                     except Exception as e:
                         logger.error(f"Failed to initialize/dispatch job {job.run_id}: {e}")
                         logger.error(f"Skipping dispatch for {job.run_id} to prevent resource overload")
