@@ -9,7 +9,7 @@ from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +25,8 @@ class PlayTool(Tool):
 
     @property
     def effective_replay_dir(self) -> str:
-        """Get the replay directory, defaulting to system.data_dir/replays if not specified."""
-        return self.replay_dir if self.replay_dir is not None else f"{self.system.data_dir}/replays"
+        """Get the replay directory, using auto_replay_dir if not specified."""
+        return self.replay_dir if self.replay_dir is not None else auto_replay_dir()
 
     @property
     def effective_stats_dir(self) -> str:

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 from metta.common.util.fs import get_repo_root
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
 from metta.setup.saved_settings import get_saved_settings
-from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success
+from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success, warning
 
 # Type hints only
 if TYPE_CHECKING:
@@ -330,7 +330,11 @@ class MettaCLI:
 
     def cmd_configure(self, args, unknown_args=None) -> None:
         if args.component:
-            self.configure_component(args.component)
+            # Special handling for 'cloud' to configure cloud-specific settings
+            if args.component == "cloud":
+                self.configure_cloud(args, unknown_args)
+            else:
+                self.configure_component(args.component)
         elif args.profile:
             selected_user_type = UserType(args.profile)
             if selected_user_type in PROFILE_DEFINITIONS:
@@ -343,6 +347,67 @@ class MettaCLI:
                 sys.exit(1)
         else:
             self.setup_wizard()
+
+    def configure_cloud(self, args, unknown_args) -> None:
+        """Configure cloud-specific settings like WandB and S3."""
+        saved_settings = get_saved_settings()
+
+        # Check if user is cloud profile
+        if saved_settings.user_type != UserType.CLOUD:
+            warning("Cloud configuration is typically for 'cloud' profile users.")
+            if not prompt_choice("Continue anyway?", [("y", "Yes"), ("n", "No")], default="n") == "y":
+                return
+
+        # Parse additional arguments
+        import argparse
+
+        parser = argparse.ArgumentParser(prog="metta configure cloud")
+        parser.add_argument("--wandb-entity", help="WandB entity/organization")
+        parser.add_argument("--wandb-project", help="WandB project name")
+        parser.add_argument("--s3-bucket", help="S3 bucket name (without s3:// prefix)")
+        parser.add_argument("--aws-profile", help="AWS profile name to use")
+        parser.add_argument("--show", action="store_true", help="Show current cloud configuration")
+
+        cloud_args = parser.parse_args(unknown_args or [])
+
+        if cloud_args.show:
+            # Show current configuration
+            cloud_config = saved_settings.get_cloud_config()
+            if not cloud_config:
+                info("No cloud configuration set.")
+            else:
+                info("Current cloud configuration:")
+                for key, value in cloud_config.items():
+                    info(f"  {key}: {value}")
+            return
+
+        # Update configuration
+        updated = False
+        if cloud_args.wandb_entity:
+            saved_settings.set_cloud_config("wandb_entity", cloud_args.wandb_entity)
+            success(f"Set WandB entity to: {cloud_args.wandb_entity}")
+            updated = True
+
+        if cloud_args.wandb_project:
+            saved_settings.set_cloud_config("wandb_project", cloud_args.wandb_project)
+            success(f"Set WandB project to: {cloud_args.wandb_project}")
+            updated = True
+
+        if cloud_args.s3_bucket:
+            saved_settings.set_cloud_config("s3_bucket", cloud_args.s3_bucket)
+            success(f"Set S3 bucket to: {cloud_args.s3_bucket}")
+            updated = True
+
+        if cloud_args.aws_profile:
+            saved_settings.set_cloud_config("aws_profile", cloud_args.aws_profile)
+            success(f"Set AWS profile to: {cloud_args.aws_profile}")
+            updated = True
+
+        if updated:
+            info("\nCloud configuration saved.")
+            info("These settings will be used automatically when running tools.")
+        else:
+            info("No changes made. Use --help to see available options.")
 
     def configure_component(self, component_name: str) -> None:
         from metta.setup.registry import get_all_modules
