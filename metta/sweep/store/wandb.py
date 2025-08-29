@@ -1,15 +1,17 @@
 import json
 import logging
 from typing import Any, List
-from metta.common.util.numpy_helpers import clean_numpy_types
-from metta.sweep.sweep_orchestrator import RunInfo, JobStatus, Observation
+
 import wandb
+
+from metta.common.util.numpy_helpers import clean_numpy_types
+from metta.sweep.sweep_orchestrator import Observation, RunInfo
 
 logger = logging.getLogger(__name__)
 
 
 class WandbStore:
-    """WandB implementation of the Store protocol"""
+    """WandB implementation of sweep store."""
 
     # WandB run states
     # TODO We shuold probably just put this into a string enum
@@ -25,7 +27,7 @@ class WandbStore:
         # Don't store api instance - create fresh one each time to avoid caching
 
     def init_run(self, run_id: str, sweep_id: str | None = None) -> None:
-        """Initialize a new run in WandB with proper metadata for sweep tracking"""
+        """Initialize a new run in WandB."""
         logger.info(f"[WandbStore] Initializing run {run_id} for sweep {sweep_id}")
 
         try:
@@ -56,7 +58,7 @@ class WandbStore:
             raise RuntimeError(f"Failed to initialize WandB run {run_id}: {e}") from e
 
     def fetch_runs(self, filters: dict) -> List[RunInfo]:
-        """Fetch runs matching filter criteria"""
+        """Fetch runs matching filter criteria."""
         # Create fresh API instance to avoid caching
         api = wandb.Api()
 
@@ -88,7 +90,7 @@ class WandbStore:
             return []
 
     def update_run_summary(self, run_id: str, summary_update: dict) -> bool:
-        """Update the summary of a WandB run"""
+        """Update run summary in WandB."""
         try:
             # Create fresh API instance to avoid caching
             api = wandb.Api()
@@ -107,9 +109,8 @@ class WandbStore:
             logger.error(f"[WandbStore] Error updating run summary for run {run_id}: {e}")
             return False
 
-    # Adapter
     def _convert_run_to_info(self, run: Any) -> RunInfo:
-        """Convert WandB run to RunInfo"""
+        """Convert WandB run to RunInfo."""
         summary = deep_clean(run.summary)
         # assert isinstance(summary, dict)
 
@@ -190,9 +191,8 @@ class WandbStore:
         return info
 
 
-# Data Utility
 def deep_clean(obj):
-    """Recursively convert any object to JSON-serializable Python types."""
+    """Convert object to JSON-serializable types."""
     if isinstance(obj, dict):
         # Already a regular dict, just recursively clean values
         return {k: deep_clean(v) for k, v in obj.items()}
@@ -212,77 +212,3 @@ def deep_clean(obj):
             # If still not serializable, convert to string
             return str(cleaned)
         return cleaned
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    print("Fetching test run from WandB...")
-    test_run = wandb.Api().run("metta-research/metta/arena_shaped_test")
-    print(f"Run state: {test_run.state}")
-    print(f"Run summary keys (first 20): {list(test_run.summary.keys())[:20]}")
-
-    # Check different places for evaluation markers
-    print("\n=== Checking for evaluation markers ===")
-
-    # 1. Check summary
-    print("In summary:")
-    eval_keys = [k for k in test_run.summary.keys() if "eval" in k.lower() or "arena" in k.lower()]
-    for key in eval_keys:
-        print(f"  {key}: {test_run.summary[key]}")
-
-    # 2. Check config
-    print("\nIn config:")
-    if hasattr(test_run, "config"):
-        eval_config_keys = [k for k in test_run.config.keys() if "eval" in k.lower()]
-        for key in eval_config_keys:
-            print(f"  {key}: {test_run.config[key]}")
-
-    # 3. Check history (last few metrics)
-    print("\nIn history (last 5 steps):")
-    if hasattr(test_run, "history"):
-        history = test_run.history()
-        if len(history) > 0:
-            last_entries = history.tail(5)
-            for col in last_entries.columns:
-                if "eval" in col.lower() or "arena" in col.lower():
-                    print(f"  {col} found in history")
-
-    # 4. Check system metrics
-    print("\nSystem metrics:")
-    if hasattr(test_run, "system_metrics"):
-        print(f"  System metrics keys: {test_run.system_metrics}")
-
-    store = WandbStore("metta-research", "metta")
-    info = store._convert_run_to_info(test_run)
-
-    print("\n=== RunInfo ===")
-    print(f"run_id: {info.run_id}")
-    print(f"group: {info.group}")
-    print(f"status: {info.status}")
-
-    # Add visual indicators for boolean states
-    def check_mark(condition: bool) -> str:
-        return "✅" if condition else "❌"
-
-    print(f"{check_mark(info.has_started_training)} has_started_training: {info.has_started_training}")
-    print(f"{check_mark(info.has_completed_training)} has_completed_training: {info.has_completed_training}")
-    print(f"{check_mark(info.has_started_eval)} has_started_eval: {info.has_started_eval}")
-    print(f"{check_mark(info.has_been_evaluated)} has_been_evaluated: {info.has_been_evaluated}")
-    print(f"{check_mark(info.observation is not None)} observation: {info.observation}")
-    print(f"{check_mark(info.cost > 0)} cost: {info.cost}")
-    print(f"{check_mark(info.runtime > 0)} runtime: {info.runtime}")
-
-    # Also check specific eval markers
-    print("\n=== Direct checks ===")
-    has_started_eval_flag = test_run.summary.get("has_started_eval")
-    evaluator_in_summary = "evaluator" in test_run.summary
-
-    print(f"{check_mark(has_started_eval_flag)} 'has_started_eval' in summary: {has_started_eval_flag}")
-    print(f"{check_mark(evaluator_in_summary)} 'evaluator' in summary: {evaluator_in_summary}")
-
-    # Summary of overall status
-    print("\n=== Overall Status ===")
-    is_fully_complete = (
-        info.has_started_training and info.has_completed_training and info.has_started_eval and info.has_been_evaluated
-    )
-    print(f"{check_mark(is_fully_complete)} Run fully complete (trained and evaluated)")

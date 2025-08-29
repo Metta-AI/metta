@@ -18,7 +18,6 @@ from metta.sweep.sweep_orchestrator import (
     JobTypes,
     RunInfo,
     SweepMetadata,
-    Scheduler,
 )
 
 logger = logging.getLogger(__name__)
@@ -166,4 +165,3 @@ def create_sequential_scheduler(
     )
 
     return SequentialScheduler(config)
-

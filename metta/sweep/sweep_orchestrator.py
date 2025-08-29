@@ -252,18 +252,14 @@ def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
 
 
 class LocalDispatcher:
-    """
-    Local dispatcher that runs jobs as subprocesses.
-    All operations are synchronous.
-    Uses process PID as the dispatch_id for natural process management.
-    """
+    """Runs jobs as local subprocesses."""
 
     def __init__(self):
         self._processes: dict[str, subprocess.Popen] = {}  # pid -> process
         self._run_to_pid: dict[str, str] = {}  # run_id -> pid for debugging
 
     def _reap_finished_processes(self):
-        """Reap any finished child processes to prevent zombies"""
+        """Clean up finished subprocesses."""
         finished_pids = []
         for pid, process in self._processes.items():
             # poll() returns None if process is still running, returncode otherwise
@@ -280,7 +276,7 @@ class LocalDispatcher:
                 del self._run_to_pid[run_id]
 
     def check_processes(self):
-        """Check and log status of all processes"""
+        """Check status of all processes."""
         self._reap_finished_processes()
         active_count = len(self._processes)
         if active_count > 0:
@@ -291,7 +287,7 @@ class LocalDispatcher:
         return active_count
 
     def dispatch(self, job: JobDefinition) -> str:
-        """Dispatch a job locally as a subprocess and return its PID as dispatch_id"""
+        """Dispatch job locally as subprocess."""
 
         # Reap any finished processes first to prevent zombie accumulation
         self._reap_finished_processes()
@@ -375,10 +371,7 @@ class LocalDispatcher:
 
 
 class SweepController:
-    """
-    Stateless orchestrator for sweeps. All state is stored in the Store.
-    Controller can be restarted at any time without losing progress.
-    """
+    """Stateless orchestrator for sweep execution."""
 
     def __init__(
         self,
@@ -402,7 +395,7 @@ class SweepController:
         self.max_parallel_jobs = max_parallel_jobs
 
     def _compute_metadata_from_runs(self, all_runs: list[RunInfo]) -> SweepMetadata:
-        """Compute sweep metadata from all runs"""
+        """Compute sweep metadata from runs."""
         metadata = SweepMetadata(sweep_id=self.sweep_id)
         metadata.runs_created = len(all_runs)  # Total number of runs
 
@@ -417,7 +410,7 @@ class SweepController:
         return metadata
 
     def run(self) -> None:
-        """Main control loop - simplified"""
+        """Main control loop for sweep execution."""
         while True:
             try:
                 # 1. Fetch ALL runs from store
@@ -431,7 +424,8 @@ class SweepController:
                 new_jobs = self.scheduler.schedule(sweep_metadata=metadata, all_runs=all_run_infos)
 
                 # Check if the sweep is complete
-                if hasattr(self.scheduler, "is_complete") and self.scheduler.is_complete:
+                # TODO: We should modify scheduler to always have that attribute.
+                if hasattr(self.scheduler, "is_complete") and self.scheduler.is_complete:  # type: ignore
                     logger.info("[SweepController] 🏁 Sweep completed successfully!")
                     break
 
@@ -549,13 +543,7 @@ def orchestrate_sweep(
     dispatcher: Dispatcher,
     store: Store,
 ) -> None:
-    """
-    Entry point for running a sweep. Creates one controller for one sweep.
-
-    The controller is completely stateless - all state is in the Store.
-    This means the controller can be killed and restarted at any point
-    without losing progress.
-    """
+    """Entry point for running a sweep."""
     cogweb_client = CogwebClient.get_client(base_url=config.sweep_server_uri)
     sweep_client = cogweb_client.sweep_client()
 

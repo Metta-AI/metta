@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class OptimizingSchedulerConfig:
-    """Configuration for the optimizing scheduler."""
+    """Configuration for optimizing scheduler."""
 
     max_trials: int = 10
     recipe_module: str = "experiments.recipes.arena"  # e.g., "experiments.recipes.arena"
@@ -35,16 +35,7 @@ class OptimizingSchedulerConfig:
 
 
 class OptimizingScheduler:
-    """
-    Scheduler that integrates with an Optimizer to get hyperparameter suggestions.
-
-    This scheduler:
-    - Gets hyperparameter suggestions from the optimizer
-    - Schedules training jobs with those suggestions
-    - Schedules evaluations for completed training jobs
-    - Provides observations back to the optimizer
-    - Runs sequentially (one job at a time)
-    """
+    """Scheduler that gets suggestions from optimizer."""
 
     def __init__(self, config: OptimizingSchedulerConfig, optimizer: Optimizer):
         self.config = config
@@ -54,7 +45,7 @@ class OptimizingScheduler:
         logger.info(f"[OptimizingScheduler] Initialized with max_trials={config.max_trials}")
 
     def schedule(self, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]) -> list[JobDefinition]:
-        """Schedule jobs with optimizer suggestions."""
+        """Schedule next jobs based on current state."""
 
         # First, check for completed training runs that need evaluation
         runs_needing_eval = [run for run in all_runs if run.status == JobStatus.TRAINING_DONE_NO_EVAL]
@@ -178,5 +169,5 @@ class OptimizingScheduler:
 
     @property
     def is_complete(self) -> bool:
-        """Check if the sweep is complete."""
+        """Check if sweep is complete."""
         return self._is_complete

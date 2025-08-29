@@ -14,38 +14,8 @@ def ppo(
     max_trials: int = 10,
     max_parallel_jobs: int = 1,
 ) -> SweepOrchestratorTool:
-    """Create a PPO hyperparameter sweep using the new orchestrator.
-    
-    This sweep optimizes 5 key PPO parameters:
-    - learning_rate: The optimizer learning rate
-    - clip_coef: PPO clipping coefficient for policy updates
-    - ent_coef: Entropy coefficient for exploration
-    - gae_lambda: GAE lambda for advantage estimation
-    - vf_coef: Value function coefficient in the loss
-    
-    Args:
-        sweep_name: Name for this sweep (will be auto-generated if not provided)
-        recipe: Module path to the recipe (e.g., "experiments.recipes.arena")
-        train: Training entrypoint in the recipe module
-        eval: Evaluation entrypoint in the recipe module
-        max_trials: Number of hyperparameter configurations to try
-        max_parallel_jobs: Maximum number of parallel jobs to run
-    
-    Returns:
-        Configured SweepOrchestratorTool ready to run
-    
-    Example:
-        # Run a sweep on arena recipe
-        uv run ./tools/run.py experiments.sweeps.standard.ppo \
-            --args sweep_name=my_ppo_sweep recipe=experiments.recipes.arena \
-                   train=train_shaped eval=evaluate max_trials=20
-        
-        # Run a sweep on navigation recipe
-        uv run ./tools/run.py experiments.sweeps.standard.ppo \
-            --args sweep_name=nav_sweep recipe=experiments.recipes.navigation \
-                   train=train eval=evaluate max_trials=10
-    """
-    
+    """Create PPO hyperparameter sweep."""
+
     # Define the 5 PPO parameters to sweep over
     protein_config = ProteinConfig(
         metric="evaluator/eval_arena/score",  # Metric to optimize
@@ -98,7 +68,7 @@ def ppo(
             max_suggestion_cost=300,  # 5 minutes max per trial (for quick testing)
         ),
     )
-    
+
     # Create and return the orchestrator tool
     return SweepOrchestratorTool(
         sweep_name=sweep_name,
@@ -131,7 +101,7 @@ def quick_test(
         uv run ./tools/run.py experiments.sweeps.standard.quick_test \
             --args sweep_name=test_sweep
     """
-    
+
     # Use the SAME full PPO config as the main ppo() function
     protein_config = ProteinConfig(
         metric="evaluator/eval_arena/score",
@@ -184,7 +154,7 @@ def quick_test(
             max_suggestion_cost=60,  # 1 minute max per trial for quick testing
         ),
     )
-    
+
     tool = SweepOrchestratorTool(
         # sweep_name is not set here - it will come from args
         protein_config=protein_config,
@@ -196,7 +166,7 @@ def quick_test(
         monitoring_interval=5,
         train_overrides={
             "trainer.total_timesteps": "10000",  # Quick 10k timesteps for testing
-        }
+        },
     )
-    
+
     return tool

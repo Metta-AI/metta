@@ -11,52 +11,33 @@ logger = logging.getLogger(__name__)
 
 
 class ProteinOptimizer:
-    """
-    Stateless adapter that wraps MettaProtein to implement the Optimizer protocol.
-    
-    This is a thin wrapper that creates a fresh MettaProtein instance on each call,
-    loads all observations, and generates suggestions.
-    """
+    """Adapter for Protein optimizer."""
 
     def __init__(self, config: ProteinConfig):
-        """Initialize the Protein optimizer with configuration.
-        
-        Args:
-            config: ProteinConfig with optimization settings and parameters
-        """
+        """Initialize with Protein configuration."""
         self.config = config
-        
+
     def suggest(self, observations: list[Observation], n_suggestions: int = 1) -> list[dict[str, Any]]:
-        """Generate new hyperparameter suggestions based on observations.
-        
-        Creates a fresh MettaProtein instance, loads all observations, and generates suggestions.
-        
-        Args:
-            observations: List of Observation objects from completed runs
-            n_suggestions: Number of suggestions to generate
-            
-        Returns:
-            List of suggestion dictionaries with hyperparameter configurations
-        """
+        """Generate hyperparameter suggestions."""
         # Create fresh MettaProtein instance (stateless)
         protein = MettaProtein(self.config)
-        
+
         # Load all observations
         for obs in observations:
             protein.observe(
                 suggestion=obs.suggestion,
                 objective=obs.score,
                 cost=obs.cost,
-                is_failure=False  # We don't track failures currently
+                is_failure=False,  # We don't track failures currently
             )
-        
+
         logger.info(f"Loaded {len(observations)} observations into Protein optimizer")
-        
+
         # Generate requested number of suggestions
         suggestions = []
         for _ in range(n_suggestions):
             suggestion, info = protein.suggest()
             suggestions.append(suggestion)
             logger.debug(f"Generated suggestion with info: {info}")
-            
+
         return suggestions
