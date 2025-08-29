@@ -93,3 +93,5 @@ experiments/recipes/scratchpad/*.py
 
 resources
 identified-figures/
+# Cursor MCP configuration (may contain credentials)
+.cursor-mcp/
