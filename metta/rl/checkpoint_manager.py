@@ -27,6 +27,39 @@ def key_and_version(uri: str) -> tuple[str, int]:
     return "unknown", 0
 
 
+def get_checkpoint_uri_from_dir(checkpoint_dir: str, epoch: int | None = None) -> str | None:
+    """Get a checkpoint URI from a directory, loading latest if epoch not specified.
+
+    Returns the file:// URI of the checkpoint, or None if not found.
+    """
+    from pathlib import Path
+
+    dir_path = Path(checkpoint_dir)
+
+    if not dir_path.exists():
+        return None
+
+    # Find all checkpoint files
+    checkpoint_files = list(dir_path.glob("*.pt"))
+    if not checkpoint_files:
+        return None
+
+    if epoch is None:
+        # Get latest by epoch number
+        latest = max(checkpoint_files, key=lambda p: parse_checkpoint_filename(p.name)[1] if p.suffix == ".pt" else -1)
+        return f"file://{latest.absolute()}"
+    else:
+        # Find specific epoch
+        for ckpt in checkpoint_files:
+            try:
+                _, ckpt_epoch, _, _, _ = parse_checkpoint_filename(ckpt.name)
+                if ckpt_epoch == epoch:
+                    return f"file://{ckpt.absolute()}"
+            except ValueError:
+                continue
+        return None
+
+
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
     """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt."""
     parts = filename.split(".")
@@ -41,18 +74,6 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]
     score = score_int / 10000.0  # Convert back to float
 
     return run_name, epoch, agent_step, total_time, score
-
-
-def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> str:
-    """Get URI of latest checkpoint from directory."""
-    checkpoint_path = Path(checkpoint_dir)
-    checkpoints = list(checkpoint_path.glob("*.e*.s*.t*.sc*.pt"))
-    if not checkpoints:
-        raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
-
-    # Return the latest by epoch
-    latest_file = max(checkpoints, key=lambda p: parse_checkpoint_filename(p.name)[1])
-    return f"file://{latest_file}"
 
 
 class CheckpointManager:

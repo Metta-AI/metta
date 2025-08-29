@@ -75,7 +75,10 @@ def _():
         replay_available = False
         print("⚠️ MettaScope replay viewer not available")
 
-    from metta.rl.checkpoint_manager import Checkpoint, get_checkpoint_from_dir
+    from metta.rl.checkpoint_manager import (
+        CheckpointManager,
+        get_checkpoint_uri_from_dir,
+    )
 
     from metta.common.wandb.wandb_context import WandbConfig
     import torch
@@ -355,8 +358,8 @@ def _():
         MettaGridEnv,
         OpportunisticPolicy,
         Path,
-        Checkpoint,
-        get_checkpoint_from_dir,
+        CheckpointManager,
+        get_checkpoint_uri_from_dir,
         RendererToolConfig,
         TensorDict,
         TrainTool,
@@ -917,8 +920,8 @@ def _(mo):
 def _(
     MettaGridEnv,
     Path,
-    Checkpoint,
-    get_checkpoint_from_dir,
+    CheckpointManager,
+    get_checkpoint_uri_from_dir,
     WandbConfig,
     contextlib,
     display,
@@ -989,26 +992,25 @@ def _(
 
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-            # Load checkpoint using unified system
-            checkpoint_dir = str(latest_ckpt.parent.absolute())
-            print(f"Checkpoint directory: {checkpoint_dir}")
+            # Load checkpoint using URI-based system
+            checkpoint_uri = f"file://{latest_ckpt.absolute()}"
+            print(f"Loading checkpoint: {checkpoint_uri}")
 
-            checkpoint = get_checkpoint_from_dir(checkpoint_dir)
-            if not checkpoint:
-                raise Exception(f"No checkpoint found in directory: {checkpoint_dir}")
+            # Parse the checkpoint filename to get run_name
+            from metta.rl.checkpoint_manager import parse_checkpoint_filename
 
-            print(f"Loaded checkpoint: {checkpoint.run_name}, URI: {checkpoint.uri}")
-            print(f"✅ Successfully loaded policy: {checkpoint.run_name}")
+            run_name_from_ckpt, _, _, _, _ = parse_checkpoint_filename(latest_ckpt.name)
+
+            # Load the policy directly from the checkpoint file
+            trained_policy = torch.load(latest_ckpt, weights_only=False)
+            if trained_policy is None:
+                raise Exception("No policy found in checkpoint")
+
+            print(f"✅ Successfully loaded policy from: {checkpoint_uri}")
 
             # Create evaluation environment
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(env_config, render_mode="human")
-
-            # Get the trained policy from the checkpoint
-            # The policy is already loaded by get_checkpoint_from_dir
-            trained_policy = checkpoint._cached_policy
-            if trained_policy is None:
-                raise Exception("No policy found in checkpoint")
 
             # Set device to CPU for evaluation
             trained_policy = trained_policy.to(torch.device("cpu"))
@@ -1599,8 +1601,8 @@ def _(
     EVAL_EPISODES,
     MettaGridEnv,
     Path,
-    Checkpoint,
-    get_checkpoint_from_dir,
+    CheckpointManager,
+    get_checkpoint_uri_from_dir,
     TensorDict,
     WandbConfig,
     contextlib,
@@ -1661,25 +1663,25 @@ def _(
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-        # Load checkpoint using unified system
-        checkpoint_dir = str(latest_ckpt.parent.absolute())
-        print(f"Checkpoint directory: {checkpoint_dir}")
+        # Load checkpoint using URI-based system
+        checkpoint_uri = f"file://{latest_ckpt.absolute()}"
+        print(f"Loading checkpoint: {checkpoint_uri}")
 
-        checkpoint = get_checkpoint_from_dir(checkpoint_dir)
-        if not checkpoint:
-            raise Exception(f"No checkpoint found in directory: {checkpoint_dir}")
+        # Parse the checkpoint filename to get run_name
+        from metta.rl.checkpoint_manager import parse_checkpoint_filename
 
-        print(f"✅ Successfully loaded policy: {checkpoint.run_name}")
+        run_name_from_ckpt, _, _, _, _ = parse_checkpoint_filename(latest_ckpt.name)
+
+        # Load the policy directly from the checkpoint file
+        trained_policy = torch.load(latest_ckpt, weights_only=False)
+        if trained_policy is None:
+            raise Exception("No policy found in checkpoint")
+
+        print(f"✅ Successfully loaded policy from: {checkpoint_uri}")
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):
             eval_env = MettaGridEnv(env_config2, render_mode="human")
-
-        # Get the trained policy from the checkpoint
-        # The policy is already loaded by get_checkpoint_from_dir
-        trained_policy = checkpoint._cached_policy
-        if trained_policy is None:
-            raise Exception("No policy found in checkpoint")
 
         # Set device to CPU for evaluation
         trained_policy = trained_policy.to(torch.device("cpu"))
