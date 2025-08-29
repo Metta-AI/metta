@@ -341,3 +341,8 @@ def _validate_open_task_generator(v: Any, handler):
 AnyTaskGeneratorConfig = SerializeAsAny[
     Annotated[TaskGeneratorConfig[Any], WrapValidator(_validate_open_task_generator)]
 ]
+
+# Type aliases for specific task generator configs
+SingleTaskGeneratorConfig = SingleTaskGenerator.Config
+TaskGeneratorSetConfig = TaskGeneratorSet.Config  
+BucketedTaskGeneratorConfig = BucketedTaskGenerator.Config
