@@ -194,7 +194,7 @@ class CheckpointManager:
 
         deleted_count = 0
         for agent_file in files_to_remove:
-            _, epoch, _, _ = parse_checkpoint_filename(agent_file.name)
+            _, epoch, _, _, _ = parse_checkpoint_filename(agent_file.name)
             trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
             trainer_file.unlink(missing_ok=True)
             agent_file.unlink()

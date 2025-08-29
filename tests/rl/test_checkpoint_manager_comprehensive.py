@@ -274,8 +274,8 @@ class TestCheckpointManagerErrorHandling:
     def test_parse_checkpoint_filename_utility(self):
         """Test the parse_checkpoint_filename utility function."""
 
-        # Test valid filename
-        valid_filename = "test_run.e5.s1000.t300.pt"
+        # Test valid filename (with score field)
+        valid_filename = "test_run.e5.s1000.t300.sc9200.pt"  # score=0.92
         parsed = parse_checkpoint_filename(valid_filename)
 
         assert parsed is not None
@@ -283,14 +283,16 @@ class TestCheckpointManagerErrorHandling:
         assert parsed[1] == 5  # epoch
         assert parsed[2] == 1000  # agent_step
         assert parsed[3] == 300  # total_time
+        assert abs(parsed[4] - 0.92) < 0.0001  # score (0.92)
 
         # Test invalid filename formats should raise ValueError
         invalid_filenames = [
             "invalid.pt",
-            "test_run_e5_s1000_t300.pt",  # Wrong separator
-            "test_run.e5.s1000.pt",  # Missing total_time
-            "test_run.e5.t300.pt",  # Missing agent_step
-            "test_run.s1000.t300.pt",  # Missing epoch
+            "test_run_e5_s1000_t300_sc0.pt",  # Wrong separator
+            "test_run.e5.s1000.t300.pt",  # Missing score
+            "test_run.e5.s1000.sc0.pt",  # Missing total_time
+            "test_run.e5.t300.sc0.pt",  # Missing agent_step
+            "test_run.s1000.t300.sc0.pt",  # Missing epoch
         ]
 
         for invalid_filename in invalid_filenames:
@@ -305,13 +307,14 @@ class TestCheckpointManagerErrorHandling:
     def test_load_from_empty_directory(self, checkpoint_manager):
         """Test loading when no checkpoints exist."""
 
-        # Should return None gracefully
-        loaded_agent = checkpoint_manager.load_agent()
-        assert loaded_agent is None
+        # Should raise FileNotFoundError when no checkpoints exist
+        with pytest.raises(FileNotFoundError):
+            checkpoint_manager.load_agent()
 
-        trainer_state = checkpoint_manager.load_trainer_state()
-        assert trainer_state is None
+        with pytest.raises(FileNotFoundError):
+            checkpoint_manager.load_trainer_state()
 
+        # find_best_checkpoint returns None when no checkpoints exist
         best_path = checkpoint_manager.find_best_checkpoint("epoch")
         assert best_path is None
 
