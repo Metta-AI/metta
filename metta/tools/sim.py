@@ -12,6 +12,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
+from metta.rl.checkpoint_manager import key_and_version
 from metta.rl.policy_management import discover_policy_uris, resolve_policy
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -150,8 +151,6 @@ class SimTool(Tool):
     def _export_checkpoint_to_stats_db(self, stats_db: SimulationStatsDB, checkpoint_uri: str, metrics: dict) -> None:
         """Export checkpoint evaluation results to stats database."""
         # Extract key and version from URI for database
-        from metta.rl.checkpoint_manager import key_and_version
-
         policy_key, policy_version = key_and_version(checkpoint_uri)
 
         # Record simulation entries for each configured simulation

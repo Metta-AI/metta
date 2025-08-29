@@ -9,7 +9,7 @@ from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager, name_from_uri
+from metta.rl.checkpoint_manager import CheckpointManager, key_and_version, name_from_uri
 from metta.rl.policy_management import resolve_policy
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
@@ -72,8 +72,6 @@ def evaluate_policy(
             merged_db.merge_in(sim_result.stats_db)
             record_heartbeat()
             if replay_dir is not None:
-                from metta.rl.checkpoint_manager import key_and_version
-
                 key, version = key_and_version(checkpoint_uri)
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
                 if sim_replay_urls:
