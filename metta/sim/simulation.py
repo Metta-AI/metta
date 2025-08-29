@@ -421,8 +421,6 @@ class Simulation:
             npc_name = None
             if self._npc_policy_uri:
                 # Extract a simple name from the NPC URI using CheckpointManager
-                from metta.rl.checkpoint_manager import CheckpointManager
-
                 metadata = CheckpointManager.get_policy_metadata(self._npc_policy_uri)
                 npc_name = f"npc_{metadata['run_name']}"
                 policy_details.append((npc_name, self._npc_policy_uri, "NPC policy"))

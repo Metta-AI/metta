@@ -10,6 +10,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.agent_config import AgentConfig, create_agent
+from metta.agent.component_policies.fast import Fast
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -318,8 +319,6 @@ class MettaAgent(nn.Module):
 
             # Default to Fast ComponentPolicy for old checkpoints
             # (Old checkpoints don't have the agent type stored in a way we can easily retrieve)
-            from metta.agent.component_policies.fast import Fast
-
             PolicyClass = Fast
             logger.info("Converting old checkpoint to Fast agent")
 
