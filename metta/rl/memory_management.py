@@ -47,6 +47,9 @@ class MemoryManager:
         self._has_reset_memory = hasattr(policy, "reset_memory")
         self._has_reset_env_memory = hasattr(policy, "reset_env_memory")
 
+        self.memory = Memory()
+        self.memory.reset_memory()
+
     # ----------------------------------------------------------------------------
     # State accessors (preferred modern API)
     # ----------------------------------------------------------------------------
@@ -87,29 +90,8 @@ class MemoryManager:
                 self.policy.set_memory(states)
 
     def reset_states(self, env_id: Optional[int] = None) -> None:
-        """Reset policy states; supports per-env when available on policy.
-
-        Order of preference:
-        1) policy.reset_states(env_id)
-        2) policy.reset_states()
-        3) policy.reset_env_memory(env_id)
-        4) policy.reset_memory()
-        """
-        with self._lock:
-            if self._has_reset_states:
-                # Prefer simple no-arg reset; per-env handled via legacy API below
-                try:
-                    self.policy.reset_states()
-                    return
-                except TypeError:
-                    pass
-
-            if env_id is not None and self._has_reset_env_memory:
-                self.policy.reset_env_memory(env_id)
-                return
-
-            if self._has_reset_memory:
-                self.policy.reset_memory()
+        """Reset policy states; supports per-env when available on policy."""
+        self.memory.reset_env_memory(env_id)
 
     # ----------------------------------------------------------------------------
     # Legacy compatibility shims
@@ -122,6 +104,7 @@ class MemoryManager:
             return self.get_states()
 
     def reset_memory(self, env_id: Optional[int] = None) -> None:
+        print("reset_memory")
         with self._lock:
             if env_id is not None and self._has_reset_env_memory:
                 self.policy.reset_env_memory(env_id)
