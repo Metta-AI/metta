@@ -59,14 +59,12 @@ class CheckpointManager:
     @staticmethod
     def load_from_uri(uri: str):
         """Load a policy from any supported URI format.
-
         Supports:
         - file:///absolute/path/to/checkpoint.pt - Direct checkpoint file
         - file://./relative/path/to/checkpoint.pt - Relative checkpoint file
         - file:///path/to/checkpoints - Directory with checkpoints (loads latest)
         - s3://bucket/key/checkpoint.pt - S3 object
         - wandb://project/artifact_path:version - WandB artifact
-
         Returns the loaded policy agent or None if not found.
         """
         if uri.startswith("file://"):
@@ -78,15 +76,9 @@ class CheckpointManager:
                 return torch.load(path, weights_only=False)
             elif path.is_dir():
                 # Directory - find latest checkpoint
-                if path.name == "checkpoints":
-                    # It's a checkpoints directory, look for parent run dir
-                    run_dir = path.parent
-                    run_name = run_dir.name
-                else:
-                    # It's a run directory
-                    run_dir = path
-                    run_name = path.name
-                    path = run_dir / "checkpoints"
+                if path.name != "checkpoints":
+                    # It's a run directory, go to checkpoints subdirectory
+                    path = path / "checkpoints"
 
                 # Find latest checkpoint in directory
                 checkpoint_files = list(path.glob("*.pt"))
@@ -140,7 +132,6 @@ class CheckpointManager:
 
     def load_agent(self, epoch: Optional[int] = None):
         """Load agent from checkpoint by epoch (or latest if None), with caching.
-
         Returns None if no checkpoints exist."""
         pattern = f"{self.run_name}.e{epoch}.s*.t*.sc*.pt" if epoch else f"{self.run_name}.e*.s*.t*.sc*.pt"
         agent_files = list(self.checkpoint_dir.glob(pattern))
@@ -172,7 +163,10 @@ class CheckpointManager:
         return agent
 
     def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        """Load trainer state (optimizer state, epoch, agent_step). Returns None if no trainer state exists."""
+        """Load trainer state for resuming training.
+        Returns dict with 'optimizer_state', 'epoch', 'agent_step' or None if not found.
+        Trainer state is optional - training works without it but loses optimizer momentum.
+        """
         if epoch is None:
             checkpoints = self.select_checkpoints(count=1, metric="epoch")
             if not checkpoints:
@@ -180,7 +174,16 @@ class CheckpointManager:
             epoch = parse_checkpoint_filename(checkpoints[0].name)[1]
 
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
-        return torch.load(trainer_file, weights_only=False) if trainer_file.exists() else None
+        if not trainer_file.exists():
+            return None
+
+        state = torch.load(trainer_file, weights_only=False)
+        # Normalize field names for backward compatibility
+        return {
+            "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
+            "epoch": state.get("epoch", epoch),
+            "agent_step": state.get("agent_step", 0),
+        }
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
         """Save agent with metadata embedded in filename."""
@@ -199,8 +202,11 @@ class CheckpointManager:
         if str(checkpoint_path) in self._cache:
             del self._cache[str(checkpoint_path)]
 
-    def save_trainer_state(self, optimizer, epoch: int, agent_step: int):
-        """Save trainer optimizer state."""
+    def save_trainer_state(self, optimizer, epoch: int, agent_step: int) -> None:
+        """Save trainer optimizer state in a separate file alongside the checkpoint.
+        This is optional - training can work without trainer state, but having it
+        allows resuming with the exact optimizer state (momentum, learning rate schedules, etc).
+        """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
         torch.save(
