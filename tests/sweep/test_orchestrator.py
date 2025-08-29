@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from metta.sweep.sweep_orchestrator import (
     JobDefinition,
     JobStatus,
@@ -54,10 +52,8 @@ class TestJobStatus:
         )
         assert run.status == JobStatus.IN_EVAL
 
-    def test_job_status_from_run_info_completed(self):
-        """Test that a fully evaluated run has EVAL_DONE_NOT_COMPLETED status."""
-        # TODO: Bug detected - when has_been_evaluated=True, status should be COMPLETED
-        # but it returns EVAL_DONE_NOT_COMPLETED. Need to fix the logic in RunInfo.status property
+    def test_job_status_from_run_info_eval_done_not_completed(self):
+        """Test that a run evaluated without observation is EVAL_DONE_NOT_COMPLETED."""
         run = RunInfo(
             run_id="test_run_001",
             has_started_training=True,
@@ -65,26 +61,34 @@ class TestJobStatus:
             has_started_eval=True,
             has_been_evaluated=True,
             has_failed=False,
+            observation=None,
         )
-        # Current behavior (buggy)
         assert run.status == JobStatus.EVAL_DONE_NOT_COMPLETED
 
-    @pytest.mark.skip(reason="TODO: Bug - JobStatus.FAILED doesn't exist in enum")
+    def test_job_status_from_run_info_completed(self):
+        """Test that a run evaluated with observation is COMPLETED."""
+        run = RunInfo(
+            run_id="test_run_001",
+            has_started_training=True,
+            has_completed_training=True,
+            has_started_eval=True,
+            has_been_evaluated=True,
+            has_failed=False,
+            observation=Observation(score=0.5, cost=1.0, suggestion={}),
+        )
+        assert run.status == JobStatus.COMPLETED
+
     def test_job_status_from_run_info_failed(self):
         """Test that a failed run has FAILED status."""
-        # The JobStatus enum doesn't have a FAILED value, but has_failed flag exists
-        # This needs to be fixed in the implementation
-        # run = RunInfo(
-        #     run_id="test_run_001",
-        #     has_started_training=True,
-        #     has_completed_training=False,
-        #     has_started_eval=False,
-        #     has_been_evaluated=False,
-        #     has_failed=True,
-        # )
-        # This would fail - JobStatus.FAILED doesn't exist
-        # assert run.status == JobStatus.FAILED
-        pass
+        run = RunInfo(
+            run_id="test_run_001",
+            has_started_training=True,
+            has_completed_training=False,
+            has_started_eval=False,
+            has_been_evaluated=False,
+            has_failed=True,
+        )
+        assert run.status == JobStatus.FAILED
 
 
 class TestLocalDispatcher:

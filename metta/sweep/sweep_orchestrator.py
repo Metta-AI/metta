@@ -50,6 +50,7 @@ class JobStatus(StrEnum):
     IN_EVAL = auto()
     EVAL_DONE_NOT_COMPLETED = auto()
     COMPLETED = auto()
+    FAILED = auto()
 
 
 # DispatchType removed - dispatchers are passed directly to controller
@@ -92,7 +93,7 @@ class RunInfo:
     @property
     def status(self) -> JobStatus:
         if self.has_failed:
-            return JobStatus.COMPLETED  # For the moment, failed == we ignore it
+            return JobStatus.FAILED
         if not self.has_started_training:
             return JobStatus.PENDING
         if self.has_started_training and not self.has_completed_training:
@@ -101,10 +102,11 @@ class RunInfo:
             return JobStatus.TRAINING_DONE_NO_EVAL
         if self.has_started_eval and not self.has_been_evaluated:
             return JobStatus.IN_EVAL
-        if self.has_been_evaluated and self.observation is None:
+        if self.has_been_evaluated:
+            if self.observation is not None:
+                return JobStatus.COMPLETED
             return JobStatus.EVAL_DONE_NOT_COMPLETED
-        else:
-            return JobStatus.COMPLETED
+        return JobStatus.COMPLETED
 
     # Dispatch info
     # dispatch_id: str | None = None
