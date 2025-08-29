@@ -1,7 +1,6 @@
 import logging
 import os
 import platform
-import uuid
 from logging import Logger
 from typing import Optional
 
@@ -19,7 +18,7 @@ from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class TrainTool(Tool):
             self.run = args["run"]
 
         if self.run is None:
-            self.run = f"local.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())}"
+            self.run = auto_run_name(prefix="local")
 
         # Set run_dir based on run name if not explicitly set
         if self.run_dir is None:
