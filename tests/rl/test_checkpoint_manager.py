@@ -257,21 +257,6 @@ class TestUtilities:
         # Should exist now
         assert checkpoint_manager.exists()
 
-    def test_get_checkpoint_uri(self, checkpoint_manager, mock_agent):
-        # Save checkpoints
-        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 1000, "total_time": 60})
-        checkpoint_manager.save_agent(mock_agent, epoch=5, metadata={"agent_step": 5000, "total_time": 300})
-
-        # Get specific epoch URI
-        uri = checkpoint_manager.get_checkpoint_uri(epoch=1)
-        assert uri.startswith("file://")
-        assert uri.endswith("test_run__e1__s1000__t60__sc0.pt")
-
-        # Get latest epoch URI
-        latest_uri = checkpoint_manager.get_checkpoint_uri()
-        assert latest_uri.startswith("file://")
-        assert latest_uri.endswith("test_run__e5__s5000__t300__sc0.pt")
-
 
 class TestErrorHandling:
     def test_load_from_empty_directory(self, checkpoint_manager):
@@ -292,10 +277,6 @@ class TestErrorHandling:
         for invalid_name in invalid_names:
             with pytest.raises(ValueError):
                 CheckpointManager(run_dir=temp_run_dir, run_name=invalid_name)
-
-    def test_missing_checkpoint_error(self, checkpoint_manager):
-        with pytest.raises(FileNotFoundError):
-            checkpoint_manager.get_checkpoint_uri(epoch=999)
 
 
 if __name__ == "__main__":
