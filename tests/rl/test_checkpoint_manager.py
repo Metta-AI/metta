@@ -52,7 +52,7 @@ class TestBasicSaveLoad:
 
         # Verify checkpoint file exists with correct format
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        expected_filename = "test_run.e5.s5280.t120.sc7500.pt"
+        expected_filename = "test_run__e5__s5280__t120__sc7500.pt"
         agent_file = checkpoint_dir / expected_filename
 
         assert agent_file.exists()
@@ -92,12 +92,12 @@ class TestBasicSaveLoad:
         # Test checkpoint selection
         latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="epoch")
         assert len(latest_checkpoints) == 1
-        assert "test_run.e10.s10000.t300.sc9000.pt" == latest_checkpoints[0].name
+        assert "test_run__e10__s10000__t300__sc9000.pt" == latest_checkpoints[0].name
 
         # Test selection by score
         best_score_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="score")
         assert len(best_score_checkpoints) == 1
-        assert "test_run.e10.s10000.t300.sc9000.pt" == best_score_checkpoints[0].name
+        assert "test_run__e10__s10000__t300__sc9000.pt" == best_score_checkpoints[0].name
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent):
         # Save agent checkpoint
@@ -188,7 +188,7 @@ class TestCleanup:
             )
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        checkpoint_files = list(checkpoint_dir.glob("test_run.e*.s*.t*.sc*.pt"))
+        checkpoint_files = list(checkpoint_dir.glob("test_run__e*__s*__t*__sc*.pt"))
         assert len(checkpoint_files) == 10
 
         # Clean up, keeping only 5
@@ -196,7 +196,7 @@ class TestCleanup:
         assert deleted_count == 5
 
         # Verify only 5 remain (latest ones: epochs 6-10)
-        remaining_files = list(checkpoint_dir.glob("test_run.e*.s*.t*.sc*.pt"))
+        remaining_files = list(checkpoint_dir.glob("test_run__e*__s*__t*__sc*.pt"))
         assert len(remaining_files) == 5
 
         remaining_epochs = sorted([parse_checkpoint_filename(f.name)[1] for f in remaining_files])
@@ -209,28 +209,28 @@ class TestCleanup:
         checkpoint_manager.save_trainer_state(mock_optimizer, epoch=1, agent_step=1000)
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        assert (checkpoint_dir / "test_run.e1.s1000.t60.sc0.pt").exists()
+        assert (checkpoint_dir / "test_run__e1__s1000__t60__sc0.pt").exists()
         assert (checkpoint_dir / "test_run.e1.trainer.pt").exists()
 
         # Cleanup should remove both
         deleted_count = checkpoint_manager.cleanup_old_checkpoints(keep_last_n=0)
         assert deleted_count == 1
-        assert not (checkpoint_dir / "test_run.e1.s1000.t60.sc0.pt").exists()
+        assert not (checkpoint_dir / "test_run__e1__s1000__t60__sc0.pt").exists()
         assert not (checkpoint_dir / "test_run.e1.trainer.pt").exists()
 
 
 class TestUtilities:
     def test_parse_checkpoint_filename_valid(self):
-        filename = "my_run.e42.s12500.t1800.sc8750.pt"
+        filename = "my_run__e42__s12500__t1800__sc8750.pt"
         parsed = parse_checkpoint_filename(filename)
         assert parsed == ("my_run", 42, 12500, 1800, 0.8750)
 
         # Test edge cases
-        filename = "run.e0.s0.t0.sc0.pt"
+        filename = "run__e0__s0__t0__sc0.pt"
         parsed = parse_checkpoint_filename(filename)
         assert parsed == ("run", 0, 0, 0, 0.0)
 
-        filename = "run.e999.s999999.t86400.sc9999.pt"
+        filename = "run__e999__s999999__t86400__sc9999.pt"
         parsed = parse_checkpoint_filename(filename)
         assert parsed == ("run", 999, 999999, 86400, 0.9999)
 
@@ -238,9 +238,9 @@ class TestUtilities:
         invalid_filenames = [
             "invalid.pt",
             "run_e5_s1000_t300.pt",  # Wrong separators
-            "run.e5.s1000.pt",  # Missing fields
-            "run.epoch5.s1000.t300.sc0.pt",  # Wrong prefixes
-            "run.e5.s1000.t300.sc0.txt",  # Wrong extension
+            "run__e5__s1000.pt",  # Missing fields
+            "run__epoch5__s1000__t300__sc0.pt",  # Wrong prefixes
+            "run__e5__s1000__t300__sc0.txt",  # Wrong extension
         ]
 
         for invalid_filename in invalid_filenames:
@@ -265,12 +265,12 @@ class TestUtilities:
         # Get specific epoch URI
         uri = checkpoint_manager.get_checkpoint_uri(epoch=1)
         assert uri.startswith("file://")
-        assert uri.endswith("test_run.e1.s1000.t60.sc0.pt")
+        assert uri.endswith("test_run__e1__s1000__t60__sc0.pt")
 
         # Get latest epoch URI
         latest_uri = checkpoint_manager.get_checkpoint_uri()
         assert latest_uri.startswith("file://")
-        assert latest_uri.endswith("test_run.e5.s5000.t300.sc0.pt")
+        assert latest_uri.endswith("test_run__e5__s5000__t300__sc0.pt")
 
 
 class TestErrorHandling:

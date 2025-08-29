@@ -73,7 +73,7 @@ class TestFileURIHandling:
 
     def test_file_uri_single_checkpoint(self, temp_dir, mock_policy):
         """Test loading a single checkpoint file via file:// URI."""
-        checkpoint_file = create_test_checkpoint(temp_dir, "test_run.e5.s1000.t120.sc7500.pt", mock_policy)
+        checkpoint_file = create_test_checkpoint(temp_dir, "test_run__e5__s1000__t120__sc7500.pt", mock_policy)
 
         uri = f"file://{checkpoint_file}"
         loaded_policy = CheckpointManager.load_from_uri(uri)
@@ -87,9 +87,9 @@ class TestFileURIHandling:
         checkpoints_dir.mkdir(parents=True)
 
         # Create multiple checkpoint files with different epochs
-        create_test_checkpoint(checkpoints_dir, "run1.e1.s500.t60.sc5000.pt", mock_policy)
-        create_test_checkpoint(checkpoints_dir, "run1.e3.s1500.t180.sc8000.pt", mock_policy)
-        create_test_checkpoint(checkpoints_dir, "run1.e5.s2500.t300.sc9500.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, "run1__e1__s500__t60__sc5000.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, "run1__e3__s1500__t180__sc8000.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, "run1__e5__s2500__t300__sc9500.pt", mock_policy)
 
         # Test directory URI - should load latest (highest epoch)
         uri = f"file://{checkpoints_dir}"
@@ -104,7 +104,7 @@ class TestFileURIHandling:
         checkpoints_dir = run_dir / "checkpoints"
         checkpoints_dir.mkdir(parents=True)
 
-        create_test_checkpoint(checkpoints_dir, "my_run.e10.s5000.t600.sc9000.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, "my_run__e10__s5000__t600__sc9000.pt", mock_policy)
 
         # Test run directory URI - should automatically look in checkpoints subdir
         uri = f"file://{run_dir}"
@@ -237,7 +237,7 @@ class TestS3URIHandling:
     def test_s3_key_and_version_extraction(self):
         """Test extracting key and version from S3 URIs."""
         # Test S3 URI with valid checkpoint filename
-        uri = "s3://bucket/path/to/my_run.e15.s7500.t450.sc8500.pt"
+        uri = "s3://bucket/path/to/my_run__e15__s7500__t450__sc8500.pt"
         key, version = key_and_version(uri)
         assert key == "my_run"
         assert version == 15
@@ -353,12 +353,12 @@ class TestRealEnvironmentIntegration:
             # Test selection by score (should get epoch 15 with score 0.9)
             best_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="score")
             assert len(best_checkpoints) == 1
-            assert "progress_test.e15.s3000.t180.sc9000.pt" == best_checkpoints[0].name
+            assert "progress_test__e15__s3000__t180__sc9000.pt" == best_checkpoints[0].name
 
             # Test selection by latest epoch (should get epoch 20)
             latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="epoch")
             assert len(latest_checkpoints) == 1
-            assert "progress_test.e20.s4000.t240.sc6000.pt" == latest_checkpoints[0].name
+            assert "progress_test__e20__s4000__t240__sc6000.pt" == latest_checkpoints[0].name
 
 
 class TestEndToEndWorkflows:
@@ -416,7 +416,7 @@ class TestEndToEndWorkflows:
         """Test that different URI formats work together seamlessly."""
         # Create checkpoint via standard save
         mock_agent = MockAgent()
-        checkpoint_file = create_test_checkpoint(temp_dir, "cross_test.e5.s1000.t120.sc7500.pt", mock_agent)
+        checkpoint_file = create_test_checkpoint(temp_dir, "cross_test__e5__s1000__t120__sc7500.pt", mock_agent)
 
         # Test different ways to reference the same checkpoint
         uris = [

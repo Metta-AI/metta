@@ -13,7 +13,7 @@ def create_test_database(
     num_episodes_requested: int,
     num_episodes_completed: int,
     num_agents: int = 2,
-    checkpoint_filename: str = "test_policy.e1.s1000.t30.sc0.pt",
+    checkpoint_filename: str = "test_policy__e1__s1000__t30__sc0.pt",
 ):
     """Create a test database that simulates the bug scenario."""
     db = EvalStatsDB(db_path)
@@ -55,7 +55,7 @@ def create_test_database(
 
 def test_normalization_bug():
     """Test normalization bug: rewards should not be diluted by incomplete episodes."""
-    checkpoint_filename = "test_policy.e1.s1000.t30.sc0.pt"
+    checkpoint_filename = "test_policy__e1__s1000__t30__sc0.pt"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         db1 = create_test_database(Path(tmpdir) / "test1.duckdb", num_episodes_requested=1, num_episodes_completed=1)
