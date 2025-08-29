@@ -286,7 +286,6 @@ class Simulation:
                     td, npc_states = npc_policy(td, states=npc_states)
                     self._mm_npc.set_states(npc_states)
 
-                    self._mm_npc.set_states(states)
                     npc_actions = td["actions"]
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
