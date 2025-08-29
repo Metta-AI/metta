@@ -4,10 +4,10 @@ Centralized logging module for SkyPilot configuration scripts.
 Provides consistent logging with node index information.
 """
 
-import datetime
 import logging
-import os
-import sys
+
+from metta.common.util.logging_helpers import init_logging
+from metta.common.util.logging_helpers import log_master as _log_master
 
 
 def setup_logger(level: int = logging.INFO) -> logging.Logger:
@@ -15,35 +15,17 @@ def setup_logger(level: int = logging.INFO) -> logging.Logger:
     Setup logger with node index in format.
 
     Args:
-        name: Logger name. If None, uses 'skypilot'
         level: Logging level (default: INFO)
 
     Returns:
         Configured logger instance
     """
-    node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
+    # Initialize logging with rank display
+    init_logging(level=logging.getLevelName(level), show_rank=True)
 
-    # Use a specific name to avoid conflicts
+    # Return the skypilot logger
     logger = logging.getLogger("skypilot")
-
-    # Clear any existing handlers
-    logger.handlers.clear()
     logger.setLevel(level)
-
-    # Create console handler with custom formatter
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter(f"[%(asctime)s] [%(levelname)s] [{node_index}] %(message)s", datefmt="%H:%M:%S.%f")
-
-    # Override the default time formatting to show milliseconds
-    formatter.formatTime = lambda record, datefmt=None: datetime.datetime.fromtimestamp(record.created).strftime(
-        "%H:%M:%S.%f"
-    )[:-3]
-
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    # Prevent propagation to root logger
-    logger.propagate = False
 
     return logger
 
@@ -53,22 +35,25 @@ skypilot_logger = setup_logger()
 
 
 def log_master(message: str):
-    node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
-    if node_index == 0:
-        skypilot_logger.info(message)
+    """Log message only on master node (rank 0)."""
+    _log_master(message, skypilot_logger)
 
 
 def log_all(message: str):
+    """Log message on all nodes."""
     skypilot_logger.info(message)
 
 
 def log_error(message: str):
+    """Log error message on all nodes."""
     skypilot_logger.error(message)
 
 
 def log_warning(message: str):
+    """Log warning message on all nodes."""
     skypilot_logger.warning(message)
 
 
 def log_debug(message: str):
+    """Log debug message on all nodes."""
     skypilot_logger.debug(message)

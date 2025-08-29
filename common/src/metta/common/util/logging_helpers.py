@@ -29,10 +29,10 @@ def restore_io():
 def get_node_rank() -> str | None:
     """Get node/rank index from various distributed environments."""
     return (
-        os.environ.get("SKYPILOT_NODE_RANK") or
-        os.environ.get("RANK") or  # PyTorch DDP
-        os.environ.get("OMPI_COMM_WORLD_RANK") or  # OpenMPI
-        None
+        os.environ.get("SKYPILOT_NODE_RANK")
+        or os.environ.get("RANK")  # PyTorch DDP
+        or os.environ.get("OMPI_COMM_WORLD_RANK")  # OpenMPI
+        or None
     )
 
 
