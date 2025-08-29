@@ -26,7 +26,9 @@ import threading
 from metta.common.wandb.wandb_context import WandbConfig
 
 # Configure logging to be concise
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s", datefmt="%H:%M:%S")
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s", datefmt="%H:%M:%S"
+)
 logger = logging.getLogger(__name__)
 
 # Set logging levels to see store operations
@@ -162,7 +164,7 @@ def run_test():
 
     # 1. Create minimal sweep config
     protein_config = ProteinConfig(
-        metric="evaluator/arena_shaped/score",
+        metric="evaluator/eval_arena/score",
         goal="maximize",
         method="random",  # Use random for simplicity in testing
         parameters={
@@ -205,11 +207,11 @@ def run_test():
     start_time = time.time()
 
     logger.info("\n🏃 Starting control loop directly (use Ctrl+C to stop)...")
-    
+
     try:
         # Run the controller directly - it will loop internally
         controller.run()
-            
+
     except KeyboardInterrupt:
         logger.info("\n⚠️  Interrupted by user")
 
