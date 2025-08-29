@@ -9,8 +9,8 @@ import sky.server.common
 import wandb
 
 import gitta as git
-from devops.git.monorepo import REPO_SLUG
 from metta.app_backend.clients.base_client import get_machine_token
+from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 

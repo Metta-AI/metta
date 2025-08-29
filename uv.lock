@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -2054,6 +2054,7 @@ dependencies = [
     { name = "boto3" },
     { name = "ddtrace" },
     { name = "fastapi" },
+    { name = "gitta" },
     { name = "httpx" },
     { name = "metta-common" },
     { name = "psycopg", extra = ["binary", "pool"] },
@@ -2078,6 +2079,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.38.32" },
     { name = "ddtrace", specifier = ">=2.6.0" },
     { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "gitta", editable = "gitta" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "metta-common", editable = "common" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },

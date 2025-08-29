@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 import gitta as git
-from devops.git.monorepo import REPO_SLUG
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import EvalTaskRow, EvalTaskWithPolicyName, MettaRepo, TaskStatus, TaskStatusUpdate
 from metta.app_backend.route_logger import timed_http_handler
+from metta.common.util.git_repo import REPO_SLUG
 
 T = TypeVar("T")
 
