@@ -152,7 +152,6 @@ class OptimizingScheduler:
             overrides=overrides,  # Pass any additional overrides
             metadata={
                 "group": sweep_metadata.sweep_id,  # Pass group as metadata
-                "suggestion": suggestion,  # Store the suggestion for later observation creation
             },
         )
 
