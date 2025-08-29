@@ -443,16 +443,14 @@ class Simulation:
             for idx in self._npc_idxs:
                 agent_map[int(idx.item())] = self._npc_policy_uri
 
-        # Use policy URI as policy_info, or empty string if none
-        policy_uri = self._policy_uri or ""
-
+        # Pass the policy URI directly
         db = SimulationStatsDB.from_shards_and_context(
             sim_id=self._id,
             dir_with_shards=self._stats_dir,
             agent_map=agent_map,
             sim_name=self._name,
             sim_env=self._config.env.label,
-            policy_info=policy_uri,
+            policy_uri=self._policy_uri or "",
         )
         return db
 
