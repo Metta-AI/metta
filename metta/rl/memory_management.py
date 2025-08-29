@@ -54,23 +54,8 @@ class MemoryManager:
     # State accessors (preferred modern API)
     # ----------------------------------------------------------------------------
     def get_states(self, env_id: Optional[int] = None) -> Any:
-        """Return policy states; prefers policy.get_states if available.
-
-        If the policy does not implement states, falls back to legacy get_memory.
-        If neither is available, returns an empty dict.
-        """
-        with self._lock:
-            if self._has_get_states:
-                # Prefer simple no-arg API for states
-                try:
-                    return self.policy.get_states()
-                except TypeError:
-                    pass
-
-            if self._has_get_memory:
-                return self.policy.get_memory()
-
-            return {}
+        """ """
+        self.memory.get_memory(env_id)
 
     def set_states(self, states: Any, env_id: Optional[int] = None) -> None:
         """Write policy states back to the policy if supported.
