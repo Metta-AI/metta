@@ -76,30 +76,6 @@ class LSTMWrapper(nn.Module):
         if env_id in self.lstm_c:
             del self.lstm_c[env_id]
 
-    # ------------------------------------------------------------------------
-    # Modern state API used by MemoryManager (preferred when available)
-    # ------------------------------------------------------------------------
-    def get_states(self):
-        """Return current recurrent states in a structured dict.
-
-        Exposes the same data as get_memory, but under a states-oriented name
-        to support newer coordination paths.
-        """
-        return {"lstm_h": self.lstm_h, "lstm_c": self.lstm_c}
-
-    def set_states(self, states):
-        """Set recurrent states from a structured dict if keys are present."""
-        if not isinstance(states, dict):
-            return
-        if "lstm_h" in states and isinstance(states["lstm_h"], dict):
-            self.lstm_h = states["lstm_h"]
-        if "lstm_c" in states and isinstance(states["lstm_c"], dict):
-            self.lstm_c = states["lstm_c"]
-
-    def reset_states(self):
-        """Reset all recurrent states (alias for reset_memory)."""
-        self.reset_memory()
-
     def _manage_lstm_state(self, td, B, TT, device):
         """Manage LSTM state with automatic reset and detachment."""
         # Get environment ID for state tracking
