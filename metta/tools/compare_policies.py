@@ -14,32 +14,45 @@ logger = logging.getLogger(__name__)
 def compare_policies(stats_db_path: str, policy_specs: list[str], metric: str = "score") -> dict:
     """Compare multiple policies using evaluation stats database.
 
-    Policy specs format: "checkpoint_path:epoch" or just "checkpoint_path" (uses epoch 0)
+    Policy specs format: policy URI or "checkpoint_path:epoch" (for backwards compatibility)
     """
     comparison_results = {"metric": metric, "policies": []}
 
     try:
         with EvalStatsDB.from_uri(stats_db_path) as stats_db:
             for policy_spec in policy_specs:
-                # Parse policy specification
-                if ":" in policy_spec:
+                # Parse policy specification - support both URI and legacy format
+                if policy_spec.endswith(".pt"):
+                    # Already a URI
+                    policy_uri = policy_spec
+                    # Extract path and epoch for display
+                    from metta.rl.checkpoint_manager import parse_checkpoint_filename
+                    filename = Path(policy_uri).name
+                    checkpoint_path, epoch, _, _ = parse_checkpoint_filename(filename)
+                elif ":" in policy_spec:
+                    # Legacy format: checkpoint_path:epoch
                     checkpoint_path, epoch_str = policy_spec.rsplit(":", 1)
                     epoch = int(epoch_str)
+                    # Create URI from components (dummy agent_step and total_time)
+                    policy_uri = f"{checkpoint_path}.e{epoch}.s0.t0.pt"
                 else:
+                    # Legacy format without epoch
                     checkpoint_path = policy_spec
                     epoch = 0
+                    policy_uri = f"{checkpoint_path}.e0.s0.t0.pt"
 
                 # Get policy performance from stats database
-                policy_scores = stats_db.simulation_scores(checkpoint_path, epoch, metric)
+                policy_scores = stats_db.simulation_scores(policy_uri, metric)
 
                 # Calculate overall metrics
-                total_samples = stats_db.sample_count(checkpoint_path, epoch)
+                total_samples = stats_db.sample_count_uri(policy_uri)
                 avg_score = sum(policy_scores.values()) / len(policy_scores) if policy_scores else 0.0
 
                 comparison_results["policies"].append(
                     {
-                        "checkpoint_path": checkpoint_path,
-                        "epoch": epoch,
+                        "policy_uri": policy_uri,
+                        "checkpoint_path": checkpoint_path,  # Keep for backward compatibility
+                        "epoch": epoch,  # Keep for backward compatibility
                         "scores_by_simulation": dict(policy_scores),
                         "average_score": avg_score,
                         "total_samples": total_samples,
