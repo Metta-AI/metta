@@ -14,7 +14,7 @@ from typing import Callable, Optional
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from skypilot_logging import setup_logger, log_all, log_error, log_warning, log_debug
+from skypilot_logging import log_all, log_debug, log_error, log_warning, setup_logger
 
 # Initialize logger for this module
 logger = setup_logger()
@@ -112,7 +112,7 @@ class HeartbeatMonitor(JobMonitor):
             return True, "heartbeat_permission_denied"
 
         except OSError as e:
-            errno_num = getattr(e, 'errno', 'unknown')
+            errno_num = getattr(e, "errno", "unknown")
             log_error(f"OS error accessing heartbeat file (errno={errno_num}): {e}")
             return True, f"heartbeat_os_error_{errno_num}"
 
@@ -142,7 +142,7 @@ class TimeoutMonitor(JobMonitor):
         self.max_runtime_hours = max_runtime_hours
         self.max_seconds = max_runtime_hours * 3600 if max_runtime_hours else 0
         self.start_time = time.time()
-        self.accumulated_runtime_sec : int = 0
+        self.accumulated_runtime_sec: int = 0
 
         self.rank = rank
         self.is_master = rank == 0
@@ -188,7 +188,6 @@ class TimeoutMonitor(JobMonitor):
             return
 
         try:
-
             total_runtime = self.get_total_runtime()
             self.accumulated_runtime_file.parent.mkdir(parents=True, exist_ok=True)
             self.accumulated_runtime_file.write_text(str(total_runtime))

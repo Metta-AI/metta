@@ -17,13 +17,13 @@ from typing import Optional, Tuple
 sys.path.insert(0, str(Path(__file__).parent))
 
 from runtime_monitors import start_monitors
-from skypilot_logging import setup_logger, log_all, log_master, log_error, log_warning
+from skypilot_logging import log_all, log_error, log_master, log_warning, setup_logger
 
 from gitta import set_skypilot_test_status
 from metta.common.util.cost_monitor import get_cost_info
+from metta.common.util.discord import send_to_discord
 from metta.common.util.skypilot_latency import calculate_queue_latency
 from metta.common.wandb.log_wandb import log_to_wandb
-from metta.common.util.discord import send_to_discord
 
 # Initialize logger for this module
 logger = setup_logger()
@@ -221,10 +221,12 @@ def send_discord_notification(emoji: str, title: str, status_msg: str, additiona
         if runtime_msg:
             message_parts.append(runtime_msg)
 
-        message_parts.extend([
-            f"**Time**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
-            f"**Nodes**: {required_env_vars['TOTAL_NODES']}",
-        ])
+        message_parts.extend(
+            [
+                f"**Time**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
+                f"**Nodes**: {required_env_vars['TOTAL_NODES']}",
+            ]
+        )
 
         if additional_info:
             message_parts.extend(["", additional_info])
@@ -232,18 +234,16 @@ def send_discord_notification(emoji: str, title: str, status_msg: str, additiona
         discord_content = "\n".join(message_parts)
 
         # Save to file (if still needed for debugging/logging purposes)
-        assert required_env_vars['JOB_METADATA_DIR']
-        assert required_env_vars['DISCORD_WEBHOOK_URL']
+        assert required_env_vars["JOB_METADATA_DIR"]
+        assert required_env_vars["DISCORD_WEBHOOK_URL"]
 
-        discord_message_path = os.path.join(required_env_vars['JOB_METADATA_DIR'], "discord_message.txt")
+        discord_message_path = os.path.join(required_env_vars["JOB_METADATA_DIR"], "discord_message.txt")
         with open(discord_message_path, "w") as f:
             f.write(discord_content)
 
         # Send directly via Discord module
         success = send_to_discord(
-            webhook_url=required_env_vars['DISCORD_WEBHOOK_URL'],
-            content=discord_content,
-            suppress_embeds=True
+            webhook_url=required_env_vars["DISCORD_WEBHOOK_URL"], content=discord_content, suppress_embeds=True
         )
 
         if not success:
@@ -352,9 +352,7 @@ def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
         return exit_code
 
     # Determine job status
-    github_state, github_description, final_exit_code = determine_job_status(
-        exit_code, termination_reason
-    )
+    github_state, github_description, final_exit_code = determine_job_status(exit_code, termination_reason)
 
     # Send notifications based on status
     if termination_reason == "heartbeat_timeout":
@@ -403,7 +401,7 @@ def main():
 
     # Run NCCL tests on all nodes
     if test_nccl and restart_count == 0:
-        log_all(f"Running GPU diagnostics and NCCL tests...")
+        log_all("Running GPU diagnostics and NCCL tests...")
         try:
             result = subprocess.run(
                 ["uv", "run", "python", "./devops/skypilot/config/test_nccl.py"],

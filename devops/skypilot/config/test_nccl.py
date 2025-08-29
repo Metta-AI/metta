@@ -8,12 +8,11 @@ import socket
 import subprocess
 import sys
 import time
-from pathlib import Path
-from typing import Any, Optional
 from contextlib import redirect_stderr, redirect_stdout
+from typing import Any, Optional
+
 import torch
 import torch.distributed as dist
-
 
 
 def measure_p2p_bandwidth(
@@ -265,6 +264,7 @@ def print_benchmark_results(results: dict[str, Any], topology: dict[str, Any] | 
 
     print(output)
 
+
 def format_box_header(title: str, width: int = 75, include_rank: bool = True) -> str:
     """Format a box header as a string instead of printing directly.
 
@@ -284,7 +284,7 @@ def format_box_header(title: str, width: int = 75, include_rank: bool = True) ->
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
 
     # Split title into lines
-    lines = title.split('\n')
+    lines = title.split("\n")
 
     if include_rank and lines:
         lines[0] = f"{lines[0]} (Rank {rank}, Node {node_index}, GPU {local_rank})"
@@ -318,6 +318,7 @@ def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> 
         return  # Only print from rank 0 in distributed mode
 
     print(format_box_header(title, width, include_rank))
+
 
 def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
     """Run a command and return exit code, stdout, and stderr."""
@@ -463,7 +464,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
     }
 
     # Get nvidia-smi output
-    print(f"Running nvidia-smi...")
+    print("Running nvidia-smi...")
     code, stdout, stderr = run_command(["nvidia-smi"])
     if code == 0:
         diagnostics["nvidia_smi"] = stdout
@@ -476,7 +477,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
         diagnostics["errors"].append(f"nvidia-smi failed: {stderr}")
 
     if code == 0:  # If nvidia-smi worked
-        print(f"Checking GPU topology...")
+        print("Checking GPU topology...")
         topo_code, topo_stdout, topo_stderr = run_command(["nvidia-smi", "topo", "-m"])
         if topo_code == 0:
             diagnostics["gpu_topology"] = parse_gpu_topology(topo_stdout)
@@ -484,7 +485,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
             diagnostics["errors"].append(f"Failed to get GPU topology: {topo_stderr}")
 
     # Get CUDA version from nvcc
-    print(f"Checking CUDA version...")
+    print("Checking CUDA version...")
     code, stdout, stderr = run_command(["nvcc", "--version"])
     if code == 0:
         # Extract version from output
@@ -496,7 +497,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
         diagnostics["cuda_version"] = "nvcc not found"
 
     # Get NCCL version
-    print(f"Checking NCCL version...")
+    print("Checking NCCL version...")
     nccl_paths = ["/usr/local/cuda/lib64/libnccl.so", "/usr/lib/x86_64-linux-gnu/libnccl.so", "/usr/lib64/libnccl.so"]
 
     for nccl_path in nccl_paths:
@@ -690,8 +691,6 @@ def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-
-
 def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
     """Format GPU diagnostics as a string instead of printing directly."""
     output = io.StringIO()
@@ -788,7 +787,7 @@ def test_nccl_communication() -> bool:
         device = torch.device(f"cuda:{local_rank}")
 
         # Initialize process group
-        with open(os.devnull, 'w') as devnull:
+        with open(os.devnull, "w") as devnull:
             with redirect_stderr(devnull), redirect_stdout(devnull):
                 dist.init_process_group(backend="nccl", timeout=datetime.timedelta(seconds=300))
 
@@ -963,7 +962,10 @@ def main():
     if IS_MASTER:
         print()  # Add blank line before
         if is_distributed:
-            title = f"NCCL DIAGNOSTICS AND TESTING\nNodes: {num_nodes}, GPUs/node: {num_gpus_per_node}, Total: {world_size}"
+            title = (
+                f"NCCL DIAGNOSTICS AND TESTING\nNodes: {num_nodes}, "
+                + f"GPUs/node: {num_gpus_per_node}, Total: {world_size}"
+            )
         else:
             title = "NCCL DIAGNOSTICS AND TESTING"
 
@@ -1078,7 +1080,7 @@ def main():
         print(format_system_diagnostics(system_diagnostics))
 
     # GPU diagnostics only exist if IS_GPU0 was true
-    if IS_GPU0 and 'gpu_diagnostics' in locals():
+    if IS_GPU0 and "gpu_diagnostics" in locals():
         print(format_gpu_diagnostics(gpu_diagnostics))
 
     # Summary - only from master

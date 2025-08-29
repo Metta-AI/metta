@@ -40,7 +40,7 @@ def setup_job_metadata():
     restart_count_file = shared_metadata_dir / "restart_count"
     accumulated_runtime_file = shared_metadata_dir / "accumulated_runtime"
 
-    local_metadata_dir =  Path("/tmp") / ".job_metadata" / metta_run_id
+    local_metadata_dir = Path("/tmp") / ".job_metadata" / metta_run_id
     local_metadata_dir.mkdir(parents=True, exist_ok=True)
     heartbeat_file = Path(os.environ.get("HEARTBEAT_FILE", local_metadata_dir / "heartbeat_file"))
 

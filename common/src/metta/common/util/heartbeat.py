@@ -4,8 +4,8 @@ import json
 import logging
 import os
 import signal
-from pathlib import Path
 import time
+from pathlib import Path
 
 import wandb
 
@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Shared IPC filename, co-located with the heartbeat signal file (must match wandb_context.py)
 WANDB_IPC_FILENAME = "wandb_ipc.json"
+
 
 def record_heartbeat() -> None:
     """Record a heartbeat by updating the file's modification time.
@@ -34,7 +35,7 @@ def record_heartbeat() -> None:
         if int(time.time()) % 60 == 0:
             logger.debug(f"Heartbeat recorded at {time.strftime('%H:%M:%S')}")
 
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         # Parent directory doesn't exist
         logger.error(f"Heartbeat directory missing: {os.path.dirname(heartbeat_file_path)}")
 
@@ -52,7 +53,7 @@ def record_heartbeat() -> None:
 
     except OSError as e:
         # Log errno for debugging filesystem-specific issues
-        errno_num = getattr(e, 'errno', 'unknown')
+        errno_num = getattr(e, "errno", "unknown")
         logger.error(f"OS error updating heartbeat (errno={errno_num}): {e}")
 
         # For S3/network filesystems, errno 116 (ESTALE) indicates stale handle
@@ -61,10 +62,7 @@ def record_heartbeat() -> None:
 
     except Exception as e:
         # Catch-all for unexpected errors
-        logger.error(
-            f"Unexpected error recording heartbeat: {type(e).__name__}: {e}",
-            exc_info=True
-        )
+        logger.error(f"Unexpected error recording heartbeat: {type(e).__name__}: {e}", exc_info=True)
 
 
 # Default timeout for the alert sending operation itself
