@@ -93,8 +93,7 @@ def process_minibatch_update(
     res, state_dict = policy(policy_td, state=mm_policy.get_states(), action=minibatch["actions"])
     logger.info(f"State dict: {state_dict}")
     env_id = policy_td.get("training_env_id_start", 0)
-    if state_dict is not None:
-        mm_policy.set_states(state_dict["states"], env_id)
+    mm_policy.set_states(state_dict["states"], env_id) if state_dict is not None else None
     policy_td = res
 
     old_act_log_prob = minibatch["act_log_prob"]
