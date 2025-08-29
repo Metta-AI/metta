@@ -69,7 +69,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
 
         # Use base class method to store state with automatic detachment
-        self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
+        # self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
 
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
@@ -84,7 +84,13 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
             # Mixin handles training mode with proper reshaping
             td = self.forward_training(td, action, logits_list, value)
 
-        return td
+        return td, {
+            "states": {
+                "lstm_h": new_lstm_h,
+                "lstm_c": new_lstm_c,
+            },
+            "env_id": env_id,
+        }
 
 
 class Policy(nn.Module):
