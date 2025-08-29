@@ -22,14 +22,16 @@ from metta.sweep.sweep_orchestrator import (
     SweepController,
     SweepMetadata,
 )
+import threading
 from metta.common.wandb.wandb_context import WandbConfig
 
 # Configure logging to be concise
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
 
-# Suppress verbose loggers
-logging.getLogger("metta.sweep.store.wandb").setLevel(logging.WARNING)
+# Set logging levels to see store operations
+logging.getLogger("metta.sweep.store.wandb").setLevel(logging.INFO)
+logging.getLogger("metta.sweep.sweep_orchestrator").setLevel(logging.DEBUG)
 logging.getLogger("wandb").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
@@ -202,43 +204,11 @@ def run_test():
     # Track metrics
     start_time = time.time()
 
-    logger.info("\n🏃 Starting control loop...")
-
-    # Run controller in a separate thread with timeout
-    import threading
-    controller_thread = threading.Thread(target=controller.run)
-    controller_thread.daemon = True  # Allow main thread to exit
-    controller_thread.start()
-
+    logger.info("\n🏃 Starting control loop directly (use Ctrl+C to stop)...")
+    
     try:
-        # Monitor progress while controller runs
-        max_wait_time = 600  # 10 minutes max
-        check_interval = 5  # Check every 5 seconds
-        elapsed = 0
-        
-        while elapsed < max_wait_time:
-            time.sleep(check_interval)
-            elapsed += check_interval
-            
-            # Fetch current status
-            all_runs = store.fetch_runs(filters={"group": config.sweep_name})
-            
-            # Log progress
-            completed_count = sum(1 for run in all_runs if run.status == JobStatus.COMPLETED)
-            logger.info(f"Progress: {completed_count}/{config.num_trials} trials completed (elapsed: {elapsed}s)")
-            
-            # Check if all trials are done
-            if completed_count >= config.num_trials:
-                logger.info(f"\n✨ All {config.num_trials} trials completed!")
-                break
-                
-            # Show active processes
-            active_processes = dispatcher.check_processes()
-            if active_processes > 0:
-                logger.info(f"  Active processes: {active_processes}")
-                
-        else:
-            logger.warning(f"Timeout reached after {max_wait_time} seconds")
+        # Run the controller directly - it will loop internally
+        controller.run()
             
     except KeyboardInterrupt:
         logger.info("\n⚠️  Interrupted by user")
