@@ -75,10 +75,7 @@ def _():
         replay_available = False
         print("⚠️ MettaScope replay viewer not available")
 
-    from metta.rl.checkpoint_manager import (
-        CheckpointManager,
-        get_checkpoint_uri_from_dir,
-    )
+    from metta.rl.checkpoint_manager import CheckpointManager
 
     from metta.common.wandb.wandb_context import WandbConfig
     import torch
@@ -359,7 +356,6 @@ def _():
         OpportunisticPolicy,
         Path,
         CheckpointManager,
-        get_checkpoint_uri_from_dir,
         RendererToolConfig,
         TensorDict,
         TrainTool,
@@ -921,7 +917,6 @@ def _(
     MettaGridEnv,
     Path,
     CheckpointManager,
-    get_checkpoint_uri_from_dir,
     WandbConfig,
     contextlib,
     display,
@@ -1602,7 +1597,6 @@ def _(
     MettaGridEnv,
     Path,
     CheckpointManager,
-    get_checkpoint_uri_from_dir,
     TensorDict,
     WandbConfig,
     contextlib,

@@ -24,36 +24,6 @@ def key_and_version(uri: str) -> tuple[str, int]:
     return "unknown", 0
 
 
-def get_checkpoint_uri_from_dir(checkpoint_dir: str, epoch: int | None = None) -> str | None:
-    """Get a checkpoint URI from a directory, loading latest if epoch not specified.
-
-    Returns the file:// URI of the checkpoint, or None if not found.
-    """
-    from pathlib import Path
-
-    dir_path = Path(checkpoint_dir)
-
-    if not dir_path.exists():
-        return None
-
-    checkpoint_files = list(dir_path.glob("*.pt"))
-    if not checkpoint_files:
-        return None
-
-    if epoch is None:
-        latest = max(checkpoint_files, key=lambda p: parse_checkpoint_filename(p.name)[1] if p.suffix == ".pt" else -1)
-        return f"file://{latest.absolute()}"
-    else:
-        for ckpt in checkpoint_files:
-            try:
-                _, ckpt_epoch, _, _, _ = parse_checkpoint_filename(ckpt.name)
-                if ckpt_epoch == epoch:
-                    return f"file://{ckpt.absolute()}"
-            except ValueError:
-                continue
-        return None
-
-
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
     """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt."""
     parts = filename.split(".")
@@ -79,73 +49,60 @@ class CheckpointManager:
         self.run_name = run_name
         self.run_dir = Path(run_dir)
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
-
-        self.cache_size = max(0, cache_size)  # 0 means no caching
-        self._cache = OrderedDict()  # path -> agent object
+        
+        self.cache_size = max(0, cache_size)
+        self._cache = OrderedDict()
 
     def exists(self) -> bool:
         return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
 
-    def _get_from_cache(self, path: Path):
-        """Get agent from cache if available, maintaining LRU order."""
-        if self.cache_size == 0:
-            return None
-        path_str = str(path)
-        if path_str in self._cache:
-            self._cache.move_to_end(path_str)
-            return self._cache[path_str]
-        return None
-
-    def _add_to_cache(self, path: Path, agent):
-        """Add agent to cache, evicting oldest if needed."""
-        if self.cache_size == 0:
-            return
-        path_str = str(path)
-        if path_str in self._cache:
-            del self._cache[path_str]
-        if len(self._cache) >= self.cache_size:
-            self._cache.popitem(last=False)  # Remove oldest
-        self._cache[path_str] = agent
-
     def clear_cache(self):
+        """Clear the checkpoint cache."""
         self._cache.clear()
 
     def load_agent(self, epoch: Optional[int] = None):
         """Load agent from checkpoint by epoch (or latest if None), with caching.
-
+        
         Returns None if no checkpoints exist."""
-        if epoch is None:
-            agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
-            if not agent_files:
-                return None
-            agent_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
-        else:
-            agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.sc*.pt"))
-            if not agent_files:
+        pattern = f"{self.run_name}.e{epoch}.s*.t*.sc*.pt" if epoch else f"{self.run_name}.e*.s*.t*.sc*.pt"
+        agent_files = list(self.checkpoint_dir.glob(pattern))
+        
+        if not agent_files:
+            if epoch:
                 logger.warning(f"No checkpoint found for {self.run_name} at epoch {epoch}")
-                return None
-            agent_file = agent_files[0]
-
-        cached_agent = self._get_from_cache(agent_file)
-        if cached_agent is not None:
-            return cached_agent
-
+            return None
+            
+        agent_file = agent_files[0] if epoch else max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
+        
+        # Check cache (inline for simplicity)
+        path_str = str(agent_file)
+        if self.cache_size > 0 and path_str in self._cache:
+            self._cache.move_to_end(path_str)  # LRU: move to end
+            return self._cache[path_str]
+        
+        # Load from disk
         agent = torch.load(agent_file, weights_only=False)
-        self._add_to_cache(agent_file, agent)
+        
+        # Add to cache if enabled
+        if self.cache_size > 0:
+            if path_str in self._cache:
+                del self._cache[path_str]
+            if len(self._cache) >= self.cache_size:
+                self._cache.popitem(last=False)  # Evict oldest
+            self._cache[path_str] = agent
+            
         return agent
 
     def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Load trainer state (optimizer state, epoch, agent_step). Returns None if no trainer state exists."""
         if epoch is None:
-            latest_file = self.find_best_checkpoint("epoch")
-            if not latest_file:
+            checkpoints = self.select_checkpoints(count=1, metric="epoch")
+            if not checkpoints:
                 return None
-            epoch = parse_checkpoint_filename(latest_file.name)[1]
+            epoch = parse_checkpoint_filename(checkpoints[0].name)[1]
 
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
-        if not trainer_file.exists():
-            return None
-        return torch.load(trainer_file, weights_only=False)
+        return torch.load(trainer_file, weights_only=False) if trainer_file.exists() else None
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
         """Save agent with metadata embedded in filename."""
@@ -160,41 +117,33 @@ class CheckpointManager:
         checkpoint_path = self.checkpoint_dir / filename
         torch.save(agent, checkpoint_path)
 
+        # Invalidate cache entry if it exists
         if str(checkpoint_path) in self._cache:
             del self._cache[str(checkpoint_path)]
 
     def save_trainer_state(self, optimizer, epoch: int, agent_step: int):
+        """Save trainer optimizer state."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
         torch.save(
-            {
-                "optimizer": optimizer.state_dict(),
-                "epoch": epoch,
-                "agent_step": agent_step,
-            },
+            {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step},
             trainer_file,
         )
 
     def get_checkpoint_uri(self, epoch: Optional[int] = None) -> str:
         """Get URI for checkpoint at given epoch (or latest if None)."""
-        if epoch is None:
-            latest_file = self.find_best_checkpoint("epoch")
-            if not latest_file:
-                raise FileNotFoundError(f"No checkpoints found for {self.run_name}")
-            return f"file://{latest_file}"
-
-        agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.sc*.pt"))
-        if not agent_files:
-            raise FileNotFoundError(f"No checkpoint found for {self.run_name} at epoch {epoch}")
-        return f"file://{agent_files[0]}"
-
-    def get_latest_epoch(self) -> Optional[int]:
-        checkpoints = self.select_checkpoints(strategy="latest", count=1, metric="epoch")
-        return parse_checkpoint_filename(checkpoints[0].name)[1] if checkpoints else None
+        pattern = f"{self.run_name}.e{epoch}.s*.t*.sc*.pt" if epoch else f"{self.run_name}.e*.s*.t*.sc*.pt"
+        files = list(self.checkpoint_dir.glob(pattern))
+        
+        if not files:
+            msg = f"No checkpoint found for {self.run_name}" + (f" at epoch {epoch}" if epoch else "")
+            raise FileNotFoundError(msg)
+            
+        checkpoint = files[0] if epoch else max(files, key=lambda p: parse_checkpoint_filename(p.name)[1])
+        return f"file://{checkpoint}"
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
-        """Select checkpoints based on strategy. Simplified since all metadata is in filenames."""
+        """Select checkpoints based on strategy."""
         checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
         if not checkpoint_files:
             return []
@@ -202,11 +151,6 @@ class CheckpointManager:
         metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
         checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
         return checkpoint_files if strategy == "all" else checkpoint_files[:count]
-
-    def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
-        """Find single checkpoint with highest value for the given metric."""
-        checkpoints = self.select_checkpoints(count=1, metric=metric)
-        return checkpoints[0] if checkpoints else None
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         """Clean up old checkpoints, keeping only the most recent ones."""
@@ -235,9 +179,10 @@ class CheckpointManager:
         from metta.rl.wandb import upload_checkpoint_as_artifact
 
         if epoch is None:
-            epoch = self.get_latest_epoch()
-            if epoch is None:
+            checkpoints = self.select_checkpoints(count=1, metric="epoch")
+            if not checkpoints:
                 return None
+            epoch = parse_checkpoint_filename(checkpoints[0].name)[1]
 
         checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.sc*.pt"))
         if not checkpoint_files:
