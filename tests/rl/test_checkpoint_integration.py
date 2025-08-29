@@ -168,7 +168,7 @@ class TestCheckpointIntegration:
     def test_multi_agent_checkpoint(self, temp_run_dir):
         """Test checkpointing with multi-agent environments."""
         # Create multi-agent environment
-        env_config = eb.make_arena(num_agents=4)
+        env_config = eb.make_arena(num_agents=6)  # make_arena creates 6 agents per instance
         env_config.game.max_steps = 50
         env_config.game.map_builder.width = 12
         env_config.game.map_builder.height = 12
@@ -212,9 +212,9 @@ class TestCheckpointIntegration:
         obs, _ = env.reset()
         output = loaded_agent(obs_to_td(obs))
 
-        # Should handle all 4 agents
-        assert output["actions"].shape[0] == 4
-        assert output["values"].shape[0] == 4
+        # Should handle all 6 agents
+        assert output["actions"].shape[0] == 6
+        assert output["values"].shape[0] == 6
 
     def test_checkpoint_cleanup(self, temp_run_dir, create_env_and_agent):
         """Test automatic cleanup of old checkpoints."""
@@ -256,13 +256,7 @@ class TestCheckpointIntegration:
         checkpoint_manager.save_agent(agent, epoch=2, metadata=metadata)
 
         # Save trainer state
-        trainer_state = {
-            "epoch": 2,
-            "agent_step": 2000,
-            "optimizer_state_dict": optimizer.state_dict(),
-            "training_metrics": {"loss": 0.5, "value_loss": 0.3},
-        }
-        checkpoint_manager.save_trainer_state(trainer_state, epoch=2)
+        checkpoint_manager.save_trainer_state(optimizer, epoch=2, agent_step=2000)
 
         # Load trainer state back
         loaded_state = checkpoint_manager.load_trainer_state(epoch=2)
@@ -270,8 +264,7 @@ class TestCheckpointIntegration:
         # Verify state was preserved
         assert loaded_state["epoch"] == 2
         assert loaded_state["agent_step"] == 2000
-        assert "optimizer_state_dict" in loaded_state
-        assert loaded_state["training_metrics"]["loss"] == 0.5
+        assert "optimizer" in loaded_state
 
     def test_different_architectures(self, temp_run_dir):
         """Test checkpointing with different agent architectures."""
@@ -327,7 +320,7 @@ class TestCheckpointIntegration:
             checkpoint_manager.save_agent(agent, epoch=epoch, metadata=metadata)
 
         # Select top 2 checkpoints by score
-        top_checkpoints = checkpoint_manager.select_checkpoints(metric="score", top_k=2, descending=True)
+        top_checkpoints = checkpoint_manager.select_checkpoints(metric="score", count=2)
 
         assert len(top_checkpoints) == 2
 
