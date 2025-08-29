@@ -122,7 +122,7 @@ class Simulation:
         self._policy = policy
         self._run_name = run_name
         self._policy_uri = policy_uri
-        self._npc_policy = self._load_npc_policy(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
+        self._npc_policy = self._load_policy_from_uri(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
         self._npc_policy_uri = cfg.npc_policy_uri
         self._policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
 
@@ -162,10 +162,6 @@ class Simulation:
             else torch.tensor([], device=self._device, dtype=torch.long)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
-
-    def _load_npc_policy(self, npc_policy_uri: str) -> PolicyAgent:
-        """Load NPC policy from URI."""
-        return Simulation._load_policy_from_uri(npc_policy_uri)
 
     @staticmethod
     def _load_policy_from_uri(policy_uri: str) -> PolicyAgent:
