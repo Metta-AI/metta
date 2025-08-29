@@ -10,37 +10,25 @@ import torch
 logger = logging.getLogger(__name__)
 
 
-def name_from_uri(uri: str) -> str:
-    """Extract run name from any checkpoint URI."""
+def key_and_version(uri: str) -> tuple[str, int]:
+    """Extract key (run name) and version (epoch) from a policy URI."""
     if uri.startswith("file://"):
         path = Path(uri[7:])
         if path.suffix == ".pt":
-            return parse_checkpoint_filename(path.name)[0]
+            parsed = parse_checkpoint_filename(path.name)
+            return parsed[0], parsed[1]
         elif path.is_dir() or not path.suffix:
             if path.name == "checkpoints":
-                return path.parent.name
-            return path.name
+                return path.parent.name, 0
+            return path.name, 0
         else:
-            return path.stem
+            return path.stem, 0
     elif uri.startswith("wandb://"):
         parts = uri[8:].split("/")
         if len(parts) >= 3:
             run_name = parts[2].split(":")[0]
-            return run_name
-    return "unknown"
-
-
-def epoch_from_uri(uri: str) -> int:
-    """Extract epoch directly from URI."""
-    if uri.startswith("file://") and uri.endswith(".pt"):
-        _, epoch, _, _ = parse_checkpoint_filename(Path(uri[7:]).name)
-        return epoch
-    return 0
-
-
-def key_and_version(uri: str) -> tuple[str, int]:
-    """Extract key (run name) and version (epoch) from a policy URI."""
-    return name_from_uri(uri), epoch_from_uri(uri)
+            return run_name, 0
+    return "unknown", 0
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
@@ -72,16 +60,6 @@ def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> Optional[str]:
     return f"file://{latest_file}"
 
 
-def load_policy_from_dir(checkpoint_dir: str) -> Optional[Any]:
-    """Load latest policy from directory."""
-    uri = get_checkpoint_uri_from_dir(checkpoint_dir)
-    if not uri:
-        return None
-
-    path = Path(uri[7:])
-    return torch.load(path, weights_only=False)
-
-
 class CheckpointManager:
     """Simple checkpoint manager: torch.save/load + filename-embedded metadata."""
 
@@ -111,7 +89,9 @@ class CheckpointManager:
 
     def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Load trainer state (optimizer state, epoch, agent_step)."""
-        epoch = epoch or self.get_latest_epoch()
+        if epoch is None:
+            latest_file = self.find_best_checkpoint("epoch")
+            epoch = parse_checkpoint_filename(latest_file.name)[1] if latest_file else None
         if epoch is None:
             return None
 

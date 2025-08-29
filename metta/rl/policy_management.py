@@ -8,10 +8,7 @@ import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.checkpoint_manager import (
-    CheckpointManager,
-    load_policy_from_dir,
-)
+from metta.rl.checkpoint_manager import CheckpointManager, get_checkpoint_uri_from_dir
 from metta.rl.wandb import load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
@@ -58,10 +55,11 @@ def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
         if file_path.is_file():
             return torch.load(file_path, map_location=device, weights_only=False)
         elif file_path.is_dir():
-            policy = load_policy_from_dir(str(file_path))
-            if policy:
-                return policy
-            raise FileNotFoundError(f"No checkpoint found in directory: {file_path}")
+            uri = get_checkpoint_uri_from_dir(str(file_path))
+            if not uri:
+                raise FileNotFoundError(f"No checkpoint found in directory: {file_path}")
+            checkpoint_path = Path(uri[7:])
+            return torch.load(checkpoint_path, map_location=device, weights_only=False)
         else:
             raise FileNotFoundError(f"Path does not exist: {file_path}")
     elif uri.startswith("wandb://"):
