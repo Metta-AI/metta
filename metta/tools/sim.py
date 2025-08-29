@@ -68,18 +68,21 @@ class SimTool(Tool):
             strategy_map = {"top": "best_score", "latest": "latest", "best_score": "best_score", "all": "all"}
             strategy = strategy_map.get(self.selector_type, "latest")
 
-            discovered_policies = discover_policies(
+            discovered_uris = discover_policy_uris(
                 policy_uri, strategy=strategy, count=self.selector_count, metric=self.selector_metric
             )
 
-            logger.info(f"Discovered {len(discovered_policies)} policies for {policy_uri} using strategy '{strategy}'")
+            logger.info(f"Discovered {len(discovered_uris)} policies for {policy_uri} using strategy '{strategy}'")
 
             policies_by_uri[policy_uri] = []
-            for policy_uri_path, metadata in discovered_policies:
+            for policy_uri_path in discovered_uris:
                 try:
                     agent = resolve_policy(policy_uri_path, device="cpu")
-                    policies_by_uri[policy_uri].append((agent, metadata, policy_uri_path))
-                    logger.info(f"Loaded policy from {policy_uri_path} with metadata: {metadata}")
+                    # Extract metadata from URI for logging
+                    from metta.rl.checkpoint_manager import key_and_version
+                    key, version = key_and_version(policy_uri_path)
+                    policies_by_uri[policy_uri].append((agent, policy_uri_path))
+                    logger.info(f"Loaded policy from {policy_uri_path} (key={key}, version={version})")
                 except Exception as e:
                     logger.error(f"Failed to load policy from {policy_uri_path}: {e}")
 
@@ -102,18 +105,19 @@ class SimTool(Tool):
         for policy_uri, agent_metadata_list in policies_by_uri.items():
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
-            for _agent, metadata, checkpoint_path in agent_metadata_list:
-                logger.info(f"Processing checkpoint {checkpoint_path.name} from {policy_uri}")
+            for _agent, checkpoint_uri in agent_metadata_list:
+                logger.info(f"Processing checkpoint {checkpoint_uri}")
 
-                # Use URI directly - no Checkpoint object needed
-                checkpoint_uri = f"file://{checkpoint_path.absolute()}"
+                # Extract metadata from URI
+                from metta.rl.checkpoint_manager import key_and_version
+                key, version = key_and_version(checkpoint_uri)
 
                 # Perform basic evaluation (placeholder - would run actual simulations in real implementation)
                 # For Phase 3, we focus on the database integration infrastructure
                 evaluation_metrics = {
-                    "reward_avg": metadata.get("score", 0.0),
-                    "reward_avg_category_normalized": metadata.get("avg_reward", 0.0),
-                    "agent_step": metadata.get("agent_step", 0),
+                    "reward_avg": 0.0,  # Would be filled from actual evaluation
+                    "reward_avg_category_normalized": 0.0,
+                    "agent_step": 0,
                     "detailed": {},
                 }
 
@@ -127,10 +131,10 @@ class SimTool(Tool):
 
                 results["checkpoints"].append(
                     {
-                        "name": metadata.get("run", checkpoint_path.stem),
+                        "name": key,
                         "uri": checkpoint_uri,
-                        "epoch": metadata.get("epoch", 0),
-                        "checkpoint_path": str(checkpoint_path),
+                        "epoch": version,
+                        "checkpoint_path": checkpoint_uri[7:] if checkpoint_uri.startswith("file://") else checkpoint_uri,
                         "metrics": evaluation_metrics,
                         "replay_url": [],
                     }
