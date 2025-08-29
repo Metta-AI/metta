@@ -9,7 +9,7 @@ import duckdb
 
 from metta.mettagrid.episode_stats_db import EpisodeStatsDB
 from metta.mettagrid.util.file import exists, local_copy, write_file
-from metta.rl.checkpoint_manager import key_and_version
+from metta.rl.checkpoint_manager import CheckpointManager
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
@@ -94,7 +94,11 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         merged = SimulationStatsDB(merged_path)
 
-        policy_key, policy_version = key_and_version(policy_uri) if policy_uri else ("unknown", 0)
+        if policy_uri:
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            policy_key, policy_version = metadata["run_name"], metadata["epoch"]
+        else:
+            policy_key, policy_version = ("unknown", 0)
         merged._insert_simulation(
             sim_id=sim_id,
             name=sim_name,
@@ -114,9 +118,13 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         if all_episode_ids:
             # Convert agent_map with URIs to agent_map with (key, version) tuples
-            agent_tuple_map = {
-                agent_id: (key_and_version(uri) if uri else ("unknown", 0)) for agent_id, uri in agent_map.items()
-            }
+            agent_tuple_map = {}
+            for agent_id, uri in agent_map.items():
+                if uri:
+                    metadata = CheckpointManager.get_policy_metadata(uri)
+                    agent_tuple_map[agent_id] = (metadata["run_name"], metadata["epoch"])
+                else:
+                    agent_tuple_map[agent_id] = ("unknown", 0)
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
             merged._update_episode_simulations(all_episode_ids, sim_id)
@@ -161,7 +169,8 @@ class SimulationStatsDB(EpisodeStatsDB):
         params = []
 
         if policy_uri is not None:
-            policy_key, policy_version = key_and_version(policy_uri)
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            policy_key, policy_version = metadata["run_name"], metadata["epoch"]
             query += " AND s.policy_key = ? AND s.policy_version = ?"
             params.extend([policy_key, policy_version])
 

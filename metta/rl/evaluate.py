@@ -10,7 +10,7 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskRes
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
-from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
@@ -54,14 +54,15 @@ def evaluate_policy_remote_with_checkpoint_manager(
             logger.warning("No checkpoints available for remote evaluation")
             return None
 
-    # Extract metadata from checkpoint filename
-    run_name, epoch, agent_step, total_time, score = parse_checkpoint_filename(Path(checkpoint_path).name)
+    # Extract metadata from checkpoint using centralized method
+    checkpoint_uri = f"file://{Path(checkpoint_path).resolve()}"
+    policy_metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
     metadata = {
-        "run": run_name,
-        "epoch": epoch,
-        "agent_step": agent_step,
-        "total_time": total_time,
-        "score": score,
+        "run": policy_metadata["run_name"],
+        "epoch": policy_metadata["epoch"],
+        "agent_step": policy_metadata.get("agent_step", 0),
+        "total_time": policy_metadata.get("total_time", 0),
+        "score": policy_metadata.get("score", 0.0),
         "checkpoint_file": Path(checkpoint_path).name,
     }
 
