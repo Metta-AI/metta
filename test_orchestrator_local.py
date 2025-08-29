@@ -138,7 +138,7 @@ class OptimizingScheduler:
             type=JobTypes.LAUNCH_TRAINING,
             config=suggestion,  # Pass optimizer suggestion as config
             overrides={
-                "trainer.total_timesteps": "100000",  # Override for quick testing
+                "trainer.total_timesteps": "10000",  # Override for quick testing
             },
             metadata={
                 "group": sweep_metadata.sweep_id,  # Pass group as an arg
