@@ -52,8 +52,11 @@ def _():
     import time
     import warnings
     import io, contextlib
+    from contextlib import contextmanager
     import os, json, subprocess, tempfile, yaml
     from datetime import datetime
+    import multiprocessing
+    import traceback
 
     import numpy as np  # used later
     import pandas as pd
@@ -78,6 +81,7 @@ def _():
     from metta.rl.checkpoint_manager import CheckpointManager
 
     from metta.common.wandb.wandb_context import WandbConfig
+    import wandb
     import torch
 
     from tensordict import TensorDict

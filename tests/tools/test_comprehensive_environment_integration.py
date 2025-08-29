@@ -1,8 +1,3 @@
-"""Test suite for comprehensive environment integration.
-Adapted from the original renderer test suite to work with the new Pydantic-based system.
-Focuses on testing programmatic environment creation and integration with the new tools.
-"""
-
 import os
 import subprocess
 import tempfile
