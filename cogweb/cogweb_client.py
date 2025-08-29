@@ -1,5 +1,3 @@
-"""Unified client for all Cogweb backend services."""
-
 from typing import Optional
 
 from metta.app_backend.clients.base_client import get_machine_token

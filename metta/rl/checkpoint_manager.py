@@ -1,5 +1,3 @@
-"""Simple checkpoint manager for training and evaluation."""
-
 import logging
 import re
 from pathlib import Path
@@ -11,10 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 def key_and_version(uri: str) -> tuple[str, int]:
-    """Extract key (run name) and version (epoch) from a policy URI.
-    Since all checkpoints are .pt files with metadata in filenames,
-    we can simplify this to handle just the common cases.
-    """
+    """Extract key (run name) and version (epoch) from a policy URI. Since all checkpoints 
+    are .pt files with metadata in filenames, we can simplify this to handle just the common cases."""
     if uri.startswith("file://"):
         path = Path(uri[7:])
         if path.suffix == ".pt":
@@ -32,13 +28,8 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
-    """Parse checkpoint metadata from filename.
-    Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
-    - e: epoch
-    - s: agent_step
-    - t: total_time
-    - sc: score (evaluation score, 0 if not evaluated)
-    """
+    """Parse checkpoint metadata from filename. Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
+    where e=epoch, s=agent_step, t=total_time, sc=score (evaluation score, 0 if not evaluated)."""
     parts = filename.split(".")
     if len(parts) != 6 or parts[-1] != "pt":
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
@@ -204,15 +195,7 @@ class CheckpointManager:
         return deleted_count
 
     def upload_to_wandb(self, epoch: Optional[int] = None, wandb_run=None) -> Optional[str]:
-        """Upload checkpoint to wandb as an artifact.
-
-        Args:
-            epoch: Specific epoch to upload (uses latest if None)
-            wandb_run: Optional wandb run instance
-
-        Returns:
-            Qualified artifact name or None if failed
-        """
+        """Upload checkpoint to wandb as an artifact."""
         from metta.rl.wandb import upload_checkpoint_as_artifact
 
         if epoch is None:

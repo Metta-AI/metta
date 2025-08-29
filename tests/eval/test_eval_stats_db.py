@@ -1,10 +1,3 @@
-"""
-Integration tests for metta.eval.eval_stats_db.EvalStatsDB.
-
-They confirm correct normalization when metrics are recorded only
-for non‑zero values.
-"""
-
 from __future__ import annotations
 
 import datetime

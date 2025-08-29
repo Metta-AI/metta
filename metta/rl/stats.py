@@ -1,5 +1,3 @@
-"""Statistics processing functions for Metta training."""
-
 import logging
 import uuid
 from collections import defaultdict

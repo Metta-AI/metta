@@ -1,5 +1,3 @@
-"""Analysis tool for MettaGrid evaluation results."""
-
 import logging
 
 from pydantic import Field

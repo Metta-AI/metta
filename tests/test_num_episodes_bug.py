@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Proper test to demonstrate the num_episodes normalization bug and verify the fix.
-This creates a mock database scenario and tests the actual normalization logic.
-"""
 
 import tempfile
 import uuid

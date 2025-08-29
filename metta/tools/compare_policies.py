@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Simple policy comparison tool using stats database."""
 
 import argparse
 import json

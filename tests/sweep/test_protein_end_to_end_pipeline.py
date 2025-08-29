@@ -1,9 +1,3 @@
-"""
-End-to-end integration test for the Protein sweep pipeline.
-This test runs the real sweep pipeline but mocks training and evaluation
-to verify that Protein suggestions are working correctly.
-"""
-
 import shutil
 import tempfile
 from unittest.mock import Mock, patch

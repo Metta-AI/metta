@@ -1,9 +1,3 @@
-"""EvalStatsDb adds views on top of SimulationStatsDb for policy performance queries.
-
-Normalisation rule: For every query we count the potential agent-episode samples,
-aggregate recorded metric values (missing = 0), then divide by potential count.
-This yields a true mean even when zeros are omitted from logging."""
-
 from __future__ import annotations
 
 import math
