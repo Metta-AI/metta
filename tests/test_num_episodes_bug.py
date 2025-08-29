@@ -103,8 +103,14 @@ def test_normalization_bug():
         checkpoint_path, epoch, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_filename)
 
         print(f"  Checkpoint file: {checkpoint_filename}")
-        print(f"  Extracted metadata: (path={checkpoint_path}, epoch={epoch}, step={agent_step}, time={total_time}, score={score})")
-        print(f"  Policy: {checkpoint_path}, Epoch: {epoch}, Steps: {agent_step}, Training time: {total_time}s, Score: {score}")
+        print(
+            f"  Extracted metadata: (path={checkpoint_path}, epoch={epoch}, "
+            f"step={agent_step}, time={total_time}, score={score})"
+        )
+        print(
+            f"  Policy: {checkpoint_path}, Epoch: {epoch}, Steps: {agent_step}, "
+            f"Training time: {total_time}s, Score: {score}"
+        )
 
         # Check what's in the database
         episodes_count = db1.query("SELECT COUNT(*) as cnt FROM episodes")["cnt"][0]
@@ -147,7 +153,7 @@ def test_normalization_bug():
         potential = db2.potential_samples_for_metric(checkpoint_path, epoch)
         print(f"  Potential samples (from agent_policies): {potential}")
 
-        # Get the actual recorded metrics  
+        # Get the actual recorded metrics
         recorded = db2.count_metric_agents(checkpoint_path, epoch, "reward")
         print(f"  Recorded metrics: {recorded}")
 

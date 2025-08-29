@@ -87,7 +87,7 @@ class TestHelpersSimpleCheckpoint:
         score_int = int(score * 10000)  # Store as integer to avoid decimal in filename
         filename = f"{run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score_int}.pt"
         checkpoint_path = checkpoint_manager.checkpoint_dir / filename
-        
+
         # Verify the file was actually created
         if not checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint file was not created: {checkpoint_path}")

@@ -254,7 +254,9 @@ class TestCheckpointManagerAdvancedFeatures:
             checkpoint_manager.save_agent(mock_agent, epoch=epoch, metadata=metadata)
 
         # Test that we can list epochs by finding all checkpoints and extracting epochs
-        checkpoint_files = list((Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints").glob("test_run.e*.s*.t*.sc*.pt"))
+        checkpoint_files = list(
+            (Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints").glob("test_run.e*.s*.t*.sc*.pt")
+        )
         epochs = sorted([parse_checkpoint_filename(f.name)[1] for f in checkpoint_files])
         assert epochs == [1, 3, 5, 10]
 
@@ -298,7 +300,7 @@ class TestCheckpointManagerErrorHandling:
         for invalid_filename in invalid_filenames:
             try:
                 parse_checkpoint_filename(invalid_filename)
-                assert False, f"Should have raised ValueError for {invalid_filename}"
+                raise AssertionError(f"Should have raised ValueError for {invalid_filename}")
             except ValueError:
                 pass  # Expected
 

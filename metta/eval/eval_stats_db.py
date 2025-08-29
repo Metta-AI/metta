@@ -177,7 +177,6 @@ class EvalStatsDB(SimulationStatsDB):
         pk, pv = key_and_version(policy_uri)
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
-
     def get_std_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
         """URI-native version to get standard deviation metric."""
         pk, pv = key_and_version(policy_uri)
@@ -187,7 +186,6 @@ class EvalStatsDB(SimulationStatsDB):
         """URI-native version to get sum metric."""
         pk, pv = key_and_version(policy_uri)
         return self._normalized_value(pk, pv, metric, "SUM", filter_condition)
-
 
     def sample_count_uri(
         self,
@@ -205,7 +203,6 @@ class EvalStatsDB(SimulationStatsDB):
         if sim_env:
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
-
 
     def simulation_scores(self, policy_uri: str, metric: str) -> Dict[tuple[str, str], float]:
         """Return { (name,env) : normalized mean(metric) } for a policy URI."""
