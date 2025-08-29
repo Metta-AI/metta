@@ -202,28 +202,3 @@ class CheckpointManager:
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} old checkpoints, kept {keep_last_n} most recent")
         return deleted_count
-
-    def upload_to_wandb(self, epoch: Optional[int] = None, wandb_run=None) -> Optional[str]:
-        """Upload checkpoint to wandb as an artifact.
-        
-        Args:
-            epoch: Specific epoch to upload (uses latest if None)
-            wandb_run: Optional wandb run instance
-            
-        Returns:
-            Qualified artifact name or None if failed
-        """
-        from metta.rl.wandb import upload_checkpoint_for_epoch
-        
-        if epoch is None:
-            epoch = self.get_latest_epoch()
-            if epoch is None:
-                logger.warning("No checkpoints available to upload")
-                return None
-        
-        return upload_checkpoint_for_epoch(
-            checkpoint_dir=str(self.checkpoint_dir),
-            run_name=self.run_name,
-            epoch=epoch,
-            wandb_run=wandb_run,
-        )
