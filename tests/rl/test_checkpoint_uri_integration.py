@@ -1,0 +1,439 @@
+"""Consolidated tests for URI handling and checkpoint integration.
+
+Tests all URI formats (file, wandb, s3), real environment integration,
+end-to-end workflows, and cross-format compatibility.
+"""
+
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
+import torch
+from tensordict import TensorDict
+
+import metta.mettagrid.config.envs as eb
+from metta.agent.agent_config import AgentConfig
+from metta.agent.metta_agent import MettaAgent
+from metta.agent.mocks import MockAgent
+from metta.agent.utils import obs_to_td
+from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.rl.checkpoint_manager import CheckpointManager, expand_wandb_uri, key_and_version
+from metta.rl.system_config import SystemConfig
+
+
+@pytest.fixture
+def temp_dir():
+    """Create a temporary directory for test files."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield Path(tmpdir)
+
+
+@pytest.fixture
+def mock_policy():
+    """Create a mock policy for testing."""
+    policy = Mock()
+    policy.forward = Mock(return_value={"actions": torch.tensor([[1, 0]])})
+    return policy
+
+
+@pytest.fixture
+def create_env_and_agent():
+    """Create a real environment and agent for testing."""
+    env_config = eb.make_navigation(num_agents=1)
+    env_config.game.max_steps = 100
+    env_config.game.map_builder.width = 8
+    env_config.game.map_builder.height = 8
+
+    env = MettaGridEnv(env_config, render_mode=None)
+    system_cfg = SystemConfig(device="cpu")
+    agent_cfg = AgentConfig(name="fast")
+
+    agent = MettaAgent(env=env, system_cfg=system_cfg, policy_architecture_cfg=agent_cfg)
+
+    # Initialize agent to environment
+    features = env.get_observation_features()
+    agent.initialize_to_environment(features, env.action_names, env.max_action_args, device="cpu")
+
+    return env, agent
+
+
+def create_test_checkpoint(temp_dir: Path, filename: str, policy=None) -> Path:
+    """Create a test checkpoint file."""
+    if policy is None:
+        policy = Mock()
+    checkpoint_path = temp_dir / filename
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(policy, checkpoint_path)
+    return checkpoint_path
+
+
+class TestFileURIHandling:
+    """Test file:// URI format handling."""
+
+    def test_file_uri_single_checkpoint(self, temp_dir, mock_policy):
+        """Test loading a single checkpoint file via file:// URI."""
+        checkpoint_file = create_test_checkpoint(temp_dir, "test_run.e5.s1000.t120.sc7500.pt", mock_policy)
+
+        uri = f"file://{checkpoint_file}"
+        loaded_policy = CheckpointManager.load_from_uri(uri)
+
+        assert loaded_policy is not None
+        assert loaded_policy == mock_policy
+
+    def test_file_uri_directory_with_checkpoints(self, temp_dir, mock_policy):
+        """Test loading from directory containing multiple checkpoints."""
+        checkpoints_dir = temp_dir / "run1" / "checkpoints"
+        checkpoints_dir.mkdir(parents=True)
+
+        # Create multiple checkpoint files with different epochs
+        create_test_checkpoint(checkpoints_dir, "run1.e1.s500.t60.sc5000.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, "run1.e3.s1500.t180.sc8000.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, "run1.e5.s2500.t300.sc9500.pt", mock_policy)
+
+        # Test directory URI - should load latest (highest epoch)
+        uri = f"file://{checkpoints_dir}"
+        loaded_policy = CheckpointManager.load_from_uri(uri)
+
+        assert loaded_policy is not None
+        assert loaded_policy == mock_policy
+
+    def test_file_uri_run_directory_navigation(self, temp_dir, mock_policy):
+        """Test loading from run directory (should navigate to checkpoints subdir)."""
+        run_dir = temp_dir / "my_run"
+        checkpoints_dir = run_dir / "checkpoints"
+        checkpoints_dir.mkdir(parents=True)
+
+        create_test_checkpoint(checkpoints_dir, "my_run.e10.s5000.t600.sc9000.pt", mock_policy)
+
+        # Test run directory URI - should automatically look in checkpoints subdir
+        uri = f"file://{run_dir}"
+        loaded_policy = CheckpointManager.load_from_uri(uri)
+
+        assert loaded_policy is not None
+
+    def test_file_uri_invalid_paths(self):
+        """Test file:// URI with invalid paths."""
+        # Test non-existent file
+        uri = "file:///nonexistent/path.pt"
+        result = CheckpointManager.load_from_uri(uri)
+        assert result is None
+
+        # Test non-existent directory
+        uri = "file:///nonexistent/directory"
+        result = CheckpointManager.load_from_uri(uri)
+        assert result is None
+
+    def test_file_uri_error_handling(self, temp_dir):
+        """Test error handling for file URIs."""
+        # Create directory with non-checkpoint .pt file
+        test_dir = temp_dir / "mixed_files"
+        test_dir.mkdir()
+
+        # Create a corrupted .pt file
+        corrupted_file = test_dir / "corrupted.pt"
+        corrupted_file.write_text("not a pytorch file")
+
+        uri = f"file://{test_dir}"
+        result = CheckpointManager.load_from_uri(uri)
+        assert result is None  # Should handle corruption gracefully
+
+
+class TestWandbURIHandling:
+    """Test wandb:// URI format handling and compatibility."""
+
+    def test_wandb_uri_expansion(self):
+        """Test wandb URI expansion functionality."""
+        # Test short run format
+        short_uri = "wandb://run/my-experiment"
+        expanded = expand_wandb_uri(short_uri)
+        assert expanded == "wandb://metta/model/my-experiment:latest"
+
+        # Test short run format with version
+        short_uri = "wandb://run/my-experiment:v10"
+        expanded = expand_wandb_uri(short_uri)
+        assert expanded == "wandb://metta/model/my-experiment:v10"
+
+        # Test short sweep format
+        short_uri = "wandb://sweep/my-sweep"
+        expanded = expand_wandb_uri(short_uri)
+        assert expanded == "wandb://metta/sweep_model/my-sweep:latest"
+
+        # Test full format (should remain unchanged)
+        full_uri = "wandb://entity/project/model/artifact:v1"
+        expanded = expand_wandb_uri(full_uri)
+        assert expanded == full_uri
+
+    @patch("metta.rl.wandb.load_policy_from_wandb_uri")
+    def test_wandb_uri_loading(self, mock_load_wandb, mock_policy):
+        """Test wandb URI loading with expansion."""
+        mock_load_wandb.return_value = mock_policy
+
+        # Test short format gets expanded before loading
+        uri = "wandb://run/my-experiment"
+        loaded_policy = CheckpointManager.load_from_uri(uri)
+
+        assert loaded_policy == mock_policy
+        # Verify expanded URI was passed to wandb loader
+        mock_load_wandb.assert_called_once_with("wandb://metta/model/my-experiment:latest", device="cpu")
+
+    @patch("metta.rl.wandb.get_wandb_checkpoint_metadata")
+    def test_wandb_metadata_extraction(self, mock_get_metadata):
+        """Test metadata extraction from wandb URIs."""
+        mock_get_metadata.return_value = {
+            "run_name": "experiment_1",
+            "epoch": 25,
+            "agent_step": 12500,
+            "total_time": 750,
+            "score": 0.95,
+        }
+
+        uri = "wandb://run/experiment_1"
+        metadata = CheckpointManager.get_policy_metadata(uri)
+
+        # Should call with expanded URI
+        mock_get_metadata.assert_called_once_with("wandb://metta/model/experiment_1:latest")
+
+        assert metadata["run_name"] == "experiment_1"
+        assert metadata["epoch"] == 25
+        assert metadata["original_uri"] == uri  # Original short form preserved
+
+    def test_wandb_key_and_version_extraction(self):
+        """Test extracting key and version from wandb URIs."""
+        with patch("metta.rl.wandb.get_wandb_checkpoint_metadata", return_value={"run_name": "test", "epoch": 5}):
+            key, version = key_and_version("wandb://run/test")
+            assert key == "test"
+            assert version == 5
+
+    @patch("metta.rl.wandb.load_policy_from_wandb_uri")
+    def test_wandb_error_handling(self, mock_load_wandb):
+        """Test wandb URI error handling."""
+        # Test network error
+        mock_load_wandb.side_effect = RuntimeError("Network error")
+
+        uri = "wandb://run/test"
+        result = CheckpointManager.load_from_uri(uri)
+        assert result is None  # Should handle errors gracefully
+
+
+class TestS3URIHandling:
+    """Test s3:// URI format handling."""
+
+    @patch("metta.mettagrid.util.file.local_copy")
+    def test_s3_uri_loading(self, mock_local_copy, mock_policy):
+        """Test S3 URI handling with mocked local_copy."""
+        mock_local_path = "/tmp/downloaded_checkpoint.pt"
+        mock_local_copy.return_value.__enter__ = Mock(return_value=mock_local_path)
+        mock_local_copy.return_value.__exit__ = Mock(return_value=None)
+
+        with patch("torch.load", return_value=mock_policy) as mock_torch_load:
+            uri = "s3://my-bucket/path/to/checkpoint.pt"
+            loaded_policy = CheckpointManager.load_from_uri(uri)
+
+            assert loaded_policy == mock_policy
+            mock_local_copy.assert_called_once_with(uri)
+            mock_torch_load.assert_called_once_with(mock_local_path, weights_only=False)
+
+    def test_s3_key_and_version_extraction(self):
+        """Test extracting key and version from S3 URIs."""
+        # Test S3 URI with valid checkpoint filename
+        uri = "s3://bucket/path/to/my_run.e15.s7500.t450.sc8500.pt"
+        key, version = key_and_version(uri)
+        assert key == "my_run"
+        assert version == 15
+
+        # Test S3 URI with regular filename
+        uri = "s3://bucket/path/to/regular_model.pt"
+        key, version = key_and_version(uri)
+        assert key == "regular_model"
+        assert version == 0
+
+
+class TestURIUtilities:
+    """Test URI utility functions."""
+
+    def test_normalize_uri_function(self):
+        """Test URI normalization functionality."""
+        # Test plain path to file URI conversion
+        result = CheckpointManager.normalize_uri("/path/to/checkpoint.pt")
+        assert result.startswith("file://")
+        assert result.endswith("/path/to/checkpoint.pt")
+
+        # Test wandb URI expansion during normalization
+        wandb_short = "wandb://run/test"
+        normalized = CheckpointManager.normalize_uri(wandb_short)
+        assert normalized == "wandb://metta/model/test:latest"
+
+        # Test already normalized URIs remain unchanged
+        file_uri = "file:///path/to/checkpoint.pt"
+        assert CheckpointManager.normalize_uri(file_uri) == file_uri
+
+        s3_uri = "s3://bucket/path/checkpoint.pt"
+        assert CheckpointManager.normalize_uri(s3_uri) == s3_uri
+
+    def test_unsupported_uri_formats(self):
+        """Test handling of unsupported URI formats."""
+        unsupported_uris = ["http://example.com/model.pt", "ftp://server/model.pt", "gs://bucket/model.pt"]
+
+        for uri in unsupported_uris:
+            result = CheckpointManager.load_from_uri(uri)
+            assert result is None  # Should handle gracefully, not raise
+
+
+class TestRealEnvironmentIntegration:
+    """Test integration with real MettaGrid environments and agents."""
+
+    def test_save_and_load_real_agent(self, create_env_and_agent):
+        """Test saving and loading a real MettaAgent with real environment."""
+        env, agent = create_env_and_agent
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="integration_test")
+
+            # Test forward pass before saving
+            obs = env.reset()[0]
+            td_obs = obs_to_td(obs, batch_size=())
+            output_before = agent(td_obs.unsqueeze(0))
+            assert "actions" in output_before
+
+            # Save the agent
+            metadata = {"agent_step": 1000, "total_time": 60, "score": 0.85}
+            checkpoint_manager.save_agent(agent, epoch=5, metadata=metadata)
+
+            # Load the agent
+            loaded_agent = checkpoint_manager.load_agent(epoch=5)
+            assert loaded_agent is not None
+
+            # Test that loaded agent produces same output structure
+            output_after = loaded_agent(td_obs.unsqueeze(0))
+            assert "actions" in output_after
+            assert output_after["actions"].shape == output_before["actions"].shape
+
+    def test_uri_based_loading_with_real_agent(self, create_env_and_agent):
+        """Test loading agent via file URI."""
+        env, agent = create_env_and_agent
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="uri_test")
+
+            # Save agent
+            checkpoint_manager.save_agent(agent, epoch=10, metadata={"agent_step": 5000, "total_time": 300})
+
+            # Get checkpoint URI
+            checkpoint_uri = checkpoint_manager.get_checkpoint_uri(epoch=10)
+
+            # Load via URI
+            loaded_agent = CheckpointManager.load_from_uri(checkpoint_uri)
+            assert loaded_agent is not None
+
+            # Verify functionality
+            obs = env.reset()[0]
+            td_obs = obs_to_td(obs, batch_size=())
+            output = loaded_agent(td_obs.unsqueeze(0))
+            assert "actions" in output
+
+    def test_training_progress_and_selection(self, create_env_and_agent):
+        """Test saving multiple checkpoints with different scores and selecting best."""
+        env, agent = create_env_and_agent
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="progress_test")
+
+            # Simulate training progress with improving scores
+            training_data = [
+                (5, {"agent_step": 1000, "total_time": 60, "score": 0.3}),
+                (10, {"agent_step": 2000, "total_time": 120, "score": 0.7}),
+                (15, {"agent_step": 3000, "total_time": 180, "score": 0.9}),
+                (20, {"agent_step": 4000, "total_time": 240, "score": 0.6}),  # Performance dip
+            ]
+
+            for epoch, metadata in training_data:
+                checkpoint_manager.save_agent(agent, epoch=epoch, metadata=metadata)
+
+            # Test selection by score (should get epoch 15 with score 0.9)
+            best_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="score")
+            assert len(best_checkpoints) == 1
+            assert "progress_test.e15.s3000.t180.sc9000.pt" == best_checkpoints[0].name
+
+            # Test selection by latest epoch (should get epoch 20)
+            latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="epoch")
+            assert len(latest_checkpoints) == 1
+            assert "progress_test.e20.s4000.t240.sc6000.pt" == latest_checkpoints[0].name
+
+
+class TestEndToEndWorkflows:
+    """Test complete end-to-end workflows."""
+
+    def test_complete_train_save_load_eval_workflow(self):
+        """Test a complete workflow from training through evaluation."""
+
+        class MockEnvironment:
+            def __init__(self, feature_mapping):
+                self.feature_mapping = feature_mapping
+                self.action_names = ["move", "turn", "interact"]
+                self.max_action_args = [3, 2, 1]
+
+            def get_observation_features(self):
+                return {
+                    name: {"id": id_val, "type": "scalar", "normalization": 10.0}
+                    for name, id_val in self.feature_mapping.items()
+                }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Step 1: Train with original features
+            original_env = MockEnvironment({"health": 1, "energy": 2, "position": 3})
+            policy = MockAgent()
+            policy.train()
+
+            # Initialize to original environment
+            features = original_env.get_observation_features()
+            policy.initialize_to_environment(features, original_env.action_names, original_env.max_action_args, "cpu")
+
+            # Step 2: Save trained policy
+            checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="workflow_test")
+            metadata = {"agent_step": 10000, "epoch": 50, "score": 0.95}
+            checkpoint_manager.save_agent(policy, epoch=50, metadata=metadata)
+
+            # Step 3: Load in new environment with different feature IDs
+            new_env = MockEnvironment({"health": 10, "energy": 20, "position": 30, "stamina": 40})
+            loaded_policy = checkpoint_manager.load_agent(epoch=50)
+
+            # Initialize to new environment (eval mode)
+            loaded_policy.eval()
+            new_features = new_env.get_observation_features()
+            loaded_policy.initialize_to_environment(new_features, new_env.action_names, new_env.max_action_args, "cpu")
+
+            # Step 4: Verify evaluation works
+            test_input = TensorDict({"env_obs": torch.randn(2, 10)}, batch_size=(2,))
+            output = loaded_policy(test_input)
+            assert "actions" in output
+            assert output["actions"].shape[0] == 2
+
+            # Step 5: Verify metadata persistence
+            assert loaded_policy.get_original_feature_mapping() == {"health": 1, "energy": 2, "position": 3}
+
+    def test_cross_format_uri_compatibility(self, temp_dir):
+        """Test that different URI formats work together seamlessly."""
+        # Create checkpoint via standard save
+        mock_agent = MockAgent()
+        checkpoint_file = create_test_checkpoint(temp_dir, "cross_test.e5.s1000.t120.sc7500.pt", mock_agent)
+
+        # Test different ways to reference the same checkpoint
+        uris = [
+            f"file://{checkpoint_file}",
+            f"file://{checkpoint_file.parent}",  # Directory form
+            str(checkpoint_file),  # Plain path (should be normalized)
+        ]
+
+        for uri in uris:
+            loaded = CheckpointManager.load_from_uri(uri)
+            assert loaded is not None
+
+            # Test metadata extraction consistency
+            metadata = CheckpointManager.get_policy_metadata(uri)
+            assert metadata["run_name"] == "cross_test"
+            assert metadata["epoch"] == 5
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
