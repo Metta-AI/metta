@@ -228,9 +228,6 @@ class ComponentPolicy(nn.Module, ABC):
                 )
             comp.reset_memory()
 
-    # ------------------------------------------------------------------------
-    # Modern state API used by MemoryManager (preferred when available)
-    # ------------------------------------------------------------------------
     def get_states(self) -> dict:
         """Gather states from memory-capable components.
 
@@ -253,14 +250,6 @@ class ComponentPolicy(nn.Module, ABC):
     def reset_states(self) -> None:
         """Reset all component states (alias to reset_memory)."""
         self.reset_memory()
-
-    def get_memory(self) -> dict:
-        """Get memory state from all components that have memory."""
-        memory = {}
-        for name in self.components_with_memory:
-            if hasattr(self.components[name], "get_memory"):
-                memory[name] = self.components[name].get_memory()
-        return memory
 
     # ============================================================================
     # Weight/Training Utility Methods
