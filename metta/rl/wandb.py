@@ -10,8 +10,10 @@ from typing import Dict, Optional
 import torch
 import torch.nn as nn
 import wandb
+from wandb.apis.public import Artifact
 
 from metta.common.wandb.wandb_context import WandbRun
+from metta.mettagrid.util.file import WandbURI
 
 logger = logging.getLogger(__name__)
 
@@ -68,31 +70,77 @@ def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
 # Policy Loading Functions (moved from wandb_policy_loader.py)
 
 
+def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
+    """Extract checkpoint metadata from a wandb artifact.
+
+    Returns a dict with keys: run_name, epoch, agent_step, total_time, score
+    or None if metadata cannot be extracted.
+    """
+    if not wandb_uri.startswith("wandb://"):
+        return None
+
+    uri = WandbURI.parse(wandb_uri)
+    artifact: Artifact = wandb.Api().artifact(uri.qname())
+    metadata = artifact.metadata
+
+    if metadata is None:
+        return None
+
+    # Check if we have all required fields
+    required_fields = ["run_name", "epoch", "agent_step", "total_time", "score"]
+    if all(field in metadata for field in required_fields):
+        return {
+            "run_name": metadata["run_name"],
+            "epoch": metadata["epoch"],
+            "agent_step": metadata["agent_step"],
+            "total_time": metadata["total_time"],
+            "score": metadata["score"],
+        }
+    return None
+
+
 def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[torch.nn.Module]:
     """Load policy from wandb://entity/project/artifact_name:version format.
 
-    Note: This loses filename metadata since wandb artifacts store the file as 'model.pt'.
-    The metadata (epoch, agent_step, score, etc.) is stored in the artifact's metadata
-    but not in the filename, so we can't use parse_checkpoint_filename() on wandb downloads.
+    This function reconstructs the original filename with metadata to maintain
+    compatibility with our checkpoint filename parsing system.
     """
-    if not wandb or not wandb_uri.startswith("wandb://"):
+    if not wandb_uri.startswith("wandb://"):
         return None
 
-    try:
-        artifact_path = wandb_uri[8:]  # Remove "wandb://" prefix
-        artifact = wandb.Api().artifact(artifact_path)
+    uri = WandbURI.parse(wandb_uri)
+    artifact: Artifact = wandb.Api().artifact(uri.qname())
+    metadata = artifact.metadata
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            artifact_dir = Path(temp_dir)
-            artifact.download(root=str(artifact_dir))
+    with tempfile.TemporaryDirectory() as temp_dir:
+        artifact_dir = Path(temp_dir)
+        artifact.download(root=str(artifact_dir))
 
+        # Find the model.pt file
+        model_file = artifact_dir / "model.pt"
+        if not model_file.exists():
+            # Fallback to any .pt file
             policy_files = list(artifact_dir.rglob("*.pt"))
-            if policy_files:
-                return torch.load(policy_files[0], map_location=device, weights_only=False)
+            if not policy_files:
+                logger.warning(f"No .pt files found in wandb artifact {wandb_uri}")
+                return None
+            model_file = policy_files[0]
 
-        return None
-    except Exception:
-        return None
+        # If we have complete metadata, reconstruct the original filename
+        if metadata and all(k in metadata for k in ["run_name", "epoch", "agent_step", "total_time", "score"]):
+            # Reconstruct the original filename with metadata
+            score_int = int(metadata["score"] * 10000)
+            new_filename = (
+                f"{metadata['run_name']}.e{metadata['epoch']}.s{metadata['agent_step']}"
+                f".t{int(metadata['total_time'])}.sc{score_int}.pt"
+            )
+            new_path = artifact_dir / new_filename
+            model_file.rename(new_path)
+            model_file = new_path
+            logger.info(f"Reconstructed checkpoint filename with metadata: {new_filename}")
+
+        # Load the policy
+        return torch.load(model_file, map_location=device, weights_only=False)
 
 
 # Minimal Wandb Artifact Upload Functions
@@ -117,32 +165,31 @@ def upload_checkpoint_as_artifact(
         logger.warning("No wandb run active, cannot upload artifact")
         return None
 
-    try:
-        # Create artifact with metadata
-        artifact = wandb.Artifact(name=artifact_name, type=artifact_type, metadata=metadata or {})
+    # Prepare metadata with original filename
+    artifact_metadata = metadata.copy() if metadata else {}
+    artifact_metadata["original_filename"] = Path(checkpoint_path).name
 
-        # Add the main checkpoint file - we use a generic name since wandb doesn't preserve paths
-        # The actual metadata is stored in the artifact's metadata field
-        artifact.add_file(checkpoint_path, name="model.pt")
+    # Create artifact with complete metadata
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type, metadata=artifact_metadata)
 
-        # Add any additional files
-        if additional_files:
-            for file_path in additional_files:
-                if Path(file_path).exists():
-                    artifact.add_file(file_path)
-                else:
-                    logger.warning(f"Additional file not found: {file_path}")
+    # Add the main checkpoint file - we use a generic name for consistency
+    # The actual metadata is stored in the artifact's metadata field
+    artifact.add_file(checkpoint_path, name="model.pt")
 
-        # Log artifact to run
-        run.log_artifact(artifact)
+    # Add any additional files
+    if additional_files:
+        for file_path in additional_files:
+            if Path(file_path).exists():
+                artifact.add_file(file_path)
+            else:
+                logger.warning(f"Additional file not found: {file_path}")
 
-        # Wait for upload to complete
-        artifact.wait()
+    # Log artifact to run
+    run.log_artifact(artifact)
 
-        qualified_name = artifact.qualified_name
-        logger.info(f"Uploaded checkpoint as wandb artifact: {qualified_name}")
-        return qualified_name
+    # Wait for upload to complete
+    artifact.wait()
 
-    except Exception as e:
-        logger.error(f"Failed to upload wandb artifact: {e}")
-        return None
+    qualified_name = artifact.qualified_name
+    logger.info(f"Uploaded checkpoint as wandb artifact: {qualified_name}")
+    return qualified_name

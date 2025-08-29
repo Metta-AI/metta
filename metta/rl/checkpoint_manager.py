@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
-from metta.mettagrid.util.file import local_copy
+from metta.mettagrid.util.file import WandbURI, local_copy
 from metta.rl.wandb import load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
@@ -16,23 +16,62 @@ def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI."""
     if uri.startswith("file://"):
         path = Path(uri[7:])
-        if path.suffix == ".pt":
+        if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
             parsed = parse_checkpoint_filename(path.name)
             return parsed[0], parsed[1]  # run_name, epoch
         return path.stem if path.suffix else path.name, 0
+
     elif uri.startswith("wandb://"):
-        parts = uri[8:].split("/")
-        run_name = parts[2].split(":")[0] if len(parts) >= 3 else "unknown"
-        return run_name, 0
+        # Get metadata from wandb artifact
+        from metta.rl.wandb import get_wandb_checkpoint_metadata
+
+        metadata = get_wandb_checkpoint_metadata(uri)
+        if metadata:
+            return metadata["run_name"], metadata["epoch"]
+        # Fallback to parsing the artifact name from URI
+        wandb_uri = WandbURI.parse(uri)
+        # Extract run name from artifact path (e.g., "my_run_name" from artifact path)
+        artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
+        return artifact_name, 0
+
+    elif uri.startswith("s3://"):
+        # S3 URIs should preserve the original filename
+        filename = uri.split("/")[-1]  # Get just the filename
+        if filename.endswith(".pt") and is_valid_checkpoint_filename(filename):
+            parsed = parse_checkpoint_filename(filename)
+            return parsed[0], parsed[1]  # run_name, epoch
+        # Fallback to filename without extension
+        path = Path(filename)
+        return path.stem if path.suffix else path.name, 0
+
     return "unknown", 0
+
+
+def is_valid_checkpoint_filename(filename: str) -> bool:
+    """Check if a filename matches the checkpoint naming convention."""
+    parts = filename.split(".")
+    if len(parts) != 6 or parts[-1] != "pt":
+        return False
+
+    # Check format of each part
+    if not parts[1].startswith("e") or not parts[1][1:].isdigit():
+        return False
+    if not parts[2].startswith("s") or not parts[2][1:].isdigit():
+        return False
+    if not parts[3].startswith("t") or not parts[3][1:].isdigit():
+        return False
+    if not parts[4].startswith("sc") or not parts[4][2:].isdigit():
+        return False
+
+    return True
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
     """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt."""
-    parts = filename.split(".")
-    if len(parts) != 6 or parts[-1] != "pt":
+    if not is_valid_checkpoint_filename(filename):
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
 
+    parts = filename.split(".")
     run_name = parts[0]
     epoch = int(parts[1][1:])  # Remove 'e' prefix
     agent_step = int(parts[2][1:])  # Remove 's' prefix
@@ -87,17 +126,15 @@ class CheckpointManager:
                     return None
 
                 # Filter to valid checkpoint files and find latest by epoch
-                valid_checkpoints = []
-                for ckpt in checkpoint_files:
-                    try:
-                        parsed = parse_checkpoint_filename(ckpt.name)
-                        valid_checkpoints.append((ckpt, parsed[1]))  # (file, epoch)
-                    except ValueError:
-                        # Not a valid checkpoint filename, skip
-                        continue
+                valid_checkpoints = [
+                    (ckpt, parse_checkpoint_filename(ckpt.name)[1])  # (file, epoch)
+                    for ckpt in checkpoint_files
+                    if is_valid_checkpoint_filename(ckpt.name)
+                ]
 
                 if not valid_checkpoints:
                     # No valid checkpoint files, just load the first .pt file
+                    logger.info(f"No standard checkpoint files found, loading {checkpoint_files[0].name}")
                     return torch.load(checkpoint_files[0], weights_only=False)
 
                 # Load the checkpoint with highest epoch
@@ -109,12 +146,8 @@ class CheckpointManager:
 
         elif uri.startswith("s3://"):
             # Use local_copy context manager to download S3 file temporarily
-            try:
-                with local_copy(uri) as local_path:
-                    return torch.load(local_path, weights_only=False)
-            except Exception as e:
-                logger.warning(f"Failed to load from S3: {e}")
-                return None
+            with local_copy(uri) as local_path:
+                return torch.load(local_path, weights_only=False)
 
         elif uri.startswith("wandb://"):
             # Use existing wandb loading functionality
