@@ -1,13 +1,17 @@
-"""Protein optimization package for Metta."""
+"""Sweep orchestration package for Metta."""
 
 from .protein import Protein
 from .protein_config import ParameterConfig, ProteinConfig
 from .protein_metta import MettaProtein
-from .sweep import sweep
-from .sweep_config import SweepConfig
-from .wandb_utils import (
-    fetch_protein_observations_from_wandb,
-    record_protein_observation_to_wandb,
+from .sweep_orchestrator import (
+    JobDefinition,
+    JobStatus,
+    JobTypes,
+    LocalDispatcher,
+    Observation,
+    RunInfo,
+    SweepMetadata,
+    orchestrate_sweep,
 )
 
 __all__ = [
@@ -15,8 +19,12 @@ __all__ = [
     "MettaProtein",
     "ProteinConfig",
     "ParameterConfig",
-    "SweepConfig",
-    "sweep",
-    "fetch_protein_observations_from_wandb",
-    "record_protein_observation_to_wandb",
+    "JobDefinition",
+    "JobStatus",
+    "JobTypes",
+    "LocalDispatcher",
+    "Observation",
+    "RunInfo",
+    "SweepMetadata",
+    "orchestrate_sweep",
 ]
