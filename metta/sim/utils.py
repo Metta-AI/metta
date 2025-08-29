@@ -11,7 +11,6 @@ def get_or_create_policy_ids(
     epoch_id: uuid.UUID | None = None,
     create: bool = True,
 ) -> bidict[str, uuid.UUID]:
-    """policies is a list of tuples of (policy_name, policy_uri)"""
     policy_names = [name for (name, _, __) in policies]
     policy_ids_response = stats_client.get_policy_ids(policy_names)
     policy_ids = bidict(policy_ids_response.policy_ids)

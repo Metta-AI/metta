@@ -115,7 +115,6 @@ class CheckpointManager:
         self._cache[path_str] = agent
 
     def clear_cache(self):
-        """Clear the checkpoint cache."""
         self._cache.clear()
 
     def load_agent(self, epoch: Optional[int] = None):
@@ -174,7 +173,6 @@ class CheckpointManager:
             del self._cache[str(checkpoint_path)]
 
     def save_trainer_state(self, optimizer, epoch: int, agent_step: int):
-        """Save trainer optimizer state."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
@@ -202,7 +200,6 @@ class CheckpointManager:
         return f"file://{agent_files[0]}"
 
     def get_latest_epoch(self) -> Optional[int]:
-        """Get the latest epoch number."""
         checkpoints = self.select_checkpoints(strategy="latest", count=1, metric="epoch")
         return parse_checkpoint_filename(checkpoints[0].name)[1] if checkpoints else None
 
