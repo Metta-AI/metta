@@ -91,7 +91,9 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
-    avg_hearts = db.get_average_metric_by_filter("hearts_collected", pk, pv)
+    # Create URI from the checkpoint components
+    policy_uri = f"{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
+    avg_hearts = db.get_average_metric("hearts_collected", policy_uri)
     assert avg_hearts is not None
     assert 1.15 <= avg_hearts <= 1.25, f"expected ≈1.2 got {avg_hearts}"
 
@@ -102,24 +104,25 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     assert recorded == 2
 
     # reward recorded for every sample → mean unaffected
-    avg_reward = db.get_average_metric_by_filter("reward", pk, pv)
+    avg_reward = db.get_average_metric("reward", policy_uri)
     assert avg_reward is not None
 
     # filter condition
-    avg_filtered = db.get_average_metric_by_filter("hearts_collected", pk, pv, "sim_env = 'test_env'")
+    avg_filtered = db.get_average_metric("hearts_collected", policy_uri, "sim_env = 'test_env'")
     assert avg_filtered is not None
     assert 1.15 <= avg_filtered <= 1.25
 
     # non‑matching filter
-    assert db.get_average_metric_by_filter("hearts_collected", pk, pv, "sim_env = 'none'") is None
+    assert db.get_average_metric("hearts_collected", policy_uri, "sim_env = 'none'") is None
 
 
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
+    policy_uri = f"{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
 
-    scores = db.simulation_scores(pk, pv, "hearts_collected")
+    scores = db.simulation_scores(policy_uri, "hearts_collected")
     assert len(scores) == 1
 
     key = next(iter(scores))
@@ -139,8 +142,9 @@ def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
+    policy_uri = f"{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
 
-    sum_norm = db.get_sum_metric_by_filter("hearts_collected", pk, pv)
+    sum_norm = db.get_sum_metric("hearts_collected", policy_uri)
     assert sum_norm is not None
     assert 1.15 <= sum_norm <= 1.25  # (6 / 5) ≈ 1.2
 
@@ -149,15 +153,20 @@ def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy.e1.s1000.t10.pt"
     pk, pv, agent_step, total_time = parse_checkpoint_filename(checkpoint_filename)
+    policy_uri = f"{pk}.e{pv}.s{agent_step}.t{total_time}.pt"
 
-    assert db.get_average_metric_by_filter("nonexistent", pk, pv) == 0.0
+    assert db.get_average_metric("nonexistent", policy_uri) == 0.0
 
-    assert db.get_average_metric_by_filter("hearts_collected", "none", 99) is None
+    # Test with invalid URI
+    invalid_uri = "none.e99.s0.t0.pt"
+    assert db.get_average_metric("hearts_collected", invalid_uri) is None
 
 
 def test_empty_database():
     with tempfile.TemporaryDirectory() as tmp:
         db = EvalStatsDB(Path(tmp) / "empty.duckdb")
-        assert db.get_average_metric_by_filter("reward", "test", 1) is None
-        assert db.potential_samples_for_metric("test", 1) == 0
+        test_uri = "test.e1.s0.t0.pt"
+        assert db.get_average_metric("reward", test_uri) is None
+        pk, pv = "test", 1
+        assert db.potential_samples_for_metric(pk, pv) == 0
         db.close()

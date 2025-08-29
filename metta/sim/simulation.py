@@ -165,28 +165,11 @@ class Simulation:
 
     def _load_npc_policy(self, npc_policy_uri: str) -> PolicyAgent:
         """Load NPC policy from URI."""
-        return self._load_policy_from_uri(npc_policy_uri)
-
-    def _load_policy_from_uri(self, policy_uri: str) -> PolicyAgent:
-        """Load policy from URI using CheckpointManager pattern."""
-        if policy_uri.startswith("file://"):
-            checkpoint_path = policy_uri[7:]  # Remove "file://" prefix
-            if checkpoint_path.endswith("/checkpoints"):
-                # Directory format - find latest checkpoint
-                checkpoint_dir = Path(checkpoint_path)
-                parent_dir = checkpoint_dir.parent
-                checkpoint_manager = CheckpointManager(run_name=parent_dir.name, run_dir=str(parent_dir.parent))
-                return checkpoint_manager.load_agent()
-            else:
-                # Direct file path
-                return torch.load(checkpoint_path, weights_only=False)
-        else:
-            # For other URI types, create a mock agent
-            return MockAgent()
+        return Simulation._load_policy_from_uri(npc_policy_uri)
 
     @staticmethod
-    def _load_policy_from_uri_static(policy_uri: str) -> PolicyAgent:
-        """Static version of policy loading for classmethod use."""
+    def _load_policy_from_uri(policy_uri: str) -> PolicyAgent:
+        """Load policy from URI using CheckpointManager pattern."""
         if policy_uri.startswith("file://"):
             checkpoint_path = policy_uri[7:]  # Remove "file://" prefix
             if checkpoint_path.endswith("/checkpoints"):
@@ -217,7 +200,7 @@ class Simulation:
         """Create a Simulation with sensible defaults."""
         # Create policy record from URI
         if policy_uri:
-            policy = cls._load_policy_from_uri_static(policy_uri)
+            policy = cls._load_policy_from_uri(policy_uri)
         else:
             policy = MockAgent()
 

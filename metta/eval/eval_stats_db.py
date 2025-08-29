@@ -177,40 +177,17 @@ class EvalStatsDB(SimulationStatsDB):
         pk, pv = key_and_version(policy_uri)
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
-    def get_average_metric_by_filter(
-        self,
-        metric: str,
-        checkpoint_path: str,
-        epoch: int,
-        filter_condition: str | None = None,
-    ) -> Optional[float]:
-        pk, pv = checkpoint_path, epoch
-        return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
     def get_std_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
         """URI-native version to get standard deviation metric."""
         pk, pv = key_and_version(policy_uri)
         return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
-    def get_sum_metric_by_filter(
-        self,
-        metric: str,
-        checkpoint_path: str,
-        epoch: int,
-        filter_condition: str | None = None,
-    ) -> Optional[float]:
-        pk, pv = checkpoint_path, epoch
+    def get_sum_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
+        """URI-native version to get sum metric."""
+        pk, pv = key_and_version(policy_uri)
         return self._normalized_value(pk, pv, metric, "SUM", filter_condition)
 
-    def get_std_metric_by_filter(
-        self,
-        metric: str,
-        checkpoint_path: str,
-        epoch: int,
-        filter_condition: str | None = None,
-    ) -> Optional[float]:
-        pk, pv = checkpoint_path, epoch
-        return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
     def sample_count_uri(
         self,
@@ -229,27 +206,10 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
 
-    def sample_count(
-        self,
-        checkpoint_path: Optional[str] = None,
-        epoch: Optional[int] = None,
-        sim_name: Optional[str] = None,
-        sim_env: Optional[str] = None,
-    ) -> int:
-        """Return potential‑sample count for arbitrary filters."""
-        q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
-        if checkpoint_path and epoch is not None:
-            pk, pv = checkpoint_path, epoch
-            q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
-        if sim_name:
-            q += f" AND sim_name  = '{sim_name}'"
-        if sim_env:
-            q += f" AND sim_env   = '{sim_env}'"
-        return int(self.query(q)["cnt"].iloc[0])
 
-    def simulation_scores(self, checkpoint_path: str, epoch: int, metric: str) -> Dict[tuple[str, str], float]:
-        """Return { (name,env) : normalized mean(metric) }."""
-        pk, pv = checkpoint_path, epoch
+    def simulation_scores(self, policy_uri: str, metric: str) -> Dict[tuple[str, str], float]:
+        """Return { (name,env) : normalized mean(metric) } for a policy URI."""
+        pk, pv = key_and_version(policy_uri)
         sim_rows = self.query(f"""
             SELECT DISTINCT sim_name, sim_env
               FROM policy_simulation_agent_samples

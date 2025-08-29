@@ -119,7 +119,9 @@ def test_normalization_bug():
         print(f"  Agent metrics: {metrics_count}")
 
         # Get average reward
-        avg_reward_1 = db1.get_average_metric_by_filter("reward", checkpoint_path, epoch)
+        # Create URI from checkpoint components
+        policy_uri = f"{checkpoint_path}.e{epoch}.s1000.t10.pt"
+        avg_reward_1 = db1.get_average_metric("reward", policy_uri)
         print(f"  Average reward: {avg_reward_1}")
 
         # Scenario 2: Not all episodes complete (demonstrates bug)
@@ -137,7 +139,7 @@ def test_normalization_bug():
         print(f"  Agent metrics: {metrics_count} (only completed episodes)")
 
         # Get average reward
-        avg_reward_2 = db2.get_average_metric_by_filter("reward", checkpoint_path, epoch)
+        avg_reward_2 = db2.get_average_metric("reward", policy_uri)
         print(f"  Average reward: {avg_reward_2}")
 
         # Check the normalization calculation details
