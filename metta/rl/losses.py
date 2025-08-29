@@ -90,7 +90,7 @@ def process_minibatch_update(
     device: torch.device,
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
-    res, state_dict = policy(policy_td, action=minibatch["actions"])
+    res, state_dict = policy(policy_td, state=mm_policy.get_states(), action=minibatch["actions"])
     env_id = policy_td.get("training_env_id_start", 0)
     mm_policy.set_states(state_dict["states"], env_id)
     policy_td = res
