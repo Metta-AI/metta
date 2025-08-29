@@ -98,10 +98,8 @@ class CheckpointManager:
         return torch.load(trainer_file, weights_only=False)
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
-        """Save agent with metadata embedded in filename.
-        Filename format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
-        Score defaults to 0 if not provided (e.g., before evaluation).
-        """
+        """Save agent with metadata embedded in filename. Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt 
+        where score defaults to 0 if not provided (e.g., before evaluation)."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         agent_step = metadata.get("agent_step", 0)
