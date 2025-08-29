@@ -80,9 +80,8 @@ class PyTorchAgentMixin:
             for module in self.modules():
                 # Note: ConvTranspose2d is not included here to match original clipping behavior
                 if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d)):
-                    if hasattr(module, "weight") and module.weight is not None:
-                        module.weight.data.clamp_(-self.clip_range, self.clip_range)
-                    if hasattr(module, "bias") and module.bias is not None:
+                    module.weight.data.clamp_(-self.clip_range, self.clip_range)
+                    if module.bias is not None:
                         module.bias.data.clamp_(-self.clip_range, self.clip_range)
 
     def set_tensordict_fields(self, td: TensorDict, observations: torch.Tensor):

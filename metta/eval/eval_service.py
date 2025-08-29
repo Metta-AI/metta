@@ -41,7 +41,7 @@ def evaluate_policy(
     policy = CheckpointManager.load_from_uri(checkpoint_uri)
     if policy is None:
         raise FileNotFoundError(f"Could not load policy from {checkpoint_uri}")
-    if device != "cpu" and hasattr(policy, "to"):
+    if device != "cpu":
         policy = policy.to(device)
     metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
     run_name = metadata["run_name"]

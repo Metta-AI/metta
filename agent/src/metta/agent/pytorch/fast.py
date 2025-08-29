@@ -93,16 +93,12 @@ class Policy(nn.Module):
         self.is_continuous = False
         self.action_space = env.single_action_space
 
-        self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
-        self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
+        self.out_width = env.obs_width
+        self.out_height = env.obs_height
 
         # Dynamically determine num_layers from environment features
         # This matches what ComponentPolicy does via ObsTokenToBoxShaper
-        if hasattr(env, "feature_normalizations"):
-            self.num_layers = max(env.feature_normalizations.keys()) + 1
-        else:
-            # Fallback for environments without feature_normalizations
-            self.num_layers = 25  # Default value
+        self.num_layers = max(env.feature_normalizations.keys()) + 1
 
         # Define layer dimensions that are used multiple times
         self.cnn_channels = 64  # Used in cnn1 and cnn2
@@ -154,16 +150,11 @@ class Policy(nn.Module):
 
         # Build normalization vector dynamically from environment
         # This matches what ObservationNormalizer does in ComponentPolicy
-        if hasattr(env, "feature_normalizations"):
-            # Create max_vec from feature_normalizations
-            max_values = [1.0] * self.num_layers  # Default to 1.0
-            for feature_id, norm_value in env.feature_normalizations.items():
-                if feature_id < self.num_layers:
-                    max_values[feature_id] = norm_value if norm_value > 0 else 1.0
-            max_vec = torch.tensor(max_values, dtype=torch.float32)[None, :, None, None]
-        else:
-            # Fallback normalization vector
-            max_vec = torch.ones(1, self.num_layers, 1, 1, dtype=torch.float32)
+        max_values = [1.0] * self.num_layers  # Default to 1.0
+        for feature_id, norm_value in env.feature_normalizations.items():
+            if feature_id < self.num_layers:
+                max_values[feature_id] = norm_value if norm_value > 0 else 1.0
+        max_vec = torch.tensor(max_values, dtype=torch.float32)[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
         # Track active actions

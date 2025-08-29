@@ -483,7 +483,7 @@ def train(
                 logger.info(f"Saving checkpoint at epoch {epoch}")
 
                 # Extract the actual agent from distributed wrapper if needed
-                agent_to_save = policy.module if hasattr(policy, "module") else policy
+                agent_to_save = policy.module if torch.distributed.is_initialized() else policy
 
                 # Build metadata from evaluation scores
                 metadata = {
@@ -630,7 +630,7 @@ def train(
 
     # Final checkpoint save at end of training
     logger.info("Saving final checkpoint")
-    agent_to_save = policy.module if hasattr(policy, "module") else policy
+    agent_to_save = policy.module if torch.distributed.is_initialized() else policy
 
     final_metadata = {
         "agent_step": agent_step,
@@ -653,6 +653,6 @@ def train(
     cleanup_monitoring(memory_monitor, system_monitor)
 
     # Return stats info for exception handling at higher levels
-    if stats_client and stats_tracker and hasattr(stats_tracker, "stats_run_id"):
+    if stats_client and stats_tracker and stats_tracker.stats_run_id:
         return {"stats_run_id": stats_tracker.stats_run_id, "stats_client": stats_client, "logger": logger}
     return None
