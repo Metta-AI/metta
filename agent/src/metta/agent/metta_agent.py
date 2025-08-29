@@ -30,18 +30,15 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent: "MettaAgent", device: torch.device):
         log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
-        # Convert BatchNorm layers to SyncBatchNorm for distributed training
         layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
 
-        # Pass device_ids for GPU, but not for CPU
-        if device.type == "cpu":
+        if device.type == "cpu":  # CPU doesn't need device_ids
             super().__init__(module=layers_converted_agent)
         else:
             super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name: str) -> Any:
-        # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
-        try:
+        try:  # First try DistributedDataParallel's __getattr__, then self.module's
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
@@ -126,7 +123,7 @@ class MettaAgent(nn.Module):
         is_training: bool = None,
     ):
         """Initialize the agent to the current environment.
-        
+
         Handles feature remapping to allow agents trained on one environment to work
         on another environment where features may have different IDs but same names.
         """
@@ -227,7 +224,7 @@ class MettaAgent(nn.Module):
         # Apply remapping to policy if it supports it
         if hasattr(self.policy, "_apply_feature_remapping"):
             self.policy._apply_feature_remapping(remap_tensor)
-        
+
         self._update_normalization_factors(features)
 
     def _update_normalization_factors(self, features: dict[str, dict]):

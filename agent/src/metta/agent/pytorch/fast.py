@@ -21,8 +21,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
 
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2, **kwargs):
         """Initialize Fast CNN-based policy with LSTM and mixin support."""
-        # Extract mixin parameters before passing to parent
-        mixin_params = self.extract_mixin_params(kwargs)
+        mixin_params = self.extract_mixin_params(kwargs)  # Extract mixin parameters before passing to parent
 
         if policy is None:
             policy = Policy(
@@ -30,8 +29,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
                 input_size=input_size,
                 hidden_size=hidden_size,
             )
-        # Pass num_layers=2 to match YAML configuration
-        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)  # Pass num_layers=2 to match YAML
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
