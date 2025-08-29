@@ -17,28 +17,21 @@ def key_and_version(uri: str) -> tuple[str, int]:
     if uri.startswith("file://"):
         path = Path(uri[7:])
         if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
-            parsed = parse_checkpoint_filename(path.name)
-            return parsed[0], parsed[1]  # run_name, epoch
+            return parse_checkpoint_filename(path.name)[:2]
         return path.stem if path.suffix else path.name, 0
 
-    elif uri.startswith("wandb://"):
-        # Get metadata from wandb artifact
+    if uri.startswith("wandb://"):
         metadata = get_wandb_checkpoint_metadata(uri)
         if metadata:
             return metadata["run_name"], metadata["epoch"]
-        # Fallback to parsing the artifact name from URI
         wandb_uri = WandbURI.parse(uri)
-        # Extract run name from artifact path (e.g., "my_run_name" from artifact path)
         artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
         return artifact_name, 0
 
-    elif uri.startswith("s3://"):
-        # S3 URIs should preserve the original filename
-        filename = uri.split("/")[-1]  # Get just the filename
+    if uri.startswith("s3://"):
+        filename = uri.split("/")[-1]
         if filename.endswith(".pt") and is_valid_checkpoint_filename(filename):
-            parsed = parse_checkpoint_filename(filename)
-            return parsed[0], parsed[1]  # run_name, epoch
-        # Fallback to filename without extension
+            return parse_checkpoint_filename(filename)[:2]
         path = Path(filename)
         return path.stem if path.suffix else path.name, 0
 
@@ -50,38 +43,28 @@ def is_valid_checkpoint_filename(filename: str) -> bool:
     parts = filename.split(".")
     if len(parts) != 6 or parts[-1] != "pt":
         return False
-
-    # Check format of each part
-    if not parts[1].startswith("e") or not parts[1][1:].isdigit():
-        return False
-    if not parts[2].startswith("s") or not parts[2][1:].isdigit():
-        return False
-    if not parts[3].startswith("t") or not parts[3][1:].isdigit():
-        return False
-    if not parts[4].startswith("sc") or not parts[4][2:].isdigit():
-        return False
-
-    return True
+    return (
+        parts[1].startswith("e")
+        and parts[1][1:].isdigit()
+        and parts[2].startswith("s")
+        and parts[2][1:].isdigit()
+        and parts[3].startswith("t")
+        and parts[3][1:].isdigit()
+        and parts[4].startswith("sc")
+        and parts[4][2:].isdigit()
+    )
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
     """Parse checkpoint metadata from filename: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt."""
     if not is_valid_checkpoint_filename(filename):
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
-
     parts = filename.split(".")
-    run_name = parts[0]
-    epoch = int(parts[1][1:])  # Remove 'e' prefix
-    agent_step = int(parts[2][1:])  # Remove 's' prefix
-    total_time = int(parts[3][1:])  # Remove 't' prefix
-    score_int = int(parts[4][2:])  # Remove 'sc' prefix
-    score = score_int / 10000.0
-
-    return run_name, epoch, agent_step, total_time, score
+    return (parts[0], int(parts[1][1:]), int(parts[2][1:]), int(parts[3][1:]), int(parts[4][2:]) / 10000.0)
 
 
 class CheckpointManager:
-    """Simple checkpoint manager: torch.save/load + filename-embedded metadata with LRU cache."""
+    """Checkpoint manager with filename-embedded metadata and LRU cache."""
 
     def __init__(self, run_name: str, run_dir: str = "./train_dir", cache_size: int = 3):
         if not run_name or not re.match(r"^[a-zA-Z0-9._-]+$", run_name):
@@ -89,99 +72,56 @@ class CheckpointManager:
         self.run_name = run_name
         self.run_dir = Path(run_dir)
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
-
         self.cache_size = max(0, cache_size)
         self._cache = OrderedDict()
 
     @staticmethod
     def load_from_uri(uri: str):
-        """Load a policy from any supported URI format.
-        Supports file://, s3://, and wandb:// URIs for checkpoint files or directories.
-        Returns the loaded policy agent or None if not found."""
+        """Load a policy from file://, s3://, or wandb:// URI."""
         if uri.startswith("file://"):
-            path_str = uri[7:]  # Remove "file://" prefix
-            path = Path(path_str)
-
+            path = Path(uri[7:])
             if path.is_file() and path.suffix == ".pt":
-                # Direct checkpoint file
                 return torch.load(path, weights_only=False)
-            elif path.is_dir():
-                # Directory - find latest checkpoint
+            if path.is_dir():
                 if path.name != "checkpoints":
-                    # It's a run directory, go to checkpoints subdirectory
                     path = path / "checkpoints"
-
-                # Find latest checkpoint in directory
                 checkpoint_files = list(path.glob("*.pt"))
                 if not checkpoint_files:
                     logger.warning(f"No checkpoints found in {path}")
                     return None
-
-                # Filter to valid checkpoint files and find latest by epoch
                 valid_checkpoints = [
-                    (ckpt, parse_checkpoint_filename(ckpt.name)[1])  # (file, epoch)
+                    (ckpt, parse_checkpoint_filename(ckpt.name)[1])
                     for ckpt in checkpoint_files
                     if is_valid_checkpoint_filename(ckpt.name)
                 ]
-
                 if not valid_checkpoints:
-                    # No valid checkpoint files, just load the first .pt file
                     logger.info(f"No standard checkpoint files found, loading {checkpoint_files[0].name}")
                     return torch.load(checkpoint_files[0], weights_only=False)
-
-                # Load the checkpoint with highest epoch
                 latest_checkpoint = max(valid_checkpoints, key=lambda x: x[1])[0]
                 return torch.load(latest_checkpoint, weights_only=False)
-            else:
-                logger.warning(f"File not found: {path}")
-                return None
-
-        elif uri.startswith("s3://"):
-            # Use local_copy context manager to download S3 file temporarily
+            logger.warning(f"File not found: {path}")
+            return None
+        if uri.startswith("s3://"):
             with local_copy(uri) as local_path:
                 return torch.load(local_path, weights_only=False)
-
-        elif uri.startswith("wandb://"):
-            # Use existing wandb loading functionality
+        if uri.startswith("wandb://"):
             return load_policy_from_wandb_uri(uri, device="cpu")
-
-        else:
-            raise ValueError(f"Unsupported URI format: {uri}. Supported formats: file://, s3://, wandb://")
+        raise ValueError(f"Unsupported URI format: {uri}. Supported: file://, s3://, wandb://")
 
     @staticmethod
     def normalize_uri(path_or_uri: str) -> str:
-        """Convert a path or URI to a normalized URI format.
-
-        Examples:
-            "/path/to/checkpoint.pt" -> "file:///path/to/checkpoint.pt"
-            "file://path" -> "file://path" (unchanged)
-            "wandb://run" -> "wandb://run" (unchanged)
-        """
+        """Convert path to URI format."""
         if not path_or_uri.startswith(("file://", "wandb://", "s3://")):
-            # Plain path - convert to absolute file URI
             return f"file://{Path(path_or_uri).resolve()}"
         return path_or_uri
 
     @staticmethod
     def get_policy_metadata(uri: str) -> dict[str, Any]:
-        """Extract all available metadata from a policy URI.
-
-        Returns a dictionary with metadata like:
-        {
-            "run_name": str,
-            "epoch": int,
-            "agent_step": int (if available),
-            "total_time": int (if available),
-            "score": float (if available),
-            "uri": str
-        }
-        """
+        """Extract metadata from policy URI."""
         uri = CheckpointManager.normalize_uri(uri)
         run_name, epoch = key_and_version(uri)
-
         metadata = {"run_name": run_name, "epoch": epoch, "uri": uri}
 
-        # Try to extract additional metadata from valid checkpoint filenames
         if uri.startswith("file://"):
             path = Path(uri[7:])
             if path.is_file() and is_valid_checkpoint_filename(path.name):
@@ -197,54 +137,43 @@ class CheckpointManager:
                         }
                     )
                 except ValueError:
-                    pass  # Keep basic metadata if parsing fails
-
+                    pass
         return metadata
 
     def exists(self) -> bool:
         return self.checkpoint_dir.exists() and any(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
 
     def clear_cache(self):
-        """Clear the checkpoint cache."""
         self._cache.clear()
 
     def load_agent(self, epoch: Optional[int] = None):
-        """Load agent from checkpoint by epoch (or latest if None), with caching.
-        Returns None if no checkpoints exist."""
+        """Load agent with caching."""
         pattern = f"{self.run_name}.e{epoch}.s*.t*.sc*.pt" if epoch else f"{self.run_name}.e*.s*.t*.sc*.pt"
         agent_files = list(self.checkpoint_dir.glob(pattern))
-
         if not agent_files:
             if epoch:
                 logger.warning(f"No checkpoint found for {self.run_name} at epoch {epoch}")
             return None
 
         agent_file = agent_files[0] if epoch else max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
-
-        # Check cache (inline for simplicity)
         path_str = str(agent_file)
+
         if self.cache_size > 0 and path_str in self._cache:
-            self._cache.move_to_end(path_str)  # LRU: move to end
+            self._cache.move_to_end(path_str)
             return self._cache[path_str]
 
-        # Load from disk
         agent = torch.load(agent_file, weights_only=False)
 
-        # Add to cache if enabled
         if self.cache_size > 0:
             if path_str in self._cache:
                 del self._cache[path_str]
             if len(self._cache) >= self.cache_size:
-                self._cache.popitem(last=False)  # Evict oldest
+                self._cache.popitem(last=False)
             self._cache[path_str] = agent
-
         return agent
 
     def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        """Load trainer state for resuming training.
-        Returns dict with 'optimizer_state', 'epoch', 'agent_step' or None if not found.
-        Trainer state is optional - training works without it but loses optimizer momentum.
-        """
+        """Load trainer state for resuming training."""
         if epoch is None:
             checkpoints = self.select_checkpoints(count=1, metric="epoch")
             if not checkpoints:
@@ -256,98 +185,75 @@ class CheckpointManager:
             return None
 
         state = torch.load(trainer_file, weights_only=False)
-        # Normalize field names for backward compatibility
         result = {
             "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
             "epoch": state.get("epoch", epoch),
             "agent_step": state.get("agent_step", 0),
         }
-        # Include stopwatch state if present
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
         return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
-        """Save agent with metadata embedded in filename."""
+        """Save agent with metadata in filename."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-        agent_step = metadata.get("agent_step", 0)
-        total_time = metadata.get("total_time", 0)
-        score = metadata.get("score", 0.0)
-
-        score_int = int(score * 10000)  # Preserve 4 decimal places
-        filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{int(total_time)}.sc{score_int}.pt"
+        agent_step = metadata.get('agent_step', 0)
+        total_time = int(metadata.get('total_time', 0))
+        score = int(metadata.get('score', 0.0) * 10000)
+        filename = f"{self.run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt"
         checkpoint_path = self.checkpoint_dir / filename
         torch.save(agent, checkpoint_path)
-
-        # Invalidate cache entry if it exists
         if str(checkpoint_path) in self._cache:
             del self._cache[str(checkpoint_path)]
 
     def save_trainer_state(
         self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """Save trainer optimizer state in a separate file alongside the checkpoint.
-        This is optional - training can work without trainer state, but having it
-        allows resuming with the exact optimizer state (momentum, learning rate schedules, etc).
-        """
+    ):
+        """Save trainer state."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
-        state = {
-            "optimizer": optimizer.state_dict(),
-            "epoch": epoch,
-            "agent_step": agent_step,
-        }
-        if stopwatch_state is not None:
+        state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
+        if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
         torch.save(state, trainer_file)
 
     def get_checkpoint_uri(self, epoch: Optional[int] = None) -> str:
-        """Get URI for checkpoint at given epoch (or latest if None)."""
+        """Get URI for checkpoint."""
         pattern = f"{self.run_name}.e{epoch}.s*.t*.sc*.pt" if epoch else f"{self.run_name}.e*.s*.t*.sc*.pt"
         files = list(self.checkpoint_dir.glob(pattern))
-
         if not files:
             msg = f"No checkpoint found for {self.run_name}" + (f" at epoch {epoch}" if epoch else "")
             raise FileNotFoundError(msg)
-
         checkpoint = files[0] if epoch else max(files, key=lambda p: parse_checkpoint_filename(p.name)[1])
         return f"file://{checkpoint}"
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
-        """Select checkpoints based on strategy."""
+        """Select checkpoints."""
         checkpoint_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
         if not checkpoint_files:
             return []
-
         metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
         checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
         return checkpoint_files if strategy == "all" else checkpoint_files[:count]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
-        """Clean up old checkpoints, keeping only the most recent ones."""
+        """Clean up old checkpoints."""
         if not self.checkpoint_dir.exists():
             return 0
-
         agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.sc*.pt"))
         if len(agent_files) <= keep_last_n:
             return 0
-
         agent_files.sort(key=lambda p: parse_checkpoint_filename(p.name)[1])
         files_to_remove = agent_files[:-keep_last_n]
-
-        deleted_count = 0
         for agent_file in files_to_remove:
-            _, epoch, _, _, _ = parse_checkpoint_filename(agent_file.name)
+            epoch = parse_checkpoint_filename(agent_file.name)[1]
             trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
             trainer_file.unlink(missing_ok=True)
             agent_file.unlink()
-            deleted_count += 1
-
-        return deleted_count
+        return len(files_to_remove)
 
     def upload_to_wandb(self, epoch: Optional[int] = None, wandb_run=None) -> Optional[str]:
-        """Upload checkpoint to wandb as an artifact."""
+        """Upload checkpoint to wandb."""
         if epoch is None:
             checkpoints = self.select_checkpoints(count=1, metric="epoch")
             if not checkpoints:
@@ -360,7 +266,6 @@ class CheckpointManager:
 
         checkpoint_file = checkpoint_files[0]
         _, epoch_num, agent_step, total_time, score = parse_checkpoint_filename(checkpoint_file.name)
-
         return upload_checkpoint_as_artifact(
             checkpoint_path=str(checkpoint_file),
             artifact_name=self.run_name,
