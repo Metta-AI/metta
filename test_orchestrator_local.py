@@ -201,112 +201,45 @@ def run_test():
 
     # Track metrics
     start_time = time.time()
-    iteration = 0
-    max_iterations = 100  # Safety limit
 
     logger.info("\n🏃 Starting control loop...")
 
+    # Run controller in a separate thread with timeout
+    import threading
+    controller_thread = threading.Thread(target=controller.run)
+    controller_thread.daemon = True  # Allow main thread to exit
+    controller_thread.start()
+
     try:
-        while iteration < max_iterations:
-            iteration += 1
-
-            # Fetch all runs
-            logger.info(f"\n--- Iteration {iteration} ---")
-
-            # Check subprocess status
-            active_processes = dispatcher.check_processes()
-            if active_processes > 0:
-                logger.info(f"Active local processes: {active_processes}")
-
+        # Monitor progress while controller runs
+        max_wait_time = 600  # 10 minutes max
+        check_interval = 5  # Check every 5 seconds
+        elapsed = 0
+        
+        while elapsed < max_wait_time:
+            time.sleep(check_interval)
+            elapsed += check_interval
+            
+            # Fetch current status
             all_runs = store.fetch_runs(filters={"group": config.sweep_name})
-            logger.info(f"Found {len(all_runs)} runs in sweep")
-
-            # Log detailed status for each run
-            for run in all_runs:
-                flags = []
-                if run.has_started_training:
-                    flags.append("train_started")
-                if run.has_completed_training:
-                    flags.append("train_done")
-                if run.has_started_eval:
-                    flags.append("eval_started")
-                if run.has_been_evaluated:
-                    flags.append("eval_done")
-                if run.observation:
-                    flags.append("has_obs")
-
-                logger.info(f"  Run {run.run_id}: status={run.status}, flags={','.join(flags)}")
-
-            # Log status summary
-            status_counts = {}
-            for run in all_runs:
-                status = str(run.status)
-                status_counts[status] = status_counts.get(status, 0) + 1
-
-            if status_counts:
-                logger.info(f"Status counts: {status_counts}")
-
-            # Check observations
-            obs_count = sum(1 for run in all_runs if run.observation)
-            logger.info(f"Observations collected: {obs_count}/{len(all_runs)}")
-
-            # Compute metadata
-            metadata = controller._compute_metadata_from_runs(all_runs)
-
-            # Check completion
-            if metadata.runs_completed >= config.num_trials:
+            
+            # Log progress
+            completed_count = sum(1 for run in all_runs if run.status == JobStatus.COMPLETED)
+            logger.info(f"Progress: {completed_count}/{config.num_trials} trials completed (elapsed: {elapsed}s)")
+            
+            # Check if all trials are done
+            if completed_count >= config.num_trials:
                 logger.info(f"\n✨ All {config.num_trials} trials completed!")
                 break
-
-            # Schedule new jobs
-            new_jobs = scheduler.schedule(metadata, all_runs)
-
-            # Execute scheduled jobs
-            for job in new_jobs:
-                try:
-                    if job.type == JobTypes.LAUNCH_TRAINING:
-                        # Verify training override
-                        assert "trainer.total_timesteps" in job.overrides
-                        assert job.overrides["trainer.total_timesteps"] == "10000"
-
-                        store.init_run(job.run_id, sweep_id=config.sweep_name)
-                        dispatch_id = dispatcher.dispatch(job)
-                        logger.info(f"   Dispatched training {job.run_id} (PID: {dispatch_id})")
-
-                    elif job.type == JobTypes.LAUNCH_EVAL:
-                        # Verify eval has correct config
-                        assert "push_metrics_to_wandb" in job.overrides
-                        assert job.overrides["push_metrics_to_wandb"] == "True"
-                        assert "policy_uri" in job.metadata
-                        assert job.metadata["policy_uri"].startswith("wandb://run/")
-
-                        success = store.update_run_summary(job.run_id, {"has_started_eval": True})
-                        if success:
-                            dispatch_id = dispatcher.dispatch(job)
-                            logger.info(f"   Dispatched eval for {job.run_id} (PID: {dispatch_id})")
-
-                except Exception as e:
-                    logger.error(f"Failed to dispatch {job.run_id}: {e}")
-
-            # Update observations for completed evaluations
-            for run in all_runs:
-                if run.status == JobStatus.EVAL_DONE_NOT_COMPLETED:
-                    if run.summary:
-                        score = run.summary.get(protein_config.metric)
-                        if score:
-                            cost = run.cost if run.cost != 0 else run.runtime
-                            observation = {
-                                "observation": {
-                                    "cost": cost,
-                                    "score": score,
-                                    "suggestion": run.summary.get("suggestion", {}),
-                                }
-                            }
-                            store.update_run_summary(run.run_id, observation)
-                            logger.info(f"   📝 Recorded observation for {run.run_id}: score={score:.3f}")
-
-            time.sleep(config.monitoring_interval)
-
+                
+            # Show active processes
+            active_processes = dispatcher.check_processes()
+            if active_processes > 0:
+                logger.info(f"  Active processes: {active_processes}")
+                
+        else:
+            logger.warning(f"Timeout reached after {max_wait_time} seconds")
+            
     except KeyboardInterrupt:
         logger.info("\n⚠️  Interrupted by user")
 
