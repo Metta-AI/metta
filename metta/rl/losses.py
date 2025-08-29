@@ -91,7 +91,7 @@ def process_minibatch_update(
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
     res, state_dict = policy(policy_td, state=mm_policy.get_states(), action=minibatch["actions"])
-    logger.info(f"State dict: {state_dict}")
+    # TODO (RICHARD): Will be getting training_env_id_start from policy_td? Confirm if this correct.
     env_id = policy_td.get("training_env_id_start", 0)
     mm_policy.set_states(state_dict["states"], env_id) if state_dict is not None else None
     policy_td = res
