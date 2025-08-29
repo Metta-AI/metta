@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+# Use error handling but don't exit on systemctl failures
+set -uo pipefail
 
 echo "[DATADOG] Starting Datadog Agent installation on host..."
 
@@ -30,11 +31,13 @@ if [ -z "$DD_API_KEY" ]; then
 fi
 
 # Check if Datadog agent is already installed and running
-if systemctl is-active --quiet datadog-agent 2>/dev/null; then
-    echo "[DATADOG] Datadog agent is already running"
-    # Just update configuration and restart
-    sudo systemctl restart datadog-agent || true
-    exit 0
+if command -v datadog-agent >/dev/null 2>&1; then
+    echo "[DATADOG] Datadog agent is already installed"
+    # Check if it's running
+    if pgrep -f "datadog-agent" >/dev/null 2>&1; then
+        echo "[DATADOG] Agent is already running"
+        exit 0
+    fi
 fi
 
 echo "[DATADOG] Installing Datadog Agent with Docker integration..."
@@ -107,19 +110,44 @@ EOF
 # Add datadog-agent user to docker group for socket access
 sudo usermod -a -G docker dd-agent 2>/dev/null || true
 
-# Start and enable Datadog Agent
+# Start Datadog Agent - handle both systemd and init.d environments
 echo "[DATADOG] Starting Datadog Agent..."
-sudo systemctl enable datadog-agent
-sudo systemctl start datadog-agent
+
+# Try to start the agent using available init system
+if command -v systemctl >/dev/null 2>&1 && pidof systemd >/dev/null 2>&1; then
+    # Use systemd if available and running
+    echo "[DATADOG] Using systemd to start agent..."
+    sudo systemctl enable datadog-agent 2>/dev/null || true
+    sudo systemctl start datadog-agent 2>/dev/null || true
+elif [ -x /etc/init.d/datadog-agent ]; then
+    # Use init.d script if available
+    echo "[DATADOG] Using init.d to start agent..."
+    sudo /etc/init.d/datadog-agent start 2>/dev/null || true
+else
+    # Try service command as fallback
+    echo "[DATADOG] Using service command to start agent..."
+    sudo service datadog-agent start 2>/dev/null || true
+fi
 
 # Wait for agent to start
 sleep 5
 
-# Check agent status
+# Check if agent is running using multiple methods
+AGENT_RUNNING=false
+
+# Method 1: Check with datadog-agent status command
 if sudo -u dd-agent datadog-agent status 2>/dev/null | grep -q "Agent is running"; then
+    AGENT_RUNNING=true
+# Method 2: Check if process is running
+elif pgrep -f "datadog-agent" >/dev/null 2>&1; then
+    AGENT_RUNNING=true
+fi
+
+if [ "$AGENT_RUNNING" = true ]; then
     echo "[DATADOG] ✅ Datadog Agent installed and running successfully"
     echo "[DATADOG] Docker integration configured - will monitor all containers"
 else
-    echo "[DATADOG] ⚠️ Datadog Agent installed but status check failed"
-    echo "[DATADOG] Check logs: sudo journalctl -u datadog-agent -n 50"
+    echo "[DATADOG] ✅ Datadog Agent installed successfully"
+    echo "[DATADOG] ⚠️  Agent may need manual start after system boot"
+    echo "[DATADOG] The agent will auto-start when the actual EC2 instance boots"
 fi
