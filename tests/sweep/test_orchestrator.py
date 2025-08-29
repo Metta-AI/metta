@@ -1,5 +1,6 @@
 """Tests for the sweep orchestrator core components."""
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -91,11 +92,10 @@ class TestLocalDispatcher:
     """Test LocalDispatcher subprocess management."""
 
     @patch("subprocess.Popen")
-    def test_local_dispatcher_dispatch(self, mock_popen):
+    def test_local_dispatcher_dispatch(self, mock_popen: MagicMock) -> None:
         """Test that LocalDispatcher spawns subprocesses correctly."""
-        # Setup mock process
         mock_process = MagicMock()
-        mock_process.poll.return_value = None  # Process is running
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 
         dispatcher = LocalDispatcher()
@@ -108,14 +108,12 @@ class TestLocalDispatcher:
             overrides={"trainer.total_timesteps": "1000"},
         )
 
-        # Dispatch the job
         dispatcher.dispatch(job)
 
-        # Verify subprocess was created with correct command
         mock_popen.assert_called_once()
         call_args = mock_popen.call_args[0][0]
+        kwargs = mock_popen.call_args.kwargs
 
-        # Check command structure
         assert "uv" in call_args[0]
         assert "run" in call_args
         assert "./tools/run.py" in call_args
@@ -123,6 +121,30 @@ class TestLocalDispatcher:
         assert "--args" in call_args
         assert "run=test_run_001" in call_args
         assert "trainer.total_timesteps=1000" in call_args
+        assert kwargs["stdout"] is subprocess.DEVNULL
+        assert kwargs["stderr"] is subprocess.DEVNULL
+
+    @patch("subprocess.Popen")
+    def test_local_dispatcher_capture_output(self, mock_popen: MagicMock) -> None:
+        """Test that LocalDispatcher forwards output when capture_output=True."""
+        mock_process = MagicMock()
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+
+        dispatcher = LocalDispatcher(capture_output=True)
+
+        job = JobDefinition(
+            run_id="test_run_001",
+            cmd="experiments.recipes.arena.train",
+            type=JobTypes.LAUNCH_TRAINING,
+        )
+
+        dispatcher.dispatch(job)
+
+        mock_popen.assert_called_once()
+        kwargs = mock_popen.call_args.kwargs
+        assert kwargs["stdout"] is None
+        assert kwargs["stderr"] is None
 
     @patch("subprocess.Popen")
     def test_local_dispatcher_check_processes(self, mock_popen):

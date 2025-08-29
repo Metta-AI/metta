@@ -252,11 +252,17 @@ def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
 
 
 class LocalDispatcher:
-    """Runs jobs as local subprocesses."""
+    """Runs jobs as local subprocesses.
 
-    def __init__(self):
+    Parameters:
+        capture_output: Whether to forward subprocess stdout/stderr to the
+            parent process.
+    """
+
+    def __init__(self, capture_output: bool = False):
         self._processes: dict[str, subprocess.Popen] = {}  # pid -> process
         self._run_to_pid: dict[str, str] = {}  # run_id -> pid for debugging
+        self._capture_output = capture_output
 
     def _reap_finished_processes(self):
         """Clean up finished subprocesses."""
@@ -341,12 +347,12 @@ class LocalDispatcher:
 
         try:
             # Start subprocess - optionally stream output for debugging
-            # For production, use DEVNULL to avoid deadlock
-            # For debugging, comment out the DEVNULL lines
+            stdout = None if self._capture_output else subprocess.DEVNULL
+            stderr = None if self._capture_output else subprocess.DEVNULL
             process = subprocess.Popen(
                 cmd_parts,
-                stdout=subprocess.DEVNULL,  # Comment out for debugging
-                stderr=subprocess.DEVNULL,  # Comment out for debugging
+                stdout=stdout,
+                stderr=stderr,
                 text=True,
             )
 
