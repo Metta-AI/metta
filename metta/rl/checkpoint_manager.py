@@ -9,8 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def key_and_version(uri: str) -> tuple[str, int]:
-    """Extract key (run name) and version (epoch) from a policy URI. Since all checkpoints 
-    are .pt files with metadata in filenames, we can simplify this to handle just the common cases."""
+    """Extract key (run name) and version (epoch) from a policy URI. Since all checkpoints are .pt files with metadata in filenames, we can simplify this to handle just the common cases."""
     if uri.startswith("file://"):
         path = Path(uri[7:])
         if path.suffix == ".pt":
@@ -28,8 +27,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
-    """Parse checkpoint metadata from filename. Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt
-    where e=epoch, s=agent_step, t=total_time, sc=score (evaluation score, 0 if not evaluated)."""
+    """Parse checkpoint metadata from filename. Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt where e=epoch, s=agent_step, t=total_time, sc=score (evaluation score, 0 if not evaluated)."""
     parts = filename.split(".")
     if len(parts) != 6 or parts[-1] != "pt":
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
@@ -98,8 +96,7 @@ class CheckpointManager:
         return torch.load(trainer_file, weights_only=False)
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
-        """Save agent with metadata embedded in filename. Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt 
-        where score defaults to 0 if not provided (e.g., before evaluation)."""
+        """Save agent with metadata embedded in filename. Format: {run_name}.e{epoch}.s{agent_step}.t{total_time}.sc{score}.pt where score defaults to 0 if not provided (e.g., before evaluation)."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         agent_step = metadata.get("agent_step", 0)
@@ -162,9 +159,7 @@ class CheckpointManager:
         return checkpoint_files if strategy == "all" else checkpoint_files[:count]
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
-        """Find single checkpoint with highest value for the given metric.
-        This is a convenience method equivalent to select_checkpoints(count=1)[0].
-        """
+        """Find single checkpoint with highest value for the given metric. This is a convenience method equivalent to select_checkpoints(count=1)[0]."""
         checkpoints = self.select_checkpoints(count=1, metric=metric)
         return checkpoints[0] if checkpoints else None
 

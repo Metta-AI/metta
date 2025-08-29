@@ -256,13 +256,7 @@ class TestCheckpointIntegration:
         checkpoint_manager.save_agent(agent, epoch=2, metadata=metadata)
 
         # Save trainer state
-        trainer_state = {
-            "epoch": 2,
-            "agent_step": 2000,
-            "optimizer_state_dict": optimizer.state_dict(),
-            "training_metrics": {"loss": 0.5, "value_loss": 0.3},
-        }
-        checkpoint_manager.save_trainer_state(trainer_state, epoch=2)
+        checkpoint_manager.save_trainer_state(optimizer, epoch=2, agent_step=2000)
 
         # Load trainer state back
         loaded_state = checkpoint_manager.load_trainer_state(epoch=2)
@@ -270,8 +264,7 @@ class TestCheckpointIntegration:
         # Verify state was preserved
         assert loaded_state["epoch"] == 2
         assert loaded_state["agent_step"] == 2000
-        assert "optimizer_state_dict" in loaded_state
-        assert loaded_state["training_metrics"]["loss"] == 0.5
+        assert "optimizer" in loaded_state
 
     def test_different_architectures(self, temp_run_dir):
         """Test checkpointing with different agent architectures."""
