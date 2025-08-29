@@ -67,25 +67,3 @@ class MemoryManager:
     def reset_states(self, env_id: Optional[int] = None) -> None:
         """Reset policy states; supports per-env when available on policy."""
         self.memory.reset_env_memory(env_id)
-
-    # ----------------------------------------------------------------------------
-    # Legacy compatibility shims
-    # ----------------------------------------------------------------------------
-    def get_memory(self) -> Any:
-        with self._lock:
-            if self._has_get_memory:
-                return self.policy.get_memory()
-            # If only states exist, expose them for backward paths
-            return self.get_states()
-
-    def reset_memory(self, env_id: Optional[int] = None) -> None:
-        print("reset_memory")
-        with self._lock:
-            if env_id is not None and self._has_reset_env_memory:
-                self.policy.reset_env_memory(env_id)
-                return
-            if self._has_reset_memory:
-                self.policy.reset_memory()
-                return
-            # If only states exist, map to states reset
-            self.reset_states(env_id=env_id)
