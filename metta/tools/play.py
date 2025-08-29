@@ -49,7 +49,6 @@ def create_simulation(cfg: PlayTool) -> Simulation:
     # Create simulation using CheckpointManager integration
     sim = Simulation.create(
         sim_config=cfg.sim,
-        policy_store=None,
         device=cfg.system.device,
         vectorization=cfg.system.vectorization,
         stats_dir=cfg.effective_stats_dir,
