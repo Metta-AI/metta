@@ -51,17 +51,13 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int]:
     return run_name, epoch, agent_step, total_time
 
 
-def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> Optional[str]:
+def get_checkpoint_uri_from_dir(checkpoint_dir: str) -> str:
     """Get URI of latest checkpoint from directory."""
     checkpoint_path = Path(checkpoint_dir)
-    if not checkpoint_path.exists():
-        return None
-
-    # Find all checkpoint files (any run name)
     checkpoints = list(checkpoint_path.glob("*.e*.s*.t*.pt"))
     if not checkpoints:
-        return None
-
+        raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
+    
     # Return the latest by epoch
     latest_file = max(checkpoints, key=lambda p: parse_checkpoint_filename(p.name)[1])
     return f"file://{latest_file}"
@@ -83,29 +79,26 @@ class CheckpointManager:
         if epoch is None:
             agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e*.s*.t*.pt"))
             if not agent_files:
-                return None
+                raise FileNotFoundError(f"No checkpoints found for {self.run_name}")
             agent_file = max(agent_files, key=lambda p: parse_checkpoint_filename(p.name)[1])
         else:
             agent_files = list(self.checkpoint_dir.glob(f"{self.run_name}.e{epoch}.s*.t*.pt"))
             if not agent_files:
-                return None
+                raise FileNotFoundError(f"No checkpoint found for {self.run_name} at epoch {epoch}")
             agent_file = agent_files[0]
 
         logger.info(f"Loading agent from {agent_file}")
         return torch.load(agent_file, weights_only=False)
 
-    def load_trainer_state(self, epoch: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def load_trainer_state(self, epoch: Optional[int] = None) -> Dict[str, Any]:
         """Load trainer state (optimizer state, epoch, agent_step)."""
         if epoch is None:
             latest_file = self.find_best_checkpoint("epoch")
-            epoch = parse_checkpoint_filename(latest_file.name)[1] if latest_file else None
-        if epoch is None:
-            return None
+            if not latest_file:
+                raise FileNotFoundError(f"No checkpoints found for {self.run_name}")
+            epoch = parse_checkpoint_filename(latest_file.name)[1]
 
         trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
-        if not trainer_file.exists():
-            return None
-
         logger.info(f"Loading trainer state from {trainer_file}")
         return torch.load(trainer_file, weights_only=False)
 
@@ -152,8 +145,8 @@ class CheckpointManager:
 
     def get_latest_epoch(self) -> Optional[int]:
         """Get the latest epoch number."""
-        latest_file = self.find_best_checkpoint("epoch")
-        return parse_checkpoint_filename(latest_file.name)[1] if latest_file else None
+        checkpoints = self.select_checkpoints(strategy="latest", count=1, metric="epoch")
+        return parse_checkpoint_filename(checkpoints[0].name)[1] if checkpoints else None
 
     def find_best_checkpoint(self, metric: str = "epoch") -> Optional[Path]:
         """Find checkpoint with highest value for the given metric."""
@@ -189,15 +182,11 @@ class CheckpointManager:
 
         deleted_count = 0
         for agent_file in files_to_remove:
-            try:
-                _, epoch, _, _ = parse_checkpoint_filename(agent_file.name)
-                trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
-                trainer_file.unlink(missing_ok=True)
-
-                agent_file.unlink()
-                deleted_count += 1
-            except Exception as e:
-                logger.warning(f"Failed to delete checkpoint {agent_file}: {e}")
+            _, epoch, _, _ = parse_checkpoint_filename(agent_file.name)
+            trainer_file = self.checkpoint_dir / f"{self.run_name}.e{epoch}.trainer.pt"
+            trainer_file.unlink(missing_ok=True)
+            agent_file.unlink()
+            deleted_count += 1
 
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} old checkpoints, kept {keep_last_n} most recent")

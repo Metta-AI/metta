@@ -292,13 +292,7 @@ class Simulation:
             # NPC agents (if any)
             npc_actions = None
             if self._npc_policy is not None and len(self._npc_idxs):
-                try:
-                    npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
-                except Exception as e:
-                    logger.error(f"Error generating NPC actions: {e}")
-                    raise SimulationCompatibilityError(
-                        f"[{self._name}] Error generating NPC actions for NPC policy: {e}"
-                    ) from e
+                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
 
         # ---------------- action stitching ----------------------- #
         actions = policy_actions

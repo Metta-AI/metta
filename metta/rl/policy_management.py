@@ -27,13 +27,9 @@ def resolve_policy(uri: str, device: str = "cpu") -> torch.nn.Module:
         # If it's a directory, find the latest checkpoint
         if file_path.is_dir():
             uri = get_checkpoint_uri_from_dir(str(file_path))
-            if not uri:
-                raise FileNotFoundError(f"No checkpoint found in directory: {file_path}")
             file_path = Path(uri[7:])
         
-        # Load the checkpoint file
-        if not file_path.exists():
-            raise FileNotFoundError(f"Checkpoint file not found: {file_path}")
+        # Load the checkpoint file directly - let torch.load raise if not found
         return torch.load(file_path, map_location=device, weights_only=False)
         
     elif uri.startswith("wandb://"):
