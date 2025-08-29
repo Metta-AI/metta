@@ -12,6 +12,40 @@ from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb
 logger = logging.getLogger(__name__)
 
 
+def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
+    """Expand short wandb URI formats to full format.
+
+    Supports:
+    - wandb://run/<run_name> -> wandb://metta/model/<run_name>:latest
+    - wandb://sweep/<sweep_name> -> wandb://metta/sweep_model/<sweep_name>:latest
+    - wandb://project/artifact:version -> unchanged
+    """
+    if not uri.startswith("wandb://"):
+        return uri
+
+    path = uri[8:]  # Remove "wandb://"
+
+    # Check for short format patterns
+    if path.startswith("run/"):
+        run_name = path[4:]  # Remove "run/"
+        if ":" in run_name:
+            run_name, version = run_name.split(":", 1)
+        else:
+            version = "latest"
+        return f"wandb://{default_project}/model/{run_name}:{version}"
+
+    elif path.startswith("sweep/"):
+        sweep_name = path[6:]  # Remove "sweep/"
+        if ":" in sweep_name:
+            sweep_name, version = sweep_name.split(":", 1)
+        else:
+            version = "latest"
+        return f"wandb://{default_project}/sweep_model/{sweep_name}:{version}"
+
+    # Already in full format or unrecognized pattern - return as-is
+    return uri
+
+
 def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI."""
     if uri.startswith("file://"):
@@ -21,10 +55,11 @@ def key_and_version(uri: str) -> tuple[str, int]:
         return path.stem if path.suffix else path.name, 0
 
     if uri.startswith("wandb://"):
-        metadata = get_wandb_checkpoint_metadata(uri)
+        expanded_uri = expand_wandb_uri(uri)
+        metadata = get_wandb_checkpoint_metadata(expanded_uri)
         if metadata:
             return metadata["run_name"], metadata["epoch"]
-        wandb_uri = WandbURI.parse(uri)
+        wandb_uri = WandbURI.parse(expanded_uri)
         artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
         return artifact_name, 0
 
@@ -78,49 +113,64 @@ class CheckpointManager:
     @staticmethod
     def load_from_uri(uri: str):
         """Load a policy from file://, s3://, or wandb:// URI."""
-        if uri.startswith("file://"):
-            path = Path(uri[7:])
-            if path.is_file() and path.suffix == ".pt":
-                return torch.load(path, weights_only=False)
-            if path.is_dir():
-                if path.name != "checkpoints":
-                    path = path / "checkpoints"
-                checkpoint_files = list(path.glob("*.pt"))
-                if not checkpoint_files:
-                    logger.warning(f"No checkpoints found in {path}")
-                    return None
-                valid_checkpoints = [
-                    (ckpt, parse_checkpoint_filename(ckpt.name)[1])
-                    for ckpt in checkpoint_files
-                    if is_valid_checkpoint_filename(ckpt.name)
-                ]
-                if not valid_checkpoints:
-                    logger.info(f"No standard checkpoint files found, loading {checkpoint_files[0].name}")
-                    return torch.load(checkpoint_files[0], weights_only=False)
-                latest_checkpoint = max(valid_checkpoints, key=lambda x: x[1])[0]
-                return torch.load(latest_checkpoint, weights_only=False)
-            logger.warning(f"File not found: {path}")
+        try:
+            if uri.startswith("file://"):
+                path = Path(uri[7:])
+                if path.is_file() and path.suffix == ".pt":
+                    return torch.load(path, weights_only=False)
+                if path.is_dir():
+                    if path.name != "checkpoints":
+                        path = path / "checkpoints"
+                    checkpoint_files = list(path.glob("*.pt"))
+                    if not checkpoint_files:
+                        logger.warning(f"No checkpoints found in {path}")
+                        return None
+                    valid_checkpoints = [
+                        (ckpt, parse_checkpoint_filename(ckpt.name)[1])
+                        for ckpt in checkpoint_files
+                        if is_valid_checkpoint_filename(ckpt.name)
+                    ]
+                    if not valid_checkpoints:
+                        logger.info(f"No standard checkpoint files found, loading {checkpoint_files[0].name}")
+                        try:
+                            return torch.load(checkpoint_files[0], weights_only=False)
+                        except Exception as e:
+                            logger.warning(f"Failed to load fallback checkpoint {checkpoint_files[0]}: {e}")
+                            return None
+                    latest_checkpoint = max(valid_checkpoints, key=lambda x: x[1])[0]
+                    return torch.load(latest_checkpoint, weights_only=False)
+                logger.warning(f"File not found: {path}")
+                return None
+            if uri.startswith("s3://"):
+                with local_copy(uri) as local_path:
+                    return torch.load(local_path, weights_only=False)
+            if uri.startswith("wandb://"):
+                expanded_uri = expand_wandb_uri(uri)
+                return load_policy_from_wandb_uri(expanded_uri, device="cpu")
+            logger.warning(f"Unsupported URI format: {uri}. Supported: file://, s3://, wandb://")
             return None
-        if uri.startswith("s3://"):
-            with local_copy(uri) as local_path:
-                return torch.load(local_path, weights_only=False)
-        if uri.startswith("wandb://"):
-            return load_policy_from_wandb_uri(uri, device="cpu")
-        raise ValueError(f"Unsupported URI format: {uri}. Supported: file://, s3://, wandb://")
+        except Exception as e:
+            logger.warning(f"Failed to load policy from {uri}: {e}")
+            return None
 
     @staticmethod
     def normalize_uri(path_or_uri: str) -> str:
-        """Convert path to URI format."""
+        """Convert path to URI format and expand short wandb URIs."""
         if not path_or_uri.startswith(("file://", "wandb://", "s3://")):
             return f"file://{Path(path_or_uri).resolve()}"
+        if path_or_uri.startswith("wandb://"):
+            return expand_wandb_uri(path_or_uri)
         return path_or_uri
 
     @staticmethod
     def get_policy_metadata(uri: str) -> dict[str, Any]:
         """Extract metadata from policy URI."""
+        original_uri = uri
+        if uri.startswith("wandb://"):
+            uri = expand_wandb_uri(uri)  # Expand wandb URI before normalization
         uri = CheckpointManager.normalize_uri(uri)
         run_name, epoch = key_and_version(uri)
-        metadata = {"run_name": run_name, "epoch": epoch, "uri": uri}
+        metadata = {"run_name": run_name, "epoch": epoch, "uri": uri, "original_uri": original_uri}
 
         if uri.startswith("file://"):
             path = Path(uri[7:])
