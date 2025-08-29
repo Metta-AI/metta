@@ -260,6 +260,7 @@ def start_monitors(
     - MAX_RUNTIME_HOURS: Maximum runtime in hours
     - SKYPILOT_NODE_RANK: Node rank (0 = master)
     - JOB_METADATA_DIR: Directory for metadata files
+    - RESTART_COUNT: Number of times the job has been restarted
 
     Args:
         shutdown_callback: Callback function to trigger shutdown with reason
@@ -270,6 +271,8 @@ def start_monitors(
 
     rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
     is_master = rank == 0
+
+    restart_count = int(os.environ.get("RESTART_COUNT", "0"))
 
     if heartbeat_timeout:
         heartbeat_monitor = HeartbeatMonitor(
@@ -287,7 +290,7 @@ def start_monitors(
         )
         threading.Thread(target=timeout_monitor.run, name="timeout_monitor", daemon=True).start()
 
-        if is_master:
+        if is_master and restart_count == 0:
             force_restart_test_monitor = ForceRestartTestMonitor(
                 rank,
                 restart_time_hours=max_runtime_hours / 2.0,

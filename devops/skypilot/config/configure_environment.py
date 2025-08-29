@@ -51,14 +51,16 @@ def setup_job_metadata():
     # Handle restart count
     if restart_count_file.exists():
         restart_count = int(restart_count_file.read_text())
+        log_master(f"read restart_count = {restart_count}")
         restart_count += 1
     else:
+        log_master("restart count file not found, setting restart_count to 0")
         restart_count = 0
 
     # Only update restart count on master node
     if is_master:
         restart_count_file.write_text(str(restart_count))
-        log_master("Updated restart count file")
+        log_master("Updated restart count file to restart_count")
     else:
         log_all("Skipping RESTART_COUNT_FILE updates on non-master node")
 

@@ -692,9 +692,6 @@ def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
-    """Print system diagnostics in a clean format - kept for backward compatibility."""
-    print(format_system_diagnostics(diagnostics))
 
 
 def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
@@ -766,11 +763,6 @@ def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
                 output.write(f"    • {rec}\n")
 
     return output.getvalue()
-
-
-def print_diagnostics(diagnostics: dict[str, Any]) -> None:
-    """Pretty print GPU diagnostics information - kept for backward compatibility."""
-    print(format_gpu_diagnostics(diagnostics))
 
 
 def test_nccl_communication() -> bool:
@@ -1092,6 +1084,14 @@ def main():
             # If process group was destroyed, we can't aggregate
             # In this case, we just report our local status
             print("[WARNING] Process group not initialized for result aggregation")
+
+    # Print formatted diagnostics
+    if IS_MASTER:
+        print(format_system_diagnostics(system_diagnostics))
+
+    # GPU diagnostics only exist if IS_GPU0 was true
+    if IS_GPU0 and 'gpu_diagnostics' in locals():
+        print(format_gpu_diagnostics(gpu_diagnostics))
 
     # Summary - only from master
     if IS_MASTER and benchmark_results:
