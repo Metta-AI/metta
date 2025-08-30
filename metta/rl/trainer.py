@@ -138,9 +138,6 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
-    # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
-    existing_agent = checkpoint_manager.load_agent()
-
     # Load trainer state (returns None if no trainer state exists)
     trainer_state = checkpoint_manager.load_trainer_state()
     agent_step = trainer_state["agent_step"] if trainer_state else 0
@@ -153,26 +150,28 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
+    # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
+    # CRITICAL: Load agent BEFORE distributed wrapping to avoid SyncBatchNorm conversion issues
+    existing_agent = checkpoint_manager.load_agent()
+
     # Create or use existing agent
     if existing_agent:
         logger.info("Resuming training with existing agent from checkpoint")
-        policy_agent = existing_agent
+        policy: PolicyAgent = existing_agent
     else:
         logger.info("Creating new agent for training")
-        policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+        policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
     # Don't proceed until all ranks have the policy
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
-
-    policy: PolicyAgent = policy_agent
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
         # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
         policy = cast(PolicyAgent, torch.compile(policy, mode=trainer_cfg.compile_mode))
 
-    # Wrap in DDP if distributed
+    # Wrap in DDP if distributed - do this AFTER loading existing checkpoint
     if torch.distributed.is_initialized():
         if torch_dist_cfg.is_master:
             logger.info("Initializing DistributedDataParallel")
