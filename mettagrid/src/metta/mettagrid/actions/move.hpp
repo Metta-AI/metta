@@ -57,11 +57,7 @@ protected:
     }
 
     // Move the agent
-    if (_game_config->no_agent_interference) {
-      return _grid->ghost_move_object(actor->id, target_location);
-    } else {
-      return _grid->move_object(actor->id, target_location);
-    }
+    return _grid->move_object(actor->id, target_location);
   }
 
   bool _is_valid_square(GridLocation target_location, bool no_agent_interference) {

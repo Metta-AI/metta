@@ -13,7 +13,7 @@ public:
     _episode_completion_pct_feature = enc->register_feature("episode_completion_pct");
   }
 
-  void onInit(const MettaGrid* env) override {
+  void onInit(const MettaGrid* env, const GameConfig* /*config*/) override {
     _num_agents = env->num_agents();
     _max_steps = env->max_steps;
     _current_step = 0;

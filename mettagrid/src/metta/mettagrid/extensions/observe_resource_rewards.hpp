@@ -12,7 +12,7 @@ public:
     _resource_rewards_feature = enc->register_feature("resource_rewards");
   }
 
-  void onInit(const MettaGrid* env) override {
+  void onInit(const MettaGrid* env, const GameConfig* /*config*/) override {
     _num_agents = env->num_agents();
   }
 

@@ -16,7 +16,7 @@ public:
     _last_action_arg_feature = enc->register_feature("last_action_arg");
   }
 
-  void onInit(const MettaGrid* env) override {
+  void onInit(const MettaGrid* env, const GameConfig* /*config*/) override {
     _num_agents = env->num_agents();
 
     // Allocate storage for previous actions

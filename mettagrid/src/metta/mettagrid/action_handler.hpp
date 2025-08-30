@@ -28,7 +28,8 @@ struct ActionConfig {
 class ActionHandler {
 public:
   unsigned char priority;
-  Grid* _grid{};
+
+  const Grid* _grid{};
 
   ActionHandler(const ActionConfig& cfg, const std::string& action_name)
       : priority(0),
@@ -44,8 +45,9 @@ public:
 
   virtual ~ActionHandler() {}
 
-  void init(Grid* grid) {
-    this->_grid = grid;
+  void init(MettaGrid* env) {
+    _env = env;
+    _grid = &env->grid();
   }
 
   bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
@@ -69,8 +71,22 @@ public:
       }
     }
 
-    // Execute the action
-    bool success = has_needed_resources && _handle_action(actor, arg);
+    // Check if any extension wants to override this action
+    bool success = false;
+    bool handled = false;
+
+    for (auto& ext : _env->extensions()) {
+      if (ext->overridesAction(_action_name)) {
+        success = has_needed_resources && ext->handleAction(_action_name, actor, arg);
+        handled = true;
+        break;
+      }
+    }
+
+    // If no extension handled it, use default implementation
+    if (!handled) {
+      success = has_needed_resources && _handle_action(actor, arg);
+    }
 
     // The intention here is to provide a metric that reports when an agent has stayed in one location for a long
     // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
@@ -115,6 +131,8 @@ public:
 
 protected:
   virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
+
+  MettaGrid* _env;
 
   std::string _action_name;
   std::map<InventoryItem, InventoryQuantity> _required_resources;

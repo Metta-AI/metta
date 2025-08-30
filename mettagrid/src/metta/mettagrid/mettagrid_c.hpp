@@ -90,7 +90,7 @@ public:
   using ActionSuccess = std::vector<bool>;
   using ActionHandlers = std::vector<std::unique_ptr<ActionHandler>>;
 
-  const Grid& grid() const {
+  Grid& grid() const {
     return *_grid;
   }
   const Actions& actions() const {
@@ -105,6 +105,10 @@ public:
 
   const Agent* agent(uint32_t agent_id) const {
     return _agents[agent_id];
+  }
+
+  const std::vector<std::unique_ptr<MettaGridExtension>>& extensions() const {
+    return _extensions;
   }
 
   friend class MettaGridExtension;

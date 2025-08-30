@@ -196,11 +196,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
-        if (_no_agent_interference) {
-          _grid->ghost_add_object(agent);
-        } else {
-          _grid->add_object(agent);
-        }
+
+        _grid->add_object(agent);
+
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
@@ -234,7 +232,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   for (const auto& ext_name : game_config.extensions) {
     auto ext = ExtensionRegistry::instance().create(ext_name);
     ext->registerObservations(_obs_encoder.get());
-    ext->onInit(this);
+    ext->onInit(this, &game_config);
     _extensions.push_back(std::move(ext));
   }
 }

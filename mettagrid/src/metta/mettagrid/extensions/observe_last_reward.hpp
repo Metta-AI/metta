@@ -14,7 +14,7 @@ public:
     _last_reward_feature = enc->register_feature("last_reward");
   }
 
-  void onInit(const MettaGrid* env) override {
+  void onInit(const MettaGrid* env, const GameConfig* /*config*/) override {
     _num_agents = env->num_agents();
     _last_rewards.resize(_num_agents, 0.0f);
   }

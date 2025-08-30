@@ -11,7 +11,7 @@
 class VisitationCounts : public MettaGridExtension {
 public:
   void registerObservations(ObservationEncoder* enc) override;
-  void onInit(const MettaGrid* env) override;
+  void onInit(const MettaGrid* env, const GameConfig* config) override;
   void onReset(MettaGrid* env) override;
   void onStep(MettaGrid* env) override;
 

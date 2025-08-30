@@ -17,6 +17,7 @@
 #include "types.hpp"
 
 class MettaGrid;
+struct GameConfig;
 
 using ExtensionStats = std::unordered_map<std::string, float>;
 
@@ -26,7 +27,7 @@ public:
 
   virtual void registerObservations(ObservationEncoder* /*enc*/) {}
 
-  virtual void onInit(const MettaGrid* /*env*/) {}
+  virtual void onInit(const MettaGrid* /*env*/, const GameConfig* /*config*/) {}
 
   virtual void onReset(MettaGrid* /*env*/) {}
 
@@ -34,6 +35,16 @@ public:
 
   virtual ExtensionStats getStats() const {
     return ExtensionStats();
+  }
+
+  // Action overrides
+
+  virtual bool overridesAction(const std::string& action_name) const {
+    return false;
+  }
+
+  virtual bool handleAction(const std::string& action_name, Agent* actor, ActionArg arg) {
+    return false;
   }
 
   // Metadata
