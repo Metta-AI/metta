@@ -2,7 +2,7 @@ from metta.mettagrid.mapgen.scene import ChildrenAction
 from metta.mettagrid.mapgen.scenes.inline_ascii import InlineAscii
 from metta.mettagrid.mapgen.scenes.nop import Nop
 from metta.mettagrid.mapgen.scenes.remove_agents import RemoveAgents
-from tests.mapgen.scenes.utils import assert_grid, render_scene
+from metta.mettagrid.test_support.mapgen import assert_grid, render_scene
 
 
 def test_basic():

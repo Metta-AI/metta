@@ -1,5 +1,5 @@
 from metta.mettagrid.mapgen.scenes.convchain import ConvChain
-from tests.mapgen.scenes.utils import render_scene
+from metta.mettagrid.test_support.mapgen import render_scene
 
 
 def test_basic():

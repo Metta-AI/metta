@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from multiprocessing import Pool
 from pathlib import Path
 
-from omegaconf import OmegaConf
+import yaml
 
 from metta.common.config.tool import Tool
 from metta.mettagrid.mapgen.scene import SceneConfig
@@ -85,8 +85,7 @@ def get_maps() -> list[DCSSMap]:
     return maps
 
 
-dir = Path("dcss")
-wfc_dir = dir / "wfc"
+dir = Path(__file__).parent.parent / "scenes" / "dcss"
 
 
 def process_map_entry(map_entry: DCSSMap):
@@ -96,15 +95,8 @@ def process_map_entry(map_entry: DCSSMap):
 
     def save_config(config: SceneConfig, dir: Path):
         dir.mkdir(parents=True, exist_ok=True)
-        OmegaConf.save(
-            OmegaConf.create(
-                config.model_dump(
-                    exclude_unset=True,
-                    exclude_defaults=True,
-                )
-            ),
-            dir / f"{name}.yaml",
-        )
+        with open(dir / f"{name}.yaml", "w") as fh:
+            yaml.dump(config.model_dump(exclude_unset=True, exclude_defaults=True), fh)
 
     # convchain
     convchain_config = make_convchain_config_from_pattern(pattern)
@@ -116,7 +108,7 @@ def process_map_entry(map_entry: DCSSMap):
         logger.warning(f"Invalid pattern for WFC: {map_entry.name}")
         return
 
-    save_config(wfc_config, wfc_dir)
+    save_config(wfc_config, dir / "wfc")
 
 
 def generate_scenes_from_dcss_maps():

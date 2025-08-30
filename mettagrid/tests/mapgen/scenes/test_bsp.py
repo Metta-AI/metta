@@ -1,7 +1,7 @@
 import pytest
 
 from metta.mettagrid.mapgen.scenes.bsp import BSP
-from tests.mapgen.scenes.utils import assert_connected, render_scene
+from metta.mettagrid.test_support.mapgen import assert_connected, render_scene
 
 
 # Some BSP scenes end up disconnected.

@@ -1,5 +1,5 @@
 from metta.mettagrid.mapgen.scenes.wfc import WFC
-from tests.mapgen.scenes.utils import render_scene
+from metta.mettagrid.test_support.mapgen import render_scene
 
 
 def test_basic():

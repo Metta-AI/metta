@@ -2,7 +2,7 @@ import pytest
 
 from metta.mettagrid.mapgen.scenes.layout import Layout, LayoutArea
 from metta.mettagrid.mapgen.types import AreaQuery, AreaWhere
-from tests.mapgen.scenes.utils import render_scene
+from metta.mettagrid.test_support.mapgen import render_scene
 
 # -----------------------------------------------------------------------------
 # Helper utilities

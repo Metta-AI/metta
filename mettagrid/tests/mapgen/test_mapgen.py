@@ -6,7 +6,7 @@ from metta.mettagrid.mapgen.scenes.inline_ascii import InlineAscii
 from metta.mettagrid.mapgen.scenes.nop import Nop
 from metta.mettagrid.mapgen.scenes.room_grid import RoomGrid
 from metta.mettagrid.mapgen.scenes.transplant_scene import TransplantScene
-from tests.mapgen.scenes.utils import assert_raw_grid
+from metta.mettagrid.test_support.mapgen import assert_raw_grid
 
 
 class TestMapGenSize:

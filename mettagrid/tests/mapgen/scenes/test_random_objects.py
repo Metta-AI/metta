@@ -1,6 +1,6 @@
 from metta.mettagrid.mapgen.random.float import FloatUniformDistribution
 from metta.mettagrid.mapgen.scenes.random_objects import RandomObjects
-from tests.mapgen.scenes.utils import render_scene
+from metta.mettagrid.test_support.mapgen import render_scene
 
 
 def test_objects():
