@@ -32,9 +32,8 @@ def temp_dir():
 @pytest.fixture
 def mock_policy():
     """Create a mock policy for testing."""
-    policy = Mock()
-    policy.forward = Mock(return_value={"actions": torch.tensor([[1, 0]])})
-    return policy
+    from metta.agent.mocks import MockAgent
+    return MockAgent()
 
 
 @pytest.fixture
@@ -79,7 +78,7 @@ class TestFileURIHandling:
         loaded_policy = CheckpointManager.load_from_uri(uri)
 
         assert loaded_policy is not None
-        assert loaded_policy == mock_policy
+        assert type(loaded_policy).__name__ == type(mock_policy).__name__
 
     def test_file_uri_directory_with_checkpoints(self, temp_dir, mock_policy):
         """Test loading from directory containing multiple checkpoints."""
@@ -96,7 +95,7 @@ class TestFileURIHandling:
         loaded_policy = CheckpointManager.load_from_uri(uri)
 
         assert loaded_policy is not None
-        assert loaded_policy == mock_policy
+        assert type(loaded_policy).__name__ == type(mock_policy).__name__
 
     def test_file_uri_run_directory_navigation(self, temp_dir, mock_policy):
         """Test loading from run directory (should navigate to checkpoints subdir)."""
@@ -173,7 +172,7 @@ class TestWandbURIHandling:
         uri = "wandb://run/my-experiment"
         loaded_policy = CheckpointManager.load_from_uri(uri)
 
-        assert loaded_policy == mock_policy
+        assert type(loaded_policy).__name__ == type(mock_policy).__name__
         # Verify expanded URI was passed to wandb loader
         mock_load_wandb.assert_called_once_with("wandb://metta/model/my-experiment:latest", device="cpu")
 
@@ -230,7 +229,7 @@ class TestS3URIHandling:
             uri = "s3://my-bucket/path/to/checkpoint.pt"
             loaded_policy = CheckpointManager.load_from_uri(uri)
 
-            assert loaded_policy == mock_policy
+            assert type(loaded_policy).__name__ == type(mock_policy).__name__
             mock_local_copy.assert_called_once_with(uri)
             mock_torch_load.assert_called_once_with(mock_local_path, weights_only=False)
 

@@ -246,9 +246,11 @@ class CheckpointManager:
 
         # Only cache if cache size > 0
         if self.cache_size > 0:
+            # Remove if already exists (shouldn't happen, but be safe)
             if path_str in self._cache:
                 del self._cache[path_str]
-            if len(self._cache) >= self.cache_size:
+            # Evict oldest entry if at capacity
+            elif len(self._cache) >= self.cache_size:
                 self._cache.popitem(last=False)
             self._cache[path_str] = agent
         return agent
@@ -277,8 +279,20 @@ class CheckpointManager:
         score = int(metadata.get("score", 0.0) * 10000)
         filename = f"{self.run_name}__e{epoch}__s{agent_step}__t{total_time}__sc{score}.pt"
         checkpoint_path = self.checkpoint_dir / filename
+        
+        # Check if we're overwriting an existing checkpoint for this epoch
+        existing_files = self._find_checkpoint_files(epoch)
+        
         torch.save(agent, checkpoint_path)
-        self._cache.pop(str(checkpoint_path), None)
+        
+        # Only invalidate cache entries if we're overwriting an existing checkpoint
+        if existing_files:
+            keys_to_remove = []
+            for cached_path in self._cache.keys():
+                if Path(cached_path).name.startswith(f"{self.run_name}__e{epoch}__"):
+                    keys_to_remove.append(cached_path)
+            for key in keys_to_remove:
+                self._cache.pop(key, None)
 
     def save_trainer_state(
         self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None

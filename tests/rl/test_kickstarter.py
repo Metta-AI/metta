@@ -73,7 +73,8 @@ class TestKickstarter:
         assert kickstarter.teacher_cfgs[0].teacher_uri == "wandb://teacher1/uri"
         assert kickstarter.teacher_cfgs[1].teacher_uri == "wandb://teacher2/uri"
 
-    def test_anneal_factor_calculation(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    @patch("metta.rl.kickstarter.Kickstarter._load_policies")
+    def test_anneal_factor_calculation(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the calculation of the anneal factor."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
@@ -179,7 +180,8 @@ class TestKickstarter:
         assert isinstance(args[1], TensorDict)
         assert "obs" in args[1].keys()
 
-    def test_forward_method(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    @patch("metta.rl.kickstarter.Kickstarter._load_policies")
+    def test_forward_method(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the _forward method."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
