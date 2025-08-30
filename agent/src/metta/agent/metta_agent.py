@@ -30,9 +30,20 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent: "MettaAgent", device: torch.device):
         log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
-        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+        # Check if the agent might have circular references that would cause recursion
+        # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
+        try:
+            # Try to convert - this will fail with RecursionError if there are circular refs
+            layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+        except RecursionError:
+            logger.warning(
+                "RecursionError during SyncBatchNorm conversion - likely due to circular references. "
+                "Skipping SyncBatchNorm conversion."
+            )
+            layers_converted_agent = agent
 
-        if device.type == "cpu":  # CPU doesn't need device_ids
+        # Pass device_ids for GPU, but not for CPU
+        if device.type == "cpu":
             super().__init__(module=layers_converted_agent)
         else:
             super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
