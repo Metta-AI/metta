@@ -69,7 +69,7 @@ protected:
           return false;
         }
         // Return required resources to create box to creator inventory
-        for (const auto& [item, amount] : box->resources_to_create) {
+        for (const auto& [item, amount] : box->returned_resources) {
           if (amount > 0) {
             creator->update_inventory(item, amount);
           }

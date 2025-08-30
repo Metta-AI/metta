@@ -87,13 +87,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     if (action_name == "put_items") {
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
     } else if (action_name == "place_box") {
-      // Pass in resources to create box from box config
-      for (const auto& [key, object_cfg] : game_config.objects) {
-        if (auto box_cfg = std::dynamic_pointer_cast<const BoxConfig>(object_cfg)) {
-          _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config, box_cfg->resources_to_create));
-          break;
-        }
-      }
+      _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config));
     } else if (action_name == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name == "noop") {
@@ -961,10 +955,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def(py::init<TypeId, const std::string&, const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "box",
-           py::arg("resources_to_create"))
+           py::arg("returned_resources"))
       .def_readwrite("type_id", &BoxConfig::type_id)
       .def_readwrite("type_name", &BoxConfig::type_name)
-      .def_readwrite("resources_to_create", &BoxConfig::resources_to_create);
+      .def_readwrite("returned_resources", &BoxConfig::returned_resources);
 
   // ##MettaGridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means
