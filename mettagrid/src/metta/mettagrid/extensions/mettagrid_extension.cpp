@@ -5,16 +5,20 @@
 #include "observation_tokens.hpp"
 #include "packed_coordinate.hpp"
 
+std::span<const uint8_t> MettaGridExtension::getResourceRewards(const MettaGrid* env) const {
+  return std::span<const uint8_t>(env->_resource_rewards.data(), env->_resource_rewards.size());
+}
+
 const Agent* MettaGridExtension::getAgent(const MettaGrid* env, size_t agent_idx) const {
   return env->agent(static_cast<uint32_t>(agent_idx));
 }
 
-std::span<const uint8_t> MettaGridExtension::getAgentActions(const MettaGrid* env, size_t agent_idx) const {
+std::span<const int32_t> MettaGridExtension::getAgentActions(const MettaGrid* env, size_t agent_idx) const {
   const auto& actions = env->_actions;
   size_t actions_per_agent = 2;  // action + action_arg
   size_t offset = agent_idx * actions_per_agent;
 
-  return std::span<const uint8_t>(static_cast<const uint8_t*>(actions.data()) + offset, actions_per_agent);
+  return std::span<const int32_t>(static_cast<const int32_t*>(actions.data()) + offset, actions_per_agent);
 }
 
 std::span<const uint8_t> MettaGridExtension::getAgentObservations(const MettaGrid* env, size_t agent_idx) const {

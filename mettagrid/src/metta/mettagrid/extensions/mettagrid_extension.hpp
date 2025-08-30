@@ -40,11 +40,14 @@ public:
   virtual std::string getName() const = 0;
 
 protected:
+  // Get pre-calculated resource rewards for all agents
+  std::span<const uint8_t> getResourceRewards(const MettaGrid* env) const;
+
   // Get agent by index
   const Agent* getAgent(const MettaGrid* env, size_t agent_idx) const;
 
   // Get actions for a specific agent (returns action and action_arg)
-  std::span<const uint8_t> getAgentActions(const MettaGrid* env, size_t agent_idx) const;
+  std::span<const int32_t> getAgentActions(const MettaGrid* env, size_t agent_idx) const;
 
   // Const access to agent observations
   std::span<const uint8_t> getAgentObservations(const MettaGrid* env, size_t agent_idx) const;

@@ -1,6 +1,9 @@
 // extensions/last_action.cpp
 #include "extensions/last_action.hpp"
 
+#include <algorithm>
+#include <unordered_map>
+
 #include "mettagrid_c.hpp"
 
 void LastAction::registerObservations(ObservationEncoder* enc) {
@@ -38,8 +41,11 @@ void LastAction::addLastActionToObservations(MettaGrid* env) {
   for (size_t agent_idx = 0; agent_idx < _num_agents; agent_idx++) {
     // Create feature and value vectors for global observation
     std::vector<ObservationType> features = {_last_action_feature, _last_action_arg_feature};
-    std::vector<ObservationType> values = {static_cast<ObservationType>(_previous_actions[agent_idx]),
-                                           static_cast<ObservationType>(_previous_action_args[agent_idx])};
+
+    // Cast to ObservationType (uint8_t) for observations
+    // Note: This will truncate values > 255, using bitwise AND to make truncation explicit
+    std::vector<ObservationType> values = {static_cast<ObservationType>(_previous_actions[agent_idx] & 0xFF),
+                                           static_cast<ObservationType>(_previous_action_args[agent_idx] & 0xFF)};
 
     // Write both observations at once
     writeGlobalObservations(env, agent_idx, features, values);
@@ -47,15 +53,11 @@ void LastAction::addLastActionToObservations(MettaGrid* env) {
 }
 
 void LastAction::updatePreviousActions(const MettaGrid* env) {
-  // NOTE: This assumes we have an accessor method to get the current actions
-  // You'll need to add something like getAgentActions() to the base class
-  // For now, I'll show the pattern assuming such a method exists:
-
   for (size_t agent_idx = 0; agent_idx < _num_agents; agent_idx++) {
     // Get current action and action_arg for this agent
-    // This is pseudo-code - you'll need to implement the actual accessor
     auto actions = getAgentActions(env, agent_idx);
     if (actions.size() >= 2) {
+      // Direct assignment - no conversion needed since types match
       _previous_actions[agent_idx] = actions[0];      // action
       _previous_action_args[agent_idx] = actions[1];  // action_arg
     }
@@ -65,9 +67,9 @@ void LastAction::updatePreviousActions(const MettaGrid* env) {
 ExtensionStats LastAction::getStats() const {
   ExtensionStats stats;
 
-  // Calculate some basic statistics about action distribution
-  std::vector<int> action_counts(256, 0);
-  std::vector<int> arg_counts(256, 0);
+  // Use unordered_map for counting since action space might be larger than 256
+  std::unordered_map<ActionType, int> action_counts;
+  std::unordered_map<ActionArg, int> arg_counts;
 
   for (size_t i = 0; i < _num_agents; i++) {
     action_counts[_previous_actions[i]]++;
@@ -76,18 +78,17 @@ ExtensionStats LastAction::getStats() const {
 
   // Find most common action
   int max_count = 0;
-  uint8_t most_common_action = 0;
-  for (size_t i = 0; i < 256; i++) {
-    if (action_counts[i] > max_count) {
-      max_count = action_counts[i];
-      most_common_action = static_cast<uint8_t>(i);
+  ActionType most_common_action = 0;
+  for (const auto& [action, count] : action_counts) {
+    if (count > max_count) {
+      max_count = count;
+      most_common_action = action;
     }
   }
 
   stats["most_common_action"] = static_cast<float>(most_common_action);
   stats["most_common_action_count"] = static_cast<float>(max_count);
-  stats["num_unique_actions"] =
-      static_cast<float>(std::count_if(action_counts.begin(), action_counts.end(), [](int c) { return c > 0; }));
+  stats["num_unique_actions"] = static_cast<float>(action_counts.size());
 
   return stats;
 }

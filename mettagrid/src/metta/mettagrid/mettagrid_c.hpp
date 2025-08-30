@@ -114,6 +114,7 @@ private:
   GlobalObsConfig _global_obs_config;
   GameConfig _game_config;
 
+  std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::vector<RewardType> _group_rewards;

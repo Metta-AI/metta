@@ -15,6 +15,10 @@ public:
   void onReset(MettaGrid* env) override;
   void onStep(MettaGrid* env) override;
 
+  std::string getName() const override {
+    return "visitation_counts";
+  }
+
   ExtensionStats getStats() const override;
 
 private:

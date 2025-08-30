@@ -2,9 +2,11 @@
 #ifndef EXTENSIONS_LAST_ACTION_HPP_
 #define EXTENSIONS_LAST_ACTION_HPP_
 
+#include <unordered_map>
 #include <vector>
 
 #include "extensions/mettagrid_extension.hpp"
+#include "types.hpp"  // For ActionType and ActionArg
 
 class LastAction : public MettaGridExtension {
 public:
@@ -25,8 +27,8 @@ private:
   size_t _num_agents;
 
   // Store previous actions and action args for each agent
-  std::vector<uint8_t> _previous_actions;
-  std::vector<uint8_t> _previous_action_args;
+  std::vector<ActionType> _previous_actions;
+  std::vector<ActionArg> _previous_action_args;
 
   void addLastActionToObservations(MettaGrid* env);
   void updatePreviousActions(const MettaGrid* env);

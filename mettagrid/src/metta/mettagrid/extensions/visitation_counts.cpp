@@ -43,7 +43,7 @@ void VisitationCounts::onReset(MettaGrid* env) {
 
     // Mark initial positions
     for (size_t i = 0; i < _num_agents; i++) {
-      const Agent* agent = env->agent(static_cast<uint32_t>(i));
+      const Agent* agent = getAgent(env, i);
       size_t idx = getDenseIndex(i, agent->location.r, agent->location.c);
       _dense_visits[idx] = 1;
     }
@@ -55,7 +55,7 @@ void VisitationCounts::onReset(MettaGrid* env) {
 
     // Mark initial positions
     for (size_t i = 0; i < _num_agents; i++) {
-      const Agent* agent = env->agent(static_cast<uint32_t>(i));
+      const Agent* agent = getAgent(env, i);
       uint32_t key = packCoord(agent->location.r, agent->location.c);
       _sparse_visits[i][key] = 1;
     }
@@ -68,7 +68,7 @@ void VisitationCounts::onReset(MettaGrid* env) {
 void VisitationCounts::onStep(MettaGrid* env) {
   // Update visit counts
   for (size_t i = 0; i < _num_agents; i++) {
-    const Agent* agent = env->agent(static_cast<uint32_t>(i));
+    const Agent* agent = getAgent(env, i);
 
     if (_use_dense) {
       size_t idx = getDenseIndex(i, agent->location.r, agent->location.c);
@@ -97,7 +97,7 @@ std::array<unsigned int, 5> VisitationCounts::computeVisitationCounts(const Mett
     return counts;
   }
 
-  const Agent* agent = env->agent(static_cast<uint32_t>(agent_idx));
+  const Agent* agent = getAgent(env, agent_idx);
   GridCoord r = agent->location.r;
   GridCoord c = agent->location.c;
 
@@ -267,7 +267,7 @@ ExtensionStats VisitationCounts::getStats() const {
 
   stats["avg_agent_total_steps"] = avg_total_steps;
   stats["avg_agent_unique_cells_visited"] = avg_unique_cells;
-  stats["storage_mode"] = _use_dense ? "dense" : "sparse";
+  stats["storage_mode_is_dense"] = _use_dense ? 1.0f : 0.0f;
 
   return stats;
 }
