@@ -93,7 +93,8 @@ class SimulationStatsDB(EpisodeStatsDB):
         merged = SimulationStatsDB(merged_path)
 
         if policy_uri:
-            policy_key, policy_version = CheckpointManager.get_policy_info(policy_uri)
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            policy_key, policy_version = metadata["run_name"], metadata["epoch"]
         else:
             policy_key, policy_version = ("unknown", 0)
         merged._insert_simulation(
@@ -118,7 +119,8 @@ class SimulationStatsDB(EpisodeStatsDB):
             agent_tuple_map = {}
             for agent_id, uri in agent_map.items():
                 if uri:
-                    agent_tuple_map[agent_id] = CheckpointManager.get_policy_info(uri)
+                    metadata = CheckpointManager.get_policy_metadata(uri)
+                    agent_tuple_map[agent_id] = (metadata["run_name"], metadata["epoch"])
                 else:
                     agent_tuple_map[agent_id] = ("unknown", 0)
 
@@ -165,7 +167,8 @@ class SimulationStatsDB(EpisodeStatsDB):
         params = []
 
         if policy_uri is not None:
-            policy_key, policy_version = CheckpointManager.get_policy_info(policy_uri)
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            policy_key, policy_version = metadata["run_name"], metadata["epoch"]
             query += " AND s.policy_key = ? AND s.policy_version = ?"
             params.extend([policy_key, policy_version])
 
