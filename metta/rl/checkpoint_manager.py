@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 _global_cache = OrderedDict()
 
 
+def _parse_uri_path(uri: str, scheme: str) -> str:
+    """Extract path from URI, removing the scheme prefix."""
+    prefix = f"{scheme}://"
+    return uri[len(prefix) :] if uri.startswith(prefix) else uri
+
+
 def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format."""
     if not uri.startswith("wandb://"):
@@ -45,7 +51,7 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
 def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI."""
     if uri.startswith("file://"):
-        path = Path(uri[7:])
+        path = Path(_parse_uri_path(uri, "file"))
         if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
             return parse_checkpoint_filename(path.name)[:2]
         return path.stem if path.suffix else path.name, 0
@@ -67,7 +73,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
         return path.stem if path.suffix else path.name, 0
 
     if uri.startswith("mock://"):
-        return uri[7:], 0  # Remove "mock://"
+        return _parse_uri_path(uri, "mock"), 0
 
     return "unknown", 0
 
@@ -115,34 +121,40 @@ class CheckpointManager:
         _global_cache.clear()
 
     @staticmethod
+    def _find_best_checkpoint_in_dir(directory: Path) -> Optional[Path]:
+        """Find the best checkpoint file in a directory."""
+        # Try direct directory first, then checkpoints subdirectory
+        search_dirs = [directory]
+        if directory.name != "checkpoints":
+            checkpoints_subdir = directory / "checkpoints"
+            if checkpoints_subdir.is_dir():
+                search_dirs.append(checkpoints_subdir)
+
+        for search_dir in search_dirs:
+            checkpoint_files = list(search_dir.glob("*.pt"))
+            if checkpoint_files:
+                # Prefer files with valid checkpoint format, sorted by epoch
+                valid_checkpoints = [
+                    (ckpt, parse_checkpoint_filename(ckpt.name)[1])
+                    for ckpt in checkpoint_files
+                    if is_valid_checkpoint_filename(ckpt.name)
+                ]
+                if valid_checkpoints:
+                    return max(valid_checkpoints, key=lambda x: x[1])[0]
+                return checkpoint_files[0]  # Fallback to any .pt file
+        return None
+
+    @staticmethod
     def load_from_uri(uri: str):
         """Load a policy from file://, s3://, or wandb:// URI."""
         try:
             if uri.startswith("file://"):
-                path = Path(uri[7:])
+                path = Path(_parse_uri_path(uri, "file"))
                 if path.is_file() and path.suffix == ".pt":
                     return torch.load(path, weights_only=False)
                 if path.is_dir():
-                    # Try direct directory first
-                    checkpoint_files = list(path.glob("*.pt"))
-                    # If no checkpoints found and not in "checkpoints" dir, try checkpoints subdir
-                    if not checkpoint_files and path.name != "checkpoints":
-                        checkpoints_subdir = path / "checkpoints"
-                        if checkpoints_subdir.is_dir():
-                            checkpoint_files = list(checkpoints_subdir.glob("*.pt"))
-                    
-                    if not checkpoint_files:
-                        return None
-                    
-                    valid_checkpoints = [
-                        (ckpt, parse_checkpoint_filename(ckpt.name)[1])
-                        for ckpt in checkpoint_files
-                        if is_valid_checkpoint_filename(ckpt.name)
-                    ]
-                    if not valid_checkpoints:
-                        return torch.load(checkpoint_files[0], weights_only=False)
-                    latest_checkpoint = max(valid_checkpoints, key=lambda x: x[1])[0]
-                    return torch.load(latest_checkpoint, weights_only=False)
+                    checkpoint_file = CheckpointManager._find_best_checkpoint_in_dir(path)
+                    return torch.load(checkpoint_file, weights_only=False) if checkpoint_file else None
                 return None
             if uri.startswith("s3://"):
                 with local_copy(uri) as local_path:
@@ -178,7 +190,7 @@ class CheckpointManager:
         metadata = {"run_name": run_name, "epoch": epoch, "uri": uri, "original_uri": original_uri}
 
         if uri.startswith("file://"):
-            path = Path(uri[7:])
+            path = Path(_parse_uri_path(uri, "file"))
             if path.is_file() and is_valid_checkpoint_filename(path.name):
                 run_name, epoch, agent_step, total_time, score = parse_checkpoint_filename(path.name)
                 metadata.update(

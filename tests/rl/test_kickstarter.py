@@ -134,9 +134,7 @@ class TestKickstarter:
         assert torch.all(ks_value_loss == 0.0)
 
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
-    def test_loss_with_annealing(
-        self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env
-    ):
+    def test_loss_with_annealing(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the loss method with annealing."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
@@ -145,10 +143,13 @@ class TestKickstarter:
 
         # Mock the teachers list - need to mock the teacher policy that gets called
         mock_teacher_policy = MagicMock()
-        teacher_td = TensorDict({
-            "value": torch.ones(2, 1),
-            "full_log_probs": torch.log(torch.ones(2, 5) / 5.0)  # Uniform distribution log probs
-        }, batch_size=[2])
+        teacher_td = TensorDict(
+            {
+                "value": torch.ones(2, 1),
+                "full_log_probs": torch.log(torch.ones(2, 5) / 5.0),  # Uniform distribution log probs
+            },
+            batch_size=[2],
+        )
         mock_teacher_policy.return_value = teacher_td
         kickstarter.teachers = [(mock_teacher_policy, 0.5, 0.5)]  # (policy, action_coef, value_coef)
 
@@ -172,8 +173,7 @@ class TestKickstarter:
 
         # Verify that teacher policy was called with the observation
         mock_teacher_policy.assert_called_once_with(observation)
-        
+
         # Verify that losses are non-zero (scaled by anneal factor)
         assert ks_action_loss != 0.0
         assert ks_value_loss != 0.0
-
