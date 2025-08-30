@@ -177,9 +177,8 @@ class TestWandbURIHandling:
         # Verify expanded URI was passed to wandb loader
         mock_load_wandb.assert_called_once_with("wandb://metta/model/my-experiment:latest", device="cpu")
 
-    @patch("metta.rl.wandb.get_wandb_checkpoint_metadata")
-    @patch("wandb.Api")
-    def test_wandb_metadata_extraction(self, mock_wandb_api, mock_get_metadata):
+    @patch("metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata")
+    def test_wandb_metadata_extraction(self, mock_get_metadata):
         """Test metadata extraction from wandb URIs."""
         mock_get_metadata.return_value = {
             "run_name": "experiment_1",
@@ -188,8 +187,6 @@ class TestWandbURIHandling:
             "total_time": 750,
             "score": 0.95,
         }
-        # Mock the wandb API to prevent actual API calls
-        mock_wandb_api.return_value = Mock()
 
         uri = "wandb://run/experiment_1"
         metadata = CheckpointManager.get_policy_metadata(uri)
@@ -203,19 +200,16 @@ class TestWandbURIHandling:
 
     def test_wandb_key_and_version_extraction(self):
         """Test extracting key and version from wandb URIs."""
-        with patch("metta.rl.wandb.get_wandb_checkpoint_metadata", return_value={"run_name": "test", "epoch": 5}):
-            with patch("wandb.Api"):  # Mock wandb API to prevent actual API calls
-                key, version = key_and_version("wandb://run/test")
-                assert key == "test"
-                assert version == 5
+        with patch("metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata", return_value={"run_name": "test", "epoch": 5}):
+            key, version = key_and_version("wandb://run/test")
+            assert key == "test"
+            assert version == 5
 
-    @patch("metta.rl.wandb.load_policy_from_wandb_uri")
-    @patch("wandb.Api")
-    def test_wandb_error_handling(self, mock_wandb_api, mock_load_wandb):
+    @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
+    def test_wandb_error_handling(self, mock_load_wandb):
         """Test wandb URI error handling."""
         # Test network error
         mock_load_wandb.side_effect = RuntimeError("Network error")
-        mock_wandb_api.return_value = Mock()
 
         uri = "wandb://run/test"
         result = CheckpointManager.load_from_uri(uri)

@@ -124,7 +124,8 @@ class TestNewPolicySystem:
             train_tool = train()
             assert hasattr(train_tool, "trainer")
 
-            eval_tool = evaluate()
+            # Use a mock policy URI for testing evaluate function
+            eval_tool = evaluate(policy_uri="mock://test_policy")
             assert hasattr(eval_tool, "simulations")
 
             replay_tool = replay()
