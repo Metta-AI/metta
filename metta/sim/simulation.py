@@ -28,7 +28,6 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
-# Prefix for synthetic evaluation framework simulations (not real environment evaluations)
 SYNTHETIC_EVAL_PREFIX = "eval/"
 
 logger = logging.getLogger(__name__)
@@ -70,7 +69,6 @@ class Simulation:
         if wandb_policy_name is not None:
             self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
 
-        # env config
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
@@ -110,7 +108,6 @@ class Simulation:
         self._max_time_s = cfg.max_time_s
         self._agents_per_env = cfg.env.game.num_agents
 
-        # policies
         self._policy = policy
         self._run_name = run_name
         self._policy_uri = policy_uri
@@ -206,7 +203,6 @@ class Simulation:
             100 * self._policy_agents_per_env / self._agents_per_env,
         )
         logger.info("Stats dir: %s", self._stats_dir)
-        # reset
         self._obs, _ = self._vecenv.reset()
         self._env_done_flags = [False] * self._num_envs
 
@@ -286,10 +282,8 @@ class Simulation:
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
-        # env.step
         obs, rewards, dones, trunc, infos = self._vecenv.step(actions_np)
 
-        # episode FSM
         done_now = np.logical_or(
             dones.reshape(self._num_envs, self._agents_per_env).all(1),
             trunc.reshape(self._num_envs, self._agents_per_env).all(1),
@@ -333,7 +327,6 @@ class Simulation:
             return None
 
     def end_simulation(self) -> SimulationResults:
-        # teardown & DB merge
         self._vecenv.close()
         db = self._from_shards_and_context()
 
@@ -375,7 +368,7 @@ class Simulation:
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
         # Create agent map using URIs for database integration
-        agent_map: Dict[int, str] = {}  # Just URIs now!
+        agent_map: Dict[int, str] = {}
 
         # Add policy agents to the map if they have a URI
         if self._policy_uri:
