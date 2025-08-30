@@ -1,15 +1,40 @@
 # Codebot
 
 ```bash
-# Fix failing tests from clipboard
+# Generate code summaries
+codebot summarize src/
+
+# Start MCP server for Claude Desktop integration
+codebot mcp-server
+
+# Future commands (in development)
 codebot debug-tests
-
-# Interactive development
 codebot refactor -i src/api.py
-
-# Pipeline mode with structured output
 codebot implement -p src/feature.py
 ```
+
+## MCP Server Integration
+
+Codebot now includes a **Model Context Protocol (MCP) server** that allows integration with MCP clients like Claude
+Desktop. The MCP server exposes codebot's AI-powered development tools through a standardized protocol.
+
+### Quick Start with Claude Desktop
+
+1. Install codebot: `pip install -e .`
+2. Add to your Claude Desktop config (`claude_desktop_config.json`):
+   ```json
+   {
+     "mcpServers": {
+       "codebot": {
+         "command": "codebot",
+         "args": ["mcp-server"]
+       }
+     }
+   }
+   ```
+3. Restart Claude Desktop and access codebot tools directly in conversations!
+
+See [MCP_SERVER.md](MCP_SERVER.md) for detailed setup and usage instructions.
 
 ## Foundation for AI-Powered Development
 

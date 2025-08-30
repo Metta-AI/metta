@@ -8,6 +8,9 @@ with special handling for READMEs and XML output format.
 import fnmatch
 import logging
 import os
+
+# Import git helpers - use standalone implementation
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
