@@ -5,6 +5,14 @@
 #include "observation_tokens.hpp"
 #include "packed_coordinate.hpp"
 
+std::span<const uint8_t> MettaGridExtension::getAgentActions(const MettaGrid* env, size_t agent_idx) const {
+  const auto& actions = env->_actions;
+  size_t actions_per_agent = 2;  // action + action_arg
+  size_t offset = agent_idx * actions_per_agent;
+
+  return std::span<const uint8_t>(static_cast<const uint8_t*>(actions.data()) + offset, actions_per_agent);
+}
+
 std::span<const uint8_t> MettaGridExtension::getAgentObservations(const MettaGrid* env, size_t agent_idx) const {
   const auto& obs = env->_observations;
   size_t obs_per_agent = env->num_observation_tokens * 3;  // 3 bytes per token: packed_coord, feature, value
