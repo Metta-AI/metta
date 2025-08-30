@@ -34,23 +34,23 @@ class DistributedMettaAgent(DistributedDataParallel):
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
-        # Check if the agent might have circular references or other issues that cause conversion problems
-        # This can happen with loaded checkpoints that have structural issues
-        try:
-            # Try to convert - this will fail with various errors if there are structural issues
-            layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
-        except (RecursionError, RuntimeError, ValueError) as e:
-            logger.warning(
-                f"Error during SyncBatchNorm conversion ({type(e).__name__}: {e}). "
-                "This can happen with loaded checkpoints. Skipping SyncBatchNorm conversion."
-            )
+        # Check if the agent already has SyncBatchNorm layers (from loaded checkpoint)
+        # Converting an already-converted model can cause hanging in distributed training
+        has_sync_batchnorm = any(isinstance(module, torch.nn.SyncBatchNorm) for module in agent.modules())
+        
+        if has_sync_batchnorm:
+            log_on_master("Agent already contains SyncBatchNorm layers, skipping conversion")
             layers_converted_agent = agent
-        except Exception as e:
-            logger.warning(
-                f"Unexpected error during SyncBatchNorm conversion ({type(e).__name__}: {e}). "
-                "Skipping SyncBatchNorm conversion."
-            )
-            layers_converted_agent = agent
+        else:
+            # Try to convert - this will fail with RecursionError if there are circular refs
+            try:
+                layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+            except RecursionError:
+                logger.warning(
+                    "RecursionError during SyncBatchNorm conversion - likely due to circular references. "
+                    "Skipping SyncBatchNorm conversion."
+                )
+                layers_converted_agent = agent
 
         # Pass device_ids for GPU, but not for CPU
         if device.type == "cpu":
