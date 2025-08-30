@@ -16,7 +16,7 @@ arena_tasks = cc.bucketed(arena)
 # arena_tasks.add_bucket("game.level_map.width", [10, 20, 30, 40, 50])
 # arena_tasks.add_bucket("game.level_map.height", [10, 20, 30, 40, 50])
 
-for item in arena.game.inventory_item_names:
+for item in arena.game.resource_names:
     arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, Span(0, 1.0)])
     arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
