@@ -92,63 +92,60 @@ std::array<unsigned int, 5> VisitationCounts::computeVisitationCounts(const Mett
 }
 
 void VisitationCounts::addVisitationCountsToObservations(MettaGrid* env) {
-  // Get dimensions
-  size_t num_tokens = env->num_observation_tokens;
-  size_t num_channels = 3;  // packed_coord, feature, value
+  uint8_t center_r = env->obs_height / 2;
+  uint8_t center_c = env->obs_width / 2;
 
   for (size_t agent_idx = 0; agent_idx < _num_agents; agent_idx++) {
-    auto agent_obs = getAgentObservationsMutable(env, agent_idx);
     auto counts = computeVisitationCounts(env, agent_idx);
 
-    uint8_t center_r = env->obs_height / 2;
-    uint8_t center_c = env->obs_width / 2;
+    // Create observation tokens for the 5 visitation counts
+    std::vector<ObservationToken> tokens;
 
-    // Define positions for the 5 counts (center + 4 adjacent)
-    std::array<std::pair<uint8_t, uint8_t>, 5> positions;
-    positions[0] = {center_r, center_c};  // center
+    // Center position
+    ObservationToken center_token;
+    center_token.location = PackedCoordinate::pack(center_r, center_c);
+    center_token.feature_id = _visitation_count_feature;
+    center_token.value = static_cast<uint8_t>(std::min(counts[0], 255u));
+    tokens.push_back(center_token);
 
-    // North (r-1) - check for underflow
-    positions[1] = {(center_r > 0) ? static_cast<uint8_t>(center_r - 1) : uint8_t(0xFF), center_c};
-
-    // South (r+1)
-    positions[2] = {static_cast<uint8_t>(center_r + 1), center_c};
-
-    // East (c+1)
-    positions[3] = {center_r, static_cast<uint8_t>(center_c + 1)};
-
-    // West (c-1) - check for underflow
-    positions[4] = {center_r, (center_c > 0) ? static_cast<uint8_t>(center_c - 1) : uint8_t(0xFF)};
-
-    // Helper to access the 2D observation array for this agent
-    auto get_obs = [&](size_t token_idx, size_t channel) -> uint8_t& {
-      return agent_obs[token_idx * num_channels + channel];
-    };
-
-    // Find the first completely empty slot
-    size_t insert_pos = 0;
-    bool found_empty = false;
-    for (size_t token_idx = 0; token_idx < num_tokens; token_idx++) {
-      if (get_obs(token_idx, 0) == 0xFF && get_obs(token_idx, 1) == 0xFF && get_obs(token_idx, 2) == 0xFF) {
-        insert_pos = token_idx;
-        found_empty = true;
-        break;
-      }
+    // North (r-1) - check bounds
+    if (center_r > 0) {
+      ObservationToken north_token;
+      north_token.location = PackedCoordinate::pack(center_r - 1, center_c);
+      north_token.feature_id = _visitation_count_feature;
+      north_token.value = static_cast<uint8_t>(std::min(counts[1], 255u));
+      tokens.push_back(north_token);
     }
 
-    // Insert as many tokens as will fit
-    if (found_empty) {
-      size_t tokens_to_insert = std::min(static_cast<size_t>(5), num_tokens - insert_pos);
-      for (size_t i = 0; i < tokens_to_insert; i++) {
-        // Skip positions that are marked as invalid (0xFF)
-        if (positions[i].first != 0xFF && positions[i].second != 0xFF && positions[i].first < env->obs_height &&
-            positions[i].second < env->obs_width) {
-          uint8_t packed_loc = PackedCoordinate::pack(positions[i].first, positions[i].second);
-          get_obs(insert_pos + i, 0) = packed_loc;
-          get_obs(insert_pos + i, 1) = static_cast<uint8_t>(_visitation_count_feature);
-          get_obs(insert_pos + i, 2) = static_cast<uint8_t>(std::min(counts[i], 255u));
-        }
-      }
+    // South (r+1) - check bounds
+    if (center_r + 1 < env->obs_height) {
+      ObservationToken south_token;
+      south_token.location = PackedCoordinate::pack(center_r + 1, center_c);
+      south_token.feature_id = _visitation_count_feature;
+      south_token.value = static_cast<uint8_t>(std::min(counts[2], 255u));
+      tokens.push_back(south_token);
     }
+
+    // East (c+1) - check bounds
+    if (center_c + 1 < env->obs_width) {
+      ObservationToken east_token;
+      east_token.location = PackedCoordinate::pack(center_r, center_c + 1);
+      east_token.feature_id = _visitation_count_feature;
+      east_token.value = static_cast<uint8_t>(std::min(counts[3], 255u));
+      tokens.push_back(east_token);
+    }
+
+    // West (c-1) - check bounds
+    if (center_c > 0) {
+      ObservationToken west_token;
+      west_token.location = PackedCoordinate::pack(center_r, center_c - 1);
+      west_token.feature_id = _visitation_count_feature;
+      west_token.value = static_cast<uint8_t>(std::min(counts[4], 255u));
+      tokens.push_back(west_token);
+    }
+
+    // Write all tokens at once
+    writeObservations(env, agent_idx, tokens);
   }
 }
 

@@ -9,8 +9,11 @@
 #include <string>
 #include <unordered_map>
 #include <variant>
+#include <vector>
 
 #include "observation_encoder.hpp"
+#include "observation_tokens.hpp"
+#include "packed_coordinate.hpp"
 #include "types.hpp"
 
 class MettaGrid;
@@ -29,7 +32,6 @@ public:
 
   virtual void onStep(MettaGrid* /*env*/) = 0;
 
-  // stats
   virtual ExtensionStats getStats() const {
     return ExtensionStats();
   }
@@ -47,10 +49,23 @@ protected:
   // Helper to get observation dimensions
   size_t getObservationSize(const MettaGrid* env) const;
 
-  // Add other accessors as needed in the future
-  // For example:
-  // Grid* getGrid(MettaGrid* env);
-  // EventManager* getEventManager(MettaGrid* env);
+  // Write observation tokens for an agent. Returns number of tokens successfully written
+  size_t writeObservations(MettaGrid* env, size_t agent_idx, const std::vector<ObservationToken>& tokens);
+
+  // Write global observation tokens for an agent. Returns number of tokens successfully written
+  size_t writeGlobalObservations(MettaGrid* env,
+                                 size_t agent_idx,
+                                 const std::vector<ObservationType>& features,
+                                 const std::vector<ObservationType>& values);
+
+  /**
+   * Find the next empty observation slot for an agent.
+   *
+   * @param env The MettaGrid environment
+   * @param agent_idx The agent index
+   * @return Index of the first empty slot, or std::nullopt if full
+   */
+  std::optional<size_t> findEmptyObservationSlot(const MettaGrid* env, size_t agent_idx) const;
 };
 
 // Extension factory - no config needed
