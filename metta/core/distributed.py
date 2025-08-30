@@ -29,15 +29,15 @@ def setup_torch_distributed(device: str) -> TorchDistributedConfig:
     distributed = False
 
     if "LOCAL_RANK" in os.environ and device.startswith("cuda"):
+        local_rank = int(os.environ["LOCAL_RANK"])  # Use LOCAL_RANK from environment, not global rank
         torch.distributed.init_process_group(backend="nccl")
 
-        torch.cuda.set_device(device)
+        torch.cuda.set_device(local_rank)
         distributed = True
-        local_rank = int(os.environ["LOCAL_RANK"])  # Use LOCAL_RANK from environment, not global rank
         world_size = torch.distributed.get_world_size()
         rank = torch.distributed.get_rank()
         master = rank == 0
-        logger.info(f"Initialized NCCL distributed training on {device}")
+        logger.info(f"Initialized NCCL distributed training on {device} (rank {rank}, local_rank {local_rank})")
 
     return TorchDistributedConfig(
         device=device,
