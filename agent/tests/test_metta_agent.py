@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 import torch
 from tensordict import TensorDict
+from torchrl.data import Composite
 
 # Import the actual class
 from metta.agent.agent_config import AgentConfig
@@ -250,8 +251,6 @@ def test_agent_experience_spec(create_metta_agent):
     spec = agent.get_agent_experience_spec()
 
     # Check it's a Composite spec
-    from torchrl.data import Composite
-
     assert isinstance(spec, Composite)
 
     # Check it has expected keys
