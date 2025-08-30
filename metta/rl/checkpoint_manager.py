@@ -25,7 +25,7 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     if not uri.startswith("wandb://"):
         return uri
 
-    path = uri[8:]  # Remove "wandb://"
+    path = _parse_uri_path(uri, "wandb")
 
     # Check for short format patterns
     if path.startswith("run/"):
