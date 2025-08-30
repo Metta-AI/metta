@@ -106,6 +106,12 @@ class CheckpointManager:
         self._cache = OrderedDict()
 
     @staticmethod
+    def clear_cache():
+        """Clear the global cache used by all CheckpointManager instances."""
+        global _global_cache
+        _global_cache.clear()
+
+    @staticmethod
     def load_from_uri(uri: str):
         """Load a policy from file://, s3://, or wandb:// URI."""
         try:
