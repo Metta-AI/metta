@@ -11,7 +11,12 @@ git checkout "$METTA_GIT_REF"
 echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
 echo "[SETUP] Installing Datadog agent..."
-uv run metta install datadog-agent || echo "[SETUP] Datadog agent installation failed or skipped"
+export DD_ENV="production"
+export DD_SERVICE="skypilot-worker"
+export DD_AGENT_HOST="localhost"
+export DD_TRACE_AGENT_PORT="8126"
+uv run metta configure --profile softmax-docker || echo "[SETUP] Metta configure failed or skipped"
+uv run metta install datadog-agent --force || echo "[SETUP] Datadog agent installation failed or skipped"
 
 # Note that different sets of skypilot environment variables are available in "run" vs "setup"
 # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html

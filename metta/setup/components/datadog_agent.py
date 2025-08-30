@@ -1,5 +1,5 @@
+import json
 import os
-import platform
 import subprocess
 
 import boto3
@@ -25,22 +25,18 @@ class DatadogAgentSetup(SetupModule):
         return "Datadog agent for system monitoring and log aggregation"
 
     def _is_applicable(self) -> bool:
-        # Only applicable on Linux systems (EC2 instances)
-        return platform.system() == "Linux"
+        # Only install this within the docker containers that are running on EC2 instances
+        return os.path.exists("/.dockerenv")
 
     def check_installed(self) -> bool:
-        # Check if datadog-agent service exists
         try:
             result = subprocess.run(
-                ["systemctl", "status", "datadog-agent"],
+                ["which", "datadog-agent"],
                 capture_output=True,
-                text=True,
                 check=False,
             )
-            # Service exists if systemctl can find it (even if not running)
-            return result.returncode != 4  # 4 means service not found
+            return result.returncode == 0
         except FileNotFoundError:
-            # systemctl not available
             return False
 
     def _get_dd_api_key(self) -> str:
@@ -67,16 +63,25 @@ class DatadogAgentSetup(SetupModule):
             warning("Skipping Datadog agent installation.")
             return
 
-        # Set environment variables for the install script
-        env = os.environ.copy()
-        env["DD_API_KEY"] = api_key
-        env["DD_SITE"] = os.environ.get("DD_SITE", "datadoghq.com")
-        env["DD_VERSION"] = os.environ.get("DD_VERSION", os.environ.get("METTA_GIT_REF", "unknown"))
-        env["DD_TRACE_ENABLED"] = os.environ.get("DD_TRACE_ENABLED", "true")
-        env["DD_LOGS_ENABLED"] = os.environ.get("DD_LOGS_ENABLED", "true")
+        # Set base environment variables
+        base_env = os.environ.copy()
+        base_env["DD_API_KEY"] = api_key
+        base_env["DD_SITE"] = os.environ.get("DD_SITE", "datadoghq.com")
+        base_env["DD_VERSION"] = os.environ.get("DD_VERSION", os.environ.get("METTA_GIT_REF", "unknown"))
+        base_env["DD_TRACE_ENABLED"] = os.environ.get("DD_TRACE_ENABLED", "true")
+        base_env["DD_LOGS_ENABLED"] = os.environ.get("DD_LOGS_ENABLED", "true")
+
+        # Add service and environment tags
+        base_env["DD_ENV"] = os.environ.get("DD_ENV", "production")
+        base_env["DD_SERVICE"] = os.environ.get("DD_SERVICE", "skypilot-worker")
+        base_env["DD_AGENT_HOST"] = os.environ.get("DD_AGENT_HOST", "localhost")
+        base_env["DD_TRACE_AGENT_PORT"] = os.environ.get("DD_TRACE_AGENT_PORT", "8126")
+
+        # Enable container log collection
+        base_env["DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL"] = "true"
 
         # Set tags from SkyPilot environment variables
-        tags = env.get("DD_TAGS", "").split(" ")
+        tags = base_env.get("DD_TAGS", "").split(" ")
         for env_var, tag in [
             ("METTA_RUN_ID", "metta_run_id"),
             ("SKYPILOT_TASK_ID", "skypilot_task_id"),
@@ -87,26 +92,20 @@ class DatadogAgentSetup(SetupModule):
                 tags.append(f"{tag}:{value}")
 
         if tags:
-            env["DD_TAGS"] = " ".join(tags)
-
-        # Check if already installed
-        if self.check_installed():
-            info("Datadog agent already installed.")
-            # Just restart with new config/tags if needed
-            try:
-                subprocess.run(["sudo", "systemctl", "restart", "datadog-agent"], check=True)
-                success("Datadog agent restarted with updated configuration.")
-            except subprocess.CalledProcessError:
-                warning("Failed to restart Datadog agent.")
-            return
+            base_env["DD_TAGS"] = " ".join(tags)
 
         info("Installing Datadog agent...")
+        info("Container environment detected - installing without systemd.")
+
+        # Create install environment with DD_INSTALL_ONLY
+        install_env = base_env.copy()
+        install_env["DD_INSTALL_ONLY"] = "true"
 
         install_cmd = 'bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"'
         result = subprocess.run(
             install_cmd,
             shell=True,
-            env=env,
+            env=install_env,
             capture_output=True,
             text=True,
             check=False,
@@ -117,3 +116,36 @@ class DatadogAgentSetup(SetupModule):
             return
 
         success("Datadog agent installed successfully.")
+
+        # Start the agent in background for containers
+        info("Starting Datadog agent in background...")
+        try:
+            # Write configuration to the agent config file
+            config_dir = "/etc/datadog-agent"
+            os.makedirs(config_dir, exist_ok=True)
+
+            # Create runtime environment WITHOUT DD_INSTALL_ONLY
+            runtime_env = base_env.copy()
+
+            # Start the agent process in background
+            subprocess.Popen(
+                ["/opt/datadog-agent/bin/agent/agent", "run"],
+                env=runtime_env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            success("Datadog agent started in background with env vars:")
+            info(json.dumps({k: v for k, v in runtime_env.items() if k.startswith("DD_")}, indent=2))
+
+            # Also persist DD env vars to METTA_ENV_FILE if it exists
+            env_file = os.path.expanduser("~/.metta_env_path")
+            if os.path.exists(env_file):
+                info(f"Persisting Datadog env vars to {env_file}")
+                with open(env_file, "a") as f:
+                    for k, v in runtime_env.items():
+                        if k.startswith("DD_"):
+                            f.write(f'export {k}="{v}"\n')
+                info("Datadog env vars persisted to METTA_ENV_FILE")
+        except Exception as e:
+            warning(f"Failed to start Datadog agent in background: {e}")
