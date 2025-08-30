@@ -138,6 +138,9 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
+    # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
+    existing_agent = checkpoint_manager.load_agent()
+
     # Load trainer state (returns None if no trainer state exists)
     trainer_state = checkpoint_manager.load_trainer_state()
     agent_step = trainer_state["agent_step"] if trainer_state else 0
@@ -150,16 +153,15 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
-    existing_agent = checkpoint_manager.load_agent()
-
-    # Create or use existing agent (simplified to match main branch)
+    # Create or use existing agent
     if existing_agent:
         logger.info("Resuming training with existing agent from checkpoint")
-        policy: PolicyAgent = existing_agent
+        policy_agent = existing_agent
     else:
         logger.info("Creating new agent for training")
-        policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+        policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+
+    policy: PolicyAgent = policy_agent
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
