@@ -211,11 +211,14 @@ def train(
         cpu_offload=trainer_cfg.cpu_offload,
     )
 
-    # Create optimizer
+    # Create optimizer on unwrapped agent parameters for consistent state dict structure
+    # Use policy.module if distributed, otherwise use policy directly
+    optimizer_target = policy.module if torch.distributed.is_initialized() else policy
+
     optimizer_type = trainer_cfg.optimizer.type
     if optimizer_type == "adam":
         optimizer = torch.optim.Adam(
-            policy.parameters(),
+            optimizer_target.parameters(),
             lr=trainer_cfg.optimizer.learning_rate,
             betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
             eps=trainer_cfg.optimizer.eps,
@@ -224,7 +227,7 @@ def train(
     elif optimizer_type == "muon":
         # ForeachMuon expects int for weight_decay
         optimizer = ForeachMuon(
-            policy.parameters(),
+            optimizer_target.parameters(),
             lr=trainer_cfg.optimizer.learning_rate,
             betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
             eps=trainer_cfg.optimizer.eps,
