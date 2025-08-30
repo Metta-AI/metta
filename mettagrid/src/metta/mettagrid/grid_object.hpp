@@ -13,26 +13,6 @@ using Layer = ObservationType;
 using TypeId = ObservationType;
 using ObservationCoord = ObservationType;
 
-struct PartialObservationToken {
-  ObservationType feature_id = OBSERVATION_EMPTY_TOKEN;
-  ObservationType value = OBSERVATION_EMPTY_TOKEN;
-};
-
-// These may make more sense in observation_encoder.hpp, but we need to include that
-// header in a lot of places, and it's nice to have these types defined in one place.
-struct alignas(1) ObservationToken {
-  ObservationType location = OBSERVATION_EMPTY_TOKEN;
-  ObservationType feature_id = OBSERVATION_EMPTY_TOKEN;
-  ObservationType value = OBSERVATION_EMPTY_TOKEN;
-};
-
-// The alignas should make sure of this, but let's be explicit.
-// We're going to be reinterpret_casting things to this type, so
-// it'll be bad if the compiler pads this type.
-static_assert(sizeof(ObservationToken) == 3 * sizeof(uint8_t), "ObservationToken must be 3 bytes");
-
-using ObservationTokens = std::span<ObservationToken>;
-
 class GridLocation {
 public:
   GridCoord r;
