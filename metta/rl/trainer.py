@@ -150,27 +150,14 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Load or create policy with distributed coordination (matching main branch)
-    # CRITICAL: All ranks must load/create the same agent structure for SyncBatchNorm to work
+    # Load or create policy with distributed coordination (matching main branch hotfix a546f3734)
+    # CRITICAL: ALL ranks must load the same checkpoint file for identical structures before SyncBatchNorm
 
-    # Master determines if checkpoint exists
-    existing_agent = None
-    if torch_dist_cfg.is_master:
-        existing_agent = checkpoint_manager.load_agent()
-
-    # Synchronize whether checkpoint exists across all ranks
-    has_checkpoint = existing_agent is not None
-    if torch.distributed.is_initialized():
-        # Broadcast boolean from master to all ranks
-        has_checkpoint_tensor = torch.tensor([has_checkpoint], dtype=torch.bool, device=device)
-        torch.distributed.broadcast(has_checkpoint_tensor, src=0)
-        has_checkpoint = has_checkpoint_tensor.item()
-
-    # All ranks load/create the same agent structure
-    if has_checkpoint:
+    if checkpoint_manager.exists():
         logger.info("Resuming training with existing agent from checkpoint")
-        if existing_agent is None:  # Non-master ranks need to load too
-            existing_agent = checkpoint_manager.load_agent()
+        # ALL ranks load the same checkpoint to ensure identical module structures
+        # DDP will synchronize weights, but we need matching architecture for SyncBatchNorm
+        existing_agent = checkpoint_manager.load_agent()
         policy: PolicyAgent = existing_agent
     else:
         logger.info("Creating new agent for training")
