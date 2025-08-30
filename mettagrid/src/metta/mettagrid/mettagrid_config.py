@@ -121,7 +121,8 @@ class BoxConfig(Config):
     """Python box configuration."""
 
     type_id: int = Field(default=0, ge=0, le=255)
-    resources_to_create: dict[str, int] = Field(default_factory=dict)
+    # We don't allow setting of returned_resources -- it should always match
+    # the consumed_resources by place_box.
 
 
 class ConverterConfig(Config):
