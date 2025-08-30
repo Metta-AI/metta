@@ -494,9 +494,8 @@ def train(
                     )
 
                 # Save agent and trainer state
-                checkpoint_manager.save_checkpoint(
-                    agent_to_save, optimizer, epoch, agent_step, metadata, timer.save_state()
-                )
+                checkpoint_manager.save_agent(agent_to_save, epoch, metadata)
+                checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
                 latest_saved_epoch = epoch  # Update latest saved epoch
 
                 logger.info(f"Successfully saved checkpoint at epoch {epoch}")
@@ -505,7 +504,8 @@ def train(
                 if wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval):
                     try:
                         # Get the checkpoint file that was just saved
-                        checkpoint_file = checkpoint_manager.get_latest_checkpoint()
+                        checkpoints = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+                        checkpoint_file = checkpoints[0] if checkpoints else None
                         if checkpoint_file:
                             # Use the metadata we already have, augmented with run info
                             wandb_metadata = metadata.copy()
@@ -667,13 +667,15 @@ def train(
             }
         )
 
-    checkpoint_manager.save_checkpoint(agent_to_save, optimizer, epoch, agent_step, final_metadata)
+    checkpoint_manager.save_agent(agent_to_save, epoch, final_metadata)
+    checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
 
     # Upload final checkpoint to wandb (force upload regardless of interval)
     if wandb_run:
         try:
             # Get the checkpoint file that was just saved
-            checkpoint_file = checkpoint_manager.get_latest_checkpoint()
+            checkpoints = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+            checkpoint_file = checkpoints[0] if checkpoints else None
             if checkpoint_file:
                 # Use the metadata we already have, augmented with run info
                 wandb_metadata = final_metadata.copy()

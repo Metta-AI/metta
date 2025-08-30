@@ -33,6 +33,7 @@ def temp_dir():
 def mock_policy():
     """Create a mock policy for testing."""
     from metta.agent.mocks import MockAgent
+
     return MockAgent()
 
 

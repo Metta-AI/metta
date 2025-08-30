@@ -168,17 +168,20 @@ class EvalStatsDB(SimulationStatsDB):
 
     def get_average_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
         """URI-native version to get average metric."""
-        pk, pv = CheckpointManager.get_policy_info(policy_uri)
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
     def get_std_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
         """URI-native version to get standard deviation metric."""
-        pk, pv = CheckpointManager.get_policy_info(policy_uri)
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
     def get_sum_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
         """URI-native version to get sum metric."""
-        pk, pv = CheckpointManager.get_policy_info(policy_uri)
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "SUM", filter_condition)
 
     def sample_count_uri(
@@ -201,7 +204,8 @@ class EvalStatsDB(SimulationStatsDB):
 
     def simulation_scores(self, policy_uri: str, metric: str) -> Dict[tuple[str, str], float]:
         """Return { (name,env) : normalized mean(metric) } for a policy URI."""
-        pk, pv = CheckpointManager.get_policy_info(policy_uri)
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
         sim_rows = self.query(f"""
             SELECT DISTINCT sim_name, sim_env
               FROM policy_simulation_agent_samples

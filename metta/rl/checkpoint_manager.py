@@ -177,17 +177,6 @@ class CheckpointManager:
                 )
         return metadata
 
-    @staticmethod
-    def get_policy_info(uri: str) -> tuple[str, int]:
-        """Extract run_name and epoch from policy URI."""
-        metadata = CheckpointManager.get_policy_metadata(uri)
-        return metadata["run_name"], metadata["epoch"]
-
-    def get_latest_checkpoint(self) -> Optional[Path]:
-        """Get the latest checkpoint file."""
-        checkpoints = self.select_checkpoints(strategy="latest", count=1, metric="epoch")
-        return checkpoints[0] if checkpoints else None
-
     def _find_checkpoint_files(self, epoch: Optional[int] = None) -> List[Path]:
         pattern = f"{self.run_name}__e{epoch}__s*__t*__sc*.pt" if epoch else f"{self.run_name}__e*__s*__t*__sc*.pt"
         return list(self.checkpoint_dir.glob(pattern))
@@ -245,12 +234,12 @@ class CheckpointManager:
         score = int(metadata.get("score", 0.0) * 10000)
         filename = f"{self.run_name}__e{epoch}__s{agent_step}__t{total_time}__sc{score}.pt"
         checkpoint_path = self.checkpoint_dir / filename
-        
+
         # Check if we're overwriting an existing checkpoint for this epoch
         existing_files = self._find_checkpoint_files(epoch)
-        
+
         torch.save(agent, checkpoint_path)
-        
+
         # Only invalidate cache entries if we're overwriting an existing checkpoint
         if existing_files:
             keys_to_remove = []
@@ -269,19 +258,6 @@ class CheckpointManager:
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
         torch.save(state, trainer_file)
-
-    def save_checkpoint(
-        self,
-        agent,
-        optimizer,
-        epoch: int,
-        agent_step: int,
-        metadata: Dict[str, Any],
-        stopwatch_state: Optional[Dict[str, Any]] = None,
-    ):
-        """Save both agent and trainer state in one call."""
-        self.save_agent(agent, epoch, metadata)
-        self.save_trainer_state(optimizer, epoch, agent_step, stopwatch_state)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
         checkpoint_files = self._find_checkpoint_files()
