@@ -37,5 +37,8 @@ def discover_policy_uris(base_uri: str, strategy: str = "latest", count: int = 1
         return [f"file://{path}" for path in checkpoint_paths]
     elif base_uri.startswith("wandb://"):
         return [base_uri]
+    elif base_uri.startswith("mock://"):
+        # Handle mock URIs for testing - return the URI as-is
+        return [base_uri]
     else:
         raise ValueError(f"Unsupported URI scheme: {base_uri}")

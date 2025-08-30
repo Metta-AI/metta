@@ -10,6 +10,9 @@ from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb
 
 logger = logging.getLogger(__name__)
 
+# Global cache for class-level cache management
+_global_cache = OrderedDict()
+
 
 def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format."""
@@ -63,6 +66,11 @@ def key_and_version(uri: str) -> tuple[str, int]:
         path = Path(filename)
         return path.stem if path.suffix else path.name, 0
 
+    if uri.startswith("mock://"):
+        # Extract mock policy name from URI
+        mock_name = uri[7:]  # Remove "mock://"
+        return mock_name, 0
+
     return "unknown", 0
 
 
@@ -102,12 +110,18 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]
 class CheckpointManager:
     """Checkpoint manager with filename-embedded metadata and LRU cache."""
 
-    def __init__(self, run_name: str, run_dir: str = "./train_dir", cache_size: int = 3):
+    def __init__(self, run_name: str = "default", run_dir: str = "./train_dir", cache_size: int = 3):
         self.run_name = run_name
         self.run_dir = Path(run_dir)
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
+
+    @staticmethod
+    def clear_cache():
+        """Clear the global cache used by all CheckpointManager instances."""
+        global _global_cache
+        _global_cache.clear()
 
     @staticmethod
     def load_from_uri(uri: str):
@@ -139,6 +153,11 @@ class CheckpointManager:
             if uri.startswith("wandb://"):
                 expanded_uri = expand_wandb_uri(uri)
                 return load_policy_from_wandb_uri(expanded_uri, device="cpu")
+            if uri.startswith("mock://"):
+                # Handle mock URIs for testing - return MockAgent
+                from metta.agent.mocks import MockAgent
+
+                return MockAgent()
             return None
         except Exception:
             return None
