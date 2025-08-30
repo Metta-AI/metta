@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import datetime
 import tempfile
 import uuid
 from pathlib import Path
@@ -13,7 +14,6 @@ TestEvalStatsDb = tuple[EvalStatsDB, str, str]  # (db, policy_key, policy_versio
 
 
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
-    import datetime
 
     db = EvalStatsDB(db_path)
 

@@ -12,6 +12,9 @@ import pytest
 import metta.mettagrid.config.envs as eb
 from metta.mettagrid import dtype_observations
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 
 
 class TestBasicPolicyEnvironment:
@@ -131,7 +134,6 @@ class TestBasicPolicyEnvironment:
 
     def test_simulation_creation(self):
         """Test simulation configuration creation."""
-        from metta.sim.simulation_config import SimulationConfig
 
         # Test creating simulation config
         env_config = eb.make_navigation(num_agents=2)
@@ -142,8 +144,6 @@ class TestBasicPolicyEnvironment:
 
     def test_replay_tool_config(self):
         """Test that replay tool can be configured."""
-        from metta.sim.simulation_config import SimulationConfig
-        from metta.tools.replay import ReplayTool
 
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(name="test_arena", env=env_config)
@@ -159,8 +159,6 @@ class TestBasicPolicyEnvironment:
 
     def test_play_tool_config(self):
         """Test that play tool can be configured."""
-        from metta.sim.simulation_config import SimulationConfig
-        from metta.tools.play import PlayTool
 
         env_config = eb.make_navigation(num_agents=2)
         sim_config = SimulationConfig(name="test_nav_play", env=env_config)

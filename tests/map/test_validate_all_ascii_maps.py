@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 
 def find_map_files(root_dir="configs") -> list[str]:
@@ -39,7 +40,6 @@ def map_files():
 
 def test_programmatic_map_generation():
     """Test that maps can be generated programmatically without config files."""
-    from metta.mettagrid.map_builder.random import RandomMapBuilder
 
     # Create a simple map builder configuration
     map_builder = RandomMapBuilder.Config(

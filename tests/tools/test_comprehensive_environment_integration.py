@@ -17,6 +17,10 @@ from metta.mettagrid.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
+from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 
 
 class TestComprehensiveEnvironmentIntegration:
@@ -197,7 +201,6 @@ class TestComprehensiveEnvironmentIntegration:
 
     def test_programmatic_env_with_mettagrid(self):
         """Test that programmatically created environments work with MettaGridEnv."""
-        from metta.mettagrid.mettagrid_env import MettaGridEnv
 
         env_config = self.make_debug_env("tiny_two_altars")
         env = MettaGridEnv(env_config)
@@ -212,7 +215,6 @@ class TestComprehensiveEnvironmentIntegration:
 
     def test_simulation_config_creation(self):
         """Test creating simulation configs from environments."""
-        from metta.sim.simulation_config import SimulationConfig
 
         for env_name in ["tiny_two_altars", "simple_obstacles"]:
             env_config = self.make_debug_env(env_name)
@@ -223,9 +225,6 @@ class TestComprehensiveEnvironmentIntegration:
 
     def test_tool_configuration_with_environments(self):
         """Test that tools can be configured with programmatic environments."""
-        from metta.sim.simulation_config import SimulationConfig
-        from metta.tools.play import PlayTool
-        from metta.tools.replay import ReplayTool
 
         env_config = self.make_debug_env("resource_collection")
         sim_config = SimulationConfig(name="test_resource", env=env_config)

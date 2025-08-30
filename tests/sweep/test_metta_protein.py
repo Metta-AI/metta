@@ -2,6 +2,7 @@
 
 from unittest.mock import Mock, patch
 
+import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
@@ -71,7 +72,6 @@ class TestMettaProtein:
         """Test that suggestions have numpy types cleaned."""
         # Mock Protein with numpy types in response
         mock_protein = Mock()
-        import numpy as np
 
         suggestion_with_numpy = {
             "learning_rate": np.float64(0.005),
