@@ -54,7 +54,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
         path = Path(_parse_uri_path(uri, "file"))
         if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
             return parse_checkpoint_filename(path.name)[:2]
-        
+
         # Handle directory URIs by finding the latest checkpoint inside
         if path.is_dir():
             checkpoint_file = _find_best_checkpoint_in_dir(path)
@@ -62,7 +62,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
                 return parse_checkpoint_filename(checkpoint_file.name)[:2]
             elif checkpoint_file:
                 return checkpoint_file.stem, 0
-        
+
         return path.stem if path.suffix else path.name, 0
 
     if uri.startswith("wandb://"):
@@ -144,9 +144,9 @@ class CheckpointManager:
         # Validate run name
         if not run_name or not run_name.strip():
             raise ValueError("Run name cannot be empty")
-        if any(char in run_name for char in [' ', '/', '*', '\\', ':', '<', '>', '|', '?', '"']):
+        if any(char in run_name for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
             raise ValueError(f"Run name contains invalid characters: {run_name}")
-        
+
         self.run_name = run_name
         self.run_dir = Path(run_dir)
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"

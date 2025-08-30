@@ -200,7 +200,9 @@ class TestWandbURIHandling:
 
     def test_wandb_key_and_version_extraction(self):
         """Test extracting key and version from wandb URIs."""
-        with patch("metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata", return_value={"run_name": "test", "epoch": 5}):
+        with patch(
+            "metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata", return_value={"run_name": "test", "epoch": 5}
+        ):
             key, version = key_and_version("wandb://run/test")
             assert key == "test"
             assert version == 5
