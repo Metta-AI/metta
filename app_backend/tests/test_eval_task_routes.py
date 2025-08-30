@@ -1,11 +1,8 @@
 import uuid
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
+from http_env import HttpEvalTaskClientEnv
 
-from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes.eval_task_routes import (
@@ -19,22 +16,6 @@ from metta.app_backend.routes.eval_task_routes import (
 
 class TestEvalTaskRoutes:
     """End-to-end tests for eval task routes."""
-
-    @pytest.fixture
-    def eval_task_client(self, test_client: TestClient, test_app: FastAPI) -> EvalTaskClient:
-        """Create an eval task client for testing."""
-        token_response = test_client.post(
-            "/tokens",
-            json={"name": "eval_test_token", "permissions": ["read", "write"]},
-            headers={"X-Auth-Request-Email": "test_user@example.com"},
-        )
-        assert token_response.status_code == 200
-        token = token_response.json()["token"]
-        client = EvalTaskClient.__new__(EvalTaskClient)
-        client._http_client = AsyncClient(transport=ASGITransport(app=test_app), base_url=test_client.base_url)
-        client._machine_token = token
-
-        return client
 
     @pytest.fixture
     def test_policy_id(self, stats_client: StatsClient) -> uuid.UUID:
@@ -60,7 +41,7 @@ class TestEvalTaskRoutes:
         return policy.id
 
     @pytest.mark.asyncio
-    async def test_create_eval_task(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_create_eval_task(self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID):
         """Test creating an eval task."""
         request = TaskCreateRequest(
             policy_id=test_policy_id,
@@ -69,6 +50,7 @@ class TestEvalTaskRoutes:
             sim_suite="navigation",
         )
 
+        eval_task_client = http_eval_task_env.make_client()
         response = await eval_task_client.create_task(request)
 
         # Basic assertions
@@ -90,8 +72,9 @@ class TestEvalTaskRoutes:
         # assert response.attributes["env_overrides"] == {"key": "value"}
 
     @pytest.mark.asyncio
-    async def test_get_available_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_get_available_tasks(self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID):
         """Test getting available tasks."""
+        eval_task_client = http_eval_task_env.make_client()
         task_ids = []
         for i in range(3):
             request = TaskCreateRequest(
@@ -110,8 +93,9 @@ class TestEvalTaskRoutes:
             assert task_id in returned_ids
 
     @pytest.mark.asyncio
-    async def test_claim_and_update_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_claim_and_update_tasks(self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID):
         """Test the complete workflow of claiming and updating tasks."""
+        eval_task_client = http_eval_task_env.make_client()
         # Create task
         create_request = TaskCreateRequest(
             policy_id=test_policy_id,
@@ -144,9 +128,10 @@ class TestEvalTaskRoutes:
 
     @pytest.mark.asyncio
     async def test_get_claimed_tasks_without_assignee(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID
     ):
         """Test getting all claimed tasks without specifying an assignee."""
+        eval_task_client = http_eval_task_env.make_client()
         task_ids_by_worker = {}
         workers = ["worker_alpha", "worker_beta", "worker_gamma"]
 
@@ -185,8 +170,9 @@ class TestEvalTaskRoutes:
         assert all(tid not in specific_ids for tid in task_ids_by_worker["worker_gamma"])
 
     @pytest.mark.asyncio
-    async def test_task_assignment_expiry(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_task_assignment_expiry(self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID):
         """Test that assigned tasks become available again after expiry."""
+        eval_task_client = http_eval_task_env.make_client()
         task_response = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
@@ -213,9 +199,10 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_multiple_workers_claiming_same_task(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID
     ):
         """Test that only one worker can claim a task."""
+        eval_task_client = http_eval_task_env.make_client()
         task_response = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
@@ -238,10 +225,11 @@ class TestEvalTaskRoutes:
         self,
         stats_client: StatsClient,
         test_policy_id: uuid.UUID,
-        eval_task_client: EvalTaskClient,
+        http_eval_task_env: HttpEvalTaskClientEnv,
         stats_repo: MettaRepo,
     ):
         """Test recording an episode linked to an eval task."""
+        eval_task_client = http_eval_task_env.make_client()
         task_response = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
@@ -275,12 +263,13 @@ class TestEvalTaskRoutes:
     @pytest.mark.asyncio
     async def test_invalid_status_update(
         self,
-        eval_task_client: EvalTaskClient,
+        http_eval_task_env: HttpEvalTaskClientEnv,
         test_policy_id: uuid.UUID,
         test_client,
         test_user_headers: dict[str, str],
     ):
         """Test that invalid status updates are rejected."""
+        eval_task_client = http_eval_task_env.make_client()
         task_response = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
@@ -307,8 +296,11 @@ class TestEvalTaskRoutes:
         assert update_response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_update_task_with_error_reason(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_update_task_with_error_reason(
+        self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID
+    ):
         """Test updating task status to error with an error reason."""
+        eval_task_client = http_eval_task_env.make_client()
         task_response = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
@@ -336,8 +328,11 @@ class TestEvalTaskRoutes:
         assert task_id not in [task.id for task in available_response.tasks]
 
     @pytest.mark.asyncio
-    async def test_update_task_mixed_formats(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_update_task_mixed_formats(
+        self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID
+    ):
         """Test updating multiple tasks with mixed string and object formats."""
+        eval_task_client = http_eval_task_env.make_client()
         # Create and claim tasks
         task_ids = []
         for i in range(3):
@@ -374,9 +369,10 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_error_reason_stored_in_db(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_repo: MettaRepo
+        self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID, stats_repo: MettaRepo
     ):
         """Test that error_reason is properly stored in the database attributes."""
+        eval_task_client = http_eval_task_env.make_client()
         task_response = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
@@ -407,8 +403,11 @@ class TestEvalTaskRoutes:
 
     @pytest.mark.slow
     @pytest.mark.asyncio
-    async def test_get_all_tasks_with_filters(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_get_all_tasks_with_filters(
+        self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID
+    ):
         """Test get_all_tasks with all filter criteria."""
+        eval_task_client = http_eval_task_env.make_client()
         # Create tasks with different attributes
         created_tasks = []
 
@@ -511,9 +510,10 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_with_multiple_statuses(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID
     ):
         """Test filtering by multiple statuses."""
+        eval_task_client = http_eval_task_env.make_client()
         # Create tasks with different statuses
         tasks_by_status = {}
 
@@ -573,7 +573,7 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_with_multiple_sim_suites_and_policies(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_client: StatsClient
+        self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID, stats_client: StatsClient
     ):
         """Test filtering by multiple sim_suites and policy_ids."""
         # Create a second policy
@@ -593,6 +593,7 @@ class TestEvalTaskRoutes:
         )
 
         # Create tasks with different combinations
+        eval_task_client = http_eval_task_env.make_client()
         tasks = {}
 
         # Policy 1, navigation
@@ -667,7 +668,7 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_sql_query_with_arrays(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_client: StatsClient
+        self, http_eval_task_env: HttpEvalTaskClientEnv, test_policy_id: uuid.UUID, stats_client: StatsClient
     ):
         """Test that SQL queries with array parameters work correctly."""
         # Create multiple policies
@@ -690,6 +691,7 @@ class TestEvalTaskRoutes:
             policies.append(policy.id)
 
         # Create tasks with different statuses and sim_suites
+        eval_task_client = http_eval_task_env.make_client()
         created_tasks = []
         statuses_to_create = ["unprocessed", "done", "error"]
         sim_suites_to_create = ["navigation", "memory", "arena"]

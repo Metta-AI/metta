@@ -5,7 +5,7 @@ from typing import Any, Optional, Type, TypeVar
 import httpx
 from pydantic import BaseModel
 
-from metta.app_backend.clients.base_client import NotAuthenticatedError, get_machine_token
+from metta.app_backend.clients.base_client import BaseAppBackendClient, NotAuthenticatedError, get_machine_token
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
 from metta.app_backend.routes.score_routes import (
     PolicyScoresData,
@@ -178,3 +178,124 @@ class StatsClient:
         stats_client = StatsClient(backend_url=stats_server_uri, machine_token=machine_token)
         stats_client._validate_authenticated()
         return stats_client
+
+
+class AsyncStatsClient(BaseAppBackendClient):
+    """Async stats client using BaseAppBackendClient pattern."""
+
+    async def get_policy_ids(self, policy_names: list[str]) -> PolicyIdResponse:
+        request_data = {"policy_names": policy_names}
+        return await self._make_request(PolicyIdResponse, "GET", "/stats/policies/ids", params=request_data)
+
+    async def create_training_run(
+        self,
+        name: str,
+        description: str | None = None,
+        url: str | None = None,
+        status: str = "started",
+        tags: list[str] | None = None,
+        attributes: dict[str, Any] | None = None,
+        model_dir: str | None = None,
+        git_hash: str | None = None,
+        git_dirty: bool = False,
+        git_remote: str | None = None,
+        working_dir: str | None = None,
+        original_run_id: uuid.UUID | None = None,
+    ) -> TrainingRunResponse:
+        data = TrainingRunCreate(
+            name=name,
+            description=description,
+            url=url,
+            status=status,
+            tags=tags,
+            attributes=attributes or {},
+            model_dir=model_dir,
+            git_hash=git_hash,
+            git_dirty=git_dirty,
+            git_remote=git_remote,
+            working_dir=working_dir,
+            original_run_id=original_run_id,
+        )
+        return await self._make_request(
+            TrainingRunResponse, "POST", "/stats/training-runs", json=data.model_dump(mode="json")
+        )
+
+    async def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        data = {"status": status}
+        await self._make_request(None, "PATCH", f"/stats/training-runs/{run_id}/status", json=data)
+
+    async def create_epoch(
+        self,
+        run_id: uuid.UUID,
+        start_training_epoch: int,
+        end_training_epoch: int,
+        checkpoints_dir: str | None = None,
+        attributes: dict[str, Any] | None = None,
+    ) -> EpochResponse:
+        data = EpochCreate(
+            run_id=run_id,
+            start_training_epoch=start_training_epoch,
+            end_training_epoch=end_training_epoch,
+            checkpoints_dir=checkpoints_dir,
+            attributes=attributes or {},
+        )
+        return await self._make_request(
+            EpochResponse, "POST", f"/stats/training-runs/{run_id}/epochs", json=data.model_dump(mode="json")
+        )
+
+    async def create_policy(
+        self,
+        name: str,
+        description: str | None = None,
+        url: str | None = None,
+        epoch_id: uuid.UUID | None = None,
+    ) -> PolicyResponse:
+        data = PolicyCreate(
+            name=name,
+            description=description,
+            url=url,
+            epoch_id=epoch_id,
+        )
+        return await self._make_request(PolicyResponse, "POST", "/stats/policies", json=data.model_dump(mode="json"))
+
+    async def record_episode(
+        self,
+        *,
+        agent_policies: dict[int, uuid.UUID],
+        agent_metrics: dict[int, dict[str, float]],
+        primary_policy_id: uuid.UUID,
+        sim_name: str,
+        env_label: str,
+        stats_epoch: uuid.UUID | None = None,
+        replay_url: str | None = None,
+        attributes: dict[str, Any] | None = None,
+        eval_task_id: uuid.UUID | None = None,
+        tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
+    ) -> EpisodeResponse:
+        data = EpisodeCreate(
+            agent_policies=agent_policies,
+            agent_metrics=agent_metrics,
+            primary_policy_id=primary_policy_id,
+            stats_epoch=stats_epoch,
+            sim_name=sim_name,
+            env_label=env_label,
+            replay_url=replay_url,
+            attributes=attributes or {},
+            eval_task_id=eval_task_id,
+            tags=tags,
+            thumbnail_url=thumbnail_url,
+        )
+        return await self._make_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump(mode="json"))
+
+    async def create_task(self, request: TaskCreateRequest) -> TaskResponse:
+        return await self._make_request(TaskResponse, "POST", "/tasks", json=request.model_dump(mode="json"))
+
+    async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
+        params = filters.model_dump() if filters else {}
+        return await self._make_request(TasksResponse, "GET", "/tasks", params=params)
+
+    async def get_policy_scores(self, request: PolicyScoresRequest) -> PolicyScoresData:
+        return await self._make_request(
+            PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
+        )

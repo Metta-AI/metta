@@ -118,6 +118,7 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
             "--benchmark-disable",
             "-n",
             "auto",
+            "--timeout=300",
         ],
     ),
     "ci": CommandConfig(
@@ -586,6 +587,7 @@ class MettaCLI:
             "--benchmark-disable",
             "-n",
             "auto",
+            "--timeout=300",
         ]
 
         try:
