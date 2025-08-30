@@ -295,7 +295,7 @@ class TestRealEnvironmentIntegration:
 
             # Test forward pass before saving
             obs = env.reset()[0]
-            td_obs = obs_to_td(obs, batch_size=())
+            td_obs = obs_to_td(obs)
             output_before = agent(td_obs.unsqueeze(0))
             assert "actions" in output_before
 
@@ -334,7 +334,7 @@ class TestRealEnvironmentIntegration:
 
             # Verify functionality
             obs = env.reset()[0]
-            td_obs = obs_to_td(obs, batch_size=())
+            td_obs = obs_to_td(obs)
             output = loaded_agent(td_obs.unsqueeze(0))
             assert "actions" in output
 
