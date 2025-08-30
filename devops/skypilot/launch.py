@@ -5,6 +5,7 @@ import json
 import logging
 import subprocess
 import sys
+import time
 
 import sky
 import yaml
@@ -277,15 +278,12 @@ def main():
         sys.exit(0)
 
     # Launch the task(s)
-    if args.copies == 1:
-        launch_task(task)
-    else:
-        for _ in range(1, args.copies + 1):
-            copy_task = copy.deepcopy(task)
-            copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
-            copy_task.name = run_id
-            copy_task.validate_name()
-            launch_task(copy_task)
+    request_ids = [launch_task(copy.deepcopy(task)) for _ in range(args.copies)]
+
+    # auto launch log if we have only one task
+    if len(request_ids) == 1:
+        time.sleep(1)
+        subprocess.run(["sky", "api", "logs", request_ids[0]])
 
 
 if __name__ == "__main__":

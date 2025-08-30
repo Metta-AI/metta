@@ -6,25 +6,29 @@
 #     "requests",
 # ]
 # ///
+"""Calculate hourly cost for running SkyPilot cluster."""
+
 import json
 import logging
 import os
 import sys
 from typing import Any
 
-from metta.common.util.constants import METTA_ENV_FILE
-
-# Remove the current directory from sys.path to avoid circular import with local colorama.py
+# Remove current directory from sys.path to avoid circular imports
 sys.path = [p for p in sys.path if p not in ("", ".", os.path.dirname(__file__))]
 
 import requests  # noqa: E402
 import sky  # noqa: E402
+import sky.clouds  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", stream=sys.stderr)
 logger = logging.getLogger(__name__)
 
+# AWS Instance Metadata Service (IMDS) endpoint
+AWS_IMDS_ENDPOINT = "169.254.169.254"
 
-def get_instance_cost(instance_type: str, region: str, zone: str | None = None, use_spot: bool = False) -> float | None:
+
+def get_instance_cost(instance_type: str, region: str, zone: str | None = None, use_spot: bool = False) -> float:
     """
     Get the hourly cost for a specific instance type.
 
@@ -35,58 +39,57 @@ def get_instance_cost(instance_type: str, region: str, zone: str | None = None, 
         use_spot: Whether to calculate spot instance pricing
 
     Returns:
-        Hourly cost as a float, or None if unable to calculate
+        Hourly cost as a float
+
+    Raises:
+        RuntimeError: If unable to calculate cost
     """
     try:
         cloud = sky.clouds.AWS()
-        instance_hourly_cost = cloud.instance_type_to_hourly_cost(
-            instance_type, use_spot=use_spot, region=region, zone=zone
-        )
-        return instance_hourly_cost
+        return cloud.instance_type_to_hourly_cost(instance_type, use_spot=use_spot, region=region, zone=zone)
     except Exception as e:
-        logger.error(f"Error calculating hourly cost for {instance_type}: {e}")
-        return None
+        raise RuntimeError(f"Failed to calculate hourly cost for {instance_type}: {e}") from e
 
 
-def get_running_instance_info() -> tuple[str, str, str, bool] | None:
+def get_running_instance_info() -> tuple[str, str, str, bool]:
     """
     Retrieve instance metadata for the currently running EC2 instance.
 
     Returns:
-        Tuple of (instance_type, region, zone, use_spot) or None if not on EC2
+        Tuple of (instance_type, region, zone, use_spot)
+
+    Raises:
+        RuntimeError: If unable to determine instance info
     """
     # Get region and zone from SkyPilot cluster info
     if "SKYPILOT_CLUSTER_INFO" not in os.environ:
-        logger.warning("SKYPILOT_CLUSTER_INFO not set. Cannot determine instance info.")
-        return None
+        raise RuntimeError("SKYPILOT_CLUSTER_INFO not set. Cannot determine instance info.")
 
     try:
         cluster_info = json.loads(os.environ["SKYPILOT_CLUSTER_INFO"])
         region = cluster_info.get("region")
         zone = cluster_info.get("zone")
     except (json.JSONDecodeError, KeyError) as e:
-        logger.error(f"Error parsing SKYPILOT_CLUSTER_INFO: {e}")
-        return None
+        raise RuntimeError(f"Error parsing SKYPILOT_CLUSTER_INFO: {e}") from e
 
     if not region:
-        logger.error("Region not found in SKYPILOT_CLUSTER_INFO.")
-        return None
+        raise RuntimeError("Region not found in SKYPILOT_CLUSTER_INFO.")
 
     try:
         # Query AWS metadata (IMDSv2 for security)
         token = requests.put(
-            "http://169.254.169.254/latest/api/token",
+            f"http://{AWS_IMDS_ENDPOINT}/latest/api/token",
             headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"},
             timeout=2,
         ).text
         headers = {"X-aws-ec2-metadata-token": token}
 
         instance_type = requests.get(
-            "http://169.254.169.254/latest/meta-data/instance-type", headers=headers, timeout=2
+            f"http://{AWS_IMDS_ENDPOINT}/latest/meta-data/instance-type", headers=headers, timeout=2
         ).text
 
         life_cycle = requests.get(
-            "http://169.254.169.254/latest/meta-data/instance-life-cycle", headers=headers, timeout=2
+            f"http://{AWS_IMDS_ENDPOINT}/latest/meta-data/instance-life-cycle", headers=headers, timeout=2
         ).text
 
         use_spot = life_cycle == "spot"
@@ -94,85 +97,52 @@ def get_running_instance_info() -> tuple[str, str, str, bool] | None:
         return instance_type, region, zone, use_spot
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error querying AWS metadata service. This is expected if not on an AWS EC2 instance. Error: {e}")
-        return None
+        raise RuntimeError(f"Error querying AWS metadata service. Not running on AWS EC2? Error: {e}") from e
 
 
-def get_cost_info() -> dict[str, Any] | None:
-    """
-    Retrieves instance and cost information from the cloud environment.
+def get_cost_info() -> dict[str, Any]:
+    """Get cost information for the running cluster."""
+    instance_type, region, zone, use_spot = get_running_instance_info()
 
-    Returns:
-        Dictionary with cost information or None if unable to determine
-    """
-    instance_info = get_running_instance_info()
-    if not instance_info:
-        return None
+    num_nodes_env = os.environ.get("SKYPILOT_NUM_NODES")
+    if not num_nodes_env:
+        raise RuntimeError("SKYPILOT_NUM_NODES environment variable not set")
 
-    instance_type, region, zone, use_spot = instance_info
-
+    num_nodes = int(num_nodes_env)
     instance_hourly_cost = get_instance_cost(instance_type=instance_type, region=region, zone=zone, use_spot=use_spot)
 
-    if instance_hourly_cost is None:
-        return None
-
     return {
-        "instance_hourly_cost": instance_hourly_cost,
         "instance_type": instance_type,
         "region": region,
         "zone": zone,
         "use_spot": use_spot,
+        "instance_hourly_cost": instance_hourly_cost,
+        "num_nodes": num_nodes,
+        "total_hourly_cost": instance_hourly_cost * num_nodes,
     }
 
 
-def main():
-    """
-    Calculates the total hourly cost for the cluster and sets METTA_HOURLY_COST environment variable by appending
-    to the shell's environment. Also prints METTA_HOURLY_COST to stdout for shell script consumption. Other output
-    goes to stderr.
-    """
-    cost_info = get_cost_info()
-    if cost_info:
-        instance_hourly_cost = cost_info["instance_hourly_cost"]
-        num_nodes_env = os.environ.get("SKYPILOT_NUM_NODES")
-        if num_nodes_env is None:
-            logger.warning("SKYPILOT_NUM_NODES environment variable not set; cost info will not be provided.")
-            return 1
+def main() -> int:
+    """Calculate total hourly cost for the cluster and output to stdout."""
+    try:
+        cost_info = get_cost_info()
 
-        num_nodes = int(num_nodes_env)
-        total_hourly_cost = instance_hourly_cost * num_nodes
-
-        # Set the environment variable for the current session
-        os.environ["METTA_HOURLY_COST"] = str(total_hourly_cost)
-
-        # Also append to local metta_env_path file to persist for parent process
-        try:
-            # Ensure the parent directory exists
-            os.makedirs(os.path.dirname(METTA_ENV_FILE), exist_ok=True)
-            with open(METTA_ENV_FILE, "a") as f:
-                f.write(f"\nexport METTA_HOURLY_COST={total_hourly_cost}\n")
-        except FileNotFoundError:
-            print(f"Warning: Directory for {METTA_ENV_FILE} could not be created", file=sys.stderr)
-        except PermissionError:
-            print(f"Warning: No permission to write to {METTA_ENV_FILE}", file=sys.stderr)
-        except IOError as e:
-            print(f"Warning: Failed to write to {METTA_ENV_FILE}: {e}", file=sys.stderr)
-
-        # Log details to stderr for visibility in SkyPilot logs
+        # Log details to stderr
         logger.info(f"Instance Type: {cost_info['instance_type']}")
         logger.info(f"Spot Instance: {cost_info['use_spot']}")
         logger.info(f"Region: {cost_info['region']}")
         logger.info(
-            f"Total Hourly Cost for {num_nodes} node(s): ${total_hourly_cost:.4f} "
-            f"(${instance_hourly_cost:.4f}/hr per instance)"
+            f"Total Hourly Cost for {cost_info['num_nodes']} node(s): "
+            f"${cost_info['total_hourly_cost']:.4f} "
+            f"(${cost_info['instance_hourly_cost']:.4f}/hr per instance)"
         )
-        logger.info(f"Set METTA_HOURLY_COST={total_hourly_cost}")
 
-        # Print the value to stdout for shell script consumption
-        print(total_hourly_cost)
+        # Output cost to stdout
+        print(cost_info["total_hourly_cost"])
         return 0
-    else:
-        logger.warning("Could not determine hourly cost. METTA_HOURLY_COST will not be set.")
+
+    except Exception as e:
+        logger.error(f"Failed to get cost info: {e}")
         return 1
 
 
