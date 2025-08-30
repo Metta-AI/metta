@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
-#include "constants.hpp"
+#include "grid.hpp"
+#include "observation_tokens.hpp"
 
 // #MettaGridConfig
 struct WallConfig : public GridObjectConfig {

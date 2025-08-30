@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "objects/constants.hpp"
+#include "observation_tokens.hpp"
 #include "types.hpp"
 
 using Layer = ObservationType;
@@ -14,16 +14,16 @@ using TypeId = ObservationType;
 using ObservationCoord = ObservationType;
 
 struct PartialObservationToken {
-  ObservationType feature_id = EmptyTokenByte;
-  ObservationType value = EmptyTokenByte;
+  ObservationType feature_id = OBSERVATION_EMPTY_TOKEN;
+  ObservationType value = OBSERVATION_EMPTY_TOKEN;
 };
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
 struct alignas(1) ObservationToken {
-  ObservationType location = EmptyTokenByte;
-  ObservationType feature_id = EmptyTokenByte;
-  ObservationType value = EmptyTokenByte;
+  ObservationType location = OBSERVATION_EMPTY_TOKEN;
+  ObservationType feature_id = OBSERVATION_EMPTY_TOKEN;
+  ObservationType value = OBSERVATION_EMPTY_TOKEN;
 };
 
 // The alignas should make sure of this, but let's be explicit.

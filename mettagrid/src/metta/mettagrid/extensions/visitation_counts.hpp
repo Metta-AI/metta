@@ -19,6 +19,8 @@ private:
   std::vector<std::vector<GridCoord>> _position_history_c;
   size_t _num_agents = 0;
 
+  ObservationType _visitation_count_feature;
+
   void addVisitationCountsToObservations(MettaGrid* env);
 
 public:
@@ -26,10 +28,11 @@ public:
     return "visitation_counts";
   }
 
+  void registerObservations(ObservationEncoder* enc) override;
   void onInit(const MettaGrid* env) override;
   void onReset(MettaGrid* env) override;
   void onStep(MettaGrid* env) override;
-  py::dict getStats() const override;
+  ExtensionStats getStats() const override;
 
 private:
   std::array<unsigned int, 5> computeVisitationCounts(const MettaGrid* env, size_t agent_idx) const;

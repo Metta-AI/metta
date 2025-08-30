@@ -3,8 +3,9 @@
 
 #include <string>
 
-#include "constants.hpp"
+#include "grid_object.hpp"
 #include "has_inventory.hpp"
+#include "observation_tokens.hpp"
 #include "types.hpp"
 
 // #MettaGridConfig
@@ -47,8 +48,8 @@ public:
     //   Optionally, add inventory info if needed
     for (const auto& [item, amount] : this->inventory) {
       if (amount > 0) {
-        features.push_back(
-            {static_cast<ObservationType>(InventoryFeatureOffset + item), static_cast<ObservationType>(amount)});
+        features.push_back({static_cast<ObservationType>(ObservationFeature::InventoryOffset + item),
+                            static_cast<ObservationType>(amount)});
       }
     }
     return features;

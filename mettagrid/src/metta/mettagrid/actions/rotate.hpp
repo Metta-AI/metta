@@ -7,7 +7,6 @@
 #include "actions/orientation.hpp"
 #include "mettagrid_config.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 #include "types.hpp"
 
 class Rotate : public ActionHandler {

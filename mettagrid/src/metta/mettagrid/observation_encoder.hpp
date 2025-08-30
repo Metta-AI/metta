@@ -3,52 +3,42 @@
 
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
-#include "objects/converter.hpp"
 #include "objects/wall.hpp"
+#include "observation_tokens.hpp"
+#include "types.hpp"
 
 class ObservationEncoder {
 public:
-  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names, bool recipe_details_obs = false)
-      : recipe_details_obs(recipe_details_obs), inventory_item_count(inventory_item_names.size()) {
-    _feature_normalizations = FeatureNormalizations;
-    _feature_names = FeatureNames;
-    assert(_feature_names.size() == InventoryFeatureOffset);
-    assert(_feature_names.size() == _feature_normalizations.size());
+  static constexpr uint8_t EmptyTokenByte = 0xff;
 
-    // Add inventory features
-    for (size_t i = 0; i < inventory_item_names.size(); i++) {
-      auto observation_feature = InventoryFeatureOffset + static_cast<ObservationType>(i);
-      _feature_normalizations.insert({observation_feature, DEFAULT_INVENTORY_NORMALIZATION});
-      _feature_names.insert({observation_feature, "inv:" + inventory_item_names[i]});
+  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names)
+      : inventory_item_count_(inventory_item_names.size()) {
+    InitializeCoreFeatures(inventory_item_names);
+  }
+
+  // Get feature ID by name - throws if not found
+  ObservationType get_feature(const std::string& feature_name) const {
+    auto it = feature_name_to_id_.find(feature_name);
+    if (it == feature_name_to_id_.end()) {
+      throw std::runtime_error("Unknown feature: " + feature_name);
     }
+    return it->second;
+  }
 
-    if (this->recipe_details_obs) {
-      // Define offsets based on actual inventory item count
-      const ObservationType input_recipe_offset =
-          InventoryFeatureOffset + static_cast<ObservationType>(inventory_item_count);
-      const ObservationType output_recipe_offset =
-          input_recipe_offset + static_cast<ObservationType>(inventory_item_count);
+  // Check if a feature exists
+  bool has_feature(const std::string& feature_name) const {
+    return feature_name_to_id_.find(feature_name) != feature_name_to_id_.end();
+  }
 
-      // Add input recipe features
-      for (size_t i = 0; i < inventory_item_names.size(); i++) {
-        auto input_feature = input_recipe_offset + static_cast<ObservationType>(i);
-        _feature_normalizations.insert({input_feature, DEFAULT_INVENTORY_NORMALIZATION});
-        _feature_names.insert({input_feature, "input:" + inventory_item_names[i]});
-      }
-
-      // Add output recipe features
-      for (size_t i = 0; i < inventory_item_names.size(); i++) {
-        auto output_feature = output_recipe_offset + static_cast<ObservationType>(i);
-        _feature_normalizations.insert({output_feature, DEFAULT_INVENTORY_NORMALIZATION});
-        _feature_names.insert({output_feature, "output:" + inventory_item_names[i]});
-      }
-    }
+  // Get normalization value for a feature
+  float get_normalization(const std::string& feature_name) const {
+    return feature_normalizations_.at(get_feature(feature_name));
   }
 
   size_t append_tokens_if_room_available(ObservationTokens tokens,
@@ -63,38 +53,79 @@ public:
     return tokens_to_append.size();
   }
 
-  // Returns the number of tokens that were available to write. This will be the number of tokens actually
-  // written if there was enough space -- or a greater number if there was not enough space.
   size_t encode_tokens(const GridObject* obj, ObservationTokens tokens, ObservationType location) {
     return append_tokens_if_room_available(tokens, obj->obs_features(), location);
   }
 
   const std::map<ObservationType, float>& feature_normalizations() const {
-    return _feature_normalizations;
+    return feature_normalizations_;
   }
 
   const std::map<ObservationType, std::string>& feature_names() const {
-    return _feature_names;
+    return feature_names_;
   }
 
   size_t get_inventory_item_count() const {
-    return inventory_item_count;
+    return inventory_item_count_;
+  }
+
+  ObservationType get_inventory_offset() const {
+    return inventory_offset_;
   }
 
   ObservationType get_input_recipe_offset() const {
-    return InventoryFeatureOffset + static_cast<ObservationType>(inventory_item_count);
+    return inventory_offset_ + static_cast<ObservationType>(inventory_item_count_);
   }
 
   ObservationType get_output_recipe_offset() const {
-    return InventoryFeatureOffset + static_cast<ObservationType>(2 * inventory_item_count);
+    return inventory_offset_ + static_cast<ObservationType>(2 * inventory_item_count_);
   }
 
-  bool recipe_details_obs;
+  ObservationType register_feature(const std::string& name, float normalization = 1.0) {
+    ObservationType id = _next_id++;
+    RegisterFeature(id, name, normalization);
+    return id;
+  }
 
 private:
-  size_t inventory_item_count;
-  std::map<ObservationType, float> _feature_normalizations;
-  std::map<ObservationType, std::string> _feature_names;
+  ObservationType _next_id;
+
+  void InitializeCoreFeatures(const std::vector<std::string>& inventory_item_names) {
+    // Initialize the core features values using predefined constants
+    RegisterFeature(ObservationFeature::TypeId, "type_id", 1.0);
+    RegisterFeature(ObservationFeature::Group, "agent:group", 10.0);
+    RegisterFeature(ObservationFeature::Hp, "hp", 30.0);
+    RegisterFeature(ObservationFeature::Frozen, "agent:frozen", 1.0);
+    RegisterFeature(ObservationFeature::Orientation, "agent:orientation", 1.0);
+    RegisterFeature(ObservationFeature::Color, "agent:color", 255.0);
+    RegisterFeature(ObservationFeature::ConvertingOrCoolingDown, "converting", 1.0);
+    RegisterFeature(ObservationFeature::Swappable, "swappable", 1.0);
+    RegisterFeature(ObservationFeature::Glyph, "agent:glyph", 255.0);
+
+    // Inventory features are assumed to follow the core features
+    ObservationType inventory_count = static_cast<ObservationType>(inventory_item_names.size());
+    for (ObservationType i = 0; i < inventory_count; i++) {
+      RegisterFeature(
+          ObservationFeature::InventoryOffset + i, "inv:" + inventory_item_names[i], DEFAULT_INVENTORY_NORMALIZATION);
+    }
+
+    _next_id = ObservationFeature::CoreFeatureCount + inventory_count;
+  }
+
+  void RegisterFeature(ObservationType id, const std::string& name, float normalization) {
+    feature_names_[id] = name;
+    feature_name_to_id_[name] = id;
+    feature_normalizations_[id] = normalization;
+  }
+
+  static constexpr float DEFAULT_INVENTORY_NORMALIZATION = 100.0;
+
+  size_t inventory_item_count_;
+  ObservationType inventory_offset_;
+
+  std::map<ObservationType, std::string> feature_names_;
+  std::map<std::string, ObservationType> feature_name_to_id_;  // Reverse lookup
+  std::map<ObservationType, float> feature_normalizations_;
 };
 
 #endif  // OBSERVATION_ENCODER_HPP_

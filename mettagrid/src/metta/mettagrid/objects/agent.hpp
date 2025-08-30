@@ -7,10 +7,12 @@
 #include <string>
 #include <vector>
 
-#include "../stats_tracker.hpp"
-#include "agent_config.hpp"
-#include "constants.hpp"
+#include "actions/orientation.hpp"
+#include "grid.hpp"
+#include "objects/agent_config.hpp"
 #include "objects/box.hpp"
+#include "observation_tokens.hpp"
+#include "stats_tracker.hpp"
 #include "types.hpp"
 
 class Agent : public GridObject {
@@ -164,7 +166,7 @@ public:
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
-      auto item_observation_feature = static_cast<ObservationType>(InventoryFeatureOffset + item);
+      ObservationType item_observation_feature = ObservationFeature::InventoryOffset + item;
       features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
     }
 

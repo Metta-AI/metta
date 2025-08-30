@@ -7,12 +7,17 @@
 
 #include "actions/orientation.hpp"
 #include "grid_object.hpp"
-#include "objects/constants.hpp"
 
 using std::max;
 using std::unique_ptr;
 using std::vector;
 using GridType = std::vector<std::vector<std::vector<GridObjectId>>>;
+
+namespace GridLayer {
+constexpr ObservationType AgentLayer = 0;
+constexpr ObservationType ObjectLayer = 1;
+constexpr ObservationType GridLayerCount = 2;
+};  // namespace GridLayer
 
 class Grid {
 public:

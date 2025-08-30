@@ -3,7 +3,6 @@
 
 #include "../event.hpp"
 #include "../grid.hpp"
-#include "constants.hpp"
 #include "converter.hpp"
 
 // Handles the FinishConverting event

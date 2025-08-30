@@ -15,6 +15,12 @@ using std::unique_ptr;
 
 using EventArg = int;
 
+enum EventType {
+  FinishConverting = 0,
+  CoolDown = 1,
+  EventTypeCount
+};
+
 struct Event {
   unsigned int timestamp;
   EventType event_type;

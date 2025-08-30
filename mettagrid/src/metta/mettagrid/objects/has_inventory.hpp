@@ -5,7 +5,6 @@
 #include <map>
 #include <string>
 
-#include "constants.hpp"
 #include "grid_object.hpp"
 
 class HasInventory : public GridObject {

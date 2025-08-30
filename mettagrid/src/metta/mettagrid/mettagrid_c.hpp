@@ -74,6 +74,7 @@ public:
   py::dict feature_normalizations();
   py::dict feature_spec();
   size_t num_agents() const;
+  const size_t num_observation_tokens;
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
@@ -133,8 +134,6 @@ private:
 
   std::vector<std::unique_ptr<MettaGridExtension>> _extensions;
 
-  size_t _num_observation_tokens;
-
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
   std::vector<Agent*> _agents;
@@ -151,8 +150,8 @@ private:
 
   ActionSuccess _action_success;
 
-  std::mt19937 _rng;
   unsigned int _seed;
+  std::mt19937 _rng;
 
   // Movement tracking
   bool _track_movement_metrics;
@@ -165,10 +164,8 @@ private:
                             GridCoord observer_c,
                             ObservationCoord obs_width,
                             ObservationCoord obs_height,
-                            size_t agent_idx,
-                            ActionType action,
-                            ActionArg action_arg);
-  void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
+                            size_t agent_idx);
+  void _compute_observations();
   void _step(py::array_t<ActionType, py::array::c_style> actions);
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
