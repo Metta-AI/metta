@@ -151,9 +151,9 @@ class TestCaching:
             cached_checkpoint_manager.load_agent(epoch=1)
             assert mock_load.call_count == 5
 
-            # Load epoch 2 again - should use cache
+            # Load epoch 2 again - should reload from disk (was evicted when epoch 1 was reloaded)
             cached_checkpoint_manager.load_agent(epoch=2)
-            assert mock_load.call_count == 5  # Still 5, used cache
+            assert mock_load.call_count == 6  # Reloaded epoch 2
 
     def test_cache_disabled(self, no_cache_checkpoint_manager, mock_agent):
         # Save checkpoint

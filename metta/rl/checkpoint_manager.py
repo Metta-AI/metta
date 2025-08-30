@@ -10,6 +10,9 @@ from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb
 
 logger = logging.getLogger(__name__)
 
+# Global cache for sharing checkpoints across CheckpointManager instances
+_global_cache = OrderedDict()
+
 
 def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format."""
@@ -209,7 +212,7 @@ class CheckpointManager:
             if path_str in self._cache:
                 del self._cache[path_str]
             # Evict oldest entry if at capacity
-            elif len(self._cache) >= self.cache_size:
+            if len(self._cache) >= self.cache_size:
                 self._cache.popitem(last=False)
             self._cache[path_str] = agent
         return agent
