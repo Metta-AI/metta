@@ -10,9 +10,6 @@ from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb
 
 logger = logging.getLogger(__name__)
 
-# Global cache for class-level cache management
-_global_cache = OrderedDict()
-
 
 def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format."""
@@ -67,23 +64,19 @@ def key_and_version(uri: str) -> tuple[str, int]:
         return path.stem if path.suffix else path.name, 0
 
     if uri.startswith("mock://"):
-        # Extract mock policy name from URI
-        mock_name = uri[7:]  # Remove "mock://"
-        return mock_name, 0
+        return uri[7:], 0  # Remove "mock://"
 
     return "unknown", 0
 
 
 def is_valid_checkpoint_filename(filename: str) -> bool:
-    """Check if filename matches format: run_name__e{epoch}__s{step}__t{time}__sc{score}.pt"""
+    """Check if filename matches expected checkpoint format."""
     if not filename.endswith(".pt"):
         return False
-
     parts = filename[:-3].split("__")
-    if len(parts) != 5:
-        return False
     return (
-        parts[1].startswith("e")
+        len(parts) == 5
+        and parts[1].startswith("e")
         and parts[1][1:].isdigit()
         and parts[2].startswith("s")
         and parts[2][1:].isdigit()
@@ -99,12 +92,7 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]
     if not is_valid_checkpoint_filename(filename):
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
     parts = filename[:-3].split("__")
-    run_name = parts[0]
-    epoch = int(parts[1][1:])
-    agent_step = int(parts[2][1:])
-    total_time = int(parts[3][1:])
-    score = int(parts[4][2:]) / 10000.0
-    return (run_name, epoch, agent_step, total_time, score)
+    return (parts[0], int(parts[1][1:]), int(parts[2][1:]), int(parts[3][1:]), int(parts[4][2:]) / 10000.0)
 
 
 class CheckpointManager:
@@ -116,12 +104,6 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
-
-    @staticmethod
-    def clear_cache():
-        """Clear the global cache used by all CheckpointManager instances."""
-        global _global_cache
-        _global_cache.clear()
 
     @staticmethod
     def load_from_uri(uri: str):
@@ -154,7 +136,6 @@ class CheckpointManager:
                 expanded_uri = expand_wandb_uri(uri)
                 return load_policy_from_wandb_uri(expanded_uri, device="cpu")
             if uri.startswith("mock://"):
-                # Handle mock URIs for testing - return MockAgent
                 from metta.agent.mocks import MockAgent
 
                 return MockAgent()
@@ -198,31 +179,20 @@ class CheckpointManager:
 
     @staticmethod
     def get_policy_info(uri: str) -> tuple[str, int]:
-        """Extract run_name and epoch from policy URI - simplified version of get_policy_metadata.
-
-        This is the most common usage pattern, replacing:
-        metadata = CheckpointManager.get_policy_metadata(uri)
-        run_name, epoch = metadata["run_name"], metadata["epoch"]
-        """
+        """Extract run_name and epoch from policy URI."""
         metadata = CheckpointManager.get_policy_metadata(uri)
         return metadata["run_name"], metadata["epoch"]
 
     def get_latest_checkpoint(self) -> Optional[Path]:
-        """Get the latest checkpoint file - simplified version of select_checkpoints.
-
-        This replaces the common pattern:
-        (select_checkpoints(strategy="latest", count=1, metric="epoch") or [None])[0]
-        """
+        """Get the latest checkpoint file."""
         checkpoints = self.select_checkpoints(strategy="latest", count=1, metric="epoch")
         return checkpoints[0] if checkpoints else None
 
     def _find_checkpoint_files(self, epoch: Optional[int] = None) -> List[Path]:
-        """Find checkpoint files, optionally for specific epoch."""
         pattern = f"{self.run_name}__e{epoch}__s*__t*__sc*.pt" if epoch else f"{self.run_name}__e*__s*__t*__sc*.pt"
         return list(self.checkpoint_dir.glob(pattern))
 
     def _get_checkpoint_file(self, epoch: Optional[int] = None) -> Optional[Path]:
-        """Get single checkpoint file, latest if epoch not specified."""
         files = self._find_checkpoint_files(epoch)
         if not files:
             return None
@@ -232,7 +202,6 @@ class CheckpointManager:
         return self.checkpoint_dir.exists() and bool(self._find_checkpoint_files())
 
     def load_agent(self, epoch: Optional[int] = None):
-        """Load agent with caching."""
         agent_file = self._get_checkpoint_file(epoch)
         if not agent_file:
             return None
@@ -256,11 +225,9 @@ class CheckpointManager:
         return agent
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
-        """Load trainer state for resuming training."""
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
             return None
-
         state = torch.load(trainer_file, weights_only=False)
         result = {
             "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
@@ -272,7 +239,6 @@ class CheckpointManager:
         return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
-        """Save agent with metadata in filename."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         agent_step = metadata.get("agent_step", 0)
         total_time = int(metadata.get("total_time", 0))
@@ -297,7 +263,6 @@ class CheckpointManager:
     def save_trainer_state(
         self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
     ):
-        """Save trainer state."""
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
@@ -314,17 +279,11 @@ class CheckpointManager:
         metadata: Dict[str, Any],
         stopwatch_state: Optional[Dict[str, Any]] = None,
     ):
-        """Save both agent and trainer state in one call.
-
-        This replaces the common pattern:
-        checkpoint_manager.save_agent(agent, epoch, metadata)
-        checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, stopwatch_state)
-        """
+        """Save both agent and trainer state in one call."""
         self.save_agent(agent, epoch, metadata)
         self.save_trainer_state(optimizer, epoch, agent_step, stopwatch_state)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
-        """Select checkpoints."""
         checkpoint_files = self._find_checkpoint_files()
         if not checkpoint_files:
             return []
@@ -333,7 +292,6 @@ class CheckpointManager:
         return checkpoint_files if strategy == "all" else checkpoint_files[:count]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
-        """Clean up old checkpoints."""
         agent_files = self._find_checkpoint_files()
         if len(agent_files) <= keep_last_n:
             return 0
