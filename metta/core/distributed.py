@@ -33,7 +33,7 @@ def setup_torch_distributed(device: str) -> TorchDistributedConfig:
 
         torch.cuda.set_device(device)
         distributed = True
-        local_rank = torch.distributed.get_rank()
+        local_rank = int(os.environ["LOCAL_RANK"])  # Use LOCAL_RANK from environment, not global rank
         world_size = torch.distributed.get_world_size()
         rank = torch.distributed.get_rank()
         master = rank == 0
