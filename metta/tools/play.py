@@ -3,7 +3,6 @@
 import logging
 
 import mettascope.server as server
-from metta.agent.policy_store import PolicyStore
 from metta.common.config.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
@@ -47,18 +46,9 @@ def create_simulation(cfg: PlayTool) -> Simulation:
     """Create a simulation for playing/replaying."""
     logger.info(f"Creating simulation: {cfg.sim.name}")
 
-    # Create policy store directly without WandbContext
-    policy_store = PolicyStore.create(
-        device=cfg.system.device,
-        wandb_config=cfg.wandb,
-        data_dir=cfg.system.data_dir,
-        wandb_run=None,
-    )
-
-    # Create simulation using the helper method with explicit parameters
+    # Create simulation using CheckpointManager integration
     sim = Simulation.create(
         sim_config=cfg.sim,
-        policy_store=policy_store,
         device=cfg.system.device,
         vectorization=cfg.system.vectorization,
         stats_dir=cfg.effective_stats_dir,

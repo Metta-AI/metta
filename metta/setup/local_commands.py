@@ -3,14 +3,13 @@ import argparse
 import json
 import subprocess
 import sys
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.util.constants import METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info
+from metta.sim.utils import get_or_create_policy_ids
 
 # Type checking imports
 if TYPE_CHECKING:
@@ -47,13 +46,12 @@ class LocalCommands:
         subparsers.add_parser("build-app-backend-img", help="Build app backend Docker image")
 
         # Load policies command
-        load_parser = subparsers.add_parser("load-policies", help="Load W&B artifacts as policies")
-        load_parser.add_argument("--entity", help="W&B entity name (default: from W&B auth)")
-        load_parser.add_argument("--project", help="W&B project name (default: 'metta')")
-        load_parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
-        load_parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
-        load_parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
-        load_parser.add_argument("--stats-db-uri", help="Stats database URI (required when using --post-policies)")
+        load_parser = subparsers.add_parser("load-policies", help="Register local checkpoints with stats server")
+        load_parser.add_argument(
+            "--data-dir", default="./train_dir", help="Training data directory (default: ./train_dir)"
+        )
+        load_parser.add_argument("--stats-db-uri", required=True, help="Stats database URI")
+        load_parser.add_argument("--run-name", help="Specific run name to load (loads all if not specified)")
 
         # Server commands
         subparsers.add_parser("stats-server", help="Launch Stats Server")
@@ -97,21 +95,7 @@ class LocalCommands:
         elif args.command == "build-app-backend-img":
             self.build_app_backend_img()
         elif args.command == "load-policies":
-            # Convert back to list format for compatibility
-            load_args = []
-            if args.entity:
-                load_args.extend(["--entity", args.entity])
-            if args.project:
-                load_args.extend(["--project", args.project])
-            if args.days_back != 30:
-                load_args.extend(["--days-back", str(args.days_back)])
-            if args.limit:
-                load_args.extend(["--limit", str(args.limit)])
-            if args.run_name:
-                load_args.extend(["--run-name", args.run_name])
-            if args.stats_db_uri:
-                load_args.extend(["--stats-db-uri", args.stats_db_uri])
-            self.load_policies(load_args)
+            self.load_policies(args)
         elif args.command == "kind":
             self.kind(args)
         elif args.command == "observatory":
@@ -149,76 +133,52 @@ class LocalCommands:
             build_args or [],
         )
 
-    def load_policies(self, unknown_args) -> None:
-        """Load W&B artifacts as policies into stats database."""
-        # Lazy imports
-        import wandb
+    def load_policies(self, args) -> None:
+        """Load local checkpoint directories as policies into stats database."""
+        from metta.rl.checkpoint_manager import CheckpointManager, is_valid_checkpoint_filename
 
-        from metta.agent.policy_store import PolicyStore
-        from metta.common.wandb.wandb_runs import find_training_runs
-        from metta.sim.utils import get_or_create_policy_ids
+        data_dir = Path(args.data_dir)
+        if not data_dir.exists():
+            error(f"Data directory does not exist: {args.data_dir}")
+            sys.exit(1)
 
-        # Create parser for load-policies specific arguments
-        parser = argparse.ArgumentParser(
-            prog="metta local load-policies", description="Load W&B artifacts as policies into stats database"
-        )
-        parser.add_argument("--entity", help="W&B entity name (default: from W&B auth)")
-        parser.add_argument("--project", help="W&B project name (default: 'metta')")
-        parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
-        parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
-        parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
-        parser.add_argument("--stats-db-uri", help="Stats database URI (required when using --post-policies)")
+        info(f"Scanning for checkpoints in: {args.data_dir}")
 
-        # Handle help manually since metta intercepts -h
-        if "--help" in unknown_args or "-h" in unknown_args:
-            parser.print_help()
-            sys.exit(0)
+        checkpoint_tuples = []
+        for run_dir in data_dir.iterdir():
+            if not run_dir.is_dir() or (args.run_name and run_dir.name != args.run_name):
+                continue
 
-        args = parser.parse_args(unknown_args)
+            checkpoint_subdir = run_dir / "checkpoints"
+            if checkpoint_subdir.exists():
+                valid_checkpoints = []
+                for ckpt in checkpoint_subdir.glob("*.pt"):
+                    if is_valid_checkpoint_filename(ckpt.name):
+                        uri = CheckpointManager.normalize_uri(str(ckpt))
+                        metadata = CheckpointManager.get_policy_metadata(uri)
+                        valid_checkpoints.append((ckpt, metadata["epoch"]))
 
-        # Get entity from args or W&B default
-        api = wandb.Api()
-        if args.entity:
-            entity = args.entity
-        else:
-            entity = api.default_entity
-            if not entity:
-                error("No W&B entity found. Please login with 'wandb login'")
-                sys.exit(1)
+                if valid_checkpoints:
+                    latest_ckpt = max(valid_checkpoints, key=lambda x: x[1])[0]
+                    checkpoint_tuples.append(
+                        (run_dir.name, f"file://{latest_ckpt}", f"Local checkpoint from {run_dir.name}")
+                    )
 
-        project = args.project if args.project else METTA_WANDB_PROJECT
-
-        info(f"Using entity: {entity}, project: {project}")
-        if not args.stats_db_uri:
-            print("\nNo STATS_DB_URI provided, skipping policy posting.")
+        if not checkpoint_tuples:
+            info("No valid checkpoints found")
             return
 
-        print(f"\nConnecting to stats database at {args.stats_db_uri}...")
+        info(f"Found {len(checkpoint_tuples)} checkpoint directories")
+
         stats_client = StatsClient.create(args.stats_db_uri)
         if not stats_client:
-            print("No stats client")
-            return
-        runs = find_training_runs(
-            entity=entity,
-            project=project,
-            created_after=(datetime.now() - timedelta(days=args.days_back)).isoformat(),
-            limit=args.limit,
-            run_names=[args.run_name] if args.run_name else None,
-        )
-        policy_store = PolicyStore(wandb_entity=entity, wandb_project=project)
-        policy_records = []
-        for run in runs:
-            uri = f"wandb://run/{run.name}"
-            # n and metric are ignored
-            policy_records.extend(policy_store.policy_records(uri, selector_type="all", n=1, metric="top"))
-        policy_ids = get_or_create_policy_ids(
-            stats_client,
-            [(pr.run_name, pr.uri, None) for pr in policy_records],
-        )
+            error("Failed to connect to stats database")
+            sys.exit(1)
+
+        policy_ids = get_or_create_policy_ids(stats_client, checkpoint_tuples)
         json_repr = json.dumps({name: str(pid) for name, pid in policy_ids.items()}, indent=2)
-        print(f"Ensured {len(policy_ids)} policy IDs: {json_repr}")
-        sys.stdout.flush()
-        sys.stderr.flush()
+        info(f"Registered {len(policy_ids)} policies:")
+        print(json_repr)
 
     def kind(self, args) -> None:
         """Handle Kind cluster management for Kubernetes testing."""

@@ -8,7 +8,6 @@ import torch
 
 import gitta as git
 from metta.agent.agent_config import AgentConfig
-from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.git_repo import REPO_SLUG
@@ -16,6 +15,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging_helpers import init_file_logging, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
@@ -60,7 +60,7 @@ class TrainTool(Tool):
 
         # Set policy_uri if not set
         if not self.policy_uri:
-            self.policy_uri = f"file://{self.run_dir}/checkpoints"
+            self.policy_uri = CheckpointManager.normalize_uri(f"{self.run_dir}/checkpoints")
 
         # Set up checkpoint and replay directories
         if not self.trainer.checkpoint.checkpoint_dir:
@@ -121,12 +121,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
-    policy_store = PolicyStore.create(
-        device=cfg.system.device,
-        data_dir=cfg.system.data_dir,
-        wandb_config=cfg.wandb,
-        wandb_run=wandb_run,
-    )
+    checkpoint_manager = CheckpointManager(run_name=cfg.run, run_dir=cfg.run_dir)
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
         cfg = _minimize_config_for_debugging(cfg)
@@ -146,7 +141,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         device=torch.device(cfg.system.device),
         trainer_cfg=cfg.trainer,
         wandb_run=wandb_run,
-        policy_store=policy_store,
+        checkpoint_manager=checkpoint_manager,
         stats_client=stats_client,
         torch_dist_cfg=torch_dist_cfg,
     )

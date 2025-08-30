@@ -1,19 +1,16 @@
 #!/usr/bin/env -S uv run
-"""Request evaluation script."""
 
 import argparse
 import asyncio
 import concurrent.futures
 import uuid
+from pathlib import Path
 
 import wandb
 from bidict import bidict
-from omegaconf import DictConfig
 from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
 
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyMissingError, PolicySelectorType, PolicyStore
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import TaskStatus
@@ -27,6 +24,7 @@ from metta.common.util.constants import (
     PROD_OBSERVATORY_FRONTEND_URL,
     PROD_STATS_SERVER_URI,
 )
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.setup.utils import debug, info, success, warning
 from metta.sim.utils import get_or_create_policy_ids
 
@@ -40,7 +38,7 @@ class EvalRequest(BaseModel):
 
     git_hash: str | None = None
 
-    policy_select_type: PolicySelectorType = "latest"
+    policy_select_type: str = "latest"
     policy_select_metric: str = "score"
     policy_select_num: int = 1
 
@@ -65,88 +63,123 @@ class EvalRequest(BaseModel):
         assert self.wandb_entity, "wandb_entity must be set"
         return self
 
-    def get_wandb_cfg(self) -> DictConfig:
-        return DictConfig(
-            {
-                "wandb": {"enabled": True, "project": self.wandb_project, "entity": self.wandb_entity},
-                # requesting eval tasks does not really depend on device
-                "device": "cpu",
-            }
-        )
 
-
-def _get_policy_records_for_uri(
-    policy_store: PolicyStore,
+def _get_policies_for_uri(
     policy_uri: str,
-    selector_type: PolicySelectorType,
+    selector_type: str,
     select_num: int,
     select_metric: str,
     disallow_missing_policies: bool = False,
-    stats_client: StatsClient | None = None,
-    eval_name: str | None = None,
-) -> tuple[str, list[PolicyRecord] | None]:
+) -> tuple[str, list[tuple[str, str]] | None]:
+    """Get policies from a URI - working with URIs throughout."""
     try:
-        records = policy_store.policy_records(
-            uri_or_config=policy_uri,
-            selector_type=selector_type,
-            n=select_num,
-            metric=select_metric,
-            stats_client=stats_client,
-            eval_name=eval_name,
-        )
-        return policy_uri, records
-    except PolicyMissingError as e:
+        # Normalize URI using CheckpointManager
+        policy_uri = CheckpointManager.normalize_uri(policy_uri)
+
+        if policy_uri.startswith("wandb://"):
+            # For wandb URIs, extract run name from metadata
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            return policy_uri, [(policy_uri, metadata["run_name"])]
+
+        if policy_uri.startswith("file://"):
+            path = Path(policy_uri[7:])
+
+            if path.is_file():
+                # Direct file - extract metadata using CheckpointManager
+                metadata = CheckpointManager.get_policy_metadata(policy_uri)
+                return policy_uri, [(policy_uri, metadata["run_name"])]
+
+            if not path.is_dir():
+                if disallow_missing_policies:
+                    raise FileNotFoundError(f"Path does not exist: {path}")
+                else:
+                    warning(f"Path does not exist: {path}")
+                    return policy_uri, None
+
+            # Directory with checkpoints
+            if path.name == "checkpoints":
+                run_name = path.parent.name
+                run_dir = str(path.parent.parent)
+            else:
+                run_name = path.name
+                run_dir = str(path.parent)
+
+            checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
+
+            # Map selector types to strategies
+            strategy_map = {"latest": "latest", "top": "best_score", "best_score": "best_score", "all": "all"}
+            strategy = strategy_map.get(selector_type, "latest")
+
+            checkpoint_paths = checkpoint_manager.select_checkpoints(
+                strategy=strategy, count=select_num, metric=select_metric
+            )
+
+            if not checkpoint_paths:
+                if disallow_missing_policies:
+                    raise FileNotFoundError(f"No checkpoints found in: {path}")
+                else:
+                    warning(f"No checkpoints found in: {path}")
+                    return policy_uri, None
+
+            # Return list of (uri, run_name) tuples - keep as URIs!
+            results = [
+                (CheckpointManager.normalize_uri(str(checkpoint_path)), run_name)
+                for checkpoint_path in checkpoint_paths
+            ]
+            return policy_uri, results
+
+        else:
+            raise ValueError(f"Unsupported URI scheme: {policy_uri}")
+
+    except Exception as e:
         if not disallow_missing_policies:
-            warning(f"Skipping missing policy: {e}")
+            warning(f"Error processing {policy_uri}: {e}")
             return policy_uri, None
         else:
             raise
 
 
-async def _create_remote_eval_tasks(
-    request: EvalRequest,
-) -> None:
+async def _create_remote_eval_tasks(request: EvalRequest) -> None:
     info(f"Validating authentication with stats server {request.stats_server_uri}...")
     stats_client = StatsClient.create(request.stats_server_uri)
     if stats_client is None:
         warning("No stats client found")
         return
 
-    policy_store = PolicyStore(
-        wandb_entity=request.wandb_entity,
-        wandb_project=request.wandb_project,
-    )
+    info(f"Retrieving {request.policy_select_type} policies for {len(request.policies)} paths...")
 
-    info(f"Retrieving {request.policy_select_type} policy records for {len(request.policies)} policies...")
-    # Parallelize policy records retrieval
+    # Process all policy URIs
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future_to_uri = {
             executor.submit(
-                _get_policy_records_for_uri,
-                policy_store=policy_store,
+                _get_policies_for_uri,
                 policy_uri=policy_uri,
                 selector_type=request.policy_select_type,
                 select_num=request.policy_select_num,
                 select_metric=request.policy_select_metric,
                 disallow_missing_policies=request.disallow_missing_policies,
-                stats_client=stats_client,
-                eval_name=request.evals[0],
             ): policy_uri
             for policy_uri in request.policies
         }
 
-        policy_records_by_uri: dict[str, list[PolicyRecord]] = {}
+        all_policies = {}  # run_name -> (uri, run_name)
         for future in concurrent.futures.as_completed(future_to_uri):
-            policy_uri, records = future.result()
-            if records is not None:
-                policy_records_by_uri[policy_uri] = records
+            policy_uri, results = future.result()
+            if results is not None:
+                for uri, run_name in results:
+                    all_policies[run_name] = (uri, run_name)
 
-    all_policy_records = {pr.run_name: pr for prs in policy_records_by_uri.values() for pr in prs}
-    policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(
-        stats_client, [(pr.run_name, pr.uri, None) for pr in all_policy_records.values() if pr.uri is not None]
-    )
-    if not policy_ids:
+    if not all_policies:
         warning("No policies found")
+        return
+
+    # Create policy IDs in stats database
+    policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(
+        stats_client, [(run_name, uri, None) for uri, run_name in all_policies.values()]
+    )
+
+    if not policy_ids:
+        warning("Failed to create policy IDs")
         return
 
     # Check for existing tasks if not allowing duplicates
@@ -156,15 +189,16 @@ async def _create_remote_eval_tasks(
         info("Checking for duplicate tasks...")
         task_filters = TaskFilterParams(
             limit=1000,
-            statuses=list(set(TaskStatus.__args__) - set(["canceled", "error"])),
+            statuses=list(set(TaskStatus.__args__) - {"canceled", "error"}),
             policy_ids=list(policy_ids.values()),
             git_hash=request.git_hash,
             sim_suites=request.evals,
         )
         all_tasks = await eval_task_client.get_all_tasks(filters=task_filters)
         existing_tasks = group_by(all_tasks.tasks, lambda t: (t.policy_id, t.sim_suite))
+
         if existing_tasks:
-            info("Skipping because they would be duplicates:")
+            info("Skipping duplicate tasks:")
             for (policy_id, sim_suite), existing in existing_tasks.items():
                 policy_name = policy_ids.inv[policy_id]
                 debug(f"{policy_name} {sim_suite}:", indent=2)
@@ -172,6 +206,7 @@ async def _create_remote_eval_tasks(
                     status_str = {"unprocessed": "running"}.get(task.status, task.status)
                     debug(f"{task.id} ({status_str})", indent=4)
 
+    # Create task requests
     task_requests = [
         TaskCreateRequest(
             policy_id=policy_id,
@@ -180,7 +215,7 @@ async def _create_remote_eval_tasks(
         )
         for policy_id in policy_ids.values()
         for eval_name in request.evals
-        if (request.allow_duplicates or not len(existing_tasks[(policy_id, eval_name)]))
+        if request.allow_duplicates or not existing_tasks.get((policy_id, eval_name))
     ]
 
     if not task_requests:
@@ -192,13 +227,17 @@ async def _create_remote_eval_tasks(
         info("Dry run, not creating tasks")
         return
 
+    # Create tasks
     results: list[TaskResponse] = await asyncio.gather(*[eval_task_client.create_task(task) for task in task_requests])
+
+    # Display results
     for policy_id, policy_results in group_by(results, lambda result: result.policy_id).items():
         policy_name = policy_ids.inv[policy_id]
         success(f"{policy_name}:", indent=2)
         for result in policy_results:
             success(f"{result.sim_suite}: {result.id}", indent=4)
 
+    # Show frontend URL
     frontend_base_url = {
         PROD_STATS_SERVER_URI: PROD_OBSERVATORY_FRONTEND_URL,
         DEV_STATS_SERVER_URI: DEV_OBSERVATORY_FRONTEND_URL,
@@ -226,11 +265,12 @@ async def main() -> None:
         "--policy",
         action="append",
         dest="policies",
-        help="""Policy string. Can be specified multiple times for multiple policies.
-        Supported formats:
-        - wandb://run/<run_name>[:<version>]
-        - wandb://sweep/<sweep_name>[:<version>]
-        - wandb://<entity>/<project>/<artifact_type>/<name>[:<version>]""",
+        help="""Policy URI or path. Can be specified multiple times for multiple policies.
+        Supports:
+        - file:// URIs: file:///path/to/checkpoint.pt or file:///path/to/run/checkpoints
+        - wandb:// URIs: wandb://project/artifact:version
+        - Direct file paths: /path/to/checkpoint.pt (will be converted to file:// URI)
+        - Checkpoint directories: /path/to/run/checkpoints (will be converted to file:// URI)""",
         required=True,
     )
 
@@ -238,7 +278,7 @@ async def main() -> None:
         "--policy-select-type",
         type=str,
         default="latest",
-        choices=PolicySelectorType.__args__,
+        choices=["latest", "top", "best_score", "all"],
         help="Policy selection type.",
     )
 
@@ -246,14 +286,14 @@ async def main() -> None:
         "--policy-select-num",
         type=int,
         default=1,
-        help="Number of policies to select. Used only if policy-select-type is 'top'.",
+        help="Number of policies to select. Used with 'top' or 'best_score'.",
     )
 
     parser.add_argument(
         "--policy-select-metric",
         type=str,
         default="score",
-        help="Policy selection metric. Used only if policy-select-type is 'top'.",
+        help="Policy selection metric. Used with 'top' or 'best_score'.",
     )
 
     parser.add_argument(

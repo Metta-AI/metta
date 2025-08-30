@@ -1,5 +1,3 @@
-"""Loss computation functions for PPO training."""
-
 import logging
 from typing import Any
 
@@ -133,7 +131,7 @@ def process_minibatch_update(
         agent_step,
         full_logprobs,
         newvalue,
-        policy_td["env_obs"],
+        policy_td,
     )
 
     # L2 init loss

@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 from datetime import datetime
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import FastAPI
@@ -326,7 +327,6 @@ class TestEvalTaskOrchestratorIntegration:
         self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
     ):
         """Test that orchestrator works with custom worker managers."""
-        from unittest.mock import AsyncMock, Mock
 
         # Create mock worker manager
         mock_worker_manager = Mock(spec=AbstractWorkerManager)

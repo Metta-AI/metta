@@ -310,13 +310,13 @@ def _validate_open_task_generator(v: Any, handler):
             # Special handling for known task generators
             if target is SingleTaskGenerator:
                 data = {k: v for k, v in v.items() if k != "type"}
-                return SingleTaskGeneratorConfig.model_validate(data)
+                return SingleTaskGenerator.Config.model_validate(data)
             elif target is TaskGeneratorSet:
                 data = {k: v for k, v in v.items() if k != "type"}
-                return TaskGeneratorSetConfig.model_validate(data)
+                return TaskGeneratorSet.Config.model_validate(data)
             elif target is BucketedTaskGenerator:
                 data = {k: v for k, v in v.items() if k != "type"}
-                return BucketedTaskGeneratorConfig.model_validate(data)
+                return BucketedTaskGenerator.Config.model_validate(data)
             else:
                 # Generic handling for unknown task generators
                 cfg_model = getattr(target, "Config", None)
@@ -342,8 +342,7 @@ AnyTaskGeneratorConfig = SerializeAsAny[
     Annotated[TaskGeneratorConfig[Any], WrapValidator(_validate_open_task_generator)]
 ]
 
-
-# Create aliases for backward compatibility
+# Type aliases for specific task generator configs
 SingleTaskGeneratorConfig = SingleTaskGenerator.Config
 TaskGeneratorSetConfig = TaskGeneratorSet.Config
 BucketedTaskGeneratorConfig = BucketedTaskGenerator.Config

@@ -10,8 +10,7 @@ from heavyball import ForeachMuon
 from torchrl.data import Composite
 
 from metta.agent.agent_config import AgentConfig
-from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
+from metta.agent.metta_agent import MettaAgent, PolicyAgent
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.profiling.stopwatch import Stopwatch
@@ -22,19 +21,20 @@ from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
-from metta.eval.eval_request_config import EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
+from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
-from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
-from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
-from metta.rl.policy_management import wrap_agent_distributed
+from metta.rl.policy_management import (
+    wrap_agent_distributed,
+)
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
     StatsTracker,
@@ -43,7 +43,6 @@ from metta.rl.stats import (
 )
 from metta.rl.system_config import SystemConfig
 from metta.rl.torch_profiler import TorchProfiler
-from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import (
     log_training_progress,
@@ -54,6 +53,7 @@ from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,
     setup_wandb_metrics,
+    upload_checkpoint_as_artifact,
 )
 from metta.sim.simulation_config import SimulationConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
@@ -68,8 +68,7 @@ except ImportError:
 
 torch.set_float32_matmul_precision("high")
 
-# Get rank for logger name
-_rank = int(os.environ.get("RANK", 0))
+_rank = int(os.environ.get("RANK", 0))  # Get rank for logger name
 _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 
@@ -84,7 +83,6 @@ def _update_training_status_on_failure(stats_client: StatsClient | None, stats_r
             logger.warning(f"Failed to update training run status to failed: {e}", exc_info=True)
 
 
-# TODO: dehydrate to just take in an agent and curriculum
 def train(
     run_dir: str,
     run: str,
@@ -93,14 +91,13 @@ def train(
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
-    policy_store: PolicyStore,
+    checkpoint_manager: CheckpointManager,
     stats_client: StatsClient | None,
     torch_dist_cfg: TorchDistributedConfig,
 ) -> None:
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
 
-    # Log recent checkpoints for debugging
     checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir
     if os.path.exists(checkpoints_dir):
         files = sorted(os.listdir(checkpoints_dir))[-3:]
@@ -141,40 +138,30 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
-    # Create checkpoint manager
-    checkpoint_manager = CheckpointManager(
-        policy_store=policy_store,
-        checkpoint_config=trainer_cfg.checkpoint,
-        device=device,
-        is_master=torch_dist_cfg.is_master,
-        rank=torch_dist_cfg.rank,
-        run_name=run,
-    )
+    # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
+    existing_agent = checkpoint_manager.load_agent()
 
-    # Load checkpoint if it exists
-    checkpoint = TrainerCheckpoint.load(run_dir)
-    agent_step = checkpoint.agent_step if checkpoint else 0
-    epoch = checkpoint.epoch if checkpoint else 0
+    # Load trainer state (returns None if no trainer state exists)
+    trainer_state = checkpoint_manager.load_trainer_state()
+    agent_step = trainer_state["agent_step"] if trainer_state else 0
+    epoch = trainer_state["epoch"] if trainer_state else 0
+    latest_saved_epoch = epoch  # Track the epoch of the latest saved checkpoint
 
-    if checkpoint:
+    if trainer_state:
         logger.info(f"Restored from checkpoint at {agent_step} steps")
-        if checkpoint.stopwatch_state is not None:
-            timer.load_state(checkpoint.stopwatch_state, resume_running=True)
+        # Restore stopwatch state if available
+        if "stopwatch_state" in trainer_state:
+            timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Load or initialize policy with distributed coordination
-    initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
-        agent_cfg=agent_cfg,
-        system_cfg=system_cfg,
-        trainer_cfg=trainer_cfg,
-        checkpoint=checkpoint,
-        metta_grid_env=metta_grid_env,
-    )
+    # Create or use existing agent
+    if existing_agent:
+        logger.info("Resuming training with existing agent from checkpoint")
+        policy_agent = existing_agent
+    else:
+        logger.info("Creating new agent for training")
+        policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
-    # Don't proceed until all ranks have the policy
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
-    policy: PolicyAgent = latest_saved_policy_record.policy
+    policy: PolicyAgent = policy_agent
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
@@ -183,28 +170,21 @@ def train(
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
-        if torch_dist_cfg.is_master:
-            logger.info("Initializing DistributedDataParallel")
-        torch.distributed.barrier()
         policy = wrap_agent_distributed(policy, device)
-        torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
-    # This must happen after wrapping to ensure all ranks do it at the same time
-    policy = latest_saved_policy_record.policy
     policy.train()  # Set to training mode for training
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-    # Create kickstarter
+    # Create kickstarter (will be disabled if no teacher_uri configured)
     kickstarter = Kickstarter(
         cfg=trainer_cfg.kickstart,
         device=device,
-        policy_store=policy_store,
+        checkpoint_manager=checkpoint_manager,
         metta_grid_env=metta_grid_env,
     )
 
-    # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
     act_space = vecenv.single_action_space
     act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
@@ -244,9 +224,9 @@ def train(
     else:
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
-    if checkpoint and checkpoint.optimizer_state_dict:
+    if trainer_state and "optimizer_state" in trainer_state:
         try:
-            optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            optimizer.load_state_dict(trainer_state["optimizer_state"])
             logger.info("Successfully loaded optimizer state from checkpoint")
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
@@ -290,7 +270,6 @@ def train(
 
     if torch_dist_cfg.is_master:
         logger.info(f"Training on {device}")
-    wandb_policy_name: str | None = None
 
     # Main training loop
     try:
@@ -299,7 +278,7 @@ def train(
             record_heartbeat()
 
             with torch_profiler:
-                # ---- ROLLOUT PHASE ----
+                # Rollout phase
                 with timer("_rollout"):
                     raw_infos = []
                     experience.reset_for_rollout()
@@ -309,7 +288,6 @@ def train(
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
                     while not experience.ready_for_training:
-                        # Get observation
                         o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                         total_steps += num_steps
 
@@ -328,17 +306,14 @@ def train(
                             ),
                         )
 
-                        # Inference
                         with torch.no_grad():
                             policy(td)
 
-                        # Store experience
                         experience.store(
                             data_td=td,
                             env_id=training_env_id,
                         )
 
-                        # Send observation
                         send_observation(vecenv, td["actions"], dtype_actions, timer)
 
                         if info:
@@ -347,13 +322,11 @@ def train(
                     agent_step += total_steps * torch_dist_cfg.world_size
                 accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
-                # ---- TRAINING PHASE ----
+                # Training phase
                 with timer("_train"):
-                    # Inline PPO training
                     losses.zero()
                     experience.reset_importance_sampling_ratios()
 
-                    # Calculate prioritized sampling parameters
                     anneal_beta = calculate_prioritized_sampling_params(
                         epoch=epoch,
                         total_timesteps=trainer_cfg.total_timesteps,
@@ -362,7 +335,6 @@ def train(
                         prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
                     )
 
-                    # Compute initial advantages
                     advantages = torch.zeros(experience.buffer["values"].shape, device=device)
                     initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
@@ -379,7 +351,6 @@ def train(
                         device,
                     )
 
-                    # Train for multiple epochs
                     minibatch_idx = 0
                     epochs_trained = 0
                     policy_spec = policy.get_agent_experience_spec()
@@ -387,7 +358,6 @@ def train(
                     for _update_epoch in range(trainer_cfg.update_epochs):
                         for _ in range(experience.num_minibatches):
                             policy.reset_memory()
-                            # Sample minibatch
                             minibatch, indices, prio_weights = experience.sample_minibatch(
                                 advantages=advantages,
                                 prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
@@ -396,7 +366,6 @@ def train(
 
                             policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
-                            # Process minibatch
                             loss = process_minibatch_update(
                                 policy=policy,
                                 experience=experience,
@@ -411,7 +380,6 @@ def train(
                                 device=device,
                             )
 
-                            # Optimizer step
                             optimizer.zero_grad()
 
                             # This also serves as a barrier for all ranks
@@ -421,7 +389,6 @@ def train(
                                 torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
                                 optimizer.step()
 
-                                # Optional weight clipping
                                 policy.clip_weights()
 
                                 if device.type == "cuda":
@@ -471,9 +438,9 @@ def train(
                         # We know these exist within master
                         memory_monitor=memory_monitor,  # type: ignore[arg-type]
                         system_monitor=system_monitor,  # type: ignore[arg-type]
-                        latest_saved_policy_record=latest_saved_policy_record,
                         optimizer=optimizer,
                         kickstarter=kickstarter,
+                        latest_saved_epoch=latest_saved_epoch,
                     )
                 # Clear stats after processing
                 stats_tracker.clear_rollout_stats()
@@ -489,25 +456,77 @@ def train(
                 stats_time=timer.get_last_elapsed("_process_stats"),
                 run_name=run,
             )
-            checkpoint_result = maybe_establish_checkpoint(
-                checkpoint_manager=checkpoint_manager,
-                epoch=epoch,
-                policy=policy,
-                agent_step=agent_step,
-                eval_scores=eval_scores,
-                timer=timer,
-                initial_policy_record=initial_policy_record,
-                optimizer=optimizer,
-                run_dir=run_dir,
-                kickstarter=kickstarter,
-                wandb_run=wandb_run,
-            )
-            if checkpoint_result:
-                # TODO: wandb_policy_name should come directly from last_saved_policy_record
-                latest_saved_policy_record, wandb_policy_name = checkpoint_result
+            # Save checkpoint using CheckpointManager
+            if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
+                logger.info(f"Saving checkpoint at epoch {epoch}")
+
+                # Extract the actual agent from distributed wrapper if needed
+                agent_to_save = policy.module if torch.distributed.is_initialized() else policy
+
+                # Build metadata from evaluation scores
+                metadata = {
+                    "agent_step": agent_step,
+                    "total_time": timer.get_elapsed(),
+                    "total_train_time": timer.get_all_elapsed().get("_rollout", 0)
+                    + timer.get_all_elapsed().get("_train", 0),
+                }
+
+                # Add evaluation scores if available
+                if eval_scores.category_scores or eval_scores.simulation_scores:
+                    metadata.update(
+                        {
+                            "score": eval_scores.avg_simulation_score,
+                            "avg_reward": eval_scores.avg_category_score,
+                            "category_scores": eval_scores.category_scores,
+                            "simulation_scores": {
+                                f"{cat}/{sim}": score for (cat, sim), score in eval_scores.simulation_scores.items()
+                            },
+                        }
+                    )
+
+                # Save agent and trainer state
+                checkpoint_manager.save_agent(agent_to_save, epoch, metadata)
+                checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
+                latest_saved_epoch = epoch  # Update latest saved epoch
+
+                logger.info(f"Successfully saved checkpoint at epoch {epoch}")
+
+                # Upload to wandb if configured
+                if wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval):
+                    try:
+                        # Get the checkpoint file that was just saved
+                        checkpoints = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+                        checkpoint_file = checkpoints[0] if checkpoints else None
+                        if checkpoint_file:
+                            # Use the metadata we already have, augmented with run info
+                            wandb_metadata = metadata.copy()
+                            wandb_metadata.update(
+                                {
+                                    "run_name": run,
+                                    "epoch": epoch,
+                                }
+                            )
+
+                            # Upload as wandb artifact
+                            artifact_name = f"{run}_{epoch}"
+                            qualified_name = upload_checkpoint_as_artifact(
+                                checkpoint_path=str(checkpoint_file),
+                                artifact_name=artifact_name,
+                                metadata=wandb_metadata,
+                                wandb_run=wandb_run,
+                            )
+                            if qualified_name:
+                                logger.info(f"Uploaded checkpoint to wandb: {qualified_name}")
+                            else:
+                                logger.warning(f"Failed to upload checkpoint to wandb at epoch {epoch}")
+                        else:
+                            logger.warning(f"Could not find checkpoint file for epoch {epoch} to upload to wandb")
+                    except Exception as e:
+                        logger.warning(f"Failed to upload checkpoint to wandb: {e}")
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
-                if latest_saved_policy_record:
+                # Evaluation with CheckpointManager - use current policy directly
+                if True:  # Always evaluate if configured
                     if stats_client and stats_tracker.stats_run_id:
                         stats_tracker.stats_epoch_id = stats_client.create_epoch(
                             run_id=stats_tracker.stats_run_id,
@@ -527,8 +546,14 @@ def train(
                     evaluate_local = trainer_cfg.evaluation.evaluate_local
                     if trainer_cfg.evaluation.evaluate_remote:
                         try:
-                            evaluate_policy_remote(
-                                policy_record=latest_saved_policy_record,
+                            # Use SimpleCheckpointManager for remote evaluation
+                            # Create full wandb policy name in format: entity/project/artifact:version
+                            # The artifact name is the run name, and version is the epoch
+                            wandb_policy_name = f"metta-research/metta/{run}:{epoch}" if wandb_run else None
+
+                            task_response = evaluate_policy_remote_with_checkpoint_manager(
+                                checkpoint_manager=checkpoint_manager,
+                                checkpoint_path=None,  # Use best checkpoint
                                 simulations=sims,
                                 stats_epoch_id=stats_tracker.stats_epoch_id,
                                 wandb_policy_name=wandb_policy_name,
@@ -536,28 +561,30 @@ def train(
                                 wandb_run=wandb_run,
                                 trainer_cfg=trainer_cfg,
                             )
+
+                            if task_response:
+                                logger.info(f"Remote evaluation task created: {task_response.id}")
+                                # Remote evaluation initiated successfully, skip local evaluation
+                                evaluate_local = False
+                            else:
+                                logger.warning("Failed to create remote evaluation task, falling back to local")
+                                evaluate_local = True
+
                         except Exception as e:
                             logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
                             logger.error("Falling back to local evaluation")
                             evaluate_local = True
                     if evaluate_local:
-                        evaluation_results = evaluate_policy(
-                            policy_record=latest_saved_policy_record,
-                            simulations=sims,
-                            device=device,
-                            vectorization=system_cfg.vectorization,
-                            replay_dir=trainer_cfg.evaluation.replay_dir,
-                            stats_epoch_id=stats_tracker.stats_epoch_id,
-                            wandb_policy_name=wandb_policy_name,
-                            policy_store=policy_store,
-                            stats_client=stats_client,
-                            logger=logger,
-                        )
+                        logger.warning("Local evaluation not configured")
+                        evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
                         category_scores = list(eval_scores.category_scores.values())
-                        if category_scores and latest_saved_policy_record:
-                            latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+                        # Note: With SimpleCheckpointManager, scores are saved with the checkpoint metadata
+                        if category_scores:
+                            logger.info(
+                                f"Evaluation complete - average category score: {float(np.mean(category_scores)):.4f}"
+                            )
                         if wandb_run is not None and evaluation_results.replay_urls:
                             upload_replay_html(
                                 replay_urls=evaluation_results.replay_urls,
@@ -612,24 +639,64 @@ def train(
     for name, summary in timing_summary.items():
         logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
-    maybe_establish_checkpoint(
-        checkpoint_manager=checkpoint_manager,
-        epoch=epoch,
-        policy=policy,
-        agent_step=agent_step,
-        eval_scores=eval_scores,
-        timer=timer,
-        initial_policy_record=initial_policy_record,
-        optimizer=optimizer,
-        run_dir=run_dir,
-        kickstarter=kickstarter,
-        force=True,
-        wandb_run=wandb_run,
-    )
+    # Final checkpoint save at end of training
+    logger.info("Saving final checkpoint")
+    agent_to_save = policy.module if torch.distributed.is_initialized() else policy
+
+    final_metadata = {
+        "agent_step": agent_step,
+        "total_time": timer.get_elapsed(),
+        "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
+    }
+
+    # Add final evaluation scores if available
+    if eval_scores.category_scores or eval_scores.simulation_scores:
+        final_metadata.update(
+            {
+                "score": eval_scores.avg_simulation_score,
+                "avg_reward": eval_scores.avg_category_score,
+            }
+        )
+
+    checkpoint_manager.save_agent(agent_to_save, epoch, final_metadata)
+    checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
+
+    # Upload final checkpoint to wandb (force upload regardless of interval)
+    if wandb_run:
+        try:
+            # Get the checkpoint file that was just saved
+            checkpoints = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+            checkpoint_file = checkpoints[0] if checkpoints else None
+            if checkpoint_file:
+                # Use the metadata we already have, augmented with run info
+                wandb_metadata = final_metadata.copy()
+                wandb_metadata.update(
+                    {
+                        "run_name": run,
+                        "epoch": epoch,
+                    }
+                )
+
+                # Upload as wandb artifact with "final" tag
+                artifact_name = f"{run}_{epoch}_final"
+                qualified_name = upload_checkpoint_as_artifact(
+                    checkpoint_path=str(checkpoint_file),
+                    artifact_name=artifact_name,
+                    metadata=wandb_metadata,
+                    wandb_run=wandb_run,
+                )
+                if qualified_name:
+                    logger.info(f"Uploaded final checkpoint to wandb: {qualified_name}")
+                else:
+                    logger.warning("Failed to upload final checkpoint to wandb")
+            else:
+                logger.warning(f"Could not find final checkpoint file for epoch {epoch} to upload to wandb")
+        except Exception as e:
+            logger.warning(f"Failed to upload final checkpoint to wandb: {e}")
 
     cleanup_monitoring(memory_monitor, system_monitor)
 
     # Return stats info for exception handling at higher levels
-    if stats_client and stats_tracker and hasattr(stats_tracker, "stats_run_id"):
+    if stats_client and stats_tracker and stats_tracker.stats_run_id:
         return {"stats_run_id": stats_tracker.stats_run_id, "stats_client": stats_client, "logger": logger}
     return None

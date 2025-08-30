@@ -1,9 +1,3 @@
-"""
-End-to-end integration test for the Protein sweep pipeline.
-This test runs the real sweep pipeline but mocks training and evaluation
-to verify that Protein suggestions are working correctly.
-"""
-
 import shutil
 import tempfile
 from unittest.mock import Mock, patch
@@ -12,32 +6,6 @@ import pytest
 from omegaconf import OmegaConf
 
 from metta.sweep.protein_metta import MettaProtein
-
-
-class MockTrainerResults:
-    """Mock training results with configurable outcomes."""
-
-    def __init__(self, agent_steps=50000, epochs=5, train_time=120.0):
-        self.agent_steps = agent_steps
-        self.epochs = epochs
-        self.train_time = train_time
-
-
-class MockEvaluationResults:
-    """Mock evaluation results with configurable scores."""
-
-    def __init__(self, reward_score=0.75, eval_time=15.0):
-        self.reward_score = reward_score
-        self.eval_time = eval_time
-
-
-class MockPolicyRecord:
-    """Mock policy record for testing."""
-
-    def __init__(self, name="test_policy", uri="file://test/path"):
-        self.name = name
-        self.uri = uri
-        self.metadata = {}
 
 
 class TestProteinEndToEndPipeline:
@@ -127,15 +95,15 @@ class TestProteinEndToEndPipeline:
         assert "batch_size" in suggestion["trainer"]
         assert "gamma" in suggestion["trainer"]
 
-        # Simulate training completion
-        training_results = MockTrainerResults(agent_steps=50000, epochs=5, train_time=120.0)
-        eval_results = MockEvaluationResults(reward_score=0.85, eval_time=15.0)
+        # Simulate training completion with simple values
+        reward_score = 0.85
+        train_time = 120.0
 
         # Record observation
         protein.observe(
             suggestion=suggestion,
-            objective=eval_results.reward_score,
-            cost=training_results.train_time,
+            objective=reward_score,
+            cost=train_time,
             is_failure=False,
         )
 
