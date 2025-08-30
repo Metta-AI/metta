@@ -30,14 +30,24 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent: "MettaAgent", device: torch.device):
         log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
-        # Check if the agent might have circular references that would cause recursion
-        # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
+        # Ensure all ranks are synchronized before SyncBatchNorm conversion to prevent deadlocks
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
+        # Check if the agent might have circular references or other issues that cause conversion problems
+        # This can happen with loaded checkpoints that have structural issues
         try:
-            # Try to convert - this will fail with RecursionError if there are circular refs
+            # Try to convert - this will fail with various errors if there are structural issues
             layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
-        except RecursionError:
+        except (RecursionError, RuntimeError, ValueError) as e:
             logger.warning(
-                "RecursionError during SyncBatchNorm conversion - likely due to circular references. "
+                f"Error during SyncBatchNorm conversion ({type(e).__name__}: {e}). "
+                "This can happen with loaded checkpoints. Skipping SyncBatchNorm conversion."
+            )
+            layers_converted_agent = agent
+        except Exception as e:
+            logger.warning(
+                f"Unexpected error during SyncBatchNorm conversion ({type(e).__name__}: {e}). "
                 "Skipping SyncBatchNorm conversion."
             )
             layers_converted_agent = agent
