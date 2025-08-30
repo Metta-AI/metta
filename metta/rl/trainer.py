@@ -150,27 +150,27 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Load existing agent with distributed coordination (like main branch's load_or_create_policy)
-    # Master rank determines if checkpoint exists, then broadcasts to all ranks
+    # Load or create policy with distributed coordination (matching main branch)
+    # CRITICAL: All ranks must load/create the same agent structure for SyncBatchNorm to work
+
+    # Master determines if checkpoint exists
+    existing_agent = None
     if torch_dist_cfg.is_master:
         existing_agent = checkpoint_manager.load_agent()
-    else:
-        existing_agent = None
-    
-    # Synchronize checkpoint availability across all ranks
-    if torch.distributed.is_initialized():
-        import torch.distributed as dist
-        # Broadcast whether checkpoint exists from master to all ranks
-        has_checkpoint = [existing_agent is not None] if torch_dist_cfg.is_master else [None]
-        dist.broadcast_object_list(has_checkpoint, src=0)
-        
-        # Non-master ranks load checkpoint only if master confirmed it exists
-        if not torch_dist_cfg.is_master and has_checkpoint[0]:
-            existing_agent = checkpoint_manager.load_agent()
 
-    # Create or use existing agent with all ranks synchronized
-    if existing_agent:
+    # Synchronize whether checkpoint exists across all ranks
+    has_checkpoint = existing_agent is not None
+    if torch.distributed.is_initialized():
+        # Broadcast boolean from master to all ranks
+        has_checkpoint_tensor = torch.tensor([has_checkpoint], dtype=torch.bool, device=device)
+        torch.distributed.broadcast(has_checkpoint_tensor, src=0)
+        has_checkpoint = has_checkpoint_tensor.item()
+
+    # All ranks load/create the same agent structure
+    if has_checkpoint:
         logger.info("Resuming training with existing agent from checkpoint")
+        if existing_agent is None:  # Non-master ranks need to load too
+            existing_agent = checkpoint_manager.load_agent()
         policy: PolicyAgent = existing_agent
     else:
         logger.info("Creating new agent for training")
