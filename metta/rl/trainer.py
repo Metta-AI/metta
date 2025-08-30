@@ -151,27 +151,12 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Load or create policy with distributed coordination (matching main branch)
-    # CRITICAL: Master determines policy path, broadcasts to all ranks for identical structures
+    # Load existing agent from checkpoint - match main branch's simple approach
+    existing_agent = checkpoint_manager.load_agent()
 
-    # Master determines if checkpoint exists and gets the specific checkpoint path
-    checkpoint_path = None
-    if torch_dist_cfg.is_master:
-        if checkpoint_manager.exists():
-            # Get the specific checkpoint file (latest by epoch)
-            checkpoint_files = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
-            checkpoint_path = str(checkpoint_files[0]) if checkpoint_files else None
-
-    # Synchronize checkpoint path across all ranks using NCCL broadcast
-    if torch.distributed.is_initialized():
-        checkpoint_path = get_from_master(checkpoint_path)
-        logger.info(f"Rank {torch_dist_cfg.rank}: Synchronized checkpoint_path = {checkpoint_path}")
-
-    # ALL ranks follow the same path - either load the same checkpoint or create new agent
-    if checkpoint_path:
+    # Create or use existing agent  
+    if existing_agent:
         logger.info("Resuming training with existing agent from checkpoint")
-        # ALL ranks load from the same synchronized checkpoint path
-        existing_agent = torch.load(checkpoint_path, weights_only=False)
         policy: PolicyAgent = existing_agent
     else:
         logger.info("Creating new agent for training")

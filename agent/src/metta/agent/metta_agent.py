@@ -30,25 +30,17 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent: "MettaAgent", device: torch.device):
         log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
-        # Check if the agent already has SyncBatchNorm layers (from loaded checkpoint)
-        # Converting an already-converted model can cause hanging in distributed training
-        has_sync_batchnorm = any(isinstance(module, torch.nn.SyncBatchNorm) for module in agent.modules())
-        
-        if has_sync_batchnorm:
-            log_on_master("Agent already contains SyncBatchNorm layers, skipping conversion")
+        # Check if the agent might have circular references that would cause recursion
+        # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
+        try:
+            # Try to convert - this will fail with RecursionError if there are circular refs
+            layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+        except RecursionError:
+            logger.warning(
+                "RecursionError during SyncBatchNorm conversion - likely due to circular references. "
+                "Skipping SyncBatchNorm conversion."
+            )
             layers_converted_agent = agent
-        else:
-            # Check if the agent might have circular references that would cause recursion
-            # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
-            try:
-                # Try to convert - this will fail with RecursionError if there are circular refs
-                layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
-            except RecursionError:
-                logger.warning(
-                    "RecursionError during SyncBatchNorm conversion - likely due to circular references. "
-                    "Skipping SyncBatchNorm conversion."
-                )
-                layers_converted_agent = agent
 
         # Pass device_ids for GPU, but not for CPU
         if device.type == "cpu":
