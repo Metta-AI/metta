@@ -85,7 +85,7 @@ def get_maps() -> list[DCSSMap]:
     return maps
 
 
-dir = scenes_root / "dcss"
+dir = Path("dcss")
 wfc_dir = dir / "wfc"
 
 
