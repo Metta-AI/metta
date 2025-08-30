@@ -48,6 +48,30 @@ def key_and_version(uri: str) -> tuple[str, int]:
         path = Path(uri[7:])
         if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
             return parse_checkpoint_filename(path.name)[:2]
+        
+        # Handle directory URIs by finding the latest checkpoint inside
+        if path.is_dir():
+            # Try direct directory first
+            checkpoint_files = list(path.glob("*.pt"))
+            # If no checkpoints found and not in "checkpoints" dir, try checkpoints subdir
+            if not checkpoint_files and path.name != "checkpoints":
+                checkpoints_subdir = path / "checkpoints"
+                if checkpoints_subdir.is_dir():
+                    checkpoint_files = list(checkpoints_subdir.glob("*.pt"))
+            
+            if checkpoint_files:
+                valid_checkpoints = [
+                    (ckpt, parse_checkpoint_filename(ckpt.name)[1])
+                    for ckpt in checkpoint_files
+                    if is_valid_checkpoint_filename(ckpt.name)
+                ]
+                if valid_checkpoints:
+                    latest_checkpoint = max(valid_checkpoints, key=lambda x: x[1])[0]
+                    return parse_checkpoint_filename(latest_checkpoint.name)[:2]
+                # Fallback to first file if no valid checkpoints
+                first_file = checkpoint_files[0]
+                return first_file.stem, 0
+        
         return path.stem if path.suffix else path.name, 0
 
     if uri.startswith("wandb://"):
@@ -102,6 +126,12 @@ class CheckpointManager:
     """Checkpoint manager with filename-embedded metadata and LRU cache."""
 
     def __init__(self, run_name: str = "default", run_dir: str = "./train_dir", cache_size: int = 3):
+        # Validate run name
+        if not run_name or not run_name.strip():
+            raise ValueError("Run name cannot be empty")
+        if any(char in run_name for char in [' ', '/', '*', '\\', ':', '<', '>', '|', '?', '"']):
+            raise ValueError(f"Run name contains invalid characters: {run_name}")
+        
         self.run_name = run_name
         self.run_dir = Path(run_dir)
         self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
@@ -117,6 +147,8 @@ class CheckpointManager:
     @staticmethod
     def load_from_uri(uri: str):
         """Load a policy from file://, s3://, or wandb:// URI."""
+        # Normalize the URI first (converts plain paths to file:// URIs)
+        uri = CheckpointManager.normalize_uri(uri)
         try:
             if uri.startswith("file://"):
                 path = Path(uri[7:])
