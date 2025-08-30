@@ -165,9 +165,12 @@ class TestWandbURIHandling:
         assert expanded == full_uri
 
     @patch("metta.rl.wandb.load_policy_from_wandb_uri")
-    def test_wandb_uri_loading(self, mock_load_wandb, mock_policy):
+    @patch("wandb.Api")
+    def test_wandb_uri_loading(self, mock_wandb_api, mock_load_wandb, mock_policy):
         """Test wandb URI loading with expansion."""
         mock_load_wandb.return_value = mock_policy
+        # Mock the wandb API to prevent actual API calls
+        mock_wandb_api.return_value = Mock()
 
         # Test short format gets expanded before loading
         uri = "wandb://run/my-experiment"
@@ -178,7 +181,8 @@ class TestWandbURIHandling:
         mock_load_wandb.assert_called_once_with("wandb://metta/model/my-experiment:latest", device="cpu")
 
     @patch("metta.rl.wandb.get_wandb_checkpoint_metadata")
-    def test_wandb_metadata_extraction(self, mock_get_metadata):
+    @patch("wandb.Api")
+    def test_wandb_metadata_extraction(self, mock_wandb_api, mock_get_metadata):
         """Test metadata extraction from wandb URIs."""
         mock_get_metadata.return_value = {
             "run_name": "experiment_1",
@@ -187,6 +191,8 @@ class TestWandbURIHandling:
             "total_time": 750,
             "score": 0.95,
         }
+        # Mock the wandb API to prevent actual API calls
+        mock_wandb_api.return_value = Mock()
 
         uri = "wandb://run/experiment_1"
         metadata = CheckpointManager.get_policy_metadata(uri)
@@ -201,15 +207,18 @@ class TestWandbURIHandling:
     def test_wandb_key_and_version_extraction(self):
         """Test extracting key and version from wandb URIs."""
         with patch("metta.rl.wandb.get_wandb_checkpoint_metadata", return_value={"run_name": "test", "epoch": 5}):
-            key, version = key_and_version("wandb://run/test")
-            assert key == "test"
-            assert version == 5
+            with patch("wandb.Api"):  # Mock wandb API to prevent actual API calls
+                key, version = key_and_version("wandb://run/test")
+                assert key == "test"
+                assert version == 5
 
     @patch("metta.rl.wandb.load_policy_from_wandb_uri")
-    def test_wandb_error_handling(self, mock_load_wandb):
+    @patch("wandb.Api")
+    def test_wandb_error_handling(self, mock_wandb_api, mock_load_wandb):
         """Test wandb URI error handling."""
         # Test network error
         mock_load_wandb.side_effect = RuntimeError("Network error")
+        mock_wandb_api.return_value = Mock()
 
         uri = "wandb://run/test"
         result = CheckpointManager.load_from_uri(uri)
@@ -223,16 +232,19 @@ class TestS3URIHandling:
     def test_s3_uri_loading(self, mock_local_copy, mock_policy):
         """Test S3 URI handling with mocked local_copy."""
         mock_local_path = "/tmp/downloaded_checkpoint.pt"
+        # Properly mock the context manager
         mock_local_copy.return_value.__enter__ = Mock(return_value=mock_local_path)
         mock_local_copy.return_value.__exit__ = Mock(return_value=None)
 
         with patch("torch.load", return_value=mock_policy) as mock_torch_load:
-            uri = "s3://my-bucket/path/to/checkpoint.pt"
-            loaded_policy = CheckpointManager.load_from_uri(uri)
+            # Also patch the specific import path used in checkpoint_manager
+            with patch("metta.rl.checkpoint_manager.local_copy", mock_local_copy):
+                uri = "s3://my-bucket/path/to/checkpoint.pt"
+                loaded_policy = CheckpointManager.load_from_uri(uri)
 
-            assert type(loaded_policy).__name__ == type(mock_policy).__name__
-            mock_local_copy.assert_called_once_with(uri)
-            mock_torch_load.assert_called_once_with(mock_local_path, weights_only=False)
+                assert type(loaded_policy).__name__ == type(mock_policy).__name__
+                mock_local_copy.assert_called_once_with(uri)
+                mock_torch_load.assert_called_once_with(mock_local_path, weights_only=False)
 
     def test_s3_key_and_version_extraction(self):
         """Test extracting key and version from S3 URIs."""

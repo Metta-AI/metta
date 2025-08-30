@@ -123,11 +123,17 @@ class CheckpointManager:
                 if path.is_file() and path.suffix == ".pt":
                     return torch.load(path, weights_only=False)
                 if path.is_dir():
-                    if path.name != "checkpoints":
-                        path = path / "checkpoints"
+                    # Try direct directory first
                     checkpoint_files = list(path.glob("*.pt"))
+                    # If no checkpoints found and not in "checkpoints" dir, try checkpoints subdir
+                    if not checkpoint_files and path.name != "checkpoints":
+                        checkpoints_subdir = path / "checkpoints"
+                        if checkpoints_subdir.is_dir():
+                            checkpoint_files = list(checkpoints_subdir.glob("*.pt"))
+                    
                     if not checkpoint_files:
                         return None
+                    
                     valid_checkpoints = [
                         (ckpt, parse_checkpoint_filename(ckpt.name)[1])
                         for ckpt in checkpoint_files
