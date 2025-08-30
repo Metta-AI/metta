@@ -46,7 +46,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       episode_truncates(game_config.episode_truncates),
       inventory_item_names(game_config.inventory_item_names),
       num_observation_tokens(game_config.num_observation_tokens),
-      _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _seed(seed),
       _rng(seed),
@@ -899,7 +898,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
-  bind_global_obs_config(m);
   bind_game_config(m);
 
   // Export data types from types.hpp

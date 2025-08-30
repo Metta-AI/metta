@@ -154,18 +154,6 @@ class ChangeGlyphActionConfig(ActionConfig):
     ) -> None: ...
     number_of_glyphs: int
 
-class GlobalObsConfig:
-    def __init__(
-        self,
-        episode_completion_pct: bool = True,
-        last_action: bool = True,
-        last_reward: bool = True,
-        resource_rewards: bool = False,
-    ) -> None: ...
-    episode_completion_pct: bool
-    last_action: bool
-    last_reward: bool
-    resource_rewards: bool
 
 class GameConfig:
     def __init__(
@@ -177,7 +165,6 @@ class GameConfig:
         obs_height: int,
         inventory_item_names: list[str],
         num_observation_tokens: int,
-        global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
@@ -196,7 +183,6 @@ class GameConfig:
     obs_height: int
     inventory_item_names: list[str]
     num_observation_tokens: int
-    global_obs: GlobalObsConfig
     resource_loss_prob: float
     # METTAGRID EXTENSIONS
     extensions: list[str]

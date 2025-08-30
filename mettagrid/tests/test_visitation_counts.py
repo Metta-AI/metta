@@ -41,12 +41,6 @@ def create_base_config(enable_visitation_counts=False):
         ),
         "objects": {"wall": WallConfig(type_id=1)},
         "groups": {"agent": GroupConfig(id=0)},
-        "global_obs": GlobalObsConfig(
-            episode_completion_pct=True,
-            last_action=True,
-            last_reward=True,
-            resource_rewards=False,
-        ),
         "map_builder": AsciiMapBuilder.Config(
             map_data=[
                 [".", ".", ".", ".", ".", ".", "."],
@@ -58,10 +52,11 @@ def create_base_config(enable_visitation_counts=False):
                 [".", ".", ".", ".", ".", ".", "."],
             ]
         ),
+         extensions=["episode_completion_pct", "last_action", "last_reward"]
     }
 
     if enable_visitation_counts:
-        base_config["extensions"] = ["visitation_counts"]
+        base_config["extensions"].append("visitation_counts")
 
     return MettaGridConfig(game=GameConfig(**base_config))
 

@@ -152,16 +152,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     if "map_builder" in game_cpp_params:
         del game_cpp_params["map_builder"]
 
-    # Convert global_obs configuration
-    global_obs_config = game_config.global_obs
-    global_obs_cpp = CppGlobalObsConfig(
-        episode_completion_pct=global_obs_config.episode_completion_pct,
-        last_action=global_obs_config.last_action,
-        last_reward=global_obs_config.last_reward,
-        resource_rewards=global_obs_config.resource_rewards,
-    )
-    game_cpp_params["global_obs"] = global_obs_cpp
-
     actions_cpp_params = {}
     for action_name, action_config in game_cpp_params["actions"].items():
         if not action_config["enabled"]:

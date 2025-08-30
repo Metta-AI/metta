@@ -516,10 +516,6 @@ def _(RendererToolConfig):
     env_config.game.no_agent_interference = False
     env_config.game.recipe_details_obs = False
 
-    # Global observation tokens from old config
-    env_config.game.global_obs.episode_completion_pct = True
-    env_config.game.global_obs.last_action = True
-    env_config.game.global_obs.last_reward = True
 
     print("✅ Simple hallway environment: start with arena, add custom map")
     return (

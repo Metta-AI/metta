@@ -93,20 +93,6 @@ class ActionsConfig(Config):
     change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
 
 
-class GlobalObsConfig(Config):
-    """Global observation configuration."""
-
-    episode_completion_pct: bool = Field(default=True)
-
-    # Controls both last_action and last_action_arg
-    last_action: bool = Field(default=True)
-
-    last_reward: bool = Field(default=True)
-
-    # Controls whether resource rewards are included in observations
-    resource_rewards: bool = Field(default=False)
-
-
 class WallConfig(Config):
     """Python wall/block configuration."""
 

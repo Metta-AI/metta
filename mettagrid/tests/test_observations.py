@@ -412,14 +412,9 @@ class TestGlobalTokens:
                     get_items=ActionConfig(),
                 ),
                 objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-                global_obs=GlobalObsConfig(
-                    episode_completion_pct=True,
-                    last_action=True,
-                    last_reward=True,
-                    resource_rewards=False,
-                ),
                 inventory_item_names=["laser", "armor", "heart"],
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
+                extensions=["episode_completion_pct", "last_action", "last_reward"]
             )
         )
         env = MettaGridCore(cfg)
