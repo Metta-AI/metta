@@ -170,7 +170,9 @@ def train(
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
-        policy = wrap_agent_distributed(policy, device)
+        # Use the local device for each rank to avoid duplicate GPU errors
+        local_device = torch.device(f"cuda:{torch_dist_cfg.local_rank}")
+        policy = wrap_agent_distributed(policy, local_device)
 
     # Initialize policy to environment after distributed wrapping
     policy.train()  # Set to training mode for training
