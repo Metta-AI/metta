@@ -246,8 +246,8 @@ class MettaGridCore:
         return self.__c_env_instance.object_type_names()
 
     @property
-    def inventory_item_names(self) -> List[str]:
-        return self.__c_env_instance.inventory_item_names()
+    def resource_names(self) -> List[str]:
+        return self.__c_env_instance.resource_names()
 
     @property
     def feature_normalizations(self) -> Dict[int, float]:

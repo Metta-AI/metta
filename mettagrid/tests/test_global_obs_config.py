@@ -12,7 +12,7 @@ def create_test_env(global_obs_config):
         "obs_height": 11,
         "num_observation_tokens": 100,
         "max_steps": 100,
-        "inventory_item_names": ["item1", "item2"],
+        "resource_names": ["item1", "item2"],
         "global_obs": global_obs_config,
         "agent": {
             "default_resource_limit": 10,
@@ -123,7 +123,7 @@ def test_global_obs_default_values():
         "obs_height": 11,
         "num_observation_tokens": 100,
         "max_steps": 100,
-        "inventory_item_names": ["item1"],
+        "resource_names": ["item1"],
         # No global_obs specified - should use defaults
         "agent": {
             "default_resource_limit": 10,

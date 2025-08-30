@@ -39,7 +39,7 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
-        "inventory_item_names": ["laser", "armor"],
+        "resource_names": ["laser", "armor"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},

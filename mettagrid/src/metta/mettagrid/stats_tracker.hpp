@@ -54,7 +54,7 @@ private:
   friend class StatsTrackerTest;
 
   // Use a static function to avoid global destructor
-  static const std::string& get_no_env_inventory_item_name() {
+  static const std::string& get_no_env_resource_name() {
     static const std::string name = "[unknown -- stats tracker not initialized]";
     return name;
   }
@@ -71,7 +71,7 @@ public:
     return _env;
   }
 
-  const std::string& inventory_item_name(InventoryItem item) const;
+  const std::string& resource_name(InventoryItem item) const;
 
   void add(const std::string& key, float amount) {
     _stats[key] += amount;

@@ -43,7 +43,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       obs_height(game_config.obs_height),
       max_steps(game_config.max_steps),
       episode_truncates(game_config.episode_truncates),
-      inventory_item_names(game_config.inventory_item_names),
+      resource_names(game_config.resource_names),
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
@@ -70,7 +70,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
-  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names, game_config.recipe_details_obs);
+  _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.recipe_details_obs);
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -245,7 +245,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     uint8_t packed = 0;
 
     // Process up to 8 items (or all available items if fewer)
-    size_t num_items = std::min(inventory_item_names.size(), size_t(8));
+    size_t num_items = std::min(resource_names.size(), size_t(8));
 
     for (size_t i = 0; i < num_items; i++) {
       // Check if this item has a reward configured
@@ -900,8 +900,8 @@ py::list MettaGrid::object_type_names_py() {
   return py::cast(object_type_names);
 }
 
-py::list MettaGrid::inventory_item_names_py() {
-  return py::cast(inventory_item_names);
+py::list MettaGrid::resource_names_py() {
+  return py::cast(resource_names);
 }
 
 // StatsTracker implementation that needs complete MettaGrid definition
@@ -910,9 +910,9 @@ unsigned int StatsTracker::get_current_step() const {
   return static_cast<MettaGrid*>(_env)->current_step;
 }
 
-const std::string& StatsTracker::inventory_item_name(InventoryItem item) const {
-  if (!_env) return get_no_env_inventory_item_name();
-  return _env->inventory_item_names[item];
+const std::string& StatsTracker::resource_name(InventoryItem item) const {
+  if (!_env) return get_no_env_resource_name();
+  return _env->resource_names[item];
 }
 
 // Pybind11 module definition
@@ -949,7 +949,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names_py)
+      .def("resource_names", &MettaGrid::resource_names_py)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
 
   // Expose this so we can cast python WallConfig / AgentConfig / ConverterConfig to a common GridConfig cpp object.

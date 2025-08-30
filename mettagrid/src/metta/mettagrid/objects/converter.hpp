@@ -64,7 +64,7 @@ private:
       if (this->inventory[item] == 0) {
         this->inventory.erase(item);
       }
-      stats.add(stats.inventory_item_name(item) + ".consumed", amount);
+      stats.add(stats.resource_name(item) + ".consumed", amount);
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
@@ -135,7 +135,7 @@ public:
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
       HasInventory::update_inventory(item, amount);
-      stats.add(stats.inventory_item_name(item) + ".produced", amount);
+      stats.add(stats.resource_name(item) + ".produced", amount);
     }
 
     if (this->cooldown > 0) {
@@ -159,9 +159,9 @@ public:
     InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);
     if (delta != 0) {
       if (delta > 0) {
-        stats.add(stats.inventory_item_name(item) + ".added", delta);
+        stats.add(stats.resource_name(item) + ".added", delta);
       } else {
-        stats.add(stats.inventory_item_name(item) + ".removed", -delta);
+        stats.add(stats.resource_name(item) + ".removed", -delta);
       }
     }
     this->maybe_start_converting();

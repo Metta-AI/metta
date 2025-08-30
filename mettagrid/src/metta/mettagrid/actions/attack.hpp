@@ -213,7 +213,7 @@ private:
   void _log_resource_theft(Agent& actor, Agent& target, InventoryItem item, InventoryDelta amount) const {
     const std::string& actor_group = actor.group_name;
     const std::string& target_group = target.group_name;
-    const std::string item_name = actor.stats.inventory_item_name(item);
+    const std::string item_name = actor.stats.resource_name(item);
 
     actor.stats.add(_action_prefix(actor_group) + "steals." + item_name + ".from." + target_group, amount);
   }

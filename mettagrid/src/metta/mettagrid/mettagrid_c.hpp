@@ -57,7 +57,7 @@ public:
   unsigned int max_steps;
   bool episode_truncates;
 
-  std::vector<std::string> inventory_item_names;
+  std::vector<std::string> resource_names;
   std::vector<std::string> object_type_names;
 
   // Python API methods
@@ -84,7 +84,7 @@ public:
   py::list action_success_py();
   py::list max_action_args();
   py::list object_type_names_py();
-  py::list inventory_item_names_py();
+  py::list resource_names_py();
 
   uint64_t initial_grid_hash;
 

@@ -20,7 +20,7 @@ class TestConverterObservations:
             "obs_width": 5,
             "obs_height": 5,
             "num_observation_tokens": 100,
-            "inventory_item_names": ["ore_red", "ore_blue", "battery_red", "heart"],
+            "resource_names": ["ore_red", "ore_blue", "battery_red", "heart"],
             "recipe_details_obs": False,  # Default to False
             "actions": {
                 "noop": {"enabled": True},
@@ -131,9 +131,9 @@ class TestConverterObservations:
         feature_map = {fid: val for fid, val in zip(feature_ids, feature_values, strict=False)}
 
         # Calculate dynamic offsets based on inventory item count
-        inventory_item_count = 4  # ore_red, ore_blue, battery_red, heart
-        input_recipe_offset = 15 + inventory_item_count  # 19
-        output_recipe_offset = input_recipe_offset + inventory_item_count  # 23
+        resource_count = 4  # ore_red, ore_blue, battery_red, heart
+        input_recipe_offset = 15 + resource_count  # 19
+        output_recipe_offset = input_recipe_offset + resource_count  # 23
 
         # Recipe inputs are shown at dynamic offsets
         # ore_red=input_recipe_offset+0, ore_blue=input_recipe_offset+1, etc.
@@ -176,9 +176,9 @@ class TestConverterObservations:
         feature_map = {fid: val for fid, val in zip(feature_ids, feature_values, strict=False)}
 
         # Calculate dynamic offsets based on inventory item count
-        inventory_item_count = 4  # ore_red, ore_blue, battery_red, heart
-        input_recipe_offset = 15 + inventory_item_count
-        output_recipe_offset = input_recipe_offset + inventory_item_count
+        resource_count = 4  # ore_red, ore_blue, battery_red, heart
+        input_recipe_offset = 15 + resource_count
+        output_recipe_offset = input_recipe_offset + resource_count
 
         # Altar expects: battery_red=3 (feature ID is input_recipe_offset + 2)
         battery_red_input_id = input_recipe_offset + 2
@@ -216,8 +216,8 @@ class TestConverterObservations:
         altar_feature_map = {token[1]: token[2] for token in altar_tokens}
 
         # Calculate dynamic offsets
-        inventory_item_count = 4  # ore_red, ore_blue, battery_red, heart
-        input_recipe_offset = 15 + inventory_item_count
+        resource_count = 4  # ore_red, ore_blue, battery_red, heart
+        input_recipe_offset = 15 + resource_count
 
         # Verify they have different recipe requirements
         # Generator has ore_red and ore_blue inputs
@@ -242,7 +242,7 @@ class TestConverterObservations:
         """Test converter that produces output without requiring inputs."""
         game_config = self.get_base_game_config()
         game_config["recipe_details_obs"] = True
-        game_config["inventory_item_names"] = ["ore_red"]  # Only one inventory item
+        game_config["resource_names"] = ["ore_red"]  # Only one inventory item
 
         # Add mine object
         game_config["objects"]["mine"] = {

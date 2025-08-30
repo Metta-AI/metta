@@ -7,7 +7,7 @@ from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 
 def test_exception_when_laser_not_in_inventory():
-    """Test that an exception is raised when attack requires laser but it's not in inventory_item_names."""
+    """Test that an exception is raised when attack requires laser but it's not in resource_names."""
     game_map = [
         ["wall", "wall", "wall", "wall", "wall"],
         ["wall", "agent.red", ".", "agent.blue", "wall"],
@@ -20,8 +20,8 @@ def test_exception_when_laser_not_in_inventory():
         "obs_width": 11,
         "obs_height": 11,
         "num_observation_tokens": 200,
-        # Note: laser is NOT in inventory_item_names
-        "inventory_item_names": ["armor", "heart"],
+        # Note: laser is NOT in resource_names
+        "resource_names": ["armor", "heart"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
@@ -49,7 +49,7 @@ def test_exception_when_laser_not_in_inventory():
     # Check the exception message
     assert "attack" in str(exc_info.value)
     assert "laser" in str(exc_info.value)
-    assert "not in inventory_item_names" in str(exc_info.value)
+    assert "not in resource_names" in str(exc_info.value)
     print(f"✓ Got expected exception: {exc_info.value}")
 
 
@@ -67,8 +67,8 @@ def test_no_exception_when_resources_in_inventory():
         "obs_width": 11,
         "obs_height": 11,
         "num_observation_tokens": 200,
-        # Laser IS in inventory_item_names
-        "inventory_item_names": ["laser", "armor", "heart"],
+        # Laser IS in resource_names
+        "resource_names": ["laser", "armor", "heart"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
