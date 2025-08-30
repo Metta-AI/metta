@@ -6,12 +6,18 @@ import pytest
 # Add the src directory to the path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from metta.mettagrid.util.file import exists, http_url, read, write_data
+from metta.mettagrid.util.file import (
+    GOOGLE_DRIVE_CREDENTIALS_FILE,
+    GOOGLE_DRIVE_TOKEN_FILE,
+    exists,
+    http_url,
+    read,
+    write_data,
+)
 
 
 def _has_gdrive_credentials():
     """Check if Google Drive credentials are available"""
-    from metta.mettagrid.util.file import GOOGLE_DRIVE_CREDENTIALS_FILE, GOOGLE_DRIVE_TOKEN_FILE
 
     cred_path = Path(GOOGLE_DRIVE_CREDENTIALS_FILE).expanduser()
     token_path = Path(GOOGLE_DRIVE_TOKEN_FILE).expanduser()
