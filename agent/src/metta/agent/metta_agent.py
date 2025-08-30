@@ -30,10 +30,6 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent: "MettaAgent", device: torch.device):
         log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
-        # Ensure all ranks are synchronized before SyncBatchNorm conversion to prevent deadlocks
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-
         # Check if the agent might have circular references that would cause recursion
         # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
         try:
