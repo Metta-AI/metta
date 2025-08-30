@@ -57,26 +57,11 @@ def key_and_version(uri: str) -> tuple[str, int]:
         
         # Handle directory URIs by finding the latest checkpoint inside
         if path.is_dir():
-            # Try direct directory first
-            checkpoint_files = list(path.glob("*.pt"))
-            # If no checkpoints found and not in "checkpoints" dir, try checkpoints subdir
-            if not checkpoint_files and path.name != "checkpoints":
-                checkpoints_subdir = path / "checkpoints"
-                if checkpoints_subdir.is_dir():
-                    checkpoint_files = list(checkpoints_subdir.glob("*.pt"))
-            
-            if checkpoint_files:
-                valid_checkpoints = [
-                    (ckpt, parse_checkpoint_filename(ckpt.name)[1])
-                    for ckpt in checkpoint_files
-                    if is_valid_checkpoint_filename(ckpt.name)
-                ]
-                if valid_checkpoints:
-                    latest_checkpoint = max(valid_checkpoints, key=lambda x: x[1])[0]
-                    return parse_checkpoint_filename(latest_checkpoint.name)[:2]
-                # Fallback to first file if no valid checkpoints
-                first_file = checkpoint_files[0]
-                return first_file.stem, 0
+            checkpoint_file = _find_best_checkpoint_in_dir(path)
+            if checkpoint_file and is_valid_checkpoint_filename(checkpoint_file.name):
+                return parse_checkpoint_filename(checkpoint_file.name)[:2]
+            elif checkpoint_file:
+                return checkpoint_file.stem, 0
         
         return path.stem if path.suffix else path.name, 0
 
@@ -128,6 +113,30 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]
     return (parts[0], int(parts[1][1:]), int(parts[2][1:]), int(parts[3][1:]), int(parts[4][2:]) / 10000.0)
 
 
+def _find_best_checkpoint_in_dir(directory: Path) -> Optional[Path]:
+    """Find the best checkpoint file in a directory."""
+    # Try direct directory first, then checkpoints subdirectory
+    search_dirs = [directory]
+    if directory.name != "checkpoints":
+        checkpoints_subdir = directory / "checkpoints"
+        if checkpoints_subdir.is_dir():
+            search_dirs.append(checkpoints_subdir)
+
+    for search_dir in search_dirs:
+        checkpoint_files = list(search_dir.glob("*.pt"))
+        if checkpoint_files:
+            # Prefer files with valid checkpoint format, sorted by epoch
+            valid_checkpoints = [
+                (ckpt, parse_checkpoint_filename(ckpt.name)[1])
+                for ckpt in checkpoint_files
+                if is_valid_checkpoint_filename(ckpt.name)
+            ]
+            if valid_checkpoints:
+                return max(valid_checkpoints, key=lambda x: x[1])[0]
+            return checkpoint_files[0]  # Fallback to any .pt file
+    return None
+
+
 class CheckpointManager:
     """Checkpoint manager with filename-embedded metadata and LRU cache."""
 
@@ -151,30 +160,6 @@ class CheckpointManager:
         _global_cache.clear()
 
     @staticmethod
-    def _find_best_checkpoint_in_dir(directory: Path) -> Optional[Path]:
-        """Find the best checkpoint file in a directory."""
-        # Try direct directory first, then checkpoints subdirectory
-        search_dirs = [directory]
-        if directory.name != "checkpoints":
-            checkpoints_subdir = directory / "checkpoints"
-            if checkpoints_subdir.is_dir():
-                search_dirs.append(checkpoints_subdir)
-
-        for search_dir in search_dirs:
-            checkpoint_files = list(search_dir.glob("*.pt"))
-            if checkpoint_files:
-                # Prefer files with valid checkpoint format, sorted by epoch
-                valid_checkpoints = [
-                    (ckpt, parse_checkpoint_filename(ckpt.name)[1])
-                    for ckpt in checkpoint_files
-                    if is_valid_checkpoint_filename(ckpt.name)
-                ]
-                if valid_checkpoints:
-                    return max(valid_checkpoints, key=lambda x: x[1])[0]
-                return checkpoint_files[0]  # Fallback to any .pt file
-        return None
-
-    @staticmethod
     def load_from_uri(uri: str):
         """Load a policy from file://, s3://, or wandb:// URI."""
         # Normalize the URI first (converts plain paths to file:// URIs)
@@ -185,7 +170,7 @@ class CheckpointManager:
                 if path.is_file() and path.suffix == ".pt":
                     return torch.load(path, weights_only=False)
                 if path.is_dir():
-                    checkpoint_file = CheckpointManager._find_best_checkpoint_in_dir(path)
+                    checkpoint_file = _find_best_checkpoint_in_dir(path)
                     return torch.load(checkpoint_file, weights_only=False) if checkpoint_file else None
                 return None
             if uri.startswith("s3://"):
