@@ -1,13 +1,14 @@
 // extensions/visitation_counts.hpp
-#pragma once
+#ifndef EXTENSIONS_VISITATION_COUNTS_HPP_
+#define EXTENSIONS_VISITATION_COUNTS_HPP_
 
 #include <array>
 #include <unordered_map>
 #include <vector>
 
-#include "extension.hpp"
+#include "extensions/mettagrid_extension.hpp"
 
-class VisitationCounts : public Extension {
+class VisitationCounts : public MettaGridExtension {
 public:
   void registerObservations(ObservationEncoder* enc) override;
   void onInit(const MettaGrid* env) override;
@@ -28,7 +29,7 @@ private:
   // Sparse storage for large grids
   std::vector<std::unordered_map<uint32_t, uint8_t>> _sparse_visits;
 
-  ObservationFeatureID _visitation_count_feature;
+  ObservationType _visitation_count_feature;
 
   // Helper to get index in dense array
   inline size_t getDenseIndex(size_t agent_idx, GridCoord r, GridCoord c) const {
@@ -38,3 +39,5 @@ private:
   std::array<unsigned int, 5> computeVisitationCounts(const MettaGrid* env, size_t agent_idx) const;
   void addVisitationCountsToObservations(MettaGrid* env);
 };
+
+#endif  // EXTENSIONS_VISITATION_COUNTS_HPP_

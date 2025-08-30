@@ -20,8 +20,8 @@ void VisitationCounts::registerObservations(ObservationEncoder* enc) {
 
 void VisitationCounts::onInit(const MettaGrid* env) {
   _num_agents = env->num_agents();
-  _grid_width = env->width;
-  _grid_height = env->height;
+  _grid_width = env->grid().width;
+  _grid_height = env->grid().height;
 
   // Decide whether to use dense or sparse storage
   _use_dense = (_grid_width * _grid_height <= DENSE_THRESHOLD);

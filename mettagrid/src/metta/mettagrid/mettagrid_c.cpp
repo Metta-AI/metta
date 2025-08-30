@@ -231,28 +231,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
   initial_grid_hash = wyhash::hash_string(grid_hash_data);
 
-  // Compute inventory rewards for each agent (1 bit per item, up to 8 items)
-  _resource_rewards.resize(_agents.size(), 0);
-  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    auto& agent = _agents[agent_idx];
-    uint8_t packed = 0;
-
-    // Process up to 8 items (or all available items if fewer)
-    size_t num_items = std::min(inventory_item_names.size(), size_t(8));
-
-    for (size_t i = 0; i < num_items; i++) {
-      // Check if this item has a reward configured
-      auto item = static_cast<InventoryItem>(i);
-      if (agent->resource_rewards.count(item) && agent->resource_rewards[item] > 0) {
-        // Set bit at position (7 - i) to 1
-        // Item 0 goes to bit 7, item 1 to bit 6, etc.
-        packed |= static_cast<uint8_t>(1 << (7 - item));
-      }
-    }
-
-    _resource_rewards[agent_idx] = packed;
-  }
-
   // Create extensions from ordered list
   for (const auto& ext_name : game_config.extensions) {
     auto ext = ExtensionRegistry::instance().create(ext_name);
