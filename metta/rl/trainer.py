@@ -11,6 +11,7 @@ from torchrl.data import Composite
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
+from metta.agent.util.distribution_utils import get_from_master
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.profiling.stopwatch import Stopwatch
@@ -150,14 +151,27 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Load or create policy with distributed coordination (matching main branch hotfix a546f3734)
-    # CRITICAL: ALL ranks must load the same checkpoint file for identical structures before SyncBatchNorm
+    # Load or create policy with distributed coordination (matching main branch)
+    # CRITICAL: Master determines policy path, broadcasts to all ranks for identical structures
 
-    if checkpoint_manager.exists():
+    # Master determines if checkpoint exists and gets the specific checkpoint path
+    checkpoint_path = None
+    if torch_dist_cfg.is_master:
+        if checkpoint_manager.exists():
+            # Get the specific checkpoint file (latest by epoch)
+            checkpoint_files = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+            checkpoint_path = str(checkpoint_files[0]) if checkpoint_files else None
+
+    # Synchronize checkpoint path across all ranks using NCCL broadcast
+    if torch.distributed.is_initialized():
+        checkpoint_path = get_from_master(checkpoint_path)
+        logger.info(f"Rank {torch_dist_cfg.rank}: Synchronized checkpoint_path = {checkpoint_path}")
+
+    # ALL ranks follow the same path - either load the same checkpoint or create new agent
+    if checkpoint_path:
         logger.info("Resuming training with existing agent from checkpoint")
-        # ALL ranks load the same checkpoint to ensure identical module structures
-        # DDP will synchronize weights, but we need matching architecture for SyncBatchNorm
-        existing_agent = checkpoint_manager.load_agent()
+        # ALL ranks load from the same synchronized checkpoint path
+        existing_agent = torch.load(checkpoint_path, weights_only=False)
         policy: PolicyAgent = existing_agent
     else:
         logger.info("Creating new agent for training")
