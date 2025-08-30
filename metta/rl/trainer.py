@@ -150,24 +150,10 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Load existing agent from CheckpointManager with improved distributed coordination
-    # Only master rank checks for checkpoint first to avoid file system race conditions
-    if torch_dist_cfg.is_master:
-        existing_agent = checkpoint_manager.load_agent()
-    else:
-        existing_agent = None
-    
-    # Synchronize checkpoint decision across all ranks 
-    if torch.distributed.is_initialized():
-        # Use tensor broadcast (more efficient than object broadcast)
-        has_checkpoint = torch.tensor([existing_agent is not None], dtype=torch.bool, device=device)
-        torch.distributed.broadcast(has_checkpoint, src=0)
-        
-        # Non-master ranks load checkpoint only if master confirmed it exists
-        if not torch_dist_cfg.is_master and has_checkpoint.item():
-            existing_agent = checkpoint_manager.load_agent()
+    # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
+    existing_agent = checkpoint_manager.load_agent()
 
-    # Create or use existing agent - all ranks make synchronized decision
+    # Create or use existing agent (simplified to match main branch)
     if existing_agent:
         logger.info("Resuming training with existing agent from checkpoint")
         policy: PolicyAgent = existing_agent
@@ -175,32 +161,16 @@ def train(
         logger.info("Creating new agent for training")
         policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
-    # Don't proceed until all ranks have the policy
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
     if trainer_cfg.compile:
         logger.info("Compiling policy")
         # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
         policy = cast(PolicyAgent, torch.compile(policy, mode=trainer_cfg.compile_mode))
 
-    # Store reference to unwrapped policy (matching main branch pattern)
-    unwrapped_policy = policy
-
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
-        if torch_dist_cfg.is_master:
-            logger.info("Initializing DistributedDataParallel")
-        torch.distributed.barrier()
         policy = wrap_agent_distributed(policy, device)
-        torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
-    # This must happen after wrapping to ensure all ranks do it at the same time
-    # CRITICAL: Use unwrapped policy for resumption (matching main branch behavior)
-    if existing_agent:
-        policy = unwrapped_policy  # Match main branch's policy reassignment during resumption
-
     policy.train()  # Set to training mode for training
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
