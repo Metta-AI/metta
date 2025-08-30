@@ -320,8 +320,9 @@ class TestRealEnvironmentIntegration:
             checkpoint_manager.save_agent(agent, epoch=10, metadata={"agent_step": 5000, "total_time": 300})
 
             # Get checkpoint URI using public API
-            checkpoint_files = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
-            checkpoint_file = checkpoint_files[0] if checkpoint_files else None
+            checkpoint_file = (
+                checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch") or [None]
+            )[0]
             checkpoint_uri = f"file://{checkpoint_file}"
 
             # Load via URI

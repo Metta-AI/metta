@@ -504,16 +504,18 @@ def train(
                 if wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval):
                     try:
                         # Get the checkpoint file that was just saved
-                        checkpoint_files = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
-                        if checkpoint_files:
-                            checkpoint_file = checkpoint_files[0]
-                            
+                        checkpoint_file = (
+                            checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch") or [None]
+                        )[0]
+                        if checkpoint_file:
                             # Use the metadata we already have, augmented with run info
                             wandb_metadata = metadata.copy()
-                            wandb_metadata.update({
-                                "run_name": run,
-                                "epoch": epoch,
-                            })
+                            wandb_metadata.update(
+                                {
+                                    "run_name": run,
+                                    "epoch": epoch,
+                                }
+                            )
 
                             # Upload as wandb artifact
                             artifact_name = f"{run}_{epoch}"
@@ -673,16 +675,18 @@ def train(
     if wandb_run:
         try:
             # Get the checkpoint file that was just saved
-            checkpoint_files = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
-            if checkpoint_files:
-                checkpoint_file = checkpoint_files[0]
-                
+            checkpoint_file = (
+                checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch") or [None]
+            )[0]
+            if checkpoint_file:
                 # Use the metadata we already have, augmented with run info
                 wandb_metadata = final_metadata.copy()
-                wandb_metadata.update({
-                    "run_name": run,
-                    "epoch": epoch,
-                })
+                wandb_metadata.update(
+                    {
+                        "run_name": run,
+                        "epoch": epoch,
+                    }
+                )
 
                 # Upload as wandb artifact with "final" tag
                 artifact_name = f"{run}_{epoch}_final"
