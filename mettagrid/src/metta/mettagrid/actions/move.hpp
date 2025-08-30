@@ -38,9 +38,15 @@ protected:
     int dc, dr;
     getOrientationDelta(move_direction, dc, dr);
 
-    // Calculate target location
-    target_location.r += dr;
-    target_location.c += dc;
+    // Note: We currently expect all maps to have wall boundaries at the perimeter, so agents should not
+    // be able to reach the edge coordinates (row/column 0 or max). If this changes someday and an agent
+    // attempts to move off the edge of the map, the unsigned GridCoord would underflow to a large value
+    // (e.g., 65535 for uint16_t). This underflow would likely be caught by the is_valid_location check
+    // below, because we expect to never have a map with width or height equal to the max value of GridCoord.
+    // We are not explicitly returning false for over/underflow because we want to avoid the extra comparisons
+    // for performance.
+    target_location.r = static_cast<GridCoord>(static_cast<int>(target_location.r) + dr);
+    target_location.c = static_cast<GridCoord>(static_cast<int>(target_location.c) + dc);
 
     // Update orientation to face the movement direction (even if movement fails)
     actor->orientation = move_direction;

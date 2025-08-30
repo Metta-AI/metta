@@ -6,7 +6,7 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.mettagrid.config import empty_converters
 from metta.mettagrid.config.envs import make_icl_resource_chain
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -113,7 +113,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.game_objects[sink_name] = sink
         cfg.map_builder_objects[sink_name] = 1
 
-    def _make_env_cfg(self, resource_chain, num_sinks, rng, max_steps=256) -> EnvConfig:
+    def _make_env_cfg(
+        self, resource_chain, num_sinks, rng, max_steps=256
+    ) -> MettaGridConfig:
         cfg = _BuildCfg()
         resource_chain = ["nothing"] + list(resource_chain) + ["heart"]
 
@@ -142,7 +144,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             map_builder_objects=cfg.map_builder_objects,
         )
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         chain_length = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
         resource_chain = rng.sample(self.resource_types, chain_length)
@@ -152,7 +154,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         return icl_env
 
 
-def make_env() -> EnvConfig:
+def make_env() -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[6],
         num_sinks=[2],
@@ -187,7 +189,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     return TrainTool(trainer=trainer_cfg)
 
 
-def play(env: Optional[EnvConfig] = None) -> PlayTool:
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_env()
     return PlayTool(
         sim=SimulationConfig(
@@ -197,7 +199,7 @@ def play(env: Optional[EnvConfig] = None) -> PlayTool:
     )
 
 
-def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_env()
     return ReplayTool(
         sim=SimulationConfig(

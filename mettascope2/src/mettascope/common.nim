@@ -9,13 +9,16 @@ type
     h*: int
 
   PanelType* = enum
+    GlobalHeader
+    GlobalFooter
+    GlobalTimeline
+
     WorldMap
     Minimap
     AgentTable
     AgentTraces
-    GlobalHeader
-    GlobalFooter
-    GlobalTimeline
+    EnvConfig
+
 
   Panel* = ref object
     panelType*: PanelType
@@ -51,13 +54,15 @@ var
   bxy*: Boxy
   frame*: int
 
+  globalTimelinePanel*: Panel
+  globalFooterPanel*: Panel
+  globalHeaderPanel*: Panel
+
   worldMapPanel*: Panel
   minimapPanel*: Panel
   agentTablePanel*: Panel
   agentTracesPanel*: Panel
-  globalTimelinePanel*: Panel
-  globalFooterPanel*: Panel
-  globalHeaderPanel*: Panel
+  envConfigPanel*: Panel
 
   settings* = Settings()
   selection*: Entity

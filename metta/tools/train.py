@@ -1,24 +1,24 @@
 import logging
 import os
 import platform
-import uuid
 from logging import Logger
 from typing import Optional
 
 import torch
 
+import gitta as git
 from metta.agent.agent_config import AgentConfig
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
-from metta.common.util.git import get_git_hash_for_remote_task
+from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging_helpers import init_file_logging, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
-from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
+from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class TrainTool(Tool):
             self.run = args["run"]
 
         if self.run is None:
-            self.run = f"local.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())}"
+            self.run = auto_run_name(prefix="local")
 
         # Set run_dir based on run name if not explicitly set
         if self.run_dir is None:
@@ -99,8 +99,7 @@ class TrainTool(Tool):
         else:
             handle_train(self, torch_dist_cfg, None, logger)
 
-        if torch.distributed.is_initialized():
-            torch.distributed.destroy_process_group()
+        cleanup_distributed()
 
         return 0
 
@@ -185,7 +184,8 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
             cfg.trainer.evaluation.evaluate_remote = False
             log_on_master("Evaluate interval set to 0, disabling remote evaluations")
         elif not cfg.trainer.evaluation.git_hash:
-            cfg.trainer.evaluation.git_hash = get_git_hash_for_remote_task(
+            cfg.trainer.evaluation.git_hash = git.get_git_hash_for_remote_task(
+                target_repo=REPO_SLUG,
                 skip_git_check=cfg.trainer.evaluation.skip_git_check,
                 skip_cmd="trainer.evaluation.skip_git_check=true",
                 logger=logger,

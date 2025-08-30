@@ -28,7 +28,6 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -105,7 +104,7 @@ class Simulation:
         )
 
         self._vecenv = make_vecenv(
-            Curriculum(CurriculumConfig.from_env(cfg.env)),
+            Curriculum(CurriculumConfig.from_mg(cfg.env)),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
@@ -131,20 +130,20 @@ class Simulation:
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
         # Initialize policy to environment
-        initialize_policy_for_environment(
-            policy_record=self._policy_pr,
-            metta_grid_env=metta_grid_env,
-            device=self._device,
-            restore_feature_mapping=True,
+        policy = self._policy_pr.policy
+        policy.eval()  # Set to evaluation mode for simulation
+        features = metta_grid_env.get_observation_features()
+        policy.initialize_to_environment(
+            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
         )
 
         if self._npc_pr is not None:
             # Initialize NPC policy to environment
-            initialize_policy_for_environment(
-                policy_record=self._npc_pr,
-                metta_grid_env=metta_grid_env,
-                device=self._device,
-                restore_feature_mapping=True,
+            npc_policy = self._npc_pr.policy
+            npc_policy.eval()  # Set to evaluation mode for simulation
+            features = metta_grid_env.get_observation_features()
+            npc_policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
             )
 
         # ---------------- agent-index bookkeeping ---------------------- #
@@ -194,9 +193,7 @@ class Simulation:
         )
 
     def start_simulation(self) -> None:
-        """
-        Start the simulation.
-        """
+        """Start the simulation."""
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
             self._name,
@@ -222,9 +219,7 @@ class Simulation:
         return td["actions"]
 
     def generate_actions(self) -> np.ndarray:
-        """
-        Generate actions for the simulation.
-        """
+        """Generate actions for the simulation."""
         if __debug__:
             # Debug assertion: verify indices are correctly ordered
             # Policy indices should be 0 to N-1
@@ -366,9 +361,7 @@ class Simulation:
         return SimulationResults(db)
 
     def simulate(self) -> SimulationResults:
-        """
-        Run the simulation; returns the merged `StatsDB`.
-        """
+        """Run the simulation; returns the merged `StatsDB`."""
         self.start_simulation()
 
         self._policy_pr.policy.reset_memory()
@@ -522,8 +515,7 @@ class Simulation:
         """Get the policy state for memory manipulation.
 
         Returns a PolicyState object with lstm_h and lstm_c attributes if available.
-        Note: The actual state management depends on the specific policy implementation.
-        """
+        Note: The actual state management depends on the specific policy implementation."""
         # The policy is the LSTM wrapper
         policy = self._policy_pr.policy
 
@@ -568,10 +560,8 @@ class Simulation:
 
 @dataclass
 class SimulationResults:
-    """
-    Results of a simulation.
-    For now just a stats db. Replay plays can be retrieved from the stats db.
-    """
+    """Results of a simulation.
+    For now just a stats db. Replay plays can be retrieved from the stats db."""
 
     stats_db: SimulationStatsDB
     replay_urls: dict[str, list[str]] | None = None  # Maps simulation names to lists of replay URLs

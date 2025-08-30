@@ -58,8 +58,6 @@ type
     envConfig*: JsonNode
 
 proc expand[T](data: any, numSteps: int, defaultValue: T): seq[T] =
-  echo "reading data: ", data
-  echo "  for type: ", $T
   if data == nil:
     # Use the default value.
     return @[defaultValue]

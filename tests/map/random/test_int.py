@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from pydantic import BaseModel
 
 from metta.map.random.int import (
     IntConstantDistribution,
@@ -80,7 +81,6 @@ class TestIntUniformDistribution:
 class TestIntDistributionTypes:
     def test_constant_distribution_from_int(self):
         # Test that int values are converted to IntConstantDistribution
-        from pydantic import BaseModel
 
         class TestModel(BaseModel):
             dist: IntDistribution
@@ -91,7 +91,6 @@ class TestIntDistributionTypes:
 
     def test_uniform_distribution_from_tuple(self):
         # Test that tuple values are converted to IntUniformDistribution
-        from pydantic import BaseModel
 
         class TestModel(BaseModel):
             dist: IntDistribution
@@ -102,8 +101,6 @@ class TestIntDistributionTypes:
         assert model.dist.high == 10
 
     def test_invalid_uniform_tuple_format(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: IntDistribution
 
@@ -116,8 +113,6 @@ class TestIntDistributionTypes:
             TestModel.model_validate({"dist": ("normal", 1, 10)})
 
     def test_integration_constant_distribution(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: IntDistribution
 
@@ -127,8 +122,6 @@ class TestIntDistributionTypes:
         assert model.dist.sample(rng) == 7
 
     def test_integration_uniform_distribution(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: IntDistribution
 

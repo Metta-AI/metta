@@ -1,21 +1,3 @@
-"""
-Neural network layer library for Metta Agent.
-
-This module provides a collection of PyTorch neural network layers wrapped as Metta layers.
-Each class extends either LayerBase or ParamLayer to make standard PyTorch modules compatible
-with the Metta Agent framework, handling tensor shapes, parameter management, and integration
-with the TensorDict system.
-
-All layers in this library follow a consistent pattern:
-1. They inherit from LayerBase or ParamLayer
-2. They implement _make_net() to create the underlying PyTorch module
-3. They calculate and set the _out_tensor_shape based on the input shapes
-4. Most use the default _forward() implementation from LayerBase
-
-Note that the __init__ of any layer class and the MettaAgent are only called when the agent
-is instantiated and never again. I.e., not when it is reloaded from a saved policy.
-"""
-
 from math import prod
 
 import torch

@@ -8,10 +8,10 @@ import sky
 import sky.exceptions
 import yaml
 
+import gitta as git
 from devops.skypilot.utils import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.cost_monitor import get_instance_cost
-from metta.common.util.git import GitError, get_current_branch
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -41,8 +41,8 @@ def load_sandbox_config(config_path: str):
 def get_current_git_ref():
     """Get the current git branch or commit hash."""
     try:
-        return get_current_branch()
-    except (GitError, ValueError):
+        return git.get_current_branch()
+    except (git.GitError, ValueError):
         return "main"  # Fallback to main
 
 

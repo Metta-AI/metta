@@ -1,7 +1,5 @@
-"""System and memory monitoring utilities for training."""
-
 import logging
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
@@ -14,7 +12,7 @@ logger = logging.getLogger(__name__)
 def setup_monitoring(
     policy: Any,
     experience: Experience,
-    timer: Optional[Stopwatch] = None,
+    timer: Stopwatch | None = None,
 ) -> Tuple[MemoryMonitor, SystemMonitor]:
     """Set up memory and system monitoring (should only be called on master rank)."""
 
@@ -37,8 +35,8 @@ def setup_monitoring(
 
 
 def cleanup_monitoring(
-    memory_monitor: Optional[MemoryMonitor],
-    system_monitor: Optional[SystemMonitor],
+    memory_monitor: MemoryMonitor | None,
+    system_monitor: SystemMonitor | None,
 ) -> None:
     """Clean up memory and system monitoring resources."""
     if memory_monitor:
@@ -48,49 +46,3 @@ def cleanup_monitoring(
     if system_monitor:
         system_monitor.stop()
         logger.debug("Stopped system monitor")
-
-
-def get_memory_stats(memory_monitor: Optional[MemoryMonitor]) -> dict:
-    """Get current memory statistics from memory monitor."""
-    if not memory_monitor:
-        return {}
-
-    stats = {}
-    for name, info in memory_monitor.get_all_stats().items():
-        stats[f"memory/{name}_mb"] = info["size_mb"]
-        if "attributes" in info:
-            for attr_name, attr_size in info["attributes"].items():
-                stats[f"memory/{name}_{attr_name}_mb"] = attr_size
-
-    return stats
-
-
-def get_system_stats(system_monitor: Optional[SystemMonitor]) -> dict:
-    """Get current system statistics including CPU, memory, and GPU metrics."""
-    if not system_monitor:
-        return {}
-
-    current_stats = system_monitor.get_current_stats()
-    stats = {}
-
-    if current_stats:
-        stats.update(
-            {
-                "system/cpu_percent": current_stats.get("cpu_percent", 0),
-                "system/memory_percent": current_stats.get("memory_percent", 0),
-                "system/memory_used_gb": current_stats.get("memory_used_gb", 0),
-            }
-        )
-
-        # Add GPU stats if available
-        gpu_stats = current_stats.get("gpu", {})
-        for gpu_id, gpu_data in gpu_stats.items():
-            stats.update(
-                {
-                    f"system/gpu_{gpu_id}_utilization": gpu_data.get("utilization", 0),
-                    f"system/gpu_{gpu_id}_memory_percent": gpu_data.get("memory_percent", 0),
-                    f"system/gpu_{gpu_id}_temperature": gpu_data.get("temperature", 0),
-                }
-            )
-
-    return stats

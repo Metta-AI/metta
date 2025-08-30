@@ -194,7 +194,7 @@ class GameConfig(Config):
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
 
-class EnvConfig(Config):
+class MettaGridConfig(Config):
     """Environment configuration."""
 
     label: str = Field(default="mettagrid")
@@ -202,17 +202,17 @@ class EnvConfig(Config):
     desync_episodes: bool = Field(default=True)
 
     @model_validator(mode="after")
-    def validate_fields(self) -> "EnvConfig":
+    def validate_fields(self) -> "MettaGridConfig":
         return self
 
-    def with_ascii_map(self, map_data: list[list[str]]) -> "EnvConfig":
+    def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
         return self
 
     @staticmethod
     def EmptyRoom(
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
-    ) -> "EnvConfig":
+    ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
@@ -222,6 +222,6 @@ class EnvConfig(Config):
         objects = {}
         if border_width > 0 or with_walls:
             objects["wall"] = WallConfig(type_id=1, swappable=False)
-        return EnvConfig(
+        return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

@@ -158,8 +158,6 @@ class TestFloatDistributionTypes:
         assert model.dist.value == 3.14
 
     def test_uniform_distribution_from_tuple(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: FloatDistribution
 
@@ -169,8 +167,6 @@ class TestFloatDistributionTypes:
         assert model.dist.high == 10.0
 
     def test_lognormal_distribution_two_args(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: FloatDistribution
 
@@ -181,8 +177,6 @@ class TestFloatDistributionTypes:
         assert model.dist.max is None
 
     def test_lognormal_distribution_three_args(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: FloatDistribution
 
@@ -193,8 +187,6 @@ class TestFloatDistributionTypes:
         assert model.dist.max == 15.0
 
     def test_invalid_distribution_format(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: FloatDistribution
 
@@ -207,8 +199,6 @@ class TestFloatDistributionTypes:
             TestModel.model_validate({"dist": ("uniform", 1.0)})
 
     def test_integration_constant_distribution(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: FloatDistribution
 
@@ -218,8 +208,6 @@ class TestFloatDistributionTypes:
         assert model.dist.sample(rng) == 2.718
 
     def test_integration_uniform_distribution(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: FloatDistribution
 
@@ -230,8 +218,6 @@ class TestFloatDistributionTypes:
         assert all(0.5 <= sample <= 1.5 for sample in samples)
 
     def test_integration_lognormal_distribution(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: FloatDistribution
 
@@ -242,8 +228,6 @@ class TestFloatDistributionTypes:
         assert all(sample > 0 for sample in samples)
 
     def test_integration_lognormal_with_max(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: FloatDistribution
 

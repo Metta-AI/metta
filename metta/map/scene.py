@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Generic, Optional, Type, TypeVar, Union, get_args, get_origin
+from typing import Any, Generic, Optional, Type, TypeVar, get_args, get_origin
 
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
 from pydantic import FieldSerializationInfo, ValidationInfo, field_serializer, field_validator
 
 from metta.common.config import Config
 from metta.common.util.module import load_symbol
-from metta.map.config import scenes_root
 from metta.map.random.int import MaybeSeed
 from metta.map.types import Area, AreaQuery, MapGrid
 
@@ -28,7 +26,7 @@ def _ensure_scene_cls(v: Any) -> type[Scene]:
 class SceneConfig(Config):
     type: type[Scene]
     params: Config
-    children: list["ChildrenAction"] | None = None
+    children: list[ChildrenAction] | None = None
     seed: int | None = None
 
     # Turn strings into classes, ensure subclass of Scene
@@ -64,19 +62,8 @@ class SceneConfig(Config):
         return self.type(area=area, params=self.params, seed=self.seed or rng, children_actions=self.children)
 
 
-# Scene configs can be either:
-# - a Pydantic config object (this is how we define scenes in Python code)
-# - a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
-SceneConfigOrFile = Union[
-    # structured Pydantic config - main mode
-    SceneConfig,
-    # a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
-    str,
-]
-
-
 class ChildrenAction(AreaQuery):
-    scene: SceneConfigOrFile
+    scene: SceneConfig
 
 
 class Scene(Generic[ParamsT]):
@@ -191,7 +178,7 @@ class Scene(Generic[ParamsT]):
             areas = self.select_areas(action)
             for area in areas:
                 child_rng = self.rng.spawn(1)[0]
-                child_scene = make_scene(cfg=action.scene, area=area, rng=child_rng)
+                child_scene = action.scene.create(area, child_rng)
                 self.children.append(child_scene)
                 child_scene.render_with_children()
 
@@ -331,28 +318,6 @@ class Scene(Generic[ParamsT]):
         # recurse into children scenes
         for child_scene in self.children:
             child_scene.transplant_to_grid(grid, shift_x, shift_y, is_root=False)
-
-
-def resolve_scene_config(cfg: SceneConfigOrFile) -> SceneConfig:
-    if isinstance(cfg, SceneConfig):
-        return cfg
-
-    if cfg.startswith("/"):
-        cfg = cfg[1:]
-    cfg = OmegaConf.load(f"{scenes_root}/{cfg}")  # type: ignore
-
-    if isinstance(cfg, DictConfig):
-        cfg = OmegaConf.to_container(cfg)  # type: ignore
-
-    if not isinstance(cfg, dict):
-        raise ValueError(f"Invalid scene config: {cfg}, type: {type(cfg)}")
-
-    return SceneConfig.model_validate(cfg)
-
-
-def make_scene(cfg: SceneConfigOrFile, area: Area, rng: np.random.Generator) -> Scene:
-    config = resolve_scene_config(cfg)
-    return config.create(area, rng)
 
 
 SceneConfig.model_rebuild()

@@ -52,10 +52,6 @@ class MockAgent(MettaAgent):
         """Get the original feature mapping for persistence."""
         return self.original_feature_mapping.copy() if self.original_feature_mapping else None
 
-    def restore_original_feature_mapping(self, mapping: dict[str, int]):
-        """Restore the original feature mapping from metadata."""
-        self.original_feature_mapping = mapping.copy()
-
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:
         """
         Mock forward pass - always returns "do nothing" actions.
@@ -100,17 +96,27 @@ class MockAgent(MettaAgent):
         action_names: list[str],
         action_max_params: list[int],
         device,
-        is_training: bool = True,
+        is_training: bool = None,
     ):
-        """
-        Initialize the agent to work with a specific environment.
+        """Initialize the agent to work with a specific environment.
 
-        For MockAgent, this sets up feature remapping support while maintaining
-        minimal functionality.
+        One-stop shop for setting up agents to interact with environments.
+        Handles both new agents and agents loaded from disk with existing feature mappings.
 
-        Note: is_training parameter is deprecated and ignored.
+        Auto-detects training vs simulation context:
+        - Training context (gradients enabled): Learn new features, remap known features
+        - Simulation context (gradients disabled): Remap known features, map unknown to 255
         """
         self.device = device
+
+        # Auto-detect training context if not explicitly provided
+        if is_training is None:
+            # Use the module's training state (set by .train()/.eval())
+            # Training context: self.training=True → learn new features
+            # Simulation context: self.training=False → map unknown to 255
+            is_training = self.training
+
+        self.training = is_training
 
         # Store action configuration
         self.action_names = action_names

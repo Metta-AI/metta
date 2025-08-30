@@ -1,4 +1,4 @@
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
 from .curriculum_env import CurriculumEnv
@@ -39,18 +39,18 @@ __all__ = [
 ]
 
 
-def single_task(env_config: EnvConfig) -> SingleTaskGeneratorConfig:
-    """Create a SingleTaskGeneratorConfig from an EnvConfig."""
+def single_task(env_config: MettaGridConfig) -> SingleTaskGeneratorConfig:
+    """Create a SingleTaskGeneratorConfig from an MettaGridConfig."""
     return SingleTaskGeneratorConfig(env=env_config.model_copy(deep=True))
 
 
-def bucketed(env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
-    """Create a BucketedTaskGeneratorConfig from an EnvConfig."""
-    return BucketedTaskGeneratorConfig.from_env(env_config.model_copy(deep=True))
+def bucketed(env_config: MettaGridConfig) -> BucketedTaskGeneratorConfig:
+    """Create a BucketedTaskGeneratorConfig from an MettaGridConfig."""
+    return BucketedTaskGeneratorConfig.from_mg(env_config.model_copy(deep=True))
 
 
-def multi_task(env_config: EnvConfig) -> TaskGeneratorSetConfig:
-    """Create a TaskGeneratorSetConfig from an EnvConfig."""
+def multi_task(env_config: MettaGridConfig) -> TaskGeneratorSetConfig:
+    """Create a TaskGeneratorSetConfig from an MettaGridConfig."""
     return TaskGeneratorSetConfig(
         task_generators=[
             single_task(env_config),
@@ -64,6 +64,6 @@ def merge(task_generator_configs: list[AnyTaskGeneratorConfig]) -> TaskGenerator
     return TaskGeneratorSetConfig(task_generators=task_generator_configs, weights=[1.0] * len(task_generator_configs))
 
 
-def env_curriculum(env_config: EnvConfig) -> CurriculumConfig:
-    """Create a curriculum configuration from an EnvConfig."""
+def env_curriculum(env_config: MettaGridConfig) -> CurriculumConfig:
+    """Create a curriculum configuration from an MettaGridConfig."""
     return CurriculumConfig(task_generator=SingleTaskGeneratorConfig(env=env_config))

@@ -1,10 +1,12 @@
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config.envs import make_navigation
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
 
 
-def make_systematic_exploration_memory_eval_env(env: EnvConfig) -> EnvConfig:
+def make_systematic_exploration_memory_eval_env(
+    env: MettaGridConfig,
+) -> MettaGridConfig:
     """Set the heart reward to 0.333 for normalization"""
     env.game.agent.rewards.inventory["heart"] = 0.333
     return env
@@ -12,7 +14,7 @@ def make_systematic_exploration_memory_eval_env(env: EnvConfig) -> EnvConfig:
 
 def make_systematic_exploration_memory_ascii_env(
     name: str, max_steps: int, border_width: int = 1
-) -> EnvConfig:
+) -> MettaGridConfig:
     ascii_map = f"mettagrid/configs/maps/systematic_exploration_memory/{name}.map"
     env = make_navigation(num_agents=1)
     env.game.max_steps = max_steps

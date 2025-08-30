@@ -38,10 +38,10 @@ function flushComboIfAny() {
     // Single key or opposing keys fallback: prefer last in insertion order.
     let lastKey: 'w' | 'a' | 's' | 'd' | null = null
     for (const k of comboKeys) lastKey = k
-    if (lastKey === 'w') param = 0 
-    else if (lastKey === 'd') param = 3 
-    else if (lastKey === 's') param = 1 
-    else if (lastKey === 'a') param = 2 
+    if (lastKey === 'w') param = 0
+    else if (lastKey === 'd') param = 3
+    else if (lastKey === 's') param = 1
+    else if (lastKey === 'a') param = 2
   }
   if (param !== -1) {
     sendAction('move', param)
@@ -117,7 +117,7 @@ export function processActions(event: KeyboardEvent) {
     const key = event.key
     const code = event.code
     const supportsMove = state.replay.actionNames.includes('move')
-    const supportsMove8 = state.replay.envConfig.game?.allow_diagonals ?? false
+    const supportsMove8 = state.replay.MettaGridConfig.game?.allow_diagonals ?? false
 
     // Movement handling.
     if (key === 'w' || key === 'ArrowUp') {

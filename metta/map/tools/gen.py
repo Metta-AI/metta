@@ -7,7 +7,7 @@ from metta.common.config.tool import Tool
 from metta.common.util.module import load_symbol
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ def uri_is_file(uri: str) -> bool:
 
 
 class GenTool(Tool):
-    env_fn: str  # Path to the function that makes EnvConfig
+    env_fn: str  # Path to the function that makes MettaGridConfig
 
     output_uri: str | None = None  # Output URI
     show_mode: ShowMode | None = None  # Show the map in the specified mode
@@ -44,8 +44,8 @@ class GenTool(Tool):
         # TODO - support env_fn args?
         env_config = env_fn()
 
-        if not isinstance(env_config, EnvConfig):
-            raise ValueError(f"Env config must be an instance of EnvConfig, got {type(env_config)}")
+        if not isinstance(env_config, MettaGridConfig):
+            raise ValueError(f"Env config must be an instance of MettaGridConfig, got {type(env_config)}")
 
         for override in self.env_overrides:
             key, value = override.split("=")

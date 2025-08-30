@@ -17,7 +17,7 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.puffer_base import MettaGridPufferBase
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -41,7 +41,7 @@ class MettaGridEnv(MettaGridPufferBase):
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
-        env_cfg: EnvConfig,
+        env_cfg: MettaGridConfig,
         render_mode: Optional[str] = None,
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,

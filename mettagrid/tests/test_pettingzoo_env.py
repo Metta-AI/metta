@@ -9,7 +9,14 @@ from pettingzoo.test import parallel_api_test
 
 from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, GroupConfig, WallConfig
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    GameConfig,
+    GroupConfig,
+    MettaGridConfig,
+    WallConfig,
+)
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
 
@@ -52,7 +59,7 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
     if num_agents >= 5:
         groups["agent"] = GroupConfig(id=0)  # Default group for @ agents
 
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
             max_steps=max_steps,

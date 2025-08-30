@@ -1,11 +1,11 @@
 import numpy as np
 
 from metta.common.config import Config
-from metta.map.scene import ChildrenAction, Scene, SceneConfigOrFile
+from metta.map.scene import ChildrenAction, Scene, SceneConfig
 
 
 class RandomSceneCandidate(Config):
-    scene: SceneConfigOrFile
+    scene: SceneConfig
     weight: float = 1
 
 

@@ -2,7 +2,7 @@ import numpy as np
 
 from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.mettagrid_c import dtype_actions
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
 class TestResourceLoss:
@@ -11,17 +11,17 @@ class TestResourceLoss:
     def test_resource_loss_prob_1_0_causes_complete_loss(self):
         """Test that resource_loss_prob=1.0 causes all items to be lost in the next timestep."""
         # Create a simple environment with resource_loss_prob=1.0
-        env_cfg = EnvConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
             ]
         )
-        env_cfg.game.resource_loss_prob = 1.0
-        env_cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
-        env_cfg.game.actions.noop.enabled = True
-        env = MettaGridCore(env_cfg)
+        cfg.game.resource_loss_prob = 1.0
+        cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
+        cfg.game.actions.noop.enabled = True
+        env = MettaGridCore(cfg)
 
         # Reset environment
         obs, info = env.reset()
@@ -70,17 +70,17 @@ class TestResourceLoss:
     def test_resource_loss_prob_0_0_causes_no_loss(self):
         """Test that resource_loss_prob=0.0 causes no items to be lost."""
         # Create a simple environment with resource_loss_prob=0.0
-        env_cfg = EnvConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
             ]
         )
-        env_cfg.game.resource_loss_prob = 0.0
-        env_cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
-        env_cfg.game.actions.noop.enabled = True
-        env = MettaGridCore(env_cfg)
+        cfg.game.resource_loss_prob = 0.0
+        cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
+        cfg.game.actions.noop.enabled = True
+        env = MettaGridCore(cfg)
 
         # Reset environment
         obs, info = env.reset()
@@ -130,19 +130,19 @@ class TestResourceLoss:
     def test_resource_loss_prob_0_5_causes_partial_loss(self):
         """Test that resource_loss_prob=0.5 causes some items to be lost over multiple steps."""
         # Create a simple environment with resource_loss_prob=0.5
-        env_cfg = EnvConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
             ]
         )
-        env_cfg.game.actions.noop.enabled = True
-        env_cfg.game.resource_loss_prob = 0.5
-        env_cfg.game.agent.initial_inventory = {"heart": 100}
+        cfg.game.actions.noop.enabled = True
+        cfg.game.resource_loss_prob = 0.5
+        cfg.game.agent.initial_inventory = {"heart": 100}
 
         # Create environment with resource_loss_prob=0.5 and initial inventory
-        env = MettaGridCore(env_cfg)
+        env = MettaGridCore(cfg)
 
         # Reset environment
         obs, info = env.reset()

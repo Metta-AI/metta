@@ -24,7 +24,7 @@ class LearningProgressCurriculumConfig(CurriculumConfig):
 # class LearningProgressCurriculumTask(CurriculumTask):
 #     """CurriculumTask that tracks learning progress internally."""
 
-#     def __init__(self, config: LearningProgressCurriculumConfig, task_id: int, env_cfg: EnvConfig):
+#     def __init__(self, config: LearningProgressCurriculumConfig, task_id: int, env_cfg: MettaGridConfig):
 #         super().__init__(task_id, env_cfg)
 #         self._config: LearningProgressCurriculumConfig = config
 

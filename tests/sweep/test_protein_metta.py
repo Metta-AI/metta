@@ -2,6 +2,7 @@
 
 from unittest.mock import Mock, patch
 
+import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
@@ -136,8 +137,6 @@ class TestMettaProtein:
         mock_protein_instance = Mock()
 
         # Mock numpy types in protein response
-        import numpy as np
-
         suggestion_with_numpy = {
             "learning_rate": np.float64(0.001),
             "batch_size": np.int32(64),

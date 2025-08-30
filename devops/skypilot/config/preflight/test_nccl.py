@@ -1,13 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-NCCL Diagnostics and Testing Module
-
-This module provides comprehensive GPU/CUDA/NCCL diagnostics and testing capabilities
-for distributed PyTorch training environments.
-"""
-
 import datetime
 import io
 import os

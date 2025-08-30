@@ -11,6 +11,7 @@ from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -64,9 +65,6 @@ def open_browser(replay_url: str, cfg: ReplayTool) -> None:
             full_url = f"/?replayUrl={quote(local_url)}"
 
             # Run a metascope server that serves the replay
-            # Import PlayToolConfig to use with the server
-            from metta.tools.play import PlayTool
-
             # Create a PlayTool from ReplayTool (they have the same fields)
             play_cfg = PlayTool(
                 system=cfg.system,

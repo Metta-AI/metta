@@ -1,11 +1,3 @@
-"""
-Thumbnail generation automation for MettaGrid simulations.
-
-This module handles the automation logic for generating and uploading thumbnails
-during simulation runs. Each episode gets its own unique thumbnail file (like replay files),
-eliminating conflicts and the need for shared naming schemes.
-"""
-
 import logging
 import os
 

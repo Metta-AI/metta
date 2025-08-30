@@ -11,10 +11,10 @@ from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
-    EnvConfig,
     GameConfig,
     GlobalObsConfig,
     GroupConfig,
+    MettaGridConfig,
     WallConfig,
 )
 
@@ -23,7 +23,7 @@ from metta.mettagrid.mettagrid_config import (
 def env_with_visitation():
     """Environment with visitation counts enabled."""
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
@@ -66,7 +66,7 @@ def env_without_visitation():
     """Environment with visitation counts disabled."""
     # Create custom configuration matching original test setup
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
@@ -109,7 +109,7 @@ def env_default():
     """Environment with default config (no visitation_counts specified)."""
     # Create custom configuration matching original test setup
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
@@ -237,7 +237,7 @@ def test_visitation_counts_configurable():
     ]
 
     # Test enabled
-    config_enabled = EnvConfig(
+    config_enabled = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             obs_width=5,
@@ -257,7 +257,7 @@ def test_visitation_counts_configurable():
     assert count == 5, f"Expected 5 features when enabled, got {count}"
 
     # Test disabled
-    config_disabled = EnvConfig(
+    config_disabled = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             obs_width=5,
@@ -277,7 +277,7 @@ def test_visitation_counts_configurable():
     assert count == 0, f"Expected 0 features when disabled, got {count}"
 
     # Test default (not specified)
-    config_default = EnvConfig(
+    config_default = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             obs_width=5,
@@ -310,7 +310,7 @@ def performance_config():
         [".", ".", ".", ".", ".", ".", "."],
     ]
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=1000,

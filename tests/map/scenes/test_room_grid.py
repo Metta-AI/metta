@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaQuery
@@ -67,33 +66,3 @@ def test_with_layout():
     # so for now just verify that the tags are what we expect.
     room_tags = [area.tags[0] for area in areas]
     assert set(room_tags) == {"room1", "room2", "room3", "room4"}
-
-
-# === BENCHMARK TESTS ===
-
-
-@pytest.fixture(scope="module", params=[(3, 3), (10, 10)], ids=["3x3", "10x10"])
-def benchmark_size(request):
-    return request.param
-
-
-def test_benchmark_room_grid(benchmark, benchmark_size):
-    """Benchmark creating a room grid."""
-
-    def create_grid():
-        scene = render_scene(
-            RoomGrid.factory(
-                RoomGrid.Params(
-                    rows=benchmark_size[0],
-                    columns=benchmark_size[1],
-                    border_width=1,
-                    border_object="wall",
-                )
-            ),
-            (100, 100),
-        )
-
-        return scene.select_areas(AreaQuery())
-
-    areas = benchmark(create_grid)
-    assert len(areas) == benchmark_size[0] * benchmark_size[1]

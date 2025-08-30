@@ -7,8 +7,10 @@ These tests verify the script-level integration:
 4. Script coordination and parameter flow
 """
 
+import concurrent.futures
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 
@@ -40,8 +42,6 @@ class TestSweepScriptIntegration:
             os.environ.pop("DATA_DIR", None)
 
         # Cleanup filesystem
-        import shutil
-
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
@@ -95,7 +95,6 @@ class TestSweepScriptIntegration:
 
     def test_process_id_uniqueness_in_parallel_execution(self):
         """Test that parallel process ID generation produces unique values."""
-        import concurrent.futures
 
         def generate_process_id():
             result = subprocess.run(
@@ -183,8 +182,6 @@ class TestSweepScriptIntegration:
         # Simulate argument extraction logic from sweep_rollout.sh
         def extract_argument(args_string, arg_name):
             """Extract argument value using grep-like pattern matching"""
-            import re
-
             pattern = rf"(^|\s){arg_name}=([^ ]*)"
             match = re.search(pattern, args_string)
             return match.group(2) if match else None

@@ -11,7 +11,7 @@ from metta.cogworks.curriculum import (
     SingleTaskGeneratorConfig,
 )
 from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
 class TestCurriculumEnv:
@@ -19,7 +19,7 @@ class TestCurriculumEnv:
 
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
-        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
         return Curriculum(config, seed=0)
 
@@ -307,7 +307,7 @@ class TestCurriculumEnvEdgeCases:
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.0, 0.0]))
         mock_env.set_env_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
@@ -335,7 +335,7 @@ class TestCurriculumEnvEdgeCases:
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.8]))
         mock_env.set_env_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
@@ -362,7 +362,7 @@ class TestCurriculumEnvEdgeCases:
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.7, 0.3]))
         mock_env.set_env_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)
         curriculum = Curriculum(config, seed=0)
         wrapper = CurriculumEnv(mock_env, curriculum)

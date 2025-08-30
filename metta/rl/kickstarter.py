@@ -22,10 +22,9 @@ class Kickstarter:
     def __init__(
         self, cfg: KickstartConfig, device: torch.device, policy_store: PolicyStore, metta_grid_env: MettaGridEnv
     ):
-        """
-        Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
-        This is done by adding a loss term that encourages the student's output (action logits and value) to match the
-        teacher's.
+        """Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher
+        policies. This is done by adding a loss term that encourages the student's output (action logits and value)
+        to match the teacher's.
 
         The kickstarting loss is annealed over a number of steps (`kickstart_steps`).
         The `anneal_ratio` parameter controls what fraction of the `kickstart_steps` are used for annealing.
@@ -33,8 +32,7 @@ class Kickstarter:
         be 1.0 for the first 80% of `kickstart_steps`, then anneal linearly from 1.0 down to 0 over the last 20%.
 
         Linear annealing is used because cosine's rapid dropping phase can come when the policy transition is unstable
-        although this hunch hasn't been tested yet.
-        """
+        although this hunch hasn't been tested yet."""
         self.device = device
         self.metta_grid_env = metta_grid_env
         self.teacher_cfgs = cfg.additional_teachers
@@ -80,11 +78,12 @@ class Kickstarter:
             policy.value_loss_coef = teacher_cfg.value_loss_coef
             # Support both new and old initialization methods
             if hasattr(policy, "initialize_to_environment"):
-                # Note: We don't have features here, so we pass None
-                # The policy should handle this gracefully
                 features = self.metta_grid_env.get_observation_features()
                 policy.initialize_to_environment(
-                    features, self.metta_grid_env.action_names, self.metta_grid_env.max_action_args, self.device
+                    features,
+                    self.metta_grid_env.action_names,
+                    self.metta_grid_env.max_action_args,
+                    self.device,
                 )
             teacher = KickstartTeacher(
                 policy=policy,

@@ -24,7 +24,7 @@ source "$REPO_ROOT/devops/tools/common.sh"
 ensure_uv_setup
 
 
-if ! uv run metta run githooks pre-commit; then
+if ! uv run --active metta run githooks pre-commit; then
     exit 1
 fi
 

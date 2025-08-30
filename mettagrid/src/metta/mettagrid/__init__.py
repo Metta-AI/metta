@@ -30,7 +30,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -38,7 +38,7 @@ from metta.mettagrid.stats_writer import StatsWriter
 
 __all__ = [
     # Config
-    "EnvConfig",
+    "MettaGridConfig",
     # Core classes
     "MettaGridCore",
     # Main environment (backward compatible)

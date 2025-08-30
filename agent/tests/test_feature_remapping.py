@@ -216,9 +216,11 @@ def test_feature_mapping_persistence_via_metadata():
     assert original_mapping
     metadata = {"original_feature_mapping": original_mapping.copy()}
 
-    # Create a new agent and restore from metadata
+    # Create a new agent and manually restore the mapping (simulating loaded state)
     new_agent = MockAgent()
-    new_agent.restore_original_feature_mapping(metadata["original_feature_mapping"])
+    new_agent.original_feature_mapping = metadata["original_feature_mapping"].copy()
+    # Initialize with original features
+    new_agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu")
 
     # Verify the mapping was restored
     assert new_agent.original_feature_mapping == {"type_id": 0, "hp": 2, "mineral": 3}
@@ -249,9 +251,10 @@ def test_feature_mapping_persistence_via_metadata():
 
     # Test evaluation mode with unknown features
     eval_agent = MockAgent()
-    eval_agent.restore_original_feature_mapping(metadata["original_feature_mapping"])
+    eval_agent.original_feature_mapping = metadata["original_feature_mapping"].copy()
 
-    # Verify the restoration worked correctly
+    # Initialize in original features context first
+    eval_agent.initialize_to_environment(original_features, action_names, action_max_params, "cpu")
     assert eval_agent.original_feature_mapping == {"type_id": 0, "hp": 2, "mineral": 3}
 
     eval_agent.components["_obs_"] = MockObsComponent()
@@ -361,16 +364,15 @@ def test_end_to_end_initialize_to_environment_workflow():
         loaded_pr = torch.load(save_path, map_location="cpu", weights_only=False)
         loaded_policy = MockAgent()  # Create a fresh policy
 
-        # Restore the original feature mapping from metadata
-        if "original_feature_mapping" in loaded_pr.metadata:
-            loaded_policy.restore_original_feature_mapping(loaded_pr.metadata["original_feature_mapping"])
-
         # Create a mock observation component to verify remapping
         mock_obs = MockObsComponent()
         loaded_policy.components["_obs_"] = mock_obs
 
         # Initialize to the new environment (in eval mode)
         loaded_policy.eval()  # Set to evaluation mode
+        # Manually restore the mapping (simulating what PolicyRecord.policy property would do)
+        if "original_feature_mapping" in loaded_pr.metadata:
+            loaded_policy.original_feature_mapping = loaded_pr.metadata["original_feature_mapping"].copy()
         new_features = new_env.get_observation_features()
         loaded_policy.initialize_to_environment(new_features, new_env.action_names, new_env.max_action_args, "cpu")
 

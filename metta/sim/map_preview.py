@@ -9,7 +9,7 @@ import wandb
 from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import write_file
 
@@ -54,7 +54,7 @@ def write_local_map_preview(env: MettaGridEnv):
 
 def upload_map_preview(
     s3_path: str,
-    env_cfg: EnvConfig,
+    env_cfg: MettaGridConfig,
     wandb_run: Optional[wandb_run.Run] = None,
 ):
     """
