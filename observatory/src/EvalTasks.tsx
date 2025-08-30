@@ -9,15 +9,99 @@ interface TypeaheadInputProps {
   suggestions: string[]
   maxSuggestions?: number
   filterType?: 'prefix' | 'substring'
+  grouped?: boolean
 }
 
-function TypeaheadInput({ 
-  value, 
-  onChange, 
-  placeholder, 
-  suggestions, 
+// --- replace InputGroup, GroupCell, GroupTextInput ---
+
+function InputGroup({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        position: 'relative',
+        display: 'grid',
+        gridTemplateColumns: '1.5fr 1fr 180px 140px', // ⬅️ same as labels
+        alignItems: 'stretch',
+        border: '1px solid #d1d5db',
+        borderRadius: 8,
+        background: '#fff',
+        overflow: 'visible', // allow dropdowns to escape
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function GroupCell({
+  children,
+  withDivider = false,
+  isFirst = false,
+  isLast = false,
+}: {
+  children: React.ReactNode
+  withDivider?: boolean
+  isFirst?: boolean
+  isLast?: boolean
+}) {
+  const [focused, setFocused] = React.useState(false)
+
+  return (
+    <div
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={() => setFocused(false)}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        height: 38,
+        borderLeft: withDivider ? (focused ? '1px solid transparent' : '1px solid #e5e7eb') : 'none',
+      }}
+    >
+      {/* focus ring drawn on the CELL, with correct corner rounding */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: focused ? -1 : 0,
+          pointerEvents: 'none',
+          border: focused ? '2px solid #007bff' : '2px solid transparent',
+          borderRadius: isFirst ? '8px 0 0 8px' : isLast ? '0 8px 8px 0' : 0,
+          zIndex: 1,
+        }}
+      />
+      <div style={{ position: 'relative', flex: 1, height: '100%' }}>{children}</div>
+    </div>
+  )
+}
+
+function GroupTextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      {...props}
+      style={{
+        width: '100%',
+        height: '100%',
+        padding: '0 12px',
+        lineHeight: '38px',
+        border: 'none',
+        borderRadius: 0,
+        fontSize: 14,
+        background: 'transparent',
+        outline: 'none', // cell shows focus
+      }}
+    />
+  )
+}
+
+function TypeaheadInput({
+  value,
+  onChange,
+  placeholder,
+  suggestions,
   maxSuggestions = 10,
-  filterType = 'substring' 
+  filterType = 'substring',
+  grouped = false,
 }: TypeaheadInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
@@ -25,13 +109,10 @@ function TypeaheadInput({
   const handleInputChange = (inputValue: string) => {
     onChange(inputValue)
     if (inputValue.trim()) {
-      const filtered = suggestions.filter((suggestion) => {
-        const lowerSuggestion = suggestion.toLowerCase()
-        const lowerInput = inputValue.toLowerCase()
-        return filterType === 'prefix' 
-          ? lowerSuggestion.startsWith(lowerInput)
-          : lowerSuggestion.includes(lowerInput)
-      })
+      const lower = inputValue.toLowerCase()
+      const filtered = suggestions.filter((s) =>
+        filterType === 'prefix' ? s.toLowerCase().startsWith(lower) : s.toLowerCase().includes(lower)
+      )
       setFilteredSuggestions(filtered.slice(0, maxSuggestions))
       setShowSuggestions(filtered.length > 0)
     } else {
@@ -39,32 +120,41 @@ function TypeaheadInput({
     }
   }
 
+  const baseInputStyle: React.CSSProperties = grouped
+    ? {
+        width: '100%',
+        height: '100%',
+        padding: '0 12px',
+        lineHeight: '38px',
+        border: 'none',
+        borderRadius: 0,
+        fontSize: 14,
+        backgroundColor: 'transparent',
+        outline: 'none', // cell shows focus
+      }
+    : {
+        width: '100%',
+        padding: '10px 12px',
+        borderRadius: 6,
+        border: '1px solid #d1d5db',
+        fontSize: 14,
+        backgroundColor: '#fff',
+        outline: 'none',
+      }
+
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <input
         type="text"
         value={value}
         onChange={(e) => handleInputChange(e.target.value)}
         placeholder={placeholder}
-        style={{
-          width: '100%',
-          padding: '10px 12px',
-          borderRadius: '6px',
-          border: '1px solid #d1d5db',
-          fontSize: '14px',
-          backgroundColor: '#fff',
-          transition: 'border-color 0.2s',
-          outline: 'none',
+        style={baseInputStyle}
+        // REMOVE the boxShadow/borderColor focus handlers
+        onFocus={() => {
+          if (value.trim() && filteredSuggestions.length > 0) setShowSuggestions(true)
         }}
-        onFocus={(e) => {
-          e.target.style.borderColor = '#007bff'
-          if (value.trim() && filteredSuggestions.length > 0) {
-            setShowSuggestions(true)
-          }
-        }}
-        onBlur={(e) => {
-          e.target.style.borderColor = '#d1d5db'
-          // Delay to allow clicking on suggestions
+        onBlur={() => {
           setTimeout(() => setShowSuggestions(false), 200)
         }}
       />
@@ -75,36 +165,17 @@ function TypeaheadInput({
             top: '100%',
             left: 0,
             right: 0,
-            marginTop: '4px',
+            marginTop: 4,
             backgroundColor: 'white',
             border: '1px solid #d1d5db',
-            borderRadius: '6px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-            maxHeight: '200px',
+            borderRadius: 6,
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            maxHeight: 200,
             overflowY: 'auto',
-            zIndex: 1000,
+            zIndex: 50, // above neighbors & the button
           }}
         >
-          {filteredSuggestions.map((suggestion) => (
-            <div
-              key={suggestion}
-              onClick={() => {
-                onChange(suggestion)
-                setShowSuggestions(false)
-              }}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                borderBottom: '1px solid #f0f0f0',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
-            >
-              {suggestion}
-            </div>
-          ))}
+          ...
         </div>
       )}
     </div>
@@ -177,7 +248,6 @@ export function EvalTasks({ repo }: Props) {
     })
     return Array.from(simSuiteSet).sort()
   }
-
 
   const handleCreateTask = async () => {
     if (!policyIdInput.trim()) {
@@ -527,20 +597,21 @@ export function EvalTasks({ repo }: Props) {
         >
           Create New Evaluation Task
         </h3>
-
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
-          <div style={{ flex: '1 1 300px' }}>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '6px',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#555',
-              }}
-            >
-              Policy Name or ID
-            </label>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.5fr 1fr 180px 140px', // ⬅️ match InputGroup
+            columnGap: 0, // ⬅️ no gap so columns line up perfectly
+            marginBottom: 6,
+          }}
+        >
+          <label style={{ padding: '0 12px', fontSize: 13, fontWeight: 500, color: '#555' }}>Policy Name or ID</label>
+          <label style={{ padding: '0 12px', fontSize: 13, fontWeight: 500, color: '#555' }}>Git Commit</label>
+          <label style={{ padding: '0 12px', fontSize: 13, fontWeight: 500, color: '#555' }}>Suite</label>
+          <span />
+        </div>
+        <InputGroup>
+          <GroupCell isFirst>
             <TypeaheadInput
               value={policyIdInput}
               onChange={setPolicyIdInput}
@@ -548,53 +619,19 @@ export function EvalTasks({ repo }: Props) {
               suggestions={getRecentPolicies()}
               maxSuggestions={10}
               filterType="substring"
+              grouped
             />
-          </div>
+          </GroupCell>
 
-          <div style={{ flex: '1 1 250px' }}>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '6px',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#555',
-              }}
-            >
-              Git Commit
-            </label>
-            <input
-              type="text"
+          <GroupCell withDivider>
+            <GroupTextInput
               value={gitHash}
-              onChange={(e) => setGitHash(e.target.value)}
+              onChange={(e) => setGitHash((e.target as HTMLInputElement).value)}
               placeholder="Latest main (default)"
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: '1px solid #d1d5db',
-                fontSize: '14px',
-                backgroundColor: '#fff',
-                transition: 'border-color 0.2s',
-                outline: 'none',
-              }}
-              onFocus={(e) => (e.target.style.borderColor = '#007bff')}
-              onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
             />
-          </div>
+          </GroupCell>
 
-          <div style={{ flex: '0 0 140px' }}>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '6px',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#555',
-              }}
-            >
-              Suite
-            </label>
+          <GroupCell withDivider>
             <TypeaheadInput
               value={simSuite}
               onChange={setSimSuite}
@@ -602,38 +639,36 @@ export function EvalTasks({ repo }: Props) {
               suggestions={getRecentSimSuites()}
               maxSuggestions={5}
               filterType="prefix"
+              grouped
             />
-          </div>
+          </GroupCell>
 
-          <button
-            onClick={handleCreateTask}
-            disabled={loading || !policyIdInput.trim()}
-            style={{
-              padding: '10px 24px',
-              backgroundColor: loading || !policyIdInput.trim() ? '#9ca3af' : '#007bff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: loading || !policyIdInput.trim() ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              fontWeight: 500,
-              transition: 'background-color 0.2s',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={(e) => {
-              if (!loading && policyIdInput.trim()) {
-                e.currentTarget.style.backgroundColor = '#0056b3'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!loading && policyIdInput.trim()) {
-                e.currentTarget.style.backgroundColor = '#007bff'
-              }
-            }}
-          >
-            {loading ? 'Creating...' : 'Create Task'}
-          </button>
-        </div>
+          <GroupCell withDivider isLast>
+            <button
+              onClick={handleCreateTask}
+              disabled={loading || !policyIdInput.trim()}
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: loading || !policyIdInput.trim() ? '#9ca3af' : '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0 8px 8px 0', // ⬅️ match outer corners
+                cursor: loading || !policyIdInput.trim() ? 'not-allowed' : 'pointer',
+                fontSize: 14,
+                fontWeight: 500,
+              }}
+              onMouseEnter={(e) => {
+                if (!loading && policyIdInput.trim()) e.currentTarget.style.backgroundColor = '#0056b3'
+              }}
+              onMouseLeave={(e) => {
+                if (!loading && policyIdInput.trim()) e.currentTarget.style.backgroundColor = '#007bff'
+              }}
+            >
+              {loading ? 'Creating...' : 'Create Task'}
+            </button>
+          </GroupCell>
+        </InputGroup>
       </div>
 
       {/* Active Section */}
