@@ -30,6 +30,10 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent: "MettaAgent", device: torch.device):
         log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
+        # Ensure all ranks are synchronized before SyncBatchNorm conversion to prevent deadlocks
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        
         layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
 
         if device.type == "cpu":  # CPU doesn't need device_ids
