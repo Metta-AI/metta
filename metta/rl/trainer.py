@@ -11,6 +11,7 @@ from torchrl.data import Composite
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
+from metta.agent.util.distribution_utils import get_from_master
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.profiling.stopwatch import Stopwatch
@@ -150,30 +151,27 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Load existing agent with distributed coordination (matching main branch's load_or_create_policy)
-    # Master determines if checkpoint exists, then synchronizes decision to all ranks
-    existing_agent = None
+    # Load or create policy with distributed coordination (matching main branch)
+    # CRITICAL: Master determines policy path, broadcasts to all ranks for identical structures
+
+    # Master determines if checkpoint exists and gets the specific checkpoint path
+    checkpoint_path = None
     if torch_dist_cfg.is_master:
-        existing_agent = checkpoint_manager.load_agent()
-        has_checkpoint = existing_agent is not None
-    else:
-        has_checkpoint = None
+        if checkpoint_manager.exists():
+            # Get the specific checkpoint file (latest by epoch)
+            checkpoint_files = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+            checkpoint_path = str(checkpoint_files[0]) if checkpoint_files else None
 
-    # Synchronize checkpoint existence decision across all ranks (like get_from_master)
+    # Synchronize checkpoint path across all ranks using NCCL broadcast
     if torch.distributed.is_initialized():
-        import torch.distributed as dist
-        # Broadcast the decision from master to all ranks
-        obj_list = [has_checkpoint] if torch_dist_cfg.is_master else [None]
-        dist.broadcast_object_list(obj_list, src=0)
-        has_checkpoint = obj_list[0]
+        checkpoint_path = get_from_master(checkpoint_path)
+        logger.info(f"Rank {torch_dist_cfg.rank}: Synchronized checkpoint_path = {checkpoint_path}")
 
-        # Non-master ranks load checkpoint only if master confirmed it exists
-        if not torch_dist_cfg.is_master and has_checkpoint:
-            existing_agent = checkpoint_manager.load_agent()
-
-    # Create or use existing agent - all ranks make the same decision
-    if has_checkpoint and existing_agent is not None:
+    # ALL ranks follow the same path - either load the same checkpoint or create new agent
+    if checkpoint_path:
         logger.info("Resuming training with existing agent from checkpoint")
+        # ALL ranks load from the same synchronized checkpoint path
+        existing_agent = torch.load(checkpoint_path, weights_only=False)
         policy: PolicyAgent = existing_agent
     else:
         logger.info("Creating new agent for training")
