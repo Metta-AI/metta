@@ -7,7 +7,6 @@ from metta.mettagrid.mettagrid_c import BoxConfig as CppBoxConfig
 from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
-from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import BoxConfig, ConverterConfig, GameConfig, WallConfig
 
@@ -151,17 +150,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         del game_cpp_params["params"]
     if "map_builder" in game_cpp_params:
         del game_cpp_params["map_builder"]
-
-    # Convert global_obs configuration
-    global_obs_config = game_config.global_obs
-    global_obs_cpp = CppGlobalObsConfig(
-        episode_completion_pct=global_obs_config.episode_completion_pct,
-        last_action=global_obs_config.last_action,
-        last_reward=global_obs_config.last_reward,
-        resource_rewards=global_obs_config.resource_rewards,
-        visitation_counts=global_obs_config.visitation_counts,
-    )
-    game_cpp_params["global_obs"] = global_obs_cpp
 
     actions_cpp_params = {}
     for action_name, action_config in game_cpp_params["actions"].items():

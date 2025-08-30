@@ -516,12 +516,6 @@ def _(RendererToolConfig):
     env_config.game.no_agent_interference = False
     env_config.game.recipe_details_obs = False
 
-    # Global observation tokens from old config
-    env_config.game.global_obs.episode_completion_pct = True
-    env_config.game.global_obs.last_action = True
-    env_config.game.global_obs.last_reward = True
-
-    env_config.game.global_obs.visitation_counts = False
 
     print("✅ Simple hallway environment: start with arena, add custom map")
     return (
@@ -1275,7 +1269,7 @@ def _(mo):
     This second environment is more complex - it requires:
 
     1. Collect ore from the mine (right side)
-    2. Transport ore to the generator (left side)  
+    2. Transport ore to the generator (left side)
     3. Convert ore to batteries for higher rewards
     """
     )
@@ -1829,13 +1823,13 @@ def _(
 
     📊 COMPREHENSIVE STATISTICS:
     Total Reward:  {mean_score:.2f} ± {std_score:.2f}
-    Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f} 
+    Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f}
     Batteries:     {mean_score_batteries:.2f} ± {std_score_batteries:.2f}
 
     🎯 BEST EPISODE:
     Reward: {max(trained_scores):.1f}, Ore: {max(trained_scores_ore)}, Batteries: {max(trained_scores_batteries)}
 
-    ⚠️ WORST EPISODE: 
+    ⚠️ WORST EPISODE:
     Reward: {min(trained_scores):.1f}, Ore: {min(trained_scores_ore)}, Batteries: {min(trained_scores_batteries)}
 
     💡 Multi-step task: Collect ore → Transport → Convert to batteries

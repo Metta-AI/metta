@@ -8,7 +8,6 @@
 #include "grid.hpp"
 #include "mettagrid_config.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
 #include "types.hpp"

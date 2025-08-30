@@ -12,7 +12,6 @@
 #include "grid_object.hpp"
 #include "mettagrid_config.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 #include "types.hpp"
 
 // Attack takes an argument 0-8, which is the index of the target agent to attack.

@@ -93,23 +93,6 @@ class ActionsConfig(Config):
     change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
 
 
-class GlobalObsConfig(Config):
-    """Global observation configuration."""
-
-    episode_completion_pct: bool = Field(default=True)
-
-    # Controls both last_action and last_action_arg
-    last_action: bool = Field(default=True)
-
-    last_reward: bool = Field(default=True)
-
-    # Controls whether resource rewards are included in observations
-    resource_rewards: bool = Field(default=False)
-
-    # Controls whether visitation counts are included in observations
-    visitation_counts: bool = Field(default=False)
-
-
 class WallConfig(Config):
     """Python wall/block configuration."""
 
@@ -169,7 +152,6 @@ class GameConfig(Config):
     # Every agent must be in a group, so we need at least one group
     groups: dict[str, GroupConfig] = Field(default_factory=lambda: {"agent": GroupConfig()}, min_length=1)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
-    global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
@@ -180,6 +162,9 @@ class GameConfig(Config):
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
+
+    # Mettagrid Extensions
+    extensions: list[str] = Field(default_factory=list)
 
     # Feature Flags
     track_movement_metrics: bool = Field(

@@ -10,7 +10,8 @@
 #include <string>
 #include <utility>
 
-#include "objects/constants.hpp"
+#include "observation_tokens.hpp"
+#include "types.hpp"
 
 /**
  * Utilities for packing/unpacking grid coordinates into compact byte representation.
@@ -58,7 +59,7 @@ inline uint8_t pack(uint8_t row, uint8_t col) {
  * @return std::optional<std::pair<row, col>> or std::nullopt if empty
  */
 inline std::optional<std::pair<uint8_t, uint8_t>> unpack(uint8_t packed) {
-  if (packed == EmptyTokenByte) {
+  if (packed == OBSERVATION_EMPTY_TOKEN) {
     return std::nullopt;
   }
   uint8_t row = (packed & ROW_MASK) >> ROW_SHIFT;
@@ -69,7 +70,7 @@ inline std::optional<std::pair<uint8_t, uint8_t>> unpack(uint8_t packed) {
  * Check if a packed coordinate represents an empty/invalid position.
  */
 inline bool is_empty(uint8_t packed_data) {
-  return packed_data == EmptyTokenByte;
+  return packed_data == OBSERVATION_EMPTY_TOKEN;
 }
 
 struct ObservationPattern {

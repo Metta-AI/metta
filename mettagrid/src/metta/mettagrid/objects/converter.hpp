@@ -5,12 +5,12 @@
 #include <string>
 #include <vector>
 
-#include "../event.hpp"
-#include "../stats_tracker.hpp"
-#include "agent.hpp"
-#include "constants.hpp"
-#include "converter_config.hpp"
+#include "event.hpp"
 #include "has_inventory.hpp"
+#include "objects/agent.hpp"
+#include "objects/converter_config.hpp"
+#include "observation_tokens.hpp"
+#include "stats_tracker.hpp"
 
 class Converter : public HasInventory {
 private:
@@ -188,8 +188,8 @@ public:
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
-      features.push_back(
-          {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
+      features.push_back({static_cast<ObservationType>(item + ObservationFeature::InventoryOffset),
+                          static_cast<ObservationType>(amount)});
     }
 
     // Add recipe details if configured to do so

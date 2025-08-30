@@ -12,7 +12,6 @@
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 #include "types.hpp"
 
 struct ActionConfig {

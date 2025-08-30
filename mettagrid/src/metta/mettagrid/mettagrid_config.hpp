@@ -9,21 +9,10 @@
 #include <string>
 #include <vector>
 
+#include "action_handler.hpp"
 #include "types.hpp"
 
-// Forward declarations
-struct ActionConfig;
-struct GridObjectConfig;
-
 using ObservationCoord = ObservationType;
-
-struct GlobalObsConfig {
-  bool episode_completion_pct = true;
-  bool last_action = true;
-  bool last_reward = true;
-  bool resource_rewards = false;
-  bool visitation_counts = false;
-};
 
 struct GameConfig {
   size_t num_agents;
@@ -33,10 +22,12 @@ struct GameConfig {
   ObservationCoord obs_height;
   std::vector<std::string> inventory_item_names;
   unsigned int num_observation_tokens;
-  GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   float resource_loss_prob = 0.0;
+
+  // GAME EXTENSIONS
+  std::vector<std::string> extensions;  // ["visitation_counts", etc] -- applied in provided order
 
   // FEATURE FLAGS
   bool track_movement_metrics = false;
@@ -47,22 +38,6 @@ struct GameConfig {
 
 namespace py = pybind11;
 
-inline void bind_global_obs_config(py::module& m) {
-  py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
-      .def(py::init<>())
-      .def(py::init<bool, bool, bool, bool, bool>(),
-           py::arg("episode_completion_pct") = true,
-           py::arg("last_action") = true,
-           py::arg("last_reward") = true,
-           py::arg("resource_rewards") = false,
-           py::arg("visitation_counts") = false)
-      .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
-      .def_readwrite("last_action", &GlobalObsConfig::last_action)
-      .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
-      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards)
-      .def_readwrite("visitation_counts", &GlobalObsConfig::visitation_counts);
-}
-
 inline void bind_game_config(py::module& m) {
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<unsigned int,
@@ -72,10 +47,12 @@ inline void bind_game_config(py::module& m) {
                     ObservationCoord,
                     const std::vector<std::string>&,
                     unsigned int,
-                    const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     float,
+
+                    // GAME EXTENSIONS
+                    const std::vector<std::string>&,
 
                     // FEATURE FLAGS
                     bool,
@@ -89,13 +66,15 @@ inline void bind_game_config(py::module& m) {
            py::arg("obs_height"),
            py::arg("inventory_item_names"),
            py::arg("num_observation_tokens"),
-           py::arg("global_obs"),
-           py::arg("actions"),
-           py::arg("objects"),
+           py::arg("actions") = std::map<std::string, std::shared_ptr<ActionConfig>>{},
+           py::arg("objects") = std::map<std::string, std::shared_ptr<GridObjectConfig>>{},
            py::arg("resource_loss_prob") = 0.0f,
 
+           // GAME EXTENSIONS
+           py::arg("extensions") = std::vector<std::string>{},
+
            // FEATURE FLAGS
-           py::arg("track_movement_metrics"),
+           py::arg("track_movement_metrics") = false,
            py::arg("no_agent_interference") = false,
            py::arg("recipe_details_obs") = false,
            py::arg("allow_diagonals") = false)
@@ -106,7 +85,6 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
-      .def_readwrite("global_obs", &GameConfig::global_obs)
 
       // We don't expose these since they're copied on read, and this means that mutations
       // to the dictionaries don't impact the underlying cpp objects. This is confusing!
