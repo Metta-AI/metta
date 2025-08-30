@@ -150,14 +150,30 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Load or create policy with distributed coordination (matching main branch hotfix a546f3734)
-    # CRITICAL: ALL ranks must load the same checkpoint file for identical structures before SyncBatchNorm
-
-    if checkpoint_manager.exists():
-        logger.info("Resuming training with existing agent from checkpoint")
-        # ALL ranks load the same checkpoint to ensure identical module structures
-        # DDP will synchronize weights, but we need matching architecture for SyncBatchNorm
+    # Load existing agent with distributed coordination (matching main branch's load_or_create_policy)
+    # Master determines if checkpoint exists, then synchronizes decision to all ranks
+    existing_agent = None
+    if torch_dist_cfg.is_master:
         existing_agent = checkpoint_manager.load_agent()
+        has_checkpoint = existing_agent is not None
+    else:
+        has_checkpoint = None
+
+    # Synchronize checkpoint existence decision across all ranks (like get_from_master)
+    if torch.distributed.is_initialized():
+        import torch.distributed as dist
+        # Broadcast the decision from master to all ranks
+        obj_list = [has_checkpoint] if torch_dist_cfg.is_master else [None]
+        dist.broadcast_object_list(obj_list, src=0)
+        has_checkpoint = obj_list[0]
+
+        # Non-master ranks load checkpoint only if master confirmed it exists
+        if not torch_dist_cfg.is_master and has_checkpoint:
+            existing_agent = checkpoint_manager.load_agent()
+
+    # Create or use existing agent - all ranks make the same decision
+    if has_checkpoint and existing_agent is not None:
+        logger.info("Resuming training with existing agent from checkpoint")
         policy: PolicyAgent = existing_agent
     else:
         logger.info("Creating new agent for training")
