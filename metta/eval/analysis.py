@@ -41,8 +41,7 @@ def analyze(policy_uri: str, config: AnalysisConfig) -> None:
 #   helpers                                                                   #
 # --------------------------------------------------------------------------- #
 def get_available_metrics(stats_db: EvalStatsDB, policy_uri: str) -> List[str]:
-    metadata = CheckpointManager.get_policy_metadata(policy_uri)
-    pk, pv = metadata["run_name"], metadata["epoch"]
+    pk, pv = CheckpointManager.get_policy_info(policy_uri)
     result = stats_db.query(
         f"""
         SELECT DISTINCT metric
@@ -78,8 +77,7 @@ def get_metrics_data(
         • K_recorded  – rows in policy_simulation_agent_metrics.
         • N_potential – total agent-episode pairs for that filter.
     """
-    metadata = CheckpointManager.get_policy_metadata(policy_uri)
-    pk, pv = metadata["run_name"], metadata["epoch"]
+    pk, pv = CheckpointManager.get_policy_info(policy_uri)
     filter_condition = f"sim_name = '{sim_name}'" if sim_name else None
 
     data: Dict[str, Dict[str, float]] = {}

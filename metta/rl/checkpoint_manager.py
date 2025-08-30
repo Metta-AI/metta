@@ -196,6 +196,26 @@ class CheckpointManager:
                 )
         return metadata
 
+    @staticmethod
+    def get_policy_info(uri: str) -> tuple[str, int]:
+        """Extract run_name and epoch from policy URI - simplified version of get_policy_metadata.
+
+        This is the most common usage pattern, replacing:
+        metadata = CheckpointManager.get_policy_metadata(uri)
+        run_name, epoch = metadata["run_name"], metadata["epoch"]
+        """
+        metadata = CheckpointManager.get_policy_metadata(uri)
+        return metadata["run_name"], metadata["epoch"]
+
+    def get_latest_checkpoint(self) -> Optional[Path]:
+        """Get the latest checkpoint file - simplified version of select_checkpoints.
+
+        This replaces the common pattern:
+        (select_checkpoints(strategy="latest", count=1, metric="epoch") or [None])[0]
+        """
+        checkpoints = self.select_checkpoints(strategy="latest", count=1, metric="epoch")
+        return checkpoints[0] if checkpoints else None
+
     def _find_checkpoint_files(self, epoch: Optional[int] = None) -> List[Path]:
         """Find checkpoint files, optionally for specific epoch."""
         pattern = f"{self.run_name}__e{epoch}__s*__t*__sc*.pt" if epoch else f"{self.run_name}__e*__s*__t*__sc*.pt"
@@ -270,6 +290,24 @@ class CheckpointManager:
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
         torch.save(state, trainer_file)
+
+    def save_checkpoint(
+        self,
+        agent,
+        optimizer,
+        epoch: int,
+        agent_step: int,
+        metadata: Dict[str, Any],
+        stopwatch_state: Optional[Dict[str, Any]] = None,
+    ):
+        """Save both agent and trainer state in one call.
+
+        This replaces the common pattern:
+        checkpoint_manager.save_agent(agent, epoch, metadata)
+        checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, stopwatch_state)
+        """
+        self.save_agent(agent, epoch, metadata)
+        self.save_trainer_state(optimizer, epoch, agent_step, stopwatch_state)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
         """Select checkpoints."""
