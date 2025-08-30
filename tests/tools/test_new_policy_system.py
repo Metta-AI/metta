@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from experiments.recipes.arena import evaluate, replay, train
 import metta.mettagrid.config.envs as eb
+from experiments.recipes.arena import evaluate, replay, train
 from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_management import discover_policy_uris
@@ -121,7 +121,6 @@ class TestNewPolicySystem:
     def test_recipe_system_integration(self):
         """Test that recipes work with the new policy system."""
         try:
-
             train_tool = train()
             assert hasattr(train_tool, "trainer")
 

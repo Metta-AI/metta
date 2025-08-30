@@ -2236,7 +2236,6 @@ class TestPolicyScorecardRoutes:
         # to populate the leaderboard_policy_scores table. We'll do this by
         # manually running the update logic using the stats_repo fixture.
 
-
         # Create a leaderboard updater instance
         updater = LeaderboardUpdater(stats_repo)
 

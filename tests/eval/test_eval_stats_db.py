@@ -14,7 +14,6 @@ TestEvalStatsDb = tuple[EvalStatsDB, str, str]  # (db, policy_key, policy_versio
 
 
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
-
     db = EvalStatsDB(db_path)
 
     checkpoint_filename = "test_policy__e1__s1000__t10__sc0.pt"
