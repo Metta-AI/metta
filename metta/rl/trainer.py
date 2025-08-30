@@ -156,13 +156,13 @@ def train(
         existing_agent = checkpoint_manager.load_agent()
     else:
         existing_agent = None
-    
-    # Synchronize checkpoint decision across all ranks 
+
+    # Synchronize checkpoint decision across all ranks
     if torch.distributed.is_initialized():
         # Use tensor broadcast (more efficient than object broadcast)
         has_checkpoint = torch.tensor([existing_agent is not None], dtype=torch.bool, device=device)
         torch.distributed.broadcast(has_checkpoint, src=0)
-        
+
         # Non-master ranks load checkpoint only if master confirmed it exists
         if not torch_dist_cfg.is_master and has_checkpoint.item():
             existing_agent = checkpoint_manager.load_agent()
