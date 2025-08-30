@@ -164,13 +164,10 @@ class TestWandbURIHandling:
         expanded = expand_wandb_uri(full_uri)
         assert expanded == full_uri
 
-    @patch("metta.rl.wandb.load_policy_from_wandb_uri")
-    @patch("wandb.Api")
-    def test_wandb_uri_loading(self, mock_wandb_api, mock_load_wandb, mock_policy):
+    @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
+    def test_wandb_uri_loading(self, mock_load_wandb, mock_policy):
         """Test wandb URI loading with expansion."""
         mock_load_wandb.return_value = mock_policy
-        # Mock the wandb API to prevent actual API calls
-        mock_wandb_api.return_value = Mock()
 
         # Test short format gets expanded before loading
         uri = "wandb://run/my-experiment"
