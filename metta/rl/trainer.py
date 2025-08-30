@@ -162,10 +162,6 @@ def train(
         logger.info("Creating new agent for training")
         policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
-    # Don't proceed until all ranks have the policy
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
     if trainer_cfg.compile:
         logger.info("Compiling policy")
         # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
