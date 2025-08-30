@@ -1,0 +1,113 @@
+{
+  "action_names": [
+    "attack",
+    "get_items",
+    "move"
+  ],
+  "object_types": [
+    "agent",
+    "wall"
+  ],
+  "version": 1,
+  "map_size": [
+    62,
+    62
+  ],
+  "max_steps": 500,
+  "num_agents": 2,
+  "grid_objects": [
+    {
+      "id": 1,
+      "type": 0,
+      "location": [
+        [
+          0,
+          [
+            4,
+            2
+          ]
+        ],
+        [
+          1,
+          [
+            4,
+            2
+          ]
+        ]
+      ],
+      "agent_id": 0,
+      "action": [
+        [
+          0,
+          [
+            4,
+            0
+          ]
+        ],
+        [
+          1,
+          [
+            5,
+            0
+          ]
+        ]
+      ],
+      "action_success": [
+        [
+          0,
+          true
+        ],
+        [
+          1,
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2,
+      "type": 2,
+      "location": [
+        [
+          0,
+          [
+            6,
+            3
+          ]
+        ],
+        [
+          1,
+          [
+            6,
+            3
+          ]
+        ]
+      ],
+      "agent_id": null,
+      "action": null,
+      "action_success": null
+    },
+    {
+      "id": 3,
+      "type": 3,
+      "location": [
+        [
+          0,
+          [
+            15,
+            10
+          ]
+        ],
+        [
+          1,
+          [
+            15,
+            10
+          ]
+        ]
+      ],
+      "agent_id": null,
+      "action": null,
+      "action_success": null
+    }
+  ]
+}

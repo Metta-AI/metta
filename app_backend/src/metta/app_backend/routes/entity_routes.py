@@ -57,6 +57,10 @@ class TrainingRunPolicy(BaseModel):
     epoch_end: Optional[int]
 
 
+class TrainingRunPolicyListResponse(BaseModel):
+    policies: List[TrainingRunPolicy]
+
+
 async def get_training_run_policies(con: AsyncConnection, training_run_id: str) -> List[TrainingRunPolicy]:
     """Get policies for a training run with epoch information."""
     query = """

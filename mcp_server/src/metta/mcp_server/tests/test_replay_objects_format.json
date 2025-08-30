@@ -1,0 +1,126 @@
+{
+  "action_names": [
+    "attack",
+    "get_items",
+    "move"
+  ],
+  "item_names": [
+    "ore_red",
+    "ore_blue",
+    "ore_green"
+  ],
+  "map_size": [
+    62,
+    62
+  ],
+  "max_steps": 500,
+  "num_agents": 2,
+  "objects": [
+    {
+      "id": 449,
+      "type_id": 0,
+      "location": [
+        [
+          0,
+          [
+            18,
+            10,
+            0
+          ]
+        ],
+        [
+          1,
+          [
+            17,
+            10,
+            0
+          ]
+        ]
+      ],
+      "orientation": [
+        [
+          0,
+          2
+        ],
+        [
+          3,
+          0
+        ]
+      ],
+      "is_agent": true,
+      "agent_id": 0
+    },
+    {
+      "id": 520,
+      "type_id": 0,
+      "location": [
+        [
+          0,
+          [
+            19,
+            14,
+            0
+          ]
+        ],
+        [
+          1,
+          [
+            20,
+            14,
+            0
+          ]
+        ]
+      ],
+      "orientation": [
+        [
+          0,
+          3
+        ],
+        [
+          15,
+          0
+        ]
+      ],
+      "is_agent": true,
+      "agent_id": 1
+    },
+    {
+      "id": 100,
+      "type_id": 2,
+      "location": [
+        [
+          0,
+          [
+            25,
+            25,
+            0
+          ]
+        ],
+        [
+          50,
+          [
+            25,
+            25,
+            0
+          ]
+        ]
+      ],
+      "inventory": [
+        [
+          0,
+          []
+        ],
+        [
+          50,
+          [
+            [
+              0,
+              5
+            ]
+          ]
+        ]
+      ],
+      "is_agent": false
+    }
+  ]
+}
