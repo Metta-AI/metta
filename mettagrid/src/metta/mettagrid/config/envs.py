@@ -1,9 +1,9 @@
-import metta.map.scenes.random
-from metta.map.mapgen import MapGen
+import metta.mettagrid.mapgen.scenes.random
 from metta.mettagrid.config import building, empty_converters
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
 from metta.mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
+from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -58,8 +58,8 @@ def make_arena(
             height=25,
             border_width=6,
             instance_border_width=0,
-            root=metta.map.scenes.random.Random.factory(
-                params=metta.map.scenes.random.Random.Params(
+            root=metta.mettagrid.mapgen.scenes.random.Random.factory(
+                params=metta.mettagrid.mapgen.scenes.random.Random.Params(
                     agents=6,
                     objects={
                         "wall": 10,

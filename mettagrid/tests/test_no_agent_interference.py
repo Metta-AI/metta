@@ -2,8 +2,8 @@
 import numpy as np
 import pytest
 
-from metta.map.mapgen import MapGen
 from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.test_support.actions import get_agent_position
 
