@@ -88,17 +88,17 @@ class OptimizingScheduler:
             )
             for line in table_lines:
                 logger.info(line)
-            
+
             # Check if all runs are complete (either COMPLETED or FAILED)
             all_complete = all(run.status in (JobStatus.COMPLETED, JobStatus.FAILED) for run in all_runs)
             if all_complete:
                 self._is_complete = True
                 logger.info(f"[OptimizingScheduler] All {self.config.max_trials} trials finished!")
             else:
-                incomplete_count = sum(1 for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED))
-                logger.info(
-                    f"[OptimizingScheduler] Waiting for {incomplete_count} remaining job(s) to complete"
+                incomplete_count = sum(
+                    1 for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED)
                 )
+                logger.info(f"[OptimizingScheduler] Waiting for {incomplete_count} remaining job(s) to complete")
             return []
 
         # For sequential scheduler, wait for ALL runs to complete before starting new ones
