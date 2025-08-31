@@ -61,6 +61,7 @@ class SweepOrchestratorTool(Tool):
 
     # Infrastructure configuration
     wandb: WandbConfig = WandbConfig.Unconfigured()
+    stats_server_uri: Optional[str] = None  # Stats server for remote evaluations
 
     # Dispatcher configuration
     dispatcher_type: str = "local"  # Only local supported for now
@@ -146,6 +147,7 @@ class SweepOrchestratorTool(Tool):
             train_entrypoint=self.train_entrypoint,
             eval_entrypoint=self.eval_entrypoint,
             train_overrides=self.train_overrides,  # Pass train overrides to scheduler
+            stats_server_uri=self.stats_server_uri,  # Pass stats server for remote evals
         )
         scheduler = OptimizingScheduler(scheduler_config, optimizer)
 

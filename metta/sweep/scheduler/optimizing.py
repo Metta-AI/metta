@@ -33,6 +33,7 @@ class OptimizingSchedulerConfig:
     train_overrides: dict[str, Any] | None = None  # Additional overrides for training jobs
     eval_args: list[str] | None = None  # Additional args for evaluation
     eval_overrides: dict[str, Any] | None = None  # Additional overrides for evaluation
+    stats_server_uri: str | None = None  # Stats server for remote evaluations
 
 
 class OptimizingScheduler:
@@ -54,9 +55,13 @@ class OptimizingScheduler:
         if runs_needing_eval:
             train_run = runs_needing_eval[0]
 
-            # Merge eval_overrides with required push_metrics_to_wandb
+            # Merge eval_overrides with required defaults
             eval_overrides = self.config.eval_overrides.copy() if self.config.eval_overrides else {}
             eval_overrides["push_metrics_to_wandb"] = "True"  # Always push metrics to WandB for sweeps
+
+            # Add stats_server_uri if configured to enable remote evaluation
+            if self.config.stats_server_uri:
+                eval_overrides["stats_server_uri"] = self.config.stats_server_uri
 
             eval_job = JobDefinition(
                 run_id=train_run.run_id,  # Use same run_id for eval
@@ -153,6 +158,13 @@ class OptimizingScheduler:
 
         # Merge train_overrides with optimizer suggestions
         overrides = self.config.train_overrides.copy() if self.config.train_overrides else {}
+
+        # Add stats_server_uri if configured for remote evaluation during training
+        if self.config.stats_server_uri:
+            overrides["stats_server_uri"] = self.config.stats_server_uri
+            # Also set evaluation flags for remote-only evaluation during training
+            overrides["trainer.evaluation.evaluate_remote"] = "True"
+            overrides["trainer.evaluation.evaluate_local"] = "False"
 
         job = JobDefinition(
             run_id=run_id,
