@@ -64,6 +64,8 @@ class SweepOrchestratorTool(Tool):
 
     # Dispatcher configuration
     dispatcher_type: str = "local"  # Only local supported for now
+    capture_output: bool = True  # Capture and stream subprocess output
+    output_dir: Optional[str] = None  # Directory to save output logs (optional)
 
     consumed_args: list[str] = ["sweep_name", "max_trials"]
 
@@ -104,6 +106,10 @@ class SweepOrchestratorTool(Tool):
         logger.info(f"[SweepOrchestrator] Max trials: {self.max_trials}")
         logger.info(f"[SweepOrchestrator] Max parallel jobs: {self.max_parallel_jobs}")
         logger.info(f"[SweepOrchestrator] Monitoring interval: {self.monitoring_interval}s")
+        logger.info(f"[SweepOrchestrator] Output capture: {self.capture_output}")
+        if self.capture_output:
+            output_dir = self.output_dir or os.path.join(self.sweep_dir, "job_logs")
+            logger.info(f"[SweepOrchestrator] Output logs directory: {output_dir}")
         logger.info("[SweepOrchestrator] " + "=" * 60)
 
         # Build the orchestrator config
@@ -121,7 +127,12 @@ class SweepOrchestratorTool(Tool):
 
         # Create dispatcher based on type
         if self.dispatcher_type == "local":
-            dispatcher = LocalDispatcher()
+            # Set default output_dir if not specified
+            output_dir = self.output_dir
+            if output_dir is None and self.capture_output:
+                output_dir = os.path.join(self.sweep_dir, "job_logs")
+
+            dispatcher = LocalDispatcher(capture_output=self.capture_output, output_dir=output_dir)
         else:
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
 

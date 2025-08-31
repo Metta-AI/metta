@@ -1,6 +1,8 @@
 import functools
 import logging
+import os
 import subprocess
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -314,9 +316,16 @@ def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
 class LocalDispatcher:
     """Runs jobs as local subprocesses."""
 
-    def __init__(self):
+    def __init__(self, capture_output: bool = True, output_dir: str | None = None):
         self._processes: dict[str, subprocess.Popen] = {}  # pid -> process
         self._run_to_pid: dict[str, str] = {}  # run_id -> pid for debugging
+        self._capture_output = capture_output
+        self._output_dir = output_dir
+        self._output_threads: dict[str, threading.Thread] = {}  # pid -> output thread
+
+        # Create output directory if specified
+        if self._output_dir and not os.path.exists(self._output_dir):
+            os.makedirs(self._output_dir, exist_ok=True)
 
     def _reap_finished_processes(self):
         """Clean up finished subprocesses."""
@@ -334,6 +343,12 @@ class LocalDispatcher:
             run_id = next((rid for rid, p in self._run_to_pid.items() if p == pid), None)
             if run_id:
                 del self._run_to_pid[run_id]
+            # Clean up output thread if exists
+            if pid in self._output_threads:
+                thread = self._output_threads[pid]
+                if thread.is_alive():
+                    thread.join(timeout=1.0)  # Wait briefly for thread to finish
+                del self._output_threads[pid]
 
     def check_processes(self):
         """Check status of all processes."""
@@ -345,6 +360,45 @@ class LocalDispatcher:
                 status = "running" if process.poll() is None else f"finished({process.returncode})"
                 logger.debug(f"[LocalDispatcher]   PID {pid}: {status}")
         return active_count
+
+    def _stream_output(self, process: subprocess.Popen, run_id: str, pid: str):
+        """Stream output from subprocess to logger and optionally to file."""
+        log_file = None
+        try:
+            # Open log file if output directory is specified
+            if self._output_dir:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_path = os.path.join(self._output_dir, f"{run_id}_{timestamp}.log")
+                log_file = open(log_path, "w", buffering=1)  # Line buffered
+                logger.info(f"[LocalDispatcher] Logging output to {log_path}")
+
+            # Read output line by line
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    # Check if process is still running
+                    if process.poll() is not None:
+                        break
+                    continue
+
+                line = line.strip()
+
+                # Log to file if specified
+                if log_file:
+                    log_file.write(line + "\n")
+                    log_file.flush()
+
+                # Log to logger with appropriate prefix
+                # Extract trial portion for cleaner display
+                display_id = run_id.split("_trial_")[-1] if "_trial_" in run_id else run_id
+                display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
+                logger.info(f"[{display_id}] {line}")
+
+        except Exception as e:
+            logger.error(f"[LocalDispatcher] Error streaming output for PID {pid}: {e}")
+        finally:
+            if log_file:
+                log_file.close()
 
     def dispatch(self, job: JobDefinition) -> str:
         """Dispatch job locally as subprocess."""
@@ -400,15 +454,24 @@ class LocalDispatcher:
         logger.info(f"[LocalDispatcher] Dispatching local {job_type_name} for {display_id}: {' '.join(cmd_parts)}")
 
         try:
-            # Start subprocess - optionally stream output for debugging
-            # For production, use DEVNULL to avoid deadlock
-            # For debugging, comment out the DEVNULL lines
-            process = subprocess.Popen(
-                cmd_parts,
-                stdout=subprocess.DEVNULL,  # Comment out for debugging
-                stderr=subprocess.DEVNULL,  # Comment out for debugging
-                text=True,
-            )
+            # Configure subprocess output handling
+            if self._capture_output:
+                # Capture output for streaming and logging
+                process = subprocess.Popen(
+                    cmd_parts,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,  # Combine stderr with stdout
+                    text=True,
+                    bufsize=1,  # Line buffered
+                )
+            else:
+                # Production mode - discard output to avoid potential deadlock
+                process = subprocess.Popen(
+                    cmd_parts,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                )
 
             # Use PID as the dispatch_id
             pid = str(process.pid)
@@ -416,7 +479,19 @@ class LocalDispatcher:
             self._processes[pid] = process
             self._run_to_pid[job.run_id] = pid
 
-            logger.info(f"[LocalDispatcher] Started {display_id} with PID {pid}")
+            # Start output streaming thread if capturing output
+            if self._capture_output:
+                output_thread = threading.Thread(
+                    target=self._stream_output,
+                    args=(process, job.run_id, pid),
+                    daemon=True,  # Daemon thread will be killed when main process exits
+                )
+                output_thread.start()
+                self._output_threads[pid] = output_thread
+
+            logger.info(
+                f"[LocalDispatcher] Started {display_id} with PID {pid} (output_capture={self._capture_output})"
+            )
 
             return pid
 
