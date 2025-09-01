@@ -14,6 +14,7 @@ from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_management import discover_policy_uris
+from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -145,7 +146,7 @@ class SimTool(Tool):
 
     def _export_checkpoint_to_stats_db(self, stats_db: SimulationStatsDB, checkpoint_uri: str, metrics: dict) -> None:
         """Export checkpoint evaluation results to stats database.
-        
+
         Note: stats_db is a local DuckDB instance used for temporary storage of simulation
         results before they are pushed to wandb or the remote stats server.
         """
@@ -216,3 +217,81 @@ class SimTool(Tool):
             comparison_results["error"] = str(e)
 
         return comparison_results
+
+    def _run_simulations_for_checkpoint(self, checkpoint_uri: str) -> dict:
+        """Run simulations for a single checkpoint and return aggregated metrics.
+
+        Args:
+            checkpoint_uri: URI of the checkpoint to evaluate
+
+        Returns:
+            Dictionary with evaluation metrics from simulations
+        """
+        all_metrics = {}
+
+        try:
+            # Run each configured simulation
+            for sim_config in self.simulations:
+                logger.info(f"Running simulation '{sim_config.name}' for checkpoint {checkpoint_uri}")
+
+                # Create and run simulation
+                sim = Simulation.create(
+                    sim_config=sim_config,
+                    device=str(self.system.device),
+                    vectorization=self.system.vectorization,
+                    stats_dir=self.effective_stats_dir,
+                    replay_dir=self.effective_replay_dir if self.save_replays else None,
+                    policy_uri=checkpoint_uri,
+                    run_name=f"eval_{sim_config.name}",
+                )
+
+                # Run the simulation and get results
+                results = sim.simulate()
+
+                # Extract metrics from simulation results
+                if results and results.db:
+                    # Get aggregate statistics from the simulation database
+                    stats_df = results.db.conn.execute(
+                        """
+                        SELECT 
+                            AVG(reward) as reward_avg,
+                            COUNT(DISTINCT episode_id) as num_episodes,
+                            MAX(agent_step) as max_agent_step
+                        FROM trajectories
+                        """
+                    ).fetchdf()
+
+                    if not stats_df.empty:
+                        sim_metrics = {
+                            "reward_avg": float(stats_df["reward_avg"].iloc[0] or 0.0),
+                            "num_episodes": int(stats_df["num_episodes"].iloc[0] or 0),
+                            "max_agent_step": int(stats_df["max_agent_step"].iloc[0] or 0),
+                        }
+                        all_metrics[sim_config.name] = sim_metrics
+
+                        logger.info(
+                            f"Simulation '{sim_config.name}' completed: "
+                            f"avg_reward={sim_metrics['reward_avg']:.3f}, "
+                            f"episodes={sim_metrics['num_episodes']}"
+                        )
+
+        except Exception as e:
+            logger.error(f"Error running simulations for {checkpoint_uri}: {e}")
+
+        # Aggregate metrics across all simulations
+        if all_metrics:
+            avg_reward = sum(m["reward_avg"] for m in all_metrics.values()) / len(all_metrics)
+            total_episodes = sum(m["num_episodes"] for m in all_metrics.values())
+            max_step = max(m["max_agent_step"] for m in all_metrics.values())
+        else:
+            avg_reward = 0.0
+            total_episodes = 0
+            max_step = 0
+
+        return {
+            "reward_avg": avg_reward,
+            "reward_avg_category_normalized": avg_reward,  # Would normalize based on category
+            "agent_step": max_step,
+            "total_episodes": total_episodes,
+            "detailed": all_metrics,
+        }
