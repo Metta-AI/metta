@@ -182,7 +182,7 @@ class CheckpointManager:
 
         Supports loading from local files, S3 buckets, wandb artifacts, or mock URIs.
         Defaults to CPU if no device is specified.
-        
+
         Raises:
             FileNotFoundError: If the checkpoint file doesn't exist or cannot be loaded
             ValueError: If the URI scheme is not supported
@@ -206,21 +206,22 @@ class CheckpointManager:
                         return torch.load(checkpoint_file, weights_only=False, map_location=device)
                     raise FileNotFoundError(f"No checkpoint files found in directory: {original_uri}")
                 raise FileNotFoundError(f"Checkpoint file not found: {original_uri}")
-            
+
             if uri.startswith("s3://"):
                 with local_copy(uri) as local_path:
                     return torch.load(local_path, weights_only=False, map_location=device)
-            
+
             if uri.startswith("wandb://"):
                 expanded_uri = expand_wandb_uri(uri)
                 return load_policy_from_wandb_uri(expanded_uri, device=device)
-            
+
             if uri.startswith("mock://"):
                 from metta.agent.mocks import MockAgent
+
                 return MockAgent()
-            
+
             raise ValueError(f"Unsupported URI scheme: {original_uri}")
-            
+
         except FileNotFoundError:
             raise  # Re-raise FileNotFoundError as-is
         except Exception as e:
