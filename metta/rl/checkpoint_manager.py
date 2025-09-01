@@ -251,17 +251,20 @@ class CheckpointManager:
 
     @staticmethod
     def normalize_uri(path_or_uri: str) -> str:
-        """Convert path to URI format and expand short wandb URIs.
+        """Validate and normalize URI format, expanding short wandb URIs.
 
-        "/tmp/model.pt" -> "file:///tmp/model.pt"
-        "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
-        "s3://bucket/model.pt" -> "s3://bucket/model.pt"
+        Requires explicit URI schemes - no auto-conversion of paths.
         """
-        if not path_or_uri.startswith(("file://", "wandb://", "s3://", "mock://")):
-            return f"file://{Path(path_or_uri).resolve()}"
         if path_or_uri.startswith("wandb://"):
             return expand_wandb_uri(path_or_uri)
-        return path_or_uri
+        if path_or_uri.startswith(("file://", "s3://", "mock://")):
+            return path_or_uri
+        # If it has :// but isn't a supported scheme, raise error
+        if "://" in path_or_uri:
+            scheme = path_or_uri.split("://")[0]
+            raise ValueError(f"Unsupported URI scheme: {scheme}://")
+        # No scheme - raise error instead of auto-converting
+        raise ValueError(f"Invalid URI format. Expected file://, wandb://, s3://, or mock:// URI, got: {path_or_uri}")
 
     @staticmethod
     def get_policy_metadata(uri: str) -> PolicyMetadata:
