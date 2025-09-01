@@ -55,11 +55,9 @@ def download_from_s3(s3_path: str, save_path: str):
 
 
 class TerrainFromNumpy(MapBuilder):
-    """
-    This class is used to load a terrain environment from numpy arrays on s3.
+    """This class is used to load a terrain environment from numpy arrays on s3.
 
-    It's not a MapGen scene, because we don't know the grid size until we load the file.
-    """
+    It's not a MapGen scene, because we don't know the grid size until we load the file."""
 
     class Config(MapBuilderConfig["TerrainFromNumpy"]):
         objects: dict[str, int] = Field(default_factory=dict)
