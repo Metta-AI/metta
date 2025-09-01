@@ -311,9 +311,8 @@ class CheckpointManager:
         if wandb_run and metadata.get("upload_to_wandb", True):
             from metta.rl.wandb import upload_checkpoint_as_artifact
 
-            artifact_name = f"{self.run_name}_{epoch}"
-            if metadata.get("is_final", False):
-                artifact_name += "_final"
+            # For final checkpoint, append "_final" to distinguish it
+            name = self.run_name + "_final" if metadata.get("is_final", False) else self.run_name
 
             wandb_metadata = {
                 "run_name": self.run_name,
@@ -325,7 +324,7 @@ class CheckpointManager:
 
             wandb_uri = upload_checkpoint_as_artifact(
                 checkpoint_path=str(checkpoint_path),
-                artifact_name=artifact_name,
+                artifact_name=name,
                 metadata=wandb_metadata,
                 wandb_run=wandb_run,
             )
