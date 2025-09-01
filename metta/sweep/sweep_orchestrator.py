@@ -122,7 +122,9 @@ class JobStatus(StrEnum):
     FAILED = auto()  # Job failed during training or evaluation
 
 
-# DispatchType removed - dispatchers are passed directly to controller
+class SweepStatus(StrEnum):
+    CREATED = auto()
+    RESUMED = auto()
 
 
 @dataclass
@@ -529,6 +531,7 @@ class SweepController:
         dispatcher: Dispatcher,
         store: Store,
         protein_config: ProteinConfig,
+        sweep_status: SweepStatus = SweepStatus.RESUMED,
         max_parallel_jobs: int = 10,
         monitoring_interval: int = 5,
     ):
@@ -541,6 +544,7 @@ class SweepController:
         self.protein_config = protein_config
         self.monitoring_interval = monitoring_interval
         self.max_parallel_jobs = max_parallel_jobs
+        self.has_data = sweep_status == SweepStatus.RESUMED
 
     def _compute_metadata_from_runs(self, all_runs: list[RunInfo]) -> SweepMetadata:
         """Compute sweep metadata from runs."""
@@ -562,7 +566,12 @@ class SweepController:
         while True:
             try:
                 # 1. Fetch ALL runs from store
-                all_run_infos = self.store.fetch_runs(filters={"group": self.sweep_id})  # Returns list[RunInfo]
+                if self.has_data:
+                    all_run_infos = self.store.fetch_runs(filters={"group": self.sweep_id})  # Returns list[RunInfo]
+                else:
+                    all_run_infos = []
+                    self.has_data = True  # We do this for the very first run
+                    # beacause WandB is weird about fetching empty sets.
 
                 # 2. Update sweep metadata based on ALL runs
                 metadata = self._compute_metadata_from_runs(all_run_infos)
@@ -699,6 +708,9 @@ def orchestrate_sweep(
     if not sweep_info.exists:
         logger.info(f"[Orchestrator] Registering sweep {config.sweep_name}")
         sweep_client.create_sweep(config.sweep_name, config.wandb.project, config.wandb.entity, config.sweep_name)
+        sweep_status = SweepStatus.CREATED
+    else:
+        sweep_status = SweepStatus.RESUMED
 
     # Create the sweep controller (stateless)
     controller = SweepController(
@@ -708,6 +720,7 @@ def orchestrate_sweep(
         dispatcher=dispatcher,
         store=store,
         protein_config=config.protein_config,
+        sweep_status=sweep_status,
         max_parallel_jobs=config.max_parallel_jobs,
         monitoring_interval=config.monitoring_interval,
     )
