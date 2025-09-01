@@ -159,13 +159,18 @@ class LSTM(LayerBase):
         if training_env_ids is None:
             training_env_ids = torch.arange(B, device=latent.device)
         else:
-            training_env_ids = training_env_ids.reshape(B * TT)
+            training_env_ids = training_env_ids.reshape(B * TT)  # av why reshape this? should already be B*TT
 
         dones = td.get("dones", None)
         truncateds = td.get("truncateds", None)
         if dones is not None and truncateds is not None:
-            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+            if dones.max() > 0:
+                breakpoint()
+            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)  # av check if this is right in TT !=1
+            if TT != 1:
+                breakpoint()
         else:
+            # we're in eval
             reset_mask = torch.ones(1, B, 1, device=latent.device)
 
         if TT == 1:
@@ -184,6 +189,9 @@ class LSTM(LayerBase):
             td["lstm_h"] = h_0.permute(1, 0, 2).detach()
             td["lstm_c"] = c_0.permute(1, 0, 2).detach()
 
+            td["check_seg_id"] = segment_ids
+            td["check_env_id"] = training_env_ids
+
             if self.burn_in < 2 * self.training_TT:
                 self.burn_in += 1
             elif self.iter % self.training_TT == 0:
@@ -197,6 +205,13 @@ class LSTM(LayerBase):
             self.burn_in = 0
 
             segment_ids = segment_ids.reshape(B, TT)[:, 0]
+            training_env_ids = training_env_ids.reshape(B, TT)[:, 0]
+            check_seg_id = td["check_seg_id"].reshape(B, TT)[:, 0]
+            check_env_id = td["check_env_id"].reshape(B, TT)[:, 0]
+
+            if check_seg_id != segment_ids or check_env_id != training_env_ids:
+                breakpoint()
+
             h_0 = td["lstm_h"]
             c_0 = td["lstm_c"]
             h_0 = rearrange(h_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
