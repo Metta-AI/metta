@@ -31,16 +31,17 @@ def _get_config_path() -> Path:
         if repo_config.exists():
             return repo_config
     
-    # Check user directory
+    # Check user directory  
     user_config = Path.home() / ".metta" / "config.yaml"
     if user_config.exists():
         return user_config
     
-    # If neither exists, prefer repo location for new configs (if in repo)
-    if repo_root:
+    # For new configs: prefer repo location only if user home is the real home directory
+    # This prevents repo config creation during tests when Path.home() is mocked
+    if repo_root and Path.home() == Path("~").expanduser():
         return repo_root / ".metta" / "config.yaml"
     
-    # Fall back to user directory
+    # Fall back to user directory (including mocked home during tests)
     return user_config
 
 
