@@ -14,6 +14,8 @@ from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuil
 
 logger = logging.getLogger(__name__)
 
+MAPS_ROOT = "s3://softmax-public/maps"
+
 
 def pick_random_file(path):
     chosen = None
@@ -98,7 +100,7 @@ class TerrainFromNumpy(MapBuilder):
         map_dir = f"train_dir/{self.config.dir}"
         root_dir = f"train_dir/{root}"
 
-        s3_path = f"s3://softmax-public/maps/{root}.zip"
+        s3_path = f"{MAPS_ROOT}/{root}.zip"
         local_zipped_dir = root_dir + ".zip"
         # Only one process can hold this lock at a time:
         with FileLock(local_zipped_dir + ".lock"):

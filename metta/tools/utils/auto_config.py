@@ -1,7 +1,10 @@
+import os
+from datetime import datetime
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from metta.common.util.collections import remove_none_values
+from metta.common.util.collections import remove_falsey, remove_none_values
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.setup.components.aws import AWSSetup
 from metta.setup.components.observatory_key import ObservatoryKeySetup
@@ -170,3 +173,15 @@ def auto_checkpoint_dir() -> str:
     }
 
     return config.get("checkpoint_dir")
+
+
+def auto_run_name(prefix: str | None = None) -> str:
+    return ".".join(
+        remove_falsey(
+            [
+                prefix,
+                os.getenv("USER", "unknown"),
+                datetime.now().strftime("%Y%m%d.%H%M%S"),
+            ]
+        )
+    )
