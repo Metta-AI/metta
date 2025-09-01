@@ -224,16 +224,14 @@ class MettaAgent(nn.Module):
             if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
                 remap_tensor[feature_id] = unknown_id
 
-        # Apply remapping to policy if it supports it
-        if hasattr(self.policy, "_apply_feature_remapping"):
-            self.policy._apply_feature_remapping(remap_tensor)
+        # Apply remapping to policy
+        self.policy._apply_feature_remapping(remap_tensor)
 
         self._update_normalization_factors(features)
 
     def _update_normalization_factors(self, features: dict[str, dict]):
         """Update normalization factors after feature remapping."""
-        if hasattr(self.policy, "update_normalization_factors"):
-            self.policy.update_normalization_factors(features, getattr(self, "original_feature_mapping", None))
+        self.policy.update_normalization_factors(features, getattr(self, "original_feature_mapping", None))
 
     def get_original_feature_mapping(self) -> dict[str, int] | None:
         """Get the original feature mapping for saving in metadata."""
