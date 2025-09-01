@@ -150,7 +150,11 @@ class SimTool(Tool):
         print("===JSON_OUTPUT_END===")
 
     def _export_checkpoint_to_stats_db(self, stats_db: SimulationStatsDB, checkpoint_uri: str, metrics: dict) -> None:
-        """Export checkpoint evaluation results to stats database."""
+        """Export checkpoint evaluation results to stats database.
+        
+        Note: stats_db is a local DuckDB instance used for temporary storage of simulation
+        results before they are pushed to wandb or the remote stats server.
+        """
         # Extract key and version from URI for database
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         policy_key, policy_version = metadata["run_name"], metadata["epoch"]

@@ -5,6 +5,7 @@ import asyncio
 import concurrent.futures
 import uuid
 from pathlib import Path
+from typing import Literal
 
 import wandb
 from bidict import bidict
@@ -28,6 +29,9 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.setup.utils import debug, info, success, warning
 from metta.sim.utils import get_or_create_policy_ids
 
+# Policy selection types that define how to select checkpoints from a directory
+PolicySelectorType = Literal["latest", "top", "best_score", "all"]
+
 
 class EvalRequest(BaseModel):
     """Evaluation request configuration."""
@@ -38,7 +42,7 @@ class EvalRequest(BaseModel):
 
     git_hash: str | None = None
 
-    policy_select_type: str = "latest"
+    policy_select_type: PolicySelectorType = "latest"
     policy_select_metric: str = "score"
     policy_select_num: int = 1
 
@@ -66,7 +70,7 @@ class EvalRequest(BaseModel):
 
 def _get_policies_for_uri(
     policy_uri: str,
-    selector_type: str,
+    selector_type: PolicySelectorType,
     select_num: int,
     select_metric: str,
     disallow_missing_policies: bool = False,
@@ -278,7 +282,7 @@ async def main() -> None:
         "--policy-select-type",
         type=str,
         default="latest",
-        choices=["latest", "top", "best_score", "all"],
+        choices=PolicySelectorType.__args__,
         help="Policy selection type.",
     )
 
