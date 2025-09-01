@@ -169,7 +169,22 @@ metta configure    # Reconfigure for a different profile
 
 ## Configuration
 
-Metta uses a unified configuration system that manages all settings through a single config file at `~/.metta/config.yaml`. Each component (Weights & Biases, storage, observatory, datadog) manages its own configuration section.
+Metta uses a flexible two-tier configuration system inspired by tools like dbt, supporting both personal defaults and project-specific settings.
+
+### Configuration Locations
+
+**Global Configuration** (`~/.metta/config.yaml`):
+
+- Personal defaults and credentials
+- Used across all your projects
+- Can be overridden via `METTA_PROFILES_DIR` environment variable
+
+**Project Configuration** (`.metta/config.yaml` in project root):
+
+- Team-shared settings committed to version control
+- Automatically detected in any project with `pyproject.toml`, `.git`, `setup.py`, or `requirements.txt`
+- Takes precedence over global configuration
+- Perfect for pip-installed metta in user projects
 
 ### Interactive Configuration
 
@@ -184,15 +199,15 @@ metta configure --profile=external # Set user profile
 The wizard will:
 - Walk you through each service with intelligent defaults
 - Ask profile-appropriate questions (external vs softmax users)  
-- Save settings to the unified config file
+- Save settings to the appropriate config file (project or global)
 - Allow you to choose between environment variable override modes
 
 ### Configuration File Structure
 
-The unified config file uses a clean YAML structure where each component owns its section:
+Both global and project config files use the same clean YAML structure:
 
 ```yaml
-# ~/.metta/config.yaml
+# ~/.metta/config.yaml (global) or .metta/config.yaml (project)
 wandb:
   enabled: true
   entity: "my-team"
@@ -201,12 +216,37 @@ wandb:
 storage:
   s3_bucket: "my-bucket"
   replay_dir: "s3://my-bucket/replays/"
+  checkpoint_dir: "s3://my-bucket/checkpoints/"
 
 observatory:
   enabled: false
 
 profile: "external"
 ignore_env_vars: false  # Set to true for config-file-authoritative mode
+```
+
+### Team Collaboration
+
+**For Individual Use:**
+```bash
+# Personal global config
+~/.metta/config.yaml    # Your personal defaults
+```
+
+**For Team Projects:**
+```bash
+# Team shares project-specific config
+my-ai-project/
+├── .metta/config.yaml  # Team config (committed to git)
+├── pyproject.toml      # Makes this a "project"  
+└── main.py             # import metta
+```
+
+**For Multiple Environments:**
+```bash
+# Different configs for different projects
+dev-project/.metta/config.yaml    # Dev environment settings
+prod-project/.metta/config.yaml   # Production environment settings
 ```
 
 ### DevOps Integration
@@ -222,15 +262,21 @@ metta export-env --format=json
 
 # .env file format (for containers)  
 metta export-env --format=file .env
+
+# Custom profiles directory for deployments
+METTA_PROFILES_DIR=/etc/metta metta export-env
 ```
 
-### Environment Variable Priority
+### Configuration Priority
 
-By default, Metta follows Unix-style configuration where environment variables override config file values:
+Metta uses a simple three-tier priority system:
 
-**Priority order**: Environment Variables → Config File → Profile Defaults
+1. **Project config** (`.metta/config.yaml` in project root) - highest priority
+2. **Global config** (`~/.metta/config.yaml` or `METTA_PROFILES_DIR`) - fallback
+3. **Default values** - lowest priority
 
-To use config-file-authoritative mode (like dbt), set `ignore_env_vars: true` in your config file.
+**Environment Variable Override:**
+By default, environment variables can override config file values. Set `ignore_env_vars: true` in your config file for config-file-authoritative mode.
 
 ## Usage
 
