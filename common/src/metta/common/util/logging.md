@@ -1,23 +1,11 @@
 ## Usage
 
-### Simple usage: `log()`
+### Setup: `init_logging`
 
-```python
-from metta.common.util.logging import log
-log("Starting application")
-# Use `master_only=True` for coordination messages
-log("Starting distributed training", master_only=True)
-log("All workers synchronized", master_only=True)
-log("Saving final results", master_only=True)
-```
+If you only intend on using `log`, this step is not strictly necessary
 
-### Manual usage: `init_logging` and define your own logger
-
-#### `init_logging`
-
-`log` will automatically call `init_logging` for you with sensible defaults. `init_logging` automatically adds rank info
-if available from env vars, has default settings to reduce log spew, and chooses between rich/non-rich output depending
-on the detected environment.
+`init_logging` automatically adds rank info if available from env vars, has default settings to reduce log spew, and
+chooses between rich/non-rich output depending on the detected environment.
 
 It does not by default also send output to files. You can do so by calling `init_logging` again with a `run_dir`
 
@@ -32,6 +20,15 @@ init_logging(
 
 You can call `init_logging` multiple times safely, though if you call it with different run_dirs, then each will be used
 to create file separate output handlers.
+
+### Simple usage: `log()`
+
+```python
+from metta.common.util.logging import log
+log("Starting application")
+# Use `master_only=True` where applicable
+log("Saving results", master_only=True)
+```
 
 #### Defining and using your own logger
 
