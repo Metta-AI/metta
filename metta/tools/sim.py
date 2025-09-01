@@ -110,14 +110,8 @@ class SimTool(Tool):
                 # Extract metadata using centralized method
                 metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
 
-                # Perform basic evaluation (placeholder - would run actual simulations in real implementation)
-                # For Phase 3, we focus on the database integration infrastructure
-                evaluation_metrics = {
-                    "reward_avg": 0.0,  # Would be filled from actual evaluation
-                    "reward_avg_category_normalized": 0.0,
-                    "agent_step": 0,
-                    "detailed": {},
-                }
+                # Run actual simulations for this checkpoint
+                evaluation_metrics = self._run_simulations_for_checkpoint(checkpoint_uri)
 
                 # Export to stats database if configured
                 if stats_db and self.export_to_stats_db:
