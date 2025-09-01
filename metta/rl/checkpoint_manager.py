@@ -182,32 +182,29 @@ class CheckpointManager:
         else:
             device_str = device
 
-        try:
-            if uri.startswith("file://"):
-                path = Path(_parse_uri_path(uri, "file"))
-                if path.is_file() and path.suffix == ".pt":
-                    return torch.load(path, weights_only=False, map_location=device_str)
-                if path.is_dir():
-                    checkpoint_file = _find_best_checkpoint_in_dir(path)
-                    return (
-                        torch.load(checkpoint_file, weights_only=False, map_location=device_str)
-                        if checkpoint_file
-                        else None
-                    )
-                return None
-            if uri.startswith("s3://"):
-                with local_copy(uri) as local_path:
-                    return torch.load(local_path, weights_only=False, map_location=device_str)
-            if uri.startswith("wandb://"):
-                expanded_uri = expand_wandb_uri(uri)
-                return load_policy_from_wandb_uri(expanded_uri, device=device_str)
-            if uri.startswith("mock://"):
-                from metta.agent.mocks import MockAgent
+        if uri.startswith("file://"):
+            path = Path(_parse_uri_path(uri, "file"))
+            if path.is_file() and path.suffix == ".pt":
+                return torch.load(path, weights_only=False, map_location=device_str)
+            if path.is_dir():
+                checkpoint_file = _find_best_checkpoint_in_dir(path)
+                return (
+                    torch.load(checkpoint_file, weights_only=False, map_location=device_str)
+                    if checkpoint_file
+                    else None
+                )
+            return None
+        if uri.startswith("s3://"):
+            with local_copy(uri) as local_path:
+                return torch.load(local_path, weights_only=False, map_location=device_str)
+        if uri.startswith("wandb://"):
+            expanded_uri = expand_wandb_uri(uri)
+            return load_policy_from_wandb_uri(expanded_uri, device=device_str)
+        if uri.startswith("mock://"):
+            from metta.agent.mocks import MockAgent
 
-                return MockAgent()
-            return None
-        except Exception:
-            return None
+            return MockAgent()
+        return None
 
     @staticmethod
     def normalize_uri(path_or_uri: str) -> str:

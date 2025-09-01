@@ -44,7 +44,7 @@ class DistributedMettaAgent(DistributedDataParallel):
             super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name: str) -> Any:
-        try:  # First try DistributedDataParallel's __getattr__, then self.module's
+        try:
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
@@ -143,9 +143,7 @@ class MettaAgent(nn.Module):
             props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
         }
 
-        # Handle feature remapping for agent portability
         if not hasattr(self, "original_feature_mapping"):
-            # First initialization - store the mapping
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
             log_on_master(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
@@ -244,9 +242,7 @@ class MettaAgent(nn.Module):
     @property
     def lstm(self):
         """Access to LSTM component - delegates to policy if it has one."""
-        if hasattr(self.policy, "lstm"):
-            return self.policy.lstm
-        return None
+        return getattr(self.policy, "lstm", None)
 
     def l2_init_loss(self) -> torch.Tensor:
         """Calculate L2 initialization loss - delegates to policy."""
@@ -268,7 +264,6 @@ class MettaAgent(nn.Module):
         """Convert (action_type, action_param) pairs to discrete indices."""
         if hasattr(self.policy, "_convert_action_to_logit_index"):
             return self.policy._convert_action_to_logit_index(flattened_action)
-        # Default implementation using MettaAgent's action tensors
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
@@ -278,7 +273,6 @@ class MettaAgent(nn.Module):
         """Convert discrete logit indices back to (action_type, action_param) pairs."""
         if hasattr(self.policy, "_convert_logit_index_to_action"):
             return self.policy._convert_logit_index_to_action(logit_indices)
-        # Default implementation using MettaAgent's action tensors
         return self.action_index_tensor[logit_indices]
 
 

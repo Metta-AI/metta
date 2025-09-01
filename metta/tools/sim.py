@@ -23,78 +23,58 @@ logger = logging.getLogger(__name__)
 
 
 def process_policy_evaluator_stats(policy_result: dict, eval_results: dict, wandb_run: WandbRun | None = None) -> None:
-    """Process evaluation results and push metrics to wandb.
-
-    Args:
-        policy_result: Dictionary containing policy information and checkpoint details
-        eval_results: Dictionary containing evaluation metrics and results
-        wandb_run: Optional WandbRun instance for logging to wandb
-    """
+    """Process evaluation results and push metrics to wandb."""
     if not wandb_run:
         logger.debug("No wandb run available, skipping metric logging")
         return
 
-    try:
-        # Extract key metrics from evaluation results
-        metrics = eval_results.get("metrics", {})
-        checkpoint_info = policy_result.get("checkpoints", [])
+    metrics = eval_results.get("metrics", {})
+    checkpoint_info = policy_result.get("checkpoints", [])
 
-        if not checkpoint_info:
-            logger.warning("No checkpoint information in policy results")
-            return
+    if not checkpoint_info:
+        logger.warning("No checkpoint information in policy results")
+        return
 
-        # Get the latest checkpoint info (assumes last in list is latest)
-        latest_checkpoint = checkpoint_info[-1] if checkpoint_info else {}
-        epoch = latest_checkpoint.get("epoch", 0)
-        agent_step = metrics.get("agent_step", 0)
+    latest_checkpoint = checkpoint_info[-1] if checkpoint_info else {}
+    epoch = latest_checkpoint.get("epoch", 0)
+    agent_step = metrics.get("agent_step", 0)
 
-        # Prepare metrics for wandb logging
-        wandb_metrics = {
-            "eval/reward_avg": metrics.get("reward_avg", 0.0),
-            "eval/reward_avg_category_normalized": metrics.get("reward_avg_category_normalized", 0.0),
-            "eval/agent_step": agent_step,
-            "eval/epoch": epoch,
-        }
+    wandb_metrics = {
+        "eval/reward_avg": metrics.get("reward_avg", 0.0),
+        "eval/reward_avg_category_normalized": metrics.get("reward_avg_category_normalized", 0.0),
+        "eval/agent_step": agent_step,
+        "eval/epoch": epoch,
+    }
 
-        # Add detailed metrics if available
-        detailed = metrics.get("detailed", {})
-        for sim_name, sim_metrics in detailed.items():
-            if isinstance(sim_metrics, dict):
-                # Handle nested simulation metrics
-                for metric_name, metric_value in sim_metrics.items():
-                    wandb_metrics[f"eval/{sim_name}/{metric_name}"] = metric_value
-            else:
-                # Handle flat metrics
-                wandb_metrics[f"eval/detailed/{sim_name}"] = sim_metrics
+    detailed = metrics.get("detailed", {})
+    for sim_name, sim_metrics in detailed.items():
+        if isinstance(sim_metrics, dict):
+            for metric_name, metric_value in sim_metrics.items():
+                wandb_metrics[f"eval/{sim_name}/{metric_name}"] = metric_value
+        else:
+            wandb_metrics[f"eval/detailed/{sim_name}"] = sim_metrics
 
-        # Log metrics to wandb
-        wandb_run.log(wandb_metrics, step=agent_step if agent_step > 0 else epoch)
+    wandb_run.log(wandb_metrics, step=agent_step if agent_step > 0 else epoch)
 
-        # Handle replay URLs if available
-        replay_urls = latest_checkpoint.get("replay_url", [])
-        if replay_urls:
-            # Group replay URLs by simulation name
-            replay_dict = {}
-            for i, url in enumerate(replay_urls):
-                sim_name = f"sim_{i}"  # Default naming if not specified
-                if sim_name not in replay_dict:
-                    replay_dict[sim_name] = []
-                replay_dict[sim_name].append(url)
+    replay_urls = latest_checkpoint.get("replay_url", [])
+    if replay_urls:
+        replay_dict = {}
+        for i, url in enumerate(replay_urls):
+            sim_name = f"sim_{i}"
+            if sim_name not in replay_dict:
+                replay_dict[sim_name] = []
+            replay_dict[sim_name].append(url)
 
-            # Upload replay HTML links
-            upload_replay_html(
-                replay_urls=replay_dict,
-                agent_step=agent_step,
-                epoch=epoch,
-                wandb_run=wandb_run,
-                step_metric_key="eval/agent_step",
-                epoch_metric_key="eval/epoch",
-            )
+        upload_replay_html(
+            replay_urls=replay_dict,
+            agent_step=agent_step,
+            epoch=epoch,
+            wandb_run=wandb_run,
+            step_metric_key="eval/agent_step",
+            epoch_metric_key="eval/epoch",
+        )
 
-        logger.info(f"Successfully logged evaluation metrics to wandb for epoch {epoch}")
-
-    except Exception as e:
-        logger.error(f"Failed to process policy evaluator stats: {e}")
+    logger.info(f"Successfully logged evaluation metrics to wandb for epoch {epoch}")
 
 
 class SimTool(Tool):
@@ -135,50 +115,33 @@ class SimTool(Tool):
             # No more strategy-based discovery
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
-            try:
-                # Validate that we can load the policy
-                agent = CheckpointManager.load_from_uri(normalized_uri)
-                if agent is None:
-                    raise FileNotFoundError(f"Could not load policy from {normalized_uri}")
-
-                # Get metadata for logging using centralized method
-                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-                policies_by_uri[policy_uri] = [normalized_uri]
-                logger.info(
-                    f"Loaded policy from {normalized_uri} (key={metadata['run_name']}, epoch={metadata['epoch']})"
-                )
-            except Exception as e:
-                logger.error(f"Failed to load policy from {normalized_uri}: {e}")
+            agent = CheckpointManager.load_from_uri(normalized_uri)
+            if agent is None:
+                logger.error(f"Failed to load policy from {normalized_uri}")
                 policies_by_uri[policy_uri] = []
+                continue
+
+            metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+            policies_by_uri[policy_uri] = [normalized_uri]
+            logger.info(f"Loaded policy from {normalized_uri} (key={metadata['run_name']}, epoch={metadata['epoch']})")
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
 
-        # Initialize wandb if configured
         wandb_run = None
         wandb_context = None
         if self.wandb and self.wandb.is_configured():
-            try:
-                from metta.common.wandb.wandb_context import WandbContext
+            from metta.common.wandb.wandb_context import WandbContext
 
-                wandb_context = WandbContext(self.wandb)
-                wandb_context.__enter__()
-                wandb_run = wandb_context.run
-                logger.info(f"Initialized wandb run: {wandb_run.id if wandb_run else 'None'}")
-            except Exception as e:
-                logger.warning(f"Failed to initialize wandb: {e}")
-                wandb_run = None
-                wandb_context = None
+            wandb_context = WandbContext(self.wandb)
+            wandb_context.__enter__()
+            wandb_run = wandb_context.run
+            logger.info(f"Initialized wandb run: {wandb_run.id if wandb_run else 'None'}")
 
-        # Initialize stats database if needed
         stats_db = None
         if self.export_to_stats_db and self.stats_db_uri:
-            try:
-                stats_db = SimulationStatsDB(Path(self.stats_db_uri))
-                stats_db.initialize_schema()
-                logger.info(f"Initialized stats database at {self.stats_db_uri}")
-            except Exception as e:
-                logger.warning(f"Failed to initialize stats database: {e}")
-                stats_db = None
+            stats_db = SimulationStatsDB(Path(self.stats_db_uri))
+            stats_db.initialize_schema()
+            logger.info(f"Initialized stats database at {self.stats_db_uri}")
 
         for policy_uri, checkpoint_uris in policies_by_uri.items():
             results = {"policy_uri": policy_uri, "checkpoints": []}
@@ -186,19 +149,12 @@ class SimTool(Tool):
             for checkpoint_uri in checkpoint_uris:
                 logger.info(f"Processing checkpoint {checkpoint_uri}")
 
-                # Extract metadata using centralized method
                 metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-
-                # Run actual simulations for this checkpoint
                 evaluation_metrics = self._run_simulations_for_checkpoint(checkpoint_uri)
 
-                # Export to stats database if configured
                 if stats_db and self.export_to_stats_db:
-                    try:
-                        self._export_checkpoint_to_stats_db(stats_db, checkpoint_uri, evaluation_metrics)
-                        logger.info("Exported checkpoint results to stats database")
-                    except Exception as e:
-                        logger.warning(f"Failed to export to stats database: {e}")
+                    self._export_checkpoint_to_stats_db(stats_db, checkpoint_uri, evaluation_metrics)
+                    logger.info("Exported checkpoint results to stats database")
 
                 checkpoint_result = {
                     "name": metadata["run_name"],
@@ -209,36 +165,24 @@ class SimTool(Tool):
                 }
                 results["checkpoints"].append(checkpoint_result)
 
-                # Push metrics to wandb if configured
                 if wandb_run:
-                    try:
-                        process_policy_evaluator_stats(
-                            policy_result={"checkpoints": [checkpoint_result]},
-                            eval_results={"metrics": evaluation_metrics},
-                            wandb_run=wandb_run,
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to process policy evaluator stats: {e}")
+                    process_policy_evaluator_stats(
+                        policy_result={"checkpoints": [checkpoint_result]},
+                        eval_results={"metrics": evaluation_metrics},
+                        wandb_run=wandb_run,
+                    )
 
             all_results["policies"].append(results)
-
-        # Always output JSON results to stdout
-        # Ensure all logging is flushed before printing JSON
 
         sys.stderr.flush()
         sys.stdout.flush()
 
-        # Print JSON with a marker for easier extraction
         print("===JSON_OUTPUT_START===")
         print(json.dumps(all_results, indent=2))
         print("===JSON_OUTPUT_END===")
 
-        # Clean up wandb context if it was initialized
         if wandb_context:
-            try:
-                wandb_context.__exit__(None, None, None)
-            except Exception as e:
-                logger.warning(f"Failed to clean up wandb context: {e}")
+            wandb_context.__exit__(None, None, None)
 
     def _export_checkpoint_to_stats_db(self, stats_db: SimulationStatsDB, checkpoint_uri: str, metrics: dict) -> None:
         """Export checkpoint evaluation results to stats database.
@@ -265,8 +209,6 @@ class SimTool(Tool):
                 [simulation_id, sim_config.name, sim_config.env_name, policy_key, policy_version],
             )
 
-            # For this phase, create minimal agent policy records
-            # In a real implementation, these would come from actual simulation episodes
             episode_id = f"episode_{simulation_id}_001"
             agent_id = 0
 
@@ -282,66 +224,54 @@ class SimTool(Tool):
             logger.debug(f"Exported checkpoint {policy_key} to stats database for simulation {sim_config.name}")
 
     def _run_simulations_for_checkpoint(self, checkpoint_uri: str) -> dict:
-        """Run simulations for a single checkpoint and return aggregated metrics.
-
-        Args:
-            checkpoint_uri: URI of the checkpoint to evaluate
-
-        Returns:
-            Dictionary with evaluation metrics from simulations
-        """
+        """Run simulations for a single checkpoint and return aggregated metrics."""
         all_metrics = {}
 
-        try:
-            # Run each configured simulation
-            for sim_config in self.simulations:
-                logger.info(f"Running simulation '{sim_config.name}' for checkpoint {checkpoint_uri}")
+        for sim_config in self.simulations:
+            logger.info(f"Running simulation '{sim_config.name}' for checkpoint {checkpoint_uri}")
 
-                # Create and run simulation
-                sim = Simulation.create(
-                    sim_config=sim_config,
-                    device=str(self.system.device),
-                    vectorization=self.system.vectorization,
-                    stats_dir=self.stats_dir or "/tmp/stats",
-                    replay_dir=self.replay_dir if hasattr(self, "save_replays") and self.save_replays else None,
-                    policy_uri=checkpoint_uri,
-                    run_name=f"eval_{sim_config.name}",
-                )
+            # Create and run simulation
+            sim = Simulation.create(
+                sim_config=sim_config,
+                device=str(self.system.device),
+                vectorization=self.system.vectorization,
+                stats_dir=self.stats_dir or "/tmp/stats",
+                replay_dir=self.replay_dir if getattr(self, "save_replays", False) else None,
+                policy_uri=checkpoint_uri,
+                run_name=f"eval_{sim_config.name}",
+            )
 
-                # Run the simulation and get results
-                results = sim.simulate()
+            # Run the simulation and get results
+            results = sim.simulate()
 
-                # Extract metrics from simulation results
-                if results and results.db:
-                    # Get aggregate statistics from the simulation database
-                    stats_df = results.db.conn.execute(
-                        """
+            # Extract metrics from simulation results
+            if results and results.db:
+                # Get aggregate statistics from the simulation database
+                stats_df = results.db.conn.execute(
+                    """
                         SELECT 
                             AVG(reward) as reward_avg,
                             COUNT(DISTINCT episode_id) as num_episodes,
                             MAX(agent_step) as max_agent_step
                         FROM trajectories
                         """
-                    ).fetchdf()
+                ).fetchdf()
 
-                    if not stats_df.empty:
-                        sim_metrics = {
-                            "reward_avg": float(stats_df["reward_avg"].iloc[0] or 0.0),
-                            "num_episodes": int(stats_df["num_episodes"].iloc[0] or 0),
-                            "max_agent_step": int(stats_df["max_agent_step"].iloc[0] or 0),
-                        }
-                        all_metrics[sim_config.name] = sim_metrics
+                if not stats_df.empty:
+                    sim_metrics = {
+                        "reward_avg": float(stats_df["reward_avg"].iloc[0] or 0.0),
+                        "num_episodes": int(stats_df["num_episodes"].iloc[0] or 0),
+                        "max_agent_step": int(stats_df["max_agent_step"].iloc[0] or 0),
+                    }
+                    all_metrics[sim_config.name] = sim_metrics
 
-                        logger.info(
-                            f"Simulation '{sim_config.name}' completed: "
-                            f"avg_reward={sim_metrics['reward_avg']:.3f}, "
-                            f"episodes={sim_metrics['num_episodes']}"
-                        )
+                    logger.info(
+                        f"Simulation '{sim_config.name}' completed: "
+                        f"avg_reward={sim_metrics['reward_avg']:.3f}, "
+                        f"episodes={sim_metrics['num_episodes']}"
+                    )
 
-        except Exception as e:
-            logger.error(f"Error running simulations for {checkpoint_uri}: {e}")
-
-        # Aggregate metrics across all simulations
+        # Aggregate metrics
         if all_metrics:
             avg_reward = sum(m["reward_avg"] for m in all_metrics.values()) / len(all_metrics)
             total_episodes = sum(m["num_episodes"] for m in all_metrics.values())
@@ -353,7 +283,7 @@ class SimTool(Tool):
 
         return {
             "reward_avg": avg_reward,
-            "reward_avg_category_normalized": avg_reward,  # Would normalize based on category
+            "reward_avg_category_normalized": avg_reward,
             "agent_step": max_step,
             "total_episodes": total_episodes,
             "detailed": all_metrics,
