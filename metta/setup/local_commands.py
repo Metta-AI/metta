@@ -1,15 +1,12 @@
 #!/usr/bin/env -S uv run
 import argparse
-import json
 import subprocess
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info
-from metta.sim.utils import get_or_create_policy_ids
 
 # Type checking imports
 if TYPE_CHECKING:
@@ -44,14 +41,6 @@ class LocalCommands:
         # Build commands
         subparsers.add_parser("build-policy-evaluator-img", help="Build policy evaluator Docker image")
         subparsers.add_parser("build-app-backend-img", help="Build app backend Docker image")
-
-        # Load policies command
-        load_parser = subparsers.add_parser("load-policies", help="Register local checkpoints with stats server")
-        load_parser.add_argument(
-            "--data-dir", default="./train_dir", help="Training data directory (default: ./train_dir)"
-        )
-        load_parser.add_argument("--stats-db-uri", required=True, help="Stats database URI")
-        load_parser.add_argument("--run-name", help="Specific run name to load (loads all if not specified)")
 
         # Server commands
         subparsers.add_parser("stats-server", help="Launch Stats Server")
@@ -94,8 +83,6 @@ class LocalCommands:
             self.build_policy_evaluator_img(build_args=unknown_args)
         elif args.command == "build-app-backend-img":
             self.build_app_backend_img()
-        elif args.command == "load-policies":
-            self.load_policies(args)
         elif args.command == "kind":
             self.kind(args)
         elif args.command == "observatory":
@@ -132,51 +119,6 @@ class LocalCommands:
             self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
             build_args or [],
         )
-
-    def load_policies(self, args) -> None:
-        """Load local checkpoint directories as policies into stats database."""
-        from metta.rl.checkpoint_manager import CheckpointManager, is_valid_checkpoint_filename
-
-        data_dir = Path(args.data_dir)
-        if not data_dir.exists():
-            error(f"Data directory does not exist: {args.data_dir}")
-            sys.exit(1)
-
-        info(f"Scanning for checkpoints in: {args.data_dir}")
-
-        checkpoint_tuples = []
-        for run_dir in data_dir.iterdir():
-            if not run_dir.is_dir() or (args.run_name and run_dir.name != args.run_name):
-                continue
-
-            checkpoint_subdir = run_dir / "checkpoints"
-            if checkpoint_subdir.exists():
-                valid_checkpoints = []
-                for ckpt in checkpoint_subdir.glob("*.pt"):
-                    if is_valid_checkpoint_filename(ckpt.name):
-                        uri = CheckpointManager.normalize_uri(str(ckpt))
-                        metadata = CheckpointManager.get_policy_metadata(uri)
-                        valid_checkpoints.append((ckpt, metadata["epoch"]))
-
-                if valid_checkpoints:
-                    latest_ckpt = max(valid_checkpoints, key=lambda x: x[1])[0]
-                    checkpoint_tuples.append((f"file://{latest_ckpt}", f"Local checkpoint from {run_dir.name}"))
-
-        if not checkpoint_tuples:
-            info("No valid checkpoints found")
-            return
-
-        info(f"Found {len(checkpoint_tuples)} checkpoint directories")
-
-        stats_client = StatsClient.create(args.stats_db_uri)
-        if not stats_client:
-            error("Failed to connect to stats database")
-            sys.exit(1)
-
-        policy_ids = get_or_create_policy_ids(stats_client, checkpoint_tuples)
-        json_repr = json.dumps({name: str(pid) for name, pid in policy_ids.items()}, indent=2)
-        info(f"Registered {len(policy_ids)} policies:")
-        print(json_repr)
 
     def kind(self, args) -> None:
         """Handle Kind cluster management for Kubernetes testing."""
