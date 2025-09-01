@@ -167,6 +167,71 @@ metta configure    # Reconfigure for a different profile
 ./install.sh --help             # Show all available options
 ```
 
+## Configuration
+
+Metta uses a unified configuration system that manages all settings through a single config file at `~/.metta/config.yaml`. Each component (Weights & Biases, storage, observatory, datadog) manages its own configuration section.
+
+### Interactive Configuration
+
+Run the configuration wizard to set up all components interactively:
+
+```bash
+metta configure                    # Full interactive wizard
+metta configure wandb              # Configure specific component
+metta configure --profile=external # Set user profile
+```
+
+The wizard will:
+- Walk you through each service with intelligent defaults
+- Ask profile-appropriate questions (external vs softmax users)  
+- Save settings to the unified config file
+- Allow you to choose between environment variable override modes
+
+### Configuration File Structure
+
+The unified config file uses a clean YAML structure where each component owns its section:
+
+```yaml
+# ~/.metta/config.yaml
+wandb:
+  enabled: true
+  entity: "my-team"
+  project: "my-project"
+
+storage:
+  s3_bucket: "my-bucket"
+  replay_dir: "s3://my-bucket/replays/"
+
+observatory:
+  enabled: false
+
+profile: "external"
+ignore_env_vars: false  # Set to true for config-file-authoritative mode
+```
+
+### DevOps Integration
+
+Export configuration for deployment tools and CI/CD:
+
+```bash
+# Shell export format (for sourcing)
+metta export-env
+
+# JSON format (for APIs)
+metta export-env --format=json
+
+# .env file format (for containers)  
+metta export-env --format=file .env
+```
+
+### Environment Variable Priority
+
+By default, Metta follows Unix-style configuration where environment variables override config file values:
+
+**Priority order**: Environment Variables → Config File → Profile Defaults
+
+To use config-file-authoritative mode (like dbt), set `ignore_env_vars: true` in your config file.
+
 ## Usage
 
 The repository contains command-line tools in the `tools/` directory.
@@ -291,12 +356,13 @@ To use WandB with your personal account:
      login user
      password YOUR_API_KEY_HERE
    ```
-3. Edit `configs/wandb/external_user.yaml` and replace `???` with your WandB username:
-   ```yaml
-   entity: ??? # Replace with your WandB username
+3. Configure WandB using the interactive wizard:
+   ```bash
+   metta configure wandb
    ```
+   This will prompt you for your entity and project settings, and save them to the unified config file.
 
-Now you can run training with your personal WandB config:
+Now you can run training with WandB enabled:
 
 ```
 ./tools/run.py experiments.recipes.arena.train --args run=local.yourname.123 --overrides wandb.enabled=true wandb.entity=<your_user>
