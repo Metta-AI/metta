@@ -47,24 +47,12 @@ def evaluate_policy_remote_with_checkpoint_manager(
         logger.warning("Remote evaluation requires wandb_run, stats_client, and wandb_policy_name")
         return None
 
-    # Get checkpoint path and metadata
+    # Get checkpoint path if not specified
     if checkpoint_path is None:
         checkpoint_path = checkpoint_manager.find_best_checkpoint("score")
         if checkpoint_path is None:
             logger.warning("No checkpoints available for remote evaluation")
             return None
-
-    # Extract metadata from checkpoint using centralized method
-    checkpoint_uri = CheckpointManager.normalize_uri(checkpoint_path)
-    policy_metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-    metadata = {
-        "run": policy_metadata["run_name"],
-        "epoch": policy_metadata["epoch"],
-        "agent_step": policy_metadata.get("agent_step", 0),
-        "total_time": policy_metadata.get("total_time", 0),
-        "score": policy_metadata.get("score", 0.0),
-        "checkpoint_file": Path(checkpoint_path).name,
-    }
 
     # Validate wandb policy name format
     if ":" not in wandb_policy_name:
@@ -91,9 +79,6 @@ def evaluate_policy_remote_with_checkpoint_manager(
             attributes={
                 "git_hash": (trainer_cfg.evaluation and trainer_cfg.evaluation.git_hash),
                 "simulations": [sim.model_dump() for sim in simulations],
-                "checkpoint_path": str(checkpoint_path),
-                "checkpoint_metadata": metadata,
-                "run_name": checkpoint_manager.run_name,
             },
         )
     )
