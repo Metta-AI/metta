@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Sequence
 
+import wandb
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
@@ -15,6 +16,7 @@ from metta.common.wandb.wandb_context import WandbConfig, WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.policy_management import discover_policy_uris
+from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -196,14 +198,11 @@ class SimTool(Tool):
                 # Extract metadata using centralized method
                 metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
 
-                # Perform basic evaluation (placeholder - would run actual simulations in real implementation)
-                # For Phase 3, we focus on the database integration infrastructure
-                evaluation_metrics = {
-                    "reward_avg": 0.0,  # Would be filled from actual evaluation
-                    "reward_avg_category_normalized": 0.0,
-                    "agent_step": 0,
-                    "detailed": {},
-                }
+                # Run actual simulations for this checkpoint
+                evaluation_metrics = self._run_simulations_for_checkpoint(checkpoint_uri)
+
+                # Push metrics to wandb if available
+                self._push_metrics_to_wandb(checkpoint_uri, metadata, evaluation_metrics)
 
                 # Export to stats database if configured
                 if stats_db and self.export_to_stats_db:
@@ -293,3 +292,181 @@ class SimTool(Tool):
             )
 
             logger.debug(f"Exported checkpoint {policy_key} to stats database for simulation {sim_config.name}")
+
+    def compare_policies(self, policy_uris: list[str], metric: str = "score") -> dict:
+        """Simple policy comparison functionality."""
+        if not self.stats_db_uri:
+            raise ValueError("stats_db_uri required for policy comparison")
+
+        comparison_results = {"metric": metric, "policies": []}
+
+        try:
+            with SimulationStatsDB.from_uri(self.stats_db_uri) as stats_db:
+                for policy_uri in policy_uris:
+                    # Extract policy info from URI using CheckpointManager
+                    metadata = CheckpointManager.get_policy_metadata(policy_uri)
+                    policy_key, policy_version = metadata["run_name"], metadata["epoch"]
+
+                    # Get policy performance from stats database
+                    policy_scores = stats_db.simulation_scores(policy_key, policy_version, metric)
+
+                    comparison_results["policies"].append(
+                        {
+                            "policy_uri": policy_uri,
+                            "policy_key": policy_key,
+                            "policy_version": policy_version,
+                            "scores": dict(policy_scores),
+                            "average_score": sum(policy_scores.values()) / len(policy_scores) if policy_scores else 0.0,
+                        }
+                    )
+
+        except Exception as e:
+            logger.error(f"Policy comparison failed: {e}")
+            comparison_results["error"] = str(e)
+
+        return comparison_results
+
+    def _run_simulations_for_checkpoint(self, checkpoint_uri: str) -> dict:
+        """Run simulations for a single checkpoint and return aggregated metrics.
+
+        Args:
+            checkpoint_uri: URI of the checkpoint to evaluate
+
+        Returns:
+            Dictionary with evaluation metrics from simulations
+        """
+        all_metrics = {}
+
+        try:
+            # Run each configured simulation
+            for sim_config in self.simulations:
+                logger.info(f"Running simulation '{sim_config.name}' for checkpoint {checkpoint_uri}")
+
+                # Create and run simulation
+                sim = Simulation.create(
+                    sim_config=sim_config,
+                    device=str(self.system.device),
+                    vectorization=self.system.vectorization,
+                    stats_dir=self.effective_stats_dir,
+                    replay_dir=self.effective_replay_dir if self.save_replays else None,
+                    policy_uri=checkpoint_uri,
+                    run_name=f"eval_{sim_config.name}",
+                )
+
+                # Run the simulation and get results
+                results = sim.simulate()
+
+                # Extract metrics from simulation results
+                if results and results.db:
+                    # Get aggregate statistics from the simulation database
+                    stats_df = results.db.conn.execute(
+                        """
+                        SELECT 
+                            AVG(reward) as reward_avg,
+                            COUNT(DISTINCT episode_id) as num_episodes,
+                            MAX(agent_step) as max_agent_step
+                        FROM trajectories
+                        """
+                    ).fetchdf()
+
+                    if not stats_df.empty:
+                        sim_metrics = {
+                            "reward_avg": float(stats_df["reward_avg"].iloc[0] or 0.0),
+                            "num_episodes": int(stats_df["num_episodes"].iloc[0] or 0),
+                            "max_agent_step": int(stats_df["max_agent_step"].iloc[0] or 0),
+                        }
+                        all_metrics[sim_config.name] = sim_metrics
+
+                        logger.info(
+                            f"Simulation '{sim_config.name}' completed: "
+                            f"avg_reward={sim_metrics['reward_avg']:.3f}, "
+                            f"episodes={sim_metrics['num_episodes']}"
+                        )
+
+        except Exception as e:
+            logger.error(f"Error running simulations for {checkpoint_uri}: {e}")
+
+        # Aggregate metrics across all simulations
+        if all_metrics:
+            avg_reward = sum(m["reward_avg"] for m in all_metrics.values()) / len(all_metrics)
+            total_episodes = sum(m["num_episodes"] for m in all_metrics.values())
+            max_step = max(m["max_agent_step"] for m in all_metrics.values())
+        else:
+            avg_reward = 0.0
+            total_episodes = 0
+            max_step = 0
+
+        return {
+            "reward_avg": avg_reward,
+            "reward_avg_category_normalized": avg_reward,  # Would normalize based on category
+            "agent_step": max_step,
+            "total_episodes": total_episodes,
+            "detailed": all_metrics,
+        }
+
+    def _push_metrics_to_wandb(self, checkpoint_uri: str, metadata: dict, metrics: dict) -> None:
+        """Push evaluation metrics to wandb.
+
+        This replaces the old process_policy_evaluator_stats function to ensure
+        evaluation metrics are logged to wandb for tracking and visualization.
+
+        Args:
+            checkpoint_uri: URI of the evaluated checkpoint
+            metadata: Checkpoint metadata including run_name and epoch
+            metrics: Evaluation metrics to log
+        """
+        # Skip if wandb is not enabled
+        if not self.wandb.enabled:
+            return
+
+        # Skip if no metrics to log
+        if not metrics or not metrics.get("detailed"):
+            logger.debug("No metrics to push to wandb")
+            return
+
+        try:
+            # Extract wandb information from checkpoint URI if it's a wandb artifact
+            if checkpoint_uri.startswith("wandb://"):
+                # Parse wandb URI to get project and run info
+                # Format: wandb://project/artifact/name:version
+                parts = checkpoint_uri.replace("wandb://", "").split("/")
+                if len(parts) >= 2:
+                    wandb_project = parts[0]
+                    wandb_entity = self.wandb.entity
+
+                    # Try to extract run ID from metadata
+                    run_name = metadata.get("run_name", "")
+                    agent_step = metadata.get("agent_step", 0)
+
+                    # Initialize wandb run (resume if it exists)
+                    run = wandb.init(
+                        project=wandb_project,
+                        entity=wandb_entity,
+                        name=f"eval_{run_name}",
+                        config={"checkpoint_uri": checkpoint_uri},
+                        reinit=True,
+                    )
+
+                    # Prepare metrics for logging
+                    metrics_to_log = {
+                        "eval/reward_avg": metrics.get("reward_avg", 0.0),
+                        "eval/total_episodes": metrics.get("total_episodes", 0),
+                        "eval/agent_step": metrics.get("agent_step", 0),
+                    }
+
+                    # Add detailed metrics per simulation
+                    for sim_name, sim_metrics in metrics.get("detailed", {}).items():
+                        metrics_to_log[f"eval/{sim_name}/reward_avg"] = sim_metrics.get("reward_avg", 0.0)
+                        metrics_to_log[f"eval/{sim_name}/num_episodes"] = sim_metrics.get("num_episodes", 0)
+                        metrics_to_log[f"eval/{sim_name}/max_agent_step"] = sim_metrics.get("max_agent_step", 0)
+
+                    # Log metrics
+                    run.log(metrics_to_log, step=agent_step if agent_step else None)
+                    logger.info(f"Pushed {len(metrics_to_log)} evaluation metrics to wandb")
+
+                    # Finish the run
+                    run.finish()
+
+        except Exception as e:
+            # Don't fail the evaluation if wandb logging fails
+            logger.warning(f"Failed to push metrics to wandb: {e}")
