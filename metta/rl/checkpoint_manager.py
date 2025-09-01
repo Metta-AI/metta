@@ -398,24 +398,7 @@ class CheckpointManager:
         metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
         checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
-        # Return URIs instead of paths for consistency with the rest of the API
         return [f"file://{path.resolve()}" for path in selected_files]
-
-    def select_local_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
-        """Deprecated: Use select_checkpoints() instead. This method will be removed in a future version.
-
-        Select checkpoint files from the local filesystem based on strategy and metric.
-        """
-        import warnings
-
-        warnings.warn(
-            "select_local_checkpoints is deprecated and will be removed. Use select_checkpoints() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        # Convert URIs back to paths for backward compatibility
-        uris = self.select_checkpoints(strategy, count, metric)
-        return [Path(_parse_uri_path(uri, "file")) for uri in uris]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         agent_files = self._find_checkpoint_files()
