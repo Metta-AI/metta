@@ -287,7 +287,7 @@ class CheckpointManager:
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any], wandb_run=None) -> Optional[str]:
         """Save agent checkpoint to disk and optionally to wandb.
-        
+
         Returns:
             Wandb artifact URI if uploaded, None otherwise
         """
@@ -302,16 +302,16 @@ class CheckpointManager:
         existing_files = self._find_checkpoint_files(epoch)
 
         torch.save(agent, checkpoint_path)
-        
+
         # Upload to wandb if run is provided
         wandb_uri = None
         if wandb_run and metadata.get("upload_to_wandb", True):
             from metta.rl.wandb import upload_checkpoint_as_artifact
-            
+
             artifact_name = f"{self.run_name}_{epoch}"
             if metadata.get("is_final", False):
                 artifact_name += "_final"
-            
+
             wandb_metadata = {
                 "run_name": self.run_name,
                 "epoch": epoch,
@@ -319,7 +319,7 @@ class CheckpointManager:
                 "total_time": total_time,
                 "score": metadata.get("score", 0.0),
             }
-            
+
             wandb_uri = upload_checkpoint_as_artifact(
                 checkpoint_path=str(checkpoint_path),
                 artifact_name=artifact_name,
@@ -335,6 +335,8 @@ class CheckpointManager:
                     keys_to_remove.append(cached_path)
             for key in keys_to_remove:
                 self._cache.pop(key, None)
+
+        return wandb_uri
 
     def save_trainer_state(
         self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None

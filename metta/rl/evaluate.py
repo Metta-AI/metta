@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 
@@ -73,9 +73,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
         )
     )
 
-    logger.info(
-        f"Policy evaluator: created task {task.id} for {normalized_uri} on {simulations[0].name}"
-    )
+    logger.info(f"Policy evaluator: created task {task.id} for {normalized_uri} on {simulations[0].name}")
 
     return task
 
