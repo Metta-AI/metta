@@ -162,7 +162,6 @@ def train(
 
         checkpoint_epoch = get_from_master(checkpoint_epoch)
         trainer_state = get_from_master(trainer_state)
-        # Synchronized checkpoint_epoch across ranks
 
     agent_step = trainer_state["agent_step"] if trainer_state else 0
     epoch = trainer_state["epoch"] if trainer_state else 0
@@ -179,14 +178,10 @@ def train(
     # Now all ranks know the exact checkpoint epoch to load
     if checkpoint_epoch is not None:
         if torch_dist_cfg.is_master:
-            # Resuming training with existing agent from checkpoint
             policy_agent = existing_agent
         else:
-            # Non-master ranks load the SAME checkpoint by epoch
-            # Non-master rank loading checkpoint
             policy_agent = checkpoint_manager.load_agent(epoch=checkpoint_epoch, device=device)
     else:
-        # Creating new agent for training
         policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
     # Ensure all ranks have created/loaded their policy before continuing
@@ -493,10 +488,7 @@ def train(
                 stats_time=timer.get_last_elapsed("_process_stats"),
                 run_name=run,
             )
-            # Save checkpoint using CheckpointManager
             if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
-                # Saving checkpoint
-
                 # Extract the actual agent from distributed wrapper if needed
                 agent_to_save = policy.module if torch.distributed.is_initialized() else policy
 
@@ -530,13 +522,10 @@ def train(
                     agent_to_save, epoch, metadata, wandb_run=wandb_run if should_upload_wandb else None
                 )
                 checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
-                latest_saved_epoch = epoch  # Update latest saved epoch
-
-                # Successfully saved checkpoint
+                latest_saved_epoch = epoch
 
                 if wandb_uri:
-                    # Uploaded checkpoint to wandb
-                    latest_wandb_uri = wandb_uri  # Track for remote evaluation
+                    latest_wandb_uri = wandb_uri
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with CheckpointManager - use current policy directly
@@ -578,11 +567,8 @@ def train(
                             )
 
                             if task_response:
-                                # Remote evaluation task created
-                                # Remote evaluation initiated successfully, skip local evaluation
                                 evaluate_local = False
                             else:
-                                # Failed to create remote evaluation task, falling back to local
                                 evaluate_local = True
 
                         except Exception as e:
@@ -590,14 +576,9 @@ def train(
                             logger.error("Falling back to local evaluation")
                             evaluate_local = True
                     if evaluate_local:
-                        # Local evaluation not configured
                         evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
-                        category_scores = list(eval_scores.category_scores.values())
-                        # Note: With SimpleCheckpointManager, scores are saved with the checkpoint metadata
-                        if category_scores:
-                            pass  # Evaluation complete
                         if wandb_run is not None and evaluation_results.replay_urls:
                             upload_replay_html(
                                 replay_urls=evaluation_results.replay_urls,
@@ -653,7 +634,6 @@ def train(
         logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
     # Final checkpoint save at end of training
-    # Saving final checkpoint
     agent_to_save = policy.module if torch.distributed.is_initialized() else policy
 
     final_metadata = {
@@ -684,8 +664,7 @@ def train(
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
 
     if wandb_uri:
-        # Uploaded final checkpoint to wandb
-        latest_wandb_uri = wandb_uri  # Track the final wandb URI
+        latest_wandb_uri = wandb_uri
 
     cleanup_monitoring(memory_monitor, system_monitor)
 
