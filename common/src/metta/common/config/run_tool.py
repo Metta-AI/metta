@@ -13,7 +13,6 @@ from typing_extensions import TypeVar
 
 from metta.common.config.config import Config
 from metta.common.config.tool import Tool
-from metta.common.util.logging_helpers import init_logging
 from metta.common.util.module import load_symbol
 from metta.rl.system_config import seed_everything
 
@@ -49,7 +48,6 @@ def main():
     parser.add_argument("--dry-run", action="store_true", default=False)
     args = parser.parse_args()
 
-    init_logging()
     init_mettagrid_system_environment()
 
     # Exit on ctrl+c
