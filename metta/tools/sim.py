@@ -6,8 +6,8 @@ import uuid
 from pathlib import Path
 from typing import Sequence
 
-from pydantic import Field
 import wandb
+from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
@@ -332,7 +332,6 @@ class SimTool(Tool):
 
                     # Try to extract run ID from metadata
                     run_name = metadata.get("run_name", "")
-                    epoch = metadata.get("epoch", 0)
                     agent_step = metadata.get("agent_step", 0)
 
                     # Initialize wandb run (resume if it exists)
