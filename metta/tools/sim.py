@@ -134,7 +134,7 @@ class SimTool(Tool):
             # For wandb URIs and file URIs, we expect them to be fully versioned
             # No more strategy-based discovery
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-            
+
             try:
                 # Validate that we can load the policy
                 agent = CheckpointManager.load_from_uri(normalized_uri)
@@ -336,7 +336,7 @@ class SimTool(Tool):
                     device=str(self.system.device),
                     vectorization=self.system.vectorization,
                     stats_dir=self.stats_dir or "/tmp/stats",
-                    replay_dir=self.replay_dir if hasattr(self, 'save_replays') and self.save_replays else None,
+                    replay_dir=self.replay_dir if hasattr(self, "save_replays") and self.save_replays else None,
                     policy_uri=checkpoint_uri,
                     run_name=f"eval_{sim_config.name}",
                 )
@@ -391,4 +391,3 @@ class SimTool(Tool):
             "total_episodes": total_episodes,
             "detailed": all_metrics,
         }
-

@@ -495,7 +495,9 @@ def train(
                 if wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval):
                     try:
                         # Get the checkpoint file that was just saved
-                        checkpoints = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+                        checkpoints = checkpoint_manager.select_local_checkpoints(
+                            strategy="latest", count=1, metric="epoch"
+                        )
                         checkpoint_file = checkpoints[0] if checkpoints else None
                         if checkpoint_file:
                             # Use the metadata we already have, augmented with run info
@@ -665,7 +667,7 @@ def train(
     if wandb_run:
         try:
             # Get the checkpoint file that was just saved
-            checkpoints = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+            checkpoints = checkpoint_manager.select_local_checkpoints(strategy="latest", count=1, metric="epoch")
             checkpoint_file = checkpoints[0] if checkpoints else None
             if checkpoint_file:
                 # Use the metadata we already have, augmented with run info

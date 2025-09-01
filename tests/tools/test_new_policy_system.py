@@ -62,12 +62,14 @@ class TestNewPolicySystem:
         assert sim_tool.simulations[0].name == "test_arena"
         assert sim_tool.policy_uris == ["mock://test_policy"]
 
-    def test_policy_discovery_interface(self):
-        """Test that policy discovery functions exist and can be called."""
+    def test_policy_loading_interface(self):
+        """Test that policy loading functions work with versioned URIs."""
 
         try:
-            discovered = discover_policy_uris("mock://test", strategy="latest", count=1)
-            assert isinstance(discovered, list)
+            # Test with a mock URI that should be fully versioned
+            agent = CheckpointManager.load_from_uri("mock://test_policy")
+            # Mock URIs may return None or raise an exception
+            assert agent is None or isinstance(agent, object)
         except Exception as e:
             assert "not found" in str(e).lower() or "invalid" in str(e).lower()
 

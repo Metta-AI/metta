@@ -4,8 +4,6 @@ import argparse
 import asyncio
 import concurrent.futures
 import uuid
-from pathlib import Path
-from typing import Literal
 
 import wandb
 from bidict import bidict
@@ -30,7 +28,6 @@ from metta.setup.utils import debug, info, success, warning
 from metta.sim.utils import get_or_create_policy_ids
 
 
-
 class EvalRequest(BaseModel):
     """Evaluation request configuration."""
 
@@ -39,7 +36,6 @@ class EvalRequest(BaseModel):
     stats_server_uri: str = PROD_STATS_SERVER_URI
 
     git_hash: str | None = None
-
 
     wandb_project: str = Field(default="")
     wandb_entity: str = Field(default="")
@@ -224,7 +220,6 @@ async def main() -> None:
         - Direct file paths: /path/to/checkpoint.pt (will be converted to file:// URI)""",
         required=True,
     )
-
 
     parser.add_argument(
         "--stats-server-uri",
