@@ -64,29 +64,17 @@ def _get_policies_for_uri(
     disallow_missing_policies: bool = False,
 ) -> tuple[str, list[str] | None]:
     """Get policies from a URI - requires fully versioned URIs."""
-    try:
-        # Normalize URI using CheckpointManager
-        normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+    normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+    agent = CheckpointManager.load_from_uri(normalized_uri)
 
-        # All URIs must be fully versioned - no strategy-based discovery
-        # Validate that we can load the policy
-        agent = CheckpointManager.load_from_uri(normalized_uri)
-        if agent is None:
-            if disallow_missing_policies:
-                raise FileNotFoundError(f"Could not load policy from {normalized_uri}")
-            else:
-                warning(f"Could not load policy from {normalized_uri}")
-                return policy_uri, None
-
-        # Return the normalized URI
-        return policy_uri, [normalized_uri]
-
-    except Exception as e:
-        if not disallow_missing_policies:
-            warning(f"Error processing {policy_uri}: {e}")
-            return policy_uri, None
+    if agent is None:
+        if disallow_missing_policies:
+            raise FileNotFoundError(f"Could not load policy from {normalized_uri}")
         else:
-            raise
+            warning(f"Could not load policy from {normalized_uri}")
+            return policy_uri, None
+
+    return policy_uri, [normalized_uri]
 
 
 async def _create_remote_eval_tasks(request: EvalRequest) -> None:
