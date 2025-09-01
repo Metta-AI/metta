@@ -17,7 +17,7 @@ To launch a new sandbox on AWS:
 See [skypilot README](./skypilot/README.md).
 
 
-
+<br></br>
 ## Using Remote Machines in Cursor IDE
 
 Follow these steps to connect to remote machines directly through Cursor's interface:
