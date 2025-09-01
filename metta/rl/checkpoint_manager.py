@@ -249,28 +249,35 @@ class CheckpointManager:
         return self.checkpoint_dir.exists() and bool(self._find_checkpoint_files())
 
     def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
+        """Load agent checkpoint from local directory.
+
+        Uses unified load_from_uri mechanism internally.
+        """
         agent_file = self._get_checkpoint_file(epoch)
         if not agent_file:
             return None
-        path_str = str(agent_file)
 
-        if path_str in self._cache:
-            self._cache.move_to_end(path_str)
-            return self._cache[path_str]
+        # Convert to URI and check cache
+        file_uri = f"file://{agent_file.resolve()}"
+        cache_key = str(agent_file)
 
-        # Load to specified device or CPU by default
-        map_location = str(device) if device else "cpu"
-        agent = torch.load(agent_file, weights_only=False, map_location=map_location)
+        if cache_key in self._cache:
+            self._cache.move_to_end(cache_key)
+            return self._cache[cache_key]
+
+        # Use unified load_from_uri mechanism
+        agent = self.load_from_uri(file_uri, device=device)
 
         # Only cache if cache size > 0
-        if self.cache_size > 0:
+        if agent and self.cache_size > 0:
             # Remove if already exists (shouldn't happen, but be safe)
-            if path_str in self._cache:
-                del self._cache[path_str]
+            if cache_key in self._cache:
+                del self._cache[cache_key]
             # Evict oldest entry if at capacity
             if len(self._cache) >= self.cache_size:
                 self._cache.popitem(last=False)
-            self._cache[path_str] = agent
+            self._cache[cache_key] = agent
+
         return agent
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
@@ -287,11 +294,11 @@ class CheckpointManager:
             result["stopwatch_state"] = state["stopwatch_state"]
         return result
 
-    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any], wandb_run=None) -> Optional[str]:
+    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any], wandb_run=None) -> str:
         """Save agent checkpoint to disk and optionally to wandb.
 
         Returns:
-            Wandb artifact URI if uploaded, None otherwise
+            URI of saved checkpoint (file:// for local, wandb:// if uploaded to wandb)
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         agent_step = metadata.get("agent_step", 0)
@@ -338,7 +345,11 @@ class CheckpointManager:
             for key in keys_to_remove:
                 self._cache.pop(key, None)
 
-        return wandb_uri
+        # Return wandb URI if uploaded, otherwise return local file URI
+        if wandb_uri:
+            return wandb_uri
+        else:
+            return f"file://{checkpoint_path.resolve()}"
 
     def save_trainer_state(
         self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
