@@ -162,7 +162,7 @@ def train(
 
         checkpoint_epoch = get_from_master(checkpoint_epoch)
         trainer_state = get_from_master(trainer_state)
-        logger.info(f"Rank {torch_dist_cfg.rank}: Synchronized checkpoint_epoch = {checkpoint_epoch}")
+        # Synchronized checkpoint_epoch across ranks
 
     agent_step = trainer_state["agent_step"] if trainer_state else 0
     epoch = trainer_state["epoch"] if trainer_state else 0
@@ -179,14 +179,14 @@ def train(
     # Now all ranks know the exact checkpoint epoch to load
     if checkpoint_epoch is not None:
         if torch_dist_cfg.is_master:
-            logger.info("Resuming training with existing agent from checkpoint")
+            # Resuming training with existing agent from checkpoint
             policy_agent = existing_agent
         else:
             # Non-master ranks load the SAME checkpoint by epoch
-            logger.info(f"Rank {torch_dist_cfg.rank}: Loading checkpoint epoch {checkpoint_epoch}")
+            # Non-master rank loading checkpoint
             policy_agent = checkpoint_manager.load_agent(epoch=checkpoint_epoch, device=device)
     else:
-        logger.info("Creating new agent for training")
+        # Creating new agent for training
         policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
     # Ensure all ranks have created/loaded their policy before continuing
@@ -495,7 +495,7 @@ def train(
             )
             # Save checkpoint using CheckpointManager
             if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
-                logger.info(f"Saving checkpoint at epoch {epoch}")
+                # Saving checkpoint
 
                 # Extract the actual agent from distributed wrapper if needed
                 agent_to_save = policy.module if torch.distributed.is_initialized() else policy
@@ -532,10 +532,10 @@ def train(
                 checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
                 latest_saved_epoch = epoch  # Update latest saved epoch
 
-                logger.info(f"Successfully saved checkpoint at epoch {epoch}")
+                # Successfully saved checkpoint
 
                 if wandb_uri:
-                    logger.info(f"Uploaded checkpoint to wandb: {wandb_uri}")
+                    # Uploaded checkpoint to wandb
                     latest_wandb_uri = wandb_uri  # Track for remote evaluation
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
@@ -578,11 +578,11 @@ def train(
                             )
 
                             if task_response:
-                                logger.info(f"Remote evaluation task created: {task_response.id}")
+                                # Remote evaluation task created
                                 # Remote evaluation initiated successfully, skip local evaluation
                                 evaluate_local = False
                             else:
-                                logger.warning("Failed to create remote evaluation task, falling back to local")
+                                # Failed to create remote evaluation task, falling back to local
                                 evaluate_local = True
 
                         except Exception as e:
@@ -590,16 +590,14 @@ def train(
                             logger.error("Falling back to local evaluation")
                             evaluate_local = True
                     if evaluate_local:
-                        logger.warning("Local evaluation not configured")
+                        # Local evaluation not configured
                         evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
                         category_scores = list(eval_scores.category_scores.values())
                         # Note: With SimpleCheckpointManager, scores are saved with the checkpoint metadata
                         if category_scores:
-                            logger.info(
-                                f"Evaluation complete - average category score: {float(np.mean(category_scores)):.4f}"
-                            )
+                            # Evaluation complete
                         if wandb_run is not None and evaluation_results.replay_urls:
                             upload_replay_html(
                                 replay_urls=evaluation_results.replay_urls,
@@ -655,7 +653,7 @@ def train(
         logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
     # Final checkpoint save at end of training
-    logger.info("Saving final checkpoint")
+    # Saving final checkpoint
     agent_to_save = policy.module if torch.distributed.is_initialized() else policy
 
     final_metadata = {
@@ -686,7 +684,7 @@ def train(
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
 
     if wandb_uri:
-        logger.info(f"Uploaded final checkpoint to wandb: {wandb_uri}")
+        # Uploaded final checkpoint to wandb
         latest_wandb_uri = wandb_uri  # Track the final wandb URI
 
     cleanup_monitoring(memory_monitor, system_monitor)

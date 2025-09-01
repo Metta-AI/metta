@@ -1007,14 +1007,14 @@ def _(
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
             checkpoint_uri = CheckpointManager.normalize_uri(str(latest_ckpt))
-            print(f"Loading checkpoint: {checkpoint_uri}")
+            # Loading checkpoint
 
             metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
             run_name_from_ckpt = metadata["run_name"]
 
             trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
 
-            print(f"✅ Successfully loaded policy from: {checkpoint_uri}")
+            # Successfully loaded policy
 
             # Create evaluation environment
             with contextlib.redirect_stdout(io.StringIO()):
@@ -1664,14 +1664,14 @@ def _(
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
         checkpoint_uri = CheckpointManager.normalize_uri(str(latest_ckpt))
-        print(f"Loading checkpoint: {checkpoint_uri}")
+        # Loading checkpoint
 
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
         trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
 
-        print(f"✅ Successfully loaded policy from: {checkpoint_uri}")
+        # Successfully loaded policy
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):
