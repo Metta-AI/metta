@@ -114,18 +114,10 @@ class SimTool(Tool):
             # For wandb URIs and file URIs, we expect them to be fully versioned
             # No more strategy-based discovery
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-
-            try:
-                # Validate that policy can be loaded
-                CheckpointManager.load_from_uri(normalized_uri, device=self.system.device)
-            except FileNotFoundError as e:
-                logger.error(f"Failed to load policy from {normalized_uri}: {e}")
-                policies_by_uri[policy_uri] = []
-                continue
+            policies_by_uri[policy_uri] = [normalized_uri]
 
             metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-            policies_by_uri[policy_uri] = [normalized_uri]
-            logger.info(f"Loaded policy from {normalized_uri} (key={metadata['run_name']}, epoch={metadata['epoch']})")
+            logger.info(f"Policy URI: {normalized_uri} (key={metadata['run_name']}, epoch={metadata['epoch']})")
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
 
