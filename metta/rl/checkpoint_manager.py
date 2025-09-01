@@ -169,23 +169,22 @@ class CheckpointManager:
         # Normalize the URI first (converts plain paths to file:// URIs)
         uri = CheckpointManager.normalize_uri(uri)
 
-        # Convert device to string for consistency
+        # Convert device to string for torch.load's map_location parameter
         if device is None:
-            device_str = "cpu"
+            device = "cpu"
         elif isinstance(device, torch.device):
-            device_str = str(device)
-        else:
-            device_str = device
+            device = str(device)
+        # else: device is already a string
 
         if uri.startswith("file://"):
             path = Path(_parse_uri_path(uri, "file"))
             try:
                 if path.is_file() and path.suffix == ".pt":
-                    return torch.load(path, weights_only=False, map_location=device_str)
+                    return torch.load(path, weights_only=False, map_location=device)
                 if path.is_dir():
                     checkpoint_file = _find_best_checkpoint_in_dir(path)
                     return (
-                        torch.load(checkpoint_file, weights_only=False, map_location=device_str)
+                        torch.load(checkpoint_file, weights_only=False, map_location=device)
                         if checkpoint_file
                         else None
                     )
@@ -196,14 +195,14 @@ class CheckpointManager:
         if uri.startswith("s3://"):
             try:
                 with local_copy(uri) as local_path:
-                    return torch.load(local_path, weights_only=False, map_location=device_str)
+                    return torch.load(local_path, weights_only=False, map_location=device)
             except Exception as e:
                 logger.warning(f"Failed to load checkpoint from {uri}: {e}")
                 return None
         if uri.startswith("wandb://"):
             try:
                 expanded_uri = expand_wandb_uri(uri)
-                return load_policy_from_wandb_uri(expanded_uri, device=device_str)
+                return load_policy_from_wandb_uri(expanded_uri, device=device)
             except Exception as e:
                 logger.warning(f"Failed to load checkpoint from {uri}: {e}")
                 return None
