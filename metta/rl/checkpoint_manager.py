@@ -226,13 +226,13 @@ class CheckpointManager:
         base_uri: str, strategy: str = "latest", count: int = 1, metric: str = "epoch"
     ) -> List[str]:
         """Discover policy URIs from a base URI.
-        
+
         Args:
             base_uri: Base URI to discover policies from (file://, wandb://, or mock://)
             strategy: Selection strategy - "latest", "best_score", or "all"
             count: Number of policies to return (ignored if strategy is "all")
             metric: Metric to use for selection - "epoch", "agent_step", "total_time", or "score"
-            
+
         Returns:
             List of policy URIs
         """
