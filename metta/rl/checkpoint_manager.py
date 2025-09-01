@@ -146,7 +146,7 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
     for search_dir in search_dirs:
         checkpoint_files = list(search_dir.glob("*.pt"))
         if checkpoint_files:
-            # Prefer files with valid checkpoint format, sorted by epoch
+            # Only return files with valid checkpoint format, sorted by epoch
             valid_checkpoints = [
                 (ckpt, parse_checkpoint_filename(ckpt.name)[1])
                 for ckpt in checkpoint_files
@@ -154,7 +154,6 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
             ]
             if valid_checkpoints:
                 return max(valid_checkpoints, key=lambda x: x[1])[0]
-            return checkpoint_files[0]  # Fallback to any .pt file
     return None
 
 
@@ -183,95 +182,62 @@ class CheckpointManager:
         self._cache.clear()
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device | None = None):
-        """Load a policy from file://, s3://, or wandb:// URI.
-        Supports loading from local files, S3 buckets, wandb artifacts, or mock URIs.
-        Defaults to CPU if no device is specified.
-        Raises:
-            FileNotFoundError: If the checkpoint file doesn't exist or cannot be loaded
-            ValueError: If the URI scheme is not supported
+    def load_from_uri(uri: str, device: str | torch.device = "cpu"):
+        """Load a policy from a URI.
+
+        Expects explicit URI format: file://, wandb://, s3://, or mock://
         """
-        original_uri = uri
+        if uri.startswith("file://"):
+            path = Path(_parse_uri_path(uri, "file"))
+            if path.is_dir():
+                # Find latest checkpoint in directory
+                checkpoint_file = _find_latest_checkpoint_in_dir(path)
+                if not checkpoint_file:
+                    raise FileNotFoundError(f"No checkpoint files in {uri}")
+                return torch.load(checkpoint_file, weights_only=False, map_location=device)
+            # Load specific file
+            return torch.load(path, weights_only=False, map_location=device)
 
-        # Normalize the URI (converts plain paths to file:// URIs and validates schemes)
-        uri = CheckpointManager.normalize_uri(uri)
+        if uri.startswith("s3://"):
+            with local_copy(uri) as local_path:
+                return torch.load(local_path, weights_only=False, map_location=device)
 
-        # Default to CPU if no device specified
-        if device is None:
-            device = "cpu"
+        if uri.startswith("wandb://"):
+            expanded_uri = expand_wandb_uri(uri)
+            return load_policy_from_wandb_uri(expanded_uri, device=device)
 
-        try:
-            if uri.startswith("file://"):
-                path = Path(_parse_uri_path(uri, "file"))
-                if path.is_file() and path.suffix == ".pt":
-                    return torch.load(path, weights_only=False, map_location=device)
-                if path.is_dir():
-                    checkpoint_file = _find_latest_checkpoint_in_dir(path)
-                    if checkpoint_file:
-                        return torch.load(checkpoint_file, weights_only=False, map_location=device)
-                    raise FileNotFoundError(f"No checkpoint files found in directory: {original_uri}")
-                raise FileNotFoundError(f"Checkpoint file not found: {original_uri}")
+        if uri.startswith("mock://"):
+            from metta.agent.mocks import MockAgent
 
-            if uri.startswith("s3://"):
-                with local_copy(uri) as local_path:
-                    return torch.load(local_path, weights_only=False, map_location=device)
+            return MockAgent()
 
-            if uri.startswith("wandb://"):
-                expanded_uri = expand_wandb_uri(uri)
-                return load_policy_from_wandb_uri(expanded_uri, device=device)
-
-            if uri.startswith("mock://"):
-                from metta.agent.mocks import MockAgent
-
-                return MockAgent()
-
-            raise ValueError(f"Unsupported URI scheme: {original_uri}")
-
-        except FileNotFoundError:
-            raise  # Re-raise FileNotFoundError as-is
-        except Exception as e:
-            # Convert other exceptions to FileNotFoundError with context
-            raise FileNotFoundError(f"Failed to load checkpoint from {original_uri}: {e}") from e
+        raise ValueError(f"Invalid URI: {uri}")
 
     @staticmethod
-    def normalize_uri(path_or_uri: str) -> str:
-        """Normalize URI format, auto-converting paths to file:// and expanding wandb URIs.
-        If no URI scheme is provided, assumes it's a file path and converts to file:// URI.
-        """
-        if path_or_uri.startswith("wandb://"):
-            return expand_wandb_uri(path_or_uri)
-        if path_or_uri.startswith(("file://", "s3://", "mock://")):
-            return path_or_uri
-        # If it has :// but isn't a supported scheme, raise error
-        if "://" in path_or_uri:
-            scheme = path_or_uri.split("://")[0]
-            raise ValueError(f"Unsupported URI scheme: {scheme}://")
-        # No scheme - assume it's a file path and convert to file:// URI
-        return f"file://{Path(path_or_uri).resolve()}"
+    def normalize_uri(uri: str) -> str:
+        """Convert paths to file:// URIs and expand wandb:// URIs."""
+        if uri.startswith("wandb://"):
+            return expand_wandb_uri(uri)
+        if uri.startswith(("file://", "s3://", "mock://")):
+            return uri
+        # Assume it's a file path - convert to URI
+        return f"file://{Path(uri).resolve()}"
 
     @staticmethod
     def get_policy_metadata(uri: str) -> PolicyMetadata:
         """Extract metadata from policy URI."""
-        original_uri = uri
-        if uri.startswith("wandb://"):
-            uri = expand_wandb_uri(uri)  # Expand wandb URI before normalization
-        uri = CheckpointManager.normalize_uri(uri)
-        run_name, epoch = key_and_version(uri)
-        metadata: PolicyMetadata = {"run_name": run_name, "epoch": epoch, "uri": uri, "original_uri": original_uri}
+        normalized_uri = CheckpointManager.normalize_uri(uri)
+        run_name, epoch = key_and_version(normalized_uri)
+        metadata: PolicyMetadata = {"run_name": run_name, "epoch": epoch, "uri": normalized_uri, "original_uri": uri}
 
-        if uri.startswith("file://"):
-            path = Path(_parse_uri_path(uri, "file"))
+        # Add extra metadata for file:// URIs with valid checkpoint filenames
+        if normalized_uri.startswith("file://"):
+            path = Path(_parse_uri_path(normalized_uri, "file"))
             if path.is_file() and is_valid_checkpoint_filename(path.name):
-                run_name, epoch, agent_step, total_time, score = parse_checkpoint_filename(path.name)
-                metadata.update(
-                    {
-                        "run_name": run_name,
-                        "epoch": epoch,
-                        "agent_step": agent_step,
-                        "total_time": total_time,
-                        "score": score,
-                    }
-                )
+                _, _, agent_step, total_time, score = parse_checkpoint_filename(path.name)
+                metadata["agent_step"] = agent_step
+                metadata["total_time"] = total_time
+                metadata["score"] = score
         return metadata
 
     def _find_checkpoint_files(self, epoch: Optional[int] = None) -> List[Path]:
@@ -279,37 +245,28 @@ class CheckpointManager:
         return list(self.checkpoint_dir.glob(pattern))
 
     def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
-        """Load agent checkpoint from local directory.
-        Uses unified load_from_uri mechanism internally.
-        """
-        # Find checkpoint file
+        """Load agent checkpoint from local directory with LRU caching."""
         files = self._find_checkpoint_files(epoch)
         if not files:
-            return None
+            raise FileNotFoundError(f"No checkpoints found for {self.run_name} epoch={epoch}")
 
-        # Select the appropriate file (first if epoch specified, latest if not)
+        # Select file: first if epoch specified, latest otherwise
         agent_file = files[0] if epoch else max(files, key=lambda p: parse_checkpoint_filename(p.name)[1])
-
-        # Convert to URI and check cache
-        file_uri = f"file://{agent_file.resolve()}"
         cache_key = str(agent_file)
 
+        # Check cache
         if cache_key in self._cache:
             self._cache.move_to_end(cache_key)
             return self._cache[cache_key]
 
-        # Use unified load_from_uri mechanism
-        # Since we already checked the file exists, this should not raise
-        agent = self.load_from_uri(file_uri, device=device)
+        # Load from disk
+        file_uri = f"file://{agent_file.resolve()}"
+        agent = self.load_from_uri(file_uri, device=device or "cpu")
 
-        # Only cache if cache size > 0
-        if agent and self.cache_size > 0:
-            # Remove if already exists (shouldn't happen, but be safe)
-            if cache_key in self._cache:
-                del self._cache[cache_key]
-            # Evict oldest entry if at capacity
+        # Update cache
+        if self.cache_size > 0:
             if len(self._cache) >= self.cache_size:
-                self._cache.popitem(last=False)
+                self._cache.popitem(last=False)  # Evict oldest
             self._cache[cache_key] = agent
 
         return agent
