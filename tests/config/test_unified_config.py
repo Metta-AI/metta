@@ -161,6 +161,34 @@ class TestAutoConfigPriorityChain:
                 assert wandb_config.entity == ""
                 assert wandb_config.project == ""
 
+    def test_ignore_env_vars_functionality(self):
+        """Test ignore_env_vars option works correctly."""
+        from metta.tools.utils.auto_config import auto_wandb_config
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / ".metta" / "config.yaml"
+            config_path.parent.mkdir(parents=True)
+
+            # Create config with ignore_env_vars = True
+            config = MettaConfig()
+            config.wandb.enabled = True
+            config.wandb.entity = "config-entity"
+            config.wandb.project = "config-project"
+            config.ignore_env_vars = True
+            config.save(config_path)
+
+            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
+                # Clear global config singleton to prevent test interference
+                import metta.config.schema as schema_module
+
+                schema_module._config = None
+
+                # Test with env vars - should NOT override config file when ignore_env_vars=True
+                with patch.dict(os.environ, {"WANDB_ENTITY": "env-entity", "WANDB_PROJECT": "env-project"}):
+                    wandb_config = auto_wandb_config()
+                    assert wandb_config.entity == "config-entity"  # Config file wins
+                    assert wandb_config.project == "config-project"  # Config file wins
+
 
 class TestConfigurationComponents:
     """Test configuration components."""

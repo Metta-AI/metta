@@ -58,6 +58,9 @@ class MettaConfig:
     storage: StorageConfig = field(default_factory=StorageConfig)
     datadog: DatadogConfig = field(default_factory=DatadogConfig)
 
+    # Configuration behavior
+    ignore_env_vars: bool = False  # If True, environment variables won't override config file values
+
     # Profile information (not user-editable)
     profile: str = "external"
 
@@ -78,6 +81,7 @@ class MettaConfig:
             observatory=ObservatoryConfig(**data.get("observatory", {})),
             storage=StorageConfig(**data.get("storage", {})),
             datadog=DatadogConfig(**data.get("datadog", {})),
+            ignore_env_vars=data.get("ignore_env_vars", False),
             profile=data.get("profile", "external"),
         )
 
@@ -104,6 +108,10 @@ class MettaConfig:
             "datadog": datadog_data,
             "profile": self.profile,
         }
+
+        # Add ignore_env_vars if it's not the default value
+        if self.ignore_env_vars != defaults.ignore_env_vars:
+            data["ignore_env_vars"] = self.ignore_env_vars
 
         # Remove sections that contain only default values
         if wandb_data == {k: v for k, v in defaults.wandb.__dict__.items() if v is not None}:

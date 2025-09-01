@@ -2,12 +2,18 @@
 Auto-configuration utilities that read from the unified config file.
 
 This is the bridge between the new unified config system and the existing code.
-Priority order:
+Priority order (when ignore_env_vars=False, default):
 1. Environment variables (highest)
 2. Unified config file (~/.metta/config.yaml)
 3. Cloud user config (from saved_settings)
 4. Profile defaults
 5. Hardcoded defaults (lowest)
+
+Priority order (when ignore_env_vars=True in config file):
+1. Unified config file (~/.metta/config.yaml) (highest)
+2. Cloud user config (from saved_settings)
+3. Profile defaults
+4. Hardcoded defaults (lowest)
 """
 
 import os
@@ -42,13 +48,14 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
             "project": config.wandb.project or "",
         }
 
-        # Override with environment variables (highest priority)
-        if os.environ.get("WANDB_ENABLED") is not None:
-            config_dict["enabled"] = os.environ.get("WANDB_ENABLED", "").lower() == "true"
-        if os.environ.get("WANDB_ENTITY"):
-            config_dict["entity"] = os.environ["WANDB_ENTITY"]
-        if os.environ.get("WANDB_PROJECT"):
-            config_dict["project"] = os.environ["WANDB_PROJECT"]
+        # Override with environment variables (if not ignored)
+        if not config.ignore_env_vars:
+            if os.environ.get("WANDB_ENABLED") is not None:
+                config_dict["enabled"] = os.environ.get("WANDB_ENABLED", "").lower() == "true"
+            if os.environ.get("WANDB_ENTITY"):
+                config_dict["entity"] = os.environ["WANDB_ENTITY"]
+            if os.environ.get("WANDB_PROJECT"):
+                config_dict["project"] = os.environ["WANDB_PROJECT"]
     else:
         # Fall back to old system for backward compatibility
         from pydantic import Field
@@ -104,20 +111,26 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
 
 def auto_stats_server_uri() -> str | None:
     """Get stats server URI with proper priority chain."""
-    # Check environment variable first
-    if os.environ.get("STATS_SERVER_ENABLED") == "false":
-        return None
-    if os.environ.get("STATS_SERVER_URI"):
-        return os.environ["STATS_SERVER_URI"]
-
     # Check if new config system exists
     config_path = Path.home() / ".metta" / "config.yaml"
     if config_path.exists():
         from metta.config.schema import get_config
 
         config = get_config()
+
+        # Start with config file values
+        result = None
         if config.observatory.enabled and config.observatory.stats_server_uri:
-            return config.observatory.stats_server_uri
+            result = config.observatory.stats_server_uri
+
+        # Override with environment variables (if not ignored)
+        if not config.ignore_env_vars:
+            if os.environ.get("STATS_SERVER_ENABLED") == "false":
+                return None
+            if os.environ.get("STATS_SERVER_URI"):
+                return os.environ["STATS_SERVER_URI"]
+
+        return result
     else:
         # Fall back to old system
         from metta.setup.components.observatory_key import ObservatoryKeySetup
@@ -131,18 +144,22 @@ def auto_replay_dir() -> str:
     """Get replay directory with proper priority chain."""
     from metta.setup.saved_settings import get_saved_settings
 
-    # Check environment variable first
-    if os.environ.get("REPLAY_DIR"):
-        return os.environ["REPLAY_DIR"]
-
     # Check if new config system exists
     config_path = Path.home() / ".metta" / "config.yaml"
     if config_path.exists():
         from metta.config.schema import get_config
 
         config = get_config()
-        if config.storage.replay_dir:
-            return config.storage.replay_dir
+
+        # Start with config file values
+        result = config.storage.replay_dir
+
+        # Override with environment variables (if not ignored)
+        if not config.ignore_env_vars and os.environ.get("REPLAY_DIR"):
+            result = os.environ["REPLAY_DIR"]
+
+        if result:
+            return result
     else:
         # Fall back to old system for backward compatibility
         aws_setup_module = AWSSetup()
@@ -167,18 +184,22 @@ def auto_torch_profile_dir() -> str:
     """Get torch profiler directory with proper priority chain."""
     from metta.setup.saved_settings import get_saved_settings
 
-    # Check environment variable first
-    if os.environ.get("TORCH_PROFILE_DIR"):
-        return os.environ["TORCH_PROFILE_DIR"]
-
     # Check if new config system exists
     config_path = Path.home() / ".metta" / "config.yaml"
     if config_path.exists():
         from metta.config.schema import get_config
 
         config = get_config()
-        if config.storage.torch_profile_dir:
-            return config.storage.torch_profile_dir
+
+        # Start with config file values
+        result = config.storage.torch_profile_dir
+
+        # Override with environment variables (if not ignored)
+        if not config.ignore_env_vars and os.environ.get("TORCH_PROFILE_DIR"):
+            result = os.environ["TORCH_PROFILE_DIR"]
+
+        if result:
+            return result
 
     # Fall back to profile-based defaults (for backward compatibility)
     saved_settings = get_saved_settings()
@@ -198,18 +219,22 @@ def auto_torch_profile_dir() -> str:
 
 def auto_checkpoint_dir() -> str:
     """Get checkpoint directory with proper priority chain."""
-    # Check environment variable first
-    if os.environ.get("CHECKPOINT_DIR"):
-        return os.environ["CHECKPOINT_DIR"]
-
     # Check if new config system exists
     config_path = Path.home() / ".metta" / "config.yaml"
     if config_path.exists():
         from metta.config.schema import get_config
 
         config = get_config()
-        if config.storage.checkpoint_dir:
-            return config.storage.checkpoint_dir
+
+        # Start with config file values
+        result = config.storage.checkpoint_dir
+
+        # Override with environment variables (if not ignored)
+        if not config.ignore_env_vars and os.environ.get("CHECKPOINT_DIR"):
+            result = os.environ["CHECKPOINT_DIR"]
+
+        if result:
+            return result
 
     # Default (always local for performance)
     return "./train_dir/checkpoints/"

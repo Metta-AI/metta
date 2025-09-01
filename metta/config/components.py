@@ -19,7 +19,7 @@ class WandbConfigComponent(ConfigurableComponent):
 
     def interactive_configure(self, current_config: dict) -> dict:
         """Interactive configuration for W&B."""
-        info("\n📊 Configuring Weights & Biases...")
+        info("\n Configuring Weights & Biases...")
         info("Leave blank to keep current values")
 
         config = current_config.copy()

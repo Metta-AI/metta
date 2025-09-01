@@ -102,6 +102,7 @@ class TestConfigureCLICommands:
 
             # Simulate user selecting wandb and storage for configuration
             user_inputs = [
+                "y",  # Should environment variables override config file values?
                 "y",  # Configure Weights & Biases?
                 "test-entity",  # W&B Entity
                 "test-project",  # W&B Project

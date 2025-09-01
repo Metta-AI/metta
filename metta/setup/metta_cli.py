@@ -365,6 +365,16 @@ class MettaCLI:
         info("This will help you configure Metta for your environment.")
         info("Configuration will be saved to: ~/.metta/config.yaml\n")
 
+        # Ask about environment variable behavior
+        env_behavior = input("Should environment variables override config file values? (y/n) [y]: ").strip().lower()
+        if env_behavior == "n":
+            config.ignore_env_vars = True
+            info("Environment variables will be ignored - config file is authoritative (dbt-style)")
+        else:
+            config.ignore_env_vars = False
+            info("Environment variables will override config file values (Unix-style)")
+        print()
+
         # Go through each component
         for name, component in CONFIGURATION_COMPONENTS.items():
             response = input(f"\nConfigure {component.description}? (y/n) [n]: ").strip().lower()
