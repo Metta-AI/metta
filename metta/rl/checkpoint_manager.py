@@ -30,13 +30,8 @@ class PolicyMetadata(TypedDict, total=False):
 def _parse_uri_path(uri: str, scheme: str) -> str:
     """Extract path from URI, removing the scheme prefix.
 
-    Examples:
-        >>> _parse_uri_path("file:///tmp/model.pt", "file")
-        "/tmp/model.pt"
-        >>> _parse_uri_path("wandb://project/artifact:v1", "wandb")
-        "project/artifact:v1"
-        >>> _parse_uri_path("s3://bucket/path/model.pt", "s3")
-        "bucket/path/model.pt"
+    "file:///tmp/model.pt" -> "/tmp/model.pt"
+    "wandb://project/artifact:v1" -> "project/artifact:v1"
     """
     prefix = f"{scheme}://"
     return uri[len(prefix) :] if uri.startswith(prefix) else uri
@@ -45,24 +40,9 @@ def _parse_uri_path(uri: str, scheme: str) -> str:
 def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format.
 
-    Supports shorthand formats for common wandb URIs and expands them
-    to the full wandb artifact URI format required by the wandb API.
-
-    Examples:
-        >>> expand_wandb_uri("wandb://run/my-run-123")
-        "wandb://metta/model/my-run-123:latest"
-
-        >>> expand_wandb_uri("wandb://run/my-run-123:v5")
-        "wandb://metta/model/my-run-123:v5"
-
-        >>> expand_wandb_uri("wandb://sweep/sweep-abc")
-        "wandb://metta/sweep_model/sweep-abc:latest"
-
-        >>> expand_wandb_uri("wandb://metta/model/my-run:v1")
-        "wandb://metta/model/my-run:v1"  # Already full format, unchanged
-
-        >>> expand_wandb_uri("file:///tmp/model.pt")
-        "file:///tmp/model.pt"  # Non-wandb URI, unchanged
+    "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
+    "wandb://run/my-run:v5" -> "wandb://metta/model/my-run:v5"
+    "wandb://sweep/sweep-abc" -> "wandb://metta/sweep_model/sweep-abc:latest"
     """
     if not uri.startswith("wandb://"):
         return uri
@@ -93,24 +73,9 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
 def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI.
 
-    Parses various URI formats to extract the run name and epoch/version
-    information for identifying checkpoints.
-
-    Examples:
-        >>> key_and_version("file:///tmp/my_run__e5__s100__t60__sc5000.pt")
-        ("my_run", 5)
-
-        >>> key_and_version("file:///tmp/checkpoints/")  # Directory with latest checkpoint
-        ("run_name", <latest_epoch>)  # From latest checkpoint in directory
-
-        >>> key_and_version("wandb://metta/model/my-run:v3")
-        ("my-run", 3)  # From wandb metadata
-
-        >>> key_and_version("s3://bucket/my_run__e10__s200__t120__sc8000.pt")
-        ("my_run", 10)
-
-        >>> key_and_version("mock://test_agent")
-        ("test_agent", 0)
+    "file:///tmp/my_run__e5__s100__t60__sc5000.pt" -> ("my_run", 5)
+    "s3://bucket/my_run__e10__s200__t120__sc8000.pt" -> ("my_run", 10)
+    "mock://test_agent" -> ("test_agent", 0)
     """
     if uri.startswith("file://"):
         path = Path(_parse_uri_path(uri, "file"))
@@ -281,25 +246,9 @@ class CheckpointManager:
     def normalize_uri(path_or_uri: str) -> str:
         """Convert path to URI format and expand short wandb URIs.
 
-        Normalizes various input formats to proper URIs. Local paths are
-        converted to file:// URIs, wandb:// URIs are expanded to full format,
-        and other URIs are passed through unchanged.
-
-        Examples:
-            >>> CheckpointManager.normalize_uri("/tmp/model.pt")
-            "file:///tmp/model.pt"  # Converts to absolute file:// URI
-
-            >>> CheckpointManager.normalize_uri("./checkpoints/")
-            "file:///absolute/path/to/checkpoints/"
-
-            >>> CheckpointManager.normalize_uri("wandb://run/my-run")
-            "wandb://metta/model/my-run:latest"  # Expands short format
-
-            >>> CheckpointManager.normalize_uri("s3://bucket/model.pt")
-            "s3://bucket/model.pt"  # S3 URIs unchanged
-
-            >>> CheckpointManager.normalize_uri("file:///tmp/model.pt")
-            "file:///tmp/model.pt"  # Already normalized, unchanged
+        "/tmp/model.pt" -> "file:///tmp/model.pt"
+        "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
+        "s3://bucket/model.pt" -> "s3://bucket/model.pt"
         """
         if not path_or_uri.startswith(("file://", "wandb://", "s3://", "mock://")):
             return f"file://{Path(path_or_uri).resolve()}"
