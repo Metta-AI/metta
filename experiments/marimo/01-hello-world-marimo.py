@@ -113,7 +113,6 @@ def _():
     from metta.agent.utils import obs_to_td
     import pprint
     import textwrap
-    import signal
 
     # Define a minimal HTML widget using anywidget so we can drop ipywidgets
     class HTMLWidget(anywidget.AnyWidget):
@@ -295,16 +294,13 @@ def _():
 
     @contextmanager
     def cancellable_context():
-        """Base context manager for clean cancellation with signal handling"""
-        original_handler = signal.signal(signal.SIGINT, signal.default_int_handler)
+        """Base context manager for clean cancellation"""
+        # Signal handling disabled in marimo (runs in non-main thread)
         try:
             yield
         except KeyboardInterrupt:
             print("Operation interrupted by user")
             sys.exit(0)
-        finally:
-            # Always restore the original signal handler
-            signal.signal(signal.SIGINT, original_handler)
 
     @contextmanager
     def training_context():
@@ -387,7 +383,6 @@ def _():
         pd,
         pprint,
         show_replay,
-        signal,
         simulation_context,
         textwrap,
         time,
