@@ -64,7 +64,7 @@ class Kickstarter:
         self._load_policies()
 
     def _load_policies(self) -> None:
-        self.teachers: list[tuple[PolicyAgent, float, float]] = []
+        self.teachers: dict[PolicyAgent, KickstartTeacherConfig] = {}
         for teacher_cfg in self.teacher_cfgs or []:
             # Use CheckpointManager's static method to load from any URI
             policy: PolicyAgent = CheckpointManager.load_from_uri(teacher_cfg.teacher_uri)
@@ -81,8 +81,8 @@ class Kickstarter:
                     self.device,
                 )
 
-            # Store as tuple (policy, action_loss_coef, value_loss_coef)
-            self.teachers.append((policy, teacher_cfg.action_loss_coef, teacher_cfg.value_loss_coef))
+            # Store policy with its config
+            self.teachers[policy] = teacher_cfg
 
     def loss(
         self,
@@ -102,7 +102,7 @@ class Kickstarter:
             progress = (agent_step - self.ramp_down_start_step) / self.anneal_duration
             self.anneal_factor = 1.0 - progress
 
-        for policy, action_loss_coef, value_loss_coef in self.teachers:
+        for policy, teacher_cfg in self.teachers.items():
             # Forward pass through teacher policy
             teacher_td = policy(td)
             teacher_value = teacher_td["value"]
@@ -110,11 +110,13 @@ class Kickstarter:
 
             # Calculate action loss (KL divergence)
             ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
-            ks_action_loss *= action_loss_coef * self.anneal_factor
+            ks_action_loss *= teacher_cfg.action_loss_coef * self.anneal_factor
 
             # Calculate value loss (MSE)
             ks_value_loss += (
-                ((teacher_value.squeeze() - student_value) ** 2).mean() * value_loss_coef * self.anneal_factor
+                ((teacher_value.squeeze() - student_value) ** 2).mean()
+                * teacher_cfg.value_loss_coef
+                * self.anneal_factor
             )
 
         return ks_action_loss, ks_value_loss
