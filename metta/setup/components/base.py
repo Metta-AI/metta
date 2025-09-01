@@ -38,13 +38,13 @@ class SetupModule(ABC):
     def should_install(self) -> bool:
         """Override this to implement configuration-driven installation logic."""
         return True  # Default: install if enabled in profile
-        
+
     def is_enabled(self) -> bool:
         """Check if component should be installed based on profile AND configuration."""
         profile_enabled = self._is_applicable() and all(
             get_saved_settings().is_component_enabled(dep) for dep in ([self.name] + self.dependencies())
         )
-        
+
         # Use configuration-driven logic if available
         return profile_enabled and self.should_install()
 

@@ -11,38 +11,77 @@ from pathlib import Path
 import yaml
 
 
-def _find_repo_root() -> Path | None:
-    """Find the root of the metta repository."""
+def _get_profiles_dir() -> Path:
+    """Get the profiles directory, supporting environment variable override."""
+    import os
+
+    # Check for environment variable override (like DBT_PROFILES_DIR)
+    env_profiles_dir = os.environ.get("METTA_PROFILES_DIR")
+    if env_profiles_dir:
+        return Path(env_profiles_dir)
+
+    # Default to ~/.metta (like ~/.dbt)
+    return Path.home() / ".metta"
+
+
+def _find_project_root() -> Path | None:
+    """Find project root by looking for common project indicators."""
     current = Path.cwd()
     while current != current.parent:
-        # Look for distinctive metta files/directories
-        if (current / "pyproject.toml").exists() and (current / "metta").exists():
+        # Look for project indicators (broader than just metta repo)
+        project_indicators = [
+            "pyproject.toml",  # Python project
+            "setup.py",  # Python project
+            "requirements.txt",  # Python project
+            ".git",  # Git repository
+        ]
+
+        if any((current / indicator).exists() for indicator in project_indicators):
             return current
         current = current.parent
     return None
 
 
+def _get_config_paths() -> tuple[Path | None, Path]:
+    """Get configuration paths using simple priority system.
+
+    Returns:
+        Tuple of (project_config_path, global_config_path)
+    """
+    project_root = _find_project_root()
+    profiles_dir = _get_profiles_dir()
+
+    project_config_path = None
+    if project_root:
+        project_config_path = project_root / ".metta" / "config.yaml"
+
+    global_config_path = profiles_dir / "config.yaml"
+
+    return project_config_path, global_config_path
+
+
 def _get_config_path() -> Path:
-    """Get the configuration file path, preferring repo-based over user directory."""
-    # First try repo-based config
-    repo_root = _find_repo_root()
-    if repo_root:
-        repo_config = repo_root / ".metta" / "config.yaml"
-        if repo_config.exists():
-            return repo_config
-    
-    # Check user directory  
-    user_config = Path.home() / ".metta" / "config.yaml"
-    if user_config.exists():
-        return user_config
-    
-    # For new configs: prefer repo location only if user home is the real home directory
-    # This prevents repo config creation during tests when Path.home() is mocked
-    if repo_root and Path.home() == Path("~").expanduser():
-        return repo_root / ".metta" / "config.yaml"
-    
-    # Fall back to user directory (including mocked home during tests)
-    return user_config
+    """Get configuration file path for saving new configs.
+
+    Uses priority system:
+    1. Project config: .metta/config.yaml in project root
+    2. Global profiles: ~/.metta/config.yaml (or METTA_PROFILES_DIR)
+    """
+    project_config_path, global_config_path = _get_config_paths()
+
+    # Check which config exists
+    if project_config_path and project_config_path.exists():
+        return project_config_path
+    if global_config_path.exists():
+        return global_config_path
+
+    # For new configs: prefer project location if in project and real environment
+    # This prevents project config creation during tests when Path.home() is mocked
+    if project_config_path and Path.home() == Path("~").expanduser():
+        return project_config_path
+
+    # Fall back to profiles directory
+    return global_config_path
 
 
 @dataclass
@@ -100,23 +139,60 @@ class MettaConfig:
 
     @classmethod
     def load(cls, path: Path | None = None) -> "MettaConfig":
-        """Load configuration from file."""
-        if path is None:
-            path = _get_config_path()
+        """Load configuration using simple priority system.
 
-        if not path.exists():
-            return cls()
+        Priority order:
+        1. Project config (.metta/config.yaml in project root)
+        2. Global profiles config (~/.metta/config.yaml)
+        3. Default values
+        """
+        if path is not None:
+            # Explicit path provided - load directly
+            if not path.exists():
+                return cls()
 
-        with open(path, "r") as f:
-            data = yaml.safe_load(f) or {}
+            with open(path, "r") as f:
+                data = yaml.safe_load(f) or {}
+
+            return cls(
+                wandb=WandbConfig(**data.get("wandb", {})),
+                observatory=ObservatoryConfig(**data.get("observatory", {})),
+                storage=StorageConfig(**data.get("storage", {})),
+                datadog=DatadogConfig(**data.get("datadog", {})),
+                ignore_env_vars=data.get("ignore_env_vars", False),
+                profile=data.get("profile", "external"),
+            )
+
+        # Use simple priority system with config.yaml files only
+        project_config_path, global_config_path = _get_config_paths()
+
+        # Start with defaults
+        config_data = {}
+
+        # 1. Load global profiles config first (lower priority)
+        if global_config_path.exists():
+            with open(global_config_path, "r") as f:
+                global_data = yaml.safe_load(f) or {}
+                config_data.update(global_data)
+
+        # 2. Load project config (higher priority, overrides global)
+        if project_config_path and project_config_path.exists():
+            with open(project_config_path, "r") as f:
+                project_data = yaml.safe_load(f) or {}
+                # Deep merge the dictionaries
+                for key, value in project_data.items():
+                    if key in config_data and isinstance(config_data[key], dict) and isinstance(value, dict):
+                        config_data[key].update(value)
+                    else:
+                        config_data[key] = value
 
         return cls(
-            wandb=WandbConfig(**data.get("wandb", {})),
-            observatory=ObservatoryConfig(**data.get("observatory", {})),
-            storage=StorageConfig(**data.get("storage", {})),
-            datadog=DatadogConfig(**data.get("datadog", {})),
-            ignore_env_vars=data.get("ignore_env_vars", False),
-            profile=data.get("profile", "external"),
+            wandb=WandbConfig(**config_data.get("wandb", {})),
+            observatory=ObservatoryConfig(**config_data.get("observatory", {})),
+            storage=StorageConfig(**config_data.get("storage", {})),
+            datadog=DatadogConfig(**config_data.get("datadog", {})),
+            ignore_env_vars=config_data.get("ignore_env_vars", False),
+            profile=config_data.get("profile", "external"),
         )
 
     def save(self, path: Path | None = None) -> None:
