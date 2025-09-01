@@ -62,26 +62,26 @@ class HyperparameterSchedulerConfig(Config):
     """
 
     learning_rate_schedule: Optional[ScheduleConfig] = Field(
-        default=ConstantScheduleConfig(type="constant"),
+        default=ConstantScheduleConfig(type="constant", initial_value=0.000457),
         description="Learning rate scheduling configuration",
     )
     ppo_clip_schedule: Optional[ScheduleConfig] = Field(
-        default=ConstantScheduleConfig(type="constant"),
+        default=ConstantScheduleConfig(type="constant", initial_value=0.3),
         description="PPO clip coefficient scheduling configuration",
     )
     ppo_ent_coef_schedule: Optional[ScheduleConfig] = Field(
-        default=ConstantScheduleConfig(type="constant"),
+        default=ConstantScheduleConfig(type="constant", initial_value=0.0021),
         description="PPO entropy coefficient scheduling configuration",
     )
     ppo_vf_clip_schedule: Optional[ScheduleConfig] = Field(
-        default=ConstantScheduleConfig(type="constant"),
+        default=ConstantScheduleConfig(type="constant", initial_value=0.3),
         description="PPO value function clip coefficient scheduling configuration",
     )
     ppo_l2_reg_loss_schedule: Optional[ScheduleConfig] = Field(
-        default=ConstantScheduleConfig(type="constant"),
+        default=ConstantScheduleConfig(type="constant", initial_value=0),
         description="PPO L2 regularization loss coefficient scheduling configuration",
     )
     ppo_l2_init_loss_schedule: Optional[ScheduleConfig] = Field(
-        default=ConstantScheduleConfig(type="constant"),
+        default=ConstantScheduleConfig(type="constant", initial_value=0),
         description="PPO L2 initialization loss coefficient scheduling configuration",
     )
