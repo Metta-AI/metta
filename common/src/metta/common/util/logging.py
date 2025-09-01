@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 import sys
@@ -9,46 +10,11 @@ from rich.logging import RichHandler
 from metta.common.util.constants import RANK_ENV_VARS
 
 
-def remap_io(logs_path: str):
-    os.makedirs(logs_path, exist_ok=True)
-    stdout_log_path = os.path.join(logs_path, "out.log")
-    stderr_log_path = os.path.join(logs_path, "error.log")
-    stdout = open(stdout_log_path, "a")
-    stderr = open(stderr_log_path, "a")
-    sys.stderr = stderr
-    sys.stdout = stdout
-    # Remove all handlers from root logger when remapping IO
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-
-def restore_io():
-    sys.stderr = sys.__stderr__
-    sys.stdout = sys.__stdout__
-
-
 def get_node_rank() -> str | None:
     for var in RANK_ENV_VARS:
         if rank := os.environ.get(var):
             return rank
     return None
-
-
-def log_master(message: str, logger: logging.Logger | None = None, level: int = logging.INFO):
-    """
-    Log message only on master node (rank 0).
-
-    Args:
-        message: Message to log
-        logger: Logger to use (default: root logger)
-        level: Log level (default: INFO)
-    """
-    rank = get_node_rank() or "0"
-    if rank == "0":
-        if logger is None:
-            logger = logging.getLogger()
-        logger.log(level, message)
 
 
 # Create a custom formatter that supports milliseconds
@@ -84,38 +50,14 @@ class SimpleHandler(logging.StreamHandler):
         self.formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
 
 
-def get_log_level(provided_level: str | None = None) -> str:
-    """
-    Determine log level based on priority:
-    1. Environment variable LOG_LEVEL
-    2. Provided level parameter
-    3. Default to INFO
-    """
-    # Check environment variable first
-    env_level = os.environ.get("LOG_LEVEL")
-    if env_level:
-        return env_level.upper()
-
-    # Check provided level next
-    if provided_level:
-        return provided_level.upper()
-
-    # Default to INFO
-    return "INFO"
-
-
-def init_file_logging(run_dir: str) -> None:
+@functools.cache
+def _add_file_logging(run_dir: str) -> None:
     """Set up file logging in addition to stdout logging."""
     # Create logs directory
     logs_dir = os.path.join(run_dir, "logs")
     os.makedirs(logs_dir, exist_ok=True)
 
-    # Use node rank if available, otherwise RANK env var
-    node_index = get_node_rank() or "0"
-    if node_index == "0":
-        log_file = "script.log"
-    else:
-        log_file = f"script_{node_index}.log"
+    log_file = "script.log" if (get_node_rank() in ("0", None)) else f"script_{get_node_rank()}.log"
 
     # Set up file handler for the root logger
     log_file = os.path.join(logs_dir, log_file)
@@ -134,19 +76,8 @@ def init_file_logging(run_dir: str) -> None:
     file_handler.flush()
 
 
-def init_logging(level: str | None = None, run_dir: str | None = None, show_rank: bool = False) -> None:
-    """
-    Initialize logging with optional node/rank display.
-
-    Args:
-        level: Log level string
-        run_dir: Directory for log files (optional)
-        show_rank: Whether to show node/rank in log messages (default: False)
-                  If True and rank is detected, prepends [rank] to messages
-    """
-    # Get the appropriate log level based on priority
-    log_level = get_log_level(level)
-
+@functools.cache
+def _init_console_logging() -> None:
     # Remove all handlers from the root logger
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
@@ -154,19 +85,22 @@ def init_logging(level: str | None = None, run_dir: str | None = None, show_rank
 
     # Check if we're running with wandb or in a context where logs might be captured
     # This includes wandb runs, batch jobs, or when NO_HYPERLINKS is set
-    use_simple_handler = (
-        os.environ.get("WANDB_MODE") is not None  # wandb is configured
-        or os.environ.get("WANDB_RUN_ID") is not None  # wandb run is active
-        or os.environ.get("METTA_RUN_ID") is not None  # metta run that might use wandb
-        or os.environ.get("AWS_BATCH_JOB_ID") is not None  # AWS batch job
-        or os.environ.get("SKYPILOT_TASK_ID") is not None  # SkyPilot job
-        or os.environ.get("NO_HYPERLINKS") is not None  # explicit disable
-        or os.environ.get("NO_RICH_LOGS") is not None  # explicit disable rich
+    use_simple_handler = any(
+        os.environ.get(key) is not None
+        for key in (
+            "WANDB_MODE",
+            "WANDB_RUN_ID",
+            "METTA_RUN_ID",
+            "AWS_BATCH_JOB_ID",
+            "SKYPILOT_TASK_ID",
+            "NO_HYPERLINKS",
+            "NO_RICH_LOGS",
+        )
     )
 
-    # Get node rank if needed
-    rank = get_node_rank() if show_rank else None
-    rank_prefix = f"[{rank}] " if rank else ""
+    rank = get_node_rank()
+    local_rank = os.environ.get("LOCAL_RANK")
+    rank_prefix = f"[{rank}-{local_rank}]" if rank and local_rank else f"[{rank}]" if rank else ""
 
     if use_simple_handler:
         # Use simple handler without Rich formatting
@@ -191,7 +125,7 @@ def init_logging(level: str | None = None, run_dir: str | None = None, show_rank
                     location = f" [{filename}:{record.lineno}]"
 
                 # Format: [timestamp] [rank] LEVEL message [file:line]
-                return f"{timestamp} {rank_prefix}{level_name:<8} {msg}{location}"
+                return f"{timestamp} {rank_prefix} {level_name:<8} {msg}{location}"
 
         handler.setFormatter(LevelPrefixFormatter("%(message)s", datefmt="[%H:%M:%S.%f]"))
         root_logger.addHandler(handler)
@@ -200,7 +134,7 @@ def init_logging(level: str | None = None, run_dir: str | None = None, show_rank
         rich_handler = AlwaysShowTimeRichHandler(
             rich_tracebacks=True,
             show_path=True,
-            enable_link_path=True,  # Enable links in interactive mode
+            enable_link_path=True,
         )
 
         # Create a formatter that includes rank if needed
@@ -219,44 +153,19 @@ def init_logging(level: str | None = None, run_dir: str | None = None, show_rank
         rich_handler.setFormatter(formatter)
         root_logger.addHandler(rich_handler)
 
-    # Set the level
-    root_logger.setLevel(getattr(logging, log_level))
+    # Set default level
+    root_logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
     # set env COLUMNS if we are in a batch job
     if os.environ.get("AWS_BATCH_JOB_ID") or os.environ.get("SKYPILOT_TASK_ID"):
         os.environ["COLUMNS"] = "200"
 
     rich.traceback.install(show_locals=False)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
-    # Add file logging (after console handlers are set up)
+
+# Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
+def init_logging(run_dir: str | None = None) -> None:
+    _init_console_logging()
     if run_dir:
-        init_file_logging(run_dir)
-
-
-_INITIALIZED = False
-_GLOBAL_LOGGER = None
-
-
-def log(message: str, level: int = logging.INFO, show_rank: bool = True, master_only: bool = False):
-    """
-    Universal logging function that handles initialization automatically.
-
-    Args:
-        message: Message to log
-        level: Log level (default: INFO)
-        show_rank: Whether to show rank prefix (default: True)
-        master_only: Whether to only log on rank 0 (default: False)
-    """
-    global _INITIALIZED, _GLOBAL_LOGGER
-
-    if not _INITIALIZED:
-        # Auto-initialize with sensible defaults
-        init_logging(show_rank=show_rank)
-        _GLOBAL_LOGGER = logging.getLogger("metta")  # Use a consistent logger name
-        _INITIALIZED = True
-
-    if master_only:
-        log_master(message, logger=_GLOBAL_LOGGER, level=level)
-    else:
-        assert _GLOBAL_LOGGER
-        _GLOBAL_LOGGER.log(level, message)
+        _add_file_logging(run_dir)

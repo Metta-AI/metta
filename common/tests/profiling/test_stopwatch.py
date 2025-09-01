@@ -22,21 +22,6 @@ def cleanup():
 class TestStopwatch:
     """Test suite for Stopwatch class."""
 
-    def test_initialization(self):
-        """Test stopwatch initialization."""
-        # Test with default logger
-        sw = Stopwatch()
-        assert isinstance(sw.logger, logging.Logger)
-        assert sw.logger.name == "Stopwatch"
-        assert sw.GLOBAL_TIMER_NAME == "global"
-        assert sw.GLOBAL_TIMER_NAME in sw._timers
-
-        # Test with custom logger
-        custom_logger = logging.getLogger("custom")
-        sw2 = Stopwatch(logger=custom_logger)
-        assert sw2.logger == custom_logger
-        assert sw2.logger.name == "custom"
-
     def test_basic_timing(self, stopwatch):
         """Test basic start/stop timing."""
         # Start timing
