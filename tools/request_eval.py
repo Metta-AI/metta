@@ -109,9 +109,6 @@ async def _create_remote_eval_tasks(request: EvalRequest) -> None:
             executor.submit(
                 _get_policies_for_uri,
                 policy_uri=policy_uri,
-                selector_type=request.policy_select_type,
-                select_num=request.policy_select_num,
-                select_metric=request.policy_select_metric,
                 disallow_missing_policies=request.disallow_missing_policies,
             ): policy_uri
             for policy_uri in request.policies
@@ -222,34 +219,12 @@ async def main() -> None:
         dest="policies",
         help="""Policy URI or path. Can be specified multiple times for multiple policies.
         Supports:
-        - file:// URIs: file:///path/to/checkpoint.pt or file:///path/to/run/checkpoints
-        - wandb:// URIs: wandb://project/artifact:version
-        - Direct file paths: /path/to/checkpoint.pt (will be converted to file:// URI)
-        - Checkpoint directories: /path/to/run/checkpoints (will be converted to file:// URI)""",
+        - file:// URIs: file:///path/to/checkpoint.pt (must be specific checkpoint file)
+        - wandb:// URIs: wandb://project/artifact:version (must include version)
+        - Direct file paths: /path/to/checkpoint.pt (will be converted to file:// URI)""",
         required=True,
     )
 
-    parser.add_argument(
-        "--policy-select-type",
-        type=str,
-        default="latest",
-        choices=PolicySelectorType.__args__,
-        help="Policy selection type.",
-    )
-
-    parser.add_argument(
-        "--policy-select-num",
-        type=int,
-        default=1,
-        help="Number of policies to select. Used with 'top' or 'best_score'.",
-    )
-
-    parser.add_argument(
-        "--policy-select-metric",
-        type=str,
-        default="score",
-        help="Policy selection metric. Used with 'top' or 'best_score'.",
-    )
 
     parser.add_argument(
         "--stats-server-uri",
@@ -307,9 +282,6 @@ async def main() -> None:
                 policies=args.policies,
                 stats_server_uri=args.stats_server_uri,
                 git_hash=args.git_hash,
-                policy_select_type=args.policy_select_type,
-                policy_select_num=args.policy_select_num,
-                policy_select_metric=args.policy_select_metric,
                 wandb_project=args.wandb_project,
                 wandb_entity=args.wandb_entity,
                 disallow_missing_policies=args.disallow_missing_policies,
