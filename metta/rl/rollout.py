@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from metta.common.datadog.tracing import trace
 from metta.common.profiling.stopwatch import Stopwatch
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 PufferlibVecEnv = Any
 
 
+@trace("rollout.get_observation")
 def get_observation(
     vecenv: PufferlibVecEnv,
     device: torch.device,
@@ -38,6 +40,7 @@ def get_observation(
     return o, r, d, t, info, training_env_id, mask, num_steps
 
 
+@trace("rollout.send_observation")
 def send_observation(
     vecenv: PufferlibVecEnv,
     actions: Tensor,
