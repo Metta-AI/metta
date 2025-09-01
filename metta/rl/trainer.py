@@ -53,7 +53,6 @@ from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,
     setup_wandb_metrics,
-    upload_checkpoint_as_artifact,
 )
 from metta.sim.simulation_config import SimulationConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
@@ -485,46 +484,23 @@ def train(
                     )
 
                 # Save agent and trainer state
-                checkpoint_manager.save_agent(agent_to_save, epoch, metadata)
+                # Only upload to wandb if we're at the right interval
+                should_upload_wandb = wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval)
+                metadata["upload_to_wandb"] = should_upload_wandb
+                
+                wandb_uri = checkpoint_manager.save_agent(
+                    agent_to_save, 
+                    epoch, 
+                    metadata,
+                    wandb_run=wandb_run if should_upload_wandb else None
+                )
                 checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
                 latest_saved_epoch = epoch  # Update latest saved epoch
 
                 logger.info(f"Successfully saved checkpoint at epoch {epoch}")
-
-                # Upload to wandb if configured
-                if wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval):
-                    try:
-                        # Get the checkpoint file that was just saved
-                        checkpoints = checkpoint_manager.select_local_checkpoints(
-                            strategy="latest", count=1, metric="epoch"
-                        )
-                        checkpoint_file = checkpoints[0] if checkpoints else None
-                        if checkpoint_file:
-                            # Use the metadata we already have, augmented with run info
-                            wandb_metadata = metadata.copy()
-                            wandb_metadata.update(
-                                {
-                                    "run_name": run,
-                                    "epoch": epoch,
-                                }
-                            )
-
-                            # Upload as wandb artifact
-                            artifact_name = f"{run}_{epoch}"
-                            qualified_name = upload_checkpoint_as_artifact(
-                                checkpoint_path=str(checkpoint_file),
-                                artifact_name=artifact_name,
-                                metadata=wandb_metadata,
-                                wandb_run=wandb_run,
-                            )
-                            if qualified_name:
-                                logger.info(f"Uploaded checkpoint to wandb: {qualified_name}")
-                            else:
-                                logger.warning(f"Failed to upload checkpoint to wandb at epoch {epoch}")
-                        else:
-                            logger.warning(f"Could not find checkpoint file for epoch {epoch} to upload to wandb")
-                    except Exception as e:
-                        logger.warning(f"Failed to upload checkpoint to wandb: {e}")
+                
+                if wandb_uri:
+                    logger.info(f"Uploaded checkpoint to wandb: {wandb_uri}")
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with CheckpointManager - use current policy directly
@@ -657,41 +633,20 @@ def train(
             }
         )
 
-    checkpoint_manager.save_agent(agent_to_save, epoch, final_metadata)
+    # Mark as final checkpoint and always upload to wandb if wandb is configured
+    final_metadata["is_final"] = True
+    final_metadata["upload_to_wandb"] = bool(wandb_run)  # Always upload final checkpoint
+    
+    wandb_uri = checkpoint_manager.save_agent(
+        agent_to_save, 
+        epoch, 
+        final_metadata,
+        wandb_run=wandb_run  # Upload final checkpoint if wandb is available
+    )
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
-
-    # Upload final checkpoint to wandb (force upload regardless of interval)
-    if wandb_run:
-        try:
-            # Get the checkpoint file that was just saved
-            checkpoints = checkpoint_manager.select_local_checkpoints(strategy="latest", count=1, metric="epoch")
-            checkpoint_file = checkpoints[0] if checkpoints else None
-            if checkpoint_file:
-                # Use the metadata we already have, augmented with run info
-                wandb_metadata = final_metadata.copy()
-                wandb_metadata.update(
-                    {
-                        "run_name": run,
-                        "epoch": epoch,
-                    }
-                )
-
-                # Upload as wandb artifact with "final" tag
-                artifact_name = f"{run}_{epoch}_final"
-                qualified_name = upload_checkpoint_as_artifact(
-                    checkpoint_path=str(checkpoint_file),
-                    artifact_name=artifact_name,
-                    metadata=wandb_metadata,
-                    wandb_run=wandb_run,
-                )
-                if qualified_name:
-                    logger.info(f"Uploaded final checkpoint to wandb: {qualified_name}")
-                else:
-                    logger.warning("Failed to upload final checkpoint to wandb")
-            else:
-                logger.warning(f"Could not find final checkpoint file for epoch {epoch} to upload to wandb")
-        except Exception as e:
-            logger.warning(f"Failed to upload final checkpoint to wandb: {e}")
+    
+    if wandb_uri:
+        logger.info(f"Uploaded final checkpoint to wandb: {wandb_uri}")
 
     cleanup_monitoring(memory_monitor, system_monitor)
 
