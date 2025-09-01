@@ -597,7 +597,7 @@ def train(
                         category_scores = list(eval_scores.category_scores.values())
                         # Note: With SimpleCheckpointManager, scores are saved with the checkpoint metadata
                         if category_scores:
-                            # Evaluation complete
+                            pass  # Evaluation complete
                         if wandb_run is not None and evaluation_results.replay_urls:
                             upload_replay_html(
                                 replay_urls=evaluation_results.replay_urls,
