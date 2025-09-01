@@ -655,16 +655,13 @@ def train(
     final_metadata["is_final"] = True
     final_metadata["upload_to_wandb"] = bool(wandb_run)  # Always upload final checkpoint
 
-    wandb_uri = checkpoint_manager.save_agent(
+    checkpoint_manager.save_agent(
         agent_to_save,
         epoch,
         final_metadata,
         wandb_run=wandb_run,  # Upload final checkpoint if wandb is available
     )
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
-
-    if wandb_uri:
-        latest_wandb_uri = wandb_uri
 
     cleanup_monitoring(memory_monitor, system_monitor)
 
