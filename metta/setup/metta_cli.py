@@ -82,6 +82,12 @@ def _setup_tool_parser(parser: argparse.ArgumentParser) -> None:
 
 # Command registry with all command definitions
 COMMAND_REGISTRY: Dict[str, CommandConfig] = {
+    # Configuration commands
+    "export-env": CommandConfig(
+        help="Export configuration as environment variables",
+        handler="cmd_export_env",
+        needs_config=False,
+    ),
     # Simple subprocess commands
     "clip": CommandConfig(
         help="Copy subsets of codebase for LLM contexts",
@@ -329,13 +335,13 @@ class MettaCLI:
         info("\nRun 'metta install' to set up your environment.")
 
     def cmd_configure(self, args, unknown_args=None) -> None:
+        """Configure metta settings using the unified config system."""
+
         if args.component:
-            # Special handling for 'cloud' to configure cloud-specific settings
-            if args.component == "cloud":
-                self.configure_cloud(args, unknown_args)
-            else:
-                self.configure_component(args.component)
+            # Configure specific component
+            self.configure_component_unified(args.component)
         elif args.profile:
+            # Legacy profile configuration
             selected_user_type = UserType(args.profile)
             if selected_user_type in PROFILE_DEFINITIONS:
                 saved_settings = get_saved_settings()
@@ -346,68 +352,75 @@ class MettaCLI:
                 error(f"Unknown profile: {args.profile}")
                 sys.exit(1)
         else:
-            self.setup_wizard()
+            # Interactive configuration wizard
+            self.configure_wizard()
+
+    def configure_wizard(self) -> None:
+        """Interactive configuration wizard for all components."""
+        from metta.config.components import CONFIGURATION_COMPONENTS
+        from metta.config.schema import get_config
+
+        config = get_config()
+        header("Metta Configuration Wizard")
+        info("This will help you configure Metta for your environment.")
+        info("Configuration will be saved to: ~/.metta/config.yaml\n")
+
+        # Go through each component
+        for name, component in CONFIGURATION_COMPONENTS.items():
+            response = input(f"\nConfigure {component.description}? (y/n) [n]: ").strip().lower()
+            if response == "y":
+                current = getattr(config, name).__dict__
+                updated = component.interactive_configure(current)
+
+                # Update config object
+                for key, value in updated.items():
+                    setattr(getattr(config, name), key, value)
+
+        # Save configuration
+        config.save()
+        success("\nConfiguration saved!")
+        info("You can modify ~/.metta/config.yaml directly or run 'metta configure' again.")
+
+    def configure_component_unified(self, component_name: str) -> None:
+        """Configure a specific component using the unified system."""
+        from metta.config.components import CONFIGURATION_COMPONENTS
+        from metta.config.schema import get_config
+
+        if component_name not in CONFIGURATION_COMPONENTS:
+            error(f"Unknown component: {component_name}")
+            info(f"Available: {', '.join(CONFIGURATION_COMPONENTS.keys())}")
+            sys.exit(1)
+            return  # Added for test compatibility when sys.exit is mocked
+
+        config = get_config()
+        component = CONFIGURATION_COMPONENTS[component_name]
+
+        header(f"Configuring {component.description}")
+        current = getattr(config, component_name).__dict__
+        updated = component.interactive_configure(current)
+
+        # Update config
+        for key, value in updated.items():
+            setattr(getattr(config, component_name), key, value)
+
+        config.save()
+        success(f"\n{component_name} configuration saved!")
+
+    def cmd_export_env(self, args, unknown_args=None) -> None:
+        """Export configuration as environment variables."""
+        from metta.config.schema import get_config
+
+        config = get_config()
+        env_vars = config.export_env_vars()
+
+        # Output format suitable for shell evaluation
+        for key, value in env_vars.items():
+            print(f"export {key}='{value}'")
 
     def configure_cloud(self, args, unknown_args) -> None:
-        """Configure cloud-specific settings like WandB and S3."""
-        saved_settings = get_saved_settings()
-
-        # Check if user is cloud profile
-        if saved_settings.user_type != UserType.CLOUD:
-            warning("Cloud configuration is typically for 'cloud' profile users.")
-            if not prompt_choice("Continue anyway?", [("y", "Yes"), ("n", "No")], default="n") == "y":
-                return
-
-        # Parse additional arguments
-        import argparse
-
-        parser = argparse.ArgumentParser(prog="metta configure cloud")
-        parser.add_argument("--wandb-entity", help="WandB entity/organization")
-        parser.add_argument("--wandb-project", help="WandB project name")
-        parser.add_argument("--s3-bucket", help="S3 bucket name (without s3:// prefix)")
-        parser.add_argument("--aws-profile", help="AWS profile name to use")
-        parser.add_argument("--show", action="store_true", help="Show current cloud configuration")
-
-        cloud_args = parser.parse_args(unknown_args or [])
-
-        if cloud_args.show:
-            # Show current configuration
-            cloud_config = saved_settings.get_cloud_config()
-            if not cloud_config:
-                info("No cloud configuration set.")
-            else:
-                info("Current cloud configuration:")
-                for key, value in cloud_config.items():
-                    info(f"  {key}: {value}")
-            return
-
-        # Update configuration
-        updated = False
-        if cloud_args.wandb_entity:
-            saved_settings.set_cloud_config("wandb_entity", cloud_args.wandb_entity)
-            success(f"Set WandB entity to: {cloud_args.wandb_entity}")
-            updated = True
-
-        if cloud_args.wandb_project:
-            saved_settings.set_cloud_config("wandb_project", cloud_args.wandb_project)
-            success(f"Set WandB project to: {cloud_args.wandb_project}")
-            updated = True
-
-        if cloud_args.s3_bucket:
-            saved_settings.set_cloud_config("s3_bucket", cloud_args.s3_bucket)
-            success(f"Set S3 bucket to: {cloud_args.s3_bucket}")
-            updated = True
-
-        if cloud_args.aws_profile:
-            saved_settings.set_cloud_config("aws_profile", cloud_args.aws_profile)
-            success(f"Set AWS profile to: {cloud_args.aws_profile}")
-            updated = True
-
-        if updated:
-            info("\nCloud configuration saved.")
-            info("These settings will be used automatically when running tools.")
-        else:
-            info("No changes made. Use --help to see available options.")
+        """Legacy cloud configuration - redirects to unified system."""
+        info("Redirecting to unified configuration system...")
+        self.configure_component_unified("storage")
 
     def configure_component(self, component_name: str) -> None:
         from metta.setup.registry import get_all_modules
@@ -444,7 +457,7 @@ class MettaCLI:
 
     def cmd_install(self, args, unknown_args=None) -> None:
         from metta.setup.registry import get_all_modules, get_enabled_setup_modules
-        from metta.setup.utils import error, info, success, warning
+        from metta.setup.utils import error, info, success
 
         if not get_saved_settings().exists():
             warning("No configuration found. Running setup wizard first...")
@@ -501,7 +514,7 @@ class MettaCLI:
         success("Installation complete!")
 
     def cmd_clean(self, args, unknown_args=None, verbose: bool = False) -> None:
-        from metta.setup.utils import info, warning
+        from metta.setup.utils import info
 
         build_dir = self.repo_root / "build"
         if build_dir.exists():
@@ -699,7 +712,7 @@ class MettaCLI:
         import concurrent.futures
 
         from metta.setup.registry import get_all_modules
-        from metta.setup.utils import error, info, spinner, success, warning
+        from metta.setup.utils import error, info, spinner, success
 
         # Get all modules first
         all_modules = get_all_modules()

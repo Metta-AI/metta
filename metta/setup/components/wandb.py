@@ -83,6 +83,73 @@ class WandbSetup(SetupModule):
         except Exception:
             return None
 
+    def get_configuration_schema(self) -> dict[str, tuple[type, str, str | None]]:
+        """Define configuration schema for wandb."""
+        return {
+            "entity": (str, "W&B Entity (team/organization name)", None),
+            "project": (str, "W&B Project name", None),
+            "enabled": (bool, "Enable W&B tracking", "true"),
+        }
+
+    def interactive_configure(self) -> dict[str, str | bool] | None:
+        """Interactive configuration for W&B."""
+        from metta.setup.utils import info
+
+        info("\nConfiguring Weights & Biases...")
+        info("Leave blank to use defaults or skip")
+
+        config = {}
+
+        # Check if already logged in
+        if self.check_installed():
+            info("✓ W&B credentials found")
+
+            # Try to get default entity
+            try:
+                import wandb
+
+                default_entity = wandb.Api().default_entity
+                if default_entity:
+                    use_default = input(f"Use default entity '{default_entity}'? (y/n): ").lower()
+                    if use_default == "y":
+                        config["entity"] = default_entity
+            except Exception:
+                pass
+        else:
+            info("No W&B credentials found. Run 'wandb login' to authenticate.")
+
+        # Get entity if not set
+        if "entity" not in config:
+            entity = input("W&B Entity/Team (leave blank for personal): ").strip()
+            if entity:
+                config["entity"] = entity
+
+        # Get project
+        project = input("W&B Project name (leave blank for default): ").strip()
+        if project:
+            config["project"] = project
+
+        # Ask if enabled
+        enabled = input("Enable W&B tracking? (y/n) [y]: ").strip().lower()
+        config["enabled"] = enabled != "n"
+
+        return config
+
+    def export_env_vars(self, config: dict[str, str | bool]) -> dict[str, str]:
+        """Export W&B configuration as environment variables."""
+        env_vars = {}
+
+        if config.get("enabled", True):
+            env_vars["WANDB_ENABLED"] = "true"
+            if config.get("entity"):
+                env_vars["WANDB_ENTITY"] = config["entity"]
+            if config.get("project"):
+                env_vars["WANDB_PROJECT"] = config["project"]
+        else:
+            env_vars["WANDB_ENABLED"] = "false"
+
+        return env_vars
+
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()
         if saved_settings.user_type.is_softmax:
@@ -95,11 +162,15 @@ class WandbSetup(SetupModule):
             try:
                 import wandb
 
-                # TODO: let users specify their intended entity and project as part of configuration
+                # Check for configured values
+                from metta.setup.config_manager import get_config_manager
+
+                config = get_config_manager().get_component_config("wandb")
+
                 return dict(
-                    enabled=True,
-                    entity=wandb.Api().default_entity or "",
-                    project="",
+                    enabled=config.get("enabled", True),
+                    entity=config.get("entity", wandb.Api().default_entity or ""),
+                    project=config.get("project", ""),
                 )
             except Exception:
                 return dict(

@@ -64,7 +64,65 @@ class ObservatoryKeySetup(SetupModule):
 
         return None
 
+    def get_configuration_schema(self) -> dict[str, tuple[type, str, str | None]]:
+        """Define configuration schema for observatory."""
+        return {
+            "stats_server_uri": (str, "Observatory stats server URI", None),
+            "enabled": (bool, "Enable Observatory integration", "false"),
+        }
+
+    def interactive_configure(self) -> dict[str, str | bool] | None:
+        """Interactive configuration for Observatory."""
+        from metta.setup.utils import info
+
+        info("\nConfiguring Observatory...")
+        info("Observatory is used for experiment tracking and remote evaluations")
+
+        config = {}
+
+        # Check if connected
+        connected = self.check_connected_as()
+        if connected:
+            info(f"✓ Connected to Observatory as: {connected}")
+            config["enabled"] = True
+        else:
+            info("Not connected to Observatory. Run 'metta install observatory-key' to authenticate.")
+            enabled = input("Enable Observatory integration? (y/n) [n]: ").strip().lower()
+            config["enabled"] = enabled == "y"
+
+        if config["enabled"]:
+            # Ask for custom server URI
+            custom_uri = input(f"Stats server URI (blank for default: {PROD_STATS_SERVER_URI}): ").strip()
+            if custom_uri:
+                config["stats_server_uri"] = custom_uri
+            else:
+                config["stats_server_uri"] = PROD_STATS_SERVER_URI
+
+        return config
+
+    def export_env_vars(self, config: dict[str, str | bool]) -> dict[str, str]:
+        """Export Observatory configuration as environment variables."""
+        env_vars = {}
+
+        if config.get("enabled"):
+            env_vars["STATS_SERVER_ENABLED"] = "true"
+            if config.get("stats_server_uri"):
+                env_vars["STATS_SERVER_URI"] = config["stats_server_uri"]
+        else:
+            env_vars["STATS_SERVER_ENABLED"] = "false"
+
+        return env_vars
+
     def to_config_settings(self) -> dict[str, str | None]:
+        # Check for configured values first
+        from metta.setup.config_manager import get_config_manager
+
+        config = get_config_manager().get_component_config("observatory-key")
+
+        if config.get("enabled") and config.get("stats_server_uri"):
+            return {"stats_server_uri": config["stats_server_uri"]}
+
+        # Fall back to profile defaults
         if self.is_enabled() and get_saved_settings().user_type.is_softmax:
             return {"stats_server_uri": PROD_STATS_SERVER_URI}
 

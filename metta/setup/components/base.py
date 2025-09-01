@@ -98,6 +98,36 @@ class SetupModule(ABC):
         """
         return {}
 
+    def get_configuration_schema(self) -> dict[str, tuple[type, str, Any]]:
+        """
+        Returns configuration schema for this component.
+
+        Returns:
+            Dict of {setting_name: (type, description, default_value)}
+        """
+        return {}
+
+    def interactive_configure(self) -> dict[str, Any] | None:
+        """
+        Interactive configuration for this component.
+
+        Returns:
+            Dict of configuration values or None if cancelled
+        """
+        return None
+
+    def export_env_vars(self, config: dict[str, Any]) -> dict[str, str]:
+        """
+        Export component configuration as environment variables.
+
+        Args:
+            config: Component configuration dict
+
+        Returns:
+            Dict of environment variable name -> value mappings
+        """
+        return {}
+
     def configure(self) -> None:
         """This method is called by 'metta configure <component>'.
         Override this to provide custom configuration logic.
