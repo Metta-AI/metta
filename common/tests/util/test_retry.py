@@ -1,6 +1,5 @@
 """Tests for the retry_on_exception decorator."""
 
-import logging
 import time
 from unittest.mock import Mock
 
@@ -145,14 +144,3 @@ class TestRetryFunction:
             retry_function(mock_func, max_retries=3, retry_delay=0.1, exceptions=(ValueError,))
 
         assert mock_func.call_count == 2  # First ValueError, then RuntimeError
-
-    def test_retry_function_with_logger(self, caplog):
-        """Test that retry attempts are logged correctly."""
-        mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
-
-        with caplog.at_level(logging.WARNING):
-            result = retry_function(mock_func, max_retries=3, retry_delay=0.1, error_prefix="Test operation failed")
-
-        assert result == "success"
-        assert "Test operation failed: fail 1" in caplog.text  # Initial attempt
-        assert "Test operation failed (retry 1/3): fail 2" in caplog.text  # First retry

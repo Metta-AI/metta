@@ -1,22 +1,23 @@
 import functools
-import sys
+import logging
 
 from ddtrace.trace import tracer
 
 from metta.common.datadog.config import datadog_config
 
+logger = logging.getLogger(__name__)
+
 
 @functools.cache
 def init_tracing():
     if datadog_config.DD_TRACE_ENABLED:
-        msg = (
+        logger.info(
             f"Datadog tracing enabled: service={datadog_config.DD_SERVICE}, "
             f"env={datadog_config.DD_ENV}, agent={datadog_config.DD_AGENT_HOST}"
         )
-        print(msg, file=sys.stderr, flush=True)
         tracer.enabled = True
     else:
-        print("Datadog tracing disabled", file=sys.stderr, flush=True)
+        logger.info("Datadog tracing disabled")
         tracer.enabled = False
 
 

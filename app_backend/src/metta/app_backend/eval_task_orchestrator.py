@@ -261,8 +261,8 @@ class EvalTaskOrchestrator:
 
 
 async def main() -> None:
-    init_tracing()
     init_logging()
+    init_tracing()
 
     backend_url = os.environ.get("BACKEND_URL", DEV_STATS_SERVER_URI)
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")

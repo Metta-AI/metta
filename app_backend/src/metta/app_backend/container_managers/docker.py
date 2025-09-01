@@ -47,7 +47,7 @@ class DockerContainerManager(AbstractContainerManager):
             logger.info(f"Started worker container {container_name}")
             return container_name
         except subprocess.CalledProcessError as e:
-            logger.info(f"Failed to start worker container: {e.stderr}")
+            logger.error(f"Failed to start worker container: {e.stderr}", exc_info=True)
             raise
 
     def cleanup_container(self, name: str) -> None:

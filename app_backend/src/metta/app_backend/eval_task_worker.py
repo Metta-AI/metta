@@ -280,8 +280,8 @@ class EvalTaskWorker:
 
 
 async def main() -> None:
-    init_tracing()
     init_logging()
+    init_tracing()
 
     backend_url = os.environ["BACKEND_URL"]
     assignee = os.environ["WORKER_ASSIGNEE"]
