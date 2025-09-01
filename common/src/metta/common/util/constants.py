@@ -28,6 +28,8 @@ METTA_ENV_FILE = LazyPath(os.path.expanduser("~/.metta_env_path"))
 SOFTMAX_S3_BUCKET = "softmax-public"
 SOFTMAX_S3_BASE = f"s3://{SOFTMAX_S3_BUCKET}"
 
+RANK_ENV_VARS = ["SKYPILOT_NODE_RANK", "RANK", "OMPI_COMM_WORLD_RANK"]
+
 
 def main():
     if len(sys.argv) != 2:

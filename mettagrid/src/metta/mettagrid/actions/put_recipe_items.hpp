@@ -39,11 +39,11 @@ protected:
       InventoryQuantity resources_to_put = std::min(resources_required, resources_available);
 
       if (resources_to_put > 0) {
-        InventoryDelta resources_put = converter->update_inventory(item, static_cast<InventoryDelta>(resources_to_put));
+        InventoryDelta resources_put = converter->update_inventory(item, resources_to_put);
         if (resources_put > 0) {
           InventoryDelta delta = actor->update_inventory(item, -resources_put);
           assert(delta == -resources_put);
-          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", static_cast<float>(resources_put));
+          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", resources_put);
           success = true;
         }
       }
