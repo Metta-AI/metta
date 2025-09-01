@@ -33,6 +33,7 @@ from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
+from metta.common.util.logging import init_logging
 
 logger = logging.getLogger(__name__)
 
@@ -280,6 +281,7 @@ class EvalTaskWorker:
 
 async def main() -> None:
     init_tracing()
+    init_logging()
 
     backend_url = os.environ["BACKEND_URL"]
     assignee = os.environ["WORKER_ASSIGNEE"]
