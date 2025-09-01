@@ -247,9 +247,11 @@ class CheckpointManager:
                 run_name = dir_path.name
                 run_dir = str(dir_path.parent)
 
-            # Use CheckpointManager to select checkpoints
+            # Use CheckpointManager to select local checkpoints from filesystem
             checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
-            checkpoint_paths = checkpoint_manager.select_checkpoints(strategy=strategy, count=count, metric=metric)
+            checkpoint_paths = checkpoint_manager.select_local_checkpoints(
+                strategy=strategy, count=count, metric=metric
+            )
 
             # Convert paths to URIs
             return [f"file://{path}" for path in checkpoint_paths]
@@ -343,7 +345,20 @@ class CheckpointManager:
             state["stopwatch_state"] = stopwatch_state
         torch.save(state, trainer_file)
 
-    def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
+    def select_local_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
+        """Select checkpoint files from the local filesystem based on strategy and metric.
+
+        This method only works with local filesystem checkpoints. For other storage
+        backends (wandb, S3, etc.), different selection mechanisms are needed.
+
+        Args:
+            strategy: Selection strategy ("latest", "all")
+            count: Number of checkpoints to return (ignored if strategy="all")
+            metric: Metric to sort by ("epoch", "agent_step", "total_time", "score")
+
+        Returns:
+            List of Path objects to local checkpoint files
+        """
         checkpoint_files = self._find_checkpoint_files()
         if not checkpoint_files:
             return []

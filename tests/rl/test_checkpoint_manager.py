@@ -90,12 +90,12 @@ class TestBasicSaveLoad:
         assert loaded_agent is not None
 
         # Test checkpoint selection
-        latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="epoch")
+        latest_checkpoints = checkpoint_manager.select_local_checkpoints("latest", count=1, metric="epoch")
         assert len(latest_checkpoints) == 1
         assert "test_run__e10__s10000__t300__sc9000.pt" == latest_checkpoints[0].name
 
         # Test selection by score
-        best_score_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="score")
+        best_score_checkpoints = checkpoint_manager.select_local_checkpoints("latest", count=1, metric="score")
         assert len(best_score_checkpoints) == 1
         assert "test_run__e10__s10000__t300__sc9000.pt" == best_score_checkpoints[0].name
 
@@ -268,7 +268,7 @@ class TestErrorHandling:
         assert result is None
 
         # Should return empty list for selection
-        checkpoints = checkpoint_manager.select_checkpoints()
+        checkpoints = checkpoint_manager.select_local_checkpoints()
         assert checkpoints == []
 
     def test_invalid_run_name(self, temp_run_dir):
