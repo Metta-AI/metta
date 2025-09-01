@@ -33,8 +33,7 @@ from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
-
-logger = logging.getLogger(__name__)
+from metta.common.util.logging import log
 
 
 class WorkerInfo(BaseModel):
@@ -106,7 +105,6 @@ class EvalTaskOrchestrator:
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 1200.0,
         default_avg_runtime: float = 200.0,
-        logger: logging.Logger | None = None,
     ):
         self._task_client = task_client
         self._worker_manager = worker_manager
@@ -119,10 +117,10 @@ class EvalTaskOrchestrator:
         claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.worker.name)
         claimed_ids = await self._task_client.claim_tasks(claim_request)
         if task.id in claimed_ids.claimed:
-            logger.info(f"Assigned task {task.id} to worker {worker.worker.name}")
+            log(f"Assigned task {task.id} to worker {worker.worker.name}")
             return True
         else:
-            logger.debug("Failed to claim task; someone else must have it")
+            log("Failed to claim task; someone else must have it", level=logging.DEBUG)
             return False
 
     async def _get_available_workers(self, claimed_tasks: list[TaskResponse]) -> dict[str, WorkerInfo]:
@@ -161,7 +159,7 @@ class EvalTaskOrchestrator:
                 else:
                     status = "error"
 
-                logger.info(f"Unclaiming task {task.id} because {reason}. Setting status to {status}")
+                log(f"Unclaiming task {task.id} because {reason}. Setting status to {status}")
                 await self._task_client.update_task_status(
                     TaskUpdateRequest(
                         updates={
@@ -175,11 +173,11 @@ class EvalTaskOrchestrator:
                 )
 
                 if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
-                    logger.info(f"Killing worker {task.assignee} because it has been working too long")
+                    log(f"Killing worker {task.assignee} because it has been working too long")
                     self._worker_manager.cleanup_worker(worker.worker.name)
                     del alive_workers_by_name[worker.worker.name]
         except Exception as e:
-            logger.error(f"Error killing dead workers and tasks: {e}", exc_info=True)
+            log(f"Error killing dead workers and tasks: {e}", exc_info=True, level=logging.ERROR)
 
     async def _assign_task_to_worker(
         self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[TaskResponse]]
@@ -215,7 +213,7 @@ class EvalTaskOrchestrator:
     async def _scale_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
         desired_workers = await self._worker_scaler.get_desired_workers(len(alive_workers_by_name))
         if desired_workers > len(alive_workers_by_name):
-            logger.info(f"Launching {desired_workers - len(alive_workers_by_name)} extra workers")
+            log(f"Launching {desired_workers - len(alive_workers_by_name)} extra workers")
             for _ in range(desired_workers - len(alive_workers_by_name)):
                 self._worker_manager.start_worker()
         elif desired_workers < len(alive_workers_by_name):
@@ -225,7 +223,7 @@ class EvalTaskOrchestrator:
             ]
             if idle_workers:
                 num_workers_to_kill = len(alive_workers_by_name) - desired_workers
-                logger.info(f"Killing {num_workers_to_kill} idle workers")
+                log(f"Killing {num_workers_to_kill} idle workers")
                 for worker in idle_workers[:num_workers_to_kill]:
                     self._worker_manager.cleanup_worker(worker.worker.name)
                     del alive_workers_by_name[worker.worker.name]
@@ -242,18 +240,18 @@ class EvalTaskOrchestrator:
         await self._scale_workers(alive_workers_by_name)
 
     async def run(self) -> None:
-        logger.info(f"Backend URL: {getattr(self._task_client, '_base_url', 'unknown')}")
-        logger.info(f"Worker idle timeout: {self._worker_idle_timeout}s")
+        log(f"Backend URL: {getattr(self._task_client, '_base_url', 'unknown')}")
+        log(f"Worker idle timeout: {self._worker_idle_timeout}s")
 
         with tracer.trace("orchestrator.startup"):
-            logger.info("Orchestrator startup trace")
+            log("Orchestrator startup trace")
 
         while True:
             start_time = datetime.now(timezone.utc)
             try:
                 await self.run_cycle()
             except Exception as e:
-                logger.error(f"Error in orchestrator loop: {e}", exc_info=True)
+                log(f"Error in orchestrator loop: {e}", exc_info=True, level=logging.ERROR)
 
             elapsed_time = (datetime.now(timezone.utc) - start_time).total_seconds()
             sleep_time = max(0, self._poll_interval - elapsed_time)

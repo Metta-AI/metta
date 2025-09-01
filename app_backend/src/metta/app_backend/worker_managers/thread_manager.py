@@ -9,6 +9,7 @@ from typing import Callable
 from metta.app_backend.eval_task_worker import EvalTaskWorker
 from metta.app_backend.worker_managers.base import AbstractWorkerManager
 from metta.app_backend.worker_managers.worker import Worker
+from metta.common.util.logging import log
 
 
 class ThreadWorkerManager(AbstractWorkerManager):
@@ -27,10 +28,8 @@ class ThreadWorkerManager(AbstractWorkerManager):
     def __init__(
         self,
         create_worker: Callable[[str], EvalTaskWorker],
-        logger: logging.Logger | None = None,
     ):
         self._create_worker = create_worker
-        self._logger = logger or logging.getLogger(__name__)
         self._workers: dict[str, dict] = {}  # worker_name -> {thread, worker, stop_event}
         self._lock = threading.Lock()
 
@@ -60,7 +59,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
             }
 
             thread.start()
-            self._logger.info(f"Started worker {worker_name} on thread {thread.name}")
+            log(f"Started worker {worker_name} on thread {thread.name}")
 
             return worker_name
 
@@ -89,10 +88,10 @@ class ThreadWorkerManager(AbstractWorkerManager):
                         try:
                             await worker_task
                         except asyncio.CancelledError:
-                            self._logger.info(f"Worker {worker._assignee} cancelled")
+                            log(f"Worker {worker._assignee} cancelled")
 
                 except Exception as e:
-                    self._logger.error(f"Error in worker {worker._assignee}: {e}", exc_info=True)
+                    log(f"Error in worker {worker._assignee}: {e}", level=logging.ERROR, exc_info=True)
                 finally:
                     # Clean up worker resources
                     if hasattr(worker, "__aexit__"):
@@ -101,7 +100,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
             loop.run_until_complete(run_with_stop_check())
 
         except Exception as e:
-            self._logger.error(f"Thread error for worker {worker._assignee}: {e}", exc_info=True)
+            log(f"Thread error for worker {worker._assignee}: {e}", level=logging.ERROR, exc_info=True)
         finally:
             loop.close()
 
@@ -109,7 +108,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
         """Stop and cleanup a worker."""
         with self._lock:
             if worker_name not in self._workers:
-                self._logger.warning(f"Worker {worker_name} not found for cleanup")
+                log(f"Worker {worker_name} not found for cleanup", level=logging.WARNING)
                 return
 
             worker_info = self._workers[worker_name]
@@ -123,9 +122,9 @@ class ThreadWorkerManager(AbstractWorkerManager):
             thread.join(timeout=10.0)
 
             if thread.is_alive():
-                self._logger.warning(f"Worker thread {worker_name} did not stop gracefully")
+                log(f"Worker thread {worker_name} did not stop gracefully", level=logging.WARNING)
             else:
-                self._logger.info(f"Worker {worker_name} stopped successfully")
+                log(f"Worker {worker_name} stopped successfully")
 
             # Remove from tracking
             del self._workers[worker_name]
@@ -146,7 +145,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
                 alive_workers.append(Worker(name=worker_name, status="Running"))
             else:
                 # Clean up dead workers
-                self._logger.info(f"Removing dead worker {worker_name}")
+                log(f"Removing dead worker {worker_name}")
                 with self._lock:
                     if worker_name in self._workers:
                         del self._workers[worker_name]
@@ -155,7 +154,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
 
     def shutdown_all(self) -> None:
         """Shutdown all workers gracefully."""
-        self._logger.info("Shutting down all workers")
+        log("Shutting down all workers")
 
         with self._lock:
             worker_names = list(self._workers.keys())
@@ -164,6 +163,6 @@ class ThreadWorkerManager(AbstractWorkerManager):
             try:
                 self.cleanup_worker(worker_name)
             except Exception as e:
-                self._logger.error(f"Error cleaning up worker {worker_name}: {e}")
+                log(f"Error cleaning up worker {worker_name}: {e}", level=logging.ERROR, exc_info=True)
 
-        self._logger.info("All workers shutdown complete")
+        log("All workers shutdown complete")

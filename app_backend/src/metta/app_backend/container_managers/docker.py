@@ -5,12 +5,10 @@ import subprocess
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.config import datadog_config
+from metta.common.util.logging import log
 
 
 class DockerContainerManager(AbstractContainerManager):
-    def __init__(self):
-        self._logger = logging.getLogger(__name__)
-
     def start_worker_container(
         self,
         backend_url: str,
@@ -45,10 +43,10 @@ class DockerContainerManager(AbstractContainerManager):
 
         try:
             _ = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            self._logger.info(f"Started worker container {container_name}")
+            log(f"Started worker container {container_name}")
             return container_name
         except subprocess.CalledProcessError as e:
-            self._logger.error(f"Failed to start worker container: {e.stderr}")
+            log(f"Failed to start worker container: {e.stderr}")
             raise
 
     def cleanup_container(self, name: str) -> None:
@@ -59,9 +57,9 @@ class DockerContainerManager(AbstractContainerManager):
                 check=False,
             )
         except Exception as e:
-            self._logger.warning(f"Failed to cleanup container {name}: {e}")
+            log(f"Failed to cleanup container {name}: {e}", level=logging.ERROR)
         else:
-            self._logger.info(f"Cleaned up container {name}")
+            log(f"Cleaned up container {name}")
 
     async def discover_alive_workers(self) -> list[Worker]:
         result = subprocess.run(
@@ -98,5 +96,5 @@ class DockerContainerManager(AbstractContainerManager):
 
                             workers.append(Worker(name=container_name, status=status))
                         except ValueError:
-                            self._logger.warning(f"Skipping container with invalid name: {container_name}")
+                            log(f"Skipping container with invalid name: {container_name}", level=logging.WARNING)
         return workers
