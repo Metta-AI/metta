@@ -47,7 +47,6 @@ class Simulation:
         name: str,
         cfg: SimulationConfig,
         policy: PolicyAgent,
-        run_name: str,
         policy_uri: str,
         device: torch.device,
         vectorization: str,
@@ -105,7 +104,6 @@ class Simulation:
         self._agents_per_env = cfg.env.game.num_agents
 
         self._policy = policy
-        self._run_name = run_name
         self._policy_uri = policy_uri
         # Load NPC policy if specified
         if cfg.npc_policy_uri:
@@ -161,7 +159,6 @@ class Simulation:
         stats_dir: str = "./train_dir/stats",
         replay_dir: str = "./train_dir/replays",
         policy_uri: str | None = None,
-        run_name: str = "simulation_run",
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
         # Create policy record from URI
@@ -178,7 +175,6 @@ class Simulation:
             sim_config.name,
             sim_config,
             policy,
-            run_name,
             policy_uri or "mock://",
             device=torch.device(device),
             vectorization=vectorization,

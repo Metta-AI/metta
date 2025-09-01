@@ -38,15 +38,12 @@ def evaluate_policy(
 
     # Load the policy from URI directly to the correct device
     policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
-    metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-    run_name = metadata["run_name"]
 
     sims = [
         Simulation(
             name=sim.name,
             cfg=sim,
             policy=policy,
-            run_name=run_name,
             policy_uri=checkpoint_uri,
             device=device,
             vectorization=vectorization,
