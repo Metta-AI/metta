@@ -187,8 +187,15 @@ class CheckpointManager:
             FileNotFoundError: If the checkpoint file doesn't exist or cannot be loaded
             ValueError: If the URI scheme is not supported
         """
-        # Normalize the URI first (converts plain paths to file:// URIs)
         original_uri = uri
+
+        # Check for unsupported URI schemes before normalization
+        if "://" in uri:
+            scheme = uri.split("://")[0]
+            if scheme not in ["file", "wandb", "s3", "mock"]:
+                raise ValueError(f"Unsupported URI scheme: {original_uri}")
+
+        # Normalize the URI (converts plain paths to file:// URIs)
         uri = CheckpointManager.normalize_uri(uri)
 
         # Default to CPU if no device specified
