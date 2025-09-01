@@ -10,9 +10,6 @@ from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb
 
 logger = logging.getLogger(__name__)
 
-# Global cache for sharing checkpoints across CheckpointManager instances
-_global_cache = OrderedDict()
-
 
 class PolicyMetadata(TypedDict, total=False):
     """Type definition for policy metadata returned by get_policy_metadata."""
@@ -184,11 +181,9 @@ class CheckpointManager:
         self.cache_size = cache_size
         self._cache = OrderedDict()
 
-    @staticmethod
-    def clear_cache():
-        """Clear the global cache used by all CheckpointManager instances."""
-        global _global_cache
-        _global_cache.clear()
+    def clear_cache(self):
+        """Clear the instance's LRU cache."""
+        self._cache.clear()
 
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device | None = None):
