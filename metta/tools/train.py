@@ -191,7 +191,6 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
                 log(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}", master_only=True)
             else:
                 log("No git hash available for remote evaluations", master_only=True)
-
     return stats_client
 
 

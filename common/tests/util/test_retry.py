@@ -66,9 +66,8 @@ class TestRetryDecorator:
     def test_retry_on_exception_with_logger(self, caplog):
         """Test that retry attempts are logged correctly."""
         mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
-        logger = logging.getLogger("test_logger")
 
-        @retry_on_exception(max_retries=3, retry_delay=0.1, logger=logger)
+        @retry_on_exception(max_retries=3, retry_delay=0.1)
         def test_func():
             return mock_func()
 
@@ -166,12 +165,9 @@ class TestRetryFunction:
     def test_retry_function_with_logger(self, caplog):
         """Test that retry attempts are logged correctly."""
         mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
-        logger = logging.getLogger("test_logger")
 
         with caplog.at_level(logging.WARNING):
-            result = retry_function(
-                mock_func, max_retries=3, retry_delay=0.1, error_prefix="Test operation failed", logger=logger
-            )
+            result = retry_function(mock_func, max_retries=3, retry_delay=0.1, error_prefix="Test operation failed")
 
         assert result == "success"
         assert "Test operation failed: fail 1" in caplog.text  # Initial attempt

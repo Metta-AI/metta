@@ -11,6 +11,8 @@ from typing_extensions import TypeVar
 
 T = TypeVar("T")
 
+logger = logging.getLogger("SystemMonitor")
+
 
 class SystemMonitor:
     """A utility class for monitoring system statistics with support for multiple metrics.
@@ -24,7 +26,6 @@ class SystemMonitor:
         self,
         sampling_interval_sec: float = 1.0,
         history_size: int = 100,
-        logger: logging.Logger | None = None,
         auto_start: bool = True,
         external_timer: Any | None = None,
     ):
@@ -37,7 +38,6 @@ class SystemMonitor:
             auto_start: Whether to start monitoring immediately
             external_timer: Optional external timer (e.g., trainer's Stopwatch) for elapsed time
         """
-        self.logger = logger or logging.getLogger("SystemMonitor")
         self.sampling_interval_sec = sampling_interval_sec
         self.history_size = history_size
 

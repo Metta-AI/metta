@@ -69,7 +69,6 @@
 #         schedule_configs: dict[str, dict | None],
 #         optimizer,
 #         total_timesteps: int,
-#         logger=None,
 #     ):
 #         """Initialize the hyperparameter scheduler with explicit parameters.
 
@@ -78,12 +77,10 @@
 #             schedule_configs: Dict mapping parameter names to their schedule configs (or None for constant)
 #             optimizer: The optimizer to update learning rate on
 #             total_timesteps: Total timesteps for progress calculation
-#             logger: Logger instance (optional)
 #         """
 #         self.initial_values = initial_values
 #         self.optimizer = optimizer
 #         self.total_timesteps = total_timesteps
-#         self.logger = logger or logging.getLogger(__name__)
 
 #         # Map from parameter name to schedule config key
 #         self.schedule_key_mapping = {
@@ -106,7 +103,7 @@
 #                 self.schedulers[param_name] = ConstantSchedule(initial_value)
 
 #     @staticmethod
-#     def from_trainer_config(trainer_cfg: DictConfig, optimizer, total_timesteps: int, logger=None):
+#     def from_trainer_config(trainer_cfg: DictConfig, optimizer, total_timesteps: int):
 #         """Factory method to create HyperparameterScheduler from trainer config.
 
 #         Args:
@@ -148,7 +145,6 @@
 #             schedule_configs=schedule_configs,
 #             optimizer=optimizer,
 #             total_timesteps=total_timesteps,
-#             logger=logger,
 #         )
 
 #     def _compute_scheduled_value(self, param_name: str, current_step: int) -> float:
