@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import concurrent.futures
 import uuid
-from pathlib import Path
 from typing import Literal
 
 import wandb
@@ -75,65 +74,34 @@ def _get_policies_for_uri(
     select_metric: str,
     disallow_missing_policies: bool = False,
 ) -> tuple[str, list[tuple[str, str]] | None]:
-    """Get policies from a URI - working with URIs throughout."""
+    """Get policies from a URI using discover_policy_uris and extract metadata."""
     try:
         # Normalize URI using CheckpointManager
         policy_uri = CheckpointManager.normalize_uri(policy_uri)
 
-        if policy_uri.startswith("wandb://"):
-            # For wandb URIs, extract run name from metadata
-            metadata = CheckpointManager.get_policy_metadata(policy_uri)
-            return policy_uri, [(policy_uri, metadata["run_name"])]
+        # Map selector types to strategies
+        strategy_map = {"latest": "latest", "top": "best_score", "best_score": "best_score", "all": "all"}
+        strategy = strategy_map.get(selector_type, "latest")
 
-        if policy_uri.startswith("file://"):
-            path = Path(policy_uri[7:])
+        # Use discover_policy_uris to get all policy URIs
+        discovered_uris = CheckpointManager.discover_policy_uris(
+            base_uri=policy_uri, strategy=strategy, count=select_num, metric=select_metric
+        )
 
-            if path.is_file():
-                # Direct file - extract metadata using CheckpointManager
-                metadata = CheckpointManager.get_policy_metadata(policy_uri)
-                return policy_uri, [(policy_uri, metadata["run_name"])]
-
-            if not path.is_dir():
-                if disallow_missing_policies:
-                    raise FileNotFoundError(f"Path does not exist: {path}")
-                else:
-                    warning(f"Path does not exist: {path}")
-                    return policy_uri, None
-
-            # Directory with checkpoints
-            if path.name == "checkpoints":
-                run_name = path.parent.name
-                run_dir = str(path.parent.parent)
+        if not discovered_uris:
+            if disallow_missing_policies:
+                raise FileNotFoundError(f"No policies found for: {policy_uri}")
             else:
-                run_name = path.name
-                run_dir = str(path.parent)
+                warning(f"No policies found for: {policy_uri}")
+                return policy_uri, None
 
-            checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
+        # Extract metadata for each discovered URI to get run_name
+        results = []
+        for uri in discovered_uris:
+            metadata = CheckpointManager.get_policy_metadata(uri)
+            results.append((uri, metadata["run_name"]))
 
-            # Map selector types to strategies
-            strategy_map = {"latest": "latest", "top": "best_score", "best_score": "best_score", "all": "all"}
-            strategy = strategy_map.get(selector_type, "latest")
-
-            checkpoint_paths = checkpoint_manager.select_local_checkpoints(
-                strategy=strategy, count=select_num, metric=select_metric
-            )
-
-            if not checkpoint_paths:
-                if disallow_missing_policies:
-                    raise FileNotFoundError(f"No checkpoints found in: {path}")
-                else:
-                    warning(f"No checkpoints found in: {path}")
-                    return policy_uri, None
-
-            # Return list of (uri, run_name) tuples - keep as URIs!
-            results = [
-                (CheckpointManager.normalize_uri(str(checkpoint_path)), run_name)
-                for checkpoint_path in checkpoint_paths
-            ]
-            return policy_uri, results
-
-        else:
-            raise ValueError(f"Unsupported URI scheme: {policy_uri}")
+        return policy_uri, results
 
     except Exception as e:
         if not disallow_missing_policies:

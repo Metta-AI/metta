@@ -190,7 +190,7 @@ class CheckpointManager:
     @staticmethod
     def normalize_uri(path_or_uri: str) -> str:
         """Convert path to URI format and expand short wandb URIs."""
-        if not path_or_uri.startswith(("file://", "wandb://", "s3://")):
+        if not path_or_uri.startswith(("file://", "wandb://", "s3://", "mock://")):
             return f"file://{Path(path_or_uri).resolve()}"
         if path_or_uri.startswith("wandb://"):
             return expand_wandb_uri(path_or_uri)
