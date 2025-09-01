@@ -138,25 +138,31 @@ def train(
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
     # Distributed checkpoint loading coordination
-    # Only master loads checkpoint, then broadcasts decision to all ranks
+    # Master determines which checkpoint to load, then all ranks load the same one
     if torch_dist_cfg.is_master:
-        # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
-        existing_agent = checkpoint_manager.load_agent(device=device)
-
-        # Load trainer state (returns None if no trainer state exists)
+        # Check if checkpoints exist and load trainer state
         trainer_state = checkpoint_manager.load_trainer_state()
-        has_checkpoint = existing_agent is not None
+
+        # Determine checkpoint epoch to load (None if no checkpoints)
+        checkpoint_epoch = trainer_state["epoch"] if trainer_state else None
+
+        # Load the agent if checkpoint exists
+        if checkpoint_epoch is not None:
+            existing_agent = checkpoint_manager.load_agent(epoch=checkpoint_epoch, device=device)
+        else:
+            existing_agent = None
     else:
-        existing_agent = None
         trainer_state = None
-        has_checkpoint = False
+        checkpoint_epoch = None
+        existing_agent = None
 
-    # Synchronize checkpoint existence across all ranks
+    # Synchronize checkpoint epoch and trainer state across all ranks
     if torch.distributed.is_initialized():
-        from agent.src.metta.agent.util.distribution_utils import get_from_master
+        from metta.agent.util.distribution_utils import get_from_master
 
-        has_checkpoint = get_from_master(has_checkpoint)
+        checkpoint_epoch = get_from_master(checkpoint_epoch)
         trainer_state = get_from_master(trainer_state)
+        logger.info(f"Rank {torch_dist_cfg.rank}: Synchronized checkpoint_epoch = {checkpoint_epoch}")
 
     agent_step = trainer_state["agent_step"] if trainer_state else 0
     epoch = trainer_state["epoch"] if trainer_state else 0
@@ -170,14 +176,17 @@ def train(
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
     # Create or load agent with distributed coordination
-    if has_checkpoint:
+    # Now all ranks know the exact checkpoint epoch to load
+    if checkpoint_epoch is not None:
         if torch_dist_cfg.is_master:
             logger.info("Resuming training with existing agent from checkpoint")
             policy_agent = existing_agent
         else:
-            # Non-master ranks load the same checkpoint
-            logger.info(f"Rank {torch_dist_cfg.rank}: Loading checkpoint for distributed training")
-            policy_agent = checkpoint_manager.load_agent(device=device)
+            # Non-master ranks load the SAME checkpoint by epoch
+            logger.info(f"Rank {torch_dist_cfg.rank}: Loading checkpoint epoch {checkpoint_epoch}")
+            policy_agent = checkpoint_manager.load_agent(epoch=checkpoint_epoch, device=device)
+            if policy_agent is None:
+                raise RuntimeError(f"Rank {torch_dist_cfg.rank}: Failed to load checkpoint epoch {checkpoint_epoch}")
     else:
         logger.info("Creating new agent for training")
         policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
