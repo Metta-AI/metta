@@ -201,7 +201,7 @@ class HyperparameterScheduler:
                 if param_name in update_callbacks:
                     update_callbacks[param_name](new_value)
 
-        if current_step % 10 == 0 and updates:
+        if current_step % 10000 == 0 and updates:
             self.logger.info(
                 f"Step {current_step}: Updated hyperparameters: "
                 + ", ".join(f"{k}={v:.6f}" for k, v in updates.items())
