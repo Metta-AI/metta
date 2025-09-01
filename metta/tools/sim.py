@@ -11,14 +11,86 @@ from pydantic import Field
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
-from metta.common.wandb.wandb_context import WandbConfig
+from metta.common.wandb.wandb_context import WandbConfig, WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.evaluate import upload_replay_html
 from metta.rl.policy_management import discover_policy_uris
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
+
+
+def process_policy_evaluator_stats(
+    policy_result: dict, eval_results: dict, wandb_run: WandbRun | None = None
+) -> None:
+    """Process evaluation results and push metrics to wandb.
+    
+    Args:
+        policy_result: Dictionary containing policy information and checkpoint details
+        eval_results: Dictionary containing evaluation metrics and results
+        wandb_run: Optional WandbRun instance for logging to wandb
+    """
+    if not wandb_run:
+        logger.debug("No wandb run available, skipping metric logging")
+        return
+    
+    try:
+        # Extract key metrics from evaluation results
+        metrics = eval_results.get("metrics", {})
+        checkpoint_info = policy_result.get("checkpoints", [])
+        
+        if not checkpoint_info:
+            logger.warning("No checkpoint information in policy results")
+            return
+            
+        # Get the latest checkpoint info (assumes last in list is latest)
+        latest_checkpoint = checkpoint_info[-1] if checkpoint_info else {}
+        epoch = latest_checkpoint.get("epoch", 0)
+        agent_step = metrics.get("agent_step", 0)
+        
+        # Prepare metrics for wandb logging
+        wandb_metrics = {
+            "eval/reward_avg": metrics.get("reward_avg", 0.0),
+            "eval/reward_avg_category_normalized": metrics.get("reward_avg_category_normalized", 0.0),
+            "eval/agent_step": agent_step,
+            "eval/epoch": epoch,
+        }
+        
+        # Add detailed metrics if available
+        detailed = metrics.get("detailed", {})
+        for key, value in detailed.items():
+            wandb_metrics[f"eval/detailed/{key}"] = value
+        
+        # Log metrics to wandb
+        wandb_run.log(wandb_metrics, step=agent_step if agent_step > 0 else epoch)
+        
+        # Handle replay URLs if available
+        replay_urls = latest_checkpoint.get("replay_url", [])
+        if replay_urls:
+            # Group replay URLs by simulation name
+            replay_dict = {}
+            for i, url in enumerate(replay_urls):
+                sim_name = f"sim_{i}"  # Default naming if not specified
+                if sim_name not in replay_dict:
+                    replay_dict[sim_name] = []
+                replay_dict[sim_name].append(url)
+            
+            # Upload replay HTML links
+            upload_replay_html(
+                replay_urls=replay_dict,
+                agent_step=agent_step,
+                epoch=epoch,
+                wandb_run=wandb_run,
+                step_metric_key="eval/agent_step",
+                epoch_metric_key="eval/epoch"
+            )
+        
+        logger.info(f"Successfully logged evaluation metrics to wandb for epoch {epoch}")
+        
+    except Exception as e:
+        logger.error(f"Failed to process policy evaluator stats: {e}")
 
 
 class SimTool(Tool):
@@ -90,6 +162,21 @@ class SimTool(Tool):
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
 
+        # Initialize wandb if configured
+        wandb_run = None
+        wandb_context = None
+        if self.wandb and self.wandb.is_configured():
+            try:
+                from metta.common.wandb.wandb_context import WandbContext
+                wandb_context = WandbContext(self.wandb)
+                wandb_context.__enter__()
+                wandb_run = wandb_context.run
+                logger.info(f"Initialized wandb run: {wandb_run.id if wandb_run else 'None'}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize wandb: {e}")
+                wandb_run = None
+                wandb_context = None
+
         # Initialize stats database if needed
         stats_db = None
         if self.export_to_stats_db and self.stats_db_uri:
@@ -127,15 +214,26 @@ class SimTool(Tool):
                     except Exception as e:
                         logger.warning(f"Failed to export to stats database: {e}")
 
-                results["checkpoints"].append(
-                    {
-                        "name": metadata["run_name"],
-                        "uri": checkpoint_uri,
-                        "epoch": metadata["epoch"],
-                        "metrics": evaluation_metrics,
-                        "replay_url": [],
-                    }
-                )
+                checkpoint_result = {
+                    "name": metadata["run_name"],
+                    "uri": checkpoint_uri,
+                    "epoch": metadata["epoch"],
+                    "metrics": evaluation_metrics,
+                    "replay_url": [],
+                }
+                results["checkpoints"].append(checkpoint_result)
+                
+                # Push metrics to wandb if configured
+                if wandb_run:
+                    try:
+                        process_policy_evaluator_stats(
+                            policy_result={"checkpoints": [checkpoint_result]},
+                            eval_results={"metrics": evaluation_metrics},
+                            wandb_run=wandb_run
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to process policy evaluator stats: {e}")
+                        
             all_results["policies"].append(results)
 
         # Always output JSON results to stdout
@@ -148,6 +246,13 @@ class SimTool(Tool):
         print("===JSON_OUTPUT_START===")
         print(json.dumps(all_results, indent=2))
         print("===JSON_OUTPUT_END===")
+        
+        # Clean up wandb context if it was initialized
+        if wandb_context:
+            try:
+                wandb_context.__exit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Failed to clean up wandb context: {e}")
 
     def _export_checkpoint_to_stats_db(self, stats_db: SimulationStatsDB, checkpoint_uri: str, metrics: dict) -> None:
         """Export checkpoint evaluation results to stats database.
