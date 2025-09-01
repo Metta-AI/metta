@@ -13,9 +13,9 @@ proc agentColor*(id: int): Color =
     1.0
   )
 
-proc useSelections*() =
+proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
-  if window.buttonPressed[MouseLeft]:
+  if panel.hasMouse and window.buttonPressed[MouseLeft]:
     selection = nil
     let
       mousePos = bxy.getTransform().inverse * window.mousePos.vec2
