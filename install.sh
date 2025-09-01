@@ -1,6 +1,7 @@
 #!/bin/sh
 set -u
 PROFILE=""
+SKIP_CONFIGURE="false"
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile)
@@ -15,22 +16,28 @@ while [ $# -gt 0 ]; do
       PROFILE="${1#--profile=}"
       shift
       ;;
+    --no-configure)
+      SKIP_CONFIGURE="true"
+      shift
+      ;;
     --help | -h)
       echo "Usage: $0 [OPTIONS]"
       echo ""
       echo "This script:"
       echo "  1. Installs uv and python dependencies"
-      echo "  2. Configures Metta for your profile"
+      echo "  2. Configures Metta for your profile (optional)"
       echo "  3. Installs components"
       echo ""
       echo "Options:"
       echo "  --profile PROFILE      Set user profile (external, cloud, or softmax)"
       echo "                         If not specified, runs interactive configuration"
+      echo "  --no-configure         Skip configuration step entirely"
       echo "  -h, --help             Show this help message"
       echo ""
       echo "Examples:"
-      echo "  $0                     # Interactive setup"
+      echo "  $0                     # Interactive setup with configuration"
       echo "  $0 --profile=softmax   # Setup for Softmax employee"
+      echo "  $0 --no-configure      # Skip configuration, install only"
       exit 0
       ;;
     *)
@@ -55,13 +62,38 @@ ensure_uv_setup
 uv sync || err "Failed to install Python dependencies"
 uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
 
-# Only run configuration if no config exists
-if [ ! -f "$REPO_ROOT/.metta/config.yaml" ] && [ ! -f "$HOME/.metta/config.yaml" ]; then
-  echo "No configuration found, running setup wizard..."
+# Configuration step
+if [ "$SKIP_CONFIGURE" = "true" ]; then
+  echo "Skipping configuration as requested."
+elif [ ! -f "$REPO_ROOT/.metta/config.yaml" ] && [ ! -f "$HOME/.metta/config.yaml" ]; then
+  # No config exists - ask user if they want to configure
+  echo "No Metta configuration found."
+  
   if [ -n "$PROFILE" ]; then
+    # Profile specified via flag, run configuration directly
+    echo "Running configuration with profile: $PROFILE"
     uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" || err "Failed to run configuration"
   else
-    uv run python -m metta.setup.metta_cli configure || err "Failed to run configuration"
+    # Interactive mode - ask user
+    echo ""
+    echo "Would you like to configure Metta now? This will set up:"
+    echo "  • W&B credentials and settings"
+    echo "  • Storage locations (S3 or local)"
+    echo "  • Other integrations"
+    echo ""
+    echo "You can always run 'metta configure' later to set this up."
+    printf "Configure now? (y/n) [y]: "
+    read -r configure_choice
+    
+    case "$configure_choice" in
+      n|N|no|No|NO)
+        echo "Skipping configuration. Run 'metta configure' when ready."
+        ;;
+      *)
+        echo "Running interactive configuration..."
+        uv run python -m metta.setup.metta_cli configure || err "Failed to run configuration"
+        ;;
+    esac
   fi
 else
   if [ -f "$REPO_ROOT/.metta/config.yaml" ]; then
