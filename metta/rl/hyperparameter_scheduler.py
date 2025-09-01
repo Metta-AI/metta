@@ -170,7 +170,7 @@ class HyperparameterScheduler:
         """Compute the scheduled value for a hyperparameter at the current step."""
         schedule_fn = self.schedulers[param_name]
 
-        progress = min(current_step / self.total_timesteps, 1.0)
+        progress = min(current_step / max(self.total_timesteps, 1), 1.0)
         return schedule_fn(progress)
 
     def step(self, current_step: int, update_callbacks: dict[str, callable] = None) -> dict[str, float]:
