@@ -7,7 +7,6 @@ import metta.mettagrid.config.envs as eb
 from experiments.recipes.arena import evaluate, replay, train
 from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_management import discover_policy_uris
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -67,7 +66,7 @@ class TestNewPolicySystem:
         """Test that policy discovery functions exist and can be called."""
 
         try:
-            discovered = discover_policy_uris("mock://test", strategy="latest", count=1)
+            discovered = CheckpointManager.discover_policy_uris("mock://test", strategy="latest", count=1)
             assert isinstance(discovered, list)
         except Exception as e:
             assert "not found" in str(e).lower() or "invalid" in str(e).lower()

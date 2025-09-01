@@ -14,7 +14,6 @@ from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig, WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
-from metta.rl.policy_management import discover_policy_uris
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -139,7 +138,7 @@ class SimTool(Tool):
             strategy_map = {"top": "best_score", "latest": "latest", "best_score": "best_score", "all": "all"}
             strategy = strategy_map.get(self.selector_type, "latest")
 
-            discovered_uris = discover_policy_uris(
+            discovered_uris = CheckpointManager.discover_policy_uris(
                 policy_uri, strategy=strategy, count=self.selector_count, metric=self.selector_metric
             )
 
