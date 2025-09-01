@@ -7,7 +7,6 @@ import metta.mettagrid.config.envs as eb
 from experiments.recipes.arena import evaluate, replay, train
 from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_management import discover_policy_uris
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
