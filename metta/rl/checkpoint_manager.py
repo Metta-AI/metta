@@ -284,22 +284,17 @@ class CheckpointManager:
         pattern = f"{self.run_name}__e{epoch}__s*__t*__sc*.pt" if epoch else f"{self.run_name}__e*__s*__t*__sc*.pt"
         return list(self.checkpoint_dir.glob(pattern))
 
-    def _get_checkpoint_file(self, epoch: Optional[int] = None) -> Optional[Path]:
-        files = self._find_checkpoint_files(epoch)
-        if not files:
-            return None
-        return files[0] if epoch else max(files, key=lambda p: parse_checkpoint_filename(p.name)[1])
-
-    def exists(self) -> bool:
-        return self.checkpoint_dir.exists() and bool(self._find_checkpoint_files())
-
     def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
         """Load agent checkpoint from local directory.
         Uses unified load_from_uri mechanism internally.
         """
-        agent_file = self._get_checkpoint_file(epoch)
-        if not agent_file:
+        # Find checkpoint file
+        files = self._find_checkpoint_files(epoch)
+        if not files:
             return None
+        
+        # Select the appropriate file (first if epoch specified, latest if not)
+        agent_file = files[0] if epoch else max(files, key=lambda p: parse_checkpoint_filename(p.name)[1])
 
         # Convert to URI and check cache
         file_uri = f"file://{agent_file.resolve()}"
