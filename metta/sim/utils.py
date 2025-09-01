@@ -20,27 +20,36 @@ def get_or_create_policy_ids(
         create: Whether to create policies that don't exist
 
     Returns:
-        Bidirectional mapping of run_name to policy UUID
+        Bidirectional mapping of URI to policy UUID
     """
     from metta.rl.checkpoint_manager import CheckpointManager
 
-    # Process policies - extract run_name from URI
+    # Process policies - using URIs as primary identifier
     processed_policies = []
+    uri_to_name = {}
     for uri, description in policies:
-        # Extract run_name from URI
+        # Extract run_name for backward compatibility with stats server
         metadata = CheckpointManager.get_policy_metadata(uri)
         name = metadata["run_name"]
-        processed_policies.append((name, uri, description))
+        processed_policies.append((uri, name, description))
+        uri_to_name[uri] = name
 
-    policy_names = [name for (name, _, __) in processed_policies]
+    # Get existing policy IDs from stats server (still uses names for now)
+    policy_names = [name for (_, name, __) in processed_policies]
     policy_ids_response = stats_client.get_policy_ids(policy_names)
-    policy_ids = bidict(policy_ids_response.policy_ids)
+    name_to_id = policy_ids_response.policy_ids
+
+    # Build URI-based bidict
+    policy_ids = bidict()
+    for uri, name, _ in processed_policies:
+        if name in name_to_id:
+            policy_ids[uri] = name_to_id[name]
 
     if create:
-        for name, uri, description in processed_policies:
-            if name not in policy_ids:
+        for uri, name, description in processed_policies:
+            if uri not in policy_ids:
                 policy_response = stats_client.create_policy(
                     name=name, description=description, url=uri, epoch_id=epoch_id
                 )
-                policy_ids[name] = policy_response.id
+                policy_ids[uri] = policy_response.id
     return policy_ids

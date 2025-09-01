@@ -553,11 +553,9 @@ def train(
                             policy_uri = f"wandb://metta/{run}:{epoch}" if wandb_run else None
 
                             task_response = evaluate_policy_remote_with_checkpoint_manager(
-                                checkpoint_manager=checkpoint_manager,
-                                checkpoint_path=None,  # Use best checkpoint
+                                policy_uri=policy_uri,
                                 simulations=sims,
                                 stats_epoch_id=stats_tracker.stats_epoch_id,
-                                policy_uri=policy_uri,
                                 stats_client=stats_client,
                                 wandb_run=wandb_run,
                                 trainer_cfg=trainer_cfg,

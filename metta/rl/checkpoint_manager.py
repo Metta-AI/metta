@@ -293,7 +293,12 @@ class CheckpointManager:
             result["stopwatch_state"] = state["stopwatch_state"]
         return result
 
-    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]):
+    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any], wandb_run=None) -> Optional[str]:
+        """Save agent checkpoint to disk and optionally to wandb.
+        
+        Returns:
+            Wandb artifact URI if uploaded, None otherwise
+        """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         agent_step = metadata.get("agent_step", 0)
         total_time = int(metadata.get("total_time", 0))
@@ -305,6 +310,30 @@ class CheckpointManager:
         existing_files = self._find_checkpoint_files(epoch)
 
         torch.save(agent, checkpoint_path)
+        
+        # Upload to wandb if run is provided
+        wandb_uri = None
+        if wandb_run and metadata.get("upload_to_wandb", True):
+            from metta.rl.wandb import upload_checkpoint_as_artifact
+            
+            artifact_name = f"{self.run_name}_{epoch}"
+            if metadata.get("is_final", False):
+                artifact_name += "_final"
+            
+            wandb_metadata = {
+                "run_name": self.run_name,
+                "epoch": epoch,
+                "agent_step": agent_step,
+                "total_time": total_time,
+                "score": metadata.get("score", 0.0),
+            }
+            
+            wandb_uri = upload_checkpoint_as_artifact(
+                checkpoint_path=str(checkpoint_path),
+                artifact_name=artifact_name,
+                metadata=wandb_metadata,
+                wandb_run=wandb_run,
+            )
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
         if existing_files:

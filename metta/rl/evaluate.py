@@ -1,6 +1,5 @@
 import logging
 import uuid
-from pathlib import Path
 from typing import Any, Optional
 
 import wandb
@@ -19,23 +18,19 @@ logger = logging.getLogger(__name__)
 
 
 def evaluate_policy_remote_with_checkpoint_manager(
-    checkpoint_manager: CheckpointManager,
-    checkpoint_path: Optional[str],
+    policy_uri: str,
     simulations: list[SimulationConfig],
     stats_epoch_id: uuid.UUID | None,
-    policy_uri: str | None,
     stats_client: StatsClient | None,
     wandb_run: WandbRun | None,
     trainer_cfg: TrainerConfig,
 ) -> TaskResponse | None:
-    """Create a remote evaluation task using CheckpointManager.
+    """Create a remote evaluation task using a policy URI.
 
     Args:
-        checkpoint_manager: CheckpointManager instance
-        checkpoint_path: Specific checkpoint path, or None for latest
+        policy_uri: Policy URI (wandb://, file://, etc.)
         simulations: List of simulations to run
         stats_epoch_id: Stats epoch ID for tracking
-        policy_uri: Policy URI (wandb://, file://, etc.)
         stats_client: Client for stats server communication
         wandb_run: WandB run context
         trainer_cfg: Training configuration
@@ -46,13 +41,6 @@ def evaluate_policy_remote_with_checkpoint_manager(
     if not (wandb_run and stats_client and policy_uri):
         logger.warning("Remote evaluation requires wandb_run, stats_client, and policy_uri")
         return None
-
-    # Get checkpoint path if not specified
-    if checkpoint_path is None:
-        checkpoint_path = checkpoint_manager.find_best_checkpoint("score")
-        if checkpoint_path is None:
-            logger.warning("No checkpoints available for remote evaluation")
-            return None
 
     # Normalize the policy URI
     normalized_uri = CheckpointManager.normalize_uri(policy_uri)
@@ -67,7 +55,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
         stats_client,
         [(normalized_uri, wandb_run.notes)],  # New format: (uri, description)
         stats_epoch_id,
-    ).get(CheckpointManager.get_policy_metadata(normalized_uri)["run_name"])
+    ).get(normalized_uri)
 
     if not stats_server_policy_id:
         logger.warning(f"Remote evaluation: failed to get or register policy ID for {normalized_uri}")
@@ -86,8 +74,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
     )
 
     logger.info(
-        f"Policy evaluator: created task {task.id} for {normalized_uri} on {simulations[0].name} "
-        f"using checkpoint {Path(checkpoint_path).name}"
+        f"Policy evaluator: created task {task.id} for {normalized_uri} on {simulations[0].name}"
     )
 
     return task

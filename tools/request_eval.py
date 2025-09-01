@@ -59,11 +59,11 @@ class EvalRequest(BaseModel):
         return self
 
 
-def _get_policies_for_uri(
+def validate_policy_uri(
     policy_uri: str,
     disallow_missing_policies: bool = False,
-) -> tuple[str, list[str] | None]:
-    """Get policies from a URI - requires fully versioned URIs."""
+) -> str | None:
+    """Validate that a policy URI is accessible and properly versioned."""
     try:
         # Normalize URI using CheckpointManager
         normalized_uri = CheckpointManager.normalize_uri(policy_uri)
@@ -76,15 +76,15 @@ def _get_policies_for_uri(
                 raise FileNotFoundError(f"Could not load policy from {normalized_uri}")
             else:
                 warning(f"Could not load policy from {normalized_uri}")
-                return policy_uri, None
+                return None
 
         # Return the normalized URI
-        return policy_uri, [normalized_uri]
+        return normalized_uri
 
     except Exception as e:
         if not disallow_missing_policies:
             warning(f"Error processing {policy_uri}: {e}")
-            return policy_uri, None
+            return None
         else:
             raise
 
@@ -102,18 +102,18 @@ async def _create_remote_eval_tasks(request: EvalRequest) -> None:
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future_to_uri = {
             executor.submit(
-                _get_policies_for_uri,
+                validate_policy_uri,
                 policy_uri=policy_uri,
                 disallow_missing_policies=request.disallow_missing_policies,
             ): policy_uri
             for policy_uri in request.policies
         }
 
-        all_policies = []  # Just collect all URIs
+        all_policies = []  # Just collect valid URIs
         for future in concurrent.futures.as_completed(future_to_uri):
-            policy_uri, results = future.result()
-            if results is not None:
-                all_policies.extend(results)
+            normalized_uri = future.result()
+            if normalized_uri is not None:
+                all_policies.append(normalized_uri)
 
     if not all_policies:
         warning("No policies found")
