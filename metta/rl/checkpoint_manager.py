@@ -26,7 +26,6 @@ class PolicyMetadata(TypedDict, total=False):
 
 def _parse_uri_path(uri: str, scheme: str) -> str:
     """Extract path from URI, removing the scheme prefix.
-
     "file:///tmp/model.pt" -> "/tmp/model.pt"
     "wandb://project/artifact:v1" -> "project/artifact:v1"
     """
@@ -36,7 +35,6 @@ def _parse_uri_path(uri: str, scheme: str) -> str:
 
 def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format.
-
     "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
     "wandb://run/my-run:v5" -> "wandb://metta/model/my-run:v5"
     "wandb://sweep/sweep-abc" -> "wandb://metta/sweep_model/sweep-abc:latest"
@@ -69,7 +67,6 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
 
 def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI.
-
     "file:///tmp/my_run__e5__s100__t60__sc5000.pt" -> ("my_run", 5)
     "s3://bucket/my_run__e10__s200__t120__sc8000.pt" -> ("my_run", 10)
     "mock://test_agent" -> ("test_agent", 0)
@@ -188,10 +185,8 @@ class CheckpointManager:
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device | None = None):
         """Load a policy from file://, s3://, or wandb:// URI.
-
         Supports loading from local files, S3 buckets, wandb artifacts, or mock URIs.
         Defaults to CPU if no device is specified.
-
         Raises:
             FileNotFoundError: If the checkpoint file doesn't exist or cannot be loaded
             ValueError: If the URI scheme is not supported
@@ -247,7 +242,6 @@ class CheckpointManager:
     @staticmethod
     def normalize_uri(path_or_uri: str) -> str:
         """Validate and normalize URI format, expanding short wandb URIs.
-
         Requires explicit URI schemes - no auto-conversion of paths.
         """
         if path_or_uri.startswith("wandb://"):
@@ -301,7 +295,6 @@ class CheckpointManager:
 
     def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
         """Load agent checkpoint from local directory.
-
         Uses unified load_from_uri mechanism internally.
         """
         agent_file = self._get_checkpoint_file(epoch)
@@ -348,7 +341,6 @@ class CheckpointManager:
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any], wandb_run=None) -> str:
         """Save agent checkpoint to disk and optionally to wandb.
-
         Returns URI of saved checkpoint (file:// for local, wandb:// if uploaded to wandb).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)

@@ -96,7 +96,6 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
 
 def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> torch.nn.Module:
     """Load policy from wandb://entity/project/artifact_name:version format.
-
     Raises:
         ValueError: If URI is not a wandb:// URI
         FileNotFoundError: If no .pt files found in artifact
