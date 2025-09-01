@@ -5,7 +5,9 @@ from datetime import datetime
 
 import rich.traceback
 from rich.logging import RichHandler
+
 from metta.common.util.constants import RANK_ENV_VARS
+
 
 def remap_io(logs_path: str):
     os.makedirs(logs_path, exist_ok=True)
@@ -31,6 +33,7 @@ def get_node_rank() -> str | None:
         if rank := os.environ.get(var):
             return rank
     return None
+
 
 def log_master(message: str, logger: logging.Logger | None = None, level: int = logging.INFO):
     """
@@ -233,6 +236,7 @@ def init_logging(level: str | None = None, run_dir: str | None = None, show_rank
 _INITIALIZED = False
 _GLOBAL_LOGGER = None
 
+
 def log(message: str, level: int = logging.INFO, show_rank: bool = True, master_only: bool = False):
     """
     Universal logging function that handles initialization automatically.
@@ -254,5 +258,5 @@ def log(message: str, level: int = logging.INFO, show_rank: bool = True, master_
     if master_only:
         log_master(message, logger=_GLOBAL_LOGGER, level=level)
     else:
-        assert(_GLOBAL_LOGGER)
+        assert _GLOBAL_LOGGER
         _GLOBAL_LOGGER.log(level, message)

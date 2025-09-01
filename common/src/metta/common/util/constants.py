@@ -30,6 +30,7 @@ SOFTMAX_S3_BASE = f"s3://{SOFTMAX_S3_BUCKET}"
 
 RANK_ENV_VARS = ["SKYPILOT_NODE_RANK", "RANK", "OMPI_COMM_WORLD_RANK"]
 
+
 def main():
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <KEY>", file=sys.stderr)
