@@ -300,10 +300,10 @@ def _():
         # Only handle signals if we're in the main thread
         # Marimo and other interactive environments run code in separate threads
         is_main_thread = threading.current_thread() is threading.main_thread()
-        
+
         if is_main_thread:
             original_handler = signal.signal(signal.SIGINT, signal.default_int_handler)
-        
+
         try:
             yield
         except KeyboardInterrupt:
