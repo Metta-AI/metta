@@ -161,6 +161,7 @@ def train(
     agent_step = trainer_state["agent_step"] if trainer_state else 0
     epoch = trainer_state["epoch"] if trainer_state else 0
     latest_saved_epoch = epoch  # Track the epoch of the latest saved checkpoint
+    latest_wandb_uri = None  # Track the last uploaded wandb artifact URI
 
     if trainer_state:
         logger.info(f"Restored from checkpoint at {agent_step} steps")
@@ -528,6 +529,7 @@ def train(
 
                 if wandb_uri:
                     logger.info(f"Uploaded checkpoint to wandb: {wandb_uri}")
+                    latest_wandb_uri = wandb_uri  # Track for remote evaluation
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with CheckpointManager - use current policy directly
@@ -551,9 +553,13 @@ def train(
                     evaluate_local = trainer_cfg.evaluation.evaluate_local
                     if trainer_cfg.evaluation.evaluate_remote:
                         try:
-                            # Use SimpleCheckpointManager for remote evaluation
-                            # Create policy URI for the wandb artifact
-                            policy_uri = f"wandb://metta/{run}:{epoch}" if wandb_run else None
+                            # Get the most recent checkpoint URI for remote evaluation
+                            # Prefer wandb artifact if available, otherwise use local file
+                            if latest_wandb_uri:
+                                policy_uri = latest_wandb_uri
+                            else:
+                                checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
+                                policy_uri = checkpoint_uris[0] if checkpoint_uris else None
 
                             task_response = evaluate_policy_remote_with_checkpoint_manager(
                                 policy_uri=policy_uri,
@@ -674,6 +680,7 @@ def train(
 
     if wandb_uri:
         logger.info(f"Uploaded final checkpoint to wandb: {wandb_uri}")
+        latest_wandb_uri = wandb_uri  # Track the final wandb URI
 
     cleanup_monitoring(memory_monitor, system_monitor)
 

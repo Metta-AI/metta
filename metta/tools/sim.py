@@ -115,7 +115,7 @@ class SimTool(Tool):
             # No more strategy-based discovery
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
-            agent = CheckpointManager.load_from_uri(normalized_uri)
+            agent = CheckpointManager.load_from_uri(normalized_uri, device=self.system.device)
             if agent is None:
                 logger.error(f"Failed to load policy from {normalized_uri}")
                 policies_by_uri[policy_uri] = []
