@@ -30,18 +30,9 @@ def evaluate_policy_remote_with_checkpoint_manager(
 ) -> TaskResponse | None:
     """Create a remote evaluation task using CheckpointManager.
 
-    Args:
-        checkpoint_manager: CheckpointManager instance
-        checkpoint_path: Specific checkpoint path, or None for latest
-        simulations: List of simulations to run
-        stats_epoch_id: Stats epoch ID for tracking
-        policy_uri: Policy URI (wandb://, file://, etc.)
-        stats_client: Client for stats server communication
-        wandb_run: WandB run context
-        trainer_cfg: Training configuration
-
-    Returns:
-        TaskResponse if evaluation task created, None otherwise
+    Requires wandb_run, stats_client, and policy_uri to be provided.
+    Uses the latest checkpoint if checkpoint_path is not specified.
+    Returns None if the task cannot be created.
     """
     if not (wandb_run and stats_client and policy_uri):
         logger.warning("Remote evaluation requires wandb_run, stats_client, and policy_uri")
