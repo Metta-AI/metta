@@ -25,7 +25,6 @@ class ReplayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    selector_type: str = "latest"
     replay_dir: str = "./train_dir/replays"
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
@@ -70,7 +69,6 @@ def open_browser(replay_url: str, cfg: ReplayTool) -> None:
                 wandb=cfg.wandb,
                 sim=cfg.sim,
                 policy_uri=cfg.policy_uri,
-                selector_type=cfg.selector_type,
                 replay_dir=cfg.replay_dir,
                 stats_dir=cfg.stats_dir,
                 open_browser_on_start=cfg.open_browser_on_start,

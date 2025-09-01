@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import concurrent.futures
 import uuid
-from typing import Literal
 
 import wandb
 from bidict import bidict
@@ -28,9 +27,6 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.setup.utils import debug, info, success, warning
 from metta.sim.utils import get_or_create_policy_ids
 
-# Policy selection types that define how to select checkpoints from a directory
-PolicySelectorType = Literal["latest", "top", "best_score", "all"]
-
 
 class EvalRequest(BaseModel):
     """Evaluation request configuration."""
@@ -40,10 +36,6 @@ class EvalRequest(BaseModel):
     stats_server_uri: str = PROD_STATS_SERVER_URI
 
     git_hash: str | None = None
-
-    policy_select_type: PolicySelectorType = "latest"
-    policy_select_metric: str = "score"
-    policy_select_num: int = 1
 
     wandb_project: str = Field(default="")
     wandb_entity: str = Field(default="")
@@ -69,33 +61,25 @@ class EvalRequest(BaseModel):
 
 def _get_policies_for_uri(
     policy_uri: str,
-    selector_type: PolicySelectorType,
-    select_num: int,
-    select_metric: str,
     disallow_missing_policies: bool = False,
 ) -> tuple[str, list[str] | None]:
-    """Get policies from a URI - returns normalized URIs only."""
+    """Get policies from a URI - requires fully versioned URIs."""
     try:
         # Normalize URI using CheckpointManager
-        policy_uri = CheckpointManager.normalize_uri(policy_uri)
+        normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
-        # Map selector types to strategies
-        strategy_map = {"latest": "latest", "top": "best_score", "best_score": "best_score", "all": "all"}
-        strategy = strategy_map.get(selector_type, "latest")
-
-        # Use discover_policy_uris to get all policy URIs
-        discovered_uris = CheckpointManager.discover_policy_uris(
-            base_uri=policy_uri, strategy=strategy, count=select_num, metric=select_metric
-        )
-
-        if not discovered_uris:
+        # All URIs must be fully versioned - no strategy-based discovery
+        # Validate that we can load the policy
+        agent = CheckpointManager.load_from_uri(normalized_uri)
+        if agent is None:
             if disallow_missing_policies:
-                raise FileNotFoundError(f"No policies found for: {policy_uri}")
+                raise FileNotFoundError(f"Could not load policy from {normalized_uri}")
             else:
-                warning(f"No policies found for: {policy_uri}")
+                warning(f"Could not load policy from {normalized_uri}")
                 return policy_uri, None
 
-        return policy_uri, discovered_uris
+        # Return the normalized URI
+        return policy_uri, [normalized_uri]
 
     except Exception as e:
         if not disallow_missing_policies:
@@ -112,7 +96,7 @@ async def _create_remote_eval_tasks(request: EvalRequest) -> None:
         warning("No stats client found")
         return
 
-    info(f"Retrieving {request.policy_select_type} policies for {len(request.policies)} paths...")
+    info(f"Retrieving policies for {len(request.policies)} paths...")
 
     # Process all policy URIs
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -120,9 +104,6 @@ async def _create_remote_eval_tasks(request: EvalRequest) -> None:
             executor.submit(
                 _get_policies_for_uri,
                 policy_uri=policy_uri,
-                selector_type=request.policy_select_type,
-                select_num=request.policy_select_num,
-                select_metric=request.policy_select_metric,
                 disallow_missing_policies=request.disallow_missing_policies,
             ): policy_uri
             for policy_uri in request.policies
@@ -235,33 +216,10 @@ async def main() -> None:
         dest="policies",
         help="""Policy URI or path. Can be specified multiple times for multiple policies.
         Supports:
-        - file:// URIs: file:///path/to/checkpoint.pt or file:///path/to/run/checkpoints
-        - wandb:// URIs: wandb://project/artifact:version
-        - Direct file paths: /path/to/checkpoint.pt (will be converted to file:// URI)
-        - Checkpoint directories: /path/to/run/checkpoints (will be converted to file:// URI)""",
+        - file:// URIs: file:///path/to/checkpoint.pt (must be specific checkpoint file)
+        - wandb:// URIs: wandb://project/artifact:version (must include version)
+        - Direct file paths: /path/to/checkpoint.pt (will be converted to file:// URI)""",
         required=True,
-    )
-
-    parser.add_argument(
-        "--policy-select-type",
-        type=str,
-        default="latest",
-        choices=PolicySelectorType.__args__,
-        help="Policy selection type.",
-    )
-
-    parser.add_argument(
-        "--policy-select-num",
-        type=int,
-        default=1,
-        help="Number of policies to select. Used with 'top' or 'best_score'.",
-    )
-
-    parser.add_argument(
-        "--policy-select-metric",
-        type=str,
-        default="score",
-        help="Policy selection metric. Used with 'top' or 'best_score'.",
     )
 
     parser.add_argument(
@@ -320,9 +278,6 @@ async def main() -> None:
                 policies=args.policies,
                 stats_server_uri=args.stats_server_uri,
                 git_hash=args.git_hash,
-                policy_select_type=args.policy_select_type,
-                policy_select_num=args.policy_select_num,
-                policy_select_metric=args.policy_select_metric,
                 wandb_project=args.wandb_project,
                 wandb_entity=args.wandb_entity,
                 disallow_missing_policies=args.disallow_missing_policies,

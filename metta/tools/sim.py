@@ -110,9 +110,6 @@ class SimTool(Tool):
 
     wandb: WandbConfig = auto_wandb_config()
 
-    selector_type: str = "top"  # top, latest, all, or best_score
-    selector_count: int = 1  # number of checkpoints to select
-    selector_metric: str = "score"  # metric to use for selection
     stats_dir: str | None = None  # The (local) directory where stats should be stored
     stats_db_uri: str | None = None  # If set, export stats to this url (local path, wandb:// or s3://)
     stats_server_uri: str | None = None  # If set, send stats to this http server
@@ -134,35 +131,25 @@ class SimTool(Tool):
         policies_by_uri: dict[str, list[str]] = {}  # Just store URIs, load agents on demand
 
         for policy_uri in self.policy_uris:
-            # Discover policies with the specified strategy
-            strategy_map = {"top": "best_score", "latest": "latest", "best_score": "best_score", "all": "all"}
-            strategy = strategy_map.get(self.selector_type, "latest")
+            # For wandb URIs and file URIs, we expect them to be fully versioned
+            # No more strategy-based discovery
+            normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
-            discovered_uris = CheckpointManager.discover_policy_uris(
-                policy_uri, strategy=strategy, count=self.selector_count, metric=self.selector_metric
-            )
+            try:
+                # Validate that we can load the policy
+                agent = CheckpointManager.load_from_uri(normalized_uri)
+                if agent is None:
+                    raise FileNotFoundError(f"Could not load policy from {normalized_uri}")
 
-            logger.info(f"Discovered {len(discovered_uris)} policies for {policy_uri} using strategy '{strategy}'")
-
-            policies_by_uri[policy_uri] = []
-            for policy_uri_path in discovered_uris:
-                try:
-                    # Validate that we can load the policy
-                    agent = CheckpointManager.load_from_uri(policy_uri_path)
-                    if agent is None:
-                        raise FileNotFoundError(f"Could not load policy from {policy_uri_path}")
-
-                    # Get metadata for logging using centralized method
-                    metadata = CheckpointManager.get_policy_metadata(policy_uri_path)
-                    policies_by_uri[policy_uri].append(policy_uri_path)
-                    logger.info(
-                        f"Loaded policy from {policy_uri_path} (key={metadata['run_name']}, epoch={metadata['epoch']})"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to load policy from {policy_uri_path}: {e}")
-
-            if not policies_by_uri[policy_uri]:
-                logger.warning(f"No valid policies loaded for {policy_uri}")
+                # Get metadata for logging using centralized method
+                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+                policies_by_uri[policy_uri] = [normalized_uri]
+                logger.info(
+                    f"Loaded policy from {normalized_uri} (key={metadata['run_name']}, epoch={metadata['epoch']})"
+                )
+            except Exception as e:
+                logger.error(f"Failed to load policy from {normalized_uri}: {e}")
+                policies_by_uri[policy_uri] = []
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
 
