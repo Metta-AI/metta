@@ -5,7 +5,7 @@ from datetime import datetime
 
 import rich.traceback
 from rich.logging import RichHandler
-
+from metta.common.util.constants import RANK_ENV_VARS
 
 def remap_io(logs_path: str):
     os.makedirs(logs_path, exist_ok=True)
@@ -27,14 +27,10 @@ def restore_io():
 
 
 def get_node_rank() -> str | None:
-    """Get node/rank index from various distributed environments."""
-    return (
-        os.environ.get("SKYPILOT_NODE_RANK")
-        or os.environ.get("RANK")  # PyTorch DDP
-        or os.environ.get("OMPI_COMM_WORLD_RANK")  # OpenMPI
-        or None
-    )
-
+    for var in RANK_ENV_VARS:
+        if rank := os.environ.get(var):
+            return rank
+    return None
 
 def log_master(message: str, logger: logging.Logger | None = None, level: int = logging.INFO):
     """
@@ -232,3 +228,31 @@ def init_logging(level: str | None = None, run_dir: str | None = None, show_rank
     # Add file logging (after console handlers are set up)
     if run_dir:
         init_file_logging(run_dir)
+
+
+_INITIALIZED = False
+_GLOBAL_LOGGER = None
+
+def log(message: str, level: int = logging.INFO, show_rank: bool = True, master_only: bool = False):
+    """
+    Universal logging function that handles initialization automatically.
+
+    Args:
+        message: Message to log
+        level: Log level (default: INFO)
+        show_rank: Whether to show rank prefix (default: True)
+        master_only: Whether to only log on rank 0 (default: False)
+    """
+    global _INITIALIZED, _GLOBAL_LOGGER
+
+    if not _INITIALIZED:
+        # Auto-initialize with sensible defaults
+        init_logging(show_rank=show_rank)
+        _GLOBAL_LOGGER = logging.getLogger("metta")  # Use a consistent logger name
+        _INITIALIZED = True
+
+    if master_only:
+        log_master(message, logger=_GLOBAL_LOGGER, level=level)
+    else:
+        assert(_GLOBAL_LOGGER)
+        _GLOBAL_LOGGER.log(level, message)
