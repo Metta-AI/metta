@@ -325,10 +325,9 @@ class TestRealEnvironmentIntegration:
             checkpoint_manager.save_agent(agent, epoch=10, metadata={"agent_step": 5000, "total_time": 300})
 
             # Get checkpoint URI using public API
-            checkpoint_file = (
-                checkpoint_manager.select_local_checkpoints(strategy="latest", count=1, metric="epoch") or [None]
-            )[0]
-            checkpoint_uri = f"file://{checkpoint_file}"
+            checkpoint_uris = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+            checkpoint_uri = checkpoint_uris[0] if checkpoint_uris else None
+            assert checkpoint_uri is not None
 
             # Load via URI
             loaded_agent = CheckpointManager.load_from_uri(checkpoint_uri)
@@ -359,14 +358,14 @@ class TestRealEnvironmentIntegration:
                 checkpoint_manager.save_agent(agent, epoch=epoch, metadata=metadata)
 
             # Test selection by score (should get epoch 15 with score 0.9)
-            best_checkpoints = checkpoint_manager.select_local_checkpoints("latest", count=1, metric="score")
+            best_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="score")
             assert len(best_checkpoints) == 1
-            assert "progress_test__e15__s3000__t180__sc9000.pt" == best_checkpoints[0].name
+            assert best_checkpoints[0].endswith("progress_test__e15__s3000__t180__sc9000.pt")
 
             # Test selection by latest epoch (should get epoch 20)
-            latest_checkpoints = checkpoint_manager.select_local_checkpoints("latest", count=1, metric="epoch")
+            latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="epoch")
             assert len(latest_checkpoints) == 1
-            assert "progress_test__e20__s4000__t240__sc6000.pt" == latest_checkpoints[0].name
+            assert latest_checkpoints[0].endswith("progress_test__e20__s4000__t240__sc6000.pt")
 
 
 class TestEndToEndWorkflows:

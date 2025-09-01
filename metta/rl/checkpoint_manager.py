@@ -211,6 +211,44 @@ class CheckpointManager:
         return path_or_uri
 
     @staticmethod
+    def select_from_uri(uri: str, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[str]:
+        """Select checkpoints from a URI pattern.
+
+        For file:// URIs pointing to directories, lists and selects checkpoints.
+        For other URI types, returns the URI as-is (no selection strategy support yet).
+        Future: Could support wandb:// artifact version listing, s3:// object listing, etc.
+        """
+        if uri.startswith("file://"):
+            path = Path(_parse_uri_path(uri, "file"))
+            if path.is_dir():
+                # Find checkpoints in directory
+                checkpoint_files = list(path.glob("*__e*__s*__t*__sc*.pt"))
+                if path.name != "checkpoints":
+                    checkpoints_subdir = path / "checkpoints"
+                    if checkpoints_subdir.is_dir():
+                        checkpoint_files.extend(checkpoints_subdir.glob("*__e*__s*__t*__sc*.pt"))
+
+                if not checkpoint_files:
+                    return []
+
+                # Filter valid checkpoints and sort by metric
+                valid_files = [f for f in checkpoint_files if is_valid_checkpoint_filename(f.name)]
+                if not valid_files:
+                    return []
+
+                metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
+                valid_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
+                selected = valid_files if strategy == "all" else valid_files[:count]
+                return [f"file://{f.resolve()}" for f in selected]
+            else:
+                # Single file URI
+                return [uri] if path.exists() else []
+        else:
+            # For non-file URIs, return as-is (no selection strategy support yet)
+            # Future enhancement: implement wandb artifact version listing, S3 object listing, etc.
+            return [uri]
+
+    @staticmethod
     def get_policy_metadata(uri: str) -> dict[str, Any]:
         """Extract metadata from policy URI."""
         original_uri = uri
@@ -350,18 +388,19 @@ class CheckpointManager:
             state["stopwatch_state"] = stopwatch_state
         torch.save(state, trainer_file)
 
-    def select_local_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
-        """Select checkpoint files from the local filesystem based on strategy and metric.
+    def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[str]:
+        """Select checkpoints and return their URIs.
 
-        Only works with local filesystem checkpoints. Strategy can be "latest" or "all",
-        and metric can be "epoch", "agent_step", "total_time", or "score".
+        Strategy can be "latest" or "all", and metric can be "epoch", "agent_step", "total_time", or "score".
+        Returns a list of file:// URIs for the selected checkpoints.
         """
         checkpoint_files = self._find_checkpoint_files()
         if not checkpoint_files:
             return []
         metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
         checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
-        return checkpoint_files if strategy == "all" else checkpoint_files[:count]
+        selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
+        return [f"file://{path.resolve()}" for path in selected_files]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         agent_files = self._find_checkpoint_files()
