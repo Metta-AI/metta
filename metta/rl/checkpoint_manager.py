@@ -286,7 +286,7 @@ class CheckpointManager:
         files = self._find_checkpoint_files(epoch)
         if not files:
             return None
-        
+
         # Select the appropriate file (first if epoch specified, latest if not)
         agent_file = files[0] if epoch else max(files, key=lambda p: parse_checkpoint_filename(p.name)[1])
 
