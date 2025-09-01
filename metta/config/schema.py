@@ -75,9 +75,11 @@ def _get_config_path() -> Path:
     if global_config_path.exists():
         return global_config_path
 
-    # For new configs: prefer project location if in project and real environment
+    # For new configs: prefer project location if in project and not in test environment
     # This prevents project config creation during tests when Path.home() is mocked
-    if project_config_path and Path.home() == Path("~").expanduser():
+    import os
+
+    if project_config_path and not os.environ.get("PYTEST_CURRENT_TEST"):
         return project_config_path
 
     # Fall back to profiles directory

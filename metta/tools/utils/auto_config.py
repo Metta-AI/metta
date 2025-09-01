@@ -174,7 +174,8 @@ def auto_replay_dir() -> str:
             if cloud_config and "s3_bucket" in cloud_config:
                 config["replay_dir"] = f"s3://{cloud_config['s3_bucket']}/replays/"
 
-        return config.get("replay_dir")
+        if result := config.get("replay_dir"):
+            return result
 
     # Default
     return "./train_dir/replays/"
