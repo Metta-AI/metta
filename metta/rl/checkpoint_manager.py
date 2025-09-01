@@ -179,22 +179,34 @@ class CheckpointManager:
 
         if uri.startswith("file://"):
             path = Path(_parse_uri_path(uri, "file"))
-            if path.is_file() and path.suffix == ".pt":
-                return torch.load(path, weights_only=False, map_location=device_str)
-            if path.is_dir():
-                checkpoint_file = _find_best_checkpoint_in_dir(path)
-                return (
-                    torch.load(checkpoint_file, weights_only=False, map_location=device_str)
-                    if checkpoint_file
-                    else None
-                )
+            try:
+                if path.is_file() and path.suffix == ".pt":
+                    return torch.load(path, weights_only=False, map_location=device_str)
+                if path.is_dir():
+                    checkpoint_file = _find_best_checkpoint_in_dir(path)
+                    return (
+                        torch.load(checkpoint_file, weights_only=False, map_location=device_str)
+                        if checkpoint_file
+                        else None
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to load checkpoint from {uri}: {e}")
+                return None
             return None
         if uri.startswith("s3://"):
-            with local_copy(uri) as local_path:
-                return torch.load(local_path, weights_only=False, map_location=device_str)
+            try:
+                with local_copy(uri) as local_path:
+                    return torch.load(local_path, weights_only=False, map_location=device_str)
+            except Exception as e:
+                logger.warning(f"Failed to load checkpoint from {uri}: {e}")
+                return None
         if uri.startswith("wandb://"):
-            expanded_uri = expand_wandb_uri(uri)
-            return load_policy_from_wandb_uri(expanded_uri, device=device_str)
+            try:
+                expanded_uri = expand_wandb_uri(uri)
+                return load_policy_from_wandb_uri(expanded_uri, device=device_str)
+            except Exception as e:
+                logger.warning(f"Failed to load checkpoint from {uri}: {e}")
+                return None
         if uri.startswith("mock://"):
             from metta.agent.mocks import MockAgent
 
@@ -209,7 +221,6 @@ class CheckpointManager:
         if path_or_uri.startswith("wandb://"):
             return expand_wandb_uri(path_or_uri)
         return path_or_uri
-
 
     @staticmethod
     def get_policy_metadata(uri: str) -> dict[str, Any]:
