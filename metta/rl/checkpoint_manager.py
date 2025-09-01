@@ -300,7 +300,6 @@ class CheckpointManager:
 
     def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
         """Load agent checkpoint from local directory.
-
         Uses unified load_from_uri mechanism internally.
         """
         agent_file = self._get_checkpoint_file(epoch)
@@ -347,7 +346,6 @@ class CheckpointManager:
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any], wandb_run=None) -> str:
         """Save agent checkpoint to disk and optionally to wandb.
-
         Returns URI of saved checkpoint (file:// for local, wandb:// if uploaded to wandb).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
