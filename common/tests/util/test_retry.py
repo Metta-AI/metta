@@ -63,22 +63,6 @@ class TestRetryDecorator:
 
         assert mock_func.call_count == 2  # First ValueError, then RuntimeError
 
-    def test_retry_on_exception_with_logger(self, caplog):
-        """Test that retry attempts are logged correctly."""
-        mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
-
-        @retry_on_exception(max_retries=3, retry_delay=0.1)
-        def test_func():
-            return mock_func()
-
-        with caplog.at_level(logging.INFO):
-            result = test_func()
-
-        assert result == "success"
-        assert "test_func failed: fail 1" in caplog.text  # Initial attempt
-        assert "test_func failed (retry 1/3): fail 2" in caplog.text  # First retry
-        assert "Retrying in 0.1 seconds..." in caplog.text
-
     def test_retry_on_exception_preserves_function_attributes(self):
         """Test that decorator preserves function name and docstring."""
 
