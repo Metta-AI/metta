@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from pydantic import Field
+import wandb
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
@@ -113,6 +114,9 @@ class SimTool(Tool):
 
                 # Run actual simulations for this checkpoint
                 evaluation_metrics = self._run_simulations_for_checkpoint(checkpoint_uri)
+
+                # Push metrics to wandb if available
+                self._push_metrics_to_wandb(checkpoint_uri, metadata, evaluation_metrics)
 
                 # Export to stats database if configured
                 if stats_db and self.export_to_stats_db:
@@ -295,3 +299,71 @@ class SimTool(Tool):
             "total_episodes": total_episodes,
             "detailed": all_metrics,
         }
+
+    def _push_metrics_to_wandb(self, checkpoint_uri: str, metadata: dict, metrics: dict) -> None:
+        """Push evaluation metrics to wandb.
+
+        This replaces the old process_policy_evaluator_stats function to ensure
+        evaluation metrics are logged to wandb for tracking and visualization.
+
+        Args:
+            checkpoint_uri: URI of the evaluated checkpoint
+            metadata: Checkpoint metadata including run_name and epoch
+            metrics: Evaluation metrics to log
+        """
+        # Skip if wandb is not enabled
+        if not self.wandb.enabled:
+            return
+
+        # Skip if no metrics to log
+        if not metrics or not metrics.get("detailed"):
+            logger.debug("No metrics to push to wandb")
+            return
+
+        try:
+            # Extract wandb information from checkpoint URI if it's a wandb artifact
+            if checkpoint_uri.startswith("wandb://"):
+                # Parse wandb URI to get project and run info
+                # Format: wandb://project/artifact/name:version
+                parts = checkpoint_uri.replace("wandb://", "").split("/")
+                if len(parts) >= 2:
+                    wandb_project = parts[0]
+                    wandb_entity = self.wandb.entity
+
+                    # Try to extract run ID from metadata
+                    run_name = metadata.get("run_name", "")
+                    epoch = metadata.get("epoch", 0)
+                    agent_step = metadata.get("agent_step", 0)
+
+                    # Initialize wandb run (resume if it exists)
+                    run = wandb.init(
+                        project=wandb_project,
+                        entity=wandb_entity,
+                        name=f"eval_{run_name}",
+                        config={"checkpoint_uri": checkpoint_uri},
+                        reinit=True,
+                    )
+
+                    # Prepare metrics for logging
+                    metrics_to_log = {
+                        "eval/reward_avg": metrics.get("reward_avg", 0.0),
+                        "eval/total_episodes": metrics.get("total_episodes", 0),
+                        "eval/agent_step": metrics.get("agent_step", 0),
+                    }
+
+                    # Add detailed metrics per simulation
+                    for sim_name, sim_metrics in metrics.get("detailed", {}).items():
+                        metrics_to_log[f"eval/{sim_name}/reward_avg"] = sim_metrics.get("reward_avg", 0.0)
+                        metrics_to_log[f"eval/{sim_name}/num_episodes"] = sim_metrics.get("num_episodes", 0)
+                        metrics_to_log[f"eval/{sim_name}/max_agent_step"] = sim_metrics.get("max_agent_step", 0)
+
+                    # Log metrics
+                    run.log(metrics_to_log, step=agent_step if agent_step else None)
+                    logger.info(f"Pushed {len(metrics_to_log)} evaluation metrics to wandb")
+
+                    # Finish the run
+                    run.finish()
+
+        except Exception as e:
+            # Don't fail the evaluation if wandb logging fails
+            logger.warning(f"Failed to push metrics to wandb: {e}")
