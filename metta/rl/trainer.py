@@ -477,8 +477,6 @@ def train(
                 # Only master needs to do bookkeeping
                 continue
 
-
-
             torch_profiler.on_epoch_end(epoch)
 
             with timer("_process_stats"):
