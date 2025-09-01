@@ -163,13 +163,8 @@ class CheckpointManager:
     def load_from_uri(uri: str, device: str | torch.device | None = None):
         """Load a policy from file://, s3://, or wandb:// URI.
 
-        Args:
-            uri: The URI to load from
-            device: Optional device to load the checkpoint to. Can be a string like "cpu", "cuda",
-                   or a torch.device object. If None, loads to CPU by default.
-
-        Returns:
-            The loaded checkpoint/agent, or None if loading fails
+        Supports loading from local files, S3 buckets, wandb artifacts, or mock URIs.
+        Defaults to CPU if no device is specified. Returns None if loading fails.
         """
         # Normalize the URI first (converts plain paths to file:// URIs)
         uri = CheckpointManager.normalize_uri(uri)
@@ -354,16 +349,8 @@ class CheckpointManager:
     def select_local_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[Path]:
         """Select checkpoint files from the local filesystem based on strategy and metric.
 
-        This method only works with local filesystem checkpoints. For other storage
-        backends (wandb, S3, etc.), different selection mechanisms are needed.
-
-        Args:
-            strategy: Selection strategy ("latest", "all")
-            count: Number of checkpoints to return (ignored if strategy="all")
-            metric: Metric to sort by ("epoch", "agent_step", "total_time", "score")
-
-        Returns:
-            List of Path objects to local checkpoint files
+        Only works with local filesystem checkpoints. Strategy can be "latest" or "all",
+        and metric can be "epoch", "agent_step", "total_time", or "score".
         """
         checkpoint_files = self._find_checkpoint_files()
         if not checkpoint_files:
