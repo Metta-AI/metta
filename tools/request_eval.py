@@ -96,7 +96,7 @@ async def _create_remote_eval_tasks(request: EvalRequest) -> None:
         warning("No stats client found")
         return
 
-    info(f"Retrieving {request.policy_select_type} policies for {len(request.policies)} paths...")
+    info(f"Retrieving policies for {len(request.policies)} paths...")
 
     # Process all policy URIs
     with concurrent.futures.ThreadPoolExecutor() as executor:

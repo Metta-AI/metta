@@ -17,7 +17,6 @@ class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    selector_type: str = "latest"
     replay_dir: str | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True
