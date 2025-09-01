@@ -116,13 +116,13 @@ class TestFileURIHandling:
         """Test file:// URI with invalid paths."""
         # Test non-existent file
         uri = "file:///nonexistent/path.pt"
-        result = CheckpointManager.load_from_uri(uri)
-        assert result is None
+        with pytest.raises(FileNotFoundError):
+            CheckpointManager.load_from_uri(uri)
 
         # Test non-existent directory
         uri = "file:///nonexistent/directory"
-        result = CheckpointManager.load_from_uri(uri)
-        assert result is None
+        with pytest.raises(FileNotFoundError):
+            CheckpointManager.load_from_uri(uri)
 
     def test_file_uri_error_handling(self, temp_dir):
         """Test error handling for file URIs."""
@@ -214,8 +214,9 @@ class TestWandbURIHandling:
         mock_load_wandb.side_effect = RuntimeError("Network error")
 
         uri = "wandb://run/test"
-        result = CheckpointManager.load_from_uri(uri)
-        assert result is None  # Should handle errors gracefully
+        with pytest.raises(FileNotFoundError) as exc_info:
+            CheckpointManager.load_from_uri(uri)
+        assert "Network error" in str(exc_info.value)
 
 
 class TestS3URIHandling:
@@ -281,8 +282,9 @@ class TestURIUtilities:
         unsupported_uris = ["http://example.com/model.pt", "ftp://server/model.pt", "gs://bucket/model.pt"]
 
         for uri in unsupported_uris:
-            result = CheckpointManager.load_from_uri(uri)
-            assert result is None  # Should handle gracefully, not raise
+            with pytest.raises(ValueError) as exc_info:
+                CheckpointManager.load_from_uri(uri)
+            assert "Unsupported URI scheme" in str(exc_info.value)
 
 
 class TestRealEnvironmentIntegration:

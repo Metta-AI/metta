@@ -68,15 +68,9 @@ def validate_policy_uri(
         # Normalize URI using CheckpointManager
         normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
-        # All URIs must be fully versioned - no strategy-based discovery
         # Validate that we can load the policy (load to CPU for validation only)
         agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
-        if agent is None:
-            if disallow_missing_policies:
-                raise FileNotFoundError(f"Could not load policy from {normalized_uri}")
-            else:
-                warning(f"Could not load policy from {normalized_uri}")
-                return None
+        del agent
 
         # Return the normalized URI
         return normalized_uri

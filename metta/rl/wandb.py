@@ -94,10 +94,15 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     return None
 
 
-def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[torch.nn.Module]:
-    """Load policy from wandb://entity/project/artifact_name:version format."""
+def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> torch.nn.Module:
+    """Load policy from wandb://entity/project/artifact_name:version format.
+    
+    Raises:
+        ValueError: If URI is not a wandb:// URI
+        FileNotFoundError: If no .pt files found in artifact
+    """
     if not wandb_uri.startswith("wandb://"):
-        return None
+        raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
     uri = WandbURI.parse(wandb_uri)
     artifact = wandb.Api().artifact(uri.qname())
@@ -112,8 +117,7 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[
             # Fallback to any .pt file
             policy_files = list(artifact_dir.rglob("*.pt"))
             if not policy_files:
-                logger.error(f"No .pt files found in wandb artifact {wandb_uri}")
-                return None
+                raise FileNotFoundError(f"No .pt files found in wandb artifact {wandb_uri}")
             model_file = policy_files[0]
             logger.warning(f"model.pt not found, using {model_file.name}")
 

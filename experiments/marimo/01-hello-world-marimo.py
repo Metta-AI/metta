@@ -1004,8 +1004,6 @@ def _(
             run_name_from_ckpt = metadata["run_name"]
 
             trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
-            if trained_policy is None:
-                raise Exception("No policy found in checkpoint")
 
             print(f"✅ Successfully loaded policy from: {checkpoint_uri}")
 
@@ -1663,8 +1661,6 @@ def _(
         run_name_from_ckpt = metadata["run_name"]
 
         trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
-        if trained_policy is None:
-            raise Exception("No policy found in checkpoint")
 
         print(f"✅ Successfully loaded policy from: {checkpoint_uri}")
 

@@ -116,9 +116,8 @@ class SimTool(Tool):
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
             # Verify the checkpoint exists early to fail fast
-            # This will raise FileNotFoundError if the checkpoint doesn't exist
             agent = CheckpointManager.load_from_uri(normalized_uri, device=self.system.device)
-            del agent  # We don't need the agent here, just validating
+            del agent
 
             policies_by_uri[policy_uri] = [normalized_uri]
             metadata = CheckpointManager.get_policy_metadata(normalized_uri)
