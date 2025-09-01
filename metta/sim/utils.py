@@ -28,7 +28,7 @@ def get_or_create_policy_ids(
     processed_policies = []
     uri_to_name = {}
     for uri, description in policies:
-        # Extract run_name for backward compatibility with stats server
+        # Extract run_name from URI metadata
         metadata = CheckpointManager.get_policy_metadata(uri)
         name = metadata["run_name"]
         processed_policies.append((uri, name, description))

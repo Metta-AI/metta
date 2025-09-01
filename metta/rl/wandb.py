@@ -97,8 +97,8 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
 def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[torch.nn.Module]:
     """Load policy from wandb://entity/project/artifact_name:version format.
 
-    This function reconstructs the original filename with metadata to maintain
-    compatibility with our checkpoint filename parsing system.
+    This function reconstructs the original filename with metadata for
+    proper checkpoint filename parsing.
     """
     if not wandb_uri.startswith("wandb://"):
         return None

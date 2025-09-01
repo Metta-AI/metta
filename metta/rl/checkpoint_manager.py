@@ -244,8 +244,7 @@ class CheckpointManager:
                 # Single file URI
                 return [uri] if path.exists() else []
         else:
-            # For non-file URIs, return as-is (no selection strategy support yet)
-            # Future enhancement: implement wandb artifact version listing, S3 object listing, etc.
+            # For non-file URIs, return as-is (no selection strategy support)
             return [uri]
 
     @staticmethod
