@@ -5,7 +5,8 @@ import subprocess
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.config import datadog_config
-from metta.common.util.logging import log
+
+logger = logging.getLogger(__name__)
 
 
 class DockerContainerManager(AbstractContainerManager):
@@ -43,10 +44,10 @@ class DockerContainerManager(AbstractContainerManager):
 
         try:
             _ = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            log(f"Started worker container {container_name}")
+            logger.info(f"Started worker container {container_name}")
             return container_name
         except subprocess.CalledProcessError as e:
-            log(f"Failed to start worker container: {e.stderr}")
+            logger.info(f"Failed to start worker container: {e.stderr}")
             raise
 
     def cleanup_container(self, name: str) -> None:
@@ -57,9 +58,9 @@ class DockerContainerManager(AbstractContainerManager):
                 check=False,
             )
         except Exception as e:
-            log(f"Failed to cleanup container {name}: {e}", level=logging.ERROR)
+            logger.error(f"Failed to cleanup container {name}: {e}", exc_info=True)
         else:
-            log(f"Cleaned up container {name}")
+            logger.info(f"Cleaned up container {name}")
 
     async def discover_alive_workers(self) -> list[Worker]:
         result = subprocess.run(
@@ -96,5 +97,5 @@ class DockerContainerManager(AbstractContainerManager):
 
                             workers.append(Worker(name=container_name, status=status))
                         except ValueError:
-                            log(f"Skipping container with invalid name: {container_name}", level=logging.WARNING)
+                            logger.warning(f"Skipping container with invalid name: {container_name}")
         return workers

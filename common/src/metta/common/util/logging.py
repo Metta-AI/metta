@@ -165,20 +165,10 @@ def _init_console_logging() -> None:
 
 
 # Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
-def init_logging(*, name: str | None = None, run_dir: str | None = None) -> logging.Logger:
+def init_logging(run_dir: str | None = None) -> None:
     _init_console_logging()
     if run_dir:
         _add_file_logging(run_dir)
-    return logging.getLogger(name or "metta")
 
 
-def log(message: str, level: int = logging.INFO, master_only: bool = False, **kwargs) -> None:
-    logger = init_logging()
-    if master_only and get_node_rank() not in ("0", None):
-        return
-    # stacklevel=2 so that the caller of `log`, not `log` itself, is identified in the log message
-    logger.log(level, message, stacklevel=2, **kwargs)
-
-
-# Initialize logging on module import with sensible defaults
 init_logging()

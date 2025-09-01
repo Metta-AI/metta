@@ -1,13 +1,11 @@
 ## Usage
 
-### Setup: `init_logging`
+### `init_logging`
 
-If you only intend on using `log`, this step is not strictly necessary
+`init_logging` updates the default logger. It adds rank info if available from env vars, has default settings to reduce
+log spew, and chooses between rich/non-rich output depending on the detected environment.
 
-`init_logging` automatically adds rank info if available from env vars, has default settings to reduce log spew, and
-chooses between rich/non-rich output depending on the detected environment.
-
-It does not by default also send output to files. You can do so by calling `init_logging` again with a `run_dir`
+It does not by default also send output to files. You can do so by specifying a `run_dir`
 
 ```python
 init_logging(
@@ -18,31 +16,20 @@ init_logging(
 # - ./experiments/run_001/script_{rank}.log for non-master ranks
 ```
 
-You can call `init_logging` multiple times safely, though if you call it with different run_dirs, then each will be used
-to create file separate output handlers.
-
-### Simple usage: `log()`
-
-```python
-from metta.common.util.logging import log
-log("Starting application")
-# Use `master_only=True` where applicable
-log("Saving results", master_only=True)
-```
+`init_logging` cal be called multiple times safely, though if you call it with different run_dirs, then each will be
+used to create file separate output handlers.
 
 #### Defining and using your own logger
 
 ```python
 import logging
-logger = logging.getLogger("my_service_name")
+logger = logging.getLogger(__name__)
+logger.info("My log")
 ```
-
-This will include `"my_service_name"` in messages and, so long as you have previously called `init_logging`, will still
-reflect its features.
 
 ## Environment Variables
 
-### Setting Log Level
+### Setting default log level
 
 ```bash
 # Override log level via environment
@@ -51,6 +38,8 @@ python train.py
 ```
 
 ### Distributed Environment Variables
+
+These determine the rank prefixes displayed in logs
 
 ```bash
 # PyTorch DDP

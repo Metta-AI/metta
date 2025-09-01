@@ -9,7 +9,8 @@ from typing import Callable
 from metta.app_backend.eval_task_worker import EvalTaskWorker
 from metta.app_backend.worker_managers.base import AbstractWorkerManager
 from metta.app_backend.worker_managers.worker import Worker
-from metta.common.util.logging import log
+
+logger = logging.getLogger(__name__)
 
 
 class ThreadWorkerManager(AbstractWorkerManager):
@@ -59,7 +60,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
             }
 
             thread.start()
-            log(f"Started worker {worker_name} on thread {thread.name}")
+            logger.info(f"Started worker {worker_name} on thread {thread.name}")
 
             return worker_name
 
@@ -88,10 +89,10 @@ class ThreadWorkerManager(AbstractWorkerManager):
                         try:
                             await worker_task
                         except asyncio.CancelledError:
-                            log(f"Worker {worker._assignee} cancelled")
+                            logger.info(f"Worker {worker._assignee} cancelled")
 
                 except Exception as e:
-                    log(f"Error in worker {worker._assignee}: {e}", level=logging.ERROR, exc_info=True)
+                    logger.error(f"Error in worker {worker._assignee}: {e}", exc_info=True)
                 finally:
                     # Clean up worker resources
                     if hasattr(worker, "__aexit__"):
@@ -100,7 +101,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
             loop.run_until_complete(run_with_stop_check())
 
         except Exception as e:
-            log(f"Thread error for worker {worker._assignee}: {e}", level=logging.ERROR, exc_info=True)
+            logger.error(f"Thread error for worker {worker._assignee}: {e}", exc_info=True)
         finally:
             loop.close()
 
@@ -108,7 +109,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
         """Stop and cleanup a worker."""
         with self._lock:
             if worker_name not in self._workers:
-                log(f"Worker {worker_name} not found for cleanup", level=logging.WARNING)
+                logger.warning(f"Worker {worker_name} not found for cleanup")
                 return
 
             worker_info = self._workers[worker_name]
@@ -122,9 +123,9 @@ class ThreadWorkerManager(AbstractWorkerManager):
             thread.join(timeout=10.0)
 
             if thread.is_alive():
-                log(f"Worker thread {worker_name} did not stop gracefully", level=logging.WARNING)
+                logger.warning(f"Worker thread {worker_name} did not stop gracefully")
             else:
-                log(f"Worker {worker_name} stopped successfully")
+                logger.info(f"Worker {worker_name} stopped successfully")
 
             # Remove from tracking
             del self._workers[worker_name]
@@ -145,7 +146,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
                 alive_workers.append(Worker(name=worker_name, status="Running"))
             else:
                 # Clean up dead workers
-                log(f"Removing dead worker {worker_name}")
+                logger.info(f"Removing dead worker {worker_name}")
                 with self._lock:
                     if worker_name in self._workers:
                         del self._workers[worker_name]
@@ -154,7 +155,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
 
     def shutdown_all(self) -> None:
         """Shutdown all workers gracefully."""
-        log("Shutting down all workers")
+        logger.info("Shutting down all workers")
 
         with self._lock:
             worker_names = list(self._workers.keys())
@@ -163,6 +164,6 @@ class ThreadWorkerManager(AbstractWorkerManager):
             try:
                 self.cleanup_worker(worker_name)
             except Exception as e:
-                log(f"Error cleaning up worker {worker_name}: {e}", level=logging.ERROR, exc_info=True)
+                logger.error(f"Error cleaning up worker {worker_name}: {e}", exc_info=True)
 
-        log("All workers shutdown complete")
+        logger.info("All workers shutdown complete")

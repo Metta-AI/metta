@@ -6,7 +6,8 @@ import subprocess
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.config import datadog_config
-from metta.common.util.logging import log
+
+logger = logging.getLogger(__name__)
 
 
 class K8sPodManager(AbstractContainerManager):
@@ -90,14 +91,14 @@ class K8sPodManager(AbstractContainerManager):
         cmd = self._get_kubectl_cmd() + ["create", "-f", "-"]
         manifest_str = json.dumps(pod_manifest)
 
-        log("Starting worker pod")
+        logger.info("Starting worker pod")
 
         try:
             subprocess.run(cmd, input=manifest_str, capture_output=True, text=True, check=True)
-            log(f"Started worker pod {pod_name}")
+            logger.info(f"Started worker pod {pod_name}")
             return pod_name
         except subprocess.CalledProcessError as e:
-            log(f"Failed to start worker pod: {e.stderr}", level=logging.ERROR, exc_info=True)
+            logger.error(f"Failed to start worker pod: {e.stderr}", exc_info=True)
             raise
 
     def cleanup_container(self, pod_name: str) -> None:
@@ -107,13 +108,13 @@ class K8sPodManager(AbstractContainerManager):
             delete_cmd = self._get_kubectl_cmd() + ["delete", "pod", pod_name, "--force", "--grace-period=0"]
             result = subprocess.run(delete_cmd, capture_output=True, text=True, check=False)
             if result.returncode == 0:
-                log(f"Cleaned up pod {pod_name}")
+                logger.info(f"Cleaned up pod {pod_name}")
             else:
-                log(f"Failed to delete pod {pod_name}: {result.stderr}", level=logging.WARNING)
+                logger.warning(f"Failed to delete pod {pod_name}: {result.stderr}")
         except subprocess.CalledProcessError as e:
-            log(f"Failed to cleanup pod {pod_name}: {e}", level=logging.WARNING)
+            logger.warning(f"Failed to cleanup pod {pod_name}: {e}")
         except Exception as e:
-            log(f"Unexpected error cleaning up pod {pod_name}: {e}", level=logging.WARNING, exc_info=True)
+            logger.warning(f"Unexpected error cleaning up pod {pod_name}: {e}", exc_info=True)
 
     async def discover_alive_workers(self) -> list[Worker]:
         # Get pods with eval-worker label
@@ -138,5 +139,5 @@ class K8sPodManager(AbstractContainerManager):
                     workers.append(Worker(name=pod_name, status=phase))
 
         if workers:
-            log(f"Discovered {len(workers)} alive workers in Kubernetes")
+            logger.info(f"Discovered {len(workers)} alive workers in Kubernetes")
         return workers
