@@ -125,7 +125,7 @@ def _init_console_logging() -> None:
                     location = f" [{filename}:{record.lineno}]"
 
                 # Format: [timestamp] [rank] LEVEL message [file:line]
-                return f"{timestamp} {rank_prefix}{level_name:<8} {msg}{location}"
+                return f"{timestamp} {rank_prefix} {level_name:<8} {msg}{location}"
 
         handler.setFormatter(LevelPrefixFormatter("%(message)s", datefmt="[%H:%M:%S.%f]"))
         root_logger.addHandler(handler)
