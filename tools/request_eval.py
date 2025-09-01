@@ -29,8 +29,6 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.setup.utils import debug, info, success, warning
 from metta.sim.utils import get_or_create_policy_ids
 
-# Policy selection types that define how to select checkpoints from a directory
-PolicySelectorType = Literal["latest", "top", "best_score", "all"]
 
 
 class EvalRequest(BaseModel):
@@ -42,9 +40,6 @@ class EvalRequest(BaseModel):
 
     git_hash: str | None = None
 
-    policy_select_type: PolicySelectorType = "latest"
-    policy_select_metric: str = "score"
-    policy_select_num: int = 1
 
     wandb_project: str = Field(default="")
     wandb_entity: str = Field(default="")
@@ -70,70 +65,26 @@ class EvalRequest(BaseModel):
 
 def _get_policies_for_uri(
     policy_uri: str,
-    selector_type: PolicySelectorType,
-    select_num: int,
-    select_metric: str,
     disallow_missing_policies: bool = False,
 ) -> tuple[str, list[tuple[str, str]] | None]:
-    """Get policies from a URI - working with URIs throughout."""
+    """Get policies from a URI - requires fully versioned URIs."""
     try:
         # Normalize URI using CheckpointManager
-        policy_uri = CheckpointManager.normalize_uri(policy_uri)
+        normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
-        if policy_uri.startswith("wandb://"):
-            # For wandb URIs, extract run name from metadata
-            metadata = CheckpointManager.get_policy_metadata(policy_uri)
-            return policy_uri, [(policy_uri, metadata["run_name"])]
-
-        if policy_uri.startswith("file://"):
-            path = Path(policy_uri[7:])
-
-            if path.is_file():
-                # Direct file - extract metadata using CheckpointManager
-                metadata = CheckpointManager.get_policy_metadata(policy_uri)
-                return policy_uri, [(policy_uri, metadata["run_name"])]
-
-            if not path.is_dir():
-                if disallow_missing_policies:
-                    raise FileNotFoundError(f"Path does not exist: {path}")
-                else:
-                    warning(f"Path does not exist: {path}")
-                    return policy_uri, None
-
-            # Directory with checkpoints
-            if path.name == "checkpoints":
-                run_name = path.parent.name
-                run_dir = str(path.parent.parent)
+        # All URIs must be fully versioned - no strategy-based discovery
+        # Validate that we can load the policy
+        agent = CheckpointManager.load_from_uri(normalized_uri)
+        if agent is None:
+            if disallow_missing_policies:
+                raise FileNotFoundError(f"Could not load policy from {normalized_uri}")
             else:
-                run_name = path.name
-                run_dir = str(path.parent)
+                warning(f"Could not load policy from {normalized_uri}")
+                return policy_uri, None
 
-            checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
-
-            # Map selector types to strategies
-            strategy_map = {"latest": "latest", "top": "best_score", "best_score": "best_score", "all": "all"}
-            strategy = strategy_map.get(selector_type, "latest")
-
-            checkpoint_paths = checkpoint_manager.select_checkpoints(
-                strategy=strategy, count=select_num, metric=select_metric
-            )
-
-            if not checkpoint_paths:
-                if disallow_missing_policies:
-                    raise FileNotFoundError(f"No checkpoints found in: {path}")
-                else:
-                    warning(f"No checkpoints found in: {path}")
-                    return policy_uri, None
-
-            # Return list of (uri, run_name) tuples - keep as URIs!
-            results = [
-                (CheckpointManager.normalize_uri(str(checkpoint_path)), run_name)
-                for checkpoint_path in checkpoint_paths
-            ]
-            return policy_uri, results
-
-        else:
-            raise ValueError(f"Unsupported URI scheme: {policy_uri}")
+        # Get metadata for the policy
+        metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+        return policy_uri, [(normalized_uri, metadata["run_name"])]
 
     except Exception as e:
         if not disallow_missing_policies:
