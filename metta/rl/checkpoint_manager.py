@@ -181,34 +181,51 @@ class CheckpointManager:
         """Load a policy from file://, s3://, or wandb:// URI.
 
         Supports loading from local files, S3 buckets, wandb artifacts, or mock URIs.
-        Defaults to CPU if no device is specified. Returns None if loading fails.
+        Defaults to CPU if no device is specified.
+        
+        Raises:
+            FileNotFoundError: If the checkpoint file doesn't exist or cannot be loaded
+            ValueError: If the URI scheme is not supported
         """
         # Normalize the URI first (converts plain paths to file:// URIs)
+        original_uri = uri
         uri = CheckpointManager.normalize_uri(uri)
 
         # Default to CPU if no device specified
         if device is None:
             device = "cpu"
 
-        if uri.startswith("file://"):
-            path = Path(_parse_uri_path(uri, "file"))
-            if path.is_file() and path.suffix == ".pt":
-                return torch.load(path, weights_only=False, map_location=device)
-            if path.is_dir():
-                checkpoint_file = _find_latest_checkpoint_in_dir(path)
-                return torch.load(checkpoint_file, weights_only=False, map_location=device) if checkpoint_file else None
-            return None
-        if uri.startswith("s3://"):
-            with local_copy(uri) as local_path:
-                return torch.load(local_path, weights_only=False, map_location=device)
-        if uri.startswith("wandb://"):
-            expanded_uri = expand_wandb_uri(uri)
-            return load_policy_from_wandb_uri(expanded_uri, device=device)
-        if uri.startswith("mock://"):
-            from metta.agent.mocks import MockAgent
-
-            return MockAgent()
-        return None
+        try:
+            if uri.startswith("file://"):
+                path = Path(_parse_uri_path(uri, "file"))
+                if path.is_file() and path.suffix == ".pt":
+                    return torch.load(path, weights_only=False, map_location=device)
+                if path.is_dir():
+                    checkpoint_file = _find_latest_checkpoint_in_dir(path)
+                    if checkpoint_file:
+                        return torch.load(checkpoint_file, weights_only=False, map_location=device)
+                    raise FileNotFoundError(f"No checkpoint files found in directory: {original_uri}")
+                raise FileNotFoundError(f"Checkpoint file not found: {original_uri}")
+            
+            if uri.startswith("s3://"):
+                with local_copy(uri) as local_path:
+                    return torch.load(local_path, weights_only=False, map_location=device)
+            
+            if uri.startswith("wandb://"):
+                expanded_uri = expand_wandb_uri(uri)
+                return load_policy_from_wandb_uri(expanded_uri, device=device)
+            
+            if uri.startswith("mock://"):
+                from metta.agent.mocks import MockAgent
+                return MockAgent()
+            
+            raise ValueError(f"Unsupported URI scheme: {original_uri}")
+            
+        except FileNotFoundError:
+            raise  # Re-raise FileNotFoundError as-is
+        except Exception as e:
+            # Convert other exceptions to FileNotFoundError with context
+            raise FileNotFoundError(f"Failed to load checkpoint from {original_uri}: {e}") from e
 
     @staticmethod
     def normalize_uri(path_or_uri: str) -> str:
@@ -275,6 +292,7 @@ class CheckpointManager:
             return self._cache[cache_key]
 
         # Use unified load_from_uri mechanism
+        # Since we already checked the file exists, this should not raise
         agent = self.load_from_uri(file_uri, device=device)
 
         # Only cache if cache size > 0

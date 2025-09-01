@@ -38,8 +38,6 @@ def evaluate_policy(
 
     # Load the policy from URI directly to the correct device
     policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
-    if policy is None:
-        raise FileNotFoundError(f"Could not load policy from {checkpoint_uri}")
     metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
     run_name = metadata["run_name"]
 

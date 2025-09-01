@@ -135,8 +135,8 @@ class TestFileURIHandling:
         corrupted_file.write_text("not a pytorch file")
 
         uri = f"file://{test_dir}"
-        result = CheckpointManager.load_from_uri(uri)
-        assert result is None  # Should handle corruption gracefully
+        with pytest.raises(FileNotFoundError):
+            CheckpointManager.load_from_uri(uri)
 
 
 class TestWandbURIHandling:

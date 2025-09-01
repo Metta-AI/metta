@@ -68,8 +68,6 @@ class Kickstarter:
         for teacher_cfg in self.teacher_cfgs or []:
             # Use CheckpointManager's static method to load from any URI, directly to the correct device
             policy: PolicyAgent = CheckpointManager.load_from_uri(teacher_cfg.teacher_uri, device=self.device)
-            if policy is None:
-                raise ValueError(f"Failed to load teacher policy from {teacher_cfg.teacher_uri}")
 
             # Initialize policy to environment if needed
             if hasattr(policy, "initialize_to_environment"):
