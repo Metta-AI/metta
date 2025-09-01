@@ -95,44 +95,27 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
 
 
 def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> Optional[torch.nn.Module]:
-    """Load policy from wandb://entity/project/artifact_name:version format.
-
-    This function reconstructs the original filename with metadata for
-    proper checkpoint filename parsing.
-    """
+    """Load policy from wandb://entity/project/artifact_name:version format."""
     if not wandb_uri.startswith("wandb://"):
         return None
 
     uri = WandbURI.parse(wandb_uri)
-    artifact: Artifact = wandb.Api().artifact(uri.qname())
-    metadata = artifact.metadata
+    artifact = wandb.Api().artifact(uri.qname())
 
     with tempfile.TemporaryDirectory() as temp_dir:
         artifact_dir = Path(temp_dir)
         artifact.download(root=str(artifact_dir))
 
-        # Find the model.pt file
+        # Look for model.pt file (our standard name)
         model_file = artifact_dir / "model.pt"
         if not model_file.exists():
             # Fallback to any .pt file
             policy_files = list(artifact_dir.rglob("*.pt"))
             if not policy_files:
-                logger.warning(f"No .pt files found in wandb artifact {wandb_uri}")
+                logger.error(f"No .pt files found in wandb artifact {wandb_uri}")
                 return None
             model_file = policy_files[0]
-
-        # If we have complete metadata, reconstruct the original filename
-        if metadata and all(k in metadata for k in ["run_name", "epoch", "agent_step", "total_time", "score"]):
-            # Reconstruct the original filename with metadata
-            score_int = int(metadata["score"] * 10000)
-            new_filename = (
-                f"{metadata['run_name']}.e{metadata['epoch']}.s{metadata['agent_step']}"
-                f".t{int(metadata['total_time'])}.sc{score_int}.pt"
-            )
-            new_path = artifact_dir / new_filename
-            model_file.rename(new_path)
-            model_file = new_path
-            logger.info(f"Reconstructed checkpoint filename with metadata: {new_filename}")
+            logger.warning(f"model.pt not found, using {model_file.name}")
 
         # Load the policy
         return torch.load(model_file, map_location=device, weights_only=False)
