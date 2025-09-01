@@ -7,6 +7,7 @@ from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGenerato
 from metta.mettagrid.config import empty_converters
 from metta.mettagrid.config.envs import make_icl_resource_chain
 from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -176,6 +177,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     )
 
     trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
