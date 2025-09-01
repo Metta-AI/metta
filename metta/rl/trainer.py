@@ -465,6 +465,10 @@ def train(
                     losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
                 epoch += epochs_trained
 
+            # Update hyperparameters based on current training step (master only)
+            if torch_dist_cfg.is_master:
+                hyperparameter_scheduler.step(agent_step, update_callbacks)
+
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
@@ -473,8 +477,7 @@ def train(
                 # Only master needs to do bookkeeping
                 continue
 
-            # Update hyperparameters based on current training step
-            hyperparameter_scheduler.step(agent_step, update_callbacks)
+
 
             torch_profiler.on_epoch_end(epoch)
 
