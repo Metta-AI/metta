@@ -397,10 +397,10 @@ class MettaCLI:
         from metta.config.schema import get_config
 
         if component_name not in CONFIGURATION_COMPONENTS:
-            error(f"Unknown component: {component_name}")
-            info(f"Available: {', '.join(CONFIGURATION_COMPONENTS.keys())}")
-            sys.exit(1)
-            return  # Added for test compatibility when sys.exit is mocked
+            # Fall back to old setup system for non-unified components (like githooks)
+            info(f"Component '{component_name}' not found in unified config system.")
+            info("Falling back to legacy setup system...")
+            return self.configure_component(component_name)
 
         config = get_config()
         component = CONFIGURATION_COMPONENTS[component_name]

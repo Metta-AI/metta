@@ -6,6 +6,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
+
 from metta.config.schema import MettaConfig
 from metta.setup.metta_cli import MettaCLI
 
@@ -79,18 +81,35 @@ class TestConfigureCLICommands:
                 assert loaded_config.wandb.enabled is True
 
     def test_configure_unknown_component(self):
-        """Test error handling for unknown component."""
+        """Test fallback to legacy system for unknown component."""
         cli = MettaCLI()
 
         with (
-            patch("metta.setup.metta_cli.error") as mock_error,
-            patch("metta.setup.metta_cli.info"),
-            patch("sys.exit") as mock_exit,
+            patch("metta.setup.metta_cli.info") as mock_info,
+            patch.object(cli, "configure_component") as mock_configure_component,
         ):
-            cli.configure_component_unified("nonexistent")
+            cli.configure_component_unified("githooks")  # Valid setup component, not in unified config
 
-            mock_error.assert_called_once()
-            mock_exit.assert_called_once_with(1)
+            # Should call info about fallback and then delegate to old system
+            mock_info.assert_any_call("Component 'githooks' not found in unified config system.")
+            mock_info.assert_any_call("Falling back to legacy setup system...")
+            mock_configure_component.assert_called_once_with("githooks")
+
+    def test_configure_truly_unknown_component(self):
+        """Test error handling for component that doesn't exist in either system."""
+        cli = MettaCLI()
+
+        with (
+            patch("metta.setup.metta_cli.info"),
+            patch.object(cli, "configure_component") as mock_configure_component,
+        ):
+            # Mock the old configure_component to simulate unknown component
+            mock_configure_component.side_effect = SystemExit(1)
+
+            with pytest.raises(SystemExit):
+                cli.configure_component_unified("nonexistent")
+
+            mock_configure_component.assert_called_once_with("nonexistent")
 
     def test_configure_wizard(self):
         """Test interactive configuration wizard."""
