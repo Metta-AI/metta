@@ -8,7 +8,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from codebot.codeclip.cli import cli
+from codeclip.cli import cli
 
 
 class TestCodeclipSummary(unittest.TestCase):

@@ -260,7 +260,7 @@ uv run ./devops/tools/auto_ruff_fix.py path/to/file
 Not needed, just run scripts, they'll work automatically through uv-powered shebangs.
 
 ```bash
-# Clean debug cmake build artifacts. `metta install` also does this
+# Clean Bazel build artifacts. `metta install` also does this
 metta clean
 ```
 
@@ -335,7 +335,7 @@ recipe files:
    - On NVIDIA GPUs: `nvidia-smi`
    - On macOS: Use Activity Monitor or `sudo powermetrics --samplers gpu_power`
 3. Check environment step timing in vecenv
-4. Profile C++ code with cmake debug builds
+4. Profile C++ code with Bazel debug builds
 
 ---
 

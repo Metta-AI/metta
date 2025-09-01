@@ -17,30 +17,30 @@ help:
 # Debug build with tests and coverage
 build:
 	@echo "🔨 Building debug with tests and coverage..."
-	cmake --preset debug
-	cmake --build build-debug
+	bazel build --config=dbg //:mettagrid_c
 
 # Production release build
 build-prod:
 	@echo "🔨 Building release..."
-	cmake --preset release
-	cmake --build build-release
+	bazel build --config=opt //:mettagrid_c
 
 # Build and run benchmarks
 benchmark:
-	@echo "🏃 Building and running benchmarks..."
-	cmake --preset benchmark
-	cmake --build build-release
-	cd build-release && ctest -L benchmark --output-on-failure
+	@echo "🏃 Running C++ benchmarks..."
+	bazel run //benchmarks:test_mettagrid_env_benchmark
+	@echo "🏃 Running Python benchmarks..."
+	uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only
 
 # Run unit tests
 test: build
 	@echo "🧪 Running unit tests..."
-	cd build-debug && ctest -L test --output-on-failure
+	bazel test //:test_stats_tracker //:test_grid_object //:test_mettagrid //:test_observations
 
 # Generate coverage report
-coverage: test
-	@echo "📊 Generating coverage report..."
+coverage:
+	@echo "🔨 Building with coverage..."
+	bazel coverage --combined_report=lcov //:test_stats_tracker //:test_grid_object //:test_mettagrid //:test_observations
+	@echo "📊 Processing coverage data..."
 	@./generate_coverage.py
 
 # Code quality
@@ -48,7 +48,11 @@ lint:
 	@echo "🔍 Running cpplint..."
 	@bash ./tests/cpplint.sh
 
-tidy: build
+compile_commands: build
+	@echo "📝 Generating compile_commands.json..."
+	@python3 generate_compile_commands.py
+
+tidy: compile_commands
 	@echo "🔍 Running clang-tidy..."
 	@bash clang-tidy.sh
 
@@ -64,5 +68,6 @@ pytest: install
 # Cleanup
 clean:
 	@echo "🧹 Cleaning build artifacts..."
-	rm -rf build-debug build-release .venv uv.lock
+	bazel clean
+	rm -rf .venv uv.lock
 	rm -f coverage.info *.gcda *.gcno *.profraw *.profdata
