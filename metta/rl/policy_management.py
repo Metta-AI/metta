@@ -29,9 +29,9 @@ def discover_policy_uris(base_uri: str, strategy: str = "latest", count: int = 1
             run_name = dir_path.name
             run_dir = str(dir_path.parent)
 
-        # Use CheckpointManager to select checkpoints
+        # Use CheckpointManager to select local checkpoints from filesystem
         checkpoint_manager = CheckpointManager(run_name=run_name, run_dir=run_dir)
-        checkpoint_paths = checkpoint_manager.select_checkpoints(strategy=strategy, count=count, metric=metric)
+        checkpoint_paths = checkpoint_manager.select_local_checkpoints(strategy=strategy, count=count, metric=metric)
 
         # Convert paths to URIs
         return [f"file://{path}" for path in checkpoint_paths]

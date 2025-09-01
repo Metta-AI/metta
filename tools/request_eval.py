@@ -114,7 +114,7 @@ def _get_policies_for_uri(
             strategy_map = {"latest": "latest", "top": "best_score", "best_score": "best_score", "all": "all"}
             strategy = strategy_map.get(selector_type, "latest")
 
-            checkpoint_paths = checkpoint_manager.select_checkpoints(
+            checkpoint_paths = checkpoint_manager.select_local_checkpoints(
                 strategy=strategy, count=select_num, metric=select_metric
             )
 
