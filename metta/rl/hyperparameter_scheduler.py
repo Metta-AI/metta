@@ -97,7 +97,7 @@
 #         for param_name, initial_value in initial_values.items():
 #             schedule_config = schedule_configs.get(param_name)
 #             if schedule_config is not None:
-#                 self.logger.info(f"Initializing scheduler for: {param_name}")
+#                 logger.info(f"Initializing scheduler for: {param_name}")
 #                 self.schedulers[param_name] = instantiate(schedule_config)
 #             else:
 #                 self.schedulers[param_name] = ConstantSchedule(initial_value)
@@ -110,7 +110,6 @@
 #             trainer_cfg: The trainer configuration
 #             optimizer: The optimizer to update learning rate on
 #             total_timesteps: Total timesteps for progress calculation
-#             logger: Logger instance (optional)
 #         """
 #         # Extract initial values from trainer config
 #         initial_values = {
@@ -183,7 +182,7 @@
 #                     update_callbacks[param_name](new_value)
 
 #         if current_step % 10000 == 0 and updates:
-#             self.logger.info(
+#             logger.info(
 #                 f"Step {current_step}: Updated hyperparameters: "
 #                 + ", ".join(f"{k}={v:.6f}" for k, v in updates.items())
 #             )
