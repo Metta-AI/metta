@@ -237,7 +237,7 @@ class TestS3URIHandling:
 
                 assert type(loaded_policy).__name__ == type(mock_policy).__name__
                 mock_local_copy.assert_called_once_with(uri)
-                mock_torch_load.assert_called_once_with(mock_local_path, weights_only=False)
+                mock_torch_load.assert_called_once_with(mock_local_path, weights_only=False, map_location="cpu")
 
     def test_s3_key_and_version_extraction(self):
         """Test extracting key and version from S3 URIs."""
