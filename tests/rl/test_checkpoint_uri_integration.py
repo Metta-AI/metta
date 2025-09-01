@@ -214,9 +214,8 @@ class TestWandbURIHandling:
         mock_load_wandb.side_effect = RuntimeError("Network error")
 
         uri = "wandb://run/test"
-        with pytest.raises(FileNotFoundError) as exc_info:
+        with pytest.raises(FileNotFoundError, match="Network error"):
             CheckpointManager.load_from_uri(uri)
-        assert "Network error" in str(exc_info.value)
 
 
 class TestS3URIHandling:
@@ -282,9 +281,8 @@ class TestURIUtilities:
         unsupported_uris = ["http://example.com/model.pt", "ftp://server/model.pt", "gs://bucket/model.pt"]
 
         for uri in unsupported_uris:
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(ValueError, match="Unsupported URI scheme"):
                 CheckpointManager.load_from_uri(uri)
-            assert "Unsupported URI scheme" in str(exc_info.value)
 
 
 class TestRealEnvironmentIntegration:

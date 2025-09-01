@@ -28,13 +28,22 @@ class PolicyMetadata(TypedDict, total=False):
 
 
 def _parse_uri_path(uri: str, scheme: str) -> str:
-    """Extract path from URI, removing the scheme prefix."""
+    """Extract path from URI, removing the scheme prefix.
+
+    "file:///tmp/model.pt" -> "/tmp/model.pt"
+    "wandb://project/artifact:v1" -> "project/artifact:v1"
+    """
     prefix = f"{scheme}://"
     return uri[len(prefix) :] if uri.startswith(prefix) else uri
 
 
 def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
-    """Expand short wandb URI formats to full format."""
+    """Expand short wandb URI formats to full format.
+
+    "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
+    "wandb://run/my-run:v5" -> "wandb://metta/model/my-run:v5"
+    "wandb://sweep/sweep-abc" -> "wandb://metta/sweep_model/sweep-abc:latest"
+    """
     if not uri.startswith("wandb://"):
         return uri
 
@@ -62,7 +71,12 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
 
 
 def key_and_version(uri: str) -> tuple[str, int]:
-    """Extract key (run name) and version (epoch) from a policy URI."""
+    """Extract key (run name) and version (epoch) from a policy URI.
+
+    "file:///tmp/my_run__e5__s100__t60__sc5000.pt" -> ("my_run", 5)
+    "s3://bucket/my_run__e10__s200__t120__sc8000.pt" -> ("my_run", 10)
+    "mock://test_agent" -> ("test_agent", 0)
+    """
     if uri.startswith("file://"):
         path = Path(_parse_uri_path(uri, "file"))
         if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
@@ -187,8 +201,15 @@ class CheckpointManager:
             FileNotFoundError: If the checkpoint file doesn't exist or cannot be loaded
             ValueError: If the URI scheme is not supported
         """
-        # Normalize the URI first (converts plain paths to file:// URIs)
         original_uri = uri
+
+        # Check for unsupported URI schemes before normalization
+        if "://" in uri:
+            scheme = uri.split("://")[0]
+            if scheme not in ["file", "wandb", "s3", "mock"]:
+                raise ValueError(f"Unsupported URI scheme: {original_uri}")
+
+        # Normalize the URI (converts plain paths to file:// URIs)
         uri = CheckpointManager.normalize_uri(uri)
 
         # Default to CPU if no device specified
@@ -230,7 +251,12 @@ class CheckpointManager:
 
     @staticmethod
     def normalize_uri(path_or_uri: str) -> str:
-        """Convert path to URI format and expand short wandb URIs."""
+        """Convert path to URI format and expand short wandb URIs.
+
+        "/tmp/model.pt" -> "file:///tmp/model.pt"
+        "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
+        "s3://bucket/model.pt" -> "s3://bucket/model.pt"
+        """
         if not path_or_uri.startswith(("file://", "wandb://", "s3://", "mock://")):
             return f"file://{Path(path_or_uri).resolve()}"
         if path_or_uri.startswith("wandb://"):
