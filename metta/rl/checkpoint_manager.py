@@ -57,7 +57,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
         # Handle directory URIs by finding the latest checkpoint inside
         if path.is_dir():
-            checkpoint_file = _find_best_checkpoint_in_dir(path)
+            checkpoint_file = _find_latest_checkpoint_in_dir(path)
             if checkpoint_file and is_valid_checkpoint_filename(checkpoint_file.name):
                 return parse_checkpoint_filename(checkpoint_file.name)[:2]
             elif checkpoint_file:
@@ -113,8 +113,8 @@ def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]
     return (parts[0], int(parts[1][1:]), int(parts[2][1:]), int(parts[3][1:]), int(parts[4][2:]) / 10000.0)
 
 
-def _find_best_checkpoint_in_dir(directory: Path) -> Optional[Path]:
-    """Find the best checkpoint file in a directory."""
+def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
+    """Find the latest checkpoint file in a directory (by epoch)."""
     # Try direct directory first, then checkpoints subdirectory
     search_dirs = [directory]
     if directory.name != "checkpoints":
@@ -169,43 +169,24 @@ class CheckpointManager:
         # Normalize the URI first (converts plain paths to file:// URIs)
         uri = CheckpointManager.normalize_uri(uri)
 
-        # Convert device to string for torch.load's map_location parameter
+        # Default to CPU if no device specified
         if device is None:
             device = "cpu"
-        elif isinstance(device, torch.device):
-            device = str(device)
-        # else: device is already a string
 
         if uri.startswith("file://"):
             path = Path(_parse_uri_path(uri, "file"))
-            try:
-                if path.is_file() and path.suffix == ".pt":
-                    return torch.load(path, weights_only=False, map_location=device)
-                if path.is_dir():
-                    checkpoint_file = _find_best_checkpoint_in_dir(path)
-                    return (
-                        torch.load(checkpoint_file, weights_only=False, map_location=device)
-                        if checkpoint_file
-                        else None
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to load checkpoint from {uri}: {e}")
-                return None
+            if path.is_file() and path.suffix == ".pt":
+                return torch.load(path, weights_only=False, map_location=device)
+            if path.is_dir():
+                checkpoint_file = _find_latest_checkpoint_in_dir(path)
+                return torch.load(checkpoint_file, weights_only=False, map_location=device) if checkpoint_file else None
             return None
         if uri.startswith("s3://"):
-            try:
-                with local_copy(uri) as local_path:
-                    return torch.load(local_path, weights_only=False, map_location=device)
-            except Exception as e:
-                logger.warning(f"Failed to load checkpoint from {uri}: {e}")
-                return None
+            with local_copy(uri) as local_path:
+                return torch.load(local_path, weights_only=False, map_location=device)
         if uri.startswith("wandb://"):
-            try:
-                expanded_uri = expand_wandb_uri(uri)
-                return load_policy_from_wandb_uri(expanded_uri, device=device)
-            except Exception as e:
-                logger.warning(f"Failed to load checkpoint from {uri}: {e}")
-                return None
+            expanded_uri = expand_wandb_uri(uri)
+            return load_policy_from_wandb_uri(expanded_uri, device=device)
         if uri.startswith("mock://"):
             from metta.agent.mocks import MockAgent
 
@@ -308,8 +289,7 @@ class CheckpointManager:
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any], wandb_run=None) -> str:
         """Save agent checkpoint to disk and optionally to wandb.
 
-        Returns:
-            URI of saved checkpoint (file:// for local, wandb:// if uploaded to wandb)
+        Returns URI of saved checkpoint (file:// for local, wandb:// if uploaded to wandb).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         agent_step = metadata.get("agent_step", 0)
