@@ -56,7 +56,7 @@ uv sync || err "Failed to install Python dependencies"
 uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
 
 # Only run configuration if no config exists
-if [ ! -f "$HOME/.metta/config.yaml" ]; then
+if [ ! -f "$REPO_ROOT/.metta/config.yaml" ] && [ ! -f "$HOME/.metta/config.yaml" ]; then
   echo "No configuration found, running setup wizard..."
   if [ -n "$PROFILE" ]; then
     uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" || err "Failed to run configuration"
@@ -64,7 +64,11 @@ if [ ! -f "$HOME/.metta/config.yaml" ]; then
     uv run python -m metta.setup.metta_cli configure || err "Failed to run configuration"
   fi
 else
-  echo "Configuration already exists at ~/.metta/config.yaml"
+  if [ -f "$REPO_ROOT/.metta/config.yaml" ]; then
+    echo "Configuration already exists at $REPO_ROOT/.metta/config.yaml"
+  else
+    echo "Configuration already exists at ~/.metta/config.yaml"
+  fi
 fi
 
 uv run python -m metta.setup.metta_cli install || err "Failed to install components"

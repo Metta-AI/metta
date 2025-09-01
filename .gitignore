@@ -74,6 +74,10 @@ cpplint_output*
 /devops/charts/**/charts/
 .claude/settings.local.json
 
+# Metta configuration directory
+.metta/
+!.metta/config.yaml
+
 # External tools
 /Miniconda3-Linux.sh  # created by skypilot
 

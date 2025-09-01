@@ -7,6 +7,7 @@ from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
 from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info, success, warning
+from metta.config.schema import get_config
 
 
 @register_module
@@ -16,6 +17,11 @@ class WandbSetup(SetupModule):
     @property
     def description(self) -> str:
         return "Weights & Biases experiment tracking"
+        
+    def should_install(self) -> bool:
+        """Install W&B only if user has enabled it in configuration."""
+        config = get_config()
+        return config.wandb.enabled
 
     def check_installed(self) -> bool:
         if os.environ.get("WANDB_API_KEY"):

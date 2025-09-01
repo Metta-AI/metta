@@ -3,6 +3,7 @@ from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
 from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info
+from metta.config.schema import get_config
 
 
 @register_module
@@ -19,16 +20,50 @@ class AWSSetup(SetupModule):
             return "devops/aws/setup_aws_profiles.sh"
         return None
 
+    def should_install(self) -> bool:
+        """Install AWS tools only if user has configured AWS/S3 usage."""
+        config = get_config()
+        
+        # Check if user needs AWS tools based on their configuration
+        needs_aws = (
+            config.storage.s3_bucket is not None or           # S3 storage configured
+            config.storage.replay_dir and "s3://" in config.storage.replay_dir or
+            config.storage.torch_profile_dir and "s3://" in config.storage.torch_profile_dir or  
+            config.storage.checkpoint_dir and "s3://" in config.storage.checkpoint_dir or
+            get_saved_settings().user_type.is_softmax         # Softmax users typically need AWS
+        )
+        
+        return needs_aws
+
     def check_installed(self) -> bool:
         try:
             import boto3  # noqa: F401
-
+            # Also check if AWS CLI is available
+            import subprocess
+            subprocess.run(["aws", "--version"], check=True, capture_output=True)
             return True
-        except ImportError:
+        except (ImportError, subprocess.CalledProcessError):
             return False
 
     def install(self) -> None:
+        import platform
+        import subprocess
+        from metta.setup.utils import success, warning
+        
         saved_settings = get_saved_settings()
+        
+        # Install AWS CLI tools first
+        if platform.system() == "Darwin":
+            try:
+                info("Installing AWS CLI tools...")
+                subprocess.run(["brew", "tap", "aws/homebrew-aws"], check=True, capture_output=True)
+                subprocess.run(["brew", "install", "aws/aws/amazon-efs-utils"], check=True, capture_output=True)
+                subprocess.run(["brew", "install", "awscli"], check=True, capture_output=True)
+                subprocess.run(["brew", "install", "--cask", "session-manager-plugin"], check=True, capture_output=True)
+                success("AWS CLI tools installed")
+            except subprocess.CalledProcessError as e:
+                warning(f"Failed to install some AWS tools: {e}")
+        
         if saved_settings.user_type == UserType.SOFTMAX_DOCKER:
             info("AWS access for this profile should be provided via IAM roles or environment variables.")
             info("Skipping AWS profile setup.")

@@ -11,6 +11,39 @@ from pathlib import Path
 import yaml
 
 
+def _find_repo_root() -> Path | None:
+    """Find the root of the metta repository."""
+    current = Path.cwd()
+    while current != current.parent:
+        # Look for distinctive metta files/directories
+        if (current / "pyproject.toml").exists() and (current / "metta").exists():
+            return current
+        current = current.parent
+    return None
+
+
+def _get_config_path() -> Path:
+    """Get the configuration file path, preferring repo-based over user directory."""
+    # First try repo-based config
+    repo_root = _find_repo_root()
+    if repo_root:
+        repo_config = repo_root / ".metta" / "config.yaml"
+        if repo_config.exists():
+            return repo_config
+    
+    # Check user directory
+    user_config = Path.home() / ".metta" / "config.yaml"
+    if user_config.exists():
+        return user_config
+    
+    # If neither exists, prefer repo location for new configs (if in repo)
+    if repo_root:
+        return repo_root / ".metta" / "config.yaml"
+    
+    # Fall back to user directory
+    return user_config
+
+
 @dataclass
 class WandbConfig:
     """Weights & Biases configuration."""
@@ -68,7 +101,7 @@ class MettaConfig:
     def load(cls, path: Path | None = None) -> "MettaConfig":
         """Load configuration from file."""
         if path is None:
-            path = Path.home() / ".metta" / "config.yaml"
+            path = _get_config_path()
 
         if not path.exists():
             return cls()
@@ -88,7 +121,7 @@ class MettaConfig:
     def save(self, path: Path | None = None) -> None:
         """Save configuration to file."""
         if path is None:
-            path = Path.home() / ".metta" / "config.yaml"
+            path = _get_config_path()
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
