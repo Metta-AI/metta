@@ -110,7 +110,9 @@ class Simulation:
         # Load NPC policy if specified
         if cfg.npc_policy_uri:
             npc_policy = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
-            self._npc_policy = npc_policy if npc_policy is not None else MockAgent()
+            if npc_policy is None:
+                raise ValueError(f"Failed to load NPC policy from URI: {cfg.npc_policy_uri}")
+            self._npc_policy = npc_policy
         else:
             self._npc_policy = None
         self._npc_policy_uri = cfg.npc_policy_uri
@@ -169,7 +171,7 @@ class Simulation:
         if policy_uri:
             policy = CheckpointManager.load_from_uri(policy_uri)
             if policy is None:
-                policy = MockAgent()
+                raise ValueError(f"Failed to load policy from URI: {policy_uri}")
         else:
             policy = MockAgent()
 
