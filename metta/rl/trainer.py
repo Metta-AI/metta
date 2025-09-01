@@ -549,16 +549,15 @@ def train(
                     if trainer_cfg.evaluation.evaluate_remote:
                         try:
                             # Use SimpleCheckpointManager for remote evaluation
-                            # Create full wandb policy name in format: entity/project/artifact:version
-                            # The artifact name is the run name, and version is the epoch
-                            wandb_policy_name = f"metta-research/metta/{run}:{epoch}" if wandb_run else None
+                            # Create policy URI for the wandb artifact
+                            policy_uri = f"wandb://metta/{run}:{epoch}" if wandb_run else None
 
                             task_response = evaluate_policy_remote_with_checkpoint_manager(
                                 checkpoint_manager=checkpoint_manager,
                                 checkpoint_path=None,  # Use best checkpoint
                                 simulations=sims,
                                 stats_epoch_id=stats_tracker.stats_epoch_id,
-                                wandb_policy_name=wandb_policy_name,
+                                policy_uri=policy_uri,
                                 stats_client=stats_client,
                                 wandb_run=wandb_run,
                                 trainer_cfg=trainer_cfg,

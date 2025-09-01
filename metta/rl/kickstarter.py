@@ -66,8 +66,8 @@ class Kickstarter:
     def _load_policies(self) -> None:
         self.teachers: dict[PolicyAgent, KickstartTeacherConfig] = {}
         for teacher_cfg in self.teacher_cfgs or []:
-            # Use CheckpointManager's static method to load from any URI
-            policy: PolicyAgent = CheckpointManager.load_from_uri(teacher_cfg.teacher_uri)
+            # Use CheckpointManager's static method to load from any URI, directly to the correct device
+            policy: PolicyAgent = CheckpointManager.load_from_uri(teacher_cfg.teacher_uri, device=self.device)
             if policy is None:
                 raise ValueError(f"Failed to load teacher policy from {teacher_cfg.teacher_uri}")
 

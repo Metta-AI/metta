@@ -160,25 +160,47 @@ class CheckpointManager:
         _global_cache.clear()
 
     @staticmethod
-    def load_from_uri(uri: str):
-        """Load a policy from file://, s3://, or wandb:// URI."""
+    def load_from_uri(uri: str, device: str | torch.device | None = None):
+        """Load a policy from file://, s3://, or wandb:// URI.
+
+        Args:
+            uri: The URI to load from
+            device: Optional device to load the checkpoint to. Can be a string like "cpu", "cuda",
+                   or a torch.device object. If None, loads to CPU by default.
+
+        Returns:
+            The loaded checkpoint/agent, or None if loading fails
+        """
         # Normalize the URI first (converts plain paths to file:// URIs)
         uri = CheckpointManager.normalize_uri(uri)
+
+        # Convert device to string for consistency
+        if device is None:
+            device_str = "cpu"
+        elif isinstance(device, torch.device):
+            device_str = str(device)
+        else:
+            device_str = device
+
         try:
             if uri.startswith("file://"):
                 path = Path(_parse_uri_path(uri, "file"))
                 if path.is_file() and path.suffix == ".pt":
-                    return torch.load(path, weights_only=False)
+                    return torch.load(path, weights_only=False, map_location=device_str)
                 if path.is_dir():
                     checkpoint_file = _find_best_checkpoint_in_dir(path)
-                    return torch.load(checkpoint_file, weights_only=False) if checkpoint_file else None
+                    return (
+                        torch.load(checkpoint_file, weights_only=False, map_location=device_str)
+                        if checkpoint_file
+                        else None
+                    )
                 return None
             if uri.startswith("s3://"):
                 with local_copy(uri) as local_path:
-                    return torch.load(local_path, weights_only=False)
+                    return torch.load(local_path, weights_only=False, map_location=device_str)
             if uri.startswith("wandb://"):
                 expanded_uri = expand_wandb_uri(uri)
-                return load_policy_from_wandb_uri(expanded_uri, device="cpu")
+                return load_policy_from_wandb_uri(expanded_uri, device=device_str)
             if uri.startswith("mock://"):
                 from metta.agent.mocks import MockAgent
 

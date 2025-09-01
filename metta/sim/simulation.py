@@ -26,7 +26,7 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+from metta.sim.utils import get_or_create_policy_ids
 
 SYNTHETIC_EVAL_PREFIX = "eval/"
 
@@ -55,7 +55,7 @@ class Simulation:
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
-        wandb_policy_name: str | None = None,
+        wandb_policy_name: str | None = None,  # Deprecated, use policy_uri instead
         eval_task_id: uuid.UUID | None = None,
         episode_tags: list[str] | None = None,
     ):
@@ -64,10 +64,19 @@ class Simulation:
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
         self._episode_tags = episode_tags
-        self._wandb_policy_name: str | None = None
+        # Use policy_uri directly - wandb_policy_name is deprecated
+        self._policy_uri = policy_uri
         self._wandb_uri: str | None = None
+        # Handle deprecated wandb_policy_name for backwards compatibility
         if wandb_policy_name is not None:
-            self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
+            logger.warning("wandb_policy_name parameter is deprecated, use policy_uri instead")
+            # Convert old format to URI if needed
+            if "/" in wandb_policy_name and ":" in wandb_policy_name:
+                parts = wandb_policy_name.split("/")
+                if len(parts) == 3:
+                    # entity/project/artifact:version format
+                    _, project, artifact_with_version = parts
+                    self._wandb_uri = f"wandb://{project}/{artifact_with_version}"
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
@@ -394,9 +403,12 @@ class Simulation:
     def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
-            policy_name = self._wandb_policy_name or self._run_name
+            # Use policy_uri directly, extract name from it if needed
             policy_uri = self._wandb_uri or self._policy_uri
             if policy_uri:  # Only add if we have a URI
+                # Extract policy name from URI using CheckpointManager
+                metadata = CheckpointManager.get_policy_metadata(policy_uri)
+                policy_name = metadata["run_name"]
                 policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
             else:
                 policy_details = []

@@ -13,7 +13,7 @@ from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+from metta.sim.utils import get_or_create_policy_ids
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
     checkpoint_path: Optional[str],
     simulations: list[SimulationConfig],
     stats_epoch_id: uuid.UUID | None,
-    wandb_policy_name: str | None,
+    policy_uri: str | None,
     stats_client: StatsClient | None,
     wandb_run: WandbRun | None,
     trainer_cfg: TrainerConfig,
@@ -35,7 +35,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
         checkpoint_path: Specific checkpoint path, or None for latest
         simulations: List of simulations to run
         stats_epoch_id: Stats epoch ID for tracking
-        wandb_policy_name: WandB policy name for artifacts
+        policy_uri: Policy URI (wandb://, file://, etc.)
         stats_client: Client for stats server communication
         wandb_run: WandB run context
         trainer_cfg: Training configuration
@@ -43,8 +43,8 @@ def evaluate_policy_remote_with_checkpoint_manager(
     Returns:
         TaskResponse if evaluation task created, None otherwise
     """
-    if not (wandb_run and stats_client and wandb_policy_name):
-        logger.warning("Remote evaluation requires wandb_run, stats_client, and wandb_policy_name")
+    if not (wandb_run and stats_client and policy_uri):
+        logger.warning("Remote evaluation requires wandb_run, stats_client, and policy_uri")
         return None
 
     # Get checkpoint path if not specified
@@ -54,21 +54,23 @@ def evaluate_policy_remote_with_checkpoint_manager(
             logger.warning("No checkpoints available for remote evaluation")
             return None
 
-    # Validate wandb policy name format
-    if ":" not in wandb_policy_name:
-        logger.warning(f"Remote evaluation: {wandb_policy_name} does not specify a version")
+    # Normalize the policy URI
+    normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+
+    # For wandb URIs, ensure they have a version
+    if normalized_uri.startswith("wandb://") and ":" not in normalized_uri:
+        logger.warning(f"Remote evaluation: {normalized_uri} does not specify a version")
         return None
 
-    # Process wandb policy registration
-    internal_wandb_policy_name, wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
+    # Process policy registration using the new format
     stats_server_policy_id = get_or_create_policy_ids(
         stats_client,
-        [(internal_wandb_policy_name, wandb_uri, wandb_run.notes)],
+        [(normalized_uri, wandb_run.notes)],  # New format: (uri, description)
         stats_epoch_id,
-    ).get(internal_wandb_policy_name)
+    ).get(CheckpointManager.get_policy_metadata(normalized_uri)["run_name"])
 
     if not stats_server_policy_id:
-        logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
+        logger.warning(f"Remote evaluation: failed to get or register policy ID for {normalized_uri}")
         return None
 
     # Create evaluation task
@@ -84,7 +86,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
     )
 
     logger.info(
-        f"Policy evaluator: created task {task.id} for {wandb_policy_name} on {simulations[0].name} "
+        f"Policy evaluator: created task {task.id} for {normalized_uri} on {simulations[0].name} "
         f"using checkpoint {Path(checkpoint_path).name}"
     )
 

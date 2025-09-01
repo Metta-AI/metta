@@ -37,12 +37,10 @@ def evaluate_policy(
     if not is_unique([sim.name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
 
-    # Load the policy from URI
-    policy = CheckpointManager.load_from_uri(checkpoint_uri)
+    # Load the policy from URI directly to the correct device
+    policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
     if policy is None:
         raise FileNotFoundError(f"Could not load policy from {checkpoint_uri}")
-    if device != "cpu":
-        policy = policy.to(device)
     metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
     run_name = metadata["run_name"]
 
