@@ -281,39 +281,6 @@ class SimTool(Tool):
 
             logger.debug(f"Exported checkpoint {policy_key} to stats database for simulation {sim_config.name}")
 
-    def compare_policies(self, policy_uris: list[str], metric: str = "score") -> dict:
-        """Simple policy comparison functionality."""
-        if not self.stats_db_uri:
-            raise ValueError("stats_db_uri required for policy comparison")
-
-        comparison_results = {"metric": metric, "policies": []}
-
-        try:
-            with SimulationStatsDB.from_uri(self.stats_db_uri) as stats_db:
-                for policy_uri in policy_uris:
-                    # Extract policy info from URI using CheckpointManager
-                    metadata = CheckpointManager.get_policy_metadata(policy_uri)
-                    policy_key, policy_version = metadata["run_name"], metadata["epoch"]
-
-                    # Get policy performance from stats database
-                    policy_scores = stats_db.simulation_scores(policy_key, policy_version, metric)
-
-                    comparison_results["policies"].append(
-                        {
-                            "policy_uri": policy_uri,
-                            "policy_key": policy_key,
-                            "policy_version": policy_version,
-                            "scores": dict(policy_scores),
-                            "average_score": sum(policy_scores.values()) / len(policy_scores) if policy_scores else 0.0,
-                        }
-                    )
-
-        except Exception as e:
-            logger.error(f"Policy comparison failed: {e}")
-            comparison_results["error"] = str(e)
-
-        return comparison_results
-
     def _run_simulations_for_checkpoint(self, checkpoint_uri: str) -> dict:
         """Run simulations for a single checkpoint and return aggregated metrics.
 
