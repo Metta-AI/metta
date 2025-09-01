@@ -62,7 +62,7 @@ class EvalRequest(BaseModel):
 def _get_policies_for_uri(
     policy_uri: str,
     disallow_missing_policies: bool = False,
-) -> tuple[str, list[tuple[str, str]] | None]:
+) -> tuple[str, list[str] | None]:
     """Get policies from a URI - requires fully versioned URIs."""
     try:
         # Normalize URI using CheckpointManager
@@ -78,9 +78,8 @@ def _get_policies_for_uri(
                 warning(f"Could not load policy from {normalized_uri}")
                 return policy_uri, None
 
-        # Get metadata for the policy
-        metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-        return policy_uri, [(normalized_uri, metadata["run_name"])]
+        # Return the normalized URI
+        return policy_uri, [normalized_uri]
 
     except Exception as e:
         if not disallow_missing_policies:
@@ -110,20 +109,22 @@ async def _create_remote_eval_tasks(request: EvalRequest) -> None:
             for policy_uri in request.policies
         }
 
-        all_policies = {}  # run_name -> (uri, run_name)
+        all_policies = []  # Just collect all URIs
         for future in concurrent.futures.as_completed(future_to_uri):
             policy_uri, results = future.result()
             if results is not None:
-                for uri, run_name in results:
-                    all_policies[run_name] = (uri, run_name)
+                all_policies.extend(results)
 
     if not all_policies:
         warning("No policies found")
         return
 
-    # Create policy IDs in stats database
+    # Remove duplicates while preserving order
+    unique_policies = list(dict.fromkeys(all_policies))
+
+    # Create policy IDs in stats database using new format (uri, description)
     policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(
-        stats_client, [(run_name, uri, None) for uri, run_name in all_policies.values()]
+        stats_client, [(uri, None) for uri in unique_policies]
     )
 
     if not policy_ids:
