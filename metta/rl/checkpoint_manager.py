@@ -285,7 +285,7 @@ class CheckpointManager:
     def exists(self) -> bool:
         return self.checkpoint_dir.exists() and bool(self._find_checkpoint_files())
 
-    def load_agent(self, epoch: Optional[int] = None):
+    def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
         agent_file = self._get_checkpoint_file(epoch)
         if not agent_file:
             return None
@@ -295,7 +295,9 @@ class CheckpointManager:
             self._cache.move_to_end(path_str)
             return self._cache[path_str]
 
-        agent = torch.load(agent_file, weights_only=False)
+        # Load to specified device or CPU by default
+        map_location = str(device) if device else "cpu"
+        agent = torch.load(agent_file, weights_only=False, map_location=map_location)
 
         # Only cache if cache size > 0
         if self.cache_size > 0:

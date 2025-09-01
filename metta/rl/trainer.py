@@ -137,11 +137,27 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
-    # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
-    existing_agent = checkpoint_manager.load_agent()
+    # Distributed checkpoint loading coordination
+    # Only master loads checkpoint, then broadcasts decision to all ranks
+    if torch_dist_cfg.is_master:
+        # Load existing agent from CheckpointManager (returns None if no checkpoints exist)
+        existing_agent = checkpoint_manager.load_agent(device=device)
 
-    # Load trainer state (returns None if no trainer state exists)
-    trainer_state = checkpoint_manager.load_trainer_state()
+        # Load trainer state (returns None if no trainer state exists)
+        trainer_state = checkpoint_manager.load_trainer_state()
+        has_checkpoint = existing_agent is not None
+    else:
+        existing_agent = None
+        trainer_state = None
+        has_checkpoint = False
+
+    # Synchronize checkpoint existence across all ranks
+    if torch.distributed.is_initialized():
+        from agent.src.metta.agent.util.distribution_utils import get_from_master
+
+        has_checkpoint = get_from_master(has_checkpoint)
+        trainer_state = get_from_master(trainer_state)
+
     agent_step = trainer_state["agent_step"] if trainer_state else 0
     epoch = trainer_state["epoch"] if trainer_state else 0
     latest_saved_epoch = epoch  # Track the epoch of the latest saved checkpoint
@@ -152,13 +168,22 @@ def train(
         if "stopwatch_state" in trainer_state:
             timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
 
-    # Create or use existing agent
-    if existing_agent:
-        logger.info("Resuming training with existing agent from checkpoint")
-        policy_agent = existing_agent
+    # Create or load agent with distributed coordination
+    if has_checkpoint:
+        if torch_dist_cfg.is_master:
+            logger.info("Resuming training with existing agent from checkpoint")
+            policy_agent = existing_agent
+        else:
+            # Non-master ranks load the same checkpoint
+            logger.info(f"Rank {torch_dist_cfg.rank}: Loading checkpoint for distributed training")
+            policy_agent = checkpoint_manager.load_agent(device=device)
     else:
         logger.info("Creating new agent for training")
         policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+
+    # Ensure all ranks have created/loaded their policy before continuing
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
     policy: PolicyAgent = policy_agent
 
@@ -169,9 +194,14 @@ def train(
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
+        if torch_dist_cfg.is_master:
+            logger.info("Initializing DistributedDataParallel")
+        torch.distributed.barrier()
         policy = wrap_agent_distributed(policy, device)
+        torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
+    # This must happen after wrapping to ensure all ranks do it at the same time
     policy.train()  # Set to training mode for training
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
@@ -487,18 +517,15 @@ def train(
                 # Only upload to wandb if we're at the right interval
                 should_upload_wandb = wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval)
                 metadata["upload_to_wandb"] = should_upload_wandb
-                
+
                 wandb_uri = checkpoint_manager.save_agent(
-                    agent_to_save, 
-                    epoch, 
-                    metadata,
-                    wandb_run=wandb_run if should_upload_wandb else None
+                    agent_to_save, epoch, metadata, wandb_run=wandb_run if should_upload_wandb else None
                 )
                 checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
                 latest_saved_epoch = epoch  # Update latest saved epoch
 
                 logger.info(f"Successfully saved checkpoint at epoch {epoch}")
-                
+
                 if wandb_uri:
                     logger.info(f"Uploaded checkpoint to wandb: {wandb_uri}")
 
@@ -636,15 +663,15 @@ def train(
     # Mark as final checkpoint and always upload to wandb if wandb is configured
     final_metadata["is_final"] = True
     final_metadata["upload_to_wandb"] = bool(wandb_run)  # Always upload final checkpoint
-    
+
     wandb_uri = checkpoint_manager.save_agent(
-        agent_to_save, 
-        epoch, 
+        agent_to_save,
+        epoch,
         final_metadata,
-        wandb_run=wandb_run  # Upload final checkpoint if wandb is available
+        wandb_run=wandb_run,  # Upload final checkpoint if wandb is available
     )
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
-    
+
     if wandb_uri:
         logger.info(f"Uploaded final checkpoint to wandb: {wandb_uri}")
 
