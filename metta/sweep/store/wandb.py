@@ -131,11 +131,10 @@ class WandbStore:
             if runtime > 0:
                 # Actually ran training
                 has_started_training = True
-                has_completed_training = True
+                # Completion will be determined by comparing current_steps to total_timesteps below
             else:
                 # Just initialized, never actually ran - stays PENDING
                 has_started_training = False
-                has_completed_training = False
 
             # Check evaluation status
             if "has_started_eval" in summary and summary["has_started_eval"] is True:  # type: ignore
@@ -168,6 +167,31 @@ class WandbStore:
         if runtime == 0.0 and hasattr(run, "duration"):
             runtime = float(run.duration) if run.duration else 0.0
 
+        # Extract training progress metrics
+        total_timesteps = None
+        current_steps = None
+
+        # Get total_timesteps from config
+        if hasattr(run, "config"):
+            config = dict(run.config)
+            # Check trainer.total_timesteps
+            if "trainer" in config and isinstance(config["trainer"], dict):
+                total_timesteps = config["trainer"].get("total_timesteps")
+                if total_timesteps is not None:
+                    total_timesteps = int(total_timesteps)
+
+        # Get current_steps from summary
+        if "metric/agent_step" in summary:
+            current_steps = int(summary["metric/agent_step"])  # type: ignore
+
+        # Determine training completion based on progress
+        # Training is complete only if we've reached the target timesteps
+        if total_timesteps is not None and current_steps is not None:
+            has_completed_training = current_steps >= total_timesteps
+        else:
+            # If either is None, we haven't completed training
+            has_completed_training = False
+
         # Create RunInfo with all fields set in constructor
         info = RunInfo(
             run_id=run.id,
@@ -185,6 +209,8 @@ class WandbStore:
             has_failed=has_failed,
             cost=cost,
             runtime=runtime,
+            total_timesteps=total_timesteps,
+            current_steps=current_steps,
             observation=observation,
         )
 
