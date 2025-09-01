@@ -1,7 +1,7 @@
 import logging
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict
 
 import torch
 
@@ -12,6 +12,19 @@ logger = logging.getLogger(__name__)
 
 # Global cache for sharing checkpoints across CheckpointManager instances
 _global_cache = OrderedDict()
+
+
+class PolicyMetadata(TypedDict, total=False):
+    """Type definition for policy metadata returned by get_policy_metadata."""
+
+    run_name: str
+    epoch: int
+    uri: str
+    original_uri: str
+    # Optional fields (only present for valid checkpoint files)
+    agent_step: int
+    total_time: int
+    score: float
 
 
 def _parse_uri_path(uri: str, scheme: str) -> str:
@@ -146,6 +159,10 @@ class CheckpointManager:
             raise ValueError("Run name cannot be empty")
         if any(char in run_name for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
             raise ValueError(f"Run name contains invalid characters: {run_name}")
+        if "__" in run_name:
+            raise ValueError(
+                f"Run name cannot contain '__' as it's used as a delimiter in checkpoint filenames: {run_name}"
+            )
 
         self.run_name = run_name
         self.run_dir = Path(run_dir)
@@ -203,14 +220,14 @@ class CheckpointManager:
         return path_or_uri
 
     @staticmethod
-    def get_policy_metadata(uri: str) -> dict[str, Any]:
+    def get_policy_metadata(uri: str) -> PolicyMetadata:
         """Extract metadata from policy URI."""
         original_uri = uri
         if uri.startswith("wandb://"):
             uri = expand_wandb_uri(uri)  # Expand wandb URI before normalization
         uri = CheckpointManager.normalize_uri(uri)
         run_name, epoch = key_and_version(uri)
-        metadata = {"run_name": run_name, "epoch": epoch, "uri": uri, "original_uri": original_uri}
+        metadata: PolicyMetadata = {"run_name": run_name, "epoch": epoch, "uri": uri, "original_uri": original_uri}
 
         if uri.startswith("file://"):
             path = Path(_parse_uri_path(uri, "file"))
