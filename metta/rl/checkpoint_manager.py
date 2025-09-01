@@ -210,7 +210,6 @@ class CheckpointManager:
             return expand_wandb_uri(path_or_uri)
         return path_or_uri
 
-
     @staticmethod
     def get_policy_metadata(uri: str) -> dict[str, Any]:
         """Extract metadata from policy URI."""
