@@ -6,6 +6,8 @@ from datetime import datetime
 import rich.traceback
 from rich.logging import RichHandler
 
+from metta.common.util.constants import RANK_ENV_VARS
+
 
 def remap_io(logs_path: str):
     os.makedirs(logs_path, exist_ok=True)
@@ -24,6 +26,29 @@ def remap_io(logs_path: str):
 def restore_io():
     sys.stderr = sys.__stderr__
     sys.stdout = sys.__stdout__
+
+
+def get_node_rank() -> str | None:
+    for var in RANK_ENV_VARS:
+        if rank := os.environ.get(var):
+            return rank
+    return None
+
+
+def log_master(message: str, logger: logging.Logger | None = None, level: int = logging.INFO):
+    """
+    Log message only on master node (rank 0).
+
+    Args:
+        message: Message to log
+        logger: Logger to use (default: root logger)
+        level: Log level (default: INFO)
+    """
+    rank = get_node_rank() or "0"
+    if rank == "0":
+        if logger is None:
+            logger = logging.getLogger()
+        logger.log(level, message)
 
 
 # Create a custom formatter that supports milliseconds
@@ -85,7 +110,8 @@ def init_file_logging(run_dir: str) -> None:
     logs_dir = os.path.join(run_dir, "logs")
     os.makedirs(logs_dir, exist_ok=True)
 
-    node_index = os.environ.get("RANK", "0")
+    # Use node rank if available, otherwise RANK env var
+    node_index = get_node_rank() or "0"
     if node_index == "0":
         log_file = "script.log"
     else:
@@ -108,7 +134,16 @@ def init_file_logging(run_dir: str) -> None:
     file_handler.flush()
 
 
-def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
+def init_logging(level: str | None = None, run_dir: str | None = None, show_rank: bool = False) -> None:
+    """
+    Initialize logging with optional node/rank display.
+
+    Args:
+        level: Log level string
+        run_dir: Directory for log files (optional)
+        show_rank: Whether to show node/rank in log messages (default: False)
+                  If True and rank is detected, prepends [rank] to messages
+    """
     # Get the appropriate log level based on priority
     log_level = get_log_level(level)
 
@@ -128,6 +163,10 @@ def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
         or os.environ.get("NO_HYPERLINKS") is not None  # explicit disable
         or os.environ.get("NO_RICH_LOGS") is not None  # explicit disable rich
     )
+
+    # Get node rank if needed
+    rank = get_node_rank() if show_rank else None
+    rank_prefix = f"[{rank}] " if rank else ""
 
     if use_simple_handler:
         # Use simple handler without Rich formatting
@@ -151,8 +190,8 @@ def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
                     filename = os.path.basename(record.pathname)
                     location = f" [{filename}:{record.lineno}]"
 
-                # Format: [timestamp] LEVEL message [file:line]
-                return f"{timestamp} {level_name:<8} {msg}{location}"
+                # Format: [timestamp] [rank] LEVEL message [file:line]
+                return f"{timestamp} {rank_prefix}{level_name:<8} {msg}{location}"
 
         handler.setFormatter(LevelPrefixFormatter("%(message)s", datefmt="[%H:%M:%S.%f]"))
         root_logger.addHandler(handler)
@@ -163,7 +202,20 @@ def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
             show_path=True,
             enable_link_path=True,  # Enable links in interactive mode
         )
-        formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
+
+        # Create a formatter that includes rank if needed
+        class RankFormatter(MillisecondFormatter):
+            def format(self, record):
+                # Prepend rank to the message if available
+                if rank_prefix:
+                    original_msg = record.getMessage()
+                    record.msg = f"{rank_prefix}{original_msg}"
+                    result = super().format(record)
+                    record.msg = original_msg
+                    return result
+                return super().format(record)
+
+        formatter = RankFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
         rich_handler.setFormatter(formatter)
         root_logger.addHandler(rich_handler)
 
@@ -179,3 +231,32 @@ def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
     # Add file logging (after console handlers are set up)
     if run_dir:
         init_file_logging(run_dir)
+
+
+_INITIALIZED = False
+_GLOBAL_LOGGER = None
+
+
+def log(message: str, level: int = logging.INFO, show_rank: bool = True, master_only: bool = False):
+    """
+    Universal logging function that handles initialization automatically.
+
+    Args:
+        message: Message to log
+        level: Log level (default: INFO)
+        show_rank: Whether to show rank prefix (default: True)
+        master_only: Whether to only log on rank 0 (default: False)
+    """
+    global _INITIALIZED, _GLOBAL_LOGGER
+
+    if not _INITIALIZED:
+        # Auto-initialize with sensible defaults
+        init_logging(show_rank=show_rank)
+        _GLOBAL_LOGGER = logging.getLogger("metta")  # Use a consistent logger name
+        _INITIALIZED = True
+
+    if master_only:
+        log_master(message, logger=_GLOBAL_LOGGER, level=level)
+    else:
+        assert _GLOBAL_LOGGER
+        _GLOBAL_LOGGER.log(level, message)
