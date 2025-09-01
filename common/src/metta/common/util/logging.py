@@ -169,6 +169,3 @@ def init_logging(run_dir: str | None = None) -> None:
     _init_console_logging()
     if run_dir:
         _add_file_logging(run_dir)
-
-
-init_logging()
