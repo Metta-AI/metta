@@ -247,23 +247,26 @@ class TestUtilities:
             with pytest.raises(ValueError):
                 parse_checkpoint_filename(invalid_filename)
 
-    def test_exists_functionality(self, checkpoint_manager, mock_agent):
-        # Should not exist initially
-        assert not checkpoint_manager.exists()
+    def test_checkpoint_existence(self, checkpoint_manager, mock_agent):
+        # Should raise FileNotFoundError initially
+        with pytest.raises(FileNotFoundError):
+            checkpoint_manager.load_agent()
 
         # Save a checkpoint
         checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100, "total_time": 30})
 
-        # Should exist now
-        assert checkpoint_manager.exists()
+        # Should load successfully now
+        loaded = checkpoint_manager.load_agent()
+        assert loaded is not None
 
 
 class TestErrorHandling:
     def test_load_from_empty_directory(self, checkpoint_manager):
-        # Should return None when no checkpoints exist
-        result = checkpoint_manager.load_agent()
-        assert result is None
+        # Should raise FileNotFoundError when no checkpoints exist
+        with pytest.raises(FileNotFoundError):
+            checkpoint_manager.load_agent()
 
+        # Trainer state should return None when not found
         result = checkpoint_manager.load_trainer_state()
         assert result is None
 

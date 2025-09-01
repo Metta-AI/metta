@@ -214,7 +214,7 @@ class TestWandbURIHandling:
         mock_load_wandb.side_effect = RuntimeError("Network error")
 
         uri = "wandb://run/test"
-        with pytest.raises(FileNotFoundError, match="Network error"):
+        with pytest.raises(RuntimeError, match="Network error"):
             CheckpointManager.load_from_uri(uri)
 
 
@@ -281,7 +281,7 @@ class TestURIUtilities:
         unsupported_uris = ["http://example.com/model.pt", "ftp://server/model.pt", "gs://bucket/model.pt"]
 
         for uri in unsupported_uris:
-            with pytest.raises(ValueError, match="Unsupported URI scheme"):
+            with pytest.raises(ValueError, match="Invalid URI"):
                 CheckpointManager.load_from_uri(uri)
 
 
@@ -433,7 +433,9 @@ class TestEndToEndWorkflows:
         ]
 
         for uri in uris:
-            loaded = CheckpointManager.load_from_uri(uri)
+            # Normalize URI if it's a plain path
+            normalized_uri = CheckpointManager.normalize_uri(uri)
+            loaded = CheckpointManager.load_from_uri(normalized_uri)
             assert loaded is not None
 
             # Test metadata extraction consistency

@@ -185,8 +185,6 @@ def train(
             # Non-master ranks load the SAME checkpoint by epoch
             logger.info(f"Rank {torch_dist_cfg.rank}: Loading checkpoint epoch {checkpoint_epoch}")
             policy_agent = checkpoint_manager.load_agent(epoch=checkpoint_epoch, device=device)
-            if policy_agent is None:
-                raise RuntimeError(f"Rank {torch_dist_cfg.rank}: Failed to load checkpoint epoch {checkpoint_epoch}")
     else:
         logger.info("Creating new agent for training")
         policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
