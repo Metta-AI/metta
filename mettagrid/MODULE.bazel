@@ -1,0 +1,27 @@
+# MODULE.bazel for mettagrid - using Bzlmod (modern Bazel module system)
+module(name = "mettagrid", version = "0.1.6")
+
+# Basic Bazel dependencies
+bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+
+# Python toolchain - use latest compatible version
+bazel_dep(name = "rules_python", version = "0.40.0")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    python_version = "3.11",
+    is_default = True,
+)
+
+# pybind11 for Python bindings
+bazel_dep(name = "pybind11_bazel", version = "2.12.0")
+
+# Google Test for testing
+bazel_dep(name = "googletest", version = "1.15.2")
+
+# Google Benchmark for benchmarking  
+bazel_dep(name = "google_benchmark", version = "1.9.0")
+
+# Abseil (dependency of some Google libraries)
+bazel_dep(name = "abseil-cpp", version = "20240722.0")

@@ -19,10 +19,20 @@ from typing import List, Optional
 
 # Add common package to path
 script_path = Path(__file__).resolve()
-common_path = script_path.parents[1] / "common"
-sys.path.insert(0, str(common_path))
+repo_root = script_path.parents[1]
+sys.path.insert(0, str(repo_root))
 
-from metta.common.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
+try:
+    from metta.common.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
+except ImportError:
+    # Fallback if text_styles not available
+    def bold(text): return text
+    def cyan(text): return text
+    def green(text): return text
+    def magenta(text): return text
+    def red(text): return text
+    def yellow(text): return text
+    def use_colors(enabled): pass
 
 # Configuration
 BUILD_DIR = Path("build-debug")
@@ -70,40 +80,74 @@ def setup_and_build() -> bool:
     """Setup build directory and build project"""
     print(bold(green("🚀 Starting C++ coverage generation...")))
 
-    # Clean and create build directory
+    # Clean Bazel cache for fresh coverage
     print(cyan("📁 Setting up coverage build..."))
-    if BUILD_DIR.exists():
-        shutil.rmtree(BUILD_DIR)
+    run_command(["bazel", "clean"], check=False)
 
-    # Run cmake with coverage preset
-    result = run_command(["cmake", "--preset", "debug"], check=False)
-    if result.returncode != 0:
-        print(red("✗ Failed to configure project"))
-        return False
-
-    # Build the project
+    # Build with coverage enabled
     print(cyan("🔨 Building project with coverage..."))
-    cpu_count = os.cpu_count() or 4
-    result = run_command(["cmake", "--build", str(BUILD_DIR), "-j", str(cpu_count)], check=False)
+    result = run_command(["bazel", "build", "--config=dbg", "--collect_code_coverage", "//:mettagrid_c"], check=False)
     if result.returncode != 0:
         print(red("✗ Failed to build project"))
         return False
 
-    # Run tests (don't fail if tests fail - we still want coverage)
-    print(cyan("🧪 Running tests..."))
-    run_command(["ctest", "--output-on-failure"], cwd=BUILD_DIR, check=False)
+    # Run tests with bazel coverage (don't fail if tests fail - we still want coverage)
+    print(cyan("🧪 Running tests with coverage..."))
+    run_command(["bazel", "coverage", "--config=dbg", "//:test_stats_tracker", "//:test_grid_object", "//:test_mettagrid", "//:test_observations"], check=False)
     return True
 
 
 def process_coverage() -> bool:
-    """Process coverage data using gcovr"""
+    """Process coverage data using gcovr or lcov"""
     coverage_path = BUILD_DIR / COVERAGE_FILE
+    BUILD_DIR.mkdir(parents=True, exist_ok=True)
 
     # Detect which coverage format we have
     print(cyan("🔍 Detecting coverage format..."))
 
-    gcda_files = list(BUILD_DIR.rglob("*.gcda"))
-    profraw_files = list(BUILD_DIR.rglob("*.profraw"))
+    # Look for Bazel's coverage.dat files
+    bazel_coverage_files = []
+    if Path("bazel-testlogs").exists():
+        bazel_coverage_files = list(Path("bazel-testlogs").rglob("coverage.dat"))
+    
+    # Also check bazel-out directory
+    if Path("bazel-out").exists():
+        bazel_coverage_files.extend(list(Path("bazel-out").rglob("coverage.dat")))
+
+    if bazel_coverage_files:
+        print(green(f"✓ Found Bazel LCOV coverage data ({len(bazel_coverage_files)} coverage.dat files)"))
+        
+        # Combine all coverage.dat files into one
+        print(cyan("📊 Combining coverage data..."))
+        combined_coverage = []
+        for cov_file in bazel_coverage_files:
+            if cov_file.stat().st_size > 0:
+                with open(cov_file, 'r') as f:
+                    combined_coverage.append(f.read())
+        
+        if not combined_coverage:
+            print(red("✗ All coverage files are empty!"))
+            return False
+            
+        # Write combined coverage
+        with open(coverage_path, 'w') as f:
+            f.write('\n'.join(combined_coverage))
+        
+        print(green(f"✓ Combined {len(bazel_coverage_files)} coverage files into {coverage_path}"))
+        return True
+    
+    # Look for traditional gcda/profraw files
+    gcda_files = []
+    profraw_files = []
+    
+    # Check bazel-out directory
+    if Path("bazel-out").exists():
+        gcda_files.extend(list(Path("bazel-out").rglob("*.gcda")))
+        profraw_files.extend(list(Path("bazel-out").rglob("*.profraw")))
+    
+    # Also check BUILD_DIR for compatibility
+    gcda_files.extend(list(BUILD_DIR.rglob("*.gcda")))
+    profraw_files.extend(list(BUILD_DIR.rglob("*.profraw")))
 
     if gcda_files:
         print(green(f"✓ Found GCC coverage data ({len(gcda_files)} .gcda files)"))

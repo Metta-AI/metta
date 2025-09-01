@@ -579,7 +579,7 @@ class MettaCLI:
 
     def cmd_ci(self, args, unknown_args=None) -> None:
         """Run all Python and C++ tests for CI."""
-        from metta.setup.utils import error, info, success
+        from metta.setup.utils import error, info, success, warning
 
         # First run Python tests
         info("Running Python tests...")
@@ -604,22 +604,43 @@ class MettaCLI:
         info("\nBuilding and running C++ tests...")
         mettagrid_dir = self.repo_root / "mettagrid"
 
-        # Configure with cmake preset
+        # Check if bazel is available
+        if not shutil.which("bazel"):
+            error("Bazel is not installed, skipping C++ tests")
+            info("To install Bazel, visit: https://bazel.build/install")
+            info("On macOS: brew install bazelisk")
+            info("On Ubuntu: sudo apt install bazel")
+            sys.exit(1)
+
+        # Build and run tests with Bazel
         try:
-            subprocess.run(["cmake", "--preset", "benchmark"], cwd=mettagrid_dir, check=True)
-
-            # Build
-            subprocess.run(["cmake", "--build", "build-release"], cwd=mettagrid_dir, check=True)
-
-            # Run tests
-            build_dir = mettagrid_dir / "build-release"
-            subprocess.run(["ctest", "-L", "benchmark", "--output-on-failure"], cwd=build_dir, check=True)
-
+            # Run all C++ tests
+            info("Running C++ tests...")
+            subprocess.run(
+                [
+                    "bazel",
+                    "test",
+                    "--config=opt",
+                    "--test_output=errors",
+                    "//:test_stats_tracker",
+                    "//:test_grid_object",
+                    "//:test_mettagrid",
+                    "//:test_observations",
+                ],
+                cwd=mettagrid_dir,
+                check=True,
+            )
             success("C++ tests passed!")
 
+            # Build and run benchmarks
+            info("Running C++ benchmarks...")
+            subprocess.run(["bazel", "build", "--config=opt", "//benchmarks:all"], cwd=mettagrid_dir, check=True)
+            subprocess.run(["bazel", "run", "//benchmarks:all"], cwd=mettagrid_dir, check=True)
+            success("C++ benchmarks completed!")
+
         except subprocess.CalledProcessError as e:
-            error("C++ tests failed!")
-            sys.exit(e.returncode)
+            error(f"C++ tests/benchmarks failed: {e}")
+            sys.exit(1)
 
         success("\nAll CI tests passed!")
 

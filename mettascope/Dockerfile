@@ -18,7 +18,6 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     # Build tools for native extensions
     build-essential \
-    cmake \
     # Additional useful tools
     curl \
     git \

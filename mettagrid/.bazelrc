@@ -1,0 +1,52 @@
+# Bazel configuration for mettagrid
+
+# Common C++ build flags
+build --cxxopt=-std=c++20
+build --host_cxxopt=-std=c++20
+
+# Use the current Python from environment
+build --action_env=PYTHON_BIN_PATH
+build --action_env=PYTHON_LIB_PATH
+build --python_path=python
+
+# Build modes
+build:opt --compilation_mode=opt
+build:opt --copt=-O3
+build:opt --copt=-DNDEBUG
+build:opt --strip=always
+
+build:dbg --compilation_mode=dbg
+build:dbg --copt=-O0
+build:dbg --copt=-g
+build:dbg --strip=never
+
+# Test configuration
+test --test_output=errors
+test --test_summary=detailed
+
+# Coverage configuration
+coverage --combined_report=lcov
+coverage --instrumentation_filter=//:mettagrid_lib,//:mettagrid_c
+
+# Platform-specific settings for macOS
+build:macos --copt=-fvisibility=hidden
+build:macos --cxxopt=-stdlib=libc++
+build:macos --linkopt=-stdlib=libc++
+
+# Platform-specific settings for Linux
+build:linux --copt=-fvisibility=hidden
+
+# Detect and use platform config automatically
+build --enable_platform_specific_config
+
+# Silence some warnings in external dependencies
+build --per_file_copt=external/.*@-w
+
+# Enable colors in output
+common --color=yes
+
+# Show progress messages
+common --show_progress_rate_limit=0.5
+
+# Use a disk cache to speed up builds
+build --disk_cache=~/.cache/bazel
