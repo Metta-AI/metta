@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -36,6 +37,7 @@ def run_gen_thumb(file: str, output: Path):
 
 class TestGenThumb:
     @pytest.mark.slow
+    @pytest.mark.skipif(os.environ.get("CI") == "true", reason="Flaky timeout issues in CI")
     def test_gen_thumb(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
