@@ -160,9 +160,7 @@ class LocalCommands:
 
                 if valid_checkpoints:
                     latest_ckpt = max(valid_checkpoints, key=lambda x: x[1])[0]
-                    checkpoint_tuples.append(
-                        (run_dir.name, f"file://{latest_ckpt}", f"Local checkpoint from {run_dir.name}")
-                    )
+                    checkpoint_tuples.append((f"file://{latest_ckpt}", f"Local checkpoint from {run_dir.name}"))
 
         if not checkpoint_tuples:
             info("No valid checkpoints found")

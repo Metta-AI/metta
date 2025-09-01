@@ -25,7 +25,6 @@ def evaluate_policy(
     replay_dir: str | None = None,
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
-    wandb_policy_name: str | None = None,
     eval_task_id: uuid.UUID | None = None,
     stats_client: StatsClient | None,
     logger: logging.Logger,
@@ -57,7 +56,6 @@ def evaluate_policy(
             replay_dir=replay_dir,
             stats_client=stats_client,
             stats_epoch_id=stats_epoch_id,
-            wandb_policy_name=wandb_policy_name,
             eval_task_id=eval_task_id,
         )
         for sim in simulations
