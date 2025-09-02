@@ -179,11 +179,9 @@ class TestNodejsInstallationFlow(BaseMettaSetupTest):
         import shutil
         import subprocess
 
-        # Skip if running in CI without proper Node.js setup
-        if os.environ.get("CI") and not shutil.which("node"):
-            self.skipTest("Skipping nodejs binary test in CI without Node.js")
-
+        # Make sure the base is there.
         self._create_test_config(UserType.EXTERNAL)
+        self._run_metta_command(["install"])
 
         def check_binary_available(binary_name):
             """Check if a binary is available in PATH."""
