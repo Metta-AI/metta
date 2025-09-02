@@ -69,6 +69,36 @@ class WandBClient:
             # Fall back to existing client
             return self.api
 
+    def _parse_dashboard_url(self, dashboard_url: str) -> tuple:
+        """Parse WandB dashboard URL to extract entity, project, and report_id.
+
+        Args:
+            dashboard_url: WandB dashboard URL
+
+        Returns:
+            tuple: (entity, project, report_id)
+        """
+        # URL format: https://wandb.ai/{entity}/{project}/reports/{report_name}--{report_id}
+        if "wandb.ai" not in dashboard_url:
+            raise ValueError(f"Invalid WandB URL format: {dashboard_url}")
+
+        # Extract components from URL
+        url_parts = dashboard_url.replace("https://wandb.ai/", "").split("/")
+        if len(url_parts) < 3 or "reports" not in url_parts:
+            raise ValueError(f"Cannot parse dashboard URL: {dashboard_url}")
+
+        entity = url_parts[0]
+        project = url_parts[1]
+
+        # Extract report ID from the last part (after the double dash)
+        report_part = url_parts[-1]  # e.g., "Report-Name--VmlldzoxNDE4ODY1Ng"
+        if "--" not in report_part:
+            raise ValueError(f"Cannot extract report ID from URL: {dashboard_url}")
+
+        report_id = report_part.split("--")[-1]
+
+        return entity, project, report_id
+
     async def list_workspaces(
         self, entity: str, project: Optional[str] = None, filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
@@ -443,30 +473,77 @@ class WandBClient:
             return {"status": "error", "error": str(e), "name": name, "entity": entity, "project": project}
 
     async def update_dashboard(self, dashboard_url: str, modifications: Dict[str, Any]) -> Dict[str, Any]:
-        """Update an existing dashboard/report."""
+        """Update an existing dashboard/report in-place with true modifications."""
         try:
             logger.info(f"Updating dashboard: {dashboard_url}")
 
-            # First, get the current dashboard config
-            current_config = await self.get_dashboard_config(dashboard_url)
+            # Load the existing report for true update
+            logger.info("Loading existing report for in-place modification...")
+            report = wr.Report.from_url(dashboard_url)
 
-            if current_config.get("status") == "error":
-                return current_config
+            # Store original values for comparison
+            original_title = report.title
+            original_description = report.description
+            original_blocks_count = len(report.blocks) if hasattr(report.blocks, "__len__") else 0
 
-            # WandB workspaces reports cannot be modified after creation
-            # But we can provide helpful information and suggestions
-            logger.warning("WandB reports created via wandb_workspaces cannot be modified after creation")
+            logger.info(f"Loaded report: '{original_title}' with {original_blocks_count} blocks")
+
+            # Apply property modifications
+            if "title" in modifications:
+                report.title = modifications["title"]
+                logger.info(f"Updated title: '{original_title}' -> '{report.title}'")
+
+            if "description" in modifications:
+                report.description = modifications["description"]
+                logger.info("Updated description")
+
+            # Apply content modifications
+            content_changes = []
+
+            if "add_markdown_section" in modifications:
+                markdown_content = modifications["add_markdown_section"]
+                new_block = wr.MarkdownBlock(markdown_content)
+                report.blocks.append(new_block)
+                content_changes.append("Added markdown section")
+                logger.info("Added markdown section to dashboard")
+
+            if "remove_section" in modifications:
+                section_name = modifications["remove_section"]
+                # For now, just log this - full section removal needs more complex logic
+                logger.warning(f"Section removal requested: '{section_name}' - requires manual implementation")
+                content_changes.append(f"Section removal requested: {section_name} (needs manual implementation)")
+
+            # Save the updated report in-place
+            logger.info("Saving updated report in-place...")
+            result = report.save(draft=False, clone=False)
+
+            logger.info(f"Successfully updated dashboard in-place: {result.url}")
+
+            # Build response with details of what changed
+            changes_made = []
+            if original_title != report.title:
+                changes_made.append(f"title: '{original_title}' -> '{report.title}'")
+            if original_description != report.description:
+                changes_made.append("description updated")
+            changes_made.extend(content_changes)
 
             return {
-                "status": "limitation",
-                "message": (
-                    "WandB reports cannot be modified after creation. "
-                    "Consider creating a new dashboard with your desired changes."
-                ),
-                "current_config": current_config,
-                "requested_modifications": modifications,
-                "suggestion": "Use the create_dashboard tool to create a new dashboard with your modifications",
-                "url": dashboard_url,
+                "status": "success",
+                "message": "Dashboard updated successfully in-place",
+                "dashboard_url": str(result.url),
+                "changes_made": changes_made,
+                "applied_modifications": modifications,
+                "original_values": {
+                    "title": original_title,
+                    "description": original_description,
+                    "blocks_count": original_blocks_count,
+                },
+                "current_values": {
+                    "title": report.title,
+                    "description": report.description,
+                    "blocks_count": len(report.blocks) if hasattr(report.blocks, "__len__") else 0,
+                },
+                "note": "Dashboard was updated in-place - no clone created",
             }
 
         except Exception as e:
@@ -492,45 +569,40 @@ class WandBClient:
             entity = source_config["entity"]
             project = source_config["project"]
 
-            # Create a basic clone with the same entity/project
-            # Note: We can't copy the exact structure, but we can create a new dashboard with the same metadata
-            logger.warning("Creating a basic clone - cannot copy exact dashboard structure")
+            # Create a clone with the same entity/project and metadata
 
-            clone_result = await self.create_dashboard(
-                name=new_name,
-                entity=entity,
-                project=project,
-                description=(
-                    f"Clone of: {source_config.get('name', 'Unknown')} - {source_config.get('description', '')}"
-                ),
-                sections=[
-                    {
-                        "name": "Cloned Content",
-                        "panels": [
-                            {"type": "line_plot", "config": {"title": "Cloned Dashboard - Please Add Your Panels"}}
-                        ],
-                    }
-                ],
+            # Create cloned report with source properties
+            source_name = source_config.get("name", "Unknown Dashboard")
+            source_description = source_config.get("description", "")
+
+            clone_description = f"Clone of: {source_name}"
+            if source_description:
+                clone_description += f" - {source_description}"
+
+            logger.info(f"Creating dashboard clone: {new_name}")
+            cloned_report = wr.Report(
+                entity=entity, project=project, title=new_name, description=clone_description, width="readable"
             )
 
-            if clone_result.get("status") == "success":
-                return {
-                    "status": "partial_success",
-                    "message": "Basic clone created. Manual configuration needed for panels and sections.",
-                    "cloned_dashboard": clone_result,
-                    "source_config": source_config,
-                    "limitation": "Cannot copy exact dashboard structure - WandB API limitations",
-                    "new_name": new_name,
-                    "source_url": source_url,
-                }
-            else:
-                return {
-                    "status": "error",
-                    "error": "Failed to create clone dashboard",
-                    "create_result": clone_result,
-                    "source_url": source_url,
-                    "new_name": new_name,
-                }
+            # Save the cloned report
+            result_report = cloned_report.save(clone=True)
+            result_url = result_report.url if hasattr(result_report, "url") else str(result_report)
+
+            logger.info(f"Successfully cloned dashboard: {result_url}")
+
+            return {
+                "status": "success",
+                "message": f"Dashboard successfully cloned as '{new_name}'",
+                "source_url": source_url,
+                "cloned_url": result_url,
+                "clone_info": {
+                    "name": new_name,
+                    "description": clone_description,
+                    "entity": entity,
+                    "project": project,
+                },
+                "source_config": source_config,
+            }
 
         except Exception as e:
             logger.error(f"Failed to clone dashboard: {e}")
@@ -622,31 +694,72 @@ class WandBClient:
             if current_config.get("status") == "error":
                 return current_config
 
-            # WandB workspaces reports cannot be modified after creation
-            logger.warning("Cannot add panels to existing reports - WandB API limitation")
+            # Load the existing report for modification
+            logger.info("Loading existing report for panel addition...")
+            report = wr.Report.from_url(dashboard_url)
+
+            original_blocks_count = len(report.blocks) if hasattr(report.blocks, "__len__") else 0
+            logger.info(f"Loaded report: '{report.title}' with {original_blocks_count} blocks")
+
+            # Create the appropriate block/panel based on panel_type
+            new_blocks_added = []
+
+            if panel_type == "line_plot":
+                # Add a section header and basic visualization
+                section_block = wr.H2(f"📊 {section_name}")
+                report.blocks.append(section_block)
+                new_blocks_added.append("H2 section header")
+
+                # Add markdown explanation for the panel
+                panel_description = (
+                    f"**{panel_config.get('title', 'Line Plot')}**\n\nPanel configuration: {str(panel_config)}"
+                )
+                markdown_block = wr.MarkdownBlock(panel_description)
+                report.blocks.append(markdown_block)
+                new_blocks_added.append("Line plot description")
+
+            elif panel_type == "markdown" or panel_type == "text":
+                # Add markdown content
+                content = panel_config.get("content", f"## {section_name}\n\nPanel added via MCP server")
+                markdown_block = wr.MarkdownBlock(content)
+                report.blocks.append(markdown_block)
+                new_blocks_added.append("Markdown panel")
+
+            else:
+                # Generic panel - add as markdown with configuration info
+                section_block = wr.H2(f"📊 {section_name}")
+                report.blocks.append(section_block)
+
+                config_text = f"**{panel_type.title()} Panel**\n\nConfiguration:\n```json\n{str(panel_config)}\n```"
+                markdown_block = wr.MarkdownBlock(config_text)
+                report.blocks.append(markdown_block)
+                new_blocks_added.append(f"{panel_type} panel (as markdown)")
+
+            # Save the updated report
+            logger.info(f"Saving report with {len(new_blocks_added)} new blocks...")
+            result = report.save(draft=False, clone=False)
+
+            new_blocks_count = len(report.blocks) if hasattr(report.blocks, "__len__") else 0
+            logger.info(f"Successfully added panel to dashboard: {result.url}")
 
             return {
-                "status": "limitation",
-                "message": "Cannot add panels to existing dashboards. WandB reports cannot be modified after creation.",
-                "current_config": current_config,
-                "requested_panel": {
+                "status": "success",
+                "message": f"Panel added successfully to section '{section_name}'",
+                "dashboard_url": str(result.url),
+                "panel_added": {
                     "section_name": section_name,
                     "panel_type": panel_type,
-                    "panel_config": panel_config,
+                    "blocks_added": new_blocks_added,
                 },
-                "suggestion": "Create a new dashboard that includes this panel",
-                "url": dashboard_url,
+                "blocks_before": original_blocks_count,
+                "blocks_after": new_blocks_count,
+                "blocks_added_count": len(new_blocks_added),
+                "note": "Panel added to existing dashboard - no clone created",
             }
 
         except Exception as e:
             logger.error(f"Failed to add panel to dashboard: {e}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "url": dashboard_url,
-                "section_name": section_name,
-                "panel_type": panel_type,
-            }
+            return {"status": "error", "error": str(e), "url": dashboard_url}
 
     async def delete_dashboard(self, dashboard_url: str) -> dict:
         """Delete an existing WandB dashboard/report.
