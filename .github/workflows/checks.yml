@@ -389,6 +389,7 @@ jobs:
         working-directory: ./mettagrid
         run: |
           mkdir -p benchmark_output
+          export LD_LIBRARY_PATH="${VIRTUAL_ENV}/lib:${LD_LIBRARY_PATH}"
           for f in build-release/*_benchmark; do
             "$f" --benchmark_format=json > benchmark_output/$(basename $f).json
           done

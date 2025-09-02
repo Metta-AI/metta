@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["metta", "experiments", "devops", "mettascope"]
+packages = ["metta", "experiments", "devops", "mettascope", "cogweb"]
 py-modules = []
 
 [project]
