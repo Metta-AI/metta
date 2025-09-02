@@ -260,7 +260,7 @@ class TestNodejsInstallationFlow(BaseMettaSetupTest):
         node_modules_path = self.repo_root / "node_modules"
         self.assertTrue(node_modules_path.exists(), "node_modules should exist after pnpm install")
         self.assertTrue(node_modules_path.is_dir(), "node_modules should be a directory")
-        
+
         # Verify some expected dependencies exist (from package.json devDependencies)
         expected_deps = ["prettier", "turbo"]  # Known deps from root package.json
         for dep in expected_deps:
@@ -270,15 +270,19 @@ class TestNodejsInstallationFlow(BaseMettaSetupTest):
                 print(f"✓ Found expected dependency: {dep}")
                 break
         else:
-            self.fail(f"None of the expected dependencies {expected_deps} were found in node_modules. "
-                     f"This suggests 'pnpm install --frozen-lockfile' did not run properly.")
+            self.fail(
+                f"None of the expected dependencies {expected_deps} were found in node_modules. "
+                f"This suggests 'pnpm install --frozen-lockfile' did not run properly."
+            )
 
         # Step 10: Critical test - verify pnpm is available in PATH
         pnpm_path = shutil.which("pnpm")
         self.assertIsNotNone(pnpm_path, "pnpm must be available in PATH after nodejs installation")
         if pnpm_path and pnpm_home:
-            self.assertTrue(pnpm_path.startswith(pnpm_home), 
-                           f"pnpm binary should be from PNPM_HOME ({pnpm_home}), but found at {pnpm_path}")
+            self.assertTrue(
+                pnpm_path.startswith(pnpm_home),
+                f"pnpm binary should be from PNPM_HOME ({pnpm_home}), but found at {pnpm_path}",
+            )
 
 
 if __name__ == "__main__":
