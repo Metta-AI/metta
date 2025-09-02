@@ -475,31 +475,31 @@ def _(
     """).strip()
 
     # Start with working arena config for 1 agent, then customize
-    env_config = make_arena(num_agents=1, combat=False)
+    mg_config = make_arena(num_agents=1, combat=False)
 
     # Replace with our simple hallway map
     map_data = [list(line) for line in hallway_map.splitlines()]
-    env_config.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
+    mg_config.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
 
     # Simple customizations
-    env_config.game.max_steps = 5000
-    env_config.game.obs_width = 11
-    env_config.game.obs_height = 11
+    mg_config.game.max_steps = 5000
+    mg_config.game.obs_width = 11
+    mg_config.game.obs_height = 11
 
     # IMPORTANT: Match the exact training action configuration from config.json
-    env_config.game.actions.move.enabled = True
-    env_config.game.actions.rotate.enabled = True
-    env_config.game.actions.noop.enabled = True  # Training had noop enabled!
-    env_config.game.actions.get_items.enabled = True
-    env_config.game.actions.put_items.enabled = False  # Training had this disabled
-    env_config.game.actions.attack.enabled = True  # Training had attack enabled
-    env_config.game.actions.change_color.enabled = False
-    env_config.game.actions.change_glyph.enabled = False
-    env_config.game.actions.swap.enabled = False
-    env_config.game.actions.place_box.enabled = False
+    mg_config.game.actions.move.enabled = True
+    mg_config.game.actions.rotate.enabled = True
+    mg_config.game.actions.noop.enabled = True  # Training had noop enabled!
+    mg_config.game.actions.get_items.enabled = True
+    mg_config.game.actions.put_items.enabled = False  # Training had this disabled
+    mg_config.game.actions.attack.enabled = True  # Training had attack enabled
+    mg_config.game.actions.change_color.enabled = False
+    mg_config.game.actions.change_glyph.enabled = False
+    mg_config.game.actions.swap.enabled = False
+    mg_config.game.actions.place_box.enabled = False
 
     # IMPORTANT: Match the exact training reward structure from config.json
-    env_config.game.agent.rewards = AgentRewards(
+    mg_config.game.agent.rewards = AgentRewards(
         inventory={
             "ore_red": 0.1,
             "battery_red": 0.8,
@@ -511,14 +511,14 @@ def _(
     )
 
     # Use action failure penalty to discourage inefficient actions
-    env_config.game.agent.action_failure_penalty = 0.0  # Match training config
+    mg_config.game.agent.action_failure_penalty = 0.0  # Match training config
 
     # Set initial resource counts for immediate availability
     # for obj_name in ["mine_red", "generator_red"]:
-    #    if obj_name in env_config.game.objects:
-    #        obj_copy = env_config.game.objects[obj_name].model_copy(deep=True)
+    #    if obj_name in mg_config.game.objects:
+    #        obj_copy = mg_config.game.objects[obj_name].model_copy(deep=True)
     #        obj_copy.initial_resource_count = 10
-    #        env_config.game.objects[obj_name] = obj_copy
+    #        mg_config.game.objects[obj_name] = obj_copy
 
     # Create a proper RendererToolConfig for policy creation
     renderer_config = RendererToolConfig(
@@ -529,24 +529,24 @@ def _(
     )
 
     # Global configuration flags from old mettagrid.yaml
-    env_config.desync_episodes = True  # Changes max_steps for first episode only
-    env_config.game.track_movement_metrics = True
-    env_config.game.no_agent_interference = False
-    env_config.game.recipe_details_obs = False
+    mg_config.desync_episodes = True  # Changes max_steps for first episode only
+    mg_config.game.track_movement_metrics = True
+    mg_config.game.no_agent_interference = False
+    mg_config.game.recipe_details_obs = False
 
     # Global observation tokens from old config
-    env_config.game.global_obs.episode_completion_pct = True
-    env_config.game.global_obs.last_action = True
-    env_config.game.global_obs.last_reward = True
+    mg_config.game.global_obs.episode_completion_pct = True
+    mg_config.game.global_obs.last_action = True
+    mg_config.game.global_obs.last_reward = True
 
-    env_config.game.global_obs.visitation_counts = False
+    mg_config.game.global_obs.visitation_counts = False
 
     print("✅ Simple hallway environment: start with arena, add custom map")
     return (
         AgentRewards,
         AsciiMapBuilder,
         StatsRewards,
-        env_config,
+        mg_config,
         make_arena,
         renderer_config,
         textwrap,
@@ -585,7 +585,7 @@ def _(
     OpportunisticPolicy,
     contextlib,
     display,
-    env_config,
+    mg_config,
     io,
     mo,
     observe_button,
@@ -598,7 +598,7 @@ def _(
 
     def _():
         # Create environment with proper MettaGridConfig
-        env = MettaGridEnv(env_config, render_mode="human")
+        env = MettaGridEnv(mg_config, render_mode="human")
         policy = OpportunisticPolicy(env)
 
         header = widgets.HTML()
@@ -712,7 +712,7 @@ def _(
     OpportunisticPolicy,
     contextlib,
     display,
-    env_config,
+    mg_config,
     eval_button,
     io,
     mo,
@@ -727,7 +727,7 @@ def _(
 
     with contextlib.redirect_stdout(io.StringIO()):
         # Create evaluation environment with our simple config
-        eval_env = MettaGridEnv(env_config, render_mode="human")
+        eval_env = MettaGridEnv(mg_config, render_mode="human")
         eval_policy = OpportunisticPolicy(eval_env)
 
     for ep in range(1, EVAL_EPISODES + 1):
@@ -817,7 +817,7 @@ def _(
     TrainTool,
     TrainerConfig,
     datetime,
-    env_config,
+    mg_config,
     env_curriculum,
     logging,
     mo,
@@ -835,7 +835,7 @@ def _(
 
         # Create trainer configuration to reach peak performance before unlearning
         trainer_config = TrainerConfig(
-            curriculum=env_curriculum(env_config),
+            curriculum=env_curriculum(mg_config),
             total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 ore)
             batch_size=32768,  # Reduced batch size for more stable learning
             minibatch_size=256,  # Smaller minibatches for better gradient estimates
@@ -939,7 +939,7 @@ def _(
     WandbConfig,
     contextlib,
     display,
-    env_config,
+    mg_config,
     eval_trained_button,
     get_repo_root,
     io,
@@ -1015,7 +1015,7 @@ def _(
 
             # Create evaluation environment
             with contextlib.redirect_stdout(io.StringIO()):
-                eval_env = MettaGridEnv(env_config, render_mode="human")
+                eval_env = MettaGridEnv(mg_config, render_mode="human")
 
             # Set device to CPU for evaluation
             trained_policy = trained_policy.to(torch.device("cpu"))
@@ -1039,7 +1039,7 @@ def _(
                     _obs, _ = eval_env.reset()
 
                     steps = (
-                        env_config.game.max_steps
+                        mg_config.game.max_steps
                     )  # Use same steps as training (5000)
                     print(
                         f"Episode {ep}: Running evaluation for {steps} steps (matching training configuration)"
@@ -1281,31 +1281,31 @@ def _(
     """).strip()
 
     # Start with working arena config for 1 agent, then customize
-    env_config2 = make_arena(num_agents=1)
+    mg_config2 = make_arena(num_agents=1)
 
     # Replace with our simple hallway map
     map_data2 = [list(line) for line in hallway_map2.splitlines()]
-    env_config2.game.map_builder = AsciiMapBuilder.Config(map_data=map_data2)
+    mg_config2.game.map_builder = AsciiMapBuilder.Config(map_data=map_data2)
 
     # Simple customizations
-    env_config2.game.max_steps = 5000
-    env_config2.game.obs_width = 11
-    env_config2.game.obs_height = 11
+    mg_config2.game.max_steps = 5000
+    mg_config2.game.obs_width = 11
+    mg_config2.game.obs_height = 11
 
     # Enable basic movement and item collection - disable combat
-    env_config2.game.actions.move.enabled = True
-    env_config2.game.actions.rotate.enabled = True
-    env_config2.game.actions.noop.enabled = False  # Disable no-op to force action
-    env_config2.game.actions.attack.enabled = False
-    env_config2.game.actions.get_items.enabled = True
-    env_config2.game.actions.put_items.enabled = True
-    env_config2.game.actions.change_color.enabled = False
-    env_config2.game.actions.change_glyph.enabled = False
-    env_config2.game.actions.swap.enabled = False
-    env_config2.game.actions.place_box.enabled = False
+    mg_config2.game.actions.move.enabled = True
+    mg_config2.game.actions.rotate.enabled = True
+    mg_config2.game.actions.noop.enabled = False  # Disable no-op to force action
+    mg_config2.game.actions.attack.enabled = False
+    mg_config2.game.actions.get_items.enabled = True
+    mg_config2.game.actions.put_items.enabled = True
+    mg_config2.game.actions.change_color.enabled = False
+    mg_config2.game.actions.change_glyph.enabled = False
+    mg_config2.game.actions.swap.enabled = False
+    mg_config2.game.actions.place_box.enabled = False
 
     # CONVERSION INCENTIVE: Make conversion much more profitable than resource limit camping
-    env_config2.game.agent.rewards = AgentRewards(
+    mg_config2.game.agent.rewards = AgentRewards(
         inventory={
             "ore_red": -0.02,
             "battery_red": 5.0,
@@ -1317,13 +1317,13 @@ def _(
     )
 
     # Force more frequent conversion by limiting ore storage
-    env_config2.game.agent.resource_limits = {"ore_red": 10}  # Can only hold 10 ore max
+    mg_config2.game.agent.resource_limits = {"ore_red": 10}  # Can only hold 10 ore max
 
     # Use action failure penalty for efficiency (encourages purposeful movement)
-    env_config2.game.agent.action_failure_penalty = 0.01
+    mg_config2.game.agent.action_failure_penalty = 0.01
 
     # Use proper StatsRewards object to avoid serialization warnings
-    env_config2.game.agent.rewards.stats = StatsRewards()
+    mg_config2.game.agent.rewards.stats = StatsRewards()
 
     renderer_config2 = RendererToolConfig(
         policy_type="opportunistic",
@@ -1331,7 +1331,7 @@ def _(
         sleep_time=0.0020,
         renderer_type="human",
     )
-    return env_config2, renderer_config2
+    return mg_config2, renderer_config2
 
 
 @app.cell
@@ -1347,7 +1347,7 @@ def _(
     OpportunisticPolicy,
     contextlib,
     display,
-    env_config2,
+    mg_config2,
     io,
     mo,
     observe_button2,
@@ -1360,7 +1360,7 @@ def _(
 
     def observe_agent2():
         # Create environment with proper MettaGridConfig
-        env = MettaGridEnv(env_config2, render_mode="human")
+        env = MettaGridEnv(mg_config2, render_mode="human")
         policy = OpportunisticPolicy(env)
 
         header = widgets.HTML()
@@ -1370,7 +1370,7 @@ def _(
 
         with simulation_context(env):
             # steps = renderer_config.num_steps
-            steps = env_config2.game.max_steps
+            steps = mg_config2.game.max_steps
             for _step in range(steps):
                 _actions = policy.predict(_obs)
                 _obs, rewards, terminals, truncations, info = env.step(_actions)
@@ -1411,7 +1411,7 @@ def _(
     OpportunisticPolicy,
     contextlib,
     display,
-    env_config2,
+    mg_config2,
     eval_button2,
     io,
     mo,
@@ -1427,7 +1427,7 @@ def _(
 
         with contextlib.redirect_stdout(io.StringIO()):
             # Create evaluation environment with our simple config
-            eval_env = MettaGridEnv(env_config2, render_mode="human")
+            eval_env = MettaGridEnv(mg_config2, render_mode="human")
             eval_policy = OpportunisticPolicy(eval_env)
 
         for ep in range(1, EVAL_EPISODES + 1):
@@ -1492,7 +1492,7 @@ def _(
     TrainTool,
     TrainerConfig,
     datetime,
-    env_config2,
+    mg_config2,
     env_curriculum,
     logging,
     mo,
@@ -1505,7 +1505,7 @@ def _(
 
     def train_agent2():
         # Create a simple curriculum with our hallway environment
-        curriculum = env_curriculum(env_config2)
+        curriculum = env_curriculum(mg_config2)
 
         run_name2 = f"{username}.hello_world_train.mine_plus_generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -1604,8 +1604,8 @@ def _(
     WandbConfig,
     contextlib,
     display,
-    env_config,
-    env_config2,
+    mg_config,
+    mg_config2,
     eval_trained_button2,
     io,
     mo,
@@ -1669,7 +1669,7 @@ def _(
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):
-            eval_env = MettaGridEnv(env_config2, render_mode="human")
+            eval_env = MettaGridEnv(mg_config2, render_mode="human")
 
         # Set device to CPU for evaluation
         trained_policy = trained_policy.to(torch.device("cpu"))
@@ -1685,7 +1685,7 @@ def _(
         display(header, map_box)
 
         print(f"🔧 EVALUATION SETUP:")
-        print(f"   - Environment max_steps: {env_config.game.max_steps}")
+        print(f"   - Environment max_steps: {mg_config.game.max_steps}")
         print(f"   - Selected checkpoint: {latest_ckpt.name}")
 
         with simulation_context(eval_env):
@@ -1699,7 +1699,7 @@ def _(
                 # Convert obs to tensor format for policy
                 obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
-                steps = env_config2.game.max_steps  # Use same steps as training (5000)
+                steps = mg_config2.game.max_steps  # Use same steps as training (5000)
                 for _step in range(steps):  # Same number of steps as opportunistic
                     # Use TensorDict format for trained policy (same as simulation.py:272-275)
                     td = TensorDict(
@@ -1752,11 +1752,11 @@ def _(
                 inv_count_ore = int(_inv.get("ore_red", 0))
                 inv_count_batteries = int(_inv.get("battery_red", 0))
                 reward_ore = (
-                    inv_count_ore * env_config2.game.agent.rewards.inventory.ore_red
+                    inv_count_ore * mg_config2.game.agent.rewards.inventory.ore_red
                 )  # Will be 0.0
                 reward_batteries = (
                     inv_count_batteries
-                    * env_config2.game.agent.rewards.inventory.battery_red
+                    * mg_config2.game.agent.rewards.inventory.battery_red
                 )  # Only source of reward
                 reward = reward_ore + reward_batteries  # Pure battery reward
                 trained_scores.append(reward)
@@ -1820,16 +1820,16 @@ def _(
         )
         print(f"\n💰 Reward Breakdown:")
         print(
-            f"   Ore reward rate: {env_config2.game.agent.rewards.inventory.ore_red} per ore"
+            f"   Ore reward rate: {mg_config2.game.agent.rewards.inventory.ore_red} per ore"
         )
         print(
-            f"   Battery reward rate: {env_config2.game.agent.rewards.inventory.battery_red} per battery"
+            f"   Battery reward rate: {mg_config2.game.agent.rewards.inventory.battery_red} per battery"
         )
         print(
-            f"   Average ore reward: {mean_score_ore * env_config2.game.agent.rewards.inventory.ore_red:.2f}"
+            f"   Average ore reward: {mean_score_ore * mg_config2.game.agent.rewards.inventory.ore_red:.2f}"
         )
         print(
-            f"   Average battery reward: {mean_score_batteries * env_config2.game.agent.rewards.inventory.battery_red:.2f}"
+            f"   Average battery reward: {mean_score_batteries * mg_config2.game.agent.rewards.inventory.battery_red:.2f}"
         )
         print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
 

@@ -45,7 +45,7 @@ def _default_run_name() -> str:
         return f"navigation.{user}.{timestamp}"
 
 
-def make_env(num_agents: int = 4) -> MettaGridConfig:
+def make_mettagrid(num_agents: int = 4) -> MettaGridConfig:
     nav = eb.make_navigation(num_agents=num_agents)
 
     nav.game.map_builder = MapGen.Config(
@@ -62,7 +62,7 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
 
 
 def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
-    nav_env = nav_env or make_env()
+    nav_env = nav_env or make_mettagrid()
 
     # make a set of training tasks for navigation
     dense_tasks = cc.bucketed(nav_env)
@@ -110,7 +110,7 @@ def train(
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_env()
+    eval_env = env or make_mettagrid()
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -120,7 +120,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_env()
+    eval_env = env or make_mettagrid()
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,

@@ -38,7 +38,7 @@ def demo_pettingzoo_api():
 
     # Create PettingZoo environment with default config
     env = MettaGridPettingZooEnv(
-        env_config=MettaGridConfig(),
+        mg_config=MettaGridConfig(),
         render_mode=None,
     )
 
@@ -61,7 +61,7 @@ def demo_random_rollout():
 
     # Create PettingZoo environment with default config
     env = MettaGridPettingZooEnv(
-        env_config=MettaGridConfig(),
+        mg_config=MettaGridConfig(),
         render_mode=None,
         is_training=True,
     )
@@ -112,7 +112,7 @@ def demo_simple_marl_training():
 
     # Create PettingZoo environment with default config
     env = MettaGridPettingZooEnv(
-        env_config=MettaGridConfig(),
+        mg_config=MettaGridConfig(),
         render_mode=None,
         is_training=True,
     )

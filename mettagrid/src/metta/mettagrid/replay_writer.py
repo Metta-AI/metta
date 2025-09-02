@@ -61,7 +61,7 @@ class EpisodeReplay:
             "map_size": [env.map_width, env.map_height],
             "num_agents": env.num_agents,
             "max_steps": env.max_steps,
-            "env_config": env.env_config.model_dump(mode="json"),
+            "mg_config": env.mg_config.model_dump(mode="json"),
             "objects": self.objects,
         }
 

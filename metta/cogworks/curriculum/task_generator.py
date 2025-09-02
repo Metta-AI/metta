@@ -121,13 +121,13 @@ class TaskGenerator(ABC):
         """
         raise NotImplementedError("TaskGenerator._generate_task() must be overridden by subclasses")
 
-    def _apply_overrides(self, env_config: MettaGridConfig, overrides: dict[str, Any]) -> MettaGridConfig:
+    def _apply_overrides(self, mg_config: MettaGridConfig, overrides: dict[str, Any]) -> MettaGridConfig:
         """Apply overrides to an MettaGridConfig using dot-separated keys."""
         if not overrides:
-            return env_config
+            return mg_config
 
-        env_config.update(overrides)
-        return env_config
+        mg_config.update(overrides)
+        return mg_config
 
 
 ################################################################################
@@ -250,9 +250,9 @@ class BucketedTaskGenerator(TaskGenerator):
             return self
 
         @classmethod
-        def from_mg(cls, env_config: MettaGridConfig) -> "BucketedTaskGenerator.Config":
+        def from_mg(cls, mg_config: MettaGridConfig) -> "BucketedTaskGenerator.Config":
             """Create a BucketedTaskGenerator.Config from an MettaGridConfig."""
-            return cls(child_generator_config=SingleTaskGenerator.Config(env=env_config))
+            return cls(child_generator_config=SingleTaskGenerator.Config(env=mg_config))
 
     def __init__(self, config: "BucketedTaskGenerator.Config"):
         super().__init__(config)
@@ -279,12 +279,12 @@ class BucketedTaskGenerator(TaskGenerator):
             overrides[key] = self._get_bucket_value(bucket_values, rng)
 
         # Get task from the child generator
-        env_config = self._child_generator.get_task(task_id)
+        mg_config = self._child_generator.get_task(task_id)
         if self._config.label is not None:
-            env_config.label += "|" + self._config.label
+            mg_config.label += "|" + self._config.label
 
         # Apply the sampled bucket values as overrides
-        return self._apply_overrides(env_config, overrides)
+        return self._apply_overrides(mg_config, overrides)
 
 
 def _validate_open_task_generator(v: Any, handler):
