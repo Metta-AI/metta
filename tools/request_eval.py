@@ -141,16 +141,26 @@ async def _create_remote_eval_tasks(
                     debug(f"{task.id} ({status_str})", indent=4)
 
     # Create task requests
-    task_requests = [
-        TaskCreateRequest(
-            policy_id=policy_ids[policy["run_name"]],
-            git_hash=request.git_hash,
-            sim_suite=eval_name,
-        )
-        for policy in valid_policies
-        for eval_name in request.evals
-        if (request.allow_duplicates or not len(existing_tasks.get((policy_ids[policy["run_name"]], eval_name), [])))
-    ]
+    task_requests = []
+    for policy in valid_policies:
+        run_name = policy["run_name"]
+        policy_id = policy_ids.get(run_name)
+        if policy_id is None:
+            warning(f"Policy '{run_name}' not found in policy_ids mapping, skipping")
+            continue
+
+        for eval_name in request.evals:
+            # Check if this combination already exists
+            if not request.allow_duplicates and (policy_id, eval_name) in existing_tasks:
+                continue
+
+            task_requests.append(
+                TaskCreateRequest(
+                    policy_id=policy_id,
+                    git_hash=request.git_hash,
+                    sim_suite=eval_name,
+                )
+            )
 
     if not task_requests:
         warning("No new tasks to create (all would be duplicates)")
