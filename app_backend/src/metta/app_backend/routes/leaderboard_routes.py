@@ -51,6 +51,10 @@ class LeaderboardListResponse(BaseModel):
     leaderboards: List[LeaderboardResponse]
 
 
+class LeaderboardDeleteResponse(BaseModel):
+    message: str
+
+
 def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     """Create a leaderboard router with the given MettaRepo instance."""
     router = APIRouter(prefix="/leaderboards", tags=["leaderboards"])

@@ -1,0 +1,11 @@
+{
+  "include": ["src"],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "extraPaths": [
+    "../app_backend/src",
+    "../common/src",
+    "../agent/src",
+    "../mettagrid/src",
+  ]
+}
