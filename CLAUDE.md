@@ -231,6 +231,20 @@ feedback. Consider running them in separate terminals outside of Claude Code.
 
 See @.cursor/commands.md for quick test commands and examples.
 
+#### Running CI Tests Locally
+
+Use `pytest-ci` to run the exact same pytest commands as CI:
+
+```bash
+# Run the exact same pytest commands as CI
+./pytest-ci                              # All packages like CI matrix
+./pytest-ci agent                        # Agent package with CI args
+./pytest-ci --benchmark-only             # Benchmarks with PYTHONOPTIMIZE=1
+./pytest-ci agent -k "test_policy"       # Agent tests matching pattern
+```
+
+This runs pytest with the exact same arguments and environment variables that GitHub Actions uses, helping diagnose test failures that pass locally but fail in CI.
+
 #### Code Quality
 
 ```bash

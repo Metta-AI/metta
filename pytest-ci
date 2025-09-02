@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+#
+# pytest-ci: Run pytest with the same arguments and environment as GitHub Actions CI
+#
+# This script replicates the exact pytest commands used in CI to help diagnose
+# test failures that pass locally but fail in CI.
+#
+# Usage:
+#   ./pytest-ci [package] [pytest_args...]
+#
+# Examples:
+#   ./pytest-ci                           # Run all tests like CI
+#   ./pytest-ci agent                     # Run agent package tests like CI  
+#   ./pytest-ci common tests/util/        # Run specific path in common package
+#   ./pytest-ci agent -k "test_policy"    # Run agent tests matching pattern
+#   ./pytest-ci --benchmark-only          # Run benchmarks like CI
+#
+
+set -euo pipefail
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Set up CI environment variables
+export HYDRA_FULL_ERROR=1
+export VENV_PATH=.venv
+export PYTEST_WORKERS=auto
+export EVAL_SMOKE_TEST_POLICY="m.av.replay.probe.751"
+export EVAL_SMOKE_TEST_MAX_ATTEMPTS=3
+export EVAL_SMOKE_TEST_MIN_REWARD=0.0
+
+# Check for benchmark mode
+if [[ "${*}" == *"--benchmark-only"* ]]; then
+    export PYTHONOPTIMIZE=1
+    echo -e "${BLUE}🚀 Running in benchmark mode with PYTHONOPTIMIZE=1${NC}"
+fi
+
+# Packages that have their own test directories
+PACKAGES="agent common app_backend mettagrid codebot"
+
+# Function to run pytest with CI args
+run_ci_pytest() {
+    local test_dir="$1"
+    shift
+    local extra_args=("$@")
+    
+    # Base pytest arguments matching CI exactly
+    local pytest_args=(
+        "-n" "$PYTEST_WORKERS"
+        "--cov" 
+        "--cov-branch"
+        "--benchmark-skip"
+        "--maxfail=1"
+        "--disable-warnings" 
+        "--durations=10"
+        "-v"
+    )
+    
+    # Add extra args
+    pytest_args+=("${extra_args[@]}")
+    
+    echo -e "${BLUE}Running pytest in: ${test_dir}${NC}"
+    echo -e "${YELLOW}Command: pytest ${pytest_args[*]} ${extra_args[*]}${NC}"
+    
+    if [[ "$test_dir" != "." ]]; then
+        cd "$test_dir"
+    fi
+    
+    uv run pytest "${pytest_args[@]}"
+    local exit_code=$?
+    
+    if [[ "$test_dir" != "." ]]; then
+        cd - > /dev/null
+    fi
+    
+    return $exit_code
+}
+
+# Function to run benchmark tests
+run_benchmarks() {
+    local test_dir="$1"
+    shift
+    local extra_args=("$@")
+    
+    export PYTHONOPTIMIZE=1
+    
+    local pytest_args=(
+        "-n" "0"  # Benchmarks don't use parallel execution
+        "--benchmark-only"
+        "--benchmark-json=benchmark_results.json"
+    )
+    
+    pytest_args+=("${extra_args[@]}")
+    
+    echo -e "${BLUE}Running benchmarks in: ${test_dir}${NC}"
+    echo -e "${YELLOW}Command: pytest ${pytest_args[*]}${NC}"
+    
+    if [[ "$test_dir" != "." ]]; then
+        cd "$test_dir"
+    fi
+    
+    uv run pytest "${pytest_args[@]}"
+    local exit_code=$?
+    
+    if [[ "$test_dir" != "." ]]; then
+        cd - > /dev/null
+    fi
+    
+    return $exit_code
+}
+
+# Main logic
+main() {
+    echo -e "${BLUE}pytest-ci: Running tests with CI environment and arguments${NC}"
+    
+    if [[ $# -eq 0 ]]; then
+        # No arguments - run all packages like CI does
+        echo -e "${GREEN}Running all packages (matching CI matrix)${NC}"
+        
+        local failed_packages=()
+        
+        # Test core (root directory)
+        echo -e "\n${BLUE}=== Testing core (root) ===${NC}"
+        if ! run_ci_pytest "."; then
+            failed_packages+=("core")
+        fi
+        
+        # Test each package
+        for package in $PACKAGES; do
+            if [[ -d "$package" ]]; then
+                echo -e "\n${BLUE}=== Testing $package ===${NC}"
+                if ! run_ci_pytest "$package"; then
+                    failed_packages+=("$package")
+                fi
+            fi
+        done
+        
+        # Report results
+        if [[ ${#failed_packages[@]} -gt 0 ]]; then
+            echo -e "\n${RED}❌ Failed packages: ${failed_packages[*]}${NC}"
+            exit 1
+        else
+            echo -e "\n${GREEN}✅ All packages passed!${NC}"
+        fi
+        
+    elif [[ "$1" == "--benchmark-only" ]]; then
+        # Benchmark mode
+        shift
+        echo -e "${GREEN}Running benchmarks with CI settings${NC}"
+        
+        # Run main benchmarks
+        echo -e "\n${BLUE}=== Main benchmarks ===${NC}"
+        run_benchmarks "." "$@"
+        
+        # Run mettagrid benchmarks  
+        if [[ -d "mettagrid" ]]; then
+            echo -e "\n${BLUE}=== Mettagrid benchmarks ===${NC}"
+            run_benchmarks "mettagrid" "$@"
+        fi
+        
+    elif [[ " $PACKAGES " =~ " $1 " ]] || [[ "$1" == "core" ]]; then
+        # Specific package
+        local package="$1"
+        shift
+        
+        if [[ "$package" == "core" ]]; then
+            package="."
+        fi
+        
+        echo -e "${GREEN}Running $1 package tests with CI settings${NC}"
+        run_ci_pytest "$package" "$@"
+        
+    else
+        # Unknown package or custom args - run in root with CI settings
+        echo -e "${GREEN}Running tests in root directory with CI settings${NC}"
+        run_ci_pytest "." "$@"
+    fi
+}
+
+# Show help
+if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+    echo "pytest-ci: Run pytest with CI environment and arguments"
+    echo ""
+    echo "Usage:"
+    echo "  ./pytest-ci                           # Run all packages like CI"
+    echo "  ./pytest-ci agent                     # Run agent package like CI"  
+    echo "  ./pytest-ci common tests/util/        # Run specific path in common"
+    echo "  ./pytest-ci agent -k 'test_policy'    # Run agent tests matching pattern"
+    echo "  ./pytest-ci --benchmark-only          # Run benchmarks like CI"
+    echo "  ./pytest-ci tests/rl/                 # Run specific test directory"
+    echo ""
+    echo "Available packages: $PACKAGES core"
+    echo ""
+    echo "This replicates the exact pytest commands and environment used in GitHub Actions."
+    exit 0
+fi
+
+main "$@"
