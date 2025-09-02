@@ -29,6 +29,16 @@ class WandbSetup(SetupModule):
         return False
 
     def install(self, non_interactive: bool = False) -> None:
+        """Set up Weights & Biases authentication and configuration.
+
+        Handles different user types:
+        - SOFTMAX: Uses internal W&B setup
+        - SOFTMAX_DOCKER: Expects W&B access via environment variables
+        - Others: Provides guidance for manual setup
+
+        Args:
+            non_interactive: If True, skip interactive authentication prompts
+        """
         info("Setting up Weights & Biases...")
 
         if self.check_installed():

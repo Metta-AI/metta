@@ -28,6 +28,15 @@ class AWSSetup(SetupModule):
             return False
 
     def install(self, non_interactive: bool = False) -> None:
+        """Set up AWS CLI configuration and credentials.
+
+        For softmax-docker profile, skips setup as AWS access should be provided
+        via IAM roles or environment variables. For other profiles, provides
+        guidance on configuring AWS CLI.
+
+        Args:
+            non_interactive: If True, skip interactive configuration prompts
+        """
         saved_settings = get_saved_settings()
         if saved_settings.user_type == UserType.SOFTMAX_DOCKER:
             info("AWS access for this profile should be provided via IAM roles or environment variables.")
