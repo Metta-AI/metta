@@ -185,13 +185,25 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
-    # Build WandB URI directly from known components - much cleaner!
+    # Build WandB URI directly from known components
     project = run.project  # Get project from the run context
-    version = artifact.version  # Get actual version from the artifact
+
+    # For newly created artifacts, version might be None until after logging
+    # So we extract version from qualified_name as fallback
+    version = artifact.version
+    if version is None or str(version) == "None":
+        # Extract version from qualified_name: "entity/project/artifact:version"
+        qualified_name = artifact.qualified_name
+        if ":" in qualified_name:
+            extracted_version = qualified_name.split(":")[-1]
+            # Make sure we don't use "None" as a version
+            version = "latest" if extracted_version in ("None", None) else extracted_version
+        else:
+            version = "latest"  # Default fallback
+
     wandb_uri = f"wandb://{project}/{artifact_name}:{version}"
 
-    qualified_name = artifact.qualified_name  # For logging only
-    logger.info(f"Uploaded checkpoint as wandb artifact: {qualified_name}")
+    logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
     logger.debug(f"Returning WandB URI: {wandb_uri}")
 
     return wandb_uri

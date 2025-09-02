@@ -505,6 +505,39 @@ class TestWandbArtifactFormatting:
                 mock_run.log_artifact.assert_called_once_with(mock_artifact)
                 mock_artifact.wait.assert_called_once()
 
+    def test_upload_checkpoint_handles_none_version(self):
+        """Test that upload_checkpoint_as_artifact handles None version gracefully."""
+
+        # Test case where artifact.version is None (newly created artifact)
+        mock_artifact = Mock()
+        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v2"  # Contains version info
+        mock_artifact.version = None  # This is None for new artifacts
+        mock_artifact.wait = Mock()
+
+        mock_run = Mock()
+        mock_run.project = "metta"
+        mock_run.log_artifact = Mock()
+
+        with patch("wandb.Artifact", return_value=mock_artifact):
+            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
+                result = upload_checkpoint_as_artifact(
+                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
+                )
+
+                # Should extract version from qualified_name
+                assert result == "wandb://metta/test-artifact:v2"
+
+        # Test case where qualified_name also has None version
+        mock_artifact.qualified_name = "metta-research/metta/test-artifact:None"
+        with patch("wandb.Artifact", return_value=mock_artifact):
+            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
+                result = upload_checkpoint_as_artifact(
+                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
+                )
+
+                # Should fallback to "latest"
+                assert result == "wandb://metta/test-artifact:latest"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
