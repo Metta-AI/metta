@@ -22,6 +22,7 @@ from metta.core.monitoring import (
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -544,48 +545,58 @@ def train(
                     sims.extend(trainer_cfg.evaluation.simulations)
 
                     evaluate_local = trainer_cfg.evaluation.evaluate_local
+                    if latest_wandb_uri:
+                        policy_uri = f"wandb://{latest_wandb_uri}"
+                    else:
+                        checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
+                        policy_uri = checkpoint_uris[0] if checkpoint_uris else None
                     if trainer_cfg.evaluation.evaluate_remote:
                         try:
                             # Get the most recent checkpoint URI for remote evaluation
                             # Prefer wandb artifact if available, otherwise use local file
-                            if latest_wandb_uri:
-                                policy_uri = latest_wandb_uri
+                            if policy_uri:
+                                logger.info(f"Evaluating policy remotely from {policy_uri}")
+                                evaluate_policy_remote_with_checkpoint_manager(
+                                    policy_uri=policy_uri,
+                                    simulations=sims,
+                                    stats_epoch_id=stats_tracker.stats_epoch_id,
+                                    stats_client=stats_client,
+                                    wandb_run=wandb_run,
+                                    trainer_cfg=trainer_cfg,
+                                )
                             else:
-                                checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
-                                policy_uri = checkpoint_uris[0] if checkpoint_uris else None
-
-                            task_response = evaluate_policy_remote_with_checkpoint_manager(
-                                policy_uri=policy_uri,
-                                simulations=sims,
-                                stats_epoch_id=stats_tracker.stats_epoch_id,
-                                stats_client=stats_client,
-                                wandb_run=wandb_run,
-                                trainer_cfg=trainer_cfg,
-                            )
-
-                            if task_response:
-                                evaluate_local = False
-                            else:
-                                evaluate_local = True
-
+                                logger.warning("No checkpoint available for remote evaluation")
                         except Exception as e:
                             logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
                             logger.error("Falling back to local evaluation")
                             evaluate_local = True
                     if evaluate_local:
-                        evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
-                        logger.info("Simulation complete")
-                        eval_scores = evaluation_results.scores
-                        if wandb_run is not None and evaluation_results.replay_urls:
-                            upload_replay_html(
-                                replay_urls=evaluation_results.replay_urls,
-                                agent_step=agent_step,
-                                epoch=epoch,
-                                wandb_run=wandb_run,
-                                metric_prefix="training_eval",
-                                step_metric_key="metric/epoch",
-                                epoch_metric_key="metric/epoch",
+                        if policy_uri:
+                            evaluation_results = evaluate_policy(
+                                checkpoint_uri=policy_uri,
+                                simulations=sims,
+                                device=device,
+                                vectorization=system_cfg.vectorization,
+                                replay_dir=trainer_cfg.evaluation.replay_dir if trainer_cfg.evaluation else None,
+                                stats_epoch_id=stats_tracker.stats_epoch_id,
+                                stats_client=stats_client,
                             )
+                            logger.info("Simulation complete")
+                            eval_scores = evaluation_results.scores
+                            if wandb_run is not None and evaluation_results.replay_urls:
+                                upload_replay_html(
+                                    replay_urls=evaluation_results.replay_urls,
+                                    agent_step=agent_step,
+                                    epoch=epoch,
+                                    wandb_run=wandb_run,
+                                    metric_prefix="training_eval",
+                                    step_metric_key="metric/epoch",
+                                    epoch_metric_key="metric/epoch",
+                                )
+                        else:
+                            logger.warning("No checkpoint available for local evaluation")
+                            evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
+                            eval_scores = evaluation_results.scores
 
                     stats_tracker.update_epoch_tracking(epoch + 1)
 
