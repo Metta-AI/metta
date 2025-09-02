@@ -1,6 +1,7 @@
 #!/bin/sh
 set -u
 PROFILE=""
+NON_INTERACTIVE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile)
@@ -15,6 +16,10 @@ while [ $# -gt 0 ]; do
       PROFILE="${1#--profile=}"
       shift
       ;;
+    --non-interactive)
+      NON_INTERACTIVE="--non-interactive"
+      shift
+      ;;
     --help | -h)
       echo "Usage: $0 [OPTIONS]"
       echo ""
@@ -26,6 +31,7 @@ while [ $# -gt 0 ]; do
       echo "Options:"
       echo "  --profile PROFILE      Set user profile (external, cloud, or softmax)"
       echo "                         If not specified, runs interactive configuration"
+      echo "  --non-interactive      Run in non-interactive mode (no prompts)"
       echo "  -h, --help             Show this help message"
       echo ""
       echo "Examples:"
@@ -55,11 +61,11 @@ ensure_uv_setup
 uv sync || err "Failed to install Python dependencies"
 uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
 if [ -n "$PROFILE" ]; then
-  uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" || err "Failed to run configuration"
+  uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" $NON_INTERACTIVE || err "Failed to run configuration"
 else
-  uv run python -m metta.setup.metta_cli configure || err "Failed to run configuration"
+  uv run python -m metta.setup.metta_cli configure $NON_INTERACTIVE || err "Failed to run configuration"
 fi
-uv run python -m metta.setup.metta_cli install || err "Failed to install components"
+uv run python -m metta.setup.metta_cli install $NON_INTERACTIVE || err "Failed to install components"
 
 echo "\nSetup complete!\n"
 
