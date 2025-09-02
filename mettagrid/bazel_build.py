@@ -6,10 +6,19 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict
 
-from setuptools.build_meta import build_editable as _build_editable
-from setuptools.build_meta import build_wheel as _build_wheel
+from setuptools.build_meta import (
+    build_editable as _build_editable,
+)
+from setuptools.build_meta import (
+    build_wheel as _build_wheel,
+)
+from setuptools.build_meta import (
+    get_requires_for_build_editable,
+    get_requires_for_build_wheel,
+    prepare_metadata_for_build_editable,
+    prepare_metadata_for_build_wheel,
+)
 
 
 def _run_bazel_build():
@@ -17,8 +26,7 @@ def _run_bazel_build():
     # Check if bazel is available
     if shutil.which("bazel") is None:
         raise RuntimeError(
-            "Bazel is required to build metta-mettagrid. "
-            "Please install Bazel: https://bazel.build/install"
+            "Bazel is required to build metta-mettagrid. Please install Bazel: https://bazel.build/install"
         )
 
     # Determine build configuration from environment
@@ -70,25 +78,17 @@ def _run_bazel_build():
         print("No pre-built extension found, continuing with standard build")
 
 
-def build_wheel(wheel_directory, config_settings = None, metadata_directory = None):
+def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     """Build a wheel, compiling the C++ extension with Bazel first."""
     _run_bazel_build()
     return _build_wheel(wheel_directory, config_settings, metadata_directory)
 
 
-def build_editable(wheel_directory, config_settings = None, metadata_directory = None):
+def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
     """Build an editable install, compiling the C++ extension with Bazel first."""
     _run_bazel_build()
     return _build_editable(wheel_directory, config_settings, metadata_directory)
 
-
-# Re-export other required functions from setuptools
-from setuptools.build_meta import (
-    get_requires_for_build_wheel,
-    get_requires_for_build_editable,
-    prepare_metadata_for_build_wheel,
-    prepare_metadata_for_build_editable,
-)
 
 __all__ = [
     "build_wheel",

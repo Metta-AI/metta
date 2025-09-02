@@ -10,7 +10,6 @@ A cross-platform coverage generation script that supports both GCC/lcov and Clan
 Prioritizes gcovr for simplified processing.
 """
 
-import os
 import shutil
 import subprocess
 import sys
@@ -26,13 +25,27 @@ try:
     from metta.common.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
 except ImportError:
     # Fallback if text_styles not available
-    def bold(text): return text
-    def cyan(text): return text
-    def green(text): return text
-    def magenta(text): return text
-    def red(text): return text
-    def yellow(text): return text
-    def use_colors(enabled): pass
+    def bold(text):
+        return text
+
+    def cyan(text):
+        return text
+
+    def green(text):
+        return text
+
+    def magenta(text):
+        return text
+
+    def red(text):
+        return text
+
+    def yellow(text):
+        return text
+
+    def use_colors(enabled):
+        pass
+
 
 # Configuration
 BUILD_DIR = Path("build-debug")
@@ -93,7 +106,8 @@ def setup_and_build() -> bool:
 
     # Run tests with bazel coverage (don't fail if tests fail - we still want coverage)
     print(cyan("🧪 Running tests with coverage..."))
-    run_command(["bazel", "coverage", "--config=dbg", "//:test_stats_tracker", "//:test_grid_object", "//:test_mettagrid", "//:test_observations"], check=False)
+    test_targets = ["//:test_stats_tracker", "//:test_grid_object", "//:test_mettagrid", "//:test_observations"]
+    run_command(["bazel", "coverage", "--config=dbg"] + test_targets, check=False)
     return True
 
 
@@ -109,42 +123,42 @@ def process_coverage() -> bool:
     bazel_coverage_files = []
     if Path("bazel-testlogs").exists():
         bazel_coverage_files = list(Path("bazel-testlogs").rglob("coverage.dat"))
-    
+
     # Also check bazel-out directory
     if Path("bazel-out").exists():
         bazel_coverage_files.extend(list(Path("bazel-out").rglob("coverage.dat")))
 
     if bazel_coverage_files:
         print(green(f"✓ Found Bazel LCOV coverage data ({len(bazel_coverage_files)} coverage.dat files)"))
-        
+
         # Combine all coverage.dat files into one
         print(cyan("📊 Combining coverage data..."))
         combined_coverage = []
         for cov_file in bazel_coverage_files:
             if cov_file.stat().st_size > 0:
-                with open(cov_file, 'r') as f:
+                with open(cov_file, "r") as f:
                     combined_coverage.append(f.read())
-        
+
         if not combined_coverage:
             print(red("✗ All coverage files are empty!"))
             return False
-            
+
         # Write combined coverage
-        with open(coverage_path, 'w') as f:
-            f.write('\n'.join(combined_coverage))
-        
+        with open(coverage_path, "w") as f:
+            f.write("\n".join(combined_coverage))
+
         print(green(f"✓ Combined {len(bazel_coverage_files)} coverage files into {coverage_path}"))
         return True
-    
+
     # Look for traditional gcda/profraw files
     gcda_files = []
     profraw_files = []
-    
+
     # Check bazel-out directory
     if Path("bazel-out").exists():
         gcda_files.extend(list(Path("bazel-out").rglob("*.gcda")))
         profraw_files.extend(list(Path("bazel-out").rglob("*.profraw")))
-    
+
     # Also check BUILD_DIR for compatibility
     gcda_files.extend(list(BUILD_DIR.rglob("*.gcda")))
     profraw_files.extend(list(BUILD_DIR.rglob("*.profraw")))
