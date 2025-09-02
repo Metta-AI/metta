@@ -9,43 +9,39 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Install uv
+    - name: Install uv with built-in caching
       uses: astral-sh/setup-uv@v6
       with:
         version: "0.7.3"
         enable-cache: true
-        cache-local-path: "${{ github.workspace }}/.uv-cache"
-        prune-cache: true
-        cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
-      env:
-        UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
+        cache-suffix: "${{ inputs.install-mode }}"
+        prune-cache: false  # Keep full cache for better performance
 
     - name: Create virtual environment with uv
       shell: bash
-      env:
-        UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
       run: |
         # Export environment variables
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
 
-        # Check if we have cached packages (from built-in astral-sh/setup-uv caching)
+        # Check uv cache status (using default location now)
         echo "🔍 Checking uv cache status:"
-        echo "  .uv-cache exists: $([ -d .uv-cache ] && echo 'yes' || echo 'no')"
-        echo "  UV_CACHE_DIR env: $UV_CACHE_DIR"
-        if [ -d .uv-cache ]; then
-          echo "  .uv-cache size: $(du -sh .uv-cache 2>/dev/null || echo 'unknown')"
-          echo "  .uv-cache top-level contents:"
-          ls -la .uv-cache/ 2>/dev/null || echo "  cannot list .uv-cache"
-          if [ -d .uv-cache/simple ]; then
-            echo "  .uv-cache/simple size: $(du -sh .uv-cache/simple 2>/dev/null || echo 'unknown')"
-            echo "  .uv-cache/simple sample contents: $(ls .uv-cache/simple | head -5)"
-          fi
-        fi
+        echo "  UV_CACHE_DIR env: ${UV_CACHE_DIR:-'not set (using default)'}"
         
-        # Test uv cache info
-        echo "🔍 UV cache info:"
-        uv cache info || echo "  uv cache info failed"
+        # Get actual cache directory being used by uv
+        echo "🔍 UV cache details:"
+        uv cache dir || echo "  uv cache dir failed"
+        
+        # Check if cache directory exists and has content
+        CACHE_DIR=$(uv cache dir 2>/dev/null || echo "")
+        if [ -n "$CACHE_DIR" ] && [ -d "$CACHE_DIR" ]; then
+          echo "  Cache directory exists: $CACHE_DIR"
+          echo "  Cache size: $(du -sh "$CACHE_DIR" 2>/dev/null || echo 'unknown')"
+          echo "  Cache top-level contents:"
+          ls -la "$CACHE_DIR"/ 2>/dev/null || echo "  cannot list cache dir"
+        else
+          echo "  Cache directory not found or not accessible"
+        fi
         
         # Always create fresh venv (using cached packages from uv store)
         echo "🚀 Creating fresh virtual environment with cached packages..."
