@@ -25,7 +25,11 @@ runs:
       run: |
         curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o bazel
         chmod +x bazel
-        sudo mv bazel /usr/local/bin/bazel
+        if command -v sudo &> /dev/null; then
+          sudo mv bazel /usr/local/bin/bazel
+        else
+          mv bazel /usr/local/bin/bazel
+        fi
         bazel --version
 
     - name: Create virtual environment with uv
