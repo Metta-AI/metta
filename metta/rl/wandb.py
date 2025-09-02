@@ -185,20 +185,23 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
-    # Convert qualified_name to wandb:// URI format
-    # qualified_name format: "entity/project/artifact_name:version"
-    # We want: "wandb://project/artifact_name:version"
-    qualified_name = artifact.qualified_name
+    # Build wandb:// URI from reliable components instead of parsing qualified_name
+    # This avoids timing issues and inconsistent qualified_name formatting
+    project = run.project
+
+    # Use the artifact's actual version if available, otherwise use a default
+    # Note: artifact.version might be None for newly created artifacts
+    version = getattr(artifact, "version", None)
+    if version is None:
+        # For new artifacts, WandB typically assigns version "v0", "v1", etc.
+        # Since we can't reliably get it before commit, use "latest" which WandB resolves
+        version = "latest"
+
+    wandb_uri = f"wandb://{project}/{artifact_name}:{version}"
+
+    # Log the qualified_name for debugging, but don't rely on it for URI construction
+    qualified_name = getattr(artifact, "qualified_name", "not_available_yet")
     logger.info(f"Uploaded checkpoint as wandb artifact: {qualified_name}")
-
-    # Simple conversion: remove entity prefix and add wandb:// prefix
-    parts = qualified_name.split("/", 1)  # Split on first slash: ["entity", "project/artifact:version"]
-    if len(parts) == 2:
-        project_and_artifact = parts[1]  # "project/artifact:version"
-        wandb_uri = f"wandb://{project_and_artifact}"
-    else:
-        # Fallback if format is unexpected
-        wandb_uri = f"wandb://{run.project}/{artifact_name}:latest"
-
     logger.debug(f"Returning WandB URI: {wandb_uri}")
+
     return wandb_uri

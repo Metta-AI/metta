@@ -479,10 +479,11 @@ class TestWandbArtifactFormatting:
             assert len(parts) == 3, f"qname should have exactly 3 parts, got: {qname}"
 
     def test_upload_checkpoint_returns_proper_uri_format(self):
-        """Test that upload_checkpoint_as_artifact converts qualified_name to wandb:// URI."""
+        """Test that upload_checkpoint_as_artifact builds URI from reliable components."""
 
         mock_artifact = Mock()
         mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
+        mock_artifact.version = "v1"  # Mock the version property
         mock_artifact.wait = Mock()
 
         mock_run = Mock()
@@ -495,7 +496,7 @@ class TestWandbArtifactFormatting:
                     checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
                 )
 
-                # Should convert qualified_name to wandb:// URI by removing entity
+                # Should build URI from project + artifact_name + version
                 assert result == "wandb://metta/test-artifact:v1"
                 assert result.startswith("wandb://"), "Should start with wandb://"
 
@@ -503,11 +504,12 @@ class TestWandbArtifactFormatting:
                 mock_run.log_artifact.assert_called_once_with(mock_artifact)
                 mock_artifact.wait.assert_called_once()
 
-    def test_upload_checkpoint_handles_malformed_qualified_name(self):
-        """Test fallback when qualified_name is malformed."""
+    def test_upload_checkpoint_handles_none_version(self):
+        """Test fallback when artifact.version is None."""
 
         mock_artifact = Mock()
-        mock_artifact.qualified_name = "malformed_name_without_slashes"  # No slashes
+        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
+        mock_artifact.version = None  # This causes fallback to "latest"
         mock_artifact.wait = Mock()
 
         mock_run = Mock()
@@ -520,7 +522,7 @@ class TestWandbArtifactFormatting:
                     checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
                 )
 
-                # Should fallback to constructing URI from run.project and artifact_name
+                # Should use "latest" when version is None
                 assert result == "wandb://metta/test-artifact:latest"
 
 
