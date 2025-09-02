@@ -44,7 +44,6 @@ def convert_old_checkpoint(state: dict) -> tuple[dict, object]:
     # Create policy with components
     policy = _create_policy_from_old_checkpoint(state)
 
-    # Extract clean agent state (excluding components)
     agent_state = _extract_agent_state(state)
 
     log_on_master("Successfully converted old checkpoint to new structure")
