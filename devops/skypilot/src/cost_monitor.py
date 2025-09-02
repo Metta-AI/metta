@@ -39,10 +39,8 @@ def get_instance_cost(instance_type: str, region: str, zone: str | None = None, 
         use_spot: Whether to calculate spot instance pricing
 
     Returns:
-        Hourly cost as a float
+        Hourly cost in USD as a float
 
-    Raises:
-        RuntimeError: If unable to calculate cost
     """
     try:
         cloud = sky.clouds.AWS()
@@ -57,9 +55,6 @@ def get_running_instance_info() -> tuple[str, str, str, bool]:
 
     Returns:
         Tuple of (instance_type, region, zone, use_spot)
-
-    Raises:
-        RuntimeError: If unable to determine instance info
     """
     # Get region and zone from SkyPilot cluster info
     if "SKYPILOT_CLUSTER_INFO" not in os.environ:
@@ -120,31 +115,3 @@ def get_cost_info() -> dict[str, Any]:
         "num_nodes": num_nodes,
         "total_hourly_cost": instance_hourly_cost * num_nodes,
     }
-
-
-def main() -> int:
-    """Calculate total hourly cost for the cluster and output to stdout."""
-    try:
-        cost_info = get_cost_info()
-
-        # Log details to stderr
-        logger.info(f"Instance Type: {cost_info['instance_type']}")
-        logger.info(f"Spot Instance: {cost_info['use_spot']}")
-        logger.info(f"Region: {cost_info['region']}")
-        logger.info(
-            f"Total Hourly Cost for {cost_info['num_nodes']} node(s): "
-            f"${cost_info['total_hourly_cost']:.4f} "
-            f"(${cost_info['instance_hourly_cost']:.4f}/hr per instance)"
-        )
-
-        # Output cost to stdout
-        print(cost_info["total_hourly_cost"])
-        return 0
-
-    except Exception as e:
-        logger.error(f"Failed to get cost info: {e}")
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

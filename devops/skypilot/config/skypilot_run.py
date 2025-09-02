@@ -20,7 +20,7 @@ from runtime_monitors import start_monitors
 from skypilot_logging import log_all, log_error, log_master, log_warning, setup_logger
 
 from gitta import set_skypilot_test_status
-from metta.common.util.cost_monitor import get_cost_info
+from devops.skypilot.src.cost_monitor import get_cost_info
 from metta.common.util.discord import send_to_discord
 from devops.skypilot.src.job_latency import calculate_queue_latency
 from metta.common.wandb.log_wandb import log_to_wandb

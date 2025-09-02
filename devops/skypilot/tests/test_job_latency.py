@@ -19,6 +19,7 @@ from devops.skypilot import (
     parse_submission_timestamp,
 )
 
+
 class TestSkyPilotLatency:
     """Tests for the SkyPilot latency helper."""
 
