@@ -73,7 +73,13 @@ def spinner(message: str = "Loading..."):
         spinner_thread.join()
 
 
-def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None = None, current: T | None = None) -> T:
+def prompt_choice(
+    prompt: str,
+    choices: list[tuple[T, str]],
+    default: T | None = None,
+    current: T | None = None,
+    non_interactive: bool = False,
+) -> T:
     """Prompt user to select from a list of choices with arrow key support.
 
     Args:
@@ -81,10 +87,15 @@ def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None =
         choices: List of (value, description) tuples
         default: Default choice if user presses Enter
         current: Current value to highlight
+        non_interactive: If True, automatically return default/current/first choice
 
     Returns:
         The selected value
     """
+    # Handle non-interactive mode by delegating to simple fallback
+    if non_interactive:
+        return _simple_prompt_choice(prompt, choices, default, current, non_interactive)
+
     try:
         from simple_term_menu import TerminalMenu
 
@@ -128,13 +139,32 @@ def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None =
 
     except ImportError:
         # Fallback to simple prompt
-        return _simple_prompt_choice(prompt, choices, default, current)
+        return _simple_prompt_choice(prompt, choices, default, current, non_interactive)
 
 
 def _simple_prompt_choice(
-    prompt: str, choices: list[tuple[T, str]], default: T | None = None, current: T | None = None
+    prompt: str,
+    choices: list[tuple[T, str]],
+    default: T | None = None,
+    current: T | None = None,
+    non_interactive: bool = False,
 ) -> T:
     """Simple numbered choice prompt without arrow keys."""
+    # Handle non-interactive mode
+    if non_interactive:
+        if default is not None:
+            info(f"{prompt} -> Using default: {default}")
+            return default
+        elif current is not None:
+            info(f"{prompt} -> Using current: {current}")
+            return current
+        elif choices:
+            choice_value = choices[0][0]
+            info(f"{prompt} -> Using first option: {choice_value}")
+            return choice_value
+        else:
+            raise ValueError("No valid choice available for non-interactive mode")
+
     header(prompt)
     for i, (value, desc) in enumerate(choices):
         markers = []

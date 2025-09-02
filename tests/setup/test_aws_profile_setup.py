@@ -38,6 +38,12 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
 
     def test_softmax_profile_aws_installation(self):
         """Test that softmax profile AWS installation works correctly."""
+        import os
+
+        print(f"DEBUG: HOME={os.environ.get('HOME')}")
+        print(f"DEBUG: ZDOTDIR={os.environ.get('ZDOTDIR')}")
+        print(f"DEBUG: Test home={self.test_home}")
+
         self._create_test_config(UserType.SOFTMAX)
 
         # Run AWS install (bypass base class mocking)
@@ -49,8 +55,13 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         zshrc_path = self._get_zshrc_path()
         bashrc_path = self._get_bashrc_path()
 
+        # Debug what's actually in the zshrc file
+        zshrc_content = zshrc_path.read_text() if zshrc_path.exists() else "FILE NOT EXISTS"
+        print(f"DEBUG: zshrc_path={zshrc_path}")
+        print(f"DEBUG: zshrc content: {repr(zshrc_content)}")
+
         assert self._check_shell_config_contains(zshrc_path, "export AWS_PROFILE=softmax"), (
-            f"AWS_PROFILE export should be added to {zshrc_path} for softmax profile"
+            f"AWS_PROFILE export should be added to {zshrc_path} for softmax profile. Content: {repr(zshrc_content)}"
         )
 
         # Also check .bashrc
