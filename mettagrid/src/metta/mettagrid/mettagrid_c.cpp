@@ -87,13 +87,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     if (action_name == "put_items") {
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
     } else if (action_name == "place_box") {
-      // Pass in resources to create box from box config
-      for (const auto& [key, object_cfg] : game_config.objects) {
-        if (auto box_cfg = std::dynamic_pointer_cast<const BoxConfig>(object_cfg)) {
-          _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config, box_cfg->resources_to_create));
-          break;
-        }
-      }
+      _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config));
     } else if (action_name == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name == "noop") {
@@ -429,10 +423,9 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     }
   }
 
-  _stats->add("tokens_written", static_cast<float>(tokens_written));
-  _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
-  _stats->add("tokens_free_space",
-              static_cast<float>(static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written)));
+  _stats->add("tokens_written", tokens_written);
+  _stats->add("tokens_dropped", attempted_tokens_written - tokens_written);
+  _stats->add("tokens_free_space", static_cast<size_t>(observation_view.shape(1)) - tokens_written);
 }
 
 void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {
@@ -520,14 +513,14 @@ void MettaGrid::_step(Actions actions) {
       for (const auto& [item, qty] : inventory_copy) {
         if (qty > 0) {
           float loss = _resource_loss_prob * qty;
-          int lost = static_cast<int>(std::floor(loss));
+          InventoryDelta lost = static_cast<InventoryDelta>(std::floor(loss));
           // With probability equal to the fractional part, lose one more
           if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
             lost += 1;
           }
 
           if (lost > 0) {
-            agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
+            agent->update_inventory(item, -lost);
           }
         }
       }
@@ -846,9 +839,9 @@ py::dict MettaGrid::get_episode_stats() {
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
       // Add metadata to the converter's stats tracker BEFORE converting to dict
-      converter->stats.set("type_id", static_cast<float>(converter->type_id));
-      converter->stats.set("location.r", static_cast<float>(converter->location.r));
-      converter->stats.set("location.c", static_cast<float>(converter->location.c));
+      converter->stats.set("type_id", converter->type_id);
+      converter->stats.set("location.r", converter->location.r);
+      converter->stats.set("location.c", converter->location.c);
 
       // Now convert to dict - all values will be floats
       py::dict converter_stat = py::cast(converter->stats.to_dict());
@@ -962,10 +955,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def(py::init<TypeId, const std::string&, const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "box",
-           py::arg("resources_to_create"))
+           py::arg("returned_resources"))
       .def_readwrite("type_id", &BoxConfig::type_id)
       .def_readwrite("type_name", &BoxConfig::type_name)
-      .def_readwrite("resources_to_create", &BoxConfig::resources_to_create);
+      .def_readwrite("returned_resources", &BoxConfig::returned_resources);
 
   // ##MettaGridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means

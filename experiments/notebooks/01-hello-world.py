@@ -99,10 +99,10 @@ env_dict["game"]["num_agents"] = 1  # type: ignore
 env_dict["game"]["obs_width"] = 11  # type: ignore
 env_dict["game"]["obs_height"] = 11  # type: ignore
 env_dict["game"]["map_builder"] = {
-    "_target_": "metta.map.mapgen.MapGen",
+    "_target_": "metta.mettagrid.mapgen.mapgen.MapGen",
     "border_width": 0,
     "root": {
-        "type": "metta.map.scenes.inline_ascii.InlineAscii",
+        "type": "metta.mettagrid.mapgen.scenes.inline_ascii.InlineAscii",
         "params": {"data": hallway_map},
     },
 }

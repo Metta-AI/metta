@@ -19,7 +19,7 @@ proc beginPanAndZoom*(panel: Panel) =
     h: panel.rect.h.float32
   )
 
-  if window.boxyMouse.vec2.overlaps(box):
+  if window.mousePos.vec2.overlaps(box):
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
       panel.vel = window.mouseDelta.vec2
     else:
@@ -28,11 +28,13 @@ proc beginPanAndZoom*(panel: Panel) =
     panel.pos += panel.vel
 
     if window.scrollDelta.y != 0:
-      panel.zoomVel = window.scrollDelta.y * 0.03
+      when defined(emscripten):
+        let scrollK = 0.0003
+      else:
+        let scrollK = 0.03
+      panel.zoomVel = window.scrollDelta.y * scrollK
     else:
-      panel.zoomVel *= 0.9
-
-
+      panel.zoomVel *= 0.8
 
     let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
     panel.zoom += panel.zoomVel
@@ -49,25 +51,24 @@ proc endPanAndZoom*(panel: Panel) =
   bxy.restoreTransform()
 
 proc beginDraw*(panel: Panel) =
-  # bxy.pushLayer()
+  bxy.pushLayer()
   bxy.saveTransform()
 
   bxy.translate(vec2(panel.rect.x.float32, panel.rect.y.float32))
-
 
 proc endDraw*(panel: Panel) =
 
   bxy.restoreTransform()
 
-  # # Draw the mask.
-  # bxy.pushLayer()
-  # bxy.drawRect(
-  #   rect = panel.rect.rect,
-  #   color = color(1, 0, 0, 1.0)
-  # )
-  # bxy.popLayer(blendMode = MaskBlend)
+  # Draw the mask.
+  bxy.pushLayer()
+  bxy.drawRect(
+    rect = panel.rect.rect,
+    color = color(1, 0, 0, 1.0)
+  )
+  bxy.popLayer(blendMode = MaskBlend)
 
-  # bxy.popLayer()
+  bxy.popLayer()
 
 proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
@@ -136,3 +137,6 @@ proc drawFrame*(area: Area) =
     x += width + 10
 
   bxy.restoreTransform()
+
+  for subarea in area.areas:
+    drawFrame(subarea)

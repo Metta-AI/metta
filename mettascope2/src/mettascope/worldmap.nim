@@ -296,3 +296,30 @@ World
     16,
     color(1, 1, 1, 1)
   )
+
+proc drawWorldMap*(panel: Panel) =
+
+  panel.beginPanAndZoom()
+  useSelections()
+  agentControls()
+
+  drawFloor()
+  drawWalls()
+  drawObjects()
+  # drawActions()
+  # drawAgentDecorations()
+
+  if settings.showGrid:
+    drawGrid()
+  if settings.showVisualRange:
+    drawVisualRanges()
+
+  drawSelection()
+  drawInventory()
+
+  if settings.showFogOfWar:
+    drawFogOfWar()
+
+  panel.endPanAndZoom()
+
+  drawInfoText()
