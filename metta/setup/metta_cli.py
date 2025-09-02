@@ -579,7 +579,7 @@ class MettaCLI:
 
     def cmd_ci(self, args, unknown_args=None) -> None:
         """Run all Python and C++ tests for CI."""
-        from metta.setup.utils import error, info, success, warning
+        from metta.setup.utils import error, info, success
 
         # First run Python tests
         info("Running Python tests...")

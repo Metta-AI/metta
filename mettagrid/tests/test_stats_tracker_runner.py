@@ -1,7 +1,7 @@
 # Test runner for C++ stats tracker tests
+import os
 import subprocess
 import sys
-import os
 
 
 def run_test():
