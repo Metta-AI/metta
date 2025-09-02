@@ -14,6 +14,7 @@ class SetupModule(ABC):
 
     def __init__(self):
         self.repo_root: Path = Path(__file__).parent.parent.parent.parent
+        self._non_interactive = False
 
     @property
     def name(self) -> str:
@@ -45,7 +46,8 @@ class SetupModule(ABC):
         # It is assumed that `core` and `system` are always installed first
         return []
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
+        self._non_interactive = non_interactive
         if self.setup_script_location:
             _ = self.run_script(self.setup_script_location)
         else:
@@ -61,15 +63,37 @@ class SetupModule(ABC):
         capture_output: bool = True,
         input: str | None = None,
         env: dict[str, str] | None = None,
+        non_interactive: bool | None = None,
     ) -> subprocess.CompletedProcess[str]:
         if cwd is None:
             cwd = self.repo_root
 
-        params: dict[str, str | bool | Path | None | dict[str, str]] = dict(
-            cwd=cwd, check=check, capture_output=capture_output, text=True, input=input
+        # Use instance non_interactive setting if not explicitly provided
+        if non_interactive is None:
+            non_interactive = self._non_interactive
+
+        # Set up environment for non-interactive mode
+        if env is None:
+            env = {}
+        env = {**env}
+
+        if non_interactive:
+            # Set environment variables for non-interactive operation
+            env.update(
+                {
+                    "DEBIAN_FRONTEND": "noninteractive",
+                    "NEEDRESTART_MODE": "a",  # Automatically restart services
+                    "UCF_FORCE_CONFFNEW": "1",  # Use new config files without prompting
+                }
+            )
+
+        params: dict[str, str | bool | Path | None | dict[str, str] | int] = dict(
+            cwd=cwd, check=check, capture_output=capture_output, text=True, input=input, env=env
         )
-        if env is not None:
-            params["env"] = env
+
+        # In non-interactive mode, redirect stdin to prevent hanging
+        if non_interactive and input is None:
+            params["stdin"] = subprocess.DEVNULL
 
         return subprocess.run(cmd, **params)  # type: ignore
 
