@@ -28,7 +28,7 @@ class WandbSetup(SetupModule):
 
         return False
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Setting up Weights & Biases...")
 
         if self.check_installed():
@@ -52,9 +52,9 @@ class WandbSetup(SetupModule):
                 Visit https://wandb.ai/authorize to get your API key.
             """)
 
-        # In test/CI environments, avoid interactive prompts entirely
-        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
-            info("Skipping W&B interactive setup in test/CI environment.")
+        # In test/CI environments or non-interactive mode, avoid interactive prompts entirely
+        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
+            info("Skipping W&B interactive setup in non-interactive/test/CI environment.")
             return
 
         use_wandb = input("\nDo you have your API key ready? (y/n): ").strip().lower()

@@ -50,12 +50,12 @@ class SystemSetup(SetupModule):
             return False
 
     @override
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Setting up system dependencies...")
 
         if self.supported_for_platform:
             if platform.system() == "Darwin" and not self._find_brew_path():
-                self._install_homebrew()
+                self._install_homebrew(non_interactive)
             self._run_brew_bundle("Brewfile")
             self._pin_formulae(self._get_deps_to_pin())
             success("System dependencies installed")
@@ -68,7 +68,7 @@ class SystemSetup(SetupModule):
                 If you are on a mettabox, you can run `./devops/mettabox/setup_machine.sh`.
             """)
 
-    def _install_homebrew(self) -> None:
+    def _install_homebrew(self, non_interactive: bool = False) -> None:
         info("Installing Homebrew...")
         try:
             # Run the Homebrew installer directly with subprocess to preserve TTY

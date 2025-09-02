@@ -27,7 +27,7 @@ class AWSSetup(SetupModule):
         except ImportError:
             return False
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         saved_settings = get_saved_settings()
         if saved_settings.user_type == UserType.SOFTMAX_DOCKER:
             info("AWS access for this profile should be provided via IAM roles or environment variables.")
@@ -40,7 +40,7 @@ class AWSSetup(SetupModule):
 
                 Running AWS profile setup...
             """)
-            super().install()
+            super().install(non_interactive)
         else:
             info("Please configure your AWS credentials using `aws configure` or `aws configure sso`")
 

@@ -53,7 +53,7 @@ class TailscaleSetup(SetupModule):
         except Exception:
             return None
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Setting up Tailscale...")
 
         if self.check_installed():
