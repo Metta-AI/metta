@@ -45,7 +45,7 @@ class SkypilotSetup(SetupModule):
         info("Setting up SkyPilot...")
 
         # In CI/test environments or non-interactive mode, avoid interactive login flows altogether
-        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
+        if non_interactive:
             info("Detected non-interactive/test/CI environment; skipping SkyPilot interactive authentication.")
             success("SkyPilot installed (non-interactive mode)")
             return
