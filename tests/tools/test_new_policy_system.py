@@ -55,7 +55,7 @@ class TestNewPolicySystem:
         sim_tool = SimTool(
             simulations=[sim_config],
             policy_uris=["mock://test_policy"],
-            export_to_stats_db=False,
+            stats_db_uri=None,
         )
 
         assert sim_tool.simulations[0].name == "test_arena"
