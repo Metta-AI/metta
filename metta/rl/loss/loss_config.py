@@ -4,7 +4,7 @@ import torch
 from pydantic import Field
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.common.config import Config
 from metta.rl.loss.ppo_config import PPOConfig
 
@@ -27,11 +27,11 @@ class LossConfig(Config):
         trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
-        policy_store: PolicyStore,
+        checkpoint_manager: CheckpointManager,
     ):
         losses = {}
         for loss_name, loss_config in self.loss_configs.items():
             losses[loss_name] = loss_config.init_loss(
-                policy, trainer_cfg, vec_env, device, policy_store, loss_name, loss_config
+                policy, trainer_cfg, vec_env, device, checkpoint_manager, loss_name, loss_config
             )
         return losses

@@ -14,6 +14,13 @@ import time
 import numpy as np
 import pytest
 
+from metta.mettagrid.mettagrid_c import (
+    dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
+)
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
@@ -100,13 +107,6 @@ class TestBufferSharingRegression:
         This ensures that any changes to buffer handling maintain compatibility
         with PufferLib's zero-copy optimization requirements.
         """
-        from metta.mettagrid.mettagrid_c import (
-            dtype_actions,
-            dtype_observations,
-            dtype_rewards,
-            dtype_terminals,
-            dtype_truncations,
-        )
 
         # Create test arrays with expected dtypes
         test_obs = np.zeros((2, 32, 32, 3), dtype=dtype_observations)
@@ -173,10 +173,6 @@ class TestBufferSharingRegression:
 
         print("✅ Memory allocation pattern detection working correctly")
 
-    @pytest.mark.skipif(
-        not pytest.importorskip("torch", reason="PyTorch not available"),
-        reason="Torch required for GPU compatibility test",
-    )
     def test_gpu_compatibility_check(self):
         """
         Test GPU compatibility when CUDA is available.
@@ -184,7 +180,7 @@ class TestBufferSharingRegression:
         This test only runs when PyTorch with CUDA is available and verifies
         that buffer sharing works in GPU environments.
         """
-        import torch
+        torch = pytest.importorskip("torch", reason="PyTorch not available for GPU test")
 
         if not torch.cuda.is_available():
             pytest.skip("CUDA not available for GPU compatibility test")

@@ -1,15 +1,11 @@
-"""Test feature remapping functionality in MettaAgent."""
-
 import tempfile
-from pathlib import Path
 
 import torch
 from tensordict import TensorDict
 
 from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip
 from metta.agent.mocks import MockAgent
-from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_record import PolicyRecord
+from metta.rl.checkpoint_manager import CheckpointManager
 
 
 class MockObsComponent(torch.nn.Module):
@@ -276,6 +272,84 @@ def test_feature_mapping_persistence_via_metadata():
     assert eval_agent.feature_id_remap[9] == 3  # mineral: 9->3
 
 
+def test_mine_token_remapping_scenario():
+    """Test the specific scenario where mines have different IDs between training runs.
+
+    This test verifies that agents can handle when features like 'mine' have
+    different token IDs between training sessions, and that new features are
+    properly learned in training mode while unknown features map to 255 in eval mode.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # === PHASE 1: Initial Training with mine=1 ===
+        initial_features = {
+            "empty": {"id": 0, "type": "categorical"},
+            "mine": {"id": 1, "type": "categorical"},  # Mine is 1
+            "wall": {"id": 2, "type": "categorical"},
+            "agent": {"id": 3, "type": "categorical"},
+        }
+
+        agent = MockAgent()
+        agent.train()
+        agent.initialize_to_environment(
+            initial_features, action_names=["move", "mine"], action_max_params=[3, 0], device="cpu"
+        )
+
+        assert agent.original_feature_mapping["mine"] == 1
+
+        # Save after initial training
+        checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="mining_agent")
+        checkpoint_manager.save_agent(agent, epoch=1, metadata={"agent_step": 1000, "total_time": 60})
+
+        # === PHASE 2: Continue Training with mine=2 and new 'gold' feature ===
+        new_features = {
+            "empty": {"id": 0, "type": "categorical"},
+            "wall": {"id": 1, "type": "categorical"},  # Wall is now 1 (was 2)
+            "mine": {"id": 2, "type": "categorical"},  # Mine is now 2 (was 1)
+            "agent": {"id": 3, "type": "categorical"},
+            "gold": {"id": 4, "type": "categorical"},  # New feature!
+        }
+
+        loaded_agent = checkpoint_manager.load_agent(epoch=1)
+        mock_obs = MockObsComponent()
+        loaded_agent.components["_obs_"] = mock_obs
+
+        loaded_agent.train()  # Training mode - will learn new features
+        loaded_agent.initialize_to_environment(
+            new_features, action_names=["move", "mine"], action_max_params=[3, 0], device="cpu"
+        )
+
+        # Verify remapping
+        assert loaded_agent.feature_id_remap[2] == 1  # mine: 2 -> 1 (remapped)
+        assert loaded_agent.feature_id_remap[1] == 2  # wall: 1 -> 2 (remapped)
+        assert loaded_agent.original_feature_mapping["gold"] == 4  # New feature learned
+
+        # === PHASE 3: Evaluation with different IDs and unknown 'diamond' ===
+        eval_features = {
+            "empty": {"id": 10, "type": "categorical"},
+            "mine": {"id": 20, "type": "categorical"},  # Mine is 20 now
+            "wall": {"id": 30, "type": "categorical"},
+            "agent": {"id": 40, "type": "categorical"},
+            "diamond": {"id": 60, "type": "categorical"},  # Unknown feature
+        }
+
+        # Create fresh agent for eval to test unknown feature handling
+        eval_agent = MockAgent()
+        eval_agent.original_feature_mapping = agent.original_feature_mapping.copy()
+        eval_agent.components["_obs_"] = MockObsComponent()
+        eval_agent.eval()  # Eval mode
+
+        eval_agent.initialize_to_environment(
+            eval_features, action_names=["move", "mine"], action_max_params=[3, 0], device="cpu"
+        )
+
+        # Verify known features remapped correctly
+        assert eval_agent.feature_id_remap[10] == 0  # empty
+        assert eval_agent.feature_id_remap[20] == 1  # mine -> original ID 1
+        assert eval_agent.feature_id_remap[30] == 2  # wall
+        assert eval_agent.feature_id_remap[40] == 3  # agent
+        assert eval_agent.feature_id_remap[60] == 255  # diamond -> UNKNOWN
+
+
 def test_end_to_end_initialize_to_environment_workflow():
     """Test the full end-to-end workflow of initialize_to_environment."""
     # Create a temporary directory for saving/loading
@@ -325,28 +399,18 @@ def test_end_to_end_initialize_to_environment_workflow():
             "position_y": 5,
         }
 
-        # Create metadata with the mapping
-        metadata = PolicyMetadata(
-            agent_step=1000,
-            epoch=10,
-            run="test_run",
-            action_names=original_env.action_names,
-        )
-        metadata["original_feature_mapping"] = original_mapping
+        # Save using CheckpointManager - original_feature_mapping is automatically saved with the agent
+        checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="test_policy")
 
-        # Simulate saving by creating a PolicyRecord
-        save_path = Path(tmpdir) / "test_policy.pt"
-        pr = PolicyRecord(
-            policy_store=None,  # We don't need a real PolicyStore for this test
-            run_name="test_policy",
-            uri=f"file://{save_path}",
-            metadata=metadata,
-        )
-        pr._cached_policy = policy
+        # Create simple metadata (no need to manually save original_feature_mapping)
+        metadata = {
+            "agent_step": 1000,
+            "epoch": 10,
+            "score": 0.85,
+        }
 
-        # Save using torch.save (mimicking what PolicyStore.save does)
-        pr._policy_store = None  # Remove circular reference
-        torch.save(pr, save_path)
+        # Save the policy - original_feature_mapping is automatically included
+        checkpoint_manager.save_agent(policy, epoch=10, metadata=metadata)
 
         # Step 2: Load the policy in a new environment with different feature IDs
         new_env = MockMettaGridEnv(
@@ -360,9 +424,11 @@ def test_end_to_end_initialize_to_environment_workflow():
             }
         )
 
-        # Load the saved policy
-        loaded_pr = torch.load(save_path, map_location="cpu", weights_only=False)
-        loaded_policy = MockAgent()  # Create a fresh policy
+        # Load the saved policy - original_feature_mapping is automatically restored
+        loaded_policy = checkpoint_manager.load_agent(epoch=10)
+
+        # Verify the original feature mapping was automatically preserved
+        assert loaded_policy.get_original_feature_mapping() == original_mapping
 
         # Create a mock observation component to verify remapping
         mock_obs = MockObsComponent()
@@ -370,9 +436,6 @@ def test_end_to_end_initialize_to_environment_workflow():
 
         # Initialize to the new environment (in eval mode)
         loaded_policy.eval()  # Set to evaluation mode
-        # Manually restore the mapping (simulating what PolicyRecord.policy property would do)
-        if "original_feature_mapping" in loaded_pr.metadata:
-            loaded_policy.original_feature_mapping = loaded_pr.metadata["original_feature_mapping"].copy()
         new_features = new_env.get_observation_features()
         loaded_policy.initialize_to_environment(new_features, new_env.action_names, new_env.max_action_args, "cpu")
 

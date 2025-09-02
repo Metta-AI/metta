@@ -61,7 +61,7 @@ class Experience:
         # Tracking for rollout completion
         self.full_rows = 0
 
-        # Calculate num_minibatches for compatibility
+        # Calculate num_minibatches
         num_minibatches = self.segments / self.minibatch_segments
         self.num_minibatches: int = int(num_minibatches)
         if self.num_minibatches != num_minibatches:
@@ -74,7 +74,6 @@ class Experience:
                 f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
-        # Pre-allocate tensor to stores how many agents we have for use during environment reset
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
@@ -82,11 +81,6 @@ class Experience:
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
         if duplicate_keys := duplicates(all_keys):
             raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
-
-    @property
-    def full(self) -> bool:
-        """Alias for ready_for_training for compatibility."""
-        return self.ready_for_training
 
     @property
     def ready_for_training(self) -> bool:
@@ -101,13 +95,10 @@ class Experience:
         episode_lengths = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
-        # take whatever we need from the policy's output td
         self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_lengths))
 
-        # Update episode tracking
         self.ep_lengths[env_id] += 1
 
-        # Check if episodes are complete and reset if needed
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 

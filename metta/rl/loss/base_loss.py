@@ -7,7 +7,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.experience import Experience
 
 # from metta.rl.trainer_config import TrainerConfig
@@ -32,7 +32,7 @@ class BaseLoss:
         "vec_env",
         "device",
         "loss_tracker",
-        "policy_store",
+        "checkpoint_manager",
         "policy_cfg",
         "loss_cfg",
         "rollout_start_epoch",
@@ -52,7 +52,7 @@ class BaseLoss:
         trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
-        policy_store: PolicyStore,
+        checkpoint_manager: CheckpointManager,
         instance_name: str,
         loss_config: Any,
     ):
@@ -60,7 +60,7 @@ class BaseLoss:
         self.trainer_cfg = trainer_cfg
         self.vec_env = vec_env
         self.device = device
-        self.policy_store = policy_store
+        self.checkpoint_manager = checkpoint_manager
         self.instance_name = instance_name
         self.loss_cfg = loss_config
         # self.policy_cfg = self.policy.get_cfg()
