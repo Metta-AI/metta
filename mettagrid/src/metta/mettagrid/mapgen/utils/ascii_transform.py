@@ -1,7 +1,14 @@
-"""ASCII map transformation utilities for rotation and mirroring.
+"""ASCII map transformation utilities for rotation, mirroring, and stretching.
 
 This module provides functions to transform ASCII maps while preserving
 all character semantics including converter chains, agents, and special objects.
+
+Available transformations:
+- Rotation: 90°, 180°, 270° clockwise
+- Mirroring: horizontal (left-right) and vertical (top-bottom)
+- Stretching: scale maps by integer factors (2x, 3x, etc.)
+  * Only walls and empty spaces are duplicated
+  * Special objects (agents, converters) appear once in their stretched cell
 """
 
 from typing import Literal, Optional
@@ -75,21 +82,28 @@ def mirror_ascii_map(ascii_data: str, axis: Literal["horizontal", "vertical"]) -
 
 
 def transform_ascii_map(
-    ascii_data: str, rotate: Optional[int] = None, mirror_horizontal: bool = False, mirror_vertical: bool = False
+    ascii_data: str,
+    rotate: Optional[int] = None,
+    mirror_horizontal: bool = False,
+    mirror_vertical: bool = False,
+    stretch_x: int = 1,
+    stretch_y: int = 1,
 ) -> str:
-    """Apply rotation and/or mirroring transformations to ASCII map.
+    """Apply rotation, mirroring, and/or stretching transformations to ASCII map.
 
     Args:
         ascii_data: Raw ASCII map string
         rotate: Optional rotation in degrees (90, 180, 270)
         mirror_horizontal: Whether to flip left-right
         mirror_vertical: Whether to flip top-bottom
+        stretch_x: Horizontal stretch factor (>=1)
+        stretch_y: Vertical stretch factor (>=1)
 
     Returns:
         Transformed ASCII map string
 
     Note:
-        Transformations are applied in order: rotation, then mirroring.
+        Transformations are applied in order: rotation, then mirroring, then stretching.
         This ensures predictable results when combining transformations.
     """
     result = ascii_data
@@ -103,6 +117,10 @@ def transform_ascii_map(
         result = mirror_ascii_map(result, "horizontal")
     if mirror_vertical:
         result = mirror_ascii_map(result, "vertical")
+
+    # Finally apply stretching
+    if stretch_x != 1 or stretch_y != 1:
+        result = stretch_ascii_map(result, stretch_x, stretch_y)
 
     return result
 
