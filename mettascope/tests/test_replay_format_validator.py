@@ -54,7 +54,7 @@ _OPTIONAL_KEYS = {
     "file_name",
     "group_names",
     "reward_sharing_matrix",
-    "env_config",
+    "mg_config",
 }
 
 

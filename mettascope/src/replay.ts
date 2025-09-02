@@ -513,7 +513,7 @@ function convertReplayV1ToV2(replayData: any) {
   }
 
   data.map_size = [maxX + 1, maxY + 1]
-  data.env_config = {
+  data.mg_config = {
     label: 'Unlabeled Replay',
   }
   return data
@@ -544,7 +544,7 @@ function loadReplayJson(url: string, replayJson: any) {
   state.replay.maxSteps = replayData.max_steps
   state.replay.mapSize = replayData.map_size
   state.replay.fileName = replayData.file_name
-  state.replay.MettaGridConfig = replayData.env_config
+  state.replay.MettaGridConfig = replayData.mg_config
   if (state.replay.MettaGridConfig === undefined) {
     state.replay.MettaGridConfig = new MettaGridConfig()
     state.replay.MettaGridConfig.label = 'Unlabeled Replay'
