@@ -4,7 +4,8 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.rl.kickstarter import Kickstarter, KickstartTeacherConfig
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.kickstarter_config import KickstartTeacherConfig
 
 
 class TestKickstarter:
@@ -151,7 +152,9 @@ class TestKickstarter:
             batch_size=[2],
         )
         mock_teacher_policy.return_value = teacher_td
-        kickstarter.teachers = [(mock_teacher_policy, 0.5, 0.5)]  # (policy, action_coef, value_coef)
+        # Create proper teacher config and dictionary structure
+        teacher_config = KickstartTeacherConfig(teacher_uri="test://uri", action_loss_coef=0.5, value_loss_coef=0.5)
+        kickstarter.teachers = {mock_teacher_policy: teacher_config}
 
         # Create test tensors
         student_normalized_logits = torch.randn(2, 5)
