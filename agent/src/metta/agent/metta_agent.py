@@ -304,113 +304,21 @@ class MettaAgent(nn.Module):
 
     def __setstate__(self, state):
         """Restore state from checkpoint."""
-        # Check if this is an old checkpoint (has components but no policy)
-        # Components could be in state directly or in _modules
-        has_components = "components" in state or ("_modules" in state and "components" in state.get("_modules", {}))
-        has_policy = "policy" in state or ("_modules" in state and "policy" in state.get("_modules", {}))
+        from metta.agent.utils import convert_old_checkpoint, is_old_checkpoint_format
 
-        if has_components and not has_policy:
-            logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
+        if is_old_checkpoint_format(state):
+            # Convert old checkpoint format using utility
+            agent_state, policy = convert_old_checkpoint(state)
+            self.__dict__.update(agent_state)
 
-            if "policy" in state and state.get("policy") is state:
-                del state["policy"]
-                log_on_master("Removed circular reference: state['policy'] = state")
-
-            # Default to Fast ComponentPolicy for old checkpoints
-            # (Old checkpoints don't have the agent type stored in a way we can easily retrieve)
-            from metta.agent.component_policies.fast import Fast
-
-            PolicyClass = Fast
-            logger.info("Converting old checkpoint to Fast agent")
-
-            # Create the specific policy class without calling __init__ to avoid rebuilding components
-            policy = PolicyClass.__new__(PolicyClass)
-            nn.Module.__init__(policy)
-
-            # Extract components from wherever they are
-            if "components" in state:
-                components = state["components"]
-            elif "_modules" in state and "components" in state["_modules"]:
-                components = state["_modules"]["components"]
-            else:
-                components = nn.ModuleDict()
-
-            # Transfer component-related attributes to the policy
-            policy.components = components
-            policy.components_with_memory = state.get("components_with_memory", [])
-            policy.clip_range = state.get("clip_range", 0)
-            policy.agent_attributes = state.get("agent_attributes", {})
-
-            # Transfer action conversion tensors if they exist
-            if "cum_action_max_params" in state:
-                policy.cum_action_max_params = state["cum_action_max_params"]
-            if "action_index_tensor" in state:
-                policy.action_index_tensor = state["action_index_tensor"]
-
-            # Transfer cfg if it exists
-            if "cfg" in state:
-                policy.cfg = state["cfg"]
-
-            # Now create a minimal state for MettaAgent itself
-            # Don't include "components" in the new state - that belongs to the policy now
-            new_state = {}
-            for key in state:
-                # Skip components and _modules to avoid adding components to MettaAgent
-                if key in ["components", "_modules"]:
-                    continue
-                # Only copy attributes that belong to MettaAgent
-                if key in [
-                    "obs_width",
-                    "obs_height",
-                    "action_space",
-                    "feature_normalizations",
-                    "device",
-                    "obs_space",
-                    "_total_params",
-                    "cfg",
-                    "feature_id_to_name",
-                    "original_feature_mapping",
-                    "action_names",
-                    "action_max_params",
-                    "components_with_memory",
-                    "clip_range",
-                    "agent_attributes",
-                    "cum_action_max_params",
-                    "action_index_tensor",
-                    "training",
-                    "_parameters",
-                    "_buffers",
-                    "_non_persistent_buffers_set",
-                    "_backward_pre_hooks",
-                    "_backward_hooks",
-                    "_is_full_backward_hook",
-                    "_forward_hooks",
-                    "_forward_hooks_with_kwargs",
-                    "_forward_hooks_always_called",
-                    "_forward_pre_hooks",
-                    "_forward_pre_hooks_with_kwargs",
-                    "_state_dict_hooks",
-                    "_state_dict_pre_hooks",
-                    "_load_state_dict_pre_hooks",
-                    "_load_state_dict_post_hooks",
-                ]:
-                    new_state[key] = state[key]
-
-            # Update MettaAgent with its state (without components)
-            self.__dict__.update(new_state)
-
-            # Ensure _modules dict exists but without components
+            # Ensure _modules dict exists and set policy
             if "_modules" not in self.__dict__:
                 self._modules = {}
-
-            # Set the converted policy
             self.policy = policy
 
-            # Ensure policy has device attribute if MettaAgent has one
+            # Transfer device to policy if available
             if hasattr(self, "device") and self.policy is not None:
                 self.policy.device = self.device
-
-            log_on_master("Successfully converted old checkpoint to new structure")
         else:
             # Normal checkpoint restoration
             self.__dict__.update(state)
