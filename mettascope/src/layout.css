@@ -1,0 +1,337 @@
+/* Force the layout to take the full window. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+#layout-container {
+  height: 100vh;
+  width: 100vw;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+/* Layout container styles */
+.layout-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+.layout-container.horizontal {
+  flex-direction: row;
+}
+
+.layout-container.vertical {
+  flex-direction: column;
+}
+
+.layout-child {
+  flex: 1;
+  min-width: 200px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Splitter styles */
+.splitter {
+  background: #3c3c3c;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.splitter.horizontal {
+  width: 6px;
+  cursor: col-resize;
+}
+
+.splitter.vertical {
+  height: 6px;
+  cursor: row-resize;
+}
+
+.splitter:hover {
+  background: #464647;
+}
+
+.splitter.horizontal::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 20px;
+  background: #666;
+  transform: translate(-50%, -50%);
+}
+
+.splitter.vertical::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 2px;
+  background: #666;
+  transform: translate(-50%, -50%);
+}
+
+.pane {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.tab-bar {
+  background: #2d2d30;
+  border-bottom: 1px solid #3c3c3c;
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 15;
+}
+
+.tab {
+  padding: 8px 16px;
+  background: #2d2d30;
+  border-right: 1px solid #3c3c3c;
+  cursor: pointer;
+  user-select: none;
+  color: #cccccc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab.active {
+  background: #1e1e1e;
+  color: #ffffff;
+}
+
+.tab:hover:not(.active) {
+  background: #37373d;
+}
+
+.tab.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  pointer-events: none;
+}
+
+.tab[draggable='true'] {
+  cursor: move;
+}
+
+.tab-title {
+  flex: 1;
+}
+
+.tab-close {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.tab-close:hover {
+  opacity: 1;
+  background: #464647;
+  color: #ffffff;
+}
+
+.tab-content {
+  flex: 1;
+  padding: 16px;
+  background: #1e1e1e;
+  overflow: auto;
+  min-height: 0;
+}
+
+.tab-bar.drag-over {
+  background: #4a4a4a;
+  box-shadow: inset 0 0 0 2px #0066cc;
+  position: relative;
+}
+
+.add-tab-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.add-tab-btn {
+  width: 24px;
+  height: 24px;
+  margin: 4px 8px;
+  background: #2d2d30;
+  border: 1px solid #3c3c3c;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cccccc;
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+}
+
+.add-tab-btn:hover {
+  background: #37373d;
+  border-color: #464647;
+}
+
+.panel-type-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #2d2d30;
+  border: 1px solid #3c3c3c;
+  border-radius: 3px;
+  min-width: 150px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  display: none;
+}
+
+.panel-type-dropdown.visible {
+  display: block;
+}
+
+.dropdown-item {
+  padding: 8px 12px;
+  color: #cccccc;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: #37373d;
+}
+
+/* Drop zones for splitting */
+.drop-zone {
+  position: absolute;
+  pointer-events: none;
+  background: transparent;
+  z-index: 10;
+  opacity: 0;
+}
+
+.drop-zone-left {
+  left: 0;
+  top: 0;
+  width: 120px;
+  height: 100%;
+}
+
+.drop-zone-right {
+  right: 0;
+  top: 0;
+  width: 120px;
+  height: 100%;
+}
+
+.drop-zone-top {
+  left: 0;
+  top: 32px;
+  width: 100%;
+  height: 120px;
+}
+
+.drop-zone-bottom {
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 120px;
+}
+
+/* When dragging is active globally */
+.layout-container.dragging .drop-zone {
+  pointer-events: auto;
+}
+
+.drop-zone.active {
+  background: rgba(0, 102, 204, 0.3);
+  border: 2px dashed #0066cc;
+}
+
+/* Split preview styles */
+.pane.split-preview-left::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  background: rgba(0, 102, 204, 0.1);
+  border: 2px dashed #0066cc;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.pane.split-preview-right::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  background: rgba(0, 102, 204, 0.1);
+  border: 2px dashed #0066cc;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.pane.split-preview-top::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 50%;
+  background: rgba(0, 102, 204, 0.1);
+  border: 2px dashed #0066cc;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.pane.split-preview-bottom::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 50%;
+  background: rgba(0, 102, 204, 0.1);
+  border: 2px dashed #0066cc;
+  z-index: 5;
+  pointer-events: none;
+}
