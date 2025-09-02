@@ -21,43 +21,25 @@ metta install mettascope
 
 ## Usage
 
-### Quick Start with Recipe System
+### Quick Start
 
-The easiest way to use MettaScope is through the new recipe system integrated with the main training pipeline:
+Use MettaScope through the recipe system:
 
 ```bash
-# Interactive play/testing with a trained policy
+# Interactive play with trained policies
 uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_run/checkpoints
 
-# View replays from training runs
+# View replays
 uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/my_run_name
-
-# Navigation environments
-uv run ./tools/run.py experiments.recipes.navigation.play policy_uri=file://./checkpoints/policy.pt
 ```
 
-**Note**: Interactive tools may not work well in Claude Code due to browser requirements.
-
-### Manual Server Setup
-
-If you need to run MettaScope standalone, from within the metta/mettascope/ directory:
+### Standalone Server
 
 ```bash
 python -m http.server 2000
 ```
 
-As this is using WebGPU, we recommend using Chrome. Ensure you have set `chrome://flags/#enable-unsafe-webgpu` to
-Enabled.
-
-Then open the browser and go to `http://localhost:2000` to see the player.
-
-### Viewing replays
-
-You can either drag and drop a replay file or pass a url parameter to the player.
-
-`?replayUrl=...the replay file...`
-
-The recipe system automatically generates replay links when applicable.
+Use Chrome with `chrome://flags/#enable-unsafe-webgpu` enabled. Open `http://localhost:2000` and drag/drop replay files or use `?replayUrl=...` parameter.
 
 Here are some replays to try out:
 
@@ -98,41 +80,14 @@ uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train
 
 ### Policy URI Formats
 
-MettaScope supports multiple policy URI formats through the recipe system:
+- `file://./train_dir/run_name/checkpoints` - Local checkpoints  
+- `wandb://run/project_name/run_id` - Wandb artifacts
 
-- **Local checkpoints**: `file://./train_dir/run_name/checkpoints`
-- **Specific checkpoint**: `file://./train_dir/run_name/checkpoints/policy_step_1000.pt`
-- **Wandb artifacts**: `wandb://run/project_name/run_id`
-
-### Complete Workflow Example
-
-Here's a typical development workflow integrating MettaScope with the training pipeline:
-
-```bash
-# 1. Train a model for 30 seconds or until satisfied
-uv run ./tools/run.py experiments.recipes.arena.train run=test_$(date +%Y%m%d_%H%M%S)
-
-# 2. Evaluate the trained policy quantitatively
-uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/test_*/checkpoints
-
-# 3. Visually inspect agent behavior in MettaScope
-uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/test_*/checkpoints
-
-# 4. Generate and analyze replays for deeper inspection
-uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/test_*/checkpoints
-```
-
-This workflow provides both quantitative metrics and rich visual feedback about agent behavior.
-
-### Running in VSCode/Cursor
+## Running Metta in VSCode/Cursor
 
 1. **Launch** VSCode or Cursor.
-2. **Open the project folder**:
-   - Go to `File > Open Folder...` and select the `metta/` directory.
-3. **Use Recipe Commands**:
-   - Open terminal in VSCode/Cursor
-   - Use the recipe system commands shown above
-   - Interactive tools will open in your browser automatically
+2. **Open the project folder**: `File > Open Folder...` → select `metta/` directory.
+3. **Use Recipe Commands**: Open terminal and use the recipe commands shown above.
 
 ## UI Controls
 
