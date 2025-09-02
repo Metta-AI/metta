@@ -10,7 +10,7 @@ from metta.mettagrid.mettagrid_c import (
 
 
 @pytest.fixture
-def inventory_items():
+def resource_names():
     """Standard inventory items for testing."""
     return [f"item{i}" for i in range(10)]
 
@@ -19,7 +19,7 @@ def inventory_items():
 def base_agent_config():
     """Factory for creating base agent configurations."""
 
-    def _create(inventory_items, resource_rewards=None):
+    def _create(resource_names, resource_rewards=None):
         return AgentConfig(
             type_id=1,
             type_name="agent",
@@ -27,9 +27,9 @@ def base_agent_config():
             group_name="test_group",
             freeze_duration=0,
             action_failure_penalty=0.0,
-            resource_limits={i: 100 for i in range(len(inventory_items))},
-            resource_rewards=resource_rewards or {i: 0.0 for i in range(len(inventory_items))},
-            resource_reward_max={i: 100 for i in range(len(inventory_items))},
+            resource_limits={i: 100 for i in range(len(resource_names))},
+            resource_rewards=resource_rewards or {i: 0.0 for i in range(len(resource_names))},
+            resource_reward_max={i: 100 for i in range(len(resource_names))},
             group_reward_pct=0.0,
         )
 
@@ -46,14 +46,14 @@ def global_obs_config():
 def game_config_factory(global_obs_config):
     """Factory for creating game configurations."""
 
-    def _create(num_agents, inventory_items, agent_config):
+    def _create(num_agents, resource_names, agent_config):
         return GameConfig(
             num_agents=num_agents,
             max_steps=100,
             episode_truncates=False,
             obs_width=5,
             obs_height=5,
-            inventory_item_names=inventory_items,
+            resource_names=resource_names,
             num_observation_tokens=50,
             global_obs=global_obs_config,
             actions={},
@@ -68,8 +68,8 @@ def game_config_factory(global_obs_config):
 def create_env(game_config_factory):
     """Factory for creating MettaGrid environments."""
 
-    def _create(num_agents, inventory_items, agent_config, seed=42):
-        game_config = game_config_factory(num_agents, inventory_items, agent_config)
+    def _create(num_agents, resource_names, agent_config, seed=42):
+        game_config = game_config_factory(num_agents, resource_names, agent_config)
         game_map = [["agent.test_group"] * num_agents]
         return MettaGrid(game_config, game_map, seed)
 
@@ -94,7 +94,7 @@ class TestGlobalRewardObservations:
 
     def test_resource_rewards_observation(
         self,
-        inventory_items,
+        resource_names,
         base_agent_config,
         create_env,
         find_resource_rewards_token,
@@ -113,10 +113,10 @@ class TestGlobalRewardObservations:
             8: 5.0,  # item8: has reward but not included (beyond 8 items)
             9: 1.0,  # item9: has reward but not included (beyond 8 items)
         }
-        agent_config = base_agent_config(inventory_items, resource_rewards)
+        agent_config = base_agent_config(resource_names, resource_rewards)
 
         # Create environment and get observations
-        env = create_env(1, inventory_items, agent_config)
+        env = create_env(1, resource_names, agent_config)
         observations, _ = env.reset()
 
         # Check observations shape (1 agent, 50 tokens, 3 values per token)
@@ -134,12 +134,12 @@ class TestGlobalRewardObservations:
 
     def test_resource_rewards_only_for_observing_agent(self, base_agent_config, create_env):
         """Test that inventory rewards observation is included as global token for each agent."""
-        inventory_items = ["item0", "item1", "item2", "item3"]
-        resource_rewards = {i: 1.0 for i in range(len(inventory_items))}
-        agent_config = base_agent_config(inventory_items, resource_rewards)
+        resource_names = ["item0", "item1", "item2", "item3"]
+        resource_rewards = {i: 1.0 for i in range(len(resource_names))}
+        agent_config = base_agent_config(resource_names, resource_rewards)
 
         # Create environment with two agents
-        env = create_env(2, inventory_items, agent_config)
+        env = create_env(2, resource_names, agent_config)
         observations, _ = env.reset()
 
         # Check that each agent sees their own game rewards at center
@@ -161,16 +161,16 @@ class TestGlobalRewardObservations:
 
     def test_resource_rewards_with_partial_items(self, base_agent_config, create_env, find_resource_rewards_token):
         """Test inventory rewards with fewer than 8 items."""
-        inventory_items = ["item0", "item1", "item2"]
+        resource_names = ["item0", "item1", "item2"]
         resource_rewards = {
             0: 2.0,  # item0: has reward (bit = 1)
             1: 0.0,  # item1: no reward (bit = 0)
             2: 0.3,  # item2: has reward (bit = 1)
         }
-        agent_config = base_agent_config(inventory_items, resource_rewards)
+        agent_config = base_agent_config(resource_names, resource_rewards)
 
         # Create environment and get observations
-        env = create_env(1, inventory_items, agent_config)
+        env = create_env(1, resource_names, agent_config)
         observations, _ = env.reset()
 
         # Find and verify resource rewards token
@@ -220,11 +220,11 @@ class TestGlobalRewardObservations:
         expected_packed,
     ):
         """Test the binary quantization of reward values."""
-        inventory_items = [f"item{i}" for i in range(8)]
-        agent_config = base_agent_config(inventory_items, rewards)
+        resource_names = [f"item{i}" for i in range(8)]
+        agent_config = base_agent_config(resource_names, rewards)
 
         # Create environment and get observations
-        env = create_env(1, inventory_items, agent_config)
+        env = create_env(1, resource_names, agent_config)
         observations, _ = env.reset()
 
         # Find and verify resource rewards token

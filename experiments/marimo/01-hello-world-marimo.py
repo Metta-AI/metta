@@ -616,7 +616,7 @@ def _(
                     (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
                 )
                 _inv = {
-                    env.inventory_item_names[idx]: count
+                    env.resource_names[idx]: count
                     for idx, count in _agent_obj.get("inventory", {}).items()
                 }
                 header.value = f"<b>Step:</b> {_step + 1}/{steps} <br/> <b>Inventory:</b> {_inv.get('ore_red', 0)}"
@@ -740,7 +740,7 @@ def _(
             (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
         )
         _inv = {
-            eval_env.inventory_item_names[idx]: cnt
+            eval_env.resource_names[idx]: cnt
             for idx, cnt in _agent_obj.get("inventory", {}).items()
         }
         inv_count = int(_inv.get("ore_red", 0))
@@ -1064,7 +1064,7 @@ def _(
                             )
                         )
                         _inv = {
-                            eval_env.inventory_item_names[idx]: cnt
+                            eval_env.resource_names[idx]: cnt
                             for idx, cnt in _agent_obj.get("inventory", {}).items()
                         }
                         ore_count = _inv.get("ore_red", 0)
@@ -1096,7 +1096,7 @@ def _(
                         )
                     )
                     _inv = {
-                        eval_env.inventory_item_names[idx]: cnt
+                        eval_env.resource_names[idx]: cnt
                         for idx, cnt in _agent_obj.get("inventory", {}).items()
                     }
                     ore_count = int(_inv.get("ore_red", 0))
@@ -1258,7 +1258,7 @@ def _(mo):
     This second environment is more complex - it requires:
 
     1. Collect ore from the mine (right side)
-    2. Transport ore to the generator (left side)  
+    2. Transport ore to the generator (left side)
     3. Convert ore to batteries for higher rewards
     """
     )
@@ -1378,7 +1378,7 @@ def _(
                     (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
                 )
                 _inv = {
-                    env.inventory_item_names[idx]: count
+                    env.resource_names[idx]: count
                     for idx, count in _agent_obj.get("inventory", {}).items()
                 }
                 header.value = "<br />".join(
@@ -1440,7 +1440,7 @@ def _(
                 (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
             )
             _inv = {
-                eval_env.inventory_item_names[idx]: cnt
+                eval_env.resource_names[idx]: cnt
                 for idx, cnt in _agent_obj.get("inventory", {}).items()
             }
             inv_count_ore = int(_inv.get("ore_red", 0))
@@ -1720,7 +1720,7 @@ def _(
                         )
                     )
                     _inv = {
-                        eval_env.inventory_item_names[idx]: cnt
+                        eval_env.resource_names[idx]: cnt
                         for idx, cnt in _agent_obj.get("inventory", {}).items()
                     }
                     header.value = (
@@ -1746,7 +1746,7 @@ def _(
                     )
                 )
                 _inv = {
-                    eval_env.inventory_item_names[idx]: cnt
+                    eval_env.resource_names[idx]: cnt
                     for idx, cnt in _agent_obj.get("inventory", {}).items()
                 }
                 inv_count_ore = int(_inv.get("ore_red", 0))
@@ -1785,13 +1785,13 @@ def _(
 
     📊 COMPREHENSIVE STATISTICS:
     Total Reward:  {mean_score:.2f} ± {std_score:.2f}
-    Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f} 
+    Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f}
     Batteries:     {mean_score_batteries:.2f} ± {std_score_batteries:.2f}
 
     🎯 BEST EPISODE:
     Reward: {max(trained_scores):.1f}, Ore: {max(trained_scores_ore)}, Batteries: {max(trained_scores_batteries)}
 
-    ⚠️ WORST EPISODE: 
+    ⚠️ WORST EPISODE:
     Reward: {min(trained_scores):.1f}, Ore: {min(trained_scores_ore)}, Batteries: {min(trained_scores_batteries)}
 
     💡 Multi-step task: Collect ore → Transport → Convert to batteries
