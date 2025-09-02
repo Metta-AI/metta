@@ -21,7 +21,7 @@ from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_
 from metta.common.util.discord import send_to_discord
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.util.retry import retry_function
-from metta.common.wandb.utils import log_to_wandb
+from metta.common.wandb.utils import log_to_wandb, send_wandb_alert
 
 logger = getRankAwareLogger(__name__)
 
@@ -44,8 +44,10 @@ max_runtime_hours = float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None
 heartbeat_timeout = int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None
 restart_count = int(os.environ.get("RESTART_COUNT", "0"))
 test_nccl = os.environ.get("TEST_NCCL", "false").lower() == "true"
-enable_discord = os.environ.get("ENABLE_DISCORD", "false").lower() == "true"
+discord_webhook_url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+enable_discord_posts = bool(discord_webhook_url)
 enable_github_status = os.environ.get("ENABLE_GITHUB_STATUS", "false").lower() == "true"
+enable_wandb_alerts = os.environ.get("ENABLE_WANDB_ALERTS", "true").lower() == "true"
 
 
 def log_config():
@@ -78,6 +80,13 @@ def log_config():
     logger.info(f"  - RESTART_COUNT: {restart_count}")
 
     logger.info(f"  - TEST_NCCL: {test_nccl}")
+
+    logger.info(
+        f"  - DISCORD_ENABLED: {enable_discord_posts} "
+        f"{'(webhook URL provided)' if enable_discord_posts else '(no webhook URL)'}"
+    )
+    logger.info(f"  - GITHUB_STATUS_ENABLED: {enable_github_status}")
+    logger.info(f"  - WANDB_ALERTS_ENABLED: {enable_wandb_alerts}")
 
 
 def setup_signal_handlers():
@@ -182,7 +191,8 @@ def set_github_status(exit_code: int, state: str, description: str):
     wandb_run_id = os.environ.get("METTA_RUN_ID", "").strip()
     job_id = os.environ.get("SKYPILOT_JOB_ID", "").strip()
 
-    if not all([state, description, commit_sha, token, job_id]):
+    # Validate required fields
+    if not all([state, description, commit_sha, token]):
         logger.warning("Missing required parameters for GitHub status")
         return
 
@@ -202,31 +212,35 @@ def set_github_status(exit_code: int, state: str, description: str):
 
     logger.info(f"Setting GitHub status: {state} - {desc}")
 
-    retry_function(
-        lambda: post_commit_status(
-            commit_sha=commit_sha,
-            state=state,
-            repo=None,
-            context=context,
-            description=desc,
-            target_url=target_url,
-            token=token,
-        ),
-        max_retries=3,
-        initial_delay=2.0,
-        max_delay=30.0,
-        error_prefix="Failed to post GitHub status",
-        logger=logger,
-    )
+    try:
+        retry_function(
+            lambda: post_commit_status(
+                commit_sha=commit_sha,
+                state=state,
+                repo=None,
+                context=context,
+                description=desc,
+                target_url=target_url,
+                token=token,
+            ),
+            max_retries=3,
+            initial_delay=2.0,
+            max_delay=30.0,
+            error_prefix="Failed to post GitHub status",
+            logger=logger,
+        )
 
-    # Log success
-    display_repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
-    logger.info(f"{display_repo}@{commit_sha[:8]} -> {state} ({context})")
+        # Log success
+        display_repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+        logger.info(f"{display_repo}@{commit_sha[:8]} -> {state} ({context})")
+
+    except Exception:
+        pass  # Already logged by retry_function
 
 
-def send_discord_notification(emoji: str, title: str, status_msg: str, additional_info: str = "", exit_code: int = 0):
+def send_discord_notification(emoji: str, title: str, status_msg: str, additional_info: str = ""):
     """Send Discord notification directly using the discord module."""
-    if not is_master or not enable_discord:
+    if not is_master or not enable_discord_posts:
         return
 
     try:
@@ -237,7 +251,6 @@ def send_discord_notification(emoji: str, title: str, status_msg: str, additiona
             "METTA_RUN_ID": os.getenv("METTA_RUN_ID"),
             "TOTAL_NODES": os.getenv("TOTAL_NODES"),
             "JOB_METADATA_DIR": os.getenv("JOB_METADATA_DIR"),
-            "DISCORD_WEBHOOK_URL": os.getenv("DISCORD_WEBHOOK_URL"),
         }
 
         missing_vars = [k for k, v in required_env_vars.items() if not v]
@@ -310,45 +323,114 @@ def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, 
     Determine job status based on exit code and termination reason.
 
     Returns:
-        Tuple of (github_state, github_description, final_exit_code)
+        Tuple of (state, description, final_exit_code)
+        - state: "success", "failure", "error", or "pending"
+        - description: Human-readable description of what happened
+        - final_exit_code: Exit code to use (may differ from input exit_code)
     """
     # Default values - assume failure unless proven otherwise
-    github_state = "failure"
-    github_description = f"Job failed with exit code {exit_code}"
+    state = "failure"
+    description = f"Job failed with exit code {exit_code}"
     final_exit_code = exit_code
 
     if termination_reason == "heartbeat_timeout":
         logger.error("Job terminated due to heartbeat timeout")
-        github_description = f"Job failed - no heartbeat for {heartbeat_timeout} seconds"
+        description = f"Job failed - no heartbeat for {heartbeat_timeout} seconds"
         final_exit_code = EXIT_SUCCESS  # Prevent SkyPilot restart
 
     elif termination_reason == "max_runtime_reached":
         logger.info("Job terminated due to max runtime limit")
-        github_state = "success"
-        github_description = f"Job ran successfully for {max_runtime_hours} hours"
+        state = "success"
+        description = f"Job ran successfully for {max_runtime_hours} hours"
         final_exit_code = EXIT_SUCCESS  # Prevent SkyPilot restart
 
     elif termination_reason == "force_restart_test":
         logger.info("Job restarting to simulate a node failure")
-        github_state = "pending"
-        github_description = f"Forced a restart test (restart count: {restart_count + 1})"
+        state = "pending"
+        description = f"Forced a restart test (restart count: {restart_count + 1})"
         final_exit_code = EXIT_FAILURE  # Cause SkyPilot restart
 
     elif not termination_reason and exit_code == EXIT_SUCCESS:
-        logger.info_master("[SUCCESS] Job completed successfully")
-        github_state = "success"
-        github_description = "Job completed successfully"
+        logger.info("Job completed successfully")
+        state = "success"
+        description = "Job completed successfully"
 
     elif exit_code == EXIT_NCCL_TEST_FAILURE:
         logger.error("Job failed during NCCL tests")
-        github_state = "error"  # Infrastructure issue
-        github_description = "NCCL tests failed - GPU communication issue"
+        state = "error"  # Infrastructure issue
+        description = "NCCL tests failed"
 
     else:
         # Default case - just log the error
         logger.error(f"Job failed with exit code {exit_code}")
 
-    return github_state, github_description, final_exit_code
+    return state, description, final_exit_code
+
+
+def send_wandb_alert_notification(state: str, description: str):
+    """Send W&B alert notification based on job state."""
+    if not is_master or not enable_wandb_alerts:
+        return
+
+    # Map states to emojis and titles
+    state_info = {
+        "success": ("✅", "Job Completed Successfully"),
+        "failure": ("❌", "Job Failed"),
+        "error": ("🔧", "Job Configuration Error"),
+        "pending": ("🔄", "Job Restarting"),
+        "timeout": ("🚨", "Job Timeout"),  # Special case for heartbeat
+    }
+
+    # Check if heartbeat timeout (special case)
+    if "heartbeat" in description:
+        emoji, title = state_info["timeout"]
+    else:
+        emoji, title = state_info.get(state, ("❓", "Job Status Unknown"))
+
+    try:
+        required_env_vars = {
+            "METTA_RUN_ID": os.getenv("METTA_RUN_ID"),
+            "WANDB_PROJECT": os.getenv("WANDB_PROJECT"),
+            "WANDB_ENTITY": os.getenv("WANDB_ENTITY"),
+        }
+
+        missing_vars = [k for k, v in required_env_vars.items() if not v]
+        if missing_vars:
+            logger.warning(f"Missing required environment variables: {', '.join(missing_vars)}")
+            return
+
+        logger.info(f"[RUN] Sending W&B alert: {title}")
+
+        # Build alert text
+        alert_text = description
+
+        # Add runtime info if available
+        start_time = os.getenv("START_TIME")
+        if start_time and start_time != "0":
+            try:
+                current_time = int(time.time())
+                duration = current_time - int(start_time)
+                hours = duration // 3600
+                minutes = (duration % 3600) // 60
+                alert_text += f"\nRuntime: {hours}h {minutes}m"
+            except (ValueError, TypeError):
+                pass
+
+        # Add additional context
+        alert_text += f"\nNodes: {total_nodes}"
+        alert_text += f"\nTask ID: {os.environ.get('SKYPILOT_TASK_ID', 'N/A')}"
+
+        # Send the alert
+        send_wandb_alert(
+            title=f"{emoji} {title}",
+            text=alert_text,
+            run_id=required_env_vars["METTA_RUN_ID"] or "",
+            project=required_env_vars["WANDB_PROJECT"] or "",
+            entity=required_env_vars["WANDB_ENTITY"] or "",
+        )
+
+    except Exception as e:
+        logger.warning(f"Failed to send W&B alert: {e}")
 
 
 def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
@@ -361,21 +443,28 @@ def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
     if not is_master:
         return exit_code
 
-    # Determine job status
-    github_state, github_description, final_exit_code = determine_job_status(exit_code, termination_reason)
+    # Determine job status (generic)
+    state, description, final_exit_code = determine_job_status(exit_code, termination_reason)
 
     # Send notifications based on status
     if termination_reason == "heartbeat_timeout":
-        send_discord_notification("❌", "SkyPilot Job Heartbeat Timeout", github_description, "", exit_code)
+        send_discord_notification("🚨", "SkyPilot Job Heartbeat Timeout", description, "")
+        send_wandb_alert_notification(state, description)
     elif termination_reason == "max_runtime_reached":
-        send_discord_notification("✅", "SkyPilot Job Completed", github_description, "", exit_code)
+        send_discord_notification("✅", "SkyPilot Job Completed", description, "")
+        send_wandb_alert_notification(state, description)
     elif exit_code == EXIT_NCCL_TEST_FAILURE:
-        send_discord_notification("❌", "SkyPilot Job NCCL Config Error", github_description, "", exit_code)
+        send_discord_notification("🔧", "SkyPilot Job NCCL Config Error", description, "")
+        send_wandb_alert_notification(state, description)
     elif exit_code != EXIT_SUCCESS and termination_reason != "force_restart_test":
-        send_discord_notification("❌", "SkyPilot Job Failed", github_description, "", exit_code)
+        send_discord_notification("❌", "SkyPilot Job Failed", description, "")
+        send_wandb_alert_notification(state, description)
+    elif state == "success":
+        # Only W&B gets success notifications
+        send_wandb_alert_notification(state, description)
 
     # Update GitHub status
-    set_github_status(exit_code, github_state, github_description)
+    set_github_status(exit_code, state, description)
 
     return final_exit_code
 

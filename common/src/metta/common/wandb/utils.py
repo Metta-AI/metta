@@ -3,26 +3,19 @@ W&B utility functions for logging and alerts.
 """
 
 import concurrent.futures
-import json
 import logging
 import os
-import sys
 from datetime import datetime
 from typing import Any
 
-from metta.common.util.constants import METTA_WANDB_PROJECT
 import wandb
+
+from metta.common.util.constants import METTA_WANDB_PROJECT
 
 logger = logging.getLogger(__name__)
 
 
-def send_wandb_alert(
-    title: str,
-    text: str,
-    run_id: str,
-    project: str,
-    entity: str
-) -> None:
+def send_wandb_alert(title: str, text: str, run_id: str, project: str, entity: str) -> None:
     """
     Send a W&B alert with timeout protection.
 
@@ -46,18 +39,13 @@ def send_wandb_alert(
                 project=project,
                 entity=entity,
                 resume="must",
-                settings=wandb.Settings(
-                    init_timeout=15,
-                    silent=True,
-                    x_disable_stats=True,
-                    x_disable_meta=True
-                ),
+                settings=wandb.Settings(init_timeout=15, silent=True, x_disable_stats=True, x_disable_meta=True),
             )
             initialized = True
             run.alert(title=title, text=text)
             logger.info(f"W&B alert '{title}' sent for {log_ctx}")
         except Exception as e:
-            is_wandb_error = hasattr(wandb, 'errors')
+            is_wandb_error = hasattr(wandb, "errors")
             (logger.warning if is_wandb_error else logger.error)(
                 f"{'W&B ' if is_wandb_error else 'Unexpected '}error in alert for {log_ctx}: {e}",
                 exc_info=not is_wandb_error,

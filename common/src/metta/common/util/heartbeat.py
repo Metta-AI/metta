@@ -48,4 +48,3 @@ def record_heartbeat() -> None:
     except Exception as e:
         # Catch-all for unexpected errors
         logger.error(f"Unexpected error recording heartbeat: {type(e).__name__}: {e}", exc_info=True)
-
