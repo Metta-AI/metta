@@ -92,7 +92,7 @@ public:
     if (success) {
       actor->stats.incr("action." + _action_name + ".success");
       for (const auto& [item, amount] : _consumed_resources) {
-        InventoryDelta delta = actor->update_inventory(item, -amount);
+        [[maybe_unused]] InventoryDelta delta = actor->update_inventory(item, -amount);
         // We consume resources after the action succeeds, but in the future we might have an action that uses the
         // resource. This check will catch that.
         assert(delta == -amount);
