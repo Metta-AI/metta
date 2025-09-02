@@ -92,4 +92,7 @@ experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/ci.py
 
 resources
+LUNARVIM_CHEATSHEET.md
+metta/sweep/experiments/README.md
+metta/sweep/experiments/README_*.md
 identified-figures/

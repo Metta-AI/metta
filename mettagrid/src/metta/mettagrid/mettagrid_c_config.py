@@ -131,13 +131,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             )
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, BoxConfig):
+            returned_resources = game_config.actions.place_box.consumed_resources
             cpp_box_config = CppBoxConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
-                resources_to_create={
-                    resource_name_to_id[k]: v
-                    for k, v in object_config.resources_to_create.items()
-                    if k in resource_name_to_id
+                returned_resources={
+                    resource_name_to_id[k]: v for k, v in returned_resources.items() if k in resource_name_to_id
                 },
             )
             objects_cpp_params[object_type] = cpp_box_config
