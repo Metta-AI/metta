@@ -24,7 +24,7 @@ class CodebotSetup(SetupModule):
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         """Install codebot as a uv tool."""
         codebot_dir = self.repo_root / "codebot"
 
