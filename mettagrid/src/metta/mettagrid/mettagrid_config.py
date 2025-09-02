@@ -144,7 +144,7 @@ class GameConfig(Config):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    inventory_item_names: list[str] = Field(
+    resource_names: list[str] = Field(
         default=[
             "ore_red",
             "ore_blue",

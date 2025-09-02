@@ -38,7 +38,7 @@ def basic_env() -> MettaGridCore:
                 get_items=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-            inventory_item_names=["laser", "armor", "heart"],
+            resource_names=["laser", "armor", "heart"],
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#", "#", "#", "#"],
@@ -70,7 +70,7 @@ def adjacent_agents_env() -> MettaGridCore:
                 get_items=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-            inventory_item_names=["laser", "armor", "heart"],
+            resource_names=["laser", "armor", "heart"],
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
@@ -253,7 +253,7 @@ class TestObservations:
                 ),
                 objects=objects,
                 groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
-                inventory_item_names=["laser", "resource1", "resource2"],  # include laser to allow attack
+                resource_names=["laser", "resource1", "resource2"],  # include laser to allow attack
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
@@ -418,7 +418,7 @@ class TestGlobalTokens:
                     last_reward=True,
                     resource_rewards=False,
                 ),
-                inventory_item_names=["laser", "armor", "heart"],
+                resource_names=["laser", "armor", "heart"],
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
@@ -507,7 +507,7 @@ class TestGlobalTokens:
                 groups={
                     "agent": GroupConfig(id=0),  # "@" maps to "agent.agent" for both agents
                 },
-                inventory_item_names=["laser", "armor"],
+                resource_names=["laser", "armor"],
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
@@ -835,7 +835,7 @@ class TestEdgeObservations:
                     ),
                 },
                 groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
-                inventory_item_names=["laser", "resource1", "resource2"],  # laser required for attack action
+                resource_names=["laser", "resource1", "resource2"],  # laser required for attack action
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
