@@ -57,6 +57,10 @@ class RankAwareLogger(logging.Logger):
             self.critical(msg, *args, **kwargs)
 
 
+def getRankAwareLogger(name: str | None = None) -> RankAwareLogger:
+    return logging.getLogger(name)  # type: ignore[return-value]
+
+
 class MillisecondFormatter(logging.Formatter):
     def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
         created = datetime.fromtimestamp(record.created)
@@ -85,11 +89,6 @@ class SimpleHandler(logging.StreamHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
-
-
-def getRankAwareLogger(name: str | None = None) -> RankAwareLogger:
-    return logging.getLogger(name)  # type: ignore[return-value]
-
 
 @functools.cache
 def _add_file_logging(run_dir: str) -> None:
