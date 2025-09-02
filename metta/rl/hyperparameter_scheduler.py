@@ -68,74 +68,44 @@ class HyperparameterScheduler:
         total_timesteps: int,
         logger=None,
     ):
-        """Initialize the hyperparameter scheduler with explicit parameters.
-
-        Args:
-            initial_values: Dict mapping parameter names to their initial values
-            schedule_configs: Dict mapping parameter names to their schedule configs (or None for constant)
-            optimizer: The optimizer to update learning rate on
-            total_timesteps: Total timesteps for progress calculation
-            logger: Logger instance (optional)
-        """
-        self.initial_values = initial_values
         self.optimizer = optimizer
         self.total_timesteps = total_timesteps
         self.logger = logger or logging.getLogger(__name__)
 
-        self.schedule_key_mapping = {
-            "learning_rate": "learning_rate_schedule",
-            "ppo_clip_coef": "ppo_clip_schedule",
-            "ppo_vf_clip_coef": "ppo_vf_clip_schedule",
-            "ppo_ent_coef": "ppo_ent_coef_schedule",
-            "ppo_l2_reg_loss_coef": "ppo_l2_reg_loss_schedule",
-            "ppo_l2_init_loss_coef": "ppo_l2_init_loss_schedule",
-        }
-
-        # Check if any schedules are configured (KickStarter pattern)
-        self.enabled: bool = any(config is not None for config in schedule_configs.values())
-
+        self.enabled = any(config is not None for config in schedule_configs.values())
         if not self.enabled:
-            self.logger.info("Hyperparameter scheduling is disabled (no schedules configured)")
+            self.logger.info("Hyperparameter scheduling disabled")
             return
 
         self.schedulers = {}
-        scheduled_params = []
+        schedule_classes = {
+            "constant": ConstantSchedule,
+            "linear": LinearSchedule,
+            "cosine": CosineSchedule,
+            "exponential": ExponentialSchedule,
+            "logarithmic": LogarithmicSchedule,
+        }
 
         for param_name, initial_value in initial_values.items():
-            schedule_config = schedule_configs.get(param_name)
-            if schedule_config is not None:
-                self.logger.info(f"Initializing scheduler for: {param_name} (type: {schedule_config.type})")
-                if schedule_config.type == "constant":
-                    self.schedulers[param_name] = ConstantSchedule(initial_value)
-                elif schedule_config.type == "linear":
-                    self.schedulers[param_name] = LinearSchedule(initial_value, min_value=schedule_config.min_value)
-                elif schedule_config.type == "cosine":
-                    self.schedulers[param_name] = CosineSchedule(initial_value, min_value=schedule_config.min_value)
-                elif schedule_config.type == "exponential":
-                    self.schedulers[param_name] = ExponentialSchedule(
-                        initial_value, decay_rate=schedule_config.decay_rate, min_value=schedule_config.min_value
-                    )
-                elif schedule_config.type == "logarithmic":
-                    self.schedulers[param_name] = LogarithmicSchedule(
-                        initial_value, decay_rate=schedule_config.decay_rate, min_value=schedule_config.min_value
-                    )
-                else:
-                    self.logger.warning(f"Unknown schedule type: {schedule_config.type}, using constant")
-                    self.schedulers[param_name] = ConstantSchedule(initial_value)
-                scheduled_params.append(param_name)
+            config = schedule_configs.get(param_name)
+            if config is None:
+                continue
 
-        self.logger.info(f"Hyperparameter scheduling enabled for: {', '.join(scheduled_params)}")
+            schedule_cls = schedule_classes.get(config.type, ConstantSchedule)
+            if config.type in ["exponential", "logarithmic"]:
+                scheduler = schedule_cls(initial_value, decay_rate=config.decay_rate, min_value=config.min_value)
+            elif config.type in ["linear", "cosine"]:
+                scheduler = schedule_cls(initial_value, min_value=config.min_value)
+            else:
+                scheduler = schedule_cls(initial_value)
+
+            self.schedulers[param_name] = scheduler
+
+        if self.schedulers:
+            self.logger.info(f"Enabled scheduling: {', '.join(self.schedulers.keys())}")
 
     @staticmethod
     def from_trainer_config(trainer_cfg, optimizer, total_timesteps: int, logger=None):
-        """Factory method to create HyperparameterScheduler from trainer config.
-
-        Args:
-            trainer_cfg: The trainer configuration (can be DictConfig or TrainerConfig)
-            optimizer: The optimizer to update learning rate on
-            total_timesteps: Total timesteps for progress calculation
-            logger: Logger instance (optional)
-        """
         initial_values = {
             "learning_rate": trainer_cfg.optimizer.learning_rate,
             "ppo_clip_coef": trainer_cfg.ppo.clip_coef,
@@ -145,55 +115,27 @@ class HyperparameterScheduler:
             "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
         }
 
-        scheduler_cfg = trainer_cfg.hyperparameter_scheduler
-
-        schedule_configs = {}
-
-        schedule_key_mapping = {
-            "learning_rate": "learning_rate_schedule",
-            "ppo_clip_coef": "ppo_clip_schedule",
-            "ppo_vf_clip_coef": "ppo_vf_clip_schedule",
-            "ppo_ent_coef": "ppo_ent_coef_schedule",
-            "ppo_l2_reg_loss_coef": "ppo_l2_reg_loss_schedule",
-            "ppo_l2_init_loss_coef": "ppo_l2_init_loss_schedule",
+        cfg = trainer_cfg.hyperparameter_scheduler
+        schedule_configs = {
+            "learning_rate": cfg.learning_rate_schedule,
+            "ppo_clip_coef": cfg.ppo_clip_schedule,
+            "ppo_vf_clip_coef": cfg.ppo_vf_clip_schedule,
+            "ppo_ent_coef": cfg.ppo_ent_coef_schedule,
+            "ppo_l2_reg_loss_coef": cfg.ppo_l2_reg_loss_schedule,
+            "ppo_l2_init_loss_coef": cfg.ppo_l2_init_loss_schedule,
         }
 
-        for param_name, schedule_key in schedule_key_mapping.items():
-            schedule_config = getattr(scheduler_cfg, schedule_key, None)
-            schedule_configs[param_name] = schedule_config
-
-        return HyperparameterScheduler(
-            initial_values=initial_values,
-            schedule_configs=schedule_configs,
-            optimizer=optimizer,
-            total_timesteps=total_timesteps,
-            logger=logger,
-        )
+        return HyperparameterScheduler(initial_values, schedule_configs, optimizer, total_timesteps, logger)
 
     def _compute_scheduled_value(self, param_name: str, current_step: int) -> float:
-        """Compute the scheduled value for a hyperparameter at the current step."""
-        schedule_fn = self.schedulers[param_name]
-
         progress = min(current_step / max(self.total_timesteps, 1), 1.0)
-        return schedule_fn(progress)
+        return self.schedulers[param_name](progress)
 
     def step(self, current_step: int, update_callbacks: dict[str, callable] = None) -> dict[str, float]:
-        """Update hyperparameters for the current step.
-
-        Args:
-            current_step: Current training step
-            update_callbacks: Optional dict of callbacks to update values (e.g., trainer_cfg setters)
-
-        Returns:
-            Dict of updated parameter values
-        """
         if not self.enabled:
-            return {}  # Scheduler is disabled
+            return {}
 
-        updates = {}
-        for param_name in self.schedulers.keys():
-            new_value = self._compute_scheduled_value(param_name, current_step)
-            updates[param_name] = new_value
+        updates = {name: self._compute_scheduled_value(name, current_step) for name in self.schedulers}
 
         if "learning_rate" in updates:
             self.optimizer.param_groups[0]["lr"] = updates["learning_rate"]
@@ -204,9 +146,7 @@ class HyperparameterScheduler:
                     update_callbacks[param_name](new_value)
 
         if current_step % 10000 == 0 and updates:
-            self.logger.info(
-                f"Step {current_step}: Updated hyperparameters: "
-                + ", ".join(f"{k}={v:.6f}" for k, v in updates.items())
-            )
+            params_str = ", ".join(f"{k}={v:.6f}" for k, v in updates.items())
+            self.logger.info(f"Step {current_step}: {params_str}")
 
         return updates

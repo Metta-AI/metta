@@ -1,49 +1,37 @@
 from typing import Optional, Union
 
-from pydantic import Field
-
 from metta.common.config import Config
 
 
 class ConstantScheduleConfig(Config):
-    """Configuration for constant schedule."""
-
     type: str = "constant"
-    initial_value: float = Field(description="Constant value to maintain")
+    initial_value: float
 
 
 class LinearScheduleConfig(Config):
-    """Configuration for linear schedule."""
-
     type: str = "linear"
-    initial_value: float = Field(description="Starting value")
-    min_value: Optional[float] = Field(default=None, description="Minimum value (defaults to 10% of initial)")
+    initial_value: float
+    min_value: Optional[float] = None
 
 
 class CosineScheduleConfig(Config):
-    """Configuration for cosine schedule."""
-
     type: str = "cosine"
-    initial_value: float = Field(description="Starting value")
-    min_value: Optional[float] = Field(default=None, description="Minimum value (defaults to 10% of initial)")
+    initial_value: float
+    min_value: Optional[float] = None
 
 
 class ExponentialScheduleConfig(Config):
-    """Configuration for exponential schedule."""
-
     type: str = "exponential"
-    initial_value: float = Field(description="Starting value")
-    decay_rate: float = Field(default=0.95, description="Decay rate per progress unit")
-    min_value: Optional[float] = Field(default=None, description="Minimum value (defaults to 10% of initial)")
+    initial_value: float
+    decay_rate: float = 0.95
+    min_value: Optional[float] = None
 
 
 class LogarithmicScheduleConfig(Config):
-    """Configuration for logarithmic schedule."""
-
     type: str = "logarithmic"
-    initial_value: float = Field(description="Starting value")
-    min_value: Optional[float] = Field(default=None, description="Minimum value (defaults to 10% of initial)")
-    decay_rate: float = Field(default=0.1, description="Decay rate for logarithmic scaling")
+    initial_value: float
+    min_value: Optional[float] = None
+    decay_rate: float = 0.1
 
 
 # Union type for all schedule configurations
@@ -57,14 +45,9 @@ ScheduleConfig = Union[
 
 
 class HyperparameterSchedulerConfig(Config):
-    """
-    Configuration for hyperparameter scheduling in RL training.
-    When all schedule configs are None, the scheduler will be disabled.
-    """
-
-    learning_rate_schedule: Optional[ScheduleConfig] = Field(default=None, description="Learning rate schedule")
-    ppo_clip_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO clip coefficient schedule")
-    ppo_ent_coef_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO entropy schedule")
-    ppo_vf_clip_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO value clip schedule")
-    ppo_l2_reg_loss_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO L2 reg loss schedule")
-    ppo_l2_init_loss_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO L2 init loss schedule")
+    learning_rate_schedule: Optional[ScheduleConfig] = None
+    ppo_clip_schedule: Optional[ScheduleConfig] = None
+    ppo_ent_coef_schedule: Optional[ScheduleConfig] = None
+    ppo_vf_clip_schedule: Optional[ScheduleConfig] = None
+    ppo_l2_reg_loss_schedule: Optional[ScheduleConfig] = None
+    ppo_l2_init_loss_schedule: Optional[ScheduleConfig] = None
