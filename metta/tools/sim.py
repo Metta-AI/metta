@@ -11,7 +11,7 @@ from pydantic import Field
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
-from metta.common.wandb.wandb_context import WandbConfig, WandbRun
+from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
 from metta.sim.simulation import Simulation
@@ -128,9 +128,7 @@ class SimTool(Tool):
         wandb_run = None
         wandb_context = None
         if self.wandb and self.wandb.is_configured():
-            from metta.common.wandb.wandb_context import WandbContext
-
-            wandb_context = WandbContext(self.wandb)
+            wandb_context = WandbContext(self.wandb, self)
             wandb_context.__enter__()
             wandb_run = wandb_context.run
             logger.info(f"Initialized wandb run: {wandb_run.id if wandb_run else 'None'}")
