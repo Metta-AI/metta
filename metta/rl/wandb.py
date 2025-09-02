@@ -107,7 +107,7 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     return None
 
 
-def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> torch.nn.Module:
+def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:
     """Load policy from wandb://entity/project/artifact_name:version format.
     Raises:
         ValueError: If URI is not a wandb:// URI
@@ -117,8 +117,8 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> torch.nn.
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
     logger.info(f"Loading policy from wandb URI: {wandb_uri}")
-    # uri = WandbURI.parse(wandb_uri)
-    artifact = wandb.Api().artifact(wandb_uri)
+    uri = WandbURI.parse(wandb_uri)
+    artifact = wandb.Api().artifact(uri.qname())
 
     with tempfile.TemporaryDirectory() as temp_dir:
         artifact_dir = Path(temp_dir)
