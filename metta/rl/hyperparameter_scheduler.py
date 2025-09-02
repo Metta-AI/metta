@@ -92,11 +92,15 @@ class HyperparameterScheduler:
             "ppo_l2_init_loss_coef": "ppo_l2_init_loss_schedule",
         }
 
-        self.schedulers = {}
+        # Check if any schedules are configured (KickStarter pattern)
+        self.enabled: bool = any(config is not None for config in schedule_configs.values())
 
-        # Track which parameters will have scheduling enabled vs disabled
+        if not self.enabled:
+            self.logger.info("Hyperparameter scheduling is disabled (no schedules configured)")
+            return
+
+        self.schedulers = {}
         scheduled_params = []
-        disabled_params = []
 
         for param_name, initial_value in initial_values.items():
             schedule_config = schedule_configs.get(param_name)
@@ -121,17 +125,8 @@ class HyperparameterScheduler:
                     self.logger.warning(f"Unknown schedule type: {schedule_config.type}, using constant")
                     self.schedulers[param_name] = ConstantSchedule(initial_value)
                 scheduled_params.append(param_name)
-            else:
-                # If schedule_config is None, don't add a scheduler for this parameter (no scheduling)
-                disabled_params.append(param_name)
 
-        # Log summary of scheduling configuration
-        if scheduled_params:
-            self.logger.info(f"Hyperparameter scheduling enabled for: {', '.join(scheduled_params)}")
-        if disabled_params:
-            self.logger.info(f"Hyperparameter scheduling disabled for: {', '.join(disabled_params)}")
-        if not scheduled_params:
-            self.logger.info("Hyperparameter scheduling is disabled for all parameters")
+        self.logger.info(f"Hyperparameter scheduling enabled for: {', '.join(scheduled_params)}")
 
     @staticmethod
     def from_trainer_config(trainer_cfg, optimizer, total_timesteps: int, logger=None):
@@ -197,8 +192,8 @@ class HyperparameterScheduler:
         Returns:
             Dict of updated parameter values
         """
-        if not self.schedulers:
-            return {}  # No schedulers configured
+        if not self.enabled:
+            return {}  # Scheduler is disabled
 
         updates = {}
         for param_name in self.schedulers.keys():

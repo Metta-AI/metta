@@ -59,29 +59,12 @@ ScheduleConfig = Union[
 class HyperparameterSchedulerConfig(Config):
     """
     Configuration for hyperparameter scheduling in RL training.
+    When all schedule configs are None, the scheduler will be disabled.
     """
 
-    learning_rate_schedule: Optional[ScheduleConfig] = Field(
-        default=None,
-        description="Learning rate scheduling configuration (None = no scheduling)",
-    )
-    ppo_clip_schedule: Optional[ScheduleConfig] = Field(
-        default=None,
-        description="PPO clip coefficient scheduling configuration (None = no scheduling)",
-    )
-    ppo_ent_coef_schedule: Optional[ScheduleConfig] = Field(
-        default=None,
-        description="PPO entropy coefficient scheduling configuration (None = no scheduling)",
-    )
-    ppo_vf_clip_schedule: Optional[ScheduleConfig] = Field(
-        default=None,
-        description="PPO value function clip coefficient scheduling configuration (None = no scheduling)",
-    )
-    ppo_l2_reg_loss_schedule: Optional[ScheduleConfig] = Field(
-        default=None,
-        description="PPO L2 regularization loss coefficient scheduling configuration (None = no scheduling)",
-    )
-    ppo_l2_init_loss_schedule: Optional[ScheduleConfig] = Field(
-        default=None,
-        description="PPO L2 initialization loss coefficient scheduling configuration (None = no scheduling)",
-    )
+    learning_rate_schedule: Optional[ScheduleConfig] = Field(default=None, description="Learning rate schedule")
+    ppo_clip_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO clip coefficient schedule")
+    ppo_ent_coef_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO entropy schedule")
+    ppo_vf_clip_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO value clip schedule")
+    ppo_l2_reg_loss_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO L2 reg loss schedule")
+    ppo_l2_init_loss_schedule: Optional[ScheduleConfig] = Field(default=None, description="PPO L2 init loss schedule")
