@@ -275,13 +275,22 @@ class TestNodejsInstallationFlow(BaseMettaSetupTest):
                 f"This suggests 'pnpm install --frozen-lockfile' did not run properly."
             )
 
-        # Step 10: Critical test - verify pnpm is available in PATH
+        # Step 10: Critical test - verify pnpm is available and global packages work
         pnpm_path = shutil.which("pnpm")
         self.assertIsNotNone(pnpm_path, "pnpm must be available in PATH after nodejs installation")
-        if pnpm_path and pnpm_home:
+        if pnpm_path:
+            self.assertTrue(os.path.exists(pnpm_path), "pnpm must be available in PATH after installation")
+
+        # Verify that global packages are installed in PNPM_HOME and available in PATH
+        turbo_path = shutil.which("turbo")
+        self.assertIsNotNone(turbo_path, "turbo must be available in PATH after nodejs installation")
+        if turbo_path:
+            self.assertTrue(os.path.exists(turbo_path), "turbo must be available in PATH after installation")
+
+        if turbo_path and pnpm_home:
             self.assertTrue(
-                pnpm_path.startswith(pnpm_home),
-                f"pnpm binary should be from PNPM_HOME ({pnpm_home}), but found at {pnpm_path}",
+                turbo_path.startswith(pnpm_home),
+                f"Global package turbo should be available from PNPM_HOME ({pnpm_home}), but found at {turbo_path}",
             )
 
 
