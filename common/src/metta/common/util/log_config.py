@@ -22,7 +22,6 @@ class RankAwareLogger(logging.Logger):
 
     def __init__(self, name, level=logging.NOTSET):
         super().__init__(name, level)
-        self._rank = None
         self._is_master = None
 
     @property
