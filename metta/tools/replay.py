@@ -38,7 +38,6 @@ class ReplayTool(Tool):
             stats_dir=self.stats_dir,
             replay_dir=self.replay_dir,
             policy_uri=self.policy_uri,
-            run_name="replay_run",
         )
 
         result = sim.simulate()

@@ -30,7 +30,7 @@ def patch_dependencies(monkeypatch):
     yield
 
 
-@dataclass  
+@dataclass
 class DummyRun:
     id: str
     job_type: str
@@ -45,7 +45,7 @@ class DummyRun:
     tags: list[str]
     notes: str | None
     settings: wandb.Settings
-    
+
     def __post_init__(self):
         # Simulate wandb auto-assigning a name
         self.name = f"run-{self.id}" if self.id else "auto-generated-name"

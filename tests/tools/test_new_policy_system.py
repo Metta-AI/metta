@@ -43,7 +43,6 @@ class TestNewPolicySystem:
             device="cpu",
             vectorization="serial",
             policy_uri=None,
-            run_name="test_run",
         )
 
         assert sim is not None

@@ -53,6 +53,5 @@ def create_simulation(cfg: PlayTool) -> Simulation:
         stats_dir=cfg.effective_stats_dir,
         replay_dir=cfg.effective_replay_dir,
         policy_uri=cfg.policy_uri,
-        run_name="play_run",
     )
     return sim
