@@ -378,6 +378,7 @@ class MettaCLI:
         module.run(args.args)
 
     def cmd_install(self, args, unknown_args=None) -> None:
+        from metta.setup.collapsible_logs import collapsible_logs
         from metta.setup.registry import get_all_modules, get_enabled_setup_modules
         from metta.setup.utils import error, info, success, warning
 
@@ -428,7 +429,8 @@ class MettaCLI:
                 continue
 
             try:
-                module.install()
+                with collapsible_logs(module.name):
+                    module.install()
                 print()
             except Exception as e:
                 error(f"  Error: {e}\n")
