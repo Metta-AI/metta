@@ -3,7 +3,7 @@
 from typing import Optional
 
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
-from metta.tools.sweep_orchestrator import SweepOrchestratorTool
+from metta.tools.sweep import SweepOrchestratorTool
 
 
 def ppo(
