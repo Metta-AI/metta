@@ -12,13 +12,14 @@ import wandb
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyRecord
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.profiling.system_monitor import SystemMonitor
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -302,7 +303,7 @@ def process_stats(
     wandb_run: WandbRun | None,
     memory_monitor: MemoryMonitor,
     system_monitor: SystemMonitor,
-    latest_saved_policy_record: PolicyRecord,
+    latest_saved_epoch: int,
     optimizer: torch.optim.Optimizer,
     kickstarter: Kickstarter | None = None,
 ) -> None:
@@ -340,7 +341,7 @@ def process_stats(
         "learning_rate": optimizer.param_groups[0]["lr"] if optimizer else trainer_cfg.optimizer.learning_rate,
         "epoch_steps": timing_info["epoch_steps"],
         "num_minibatches": experience.num_minibatches,
-        "latest_saved_policy_epoch": latest_saved_policy_record.metadata.epoch if latest_saved_policy_record else 0,
+        "latest_saved_policy_epoch": latest_saved_epoch,
     }
 
     # Get system stats - note: can impact performance
@@ -377,7 +378,7 @@ def process_stats(
 
 
 def process_policy_evaluator_stats(
-    pr: PolicyRecord,
+    policy_uri: str,
     eval_results: EvalResults,
 ) -> None:
     metrics_to_log: dict[str, float] = {
@@ -395,25 +396,18 @@ def process_policy_evaluator_stats(
         return
 
     # Policy records might not have epoch/agent_step metadata, but we still want to log
-    epoch = pr.metadata.epoch or 0
-    agent_step = pr.metadata.agent_step or 0
-    if not epoch and not agent_step:
+    metadata = CheckpointManager.get_policy_metadata(policy_uri)
+    epoch = metadata.get("epoch")
+    agent_step = metadata.get("agent_step")
+    run_name = metadata.get("run_name")
+    if epoch is None or agent_step is None or not run_name:
         logger.warning("No epoch or agent_step found in policy record - using defaults")
 
-    try:
-        wandb_entity, wandb_project, wandb_run_id, _ = pr.extract_wandb_run_info()
-    except ValueError as e:
-        logger.warning(f"Failed to get wandb info from policy record {pr.uri}: {e}")
-        return
-
-    if not all((wandb_run_id, wandb_project, wandb_entity)):
-        logger.warning("No wandb info found in policy record")
-        return
-
+    # TODO: improve this parsing to be more general
     run = wandb.init(
-        id=wandb_run_id,
-        project=wandb_project,
-        entity=wandb_entity,
+        id=run_name,
+        project=METTA_WANDB_PROJECT,
+        entity=METTA_WANDB_ENTITY,
         resume="must",
     )
     try:
@@ -423,20 +417,22 @@ def process_policy_evaluator_stats(
             logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
             pass
 
-        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
-        logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {pr.uri}")
+        run.log(
+            {**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step or 0, POLICY_EVALUATOR_EPOCH_METRIC: epoch or 0}
+        )
+        logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {policy_uri}")
         if eval_results.replay_urls:
             try:
                 upload_replay_html(
                     replay_urls=eval_results.replay_urls,
-                    agent_step=agent_step,
-                    epoch=epoch,
+                    agent_step=agent_step,  # type: ignore
+                    epoch=epoch,  # type: ignore
                     wandb_run=run,
                     metric_prefix=POLICY_EVALUATOR_METRIC_PREFIX,
                     step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
                     epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
                 )
             except Exception as e:
-                logger.error(f"Failed to upload replays for {pr.uri}: {e}", exc_info=True)
+                logger.error(f"Failed to upload replays for {policy_uri}: {e}", exc_info=True)
     finally:
         run.finish()

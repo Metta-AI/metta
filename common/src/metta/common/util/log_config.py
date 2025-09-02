@@ -144,7 +144,7 @@ def _init_console_logging() -> None:
 
     rank = get_node_rank()
     local_rank = os.environ.get("LOCAL_RANK")
-    rank_prefix = f"[{rank}-{local_rank}]" if rank and local_rank else f"[{rank}]" if rank else ""
+    rank_prefix = f"[{rank}-{local_rank}] " if rank and local_rank else f"[{rank}] " if rank else ""
 
     if use_simple_handler:
         # Use simple handler without Rich formatting
@@ -184,14 +184,11 @@ def _init_console_logging() -> None:
         # Create a formatter that includes rank if needed
         class RankFormatter(MillisecondFormatter):
             def format(self, record):
-                # Prepend rank to the message if available
+                # Get the formatted message first, then prepend rank
+                formatted_msg = super().format(record)
                 if rank_prefix:
-                    original_msg = record.getMessage()
-                    record.msg = f"{rank_prefix}{original_msg}"
-                    result = super().format(record)
-                    record.msg = original_msg
-                    return result
-                return super().format(record)
+                    return f"{rank_prefix}{formatted_msg}"
+                return formatted_msg
 
         formatter = RankFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
         rich_handler.setFormatter(formatter)

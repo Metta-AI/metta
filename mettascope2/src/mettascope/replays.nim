@@ -55,7 +55,7 @@ type
     objects*: seq[Entity]
     rewardSharingMatrix*: seq[seq[float]]
     agents*: seq[Entity]
-    envConfig*: JsonNode
+    mgConfig*: JsonNode
 
 proc expand[T](data: any, numSteps: int, defaultValue: T): seq[T] =
   if data == nil:
@@ -106,8 +106,8 @@ proc loadReplay*(data: string, fileName: string): Replay =
   if "file_name" in jsonObj:
     replay.fileName = jsonObj["file_name"].getStr
 
-  if "env_config" in jsonObj:
-    replay.envConfig = jsonObj["env_config"]
+  if "mg_config" in jsonObj:
+    replay.mgConfig = jsonObj["mg_config"]
 
   for obj in jsonObj["objects"]:
     let inventoryRaw = expand[seq[seq[int]]](obj["inventory"], replay.maxSteps, @[])

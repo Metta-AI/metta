@@ -1,3 +1,4 @@
+import logging
 import math
 import random
 import time
@@ -7,6 +8,8 @@ import numpy as np
 import pufferlib
 import torch
 from pyro.contrib import gp as gp
+
+logger = logging.getLogger(__name__)
 
 
 class Space:
@@ -204,10 +207,8 @@ def pareto_points(observations, eps=1e-6):
 
 
 def pareto_points_oriented(observations, direction=1, eps=1e-6):
-    """
-    Compute Pareto front on (score, cost) with goal encoded by `direction`.
-    direction = +1 for maximize, -1 for minimize.
-    """
+    """Compute Pareto front on (score, cost) with goal encoded by `direction`.
+    direction = +1 for maximize, -1 for minimize."""
     scores = np.array([direction * e["output"] for e in observations])
     costs = np.array([e["cost"] for e in observations])
     pareto, idxs = [], []
@@ -362,8 +363,7 @@ class Protein:
         return self.hyperparameters.optimize_direction * mean + beta * std
 
     def _compute_naive_acquisition(self, gp_y_norm, gp_log_c_norm, max_c_mask):
-        """
-        Compute the original naive acquisition function.
+        """Compute the original naive acquisition function.
 
         Args:
             gp_y_norm: Normalized predicted scores
@@ -371,8 +371,7 @@ class Protein:
             max_c_mask: Mask for maximum cost constraint
 
         Returns:
-            Acquisition scores
-        """
+            Acquisition scores"""
         target = (1 + self.expansion_rate) * np.random.rand()
         weight = np.maximum(1 - abs(target - gp_log_c_norm), 0.0)
         suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
@@ -448,18 +447,18 @@ class Protein:
 
                 gp_trained = True
                 if subset_size < n_obs:
-                    print(f"  [Protein] GP trained with {subset_size}/{n_obs} best observations")
+                    logger.debug(f"GP trained with {subset_size}/{n_obs} best observations")
 
             except (torch._C._LinAlgError, RuntimeError):
                 # Cholesky decomposition failed, try with fewer observations
                 subset_size = subset_size // 2
                 if subset_size >= 10:
-                    print(f"  [Protein] GP failed with {subset_size * 2} observations, trying {subset_size}...")
+                    logger.debug(f"GP failed with {subset_size * 2} observations, trying {subset_size}...")
                 continue
 
         # If GP training failed completely, fall back to random sampling
         if not gp_trained:
-            print("  [Protein] GP training failed, falling back to random sampling")
+            logger.debug("GP training failed, falling back to random sampling")
             suggestion = self.hyperparameters.sample(n=1)[0]
             return self.hyperparameters.to_dict(suggestion, fill), {"fallback": "random"}
 
