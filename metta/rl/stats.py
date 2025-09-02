@@ -400,7 +400,7 @@ def process_policy_evaluator_stats(
     epoch = metadata.get("epoch")
     agent_step = metadata.get("agent_step")
     run_name = metadata.get("run_name")
-    if not epoch or not agent_step or not run_name:
+    if epoch is None or agent_step is None or not run_name:
         logger.warning("No epoch or agent_step found in policy record - using defaults")
 
     # TODO: improve this parsing to be more general
