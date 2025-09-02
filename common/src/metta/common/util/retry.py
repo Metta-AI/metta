@@ -72,7 +72,6 @@ def retry_on_exception(
     max_retries: int = 3,
     retry_delay: float = 5.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
-    logger: logging.Logger | None = None,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator to retry a function on exception.
@@ -97,7 +96,6 @@ def retry_on_exception(
                 retry_delay=retry_delay,
                 exceptions=exceptions,
                 error_prefix=f"{func.__name__} failed",
-                logger=logger,
             )
 
         return wrapper

@@ -1,6 +1,5 @@
 """Tests for the retry_on_exception decorator."""
 
-import logging
 import time
 from unittest.mock import Mock
 
@@ -62,23 +61,6 @@ class TestRetryDecorator:
             test_func()
 
         assert mock_func.call_count == 2  # First ValueError, then RuntimeError
-
-    def test_retry_on_exception_with_logger(self, caplog):
-        """Test that retry attempts are logged correctly."""
-        mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
-        logger = logging.getLogger("test_logger")
-
-        @retry_on_exception(max_retries=3, retry_delay=0.1, logger=logger)
-        def test_func():
-            return mock_func()
-
-        with caplog.at_level(logging.INFO):
-            result = test_func()
-
-        assert result == "success"
-        assert "test_func failed: fail 1" in caplog.text  # Initial attempt
-        assert "test_func failed (retry 1/3): fail 2" in caplog.text  # First retry
-        assert "Retrying in 0.1 seconds..." in caplog.text
 
     def test_retry_on_exception_preserves_function_attributes(self):
         """Test that decorator preserves function name and docstring."""
@@ -162,17 +144,3 @@ class TestRetryFunction:
             retry_function(mock_func, max_retries=3, retry_delay=0.1, exceptions=(ValueError,))
 
         assert mock_func.call_count == 2  # First ValueError, then RuntimeError
-
-    def test_retry_function_with_logger(self, caplog):
-        """Test that retry attempts are logged correctly."""
-        mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
-        logger = logging.getLogger("test_logger")
-
-        with caplog.at_level(logging.WARNING):
-            result = retry_function(
-                mock_func, max_retries=3, retry_delay=0.1, error_prefix="Test operation failed", logger=logger
-            )
-
-        assert result == "success"
-        assert "Test operation failed: fail 1" in caplog.text  # Initial attempt
-        assert "Test operation failed (retry 1/3): fail 2" in caplog.text  # First retry

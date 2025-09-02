@@ -69,6 +69,12 @@ export WANDB_DIR="./wandb"
 export WANDB_API_KEY="\${WANDB_PASSWORD}"
 export DATA_DIR="\${DATA_DIR:-./train_dir}"
 
+# Datadog configuration
+export DD_ENV="production"
+export DD_SERVICE="skypilot-worker"
+export DD_AGENT_HOST="localhost"
+export DD_TRACE_AGENT_PORT="8126"
+
 export NUM_GPUS="\${SKYPILOT_NUM_GPUS_PER_NODE}"
 export NUM_NODES="\${SKYPILOT_NUM_NODES}"
 export MASTER_ADDR="\$(echo "\$SKYPILOT_NODE_IPS" | head -n1)"
@@ -113,7 +119,6 @@ echo "Creating/updating job secrets..."
 
 # Build command - wandb-password is always included
 CMD="uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile softmax-docker --wandb-password \"$WANDB_PASSWORD\""
-
 
 # Add observatory-token only if it's set
 if [ -n "$OBSERVATORY_TOKEN" ]; then

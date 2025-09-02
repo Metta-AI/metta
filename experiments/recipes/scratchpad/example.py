@@ -11,11 +11,16 @@ from metta.tools.train import TrainTool
 
 
 def train() -> TrainTool:
-    env = arena.make_env()
+    env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.train(
         curriculum=arena.make_curriculum(env),
     )
+    assert cfg.trainer.evaluation is not None
+    # When we're using this file, we training locally on code that's likely not to be checked in, let alone pushed.
+    # So remote evaluation probably doesn't make sense.
+    cfg.trainer.evaluation.evaluate_remote = False
+    cfg.trainer.evaluation.evaluate_local = True
     return cfg
 
 
@@ -27,7 +32,7 @@ def play() -> PlayTool:
 
 
 def replay() -> ReplayTool:
-    env = arena.make_env()
+    env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.replay(env)
     # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"

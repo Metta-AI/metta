@@ -35,13 +35,13 @@ class TestAutoScaler:
     @pytest.fixture
     def auto_scaler(self, mock_task_client, logger):
         """Create an AutoScaler with mocked dependencies."""
-        return AutoScaler(task_client=mock_task_client, default_task_runtime=120.0, logger=logger)
+        return AutoScaler(task_client=mock_task_client, default_task_runtime=120.0)
 
     @pytest.mark.asyncio
     async def test_get_desired_workers_uses_historical_runtime(self, mock_task_client, logger):
         """Test scaling calculation uses historical runtime when enough data is available."""
         # Create a fresh AutoScaler instance to avoid fixture issues
-        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime=120.0, logger=logger)
+        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime=120.0)
 
         # Setup the mock to return specific responses for different calls
         call_count = 0
@@ -77,7 +77,7 @@ class TestAutoScaler:
         # Reset the mock call counts
         mock_task_client.reset_mock()
 
-        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime=120.0, logger=logger)
+        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime=120.0)
 
         # Setup the mock to return specific responses based on the exact queries used
         async def mock_count_tasks(where_clause):
@@ -108,7 +108,7 @@ class TestAutoScaler:
         # Reset the mock call counts
         mock_task_client.reset_mock()
 
-        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime=120.0, logger=logger)
+        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime=120.0)
 
         # Setup the mock to return specific responses based on the exact queries used
         async def mock_count_tasks(where_clause):
@@ -214,7 +214,7 @@ class TestAutoScaler:
         # Reset the mock call counts
         mock_task_client.reset_mock()
 
-        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime=120.0, logger=logger)
+        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime=120.0)
 
         current_workers = 3
         unclaimed_tasks = current_workers * 5  # Exactly at threshold

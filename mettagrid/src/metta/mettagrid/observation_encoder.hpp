@@ -14,18 +14,18 @@
 
 class ObservationEncoder {
 public:
-  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names, bool recipe_details_obs = false)
-      : recipe_details_obs(recipe_details_obs), inventory_item_count(inventory_item_names.size()) {
+  explicit ObservationEncoder(const std::vector<std::string>& resource_names, bool recipe_details_obs = false)
+      : recipe_details_obs(recipe_details_obs), inventory_item_count(resource_names.size()) {
     _feature_normalizations = FeatureNormalizations;
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
     assert(_feature_names.size() == _feature_normalizations.size());
 
     // Add inventory features
-    for (size_t i = 0; i < inventory_item_names.size(); i++) {
+    for (size_t i = 0; i < resource_names.size(); i++) {
       auto observation_feature = InventoryFeatureOffset + static_cast<ObservationType>(i);
       _feature_normalizations.insert({observation_feature, DEFAULT_INVENTORY_NORMALIZATION});
-      _feature_names.insert({observation_feature, "inv:" + inventory_item_names[i]});
+      _feature_names.insert({observation_feature, "inv:" + resource_names[i]});
     }
 
     if (this->recipe_details_obs) {
@@ -36,17 +36,17 @@ public:
           input_recipe_offset + static_cast<ObservationType>(inventory_item_count);
 
       // Add input recipe features
-      for (size_t i = 0; i < inventory_item_names.size(); i++) {
+      for (size_t i = 0; i < resource_names.size(); i++) {
         auto input_feature = input_recipe_offset + static_cast<ObservationType>(i);
         _feature_normalizations.insert({input_feature, DEFAULT_INVENTORY_NORMALIZATION});
-        _feature_names.insert({input_feature, "input:" + inventory_item_names[i]});
+        _feature_names.insert({input_feature, "input:" + resource_names[i]});
       }
 
       // Add output recipe features
-      for (size_t i = 0; i < inventory_item_names.size(); i++) {
+      for (size_t i = 0; i < resource_names.size(); i++) {
         auto output_feature = output_recipe_offset + static_cast<ObservationType>(i);
         _feature_normalizations.insert({output_feature, DEFAULT_INVENTORY_NORMALIZATION});
-        _feature_names.insert({output_feature, "output:" + inventory_item_names[i]});
+        _feature_names.insert({output_feature, "output:" + resource_names[i]});
       }
     }
   }

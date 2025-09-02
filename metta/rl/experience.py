@@ -1,20 +1,3 @@
-"""
-This file implements an Experience class for storing and managing experience data during reinforcement
-learning training.
-
-The Experience class provides:
-- Segmented tensor storage for observations, actions, rewards, etc.
-- Support for BPTT (Backpropagation Through Time) with configurable horizon
-- Prioritized experience replay with importance sampling
-- Zero-copy operations where possible
-- Efficient minibatch creation for training
-
-Key features:
-- Stores trajectories in segmented tensors for BPTT
-- Provides prioritized sampling for training
-- Manages minibatch creation for training
-"""
-
 from typing import Dict
 
 import torch
@@ -22,7 +5,7 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
-from metta.common.util.datastruct import duplicates
+from metta.common.util.collections import duplicates
 
 
 class Experience:

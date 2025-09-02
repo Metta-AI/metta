@@ -38,7 +38,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
@@ -65,7 +65,7 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
 
     def __init__(
         self,
-        env_config: EnvConfig,
+        mg_config: MettaGridConfig,
         render_mode: Optional[str] = None,
         buf: Optional[Any] = None,
     ):
@@ -82,7 +82,7 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         # Initialize core environment. Do this first to set up observation space for PufferEnv.
         MettaGridCore.__init__(
             self,
-            env_config=env_config,
+            mg_config=mg_config,
             render_mode=render_mode,
         )
 

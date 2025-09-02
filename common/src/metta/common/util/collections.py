@@ -1,5 +1,5 @@
-from collections import defaultdict
-from typing import Callable, Iterable, Sequence, TypeVar
+from collections import Counter, defaultdict
+from typing import Callable, Hashable, Iterable, List, Sequence, TypeVar
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -26,3 +26,13 @@ def find_first(collection: Iterable[T], predicate: Callable[[T], bool]) -> T | N
 
 def is_unique(collection: Sequence[T]) -> bool:
     return len(collection) == len(set(collection))
+
+
+def remove_falsey(collection: Iterable[T | None]) -> list[T]:
+    return [item for item in collection if item]
+
+
+def duplicates(iterable: Iterable[Hashable]) -> List[Hashable]:
+    """Returns a list of items that appear more than once in the iterable."""
+    counts = Counter(iterable)
+    return [item for item, count in counts.items() if count > 1]

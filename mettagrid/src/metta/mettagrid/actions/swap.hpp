@@ -20,7 +20,7 @@ public:
 protected:
   bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
     // target the square we are facing
-    GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
+    GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation);
 
     // Check layers in swap priority order
     const auto layers = {GridLayer::ObjectLayer, GridLayer::AgentLayer};

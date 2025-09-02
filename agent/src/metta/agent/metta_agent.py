@@ -22,11 +22,9 @@ def log_on_master(*args, **argv):
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    """
-    Because this class passes through __getattr__ to its self.module, it implements everything
+    """Because this class passes through __getattr__ to its self.module, it implements everything
     MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
-    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
-    """
+    returns an object of almost the same interface: you need to call .module to get the wrapped agent."""
 
     module: "MettaAgent"
 
@@ -86,7 +84,15 @@ class MettaAgent(nn.Module):
 
         # Create policy if not provided
         if policy is None:
-            policy = self._create_policy(policy_architecture_cfg, env, system_cfg)
+            policy = create_agent(
+                config=policy_architecture_cfg,
+                obs_space=self.obs_space,
+                obs_width=self.obs_width,
+                obs_height=self.obs_height,
+                feature_normalizations=self.feature_normalizations,
+                env=env,
+            )
+            logger.info(f"Using agent: {policy_architecture_cfg.name}")
 
         self.policy = policy
         if self.policy is not None:
@@ -98,21 +104,6 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
-
-    def _create_policy(self, agent_cfg: AgentConfig, env, system_cfg: SystemConfig) -> nn.Module:
-        """Create the appropriate policy based on configuration."""
-        # Use the create_agent factory function
-        policy = create_agent(
-            config=agent_cfg,
-            obs_space=self.obs_space,
-            obs_width=self.obs_width,
-            obs_height=self.obs_height,
-            feature_normalizations=self.feature_normalizations,
-            env=env,
-        )
-
-        logger.info(f"Using agent: {agent_cfg.name}")
-        return policy
 
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""
@@ -169,14 +160,27 @@ class MettaAgent(nn.Module):
         action_names: list[str],
         action_max_params: list[int],
         device,
-        is_training: bool = True,
+        is_training: bool = None,
     ):
         """Initialize the agent to the current environment.
 
-        This is the single entry point for environment initialization, combining
-        feature setup, action configuration, and all necessary mappings.
+        This is the one-stop shop for setting up agents to interact with environments.
+        Handles both new agents and agents loaded from disk with existing feature mappings.
+
+        Auto-detects training vs simulation context:
+        - Training context (gradients enabled): Learn new features, remap known features
+        - Simulation context (gradients disabled): Remap known features, map unknown to 255
         """
         self.device = device
+
+        # Auto-detect training context if not explicitly provided
+        if is_training is None:
+            # Use the module's training state (set by .train()/.eval())
+            # Training context: self.training=True → learn new features
+            # Simulation context: self.training=False → map unknown to 255
+            is_training = self.training
+            log_on_master(f"Auto-detected {'training' if is_training else 'simulation'} context")
+
         self.training = is_training
 
         # === FEATURE SETUP ===
@@ -240,8 +244,8 @@ class MettaAgent(nn.Module):
             for i in range(max_param + 1)
         ]
 
-        # === POLICY ACTIVATION ===
-        self.policy.activate_action_embeddings(full_action_names, device)
+        # === ACTION EMBEDDING INITIALIZATION ===
+        self.policy.initialize_to_environment(full_action_names, device)
 
         # Share tensors with policy (required for policy's forward pass)
         self.policy.action_index_tensor = self.action_index_tensor
@@ -257,8 +261,7 @@ class MettaAgent(nn.Module):
 
         This allows policies that understand feature remapping (like ComponentPolicy)
         to update their observation components, while vanilla torch.nn.Module policies
-        will simply ignore this.
-        """
+        will simply ignore this."""
         # Build complete remapping tensor
         remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
@@ -282,12 +285,6 @@ class MettaAgent(nn.Module):
     def get_original_feature_mapping(self) -> dict[str, int] | None:
         """Get the original feature mapping for saving in metadata."""
         return getattr(self, "original_feature_mapping", None)
-
-    def restore_original_feature_mapping(self, mapping: dict[str, int]) -> None:
-        """Restore the original feature mapping from metadata."""
-        # Make a copy to avoid shared state between agents
-        self.original_feature_mapping = mapping.copy()
-        log_on_master(f"Restored original feature mapping with {len(mapping)} features from metadata")
 
     @property
     def total_params(self):
@@ -331,9 +328,6 @@ class MettaAgent(nn.Module):
         if has_components and not has_policy:
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
-            # Extract the components and related attributes that belong in ComponentPolicy
-
-            # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:
                 del state["policy"]
                 log_on_master("Removed circular reference: state['policy'] = state")
@@ -347,8 +341,6 @@ class MettaAgent(nn.Module):
 
             # Create the specific policy class without calling __init__ to avoid rebuilding components
             policy = PolicyClass.__new__(PolicyClass)
-
-            # Initialize nn.Module base class
             nn.Module.__init__(policy)
 
             # Extract components from wherever they are

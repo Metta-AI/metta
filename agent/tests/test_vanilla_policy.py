@@ -52,7 +52,7 @@ class VanillaPolicyWithMixin(PyTorchAgentMixin, VanillaTorchPolicy):
 
 
 def test_vanilla_policy_fails_without_mixin():
-    """Test that a vanilla torch.nn.Module policy fails without required methods."""
+    """Test that a vanilla torch.nn.Module policy fails without the mixin."""
 
     # Create minimal environment mock
     class MinimalEnv:
@@ -67,7 +67,7 @@ def test_vanilla_policy_fails_without_mixin():
     system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig({"clip_range": 0})
 
-    # Create MettaAgent with vanilla policy
+    # Create MettaAgent with vanilla policy (no mixin)
     vanilla_policy = VanillaTorchPolicy()
     agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=vanilla_policy)
 
@@ -79,8 +79,8 @@ def test_vanilla_policy_fails_without_mixin():
     action_names = ["move", "attack"]
     action_max_params = [3, 1]
 
-    # This should fail because vanilla policy doesn't have activate_action_embeddings
-    with pytest.raises(AttributeError, match="activate_action_embeddings"):
+    # This should fail because vanilla policy doesn't have initialize_to_environment
+    with pytest.raises(AttributeError, match="initialize_to_environment"):
         agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
 

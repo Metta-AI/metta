@@ -18,7 +18,7 @@ def main():
     args = parser.parse_args()
 
     if args.profile:
-        subprocess.run(["uv", "run", "metta", "configure", "--profile", args.profile])
+        subprocess.run(["uv", "run", "--active", "metta", "configure", "--profile", args.profile, "--non-interactive"])
 
     if args.wandb_password:
         if os.path.exists(os.path.expanduser("~/.netrc")):

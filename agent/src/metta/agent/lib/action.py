@@ -20,7 +20,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
     - Expands embeddings to match batch dimensions automatically
     - Stores the number of active actions in the TensorDict for other layers
 
-    The activate_actions method should be called whenever the available actions in the
+    The initialize_to_environment method should be called whenever the available actions in the
     environment change, providing the new set of action names and the target device.
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
@@ -37,7 +37,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
         self.initialization = initialization
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
 
-    def activate_actions(self, action_names, device):
+    def initialize_to_environment(self, action_names, device):
         """
         Updates the set of active action embeddings based on available actions.
 
@@ -50,6 +50,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
             action_names (list): List of action names (strings) available in the current environment
             device (torch.device): Device where the active_indices tensor should be stored
         """
+
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:
                 embedding_index = len(self._reserved_action_embeds) + 1  # generate index for this string

@@ -1,10 +1,10 @@
 import json
 import logging
 import time
-from typing import Any, List, Optional
+from typing import Any, List
 
 import wandb
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
@@ -12,7 +12,7 @@ from metta.common.util.retry import retry_on_exception
 logger = logging.getLogger("sweep")
 
 
-@retry_on_exception(max_retries=3, retry_delay=5.0, logger=logger)
+@retry_on_exception(max_retries=3, retry_delay=5.0)
 def _fetch_sweep_from_api(project: str, entity: str, name: str) -> str | None:
     """
     Fetch sweep ID from WandB API by name.
@@ -66,7 +66,7 @@ def _fetch_sweep_from_api(project: str, entity: str, name: str) -> str | None:
 
 
 def create_wandb_sweep(
-    sweep_name: str, wandb_entity: str, wandb_project: str, sweep_config: Optional[DictConfig | ListConfig] = None
+    sweep_name: str, wandb_entity: str, wandb_project: str, sweep_config: DictConfig | None = None
 ) -> str:
     """
     Create a new wandb sweep with parameters from Protein sweep configuration.

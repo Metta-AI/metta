@@ -9,8 +9,8 @@
 # from typing_extensions import TypedDict
 
 # from metta.common.util.logging_helpers import init_logging
-# from metta.map.utils.storable_map import StorableMap, StorableMapDict
-# from metta.map.utils.storable_map_index import StorableMapIndex
+# from metta.mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
+# from metta.mettagrid.mapgen.utils.storable_map_index import StorableMapIndex
 # from metta.mettagrid.util.file import read
 
 # logger = logging.getLogger("metta.gridworks.server")

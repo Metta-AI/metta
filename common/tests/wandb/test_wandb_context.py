@@ -7,10 +7,8 @@ import wandb
 from omegaconf import OmegaConf
 
 from metta.common.config import Config
-from metta.common.util.logging_helpers import init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 
-init_logging()
 logger = logging.getLogger("Test")
 
 

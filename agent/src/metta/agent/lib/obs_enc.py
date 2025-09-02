@@ -204,8 +204,7 @@ class ObsLatentAttn(LayerBase):
 
 
 class ObsSelfAttn(LayerBase):
-    """Future work can go beyond just using the feat dim as the attn qv dim, a single layer and single head,
-    adding a GRU before the out projection..."""
+    """Self-attention layer for observation features with optional CLS token."""
 
     def __init__(
         self,

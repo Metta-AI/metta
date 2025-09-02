@@ -38,6 +38,10 @@ class WandbConfig(Config):
     def Unconfigured() -> "WandbConfig":
         return WandbConfig(enabled=False, project="unconfigured", entity="unconfigured")
 
+    @property
+    def uri(self):
+        return f"wandb://run/{self.name}"
+
 
 class WandbContext:
     """

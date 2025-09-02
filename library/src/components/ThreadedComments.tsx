@@ -20,6 +20,7 @@ interface ThreadedCommentsProps {
   } | null;
   showBackToFeed?: boolean;
   initialComments?: CommentDTO[];
+  onCommentCountChange?: (delta: number) => void;
 }
 
 // --- Helpers ----------------------------------------------------------------
@@ -306,6 +307,7 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
   currentUser,
   showBackToFeed = false,
   initialComments,
+  onCommentCountChange,
 }) => {
   const [comments, setComments] = useState<CommentDTO[]>(initialComments || []);
   const [isLoading, setIsLoading] = useState(false);
@@ -358,6 +360,9 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
         setRootCommentText("");
       }
 
+      // Notify parent of comment count change
+      onCommentCountChange?.(1);
+
       // Refresh comments
       const formData = new FormData();
       formData.append("postId", postId);
@@ -379,6 +384,10 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
       onSuccess: () => {
         setIsBotResponding(false);
         setRootCommentText("");
+
+        // Notify parent of comment count change (bot response)
+        onCommentCountChange?.(1);
+
         // Refresh comments to show bot response
         const formData = new FormData();
         formData.append("postId", postId);
@@ -525,6 +534,36 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
         onClose={() => setCommentToDelete(null)}
         onConfirm={() => {
           if (commentToDelete) {
+            // Find the comment and count how many will be deleted (including children)
+            const findCommentAndChildren = (
+              commentsList: CommentDTO[],
+              targetId: string
+            ): CommentDTO | null => {
+              for (const comment of commentsList) {
+                if (comment.id === targetId) return comment;
+                if (comment.replies) {
+                  const found = findCommentAndChildren(
+                    comment.replies,
+                    targetId
+                  );
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+
+            const commentToDeleteObj = findCommentAndChildren(
+              comments,
+              commentToDelete
+            );
+            if (commentToDeleteObj) {
+              // Count this comment + all its children
+              const deleteCount = countComments([commentToDeleteObj]);
+
+              // Notify parent of negative count change
+              onCommentCountChange?.(-deleteCount);
+            }
+
             const formData = new FormData();
             formData.append("commentId", commentToDelete);
             executeDeleteComment(formData);

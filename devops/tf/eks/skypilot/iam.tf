@@ -93,6 +93,14 @@ resource "aws_iam_policy" "minimal" {
         ],
         "Resource" : "*"
       },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ],
+        "Resource" : "arn:aws:secretsmanager:*:${local.account_id}:secret:*"
+      },
       # ECR read-only (identical to AmazonEC2ContainerRegistryReadOnly)
       {
         "Effect" : "Allow",

@@ -9,7 +9,7 @@ import wandb
 from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import write_file
 
@@ -23,7 +23,7 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
         "version": 1,
         "action_names": env.action_names,
         "object_types": env.object_type_names,
-        "inventory_items": env.inventory_item_names,
+        "inventory_items": env.resource_names,
         "map_size": [env.map_width, env.map_height],
         "num_agents": env.num_agents,
         "max_steps": 1,
@@ -54,7 +54,7 @@ def write_local_map_preview(env: MettaGridEnv):
 
 def upload_map_preview(
     s3_path: str,
-    env_cfg: EnvConfig,
+    env_cfg: MettaGridConfig,
     wandb_run: Optional[wandb_run.Run] = None,
 ):
     """

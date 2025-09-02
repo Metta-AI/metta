@@ -26,3 +26,7 @@ resource "kubernetes_secret" "skypilot_api_server_credentials" {
     aws_secret_access_key = aws_iam_access_key.skypilot_api_server.secret
   }
 }
+
+data "aws_secretsmanager_secret" "datadog_api_key" {
+  name = "datadog/api-key"
+}

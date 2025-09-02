@@ -4,7 +4,7 @@ import pytest
 from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig
 from metta.mettagrid.test_support import TokenTypes
 
 NUM_OBS_TOKENS = 50
@@ -13,7 +13,7 @@ NUM_OBS_TOKENS = 50
 @pytest.fixture
 def basic_env() -> MettaGrid:
     """Create a basic test environment with 8x4 grid and 2 agents."""
-    env_cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
             obs_width=3,
@@ -32,7 +32,7 @@ def basic_env() -> MettaGrid:
             ),
         )
     )
-    return MettaGridCore(env_cfg)
+    return MettaGridCore(cfg)
 
 
 class TestBasicFunctionality:
@@ -61,7 +61,6 @@ class TestBasicFunctionality:
         action_names = basic_env.action_names
         assert "noop" in action_names
         assert "move" in action_names
-        assert "rotate" in action_names
 
         noop_idx = action_names.index("noop")
         actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)

@@ -3,21 +3,7 @@ from scipy import stats
 
 
 def analyze_weights(weights: torch.Tensor, delta: float = 0.01) -> dict:
-    """Analyze weight matrix properties including singular values, effective rank,
-    weight norms and other dynamics-related metrics.
-
-    Args:
-        weights: Weight tensor to analyze
-        delta: Threshold for effective rank calculation (default: 0.01)
-
-    Returns:
-        Dictionary containing all computed metrics including:
-        - Singular value statistics (ratio, largest, mean, collapsed dimensions)
-        - Power law fit metrics (R² value, slope)
-        - Weight norm
-        - Effective rank
-        - Basic statistics if SVD fails
-    """
+    """Analyze weight matrix properties including singular values, effective rank, and power law metrics."""
     metrics = {}
 
     # Basic weight statistics

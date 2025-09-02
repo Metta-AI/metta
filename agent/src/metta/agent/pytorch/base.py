@@ -17,19 +17,10 @@ class LSTMWrapper(nn.Module):
     - Episode boundary reset handling
     - Memory management interface
 
-    All LSTM-based policies inherit these critical features automatically.
-    """
+    All LSTM-based policies inherit these critical features automatically."""
 
     def __init__(self, env, policy, input_size=128, hidden_size=128, num_layers=2):
-        """Initialize LSTM wrapper with configurable number of layers.
-
-        Args:
-            env: Environment
-            policy: The policy to wrap (must have encode_observations and decode_actions)
-            input_size: Input size to LSTM
-            hidden_size: Hidden size of LSTM
-            num_layers: Number of LSTM layers (default 2 to match YAML)
-        """
+        """Initialize LSTM wrapper with configurable number of layers."""
         super().__init__()
         self.obs_shape = env.single_observation_space.shape
 
@@ -145,12 +136,7 @@ class LSTMWrapper(nn.Module):
 
 
 def initialize_action_embeddings(embeddings: nn.Embedding, max_value: float = 0.1):
-    """Initialize action embeddings to match YAML ActionEmbedding component.
-
-    Args:
-        embeddings: The embedding layer to initialize
-        max_value: Maximum absolute value to scale embeddings to (default 0.1)
-    """
+    """Initialize action embeddings to match YAML ActionEmbedding component."""
     nn.init.orthogonal_(embeddings.weight)
     with torch.no_grad():
         max_abs_value = torch.max(torch.abs(embeddings.weight))
@@ -158,16 +144,7 @@ def initialize_action_embeddings(embeddings: nn.Embedding, max_value: float = 0.
 
 
 def init_bilinear_actor(actor_hidden_dim: int, action_embed_dim: int, dtype=torch.float32):
-    """Initialize bilinear actor head to match MettaActorSingleHead.
-
-    Args:
-        actor_hidden_dim: Hidden dimension size
-        action_embed_dim: Action embedding dimension size
-        dtype: Data type for parameters
-
-    Returns:
-        Tuple of (W parameter, bias parameter)
-    """
+    """Initialize bilinear actor head to match MettaActorSingleHead."""
     # Bilinear parameters matching MettaActorSingleHead
     actor_W = nn.Parameter(torch.Tensor(1, actor_hidden_dim, action_embed_dim).to(dtype=dtype))
     actor_bias = nn.Parameter(torch.Tensor(1).to(dtype=dtype))
@@ -188,19 +165,7 @@ def bilinear_actor_forward(
     actor_hidden_dim: int,
     action_embed_dim: int,
 ) -> torch.Tensor:
-    """Perform bilinear interaction for action selection matching MettaActorSingleHead.
-
-    Args:
-        actor_features: Actor hidden features [batch_size, hidden_dim]
-        action_embeds: Action embeddings [batch_size, num_actions, embed_dim]
-        actor_W: Bilinear weight parameter
-        actor_bias: Bias parameter
-        actor_hidden_dim: Hidden dimension size
-        action_embed_dim: Action embedding dimension size
-
-    Returns:
-        Logits tensor [batch_size, num_actions]
-    """
+    """Perform bilinear interaction for action selection matching MettaActorSingleHead."""
     batch_size = actor_features.shape[0]
     num_actions = action_embeds.shape[1]
 
@@ -226,19 +191,7 @@ def convert_action_to_logit_index(
     flattened_action: torch.Tensor,
     cum_action_max_params: torch.Tensor,
 ) -> torch.Tensor:
-    """Convert flattened actions to logit indices.
-
-    For MultiDiscrete action spaces, actions are represented as pairs:
-    - action_type: which action type (e.g., move, attack, etc.)
-    - action_param: parameter for that action type
-
-    Args:
-        flattened_action: Actions in [action_type, action_param] format
-        cum_action_max_params: Cumulative sum of action max params
-
-    Returns:
-        Logit indices for the actions
-    """
+    """Convert flattened actions to logit indices for MultiDiscrete action spaces."""
     action_type_numbers = flattened_action[:, 0].long()
     action_params = flattened_action[:, 1].long()
     cumulative_sum = cum_action_max_params[action_type_numbers]

@@ -8,7 +8,9 @@ import sky.jobs
 import sky.server.common
 import wandb
 
-from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
+import gitta as git
+from metta.app_backend.clients.base_client import get_machine_token
+from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -38,7 +40,7 @@ def launch_task(task: sky.Task):
 def check_git_state(commit_hash: str) -> str | None:
     error_lines = []
 
-    has_changes, status_output = has_unstaged_changes()
+    has_changes, status_output = git.has_unstaged_changes()
     if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
@@ -47,7 +49,7 @@ def check_git_state(commit_hash: str) -> str | None:
         error_lines.append("\nDebug:\n" + status_output)
         return "\n".join(error_lines)
 
-    if not is_commit_pushed(commit_hash):
+    if not git.is_commit_pushed(commit_hash):
         commit_display = commit_hash[:8]
         error_lines.append(
             red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job.")
@@ -178,12 +180,12 @@ def display_job_summary(
 
     print(f"{bold('Commit Hash:')} {yellow(commit_hash)}")
 
-    commit_message = get_commit_message(commit_hash)
+    commit_message = git.get_commit_message(commit_hash)
     if commit_message:
         first_line = commit_message.split("\n")[0]
         print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
-    pr_info = get_matched_pr(commit_hash)
+    pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
     if pr_info:
         pr_number, pr_title = pr_info
         first_line = pr_title.split("\n")[0]
@@ -216,17 +218,7 @@ def set_task_secrets(task: sky.Task) -> None:
     if not wandb_password:
         raise ValueError("Failed to get wandb password, run 'metta install' to fix")
 
-    # Try to get observatory token from environment or .netrc
-    observatory_token = os.environ.get("OBSERVATORY_TOKEN", "")
-    if not observatory_token:
-        try:
-            # Try to get from .netrc if it exists there
-            netrc_data = netrc.netrc(os.path.expanduser("~/.netrc"))
-            if "observatory.softmax-research.net" in netrc_data.hosts:
-                observatory_token = netrc_data.hosts["observatory.softmax-research.net"][2]
-        except (FileNotFoundError, KeyError):
-            pass
-
+    observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 

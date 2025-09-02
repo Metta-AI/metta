@@ -1,6 +1,9 @@
 #ifndef ACTIONS_CHANGE_GLYPH_HPP_
 #define ACTIONS_CHANGE_GLYPH_HPP_
 
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
 #include <string>
 
 #include "action_handler.hpp"
@@ -35,4 +38,17 @@ protected:
   }
 };
 
+namespace py = pybind11;
+
+inline void bind_change_glyph_action_config(py::module& m) {
+  py::class_<ChangeGlyphActionConfig, ActionConfig, std::shared_ptr<ChangeGlyphActionConfig>>(m,
+                                                                                              "ChangeGlyphActionConfig")
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const int>(),
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("number_of_glyphs"))
+      .def_readonly("number_of_glyphs", &ChangeGlyphActionConfig::number_of_glyphs);
+}
 #endif  // ACTIONS_CHANGE_GLYPH_HPP_

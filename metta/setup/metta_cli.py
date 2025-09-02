@@ -19,6 +19,17 @@ if TYPE_CHECKING:
     from metta.setup.symlink_setup import PathSetup
     from metta.setup.tools.book import BookCommands
 
+# Shared list of test folders for Python tests
+PYTHON_TEST_FOLDERS = [
+    "tests",
+    "mettascope/tests",
+    "agent/tests",
+    "app_backend/tests",
+    "codebot/tests",
+    "common/tests",
+    "mettagrid/tests",
+]
+
 
 @dataclass
 class CommandConfig:
@@ -37,6 +48,7 @@ class CommandConfig:
 # Parser setup functions for commands
 def _setup_configure_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("component", nargs="?", help="Specific component to configure. If omitted, runs setup wizard.")
+    parser.add_argument("--non-interactive", action="store_true", help="Non-interactive mode")
     # Profile choices will be added dynamically in _build_parser
 
 
@@ -49,6 +61,7 @@ def _setup_install_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("components", nargs="*", help="Components to install")
     parser.add_argument("--force", action="store_true", help="Force reinstall")
     parser.add_argument("--no-clean", action="store_true", help="Skip cleaning before install")
+    parser.add_argument("--non-interactive", action="store_true", help="Non-interactive mode")
 
 
 def _setup_status_parser(parser: argparse.ArgumentParser) -> None:
@@ -103,12 +116,7 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
             "uv",
             "run",
             "pytest",
-            "tests",
-            "mettascope/tests",
-            "agent/tests",
-            "app_backend/tests",
-            "common/tests",
-            "mettagrid/tests",
+            *PYTHON_TEST_FOLDERS,
             "--benchmark-disable",
             "-n",
             "auto",
@@ -127,7 +135,7 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
     ),
     "shell": CommandConfig(
         help="Start an IPython shell with Metta imports",
-        subprocess_cmd=["uv", "run", "metta/setup/shell.py"],
+        subprocess_cmd=["uv", "run", "--active", "metta/setup/shell.py"],
         needs_config=True,  # Needs repo_root
     ),
     "report-env-details": CommandConfig(
@@ -142,6 +150,11 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
     "clean": CommandConfig(
         help="Clean build artifacts and temporary files",
         handler="cmd_clean",
+    ),
+    "go": CommandConfig(
+        help="Navigate to a Softmax Home shortcut",
+        handler="cmd_go",
+        pass_unknown_args=True,
     ),
     # Commands that need config but not components
     "local": CommandConfig(
@@ -240,7 +253,7 @@ class MettaCLI:
             self._book_commands = BookCommands()
         return self._book_commands
 
-    def setup_wizard(self) -> None:
+    def setup_wizard(self, non_interactive: bool = False) -> None:
         from metta.setup.profiles import UserType
 
         header("Welcome to Metta!\n\n")
@@ -268,10 +281,11 @@ class MettaCLI:
             "Select configuration:",
             choices,
             current=current_user_type,
+            non_interactive=non_interactive,
         )
 
         if result == UserType.CUSTOM:
-            self._custom_setup()
+            self._custom_setup(non_interactive=non_interactive)
         else:
             saved_settings.apply_profile(result)
             success(f"\nConfigured as {result.value} user.")
@@ -280,13 +294,14 @@ class MettaCLI:
         if not self.path_setup.check_installation():
             info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
-    def _custom_setup(self) -> None:
+    def _custom_setup(self, non_interactive: bool = False) -> None:
         from metta.setup.registry import get_all_modules
 
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
             [(ut, ut.get_description()) for ut in UserType if ut != UserType.CUSTOM],
             default=UserType.EXTERNAL,
+            non_interactive=non_interactive,
         )
 
         saved_settings = get_saved_settings()
@@ -305,6 +320,7 @@ class MettaCLI:
                 [(True, "Yes"), (False, "No")],
                 default=current_enabled,
                 current=current_enabled,
+                non_interactive=non_interactive,
             )
 
             # Only save if different from profile default
@@ -331,7 +347,7 @@ class MettaCLI:
                 error(f"Unknown profile: {args.profile}")
                 sys.exit(1)
         else:
-            self.setup_wizard()
+            self.setup_wizard(non_interactive=getattr(args, "non_interactive", False))
 
     def configure_component(self, component_name: str) -> None:
         from metta.setup.registry import get_all_modules
@@ -417,7 +433,7 @@ class MettaCLI:
                 continue
 
             try:
-                module.install()
+                module.install(non_interactive=getattr(args, "non_interactive", False))
                 print()
             except Exception as e:
                 error(f"  Error: {e}\n")
@@ -449,6 +465,27 @@ class MettaCLI:
                 subprocess.run(cmd, cwd=str(self.repo_root), check=True)
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
+
+    def cmd_go(self, args, unknown_args=None) -> None:
+        """Navigate to a Softmax Home shortcut URL."""
+        import webbrowser
+
+        from metta.setup.utils import error, info
+
+        if not unknown_args:
+            error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
+            info("\nCommon shortcuts:")
+            info("  g    - GitHub")
+            info("  w    - Weights & Biases")
+            info("  o    - Observatory")
+            info("  d    - Datadog")
+            return
+
+        shortcut = unknown_args[0]
+        url = f"https://home.softmax-research.net/{shortcut}"
+
+        info(f"Opening {url}...")
+        webbrowser.open(url)
 
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
@@ -489,7 +526,7 @@ class MettaCLI:
         except FileNotFoundError:
             print(f"Error: Command not found: {cmd[0]}", file=sys.stderr)
             if command == "clip":
-                print("Run: metta install codeclip", file=sys.stderr)
+                print("Run: metta install codebot", file=sys.stderr)
             sys.exit(1)
 
     def cmd_report_env_details(self, args, unknown_args=None) -> None:
@@ -516,8 +553,8 @@ class MettaCLI:
             if not files:
                 return
 
-        check_cmd = ["uv", "run", "ruff", "check"]
-        format_cmd = ["uv", "run", "ruff", "format"]
+        check_cmd = ["uv", "run", "--active", "ruff", "check"]
+        format_cmd = ["uv", "run", "--active", "ruff", "format"]
         cmds = [format_cmd, check_cmd]
 
         # ruff check: warns
@@ -550,12 +587,7 @@ class MettaCLI:
             "uv",
             "run",
             "pytest",
-            "tests",
-            "mettascope/tests",
-            "agent/tests",
-            "app_backend/tests",
-            "common/tests",
-            "mettagrid/tests",
+            *PYTHON_TEST_FOLDERS,
             "--benchmark-disable",
             "-n",
             "auto",

@@ -13,6 +13,7 @@ from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
@@ -27,13 +28,13 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
+from metta.rl.hyperparameter_scheduler import step_hyperparameters
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
-from metta.rl.policy_management import (
-    initialize_policy_for_environment,
-    wrap_agent_distributed,
-)
+from metta.rl.policy_management import wrap_agent_distributed
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
     StatsTracker,
@@ -55,7 +56,8 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
 )
-from metta.utils.batch import calculate_batch_sizes
+from metta.sim.simulation_config import SimulationConfig
+from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -66,11 +68,7 @@ except ImportError:
     ) from None
 
 torch.set_float32_matmul_precision("high")
-
-# Get rank for logger name
-_rank = int(os.environ.get("RANK", 0))
-_local_rank = int(os.environ.get("LOCAL_RANK", 0))
-logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
+logger = logging.getLogger(__name__)
 
 
 def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:
@@ -107,10 +105,10 @@ def train(
             logger.info(f"Recent checkpoints: {', '.join(files)}")
 
     # Create timer, Losses, profiler, curriculum
-    timer = Stopwatch(logger)
+    timer = Stopwatch()
     timer.start()
     torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)
-    curriculum = trainer_cfg.curriculum.make()
+    curriculum = Curriculum(trainer_cfg.curriculum)
 
     # Calculate batch sizes
     num_agents = curriculum.get_task().get_env_cfg().game.num_agents
@@ -189,12 +187,10 @@ def train(
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
-    initialize_policy_for_environment(
-        policy_record=latest_saved_policy_record,
-        metta_grid_env=metta_grid_env,
-        device=device,
-        restore_feature_mapping=True,
-    )
+    policy = latest_saved_policy_record.policy
+    policy.train()  # Set to training mode for training
+    features = metta_grid_env.get_observation_features()
+    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     # Create optimizer
     optimizer_type = trainer_cfg.optimizer.type
@@ -411,6 +407,10 @@ def train(
                 trainer_state.epoch = epoch
                 trainer_state.agent_step = agent_step  # update agent_step count state not in between rollout and train
 
+            # Update hyperparameters based on current training step (master only)
+            if torch_dist_cfg.is_master:
+                step_hyperparameters(trainer_cfg, optimizer, agent_step, trainer_cfg.total_timesteps, logger)
+
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
@@ -487,7 +487,10 @@ def train(
                         ).id
 
                     sims = [
-                        curriculum.get_task().get_env_cfg().to_sim(f"train_task_{i}")
+                        SimulationConfig(
+                            name=f"train_task_{i}",
+                            env=curriculum.get_task().get_env_cfg(),
+                        )
                         for i in range(trainer_cfg.evaluation.num_training_tasks)
                     ]
                     sims.extend(trainer_cfg.evaluation.simulations)
@@ -519,7 +522,6 @@ def train(
                             wandb_policy_name=wandb_policy_name,
                             policy_store=policy_store,
                             stats_client=stats_client,
-                            logger=logger,
                         )
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
