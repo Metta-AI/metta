@@ -59,14 +59,12 @@ class PPO(BaseLoss):
     # BaseLoss calls this method
     def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
         with torch.no_grad():
-            output_td = self.policy(td)
+            self.policy(td)
 
         # Store experience
         self.replay.store(data_td=td, env_id=trainer_state.training_env_id)
-        # if self.replay.buffer.is_full():
-        #     trainer_state.stop_rollout = True
 
-        return output_td
+        return
 
     # BaseLoss calls this method
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:

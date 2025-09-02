@@ -6,7 +6,6 @@ from pydantic import Field
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.common.config import Config
-from metta.rl.loss.dynamics_config import DynamicsConfig
 from metta.rl.loss.ppo_config import PPOConfig
 
 
@@ -19,7 +18,6 @@ class LossConfig(Config):
     loss_configs: Dict[str, Any] = Field(
         default={
             "ppo": PPOConfig(),
-            "dynamics": DynamicsConfig(),
         }
     )
 

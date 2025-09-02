@@ -97,7 +97,6 @@ def train(
     torch_dist_cfg: TorchDistributedConfig,
 ) -> None:
     """Main training loop for Metta agents."""
-    torch.autograd.set_detect_anomaly(True)
     logger.info(f"run_dir = {run_dir}")
 
     # Log recent checkpoints for debugging
