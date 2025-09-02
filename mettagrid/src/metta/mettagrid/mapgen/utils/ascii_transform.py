@@ -105,3 +105,63 @@ def transform_ascii_map(
         result = mirror_ascii_map(result, "vertical")
 
     return result
+
+
+def stretch_ascii_map(ascii_data: str, scale_x: int = 1, scale_y: int = 1) -> str:
+    """Stretch an ASCII map by integer factors along X and/or Y axes.
+
+    Rules:
+    - Only duplicate empty cells and walls: '.', ' ', '#', 'W'
+    - All other objects (agents, converters, special objects) are NOT duplicated.
+      They appear once in the top-left cell of their scaled block; all other
+      cells in that block are filled with '.' (empty).
+
+    Args:
+        ascii_data: Raw ASCII map string
+        scale_x: Horizontal scale factor (>=1)
+        scale_y: Vertical scale factor (>=1)
+
+    Returns:
+        The stretched ASCII map string.
+    """
+    if scale_x < 1 or scale_y < 1:
+        raise ValueError("scale_x and scale_y must be >= 1")
+
+    if scale_x == 1 and scale_y == 1:
+        return ascii_data
+
+    lines, width, height = char_grid_to_lines(ascii_data)
+
+    # Characters that should be duplicated across the stretched area
+    duplicate_chars = {".", " ", "#", "W"}
+
+    stretched_lines: list[str] = []
+
+    for line in lines:
+        # Build two horizontal variants for this original row:
+        # - first_row: includes original non-duplicated objects at the left-most cell
+        # - other_rows: replaces non-duplicated objects with '.' across the stretched width
+        row_first_parts: list[str] = []
+        row_other_parts: list[str] = []
+
+        for ch in line:
+            if ch in duplicate_chars:
+                tile_first = ch * scale_x
+                tile_other = ch * scale_x
+            else:
+                # Place the original object at the top-left cell only; all other cells empty
+                tile_first = ch + "." * (scale_x - 1)
+                tile_other = "." * scale_x
+
+            row_first_parts.append(tile_first)
+            row_other_parts.append(tile_other)
+
+        row_first = "".join(row_first_parts)
+        row_other = "".join(row_other_parts)
+
+        # Emit vertical copies
+        stretched_lines.append(row_first)
+        for _ in range(scale_y - 1):
+            stretched_lines.append(row_other)
+
+    return "\n".join(stretched_lines)

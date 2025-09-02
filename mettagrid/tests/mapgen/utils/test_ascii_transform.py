@@ -5,6 +5,7 @@ import pytest
 from metta.mettagrid.mapgen.utils.ascii_transform import (
     mirror_ascii_map,
     rotate_ascii_map,
+    stretch_ascii_map,
     transform_ascii_map,
 )
 
@@ -272,6 +273,87 @@ class TestEdgeCases:
         assert rotate_ascii_map(original, 270) == original
         assert mirror_ascii_map(original, "horizontal") == original
         assert mirror_ascii_map(original, "vertical") == original
+
+
+class TestStretchAsciiMap:
+    """Tests for stretching ASCII maps with selective duplication."""
+
+    def test_no_op_scale_returns_original(self):
+        original = "#.@\n#._\n###"
+        assert stretch_ascii_map(original, 1, 1) == original
+
+    def test_stretch_width_only_duplicates_walls_and_empties(self):
+        original = "#.@\n#._\n###"
+        # scale_x=2, scale_y=1
+        stretched = stretch_ascii_map(original, 2, 1)
+        expected = (
+            "##.@@".replace("@@", ".@")
+            + "\n"  # '#', '.', '@' -> '#' duplicated, '.' duplicated, '@' once + '.'
+            "##.__".replace("__", "._")
+            + "\n"  # '#', '.', '_' -> '#', '.', '_' once + '.'
+            "######"  # '###' -> '######'
+        )
+        # Explicit expected string for clarity
+        expected = "##..@.\n##.._.\n######"
+        assert stretched == expected
+
+    def test_stretch_height_only_duplicates_walls_and_empties(self):
+        original = "#.@\n#._\n###"
+        # scale_x=1, scale_y=2
+        stretched = stretch_ascii_map(original, 1, 2)
+        expected = (
+            "#.@\n"  # first row unchanged
+            "#..\n"  # second copy: '@' replaced by '.'
+            "#._\n"  # third row unchanged
+            "#..\n"  # second copy: '_' replaced by '.'
+            "###\n"  # bottom row unchanged
+            "###"  # second copy identical
+        )
+        expected = "#.@\n#..\n#._\n#..\n###\n###"
+        assert stretched == expected
+
+    def test_stretch_both_dimensions(self):
+        original = "#.@\n..#"
+        # scale_x=2, scale_y=2
+        stretched = stretch_ascii_map(original, 2, 2)
+        expected = (
+            "##.@.\n"  # top-left row: '#' duplicated, '.' duplicated, '@' once + '.'
+            "##.. .\n"  # second row (vertical duplicate): '@' replaced by '.'
+            "....##\n"  # third original row duplicated horizontally
+            "....##"  # fourth vertical duplicate identical (only dots and '#')
+        )
+        # Cleanup expected with exact content
+        expected = "##..@.\n##....\n....##\n....##"
+        assert stretched == expected
+
+    def test_objects_not_duplicated(self):
+        # Ensure equal width lines to pass ASCII map validation
+        original = "#c@R\n._G."
+        stretched = stretch_ascii_map(original, 3, 2)
+        # First row: '#', 'c', '@', 'R' with scale_x=3
+        # '#' -> '###'
+        # 'c' -> 'c..'
+        # '@' -> '@..'
+        # 'R' -> 'R..'
+        # Second vertical row: objects replaced by '.'
+        expected = (
+            "###c..@..R..\n"
+            "###... .. ..\n"  # spaces just for annot; replace with no spaces
+            "...___"  # placeholder
+        )
+        # Build exact expected without formatting noise
+        # Final exact expected based on rules:
+        # Row1: '#c@R' -> '###c..@..R..'
+        # Row1 copy: '###.........'
+        # Row2: '._G.' -> '..._..G.....'
+        # Row2 copy: '............'
+        expected = "###c..@..R..\n###.........\n..._..G.....\n............"
+        # Explanation:
+        # Row1: '#c@R' -> '###c..@..R..'
+        # Row1 copy: '###.........' (objects turned to '.')
+        # Row2: '._G.' -> '..._..G.....'
+        # Row2 copy: '............'
+        assert stretched == expected
 
     def test_empty_lines_preserved(self):
         """Test that empty space characters are preserved."""
