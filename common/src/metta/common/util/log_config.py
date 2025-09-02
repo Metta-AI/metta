@@ -208,16 +208,8 @@ def _init_console_logging() -> None:
     rich.traceback.install(show_locals=False)
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
-
+# Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
 def init_logging(run_dir: str | None = None) -> None:
-    """Initialize logging with optional file output and automatic rank awareness.
-
-    All loggers created with logging.getLogger() will have rank-aware methods.
-
-    Args:
-        run_dir: Optional directory for log files. If provided, logs will be written to
-                {run_dir}/logs/script.log (master) or script_{rank}.log (workers)
-    """
     _init_console_logging()
     if run_dir:
         _add_file_logging(run_dir)

@@ -66,6 +66,17 @@ logger.info("Message")  # Propagates to root's handlers
 
 **Key point**: Call `init_logging()` early, before importing modules that create loggers.
 
+## Rank Aware Type Hints
+
+For IDE support with rank-aware methods, use `getRankAwareLogger`:
+
+```python
+from metta.common.util.log_config import getRankAwareLogger
+
+logger = getRankAwareLogger(__name__)  # Returns typed RankAwareLogger
+logger.info_master("...")  # IDE knows about master-only methods
+```
+
 ## Troubleshooting
 
 **Logs not appearing?**
