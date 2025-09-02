@@ -233,12 +233,14 @@ def main():
     max_wait_seconds = args.wait_timeout
     wait_interval = 10  # Check every 10 seconds
     max_wait_attempts = max_wait_seconds // wait_interval
-    wait_attempt = 0
 
-    while wait_attempt < max_wait_attempts:
+    for wait_attempt in range(max_wait_attempts):
+        # Wait between checks, but not on the first attempt
+        if wait_attempt > 0:
+            time.sleep(wait_interval)
+
         try:
             with spinner(f"Checking cluster status (attempt {wait_attempt + 1}/{max_wait_attempts})", style=cyan):
-                time.sleep(10)  # Wait 10 seconds between checks
                 request_id = sky.status()
                 cluster_records = sky.get(request_id)
 
@@ -254,7 +256,6 @@ def main():
                 break
             elif cluster_status == "INIT":
                 print(f"{yellow('⏳')} Cluster still initializing... (attempt {wait_attempt + 1}/{max_wait_attempts})")
-                wait_attempt += 1
             elif cluster_status is None:
                 print(f"{red('✗')} Cluster not found in status output")
                 return
@@ -264,9 +265,9 @@ def main():
 
         except Exception as e:
             print(f"{yellow('⚠')} Error checking cluster status: {str(e)}, retrying...")
-            wait_attempt += 1
 
-    if wait_attempt >= max_wait_attempts:
+    else:
+        # This else clause runs if the for loop completed without breaking (timeout)
         print(f"\n{red('✗')} Cluster did not reach UP state within {max_wait_seconds} seconds")
         print("Current status might still be INIT. You can:")
         print(f"  • Check status manually: {green(f'sky status {cluster_name}')}")
