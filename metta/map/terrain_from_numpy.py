@@ -66,10 +66,10 @@ class TerrainFromNumpy(MapBuilder):
         agents: int | dict[str, int] = Field(default=0, ge=0)
         dir: str
         file: Optional[str] = None
+        remove_altars: bool = False
 
-    def __init__(self, config: Config, remove_altars: bool = False):
+    def __init__(self, config: Config):
         self.config = config
-        self.remove_altars = remove_altars  # if True, first remove objects, then repopulate
 
     def get_valid_positions(self, level):
         # Create a boolean mask for empty cells
@@ -123,7 +123,7 @@ class TerrainFromNumpy(MapBuilder):
         # remove agents to then repopulate
         grid[grid == "agent.agent"] = "empty"
 
-        if self.remove_objects:
+        if self.config.remove_altars:
             grid[grid == "altar"] = "empty"
 
         # Prepare agent labels
