@@ -1,3 +1,6 @@
+import os
+import tempfile
+
 from metta.mettagrid.config.envs import make_navigation
 from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
@@ -14,15 +17,32 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
 def make_nav_ascii_env(
     name: str, max_steps: int, border_width: int = 1, num_agents=4
 ) -> MettaGridConfig:
-    ascii_map = f"mettagrid/configs/maps/navigation_exploration_memory/{name}.map"
+    ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
+
+    # Load map, replace first two underscores with 'm' and 'g'
+    with open(ascii_map, "r") as f:
+        map_content = f.read()
+
+    # for navigation we replace all objects with altars
+    map_content = map_content.replace("n", "_", 1).replace("m", "_", 1)
+
+    # Create temporary file
+    temp_fd, ascii_map_nav = tempfile.mkstemp(suffix=".map", text=True)
+    with os.fdopen(temp_fd, "w") as f:
+        f.write(map_content)
+
     env = make_navigation(num_agents=num_agents)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGen.Config(
         instances=num_agents,
         border_width=6,
         instance_border_width=3,
-        instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
+        instance_map=MapGen.Config.with_ascii_uri(
+            ascii_map_nav, border_width=border_width
+        ),
     )
+    os.close(temp_fd)
+    os.remove(ascii_map_nav)
 
     return make_nav_eval_env(env)
 
@@ -113,9 +133,7 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="little_landmark_hard",
-            env=make_nav_ascii_env(
-                "little_landmark_hard", 100
-            ),
+            env=make_nav_ascii_env("little_landmark_hard", 100),
         ),
         SimulationConfig(
             name="lobster_legs_cues",
@@ -137,9 +155,7 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
             name="passing_things",
             env=make_nav_ascii_env("passing_things", 320),
         ),
-        SimulationConfig(
-            name="rooms", env=make_nav_ascii_env("rooms", 350)
-        ),
+        SimulationConfig(name="rooms", env=make_nav_ascii_env("rooms", 350)),
         SimulationConfig(
             name="spacey_memory",
             env=make_nav_ascii_env("spacey_memory", 200),
@@ -152,9 +168,7 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
             name="tease_small",
             env=make_nav_ascii_env("tease_small", 300),
         ),
-        SimulationConfig(
-            name="tease", env=make_nav_ascii_env("tease", 300)
-        ),
+        SimulationConfig(name="tease", env=make_nav_ascii_env("tease", 300)),
         SimulationConfig(
             name="venture_out",
             env=make_nav_ascii_env("venture_out", 300),

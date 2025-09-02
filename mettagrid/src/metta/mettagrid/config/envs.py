@@ -132,6 +132,46 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
     return cfg
 
 
+def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
+    altar = building.altar.model_copy()
+    altar.cooldown = 1
+    mine = building.mine.model_copy()
+    mine.cooldown = 1
+    generator = building.generator.model_copy()
+    generator.cooldown = 1
+    altar.initial_resource_count = 1
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            num_agents=num_agents,
+            objects={
+                "altar": altar,
+                "wall": building.wall,
+                "mine": mine,
+                "generator": generator,
+            },
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(),
+                get_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    inventory={
+                        "heart": 1,
+                    },
+                ),
+                default_resource_limit=1,
+                resource_limits={
+                    "heart": 100,
+                },
+            ),
+            # Always provide a concrete map builder config so tests can set width/height
+            map_builder=RandomMapBuilder.Config(agents=num_agents),
+        )
+    )
+    return cfg
+
+
 def make_icl_resource_chain(
     num_agents: int, max_steps, game_objects: dict, map_builder_objects: dict
 ) -> MettaGridConfig:
