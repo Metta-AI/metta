@@ -486,26 +486,31 @@ class TestWandbArtifactFormatting:
             assert qname == expected_qname, f"Expected {expected_qname}, got {qname}"
 
     def test_upload_checkpoint_returns_proper_uri_format(self):
-        """Test that upload_checkpoint_as_artifact returns wandb:// URI, not qualified name."""
+        """Test that upload_checkpoint_as_artifact returns wandb:// URI built from components."""
 
-        # Mock the wandb artifact and run
+        # Mock the wandb artifact and run with the properties we need
         mock_artifact = Mock()
-        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
+        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"  # For logging
+        mock_artifact.version = "v1"  # The actual version we use
         mock_artifact.wait = Mock()
 
         mock_run = Mock()
+        mock_run.project = "metta"  # The project we use to build the URI
         mock_run.log_artifact = Mock()
 
         with patch("wandb.Artifact", return_value=mock_artifact):
-            with patch("wandb.run", mock_run):
-                with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
-                    result = upload_checkpoint_as_artifact(
-                        checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
-                    )
+            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
+                result = upload_checkpoint_as_artifact(
+                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
+                )
 
-                    # Should return wandb:// URI, not qualified name
-                    assert result == "wandb://metta/test-artifact:v1"
-                    assert not result.startswith("metta-research/"), "Should not start with entity"
+                # Should return clean wandb:// URI built from components
+                assert result == "wandb://metta/test-artifact:v1"
+                assert result.startswith("wandb://"), "Should start with wandb://"
+                
+                # Verify the components are used correctly
+                mock_run.log_artifact.assert_called_once_with(mock_artifact)
+                mock_artifact.wait.assert_called_once()
 
 
 if __name__ == "__main__":
