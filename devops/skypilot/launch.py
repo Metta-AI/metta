@@ -21,6 +21,7 @@ from devops.skypilot.utils import (
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
+from metta.tools.utils.auto_config import auto_run_name
 
 logger = logging.getLogger("launch.py")
 
@@ -161,7 +162,9 @@ def main():
 
     # If run is still not specified, error out
     if run_id is None:
-        parser.error("run ID is required (use --run=foo or pass run=foo in --args)")
+        run_id = auto_run_name()
+        logger.info(f"Using auto-generated run ID: {run_id}")
+        logger.info("To specify a run ID, use --run=foo or pass run=foo in --args")
 
     # Always add run= to the filtered args so it gets passed to run.py
     filtered_args.append(f"run={run_id}")

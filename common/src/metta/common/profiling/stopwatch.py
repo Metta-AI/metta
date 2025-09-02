@@ -144,6 +144,7 @@ class Stopwatch:
 
     def __init__(self, logger: logging.Logger | None = None, max_laps: int = 4):
         self.logger = logger or logging.getLogger("Stopwatch")
+        self.logger.addHandler(logging.NullHandler())
         self.max_laps = max_laps
         self._timers: dict[str, Timer] = {}
         # Create global timer but don't start it automatically

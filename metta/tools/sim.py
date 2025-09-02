@@ -104,7 +104,6 @@ class SimTool(Tool):
                     export_stats_db_uri=self.stats_db_uri,
                     policy_store=policy_store,
                     stats_client=stats_client,
-                    logger=logger,
                     eval_task_id=eval_task_id,
                 )
                 if self.push_metrics_to_wandb:

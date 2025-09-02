@@ -162,7 +162,7 @@ private:
 
   void _consume_defense_resources(Agent& target) {
     for (const auto& [item, amount] : _defense_resources) {
-      InventoryDelta delta = target.update_inventory(item, -static_cast<InventoryDelta>(amount));
+      InventoryDelta delta = target.update_inventory(item, -amount);
       assert(delta == -amount);
     }
   }
@@ -177,7 +177,7 @@ private:
 
     // Transfer resources
     for (const auto& [item, amount] : snapshot) {
-      InventoryDelta stolen = actor.update_inventory(item, static_cast<InventoryDelta>(amount));
+      InventoryDelta stolen = actor.update_inventory(item, amount);
       target.update_inventory(item, -stolen);
 
       if (stolen > 0) {
@@ -213,7 +213,7 @@ private:
   void _log_resource_theft(Agent& actor, Agent& target, InventoryItem item, InventoryDelta amount) const {
     const std::string& actor_group = actor.group_name;
     const std::string& target_group = target.group_name;
-    const std::string item_name = actor.stats.inventory_item_name(item);
+    const std::string item_name = actor.stats.resource_name(item);
 
     actor.stats.add(_action_prefix(actor_group) + "steals." + item_name + ".from." + target_group, amount);
   }

@@ -95,10 +95,8 @@ def run_git_cmd(
     if timeout is None:
         timeout = 30.0
 
-    # Log command at DEBUG level
-    if logger.isEnabledFor(logging.DEBUG):
-        cmd_str = " ".join(shlex.quote(str(a)) for a in cmd)
-        logger.debug(f"Running: {cmd_str}")
+    cmd_str = " ".join(shlex.quote(str(a)) for a in cmd)
+    logger.debug(f"Running: {cmd_str}")
 
     t0 = time.time()
     try:
@@ -437,7 +435,6 @@ def get_git_hash_for_remote_task(
     target_repo: str | None = None,
     skip_git_check: bool = False,
     skip_cmd: str = "skipping git check",
-    logger: logging.Logger | None = None,
 ) -> str | None:
     """
     Get git hash for remote task execution.
@@ -455,35 +452,30 @@ def get_git_hash_for_remote_task(
     try:
         current_commit = get_current_commit()
     except (GitError, ValueError):
-        if logger:
-            logger.warning("Not in a git repository, using git_hash=None")
+        logger.warning("Not in a git repository, using git_hash=None")
         return None
 
     if target_repo and not is_repo_match(target_repo):
-        if logger:
-            logger.warning(f"Origin not set to {target_repo}, using git_hash=None")
+        logger.warning(f"Origin not set to {target_repo}, using git_hash=None")
         return None
 
     on_skypilot = bool(os.getenv("SKYPILOT_TASK_ID"))
     has_changes, status_output = has_unstaged_changes()
     if has_changes:
-        if logger:
-            logger.warning("Working tree has unstaged changes.\n" + status_output)
+        logger.warning("Working tree has unstaged changes.\n" + status_output)
         if not skip_git_check:
             if on_skypilot:
                 # Skypilot jobs can create local files as part of their setup. It's assumed that these changes do not
                 # need to be checked in because they wouldn't have an effect on policy evaluator's execution
-                if logger:
-                    logger.warning("Running on skypilot: proceeding despite unstaged changes")
+                logger.warning("Running on skypilot: proceeding despite unstaged changes")
             else:
                 raise GitError(
                     "You have uncommitted changes to tracked files that won't be reflected in the remote task.\n"
                     f"You can push your changes or specify to skip this check with {skip_cmd}"
                 )
-    else:
+    elif status_output:
         # Only untracked files present (or clean). Log for visibility if untracked exist.
-        if status_output and logger:
-            logger.info("Proceeding with unstaged changes.\n" + status_output)
+        logger.info("Proceeding with unstaged changes.\n" + status_output)
 
     if not is_commit_pushed(current_commit) and not on_skypilot:
         short_commit = current_commit[:8]
@@ -492,7 +484,7 @@ def get_git_hash_for_remote_task(
                 f"Commit {short_commit} hasn't been pushed.\n"
                 f"You can push your changes or specify to skip this check with {skip_cmd}"
             )
-        elif logger:
+        else:
             logger.warning(f"Proceeding with unpushed commit {short_commit} due to {skip_cmd}")
 
     return current_commit

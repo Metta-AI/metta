@@ -3,7 +3,7 @@ from typing import Any, Tuple
 
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.util.system_monitor import SystemMonitor
+from metta.common.profiling.system_monitor import SystemMonitor
 from metta.rl.experience import Experience
 
 logger = logging.getLogger(__name__)

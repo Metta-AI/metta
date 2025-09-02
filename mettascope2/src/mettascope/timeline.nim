@@ -38,6 +38,8 @@ proc playControls*() =
     echo "step: ", step
 
 proc drawTimeline*(panel: Panel) =
+  playControls()
+
   bxy.drawRect(
     rect = Rect(
       x: 0,

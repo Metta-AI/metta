@@ -67,11 +67,7 @@ except ImportError:
     ) from None
 
 torch.set_float32_matmul_precision("high")
-
-# Get rank for logger name
-_rank = int(os.environ.get("RANK", 0))
-_local_rank = int(os.environ.get("LOCAL_RANK", 0))
-logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
+logger = logging.getLogger(__name__)
 
 
 def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:
@@ -551,7 +547,6 @@ def train(
                             wandb_policy_name=wandb_policy_name,
                             policy_store=policy_store,
                             stats_client=stats_client,
-                            logger=logger,
                         )
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores

@@ -43,7 +43,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       obs_height(game_config.obs_height),
       max_steps(game_config.max_steps),
       episode_truncates(game_config.episode_truncates),
-      inventory_item_names(game_config.inventory_item_names),
+      resource_names(game_config.resource_names),
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
@@ -70,7 +70,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
-  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names, game_config.recipe_details_obs);
+  _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.recipe_details_obs);
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -87,13 +87,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     if (action_name == "put_items") {
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
     } else if (action_name == "place_box") {
-      // Pass in resources to create box from box config
-      for (const auto& [key, object_cfg] : game_config.objects) {
-        if (auto box_cfg = std::dynamic_pointer_cast<const BoxConfig>(object_cfg)) {
-          _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config, box_cfg->resources_to_create));
-          break;
-        }
-      }
+      _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config));
     } else if (action_name == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name == "noop") {
@@ -245,7 +239,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     uint8_t packed = 0;
 
     // Process up to 8 items (or all available items if fewer)
-    size_t num_items = std::min(inventory_item_names.size(), size_t(8));
+    size_t num_items = std::min(resource_names.size(), size_t(8));
 
     for (size_t i = 0; i < num_items; i++) {
       // Check if this item has a reward configured
@@ -429,10 +423,9 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     }
   }
 
-  _stats->add("tokens_written", static_cast<float>(tokens_written));
-  _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
-  _stats->add("tokens_free_space",
-              static_cast<float>(static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written)));
+  _stats->add("tokens_written", tokens_written);
+  _stats->add("tokens_dropped", attempted_tokens_written - tokens_written);
+  _stats->add("tokens_free_space", static_cast<size_t>(observation_view.shape(1)) - tokens_written);
 }
 
 void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {
@@ -520,14 +513,14 @@ void MettaGrid::_step(Actions actions) {
       for (const auto& [item, qty] : inventory_copy) {
         if (qty > 0) {
           float loss = _resource_loss_prob * qty;
-          int lost = static_cast<int>(std::floor(loss));
+          InventoryDelta lost = static_cast<InventoryDelta>(std::floor(loss));
           // With probability equal to the fractional part, lose one more
           if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
             lost += 1;
           }
 
           if (lost > 0) {
-            agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
+            agent->update_inventory(item, -lost);
           }
         }
       }
@@ -846,9 +839,9 @@ py::dict MettaGrid::get_episode_stats() {
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
       // Add metadata to the converter's stats tracker BEFORE converting to dict
-      converter->stats.set("type_id", static_cast<float>(converter->type_id));
-      converter->stats.set("location.r", static_cast<float>(converter->location.r));
-      converter->stats.set("location.c", static_cast<float>(converter->location.c));
+      converter->stats.set("type_id", converter->type_id);
+      converter->stats.set("location.r", converter->location.r);
+      converter->stats.set("location.c", converter->location.c);
 
       // Now convert to dict - all values will be floats
       py::dict converter_stat = py::cast(converter->stats.to_dict());
@@ -901,8 +894,8 @@ py::list MettaGrid::object_type_names_py() {
   return py::cast(object_type_names);
 }
 
-py::list MettaGrid::inventory_item_names_py() {
-  return py::cast(inventory_item_names);
+py::list MettaGrid::resource_names_py() {
+  return py::cast(resource_names);
 }
 
 // StatsTracker implementation that needs complete MettaGrid definition
@@ -911,9 +904,9 @@ unsigned int StatsTracker::get_current_step() const {
   return static_cast<MettaGrid*>(_env)->current_step;
 }
 
-const std::string& StatsTracker::inventory_item_name(InventoryItem item) const {
-  if (!_env) return get_no_env_inventory_item_name();
-  return _env->inventory_item_names[item];
+const std::string& StatsTracker::resource_name(InventoryItem item) const {
+  if (!_env) return get_no_env_resource_name();
+  return _env->resource_names[item];
 }
 
 // Pybind11 module definition
@@ -950,7 +943,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names_py)
+      .def("resource_names", &MettaGrid::resource_names_py)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
 
   // Expose this so we can cast python WallConfig / AgentConfig / ConverterConfig to a common GridConfig cpp object.
@@ -962,10 +955,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def(py::init<TypeId, const std::string&, const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "box",
-           py::arg("resources_to_create"))
+           py::arg("returned_resources"))
       .def_readwrite("type_id", &BoxConfig::type_id)
       .def_readwrite("type_name", &BoxConfig::type_name)
-      .def_readwrite("resources_to_create", &BoxConfig::resources_to_create);
+      .def_readwrite("returned_resources", &BoxConfig::returned_resources);
 
   // ##MettaGridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means

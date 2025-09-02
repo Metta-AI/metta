@@ -145,9 +145,9 @@ public:
 
     // Update stats
     if (delta > 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".gained", static_cast<float>(delta));
+      this->stats.add(this->stats.resource_name(item) + ".gained", delta);
     } else if (delta < 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".lost", static_cast<float>(-delta));
+      this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
     }
 
     // Update resource rewards incrementally

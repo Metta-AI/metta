@@ -15,7 +15,7 @@ from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyRecord
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.util.system_monitor import SystemMonitor
+from metta.common.profiling.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
@@ -394,9 +394,11 @@ def process_policy_evaluator_stats(
         logger.warning("No metrics to log for policy evaluator")
         return
 
-    if not (epoch := pr.metadata.epoch) or not (agent_step := pr.metadata.agent_step):
-        logger.warning("No epoch or agent_step found in policy record")
-        return
+    # Policy records might not have epoch/agent_step metadata, but we still want to log
+    epoch = pr.metadata.epoch or 0
+    agent_step = pr.metadata.agent_step or 0
+    if not epoch and not agent_step:
+        logger.warning("No epoch or agent_step found in policy record - using defaults")
 
     try:
         wandb_entity, wandb_project, wandb_run_id, _ = pr.extract_wandb_run_info()

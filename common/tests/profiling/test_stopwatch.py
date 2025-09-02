@@ -26,16 +26,36 @@ class TestStopwatch:
         """Test stopwatch initialization."""
         # Test with default logger
         sw = Stopwatch()
+
+        # Check that logger is created with fixed name "Stopwatch"
         assert isinstance(sw.logger, logging.Logger)
         assert sw.logger.name == "Stopwatch"
+
+        # Check that NullHandler was added
+        null_handlers = [h for h in sw.logger.handlers if isinstance(h, logging.NullHandler)]
+        assert len(null_handlers) >= 1, "Logger should have at least one NullHandler"
+
+        # Check global timer setup
         assert sw.GLOBAL_TIMER_NAME == "global"
         assert sw.GLOBAL_TIMER_NAME in sw._timers
+        assert sw.max_laps == 4  # default value
 
         # Test with custom logger
         custom_logger = logging.getLogger("custom")
+        # Clear any existing handlers to ensure clean state
+        custom_logger.handlers.clear()
+
         sw2 = Stopwatch(logger=custom_logger)
         assert sw2.logger == custom_logger
         assert sw2.logger.name == "custom"
+
+        # Check that NullHandler was added to custom logger too
+        null_handlers = [h for h in sw2.logger.handlers if isinstance(h, logging.NullHandler)]
+        assert len(null_handlers) >= 1, "Custom logger should have at least one NullHandler"
+
+        # Test with custom max_laps
+        sw3 = Stopwatch(max_laps=10)
+        assert sw3.max_laps == 10
 
     def test_basic_timing(self, stopwatch):
         """Test basic start/stop timing."""
