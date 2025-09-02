@@ -1,76 +1,48 @@
-# Cursor Rules Configuration (September 2025 Standards)
+# Cursor Rules (September 2025 - Simplified)
 
-Modern Cursor IDE rule configuration for Metta AI using the latest 2025 numbered `.mdc` format with enhanced Agent mode capabilities.
+Streamlined Cursor IDE configuration with just 3 essential rule files for the Metta AI project.
 
-## Simplified Rules (2025 Standard)
+## Simple Structure
 
-All rules kept under 25 lines with concise, actionable directives only.
+### Just 3 Files
+- **001_core.mdc** (Always) - Project context, commands, AI behavior (31 lines)
+- **101_python.mdc** (Auto: `*.py`) - Python/ML standards (26 lines)  
+- **201_dev.mdc** (Auto: tests/frontend) - Testing, frontend, planning (28 lines)
 
-### Current Configuration  
-- **001_workspace.mdc** (Always) - Core project context (24 lines)
-- **002_rules.mdc** (Always) - AI behavioral guidelines (23 lines)
-- **003_docs.mdc** (Auto) - Task planning basics (14 lines)
-- **004_tools.mdc** (Auto) - Recipe system commands (16 lines)
-- **101_python.mdc** (Auto: `*.py`) - Python standards (22 lines)
-- **102_ml_rl.mdc** (Auto: `metta/**/*.py`) - ML/RL patterns (19 lines)
-- **201_testing.mdc** (Auto: `tests/**/*.py`) - Testing commands (18 lines)
-- **202_frontend.mdc** (Auto: `**/*.ts`, `**/*.tsx`) - Frontend basics (17 lines)
+Total: **85 lines** (down from 153+ lines across 8 files)
 
-## 2025 Features Integration
+## What Each File Covers
 
-### Enhanced Agent Mode (v0.46+)
-- **Multi-step edits**: Autonomous execution across multiple files
-- **Shell command execution**: With approval or "Yolo mode"
-- **Improved codebase understanding**: Better context selection and token efficiency
-- **GitHub integration**: Direct PR interaction with @Cursor tags
+### 001_core.mdc (Always Applied)
+- Metta AI project overview
+- Essential commands (`uv run`, `metta test`, recipe system)
+- AI behavioral guidelines
+- Critical Python formatting requirement
 
-### Modern Rule Application
-- **Auto Attached**: Rules activate based on glob patterns when editing specific files
-- **Agent Requested**: Rules applied based on description relevance
-- **Always**: Core rules that apply to all interactions
+### 101_python.mdc (Python Files)
+- Import organization and type annotations
+- Class design patterns (private/public members)
+- ML/RL specific patterns (PolicyStore, MettaAgent, policy URIs)
+- PyTorch device management
 
-### Best Practices (Under 25 Lines Each)
-- Concise/shorthand formatting
-- File tagging with `@filename.ext`
-- Specific, actionable directives
-- Context-aware application at dialog start
+### 201_dev.mdc (Development Files)
+- Testing commands and integration patterns
+- Frontend development (TypeScript/React)
+- Task planning with ExitPlanMode
+- File reference format
 
-## Migration Benefits
+## Benefits of Simplified Structure
 
-### From Legacy .cursorrules
-- **Better Organization**: Domain-specific rules with numbered precedence
-- **Token Efficiency**: Only relevant rules applied per context
-- **Enhanced Metadata**: Descriptions, glob patterns, application control
-- **Version Control**: Individual rule tracking and updates
-- **Agent Compatibility**: Optimized for enhanced Agent mode capabilities
-
-### Context-Aware Intelligence  
-Rules now integrate with Cursor's improved:
-- **Codebase Search**: Better ranking and indexing
-- **File Reading**: Full file access without 2MB caps
-- **Directory Exploration**: Complete tree traversal with metadata
-- **Grep Matching**: Reduced noise and improved relevance
+- **Faster Loading**: Fewer files to process
+- **Less Maintenance**: Single source for related concepts
+- **Better Overview**: Easier to see all rules at a glance
+- **Reduced Redundancy**: No duplicate information across files
+- **Token Efficient**: All essential info in minimal space
 
 ## Usage Patterns
 
-### Automatic Application
-- Python editing → `101_python.mdc` + `102_ml_rl.mdc` activate
-- Testing → `201_testing.mdc` activates  
-- Frontend work → `202_frontend.mdc` activates
-- Always active → `001_workspace.mdc` + `002_rules.mdc`
+- **Core context** always available for all interactions
+- **Python rules** activate when editing `.py` files
+- **Dev tools** activate for tests, frontend, or planning tasks
 
-### Manual Selection
-Use Cursor's rule selection interface to apply specific rules when needed, or reference them with `/Generate Cursor Rules` command after chat conversations.
-
-## Development Workflow
-
-### New Rule Creation
-1. Use Command Palette → "New Cursor Rule"
-2. Follow NNN_name.mdc naming convention
-3. Include appropriate metadata (description, globs, alwaysApply)
-4. Keep under 25 lines with shorthand formatting
-
-### Rule Testing
-Best tested at start of new dialog sessions for optimal context-aware application.
-
-This configuration leverages the latest September 2025 Cursor IDE capabilities for enhanced AI-assisted development on the Metta AI reinforcement learning project.
+This simplified structure maintains all essential guidance while being much more manageable and efficient.

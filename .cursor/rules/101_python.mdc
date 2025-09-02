@@ -1,5 +1,5 @@
 ---
-description: Python coding standards
+description: Python and ML/RL coding standards
 globs: ["*.py"]
 alwaysApply: false
 ---
@@ -8,8 +8,7 @@ alwaysApply: false
 
 ## Imports
 - At file top, never inside functions
-- Order: stdlib → third-party → local
-- Blank lines between groups
+- Order: stdlib → third-party → local, blank lines between
 
 ## Types
 - Always annotate function params
@@ -17,7 +16,12 @@ alwaysApply: false
 - Annotate returns for public APIs, complex logic
 
 ## Classes
-- Private: `_name` (internal use)
-- Public: no `_` (API only)  
+- Private: `_name` (internal), Public: no `_` (API only)
 - Properties: `@property` for computed values
 - Tests can access `_private` members
+
+## ML/RL patterns
+- PolicyStore - checkpoint management
+- MettaAgent/DistributedMettaAgent
+- Policy URIs: `file://./path` or `wandb://run/name`
+- Use explicit `torch.device` hints, macOS: `device=cpu`
