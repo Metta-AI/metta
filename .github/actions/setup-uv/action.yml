@@ -20,68 +20,53 @@ runs:
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
 
-    - name: Cache uv store
+    - name: Cache uv store only (safer than caching venv)
       uses: actions/cache@v4
       id: cache-uv-store
       with:
-        path: |
-          .venv
-          ~/.cache/uv
-        key: uv-store-${{ inputs.install-mode }}-${{ runner.os }}-${{ hashFiles('uv.lock', 'pyproject.toml', '**/pyproject.toml') }}-${{ github.sha }}
+        path: ~/.cache/uv
+        key: uv-cache-${{ inputs.install-mode }}-${{ runner.os }}-${{ hashFiles('uv.lock', 'pyproject.toml', '**/pyproject.toml') }}
         restore-keys: |
-          uv-store-${{ inputs.install-mode }}-${{ runner.os }}-${{ hashFiles('uv.lock', 'pyproject.toml', '**/pyproject.toml') }}-
-          uv-store-${{ inputs.install-mode }}-${{ runner.os }}-
+          uv-cache-${{ inputs.install-mode }}-${{ runner.os }}-
 
     - name: Create virtual environment with uv
       shell: bash
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
       run: |
-        # Export environment variables first
+        # Export environment variables
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
 
-        # Check if we have a complete venv (either from exact cache hit or restore-key match)
-        if [ -d ".venv" ] && [ -f ".venv/pyvenv.cfg" ] && [ -d ".venv/lib" ]; then
-          echo "✅ Complete cache hit - skipping uv sync (much faster!)"
-          
-          # Debug: Check what's in the venv
-          echo "🔍 Debugging cached venv:"
-          echo "  .venv/bin exists: $([ -d '.venv/bin' ] && echo 'yes' || echo 'no')"
-          echo "  metta binary exists: $([ -f '.venv/bin/metta' ] && echo 'yes' || echo 'no')"
-          if [ -f ".venv/bin/metta" ]; then
-            echo "  metta permissions: $(ls -la .venv/bin/metta)"
-            echo "  metta first few lines:"
-            head -3 .venv/bin/metta || echo "  Cannot read metta binary"
-          fi
-          echo "  Python in venv: $([ -f '.venv/bin/python' ] && echo 'yes' || echo 'no')"
-          if [ -f ".venv/bin/python" ]; then
-            echo "  Python version: $(.venv/bin/python --version 2>&1 || echo 'Python not working')"
-          fi
-          
-        else
-          echo "❌ Cache miss or incomplete venv - running full uv sync"
-          uv venv
+        # Always create fresh venv (using cached packages from uv store)
+        echo "🚀 Creating fresh virtual environment with cached packages..."
+        uv venv
 
-          # Handle different installation modes
-          case "${{ inputs.install-mode }}" in
+        # Handle different installation modes
+        case "${{ inputs.install-mode }}" in
 
-            "minimal")
-              # don't install any packages
-              ;;
+          "minimal")
+            # don't install any packages
+            echo "✅ Minimal mode - no packages installed"
+            ;;
 
-            "testing")
-              uv sync
-              uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
-              ;;
+          "testing")
+            echo "📦 Installing testing packages..."
+            uv sync
+            uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
+            echo "✅ Testing packages installed"
+            ;;
 
-            "linting")
-              uv pip install ruff cpplint
-              ;;
+          "linting")
+            echo "📦 Installing linting packages..."
+            uv pip install ruff cpplint
+            echo "✅ Linting packages installed"
+            ;;
 
-            "full"|*)
-              uv sync
-              ;;
+          "full"|*)
+            echo "📦 Installing full package set..."
+            uv sync
+            echo "✅ Full package set installed"
+            ;;
 
-          esac
-        fi
+        esac
