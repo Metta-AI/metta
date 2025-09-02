@@ -551,7 +551,7 @@ def train(
 
                 evaluate_local = trainer_cfg.evaluation.evaluate_local
                 if latest_wandb_uri:
-                    policy_uri = f"wandb://{latest_wandb_uri}"
+                    policy_uri = latest_wandb_uri  # Already a wandb:// URI
                 else:
                     checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
                     policy_uri = checkpoint_uris[0] if checkpoint_uris else None

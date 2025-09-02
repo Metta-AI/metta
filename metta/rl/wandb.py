@@ -118,7 +118,18 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
 
     logger.info(f"Loading policy from wandb URI: {wandb_uri}")
     uri = WandbURI.parse(wandb_uri)
-    artifact = wandb.Api().artifact(uri.qname())
+    qname = uri.qname()
+    logger.debug(f"Calling wandb.Api().artifact() with qname: {qname}")
+
+    try:
+        artifact = wandb.Api().artifact(qname)
+    except Exception as e:
+        logger.error(f"Failed to fetch wandb artifact with qname '{qname}': {e}")
+        logger.error(f"Original URI: {wandb_uri}")
+        logger.error(
+            f"Parsed components - project: {uri.project}, artifact_path: {uri.artifact_path}, version: {uri.version}"
+        )
+        raise
 
     with tempfile.TemporaryDirectory() as temp_dir:
         artifact_dir = Path(temp_dir)
