@@ -69,7 +69,6 @@
 #         schedule_configs: dict[str, dict | None],
 #         optimizer,
 #         total_timesteps: int,
-#         logger=None,
 #     ):
 #         """Initialize the hyperparameter scheduler with explicit parameters.
 
@@ -78,12 +77,10 @@
 #             schedule_configs: Dict mapping parameter names to their schedule configs (or None for constant)
 #             optimizer: The optimizer to update learning rate on
 #             total_timesteps: Total timesteps for progress calculation
-#             logger: Logger instance (optional)
 #         """
 #         self.initial_values = initial_values
 #         self.optimizer = optimizer
 #         self.total_timesteps = total_timesteps
-#         self.logger = logger or logging.getLogger(__name__)
 
 #         # Map from parameter name to schedule config key
 #         self.schedule_key_mapping = {
@@ -100,20 +97,19 @@
 #         for param_name, initial_value in initial_values.items():
 #             schedule_config = schedule_configs.get(param_name)
 #             if schedule_config is not None:
-#                 self.logger.info(f"Initializing scheduler for: {param_name}")
+#                 logger.info(f"Initializing scheduler for: {param_name}")
 #                 self.schedulers[param_name] = instantiate(schedule_config)
 #             else:
 #                 self.schedulers[param_name] = ConstantSchedule(initial_value)
 
 #     @staticmethod
-#     def from_trainer_config(trainer_cfg: DictConfig, optimizer, total_timesteps: int, logger=None):
+#     def from_trainer_config(trainer_cfg: DictConfig, optimizer, total_timesteps: int):
 #         """Factory method to create HyperparameterScheduler from trainer config.
 
 #         Args:
 #             trainer_cfg: The trainer configuration
 #             optimizer: The optimizer to update learning rate on
 #             total_timesteps: Total timesteps for progress calculation
-#             logger: Logger instance (optional)
 #         """
 #         # Extract initial values from trainer config
 #         initial_values = {
@@ -148,7 +144,6 @@
 #             schedule_configs=schedule_configs,
 #             optimizer=optimizer,
 #             total_timesteps=total_timesteps,
-#             logger=logger,
 #         )
 
 #     def _compute_scheduled_value(self, param_name: str, current_step: int) -> float:
@@ -187,7 +182,7 @@
 #                     update_callbacks[param_name](new_value)
 
 #         if current_step % 10000 == 0 and updates:
-#             self.logger.info(
+#             logger.info(
 #                 f"Step {current_step}: Updated hyperparameters: "
 #                 + ", ".join(f"{k}={v:.6f}" for k, v in updates.items())
 #             )

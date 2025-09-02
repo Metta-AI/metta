@@ -17,7 +17,22 @@ from typing_extensions import Generic
 
 from metta.common.config import Config
 from metta.common.util.module import load_symbol
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig as EnvConfig
+
+
+class Span:
+    """A range of values with minimum and maximum bounds."""
+
+    def __init__(self, min_val: float, max_val: float):
+        self.min_val = min_val
+        self.max_val = max_val
+
+    def __str__(self):
+        return f"{self.min_val}-{self.max_val}"
+
+    def __repr__(self):
+        return f"Span({self.min_val}, {self.max_val})"
+
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.curriculum import CurriculumConfig

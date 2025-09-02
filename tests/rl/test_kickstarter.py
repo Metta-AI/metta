@@ -1,11 +1,3 @@
-"""
-Unit tests for the Kickstarter class in metta.rl.kickstarter.
-
-This module provides tests for the Kickstarter class, which is responsible for
-implementing the kickstarting technique to initialize a student policy with
-the knowledge of one or more teacher policies.
-"""
-
 from unittest.mock import MagicMock, patch
 
 import pytest

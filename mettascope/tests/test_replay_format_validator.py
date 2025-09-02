@@ -506,10 +506,50 @@ def test_validate_replay_schema_invalid(mutation, error_substr: str) -> None:
         validate_replay_schema(replay_dict)
 
 
-def test_validate_real_generated_replay() -> None:
-    """Generate a fresh replay using the CI setup and validate it against the strict schema."""
+def test_validate_real_generated_replay_fast() -> None:
+    """Generate a minimal fresh replay and validate it against the strict schema (fast version)."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Generate a replay using the same command as CI but with a custom output directory.
+        # Use minimal steps to speed up the test - we only need to validate the format, not run a full simulation
+        cmd = [
+            "uv",
+            "run",
+            "--no-sync",
+            "tools/run.py",
+            "experiments.recipes.scratchpad.ci.replay_null",
+            "--overrides",
+            f"replay_dir={tmp_dir}",
+            f"stats_dir={tmp_dir}",
+            "sim.env.game.max_steps=5",  # Reduce from 100 to 5 steps for faster test
+        ]
+
+        # Run from the project root (parent of mettascope).
+        project_root = Path(__file__).parent.parent.parent
+        result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=30)  # Reduced timeout
+
+        replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
+        if len(replay_files) == 0:
+            raise AssertionError(
+                f"No replay files were generated. Process exited with code {result.returncode}. "
+                f"Error output: {result.stderr}"
+            )
+
+        # Should have exactly one replay file.
+        assert len(replay_files) == 1, f"Expected exactly 1 replay file, found {len(replay_files)}: {replay_files}"
+
+        # Validate the replay file.
+        replay_path = replay_files[0]
+        loaded_replay = load_replay(replay_path)
+        validate_replay_schema(loaded_replay)
+
+        print(f"✓ Successfully generated and validated fresh replay: {replay_path.name}")
+
+
+@pytest.mark.integration
+def test_validate_real_generated_replay_comprehensive() -> None:
+    """Generate a full-length replay using the CI setup and validate it against the strict schema."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Generate a replay using the original CI configuration (100 steps)
         cmd = [
             "uv",
             "run",
@@ -540,4 +580,4 @@ def test_validate_real_generated_replay() -> None:
         loaded_replay = load_replay(replay_path)
         validate_replay_schema(loaded_replay)
 
-        print(f"✓ Successfully generated and validated fresh replay: {replay_path.name}")
+        print(f"✓ Successfully generated and validated comprehensive replay: {replay_path.name}")

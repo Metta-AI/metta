@@ -9,12 +9,9 @@ from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
-    AgentRewards,
     AttackActionConfig,
     GameConfig,
     GroupConfig,
-    InventoryRewards,
-    StatsRewards,
     WallConfig,
 )
 from metta.mettagrid.test_support.actions import get_agent_position, get_current_observation
@@ -23,7 +20,7 @@ from metta.mettagrid.test_support.actions import get_agent_position, get_current
 def create_basic_config() -> GameConfig:
     """Create a minimal valid game configuration."""
     return GameConfig(
-        inventory_item_names=["ore", "wood"],
+        resource_names=["ore", "wood"],
         num_agents=1,
         max_steps=100,
         obs_width=7,
@@ -32,7 +29,6 @@ def create_basic_config() -> GameConfig:
         agent=AgentConfig(
             freeze_duration=0,
             resource_limits={"ore": 10, "wood": 10},
-            rewards=AgentRewards(inventory=InventoryRewards(), stats=StatsRewards()),
         ),
         groups={"default": GroupConfig(id=0, group_reward_pct=1.0)},
         actions=ActionsConfig(
@@ -96,7 +92,7 @@ class TestActionOrdering:
 
         # Create config with different action order
         reordered_config = GameConfig(
-            inventory_item_names=basic_config.inventory_item_names,
+            resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs_width=basic_config.obs_width,
@@ -190,7 +186,7 @@ class TestResourceRequirements:
         """Test that actions fail when resource requirements aren't met."""
         # Create new config with resource requirement
         config = GameConfig(
-            inventory_item_names=basic_config.inventory_item_names,
+            resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs_width=basic_config.obs_width,
@@ -220,7 +216,7 @@ class TestResourceRequirements:
     def test_action_consumes_resources(self, basic_config, simple_map):
         """Test that actions consume resources when configured."""
         config = GameConfig(
-            inventory_item_names=basic_config.inventory_item_names,
+            resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs_width=basic_config.obs_width,
@@ -230,7 +226,6 @@ class TestResourceRequirements:
                 freeze_duration=0,
                 resource_limits={"ore": 10, "wood": 10},
                 initial_inventory={"ore": 5, "wood": 3},
-                rewards=AgentRewards(inventory=InventoryRewards(), stats=StatsRewards()),
             ),
             groups=basic_config.groups,
             actions=ActionsConfig(
@@ -247,9 +242,6 @@ class TestResourceRequirements:
 
         # Get initial observation
         initial_obs = get_current_observation(env, agent_idx=0)
-
-        # Get inventory item names to know the expected feature IDs
-        _inventory_names = env.inventory_item_names()
 
         # Feature IDs for inventory items start at 15 (ObservationFeatureCount)
         ore_feature_id = 15
@@ -330,7 +322,7 @@ class TestActionSpace:
     def test_single_action_space(self, basic_config, multi_agent_map):
         """Test action space for multi-agent environment."""
         config = GameConfig(
-            inventory_item_names=basic_config.inventory_item_names,
+            resource_names=basic_config.resource_names,
             num_agents=3,
             max_steps=basic_config.max_steps,
             obs_width=basic_config.obs_width,
@@ -384,7 +376,7 @@ class TestSpecialActions:
     def test_attack_action_registration(self, basic_config, simple_map):
         """Test that attack action is properly registered when enabled."""
         config = GameConfig(
-            inventory_item_names=basic_config.inventory_item_names,
+            resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs_width=basic_config.obs_width,
@@ -417,7 +409,7 @@ class TestSpecialActions:
     def test_swap_action_registration(self, basic_config, simple_map):
         """Test that swap action is properly registered when enabled."""
         config = GameConfig(
-            inventory_item_names=basic_config.inventory_item_names,
+            resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs_width=basic_config.obs_width,
@@ -441,14 +433,14 @@ class TestSpecialActions:
         assert "swap" in action_names
 
 
-class TestInventoryItemOrdering:
+class TestResourceOrdering:
     """Tests for inventory item ordering effects."""
 
-    def test_inventory_item_order(self, basic_config, simple_map):
-        """Test that inventory items maintain their order."""
+    def test_resource_order(self, basic_config, simple_map):
+        """Test that resources maintain their order."""
         # Config with ore first
         config1 = GameConfig(
-            inventory_item_names=["ore", "wood"],
+            resource_names=["ore", "wood"],
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs_width=basic_config.obs_width,
@@ -463,7 +455,7 @@ class TestInventoryItemOrdering:
 
         # Config with wood first
         config2 = GameConfig(
-            inventory_item_names=["wood", "ore"],
+            resource_names=["wood", "ore"],
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs_width=basic_config.obs_width,
@@ -479,8 +471,8 @@ class TestInventoryItemOrdering:
         env1 = MettaGrid(from_mettagrid_config(config1), simple_map, 42)
         env2 = MettaGrid(from_mettagrid_config(config2), simple_map, 42)
 
-        assert env1.inventory_item_names() == ["ore", "wood"]
-        assert env2.inventory_item_names() == ["wood", "ore"]
+        assert env1.resource_names() == ["ore", "wood"]
+        assert env2.resource_names() == ["wood", "ore"]
 
         # This affects resource indices in the implementation
         # ore is index 0 in env1, but index 1 in env2

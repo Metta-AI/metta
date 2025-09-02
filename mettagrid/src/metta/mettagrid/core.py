@@ -20,7 +20,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
@@ -49,12 +49,12 @@ class MettaGridCore:
 
     def __init__(
         self,
-        env_config: EnvConfig,
+        env_config: MettaGridConfig,
         render_mode: Optional[str] = None,
     ):
         """Initialize core MettaGrid functionality."""
-        if not isinstance(env_config, EnvConfig):
-            raise ValueError("env_config must be an instance of EnvConfig")
+        if not isinstance(env_config, MettaGridConfig):
+            raise ValueError("env_config must be an instance of MettaGridConfig")
 
         # We protect the env config with __ to avoid accidental modification
         # by subclasses. It should only be modified through set_env_config.
@@ -78,11 +78,11 @@ class MettaGridCore:
         self._update_core_buffers()
 
     @property
-    def env_config(self) -> EnvConfig:
+    def env_config(self) -> MettaGridConfig:
         """Get the environment configuration."""
         return self.__env_config
 
-    def set_env_config(self, env_config: EnvConfig) -> None:
+    def set_env_config(self, env_config: MettaGridConfig) -> None:
         """Set the environment configuration."""
         self.__env_config = env_config
         self._map_builder = self.__env_config.game.map_builder.create()
@@ -246,8 +246,8 @@ class MettaGridCore:
         return self.__c_env_instance.object_type_names()
 
     @property
-    def inventory_item_names(self) -> List[str]:
-        return self.__c_env_instance.inventory_item_names()
+    def resource_names(self) -> List[str]:
+        return self.__c_env_instance.resource_names()
 
     @property
     def feature_normalizations(self) -> Dict[int, float]:

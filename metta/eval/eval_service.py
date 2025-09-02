@@ -15,6 +15,8 @@ from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
+logger = logging.getLogger(__name__)
+
 
 def evaluate_policy(
     *,
@@ -30,7 +32,6 @@ def evaluate_policy(
     eval_task_id: uuid.UUID | None = None,
     policy_store: PolicyStore,
     stats_client: StatsClient | None,
-    logger: logging.Logger,
 ) -> EvalResults:
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
     pr = policy_record
@@ -91,7 +92,7 @@ def evaluate_policy(
         raise RuntimeError("No simulations could be run successfully")
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
-    eval_stats_db = EvalStatsDB.from_sim_stats_db(merged_db)
+    eval_stats_db = EvalStatsDB(merged_db.path)
     logger.info("Evaluation complete for policy %s", pr.uri)
     scores = extract_scores(policy_record, simulations, eval_stats_db, logger)
 

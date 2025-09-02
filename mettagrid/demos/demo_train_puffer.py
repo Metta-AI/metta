@@ -34,7 +34,7 @@ import numpy as np
 # Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.config.envs import make_arena
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 # Training framework imports
 try:
@@ -45,9 +45,9 @@ except ImportError:
     PUFFERLIB_AVAILABLE = False
 
 
-def create_test_config() -> EnvConfig:
+def create_test_config() -> MettaGridConfig:
     """Create test configuration for Puffer integration."""
-    return EnvConfig()
+    return MettaGridConfig()
 
 
 def demo_puffer_env():

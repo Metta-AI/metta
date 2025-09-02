@@ -12,8 +12,17 @@ from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import BoxConfig, ConverterConfig, GameConfig, WallConfig
 
 
+def recursive_update(d, u):
+    for k, v in u.items():
+        if isinstance(v, dict):
+            d[k] = recursive_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
+
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
-    """Convert a GameConfig dict or instance to a CppGameConfig."""
+    """Convert a GameConfig to a CppGameConfig."""
 
     if isinstance(mettagrid_config, GameConfig):
         # If it's already a GameConfig instance, convert to dict
@@ -22,7 +31,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # If it's a dict, create a GameConfig instance
         game_config = GameConfig(**mettagrid_config)
 
-    resource_names = list(game_config.inventory_item_names)
+    resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
     objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
@@ -37,29 +46,19 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         # Update, but in a nested way
         if group_config.props:
-            for key, value in group_config.props.model_dump(exclude_unset=True).items():
-                if isinstance(value, dict):
-                    agent_group_props[key].update(value)
-                else:
-                    agent_group_props[key] = value
-
-        # Extract inventory rewards - handle both old and new format for backward compatibility
-        inventory_rewards = {}
-        inventory_reward_max = {}
+            recursive_update(agent_group_props, group_config.props.model_dump(exclude_unset=True))
 
         rewards_config = agent_group_props.get("rewards", {})
-        if rewards_config:
-            inventory_rewards_dict = rewards_config.get("inventory", {})
-
-            # Process inventory rewards
-            for k, v in inventory_rewards_dict.items():
-                if v is not None and not k.endswith("_max"):
-                    if k in resource_name_to_id:
-                        inventory_rewards[resource_name_to_id[k]] = v
-                elif k.endswith("_max") and v is not None:
-                    item_name = k[:-4]
-                    if item_name in resource_name_to_id:
-                        inventory_reward_max[resource_name_to_id[item_name]] = v
+        inventory_rewards = {
+            resource_name_to_id[k]: v
+            for k, v in rewards_config.get("inventory", {}).items()
+            if k in resource_name_to_id
+        }
+        inventory_reward_max = {
+            resource_name_to_id[k]: v
+            for k, v in rewards_config.get("inventory_max", {}).items()
+            if k in resource_name_to_id
+        }
 
         # Process stats rewards
         stat_rewards = {}
@@ -132,13 +131,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             )
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, BoxConfig):
+            returned_resources = game_config.actions.place_box.consumed_resources
             cpp_box_config = CppBoxConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
-                resources_to_create={
-                    resource_name_to_id[k]: v
-                    for k, v in object_config.resources_to_create.items()
-                    if k in resource_name_to_id
+                returned_resources={
+                    resource_name_to_id[k]: v for k, v in returned_resources.items() if k in resource_name_to_id
                 },
             )
             objects_cpp_params[object_type] = cpp_box_config
@@ -169,7 +167,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if not action_config["enabled"]:
             continue
 
-        # Check if any consumed resources are not in inventory_item_names
+        # Check if any consumed resources are not in resource_names
         missing_consumed = []
         for resource in action_config["consumed_resources"].keys():
             if resource not in resource_name_to_id:
@@ -178,8 +176,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if missing_consumed:
             raise ValueError(
                 f"Action '{action_name}' has consumed_resources {missing_consumed} that are not in "
-                f"inventory_item_names. These resources will be ignored, making the action free! "
-                f"Either add these resources to inventory_item_names or disable the action."
+                f"resource_names. These resources will be ignored, making the action free! "
+                f"Either add these resources to resource_names or disable the action."
             )
 
         action_cpp_params = {

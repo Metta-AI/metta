@@ -10,10 +10,10 @@ from metta.mettagrid.mettagrid_config import (
     ActionsConfig,
     ChangeGlyphActionConfig,
     ConverterConfig,
-    EnvConfig,
     GameConfig,
     GlobalObsConfig,
     GroupConfig,
+    MettaGridConfig,
     WallConfig,
 )
 from metta.mettagrid.test_support import ObservationHelper, Orientation, TokenTypes
@@ -24,7 +24,7 @@ NUM_OBS_TOKENS = 50
 @pytest.fixture
 def basic_env() -> MettaGridCore:
     """Create a basic test environment."""
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
             max_steps=1000,
@@ -38,7 +38,7 @@ def basic_env() -> MettaGridCore:
                 get_items=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-            inventory_item_names=["laser", "armor", "heart"],
+            resource_names=["laser", "armor", "heart"],
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#", "#", "#", "#"],
@@ -56,7 +56,7 @@ def basic_env() -> MettaGridCore:
 @pytest.fixture
 def adjacent_agents_env() -> MettaGridCore:
     """Create an environment with adjacent agents."""
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
             max_steps=1000,
@@ -70,7 +70,7 @@ def adjacent_agents_env() -> MettaGridCore:
                 get_items=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-            inventory_item_names=["laser", "armor", "heart"],
+            resource_names=["laser", "armor", "heart"],
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
@@ -237,8 +237,8 @@ class TestObservations:
             ),
         }
 
-        # Create the environment using direct EnvConfig
-        cfg = EnvConfig(
+        # Create the environment using direct MettaGridConfig
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=1,
                 max_steps=10,
@@ -253,7 +253,7 @@ class TestObservations:
                 ),
                 objects=objects,
                 groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
-                inventory_item_names=["laser", "resource1", "resource2"],  # include laser to allow attack
+                resource_names=["laser", "resource1", "resource2"],  # include laser to allow attack
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
@@ -398,7 +398,7 @@ class TestGlobalTokens:
         game_map[2, 4] = "@"
 
         # Create environment with max_steps=10 so that 1 step = 10% completion
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=2,
                 max_steps=10,  # Important: 10 steps total so 1 step = 10%
@@ -418,7 +418,7 @@ class TestGlobalTokens:
                     last_reward=True,
                     resource_rewards=False,
                 ),
-                inventory_item_names=["laser", "armor", "heart"],
+                resource_names=["laser", "armor", "heart"],
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
@@ -489,7 +489,7 @@ class TestGlobalTokens:
         game_map[2, 2] = "@"
 
         # Create environment with change_glyph enabled and 8 glyphs
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=2,
                 max_steps=10,
@@ -507,7 +507,7 @@ class TestGlobalTokens:
                 groups={
                     "agent": GroupConfig(id=0),  # "@" maps to "agent.agent" for both agents
                 },
-                inventory_item_names=["laser", "armor"],
+                resource_names=["laser", "armor"],
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
@@ -808,7 +808,7 @@ class TestEdgeObservations:
         game_map[5, 7] = "_"
 
         # Create environment with 7x7 observation window
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=1,
                 max_steps=50,  # Enough steps to walk around
@@ -835,7 +835,7 @@ class TestEdgeObservations:
                     ),
                 },
                 groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
-                inventory_item_names=["laser", "resource1", "resource2"],  # laser required for attack action
+                resource_names=["laser", "resource1", "resource2"],  # laser required for attack action
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )

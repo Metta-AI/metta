@@ -20,7 +20,6 @@ class ContainerWorkerManager(AbstractWorkerManager):
         self._backend_url = backend_url
         self._docker_image = docker_image
         self._machine_token = machine_token
-        self._logger = logger or logging.getLogger(__name__)
 
     def start_worker(self) -> str:
         """Start a worker using the underlying container manager."""

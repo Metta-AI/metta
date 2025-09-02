@@ -29,8 +29,8 @@ Build the widget assets:
 
 ```bash
 cd experiments/notebooks/utils/eval_finder_widget
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 The widget is now ready to use in your notebooks.
@@ -46,8 +46,8 @@ The widget is now ready to use in your notebooks.
 
 2. Build the JavaScript components:
    ```bash
-   npm install
-   npm run build
+   pnpm install
+   pnpm run build
    ```
 
 ## Development
@@ -65,7 +65,7 @@ For active development, you can use the development mode which provides hot-relo
 2. **Start the Development Server**:
 
    ```bash
-   npm run dev
+   pnpm run dev
    ```
 
    This starts the Vite development server on `http://localhost:5175`
@@ -82,7 +82,7 @@ For production use or when you're done developing:
 1. **Build the Production Assets**:
 
    ```bash
-   npm run build
+   pnpm run build
    ```
 
 2. **Disable Development Mode**: Edit `eval_finder_widget/EvalFinderWidget.py` and set:
@@ -207,7 +207,7 @@ The widget follows the same pattern as the existing scorecard widget:
 ```
 eval_finder_widget/
 ├── README.md
-├── package.json              # npm dependencies and scripts
+├── package.json             # dependencies and scripts
 ├── vite.config.js           # Vite build configuration
 ├── should_build.sh          # Build script
 ├── eval_finder_widget/      # Python package
@@ -230,7 +230,7 @@ eval_finder_widget/
 
 1. **Start Development**:
    - Set `_DEV = True` in `EvalFinderWidget.py`
-   - Run `npm run dev`
+   - Run `pnpm run dev`
    - Start Jupyter and create/modify widgets
 
 2. **Test Changes**:
@@ -240,7 +240,7 @@ eval_finder_widget/
 
 3. **Build for Production**:
    - Set `_DEV = False` in `EvalFinderWidget.py`
-   - Run `npm run build`
+   - Run `pnpm run build`
    - Test the built version
 
 4. **Deploy**:
@@ -250,8 +250,8 @@ eval_finder_widget/
 ## Important Notes
 
 - **Always remember to toggle `_DEV` mode**: Set to `True` for development, `False` for production
-- **Development server must be running**: When `_DEV = True`, ensure `npm run dev` is running
-- **Build before distribution**: Run `npm run build` before setting `_DEV = False`
+- **Development server must be running**: When `_DEV = True`, ensure `pnpm run dev` is running
+- **Build before distribution**: Run `pnpm run build` before setting `_DEV = False`
 - **Uses existing backend**: No new API endpoints required
 
 ## Troubleshooting
@@ -265,11 +265,11 @@ eval_finder_widget/
 ### Development Server Issues
 
 - Ensure port 5175 is available
-- Check that `npm install` completed successfully
+- Check that `pnpm install` completed successfully
 - Verify Vite configuration in `vite.config.js`
 
 ### Build Issues
 
-- Run `npm install` to ensure dependencies are installed
+- Run `pnpm install` to ensure dependencies are installed
 - Check for TypeScript compilation errors during build
 - Verify the built `index.js` file exists in `eval_finder_widget/static/`

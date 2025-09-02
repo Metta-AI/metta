@@ -15,7 +15,7 @@ from typing_extensions import override
 
 from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.mettagrid_c import dtype_actions
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
 class MettaGridGymEnv(MettaGridCore, GymEnv):
@@ -34,7 +34,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
 
     def __init__(
         self,
-        env_config: EnvConfig,
+        env_config: MettaGridConfig,
         render_mode: Optional[str] = None,
     ):
         """

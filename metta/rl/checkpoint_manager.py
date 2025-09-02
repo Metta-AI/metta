@@ -8,6 +8,7 @@ import torch
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
+from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.distribution_utils import get_from_master
@@ -94,7 +95,7 @@ class CheckpointManager:
         policy_to_save: MettaAgent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
 
         # Build metadata
-        name = self.policy_store.make_model_name(epoch)
+        name = f"model_{epoch:04d}.pt"
 
         # Base metadata without evaluation scores
         metadata = {
@@ -144,9 +145,9 @@ class CheckpointManager:
                 )
 
         # Create and save policy record
-        policy_record = self.policy_store.create_empty_policy_record(
-            name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir
-        )
+        path = os.path.join(self.checkpoint_cfg.checkpoint_dir, name)
+        metadata = PolicyMetadata()
+        policy_record = PolicyRecord(self.policy_store, name, f"file://{path}", metadata)
         policy_record.metadata = metadata
         policy_record.policy = policy_to_save
 
@@ -175,7 +176,7 @@ class CheckpointManager:
         and the master creates a new policy record and saves it to default_path."""
 
         # Check if policy already exists at default path - all ranks check this
-        default_model_name = self.policy_store.make_model_name(0)
+        default_model_name = f"model_{0:04d}.pt"
         default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
 
         # First priority: checkpoint
@@ -209,9 +210,9 @@ class CheckpointManager:
         else:
             # No existing policy - all ranks create new one with same structure
             logger.info(f"Rank {self.rank}: No existing policy found, creating new one")
-            new_policy_record = self.policy_store.create_empty_policy_record(
-                checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
-            )
+            path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
+            metadata = PolicyMetadata()
+            new_policy_record = PolicyRecord(self.policy_store, default_model_name, f"file://{path}", metadata)
             new_policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
             # Only master saves the new policy to disk

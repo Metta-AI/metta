@@ -136,7 +136,7 @@ export class GameConfig {
   // Add other game config properties as needed
 }
 
-export class EnvConfig {
+export class MettaGridConfig {
   label: string = ''
   game?: GameConfig
 }
@@ -154,7 +154,7 @@ export class Replay {
   objects: Entity[] = []
   rewardSharingMatrix: number[][] = []
   agents: Entity[] = []
-  envConfig: EnvConfig = new EnvConfig()
+  MettaGridConfig: MettaGridConfig = new MettaGridConfig()
 
   // Generated data.
   typeImages: string[] = []
@@ -544,10 +544,10 @@ function loadReplayJson(url: string, replayJson: any) {
   state.replay.maxSteps = replayData.max_steps
   state.replay.mapSize = replayData.map_size
   state.replay.fileName = replayData.file_name
-  state.replay.envConfig = replayData.env_config
-  if (state.replay.envConfig === undefined) {
-    state.replay.envConfig = new EnvConfig()
-    state.replay.envConfig.label = 'Unlabeled Replay'
+  state.replay.MettaGridConfig = replayData.env_config
+  if (state.replay.MettaGridConfig === undefined) {
+    state.replay.MettaGridConfig = new MettaGridConfig()
+    state.replay.MettaGridConfig.label = 'Unlabeled Replay'
   }
 
   // Go through each grid object and expand its key sequence.
@@ -596,8 +596,8 @@ function loadReplayJson(url: string, replayJson: any) {
 
   console.log('Replay: ', state.replay)
 
-  if (state.replay.envConfig.label !== '') {
-    html.fileName.textContent = state.replay.envConfig.label
+  if (state.replay.MettaGridConfig.label !== '') {
+    html.fileName.textContent = state.replay.MettaGridConfig.label
   } else if (state.replay.fileName !== '') {
     html.fileName.textContent = state.replay.fileName
   } else {

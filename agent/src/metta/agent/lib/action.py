@@ -6,11 +6,26 @@ import metta.agent.lib.nn_layer_library as nn_layer_library
 
 
 class ActionEmbedding(nn_layer_library.Embedding):
-    """The initialize_to_environment method should be called whenever the available actions in the
+    """
+    Creates and manages embeddings for available actions in the environment.
+
+    This class extends the base Embedding layer to specifically handle action embeddings
+    in a reinforcement learning context. It maintains a dictionary mapping action names to
+    embedding indices, and dynamically updates the set of active actions based on what's
+    available in the current environment.
+
+    Key features:
+    - Maintains a mapping between action names (strings) and embedding indices
+    - Dynamically activates subsets of actions when requested
+    - Expands embeddings to match batch dimensions automatically
+    - Stores the number of active actions in the TensorDict for other layers
+
+    The initialize_to_environment method should be called whenever the available actions in the
     environment change, providing the new set of action names and the target device.
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
-    is instantiated and never again. I.e., not when it is reloaded from a saved policy."""
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def __init__(self, initialization="max_0_01", **cfg):
         super().__init__(**cfg)
@@ -23,8 +38,18 @@ class ActionEmbedding(nn_layer_library.Embedding):
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
 
     def initialize_to_environment(self, action_names, device):
-        """Updates active action embeddings based on available actions.
-        Assigns new indices for unseen actions and updates the active_indices tensor."""
+        """
+        Updates the set of active action embeddings based on available actions.
+
+        This method maintains a dictionary mapping action names to embedding indices.
+        When new action names are encountered, they are assigned new indices.
+        The method then creates a tensor of active indices on the specified device
+        and updates the number of active actions.
+
+        Args:
+            action_names (list): List of action names (strings) available in the current environment
+            device (torch.device): Device where the active_indices tensor should be stored
+        """
 
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:

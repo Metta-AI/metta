@@ -130,7 +130,28 @@ class LayerBase(nn.Module):
 
 
 class ParamLayer(LayerBase):
-    """Extension of LayerBase with parameter management, weight initialization, clipping, and regularization."""
+    """
+    Extension of LayerBase that provides parameter management and regularization functionality.
+
+    This class adds weight initialization, clipping, and regularization methods to the base layer
+    functionality. It supports multiple initialization schemes (Orthogonal, Xavier, Normal, and custom),
+    weight clipping to prevent exploding gradients, and L2 regularization options.
+
+    Key features:
+    - Weight initialization with various schemes (Orthogonal, Xavier, Normal, or custom)
+    - Automatic nonlinearity addition (e.g., ReLU) after the weight layer
+    - Weight clipping to prevent exploding gradients
+    - L2 regularization (weight decay)
+    - L2-init regularization (delta regularization) to prevent catastrophic forgetting
+    - Weight metrics computation for analysis and debugging
+
+    The implementation handles computation of appropriate clipping values and initialization
+    scales based on network architecture, and provides methods to compute regularization
+    losses during training.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def __init__(
         self,
@@ -178,7 +199,13 @@ class ParamLayer(LayerBase):
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 
     def _initialize_weights(self):
-        """Initialize weights using specified scheme (Orthogonal, Xavier, Normal, or max_0_01)."""
+        """
+        Initialize weights based on the specified initialization method.
+
+        Supports Orthogonal, Xavier, Normal, and custom max_0_01 initializations.
+        Each method scales weights appropriately based on fan-in and fan-out dimensions.
+        Also initializes biases to zero if present.
+        """
         fan_in = self._in_tensor_shapes[0][0]
         fan_out = self._out_tensor_shape[0]
 

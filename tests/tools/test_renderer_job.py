@@ -18,9 +18,8 @@ from metta.mettagrid.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    EnvConfig,
     GameConfig,
-    InventoryRewards,
+    MettaGridConfig,
 )
 
 
@@ -39,11 +38,11 @@ class TestRendererJob:
     }
 
     @staticmethod
-    def make_debug_env(name: str) -> EnvConfig:
+    def make_debug_env(name: str) -> MettaGridConfig:
         """Create a debug environment programmatically."""
         if name == "tiny_two_altars":
             # Simple environment with two altars
-            return EnvConfig(
+            return MettaGridConfig(
                 label=name,
                 game=GameConfig(
                     num_agents=2,
@@ -59,7 +58,9 @@ class TestRendererJob:
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
-                            inventory=InventoryRewards(heart=1),
+                            inventory={
+                                "heart": 1,
+                            },
                         ),
                     ),
                     map_builder=RandomMapBuilder.Config(
@@ -73,7 +74,7 @@ class TestRendererJob:
             )
         elif name == "simple_obstacles":
             # Environment with walls as obstacles
-            return EnvConfig(
+            return MettaGridConfig(
                 label=name,
                 game=GameConfig(
                     num_agents=2,
@@ -87,7 +88,9 @@ class TestRendererJob:
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
-                            inventory=InventoryRewards(heart=1),
+                            inventory={
+                                "heart": 1,
+                            },
                         ),
                     ),
                     map_builder=RandomMapBuilder.Config(
@@ -101,7 +104,7 @@ class TestRendererJob:
             )
         else:
             # Default environment
-            return EnvConfig(
+            return MettaGridConfig(
                 label=name,
                 game=GameConfig(
                     num_agents=2,
@@ -117,7 +120,9 @@ class TestRendererJob:
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
-                            inventory=InventoryRewards(heart=1),
+                            inventory={
+                                "heart": 1,
+                            },
                         ),
                     ),
                     map_builder=RandomMapBuilder.Config(

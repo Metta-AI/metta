@@ -77,7 +77,23 @@ class LSTMWrapper(nn.Module):
             del self.lstm_c[env_id]
 
     def _manage_lstm_state(self, td, B, TT, device):
-        """Manage LSTM state with automatic reset and detachment."""
+        """Manage LSTM state with automatic reset and detachment.
+
+        This method handles:
+        - Per-environment state tracking
+        - Episode boundary resets
+        - State initialization
+        - Gradient detachment
+
+        Args:
+            td: TensorDict containing environment info
+            B: Batch size
+            TT: Time steps
+            device: Device for tensor allocation
+
+        Returns:
+            tuple: (lstm_h, lstm_c, env_id) ready for LSTM forward pass
+        """
         # Get environment ID for state tracking
         training_env_id_start = td.get("training_env_id_start", None)
         if training_env_id_start is None:
@@ -105,7 +121,16 @@ class LSTMWrapper(nn.Module):
         return lstm_h, lstm_c, training_env_id_start
 
     def _store_lstm_state(self, lstm_h, lstm_c, env_id):
-        """Store LSTM state with automatic detachment to prevent gradient accumulation."""
+        """Store LSTM state with automatic detachment to prevent gradient accumulation.
+
+        CRITICAL: The detach() call here prevents gradients from flowing backward
+        through time infinitely, which would cause memory leaks and training instability.
+
+        Args:
+            lstm_h: LSTM hidden state to store
+            lstm_c: LSTM cell state to store
+            env_id: Environment ID for state tracking
+        """
         self.lstm_h[env_id] = lstm_h.detach()
         self.lstm_c[env_id] = lstm_c.detach()
 
