@@ -6,7 +6,7 @@ import pytest
 
 from metta.sweep.dispatcher.routing import RoutingDispatcher
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
-from metta.sweep.sweep_orchestrator import Dispatcher, JobDefinition, JobTypes, LocalDispatcher
+from metta.sweep import Dispatcher, JobDefinition, JobTypes, LocalDispatcher
 
 # ============================================================================
 # Fixtures
