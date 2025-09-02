@@ -7,6 +7,7 @@ import torch
 
 import gitta as git
 from metta.agent.agent_config import AgentConfig
+from metta.agent.metta_agent import log_on_master
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
