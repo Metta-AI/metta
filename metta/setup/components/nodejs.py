@@ -229,7 +229,7 @@ class NodejsSetup(SetupModule):
 
         # Set environment variables for current process
         os.environ["PNPM_HOME"] = pnpm_home
-        if pnpm_home not in os.environ.get('PATH', '').split(':'):
+        if pnpm_home not in os.environ.get("PATH", "").split(":"):
             os.environ["PATH"] = f"{pnpm_home}:{os.environ['PATH']}"
 
         # Update shell profiles
@@ -311,4 +311,5 @@ class NodejsSetup(SetupModule):
 
         info("Installing dependencies...")
         # pnpm install with frozen lockfile to avoid prompts
-        self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False)
+        # Run from repo root where pnpm-lock.yaml exists
+        self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False, cwd=self.repo_root)
