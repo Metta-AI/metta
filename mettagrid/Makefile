@@ -26,6 +26,13 @@ build-prod:
 
 # Build and run benchmarks
 benchmark:
+	@echo "🔨 Building C++ benchmarks..."
+	bazel build --config=opt //benchmarks:test_mettagrid_env_benchmark
+	@echo "📂 Creating build-release directory..."
+	mkdir -p build-release
+	@echo "📋 Copying benchmark binaries..."
+	cp -f bazel-bin/benchmarks/test_mettagrid_env_benchmark build-release/
+	chmod +x build-release/test_mettagrid_env_benchmark
 	@echo "🏃 Running C++ benchmarks..."
 	bazel run //benchmarks:test_mettagrid_env_benchmark
 	@echo "🏃 Running Python benchmarks..."
