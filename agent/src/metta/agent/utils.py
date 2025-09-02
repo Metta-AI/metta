@@ -129,7 +129,6 @@ def _extract_agent_state(state: dict) -> dict:
         "_load_state_dict_post_hooks",
     }
 
-    # PyTorch module internals
     pytorch_internals = {k for k in state.keys() if k.startswith("_") and k not in excluded_keys}
     agent_keys.update(pytorch_internals)
 

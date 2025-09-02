@@ -316,11 +316,9 @@ class MettaAgent(nn.Module):
                 self._modules = {}
             self.policy = policy
 
-            # Transfer device to policy if available
             if hasattr(self, "device") and self.policy is not None:
                 self.policy.device = self.device
         else:
-            # Normal checkpoint restoration
             self.__dict__.update(state)
 
 
