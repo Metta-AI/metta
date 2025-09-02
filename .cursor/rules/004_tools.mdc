@@ -1,0 +1,46 @@
+---
+description: Tool and script usage guidelines for Metta AI development
+alwaysApply: false
+---
+
+# Tools & Scripts
+
+## Environment Management
+- **UV Package Manager**: Always prefix Python commands with `uv run`
+- **Metta CLI**: Use `metta` commands for project management
+  - `metta status` - Check component status
+  - `metta install` - Install/reinstall components
+  - `metta test` - Run test suite
+  - `metta lint --fix` - Format and fix code
+  - `metta clean` - Clean build artifacts
+
+## Recipe System Commands
+All tools run through `./tools/run.py` with recipe functions:
+
+**Training Recipes:**
+- Arena: `experiments.recipes.arena.train`
+- Navigation: `experiments.recipes.navigation.train`
+
+**Evaluation Recipes:**
+- Arena: `experiments.recipes.arena.evaluate`
+- Navigation: `experiments.recipes.navigation.evaluate`
+
+**Analysis Recipes:**
+- Arena: `experiments.recipes.arena.analyze`
+- Navigation: `experiments.recipes.navigation.analyze`
+
+**Interactive Recipes:**
+- Play: `experiments.recipes.arena.play`
+- Replay: `experiments.recipes.arena.replay`
+
+## Quick Testing Pattern
+```bash
+export TEST_ID=$(date +%Y%m%d_%H%M%S)
+uv run ./tools/run.py experiments.recipes.arena.train run=test_$TEST_ID trainer.total_timesteps=100000
+uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+```
+
+## Configuration System
+- Pydantic-based configs (not Hydra/YAML)
+- Override with command line arguments
+- Use `env_overrides` for environment settings

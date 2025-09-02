@@ -1,0 +1,38 @@
+---
+description: Documentation and planning guidelines for task management
+alwaysApply: false
+---
+
+# Documentation Standards
+
+## Task Planning
+- Use ExitPlanMode tool for larger/ambiguous tasks
+- Create plans in `.claude/tasks/TASK_NAME.md` with:
+  - Clear problem statement
+  - MVP approach (minimal viable solution first)
+  - Step-by-step implementation plan
+  - Success criteria
+- Update plans as living documentation during work
+
+## Plan Template Structure
+```markdown
+# Task: [TASK_NAME]
+## Problem Statement
+[Clear description]
+## MVP Approach  
+[Minimal solution]
+## Implementation Plan
+1. [Step 1]
+2. [Step 2]
+## Success Criteria
+- [ ] [Criterion 1]
+## Implementation Updates
+[Updated during work]
+```
+
+## Documentation Principles
+- Keep concise - focus on what changed and why, not how
+- Document completed steps after major milestones
+- Track deviations from plan with reasoning
+- Don't create unnecessary documentation files unless requested
+- Use real file references with line numbers: `file_path:line_number`

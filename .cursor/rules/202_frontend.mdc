@@ -1,0 +1,47 @@
+---
+description: Frontend development standards for visualization components  
+globs: ["mettascope/**/*", "observatory/**/*", "gridworks/**/*", "**/*.ts", "**/*.tsx"]
+alwaysApply: false
+---
+
+# Frontend Standards
+
+## Project Components
+- **mettascope/**: Interactive visualization/replay (TypeScript)
+- **observatory/**: React training dashboard  
+- **gridworks/**: Next.js web interface
+- **app_backend/**: FastAPI backend integration
+
+## Package Management
+Use `pnpm` for all frontend projects:
+```bash
+cd mettascope && pnpm run dev
+cd observatory && pnpm run dev
+cd gridworks && pnpm run dev
+```
+
+**Note**: Development servers run indefinitely - may hang in Claude Code.
+
+## TypeScript Standards
+- Strict TypeScript configuration
+- Interfaces over types for objects
+- Union types and discriminated unions
+- Leverage TypeScript 5.x+ features
+
+## React Patterns
+- Functional components with hooks
+- Proper error boundaries
+- TypeScript for prop validation  
+- React 18+ concurrent features
+
+## Data Integration
+- **FastAPI**: Connect with app_backend for stats
+- **Real-time**: WebSocket/polling for live metrics
+- **Policy URIs**: Support file:// and wandb:// formats
+- **Visualization**: Handle large training datasets
+
+## Performance
+- Optimize rendering for large datasets
+- Efficient real-time updates
+- Virtualization for long lists/grids
+- Proper loading/error states

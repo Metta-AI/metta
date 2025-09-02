@@ -1,0 +1,51 @@
+---
+description: Python-specific coding standards and formatting for Metta AI
+globs: ["*.py"]
+alwaysApply: false
+---
+
+# Python Standards
+
+## Formatting & Linting
+**CRITICAL**: After editing any Python file:
+```bash
+ruff format [file_path]
+ruff check --fix [file_path]
+```
+
+## Import Organization  
+- All imports at file top (never inside functions)
+- Order: standard library → third-party → local
+- Separate groups with blank lines
+- No lazy imports
+
+## Type Annotations
+**Always annotate**: Function parameters
+**Selectively annotate returns**:
+- Public API functions (not prefixed with `_`)
+- Complex logic/multiple branches  
+- Non-obvious return types
+- Functions returning None
+
+**Modern syntax**: `list[str]`, `type | None` (not `List[str]`, `Optional[type]`)
+
+## Class Design
+- **Private**: `_internal_state`, `_process_data` 
+- **Public**: Only if part of API
+- **Properties**: Use `@property` for computed values
+
+```python
+class MettaComponent:
+    def __init__(self):
+        self._state = {}  # Private
+        
+    @property  
+    def summary(self):  # Public property
+        return self._compute_summary()
+        
+    def _compute_summary(self):  # Private method
+        return "summary"
+```
+
+## Testing Exception
+Tests can access private members (`_private`) for verification.

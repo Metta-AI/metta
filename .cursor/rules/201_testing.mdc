@@ -1,0 +1,49 @@
+---
+description: Testing guidelines and patterns for comprehensive test coverage
+globs: ["tests/**/*.py", "**/test_*.py"]
+alwaysApply: false
+---
+
+# Testing Patterns
+
+## Test Philosophy
+- Independent and idempotent tests
+- One specific behavior per test
+- Cover edge cases and boundaries
+- Mirror project structure in `tests/`
+
+## Test Organization
+- `tests/rl/` - RL components and configs
+- `tests/sim/` - Simulation/evaluation  
+- `tests/map/` - Map generation/loading
+- `tests/mettagrid/` - Environment tests
+
+## Commands (Always UV Run)
+```bash
+# Core testing
+metta test
+uv run pytest tests/
+
+# Specific modules
+metta test tests/rl/test_trainer_config.py -v
+
+# With coverage
+metta test --cov=mettagrid --cov-report=term-missing
+```
+
+## Integration Test Pattern
+```bash
+export TEST_ID=$(date +%Y%m%d_%H%M%S)
+
+# 1. Train briefly
+uv run ./tools/run.py experiments.recipes.arena.train run=test_$TEST_ID trainer.total_timesteps=100000
+
+# 2. Evaluate  
+uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+
+# 3. Analyze
+uv run ./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
+```
+
+## Private Access
+Tests can access `_private` members for thorough verification.

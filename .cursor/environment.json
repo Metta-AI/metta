@@ -1,4 +1,8 @@
 {
-  "install": "./install.sh --profile=softmax-docker",
-  "start": "source .venv/bin/activate"
+  "install": "./install.sh",
+  "start": "source .venv/bin/activate",
+  "test": "metta test",
+  "lint": "metta lint --fix",
+  "status": "metta status",
+  "clean": "metta clean"
 }
