@@ -32,9 +32,6 @@ def send_wandb_alert(
         run_id: W&B run ID
         project: W&B project name
         entity: W&B entity/username
-
-    Raises:
-        RuntimeError: If required parameters are missing
     """
     # Validate parameters
     if not all([title, text, run_id, project, entity]):
@@ -83,12 +80,9 @@ def send_wandb_alert(
             logger.warning(f"Exception during W&B alert '{title}' execution: {e}")
 
 
-def ensure_wandb_run():
+def ensure_wandb_run() -> wandb.Run:
     """
     Ensure a wandb run exists, creating/resuming if needed.
-
-    Returns:
-        wandb.Run object
     """
     try:
         import wandb
@@ -132,7 +126,7 @@ def ensure_wandb_run():
     # Only print URL if not in offline mode
     if wandb_mode != "offline":
         entity = os.environ.get("WANDB_ENTITY", wandb.api.default_entity)
-        print(f"✅ Wandb run: https://wandb.ai/{entity}/{project}/runs/{run_id}", file=sys.stderr)
+        logger.info(f"✅ Wandb run: https://wandb.ai/{entity}/{project}/runs/{run_id}")
 
     return run
 
@@ -145,9 +139,6 @@ def log_to_wandb(metrics: dict[str, Any], step: int = 0, also_summary: bool = Tr
         metrics: Dictionary of key-value pairs to log
         step: The step to log at (default 0)
         also_summary: Whether to also add to wandb.summary (default True)
-
-    Raises:
-        RuntimeError: If logging fails
     """
     run = ensure_wandb_run()
 
@@ -162,7 +153,7 @@ def log_to_wandb(metrics: dict[str, Any], step: int = 0, also_summary: bool = Tr
             for key, value in metrics.items():
                 run.summary[key] = value
 
-        print(f"✅ Logged {len(metrics)} metrics to wandb", file=sys.stderr)
+        logger.info(f"✅ Logged {len(metrics)} metrics to wandb")
 
     except Exception as e:
         raise RuntimeError(f"Failed to log to wandb: {e}") from e
@@ -193,8 +184,8 @@ def log_debug_info() -> None:
         "debug/local_rank": os.environ.get("LOCAL_RANK", "not_set"),
     }
 
-    print("Debug environment:", file=sys.stderr)
+    logger.info("Debug environment:")
     for k, v in debug_metrics.items():
-        print(f"  {k.split('/')[-1]}: {v}", file=sys.stderr)
+        logger.info(f"  {k.split('/')[-1]}: {v}")
 
     log_to_wandb(debug_metrics)

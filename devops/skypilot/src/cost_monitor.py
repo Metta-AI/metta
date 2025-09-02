@@ -21,7 +21,6 @@ import requests  # noqa: E402
 import sky  # noqa: E402
 import sky.clouds  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", stream=sys.stderr)
 logger = logging.getLogger(__name__)
 
 # AWS Instance Metadata Service (IMDS) endpoint

@@ -18,12 +18,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from runtime_monitors import start_monitors
 
-from devops.skypilot import get_cost_info
+from devops.skypilot.src.cost_monitor import get_cost_info
 from devops.skypilot.src.job_latency import calculate_queue_latency
 from gitta import set_skypilot_test_status
 from metta.common.util.discord import send_to_discord
 from metta.common.util.log_config import getRankAwareLogger
-from metta.common.wandb.log_wandb import log_to_wandb
+from metta.common.wandb.utils import log_to_wandb
 
 logger = getRankAwareLogger(__name__)
 

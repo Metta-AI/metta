@@ -12,17 +12,24 @@ These tests actually create wandb runs and verify data is logged correctly.
 """
 
 import os
+import subprocess
+import sys
 import time
 
 import pytest
 import wandb
 
-from metta.common.wandb.log_wandb import (
+from metta.common.wandb.log_wandb import auto_type
+from metta.common.wandb.utils import (
     ensure_wandb_run,
     log_debug_info,
     log_single_value,
     log_to_wandb,
-    parse_value,
+)
+
+# Path to log_wandb.py script for CLI tests
+LOG_WANDB_PY_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "src", "metta", "common", "wandb", "log_wandb.py"
 )
 
 
@@ -240,32 +247,21 @@ def test_log_debug_info(wandb_test_env):
     wandb.finish()
 
 
-def test_parse_value():
-    """Test the parse_value function."""
-    # Test integer parsing
-    assert parse_value("42") == 42
-    assert parse_value("0") == 0
-    assert parse_value("-10") == -10
-
-    # Test float parsing
-    assert parse_value("3.14") == 3.14
-    assert parse_value("0.0") == 0.0
-    assert parse_value("-1.5") == -1.5
-
-    # Test boolean parsing
-    assert parse_value("true") is True
-    assert parse_value("True") is True
-    assert parse_value("false") is False
-    assert parse_value("False") is False
-
-    # Test JSON parsing
-    assert parse_value('{"a": 1, "b": 2}') == {"a": 1, "b": 2}
-    assert parse_value("[1, 2, 3]") == [1, 2, 3]
-    assert parse_value("null") is None
+def test_auto_type():
+    """Test the auto_type function from log_wandb.py."""
+    # Test JSON parsing for complex types
+    assert auto_type("42") == 42
+    assert auto_type("3.14") == 3.14
+    assert auto_type("true") is True
+    assert auto_type("false") is False
+    assert auto_type("null") is None
+    assert auto_type('{"a": 1, "b": 2}') == {"a": 1, "b": 2}
+    assert auto_type("[1, 2, 3]") == [1, 2, 3]
 
     # Test string fallback
-    assert parse_value("hello world") == "hello world"
-    assert parse_value("not-a-number") == "not-a-number"
+    assert auto_type("hello world") == "hello world"
+    assert auto_type("not-a-number") == "not-a-number"
+    assert auto_type("") == ""
 
 
 def test_log_to_wandb_no_summary(wandb_test_env):
@@ -318,6 +314,71 @@ def test_ensure_wandb_run_resume(wandb_test_env):
 
     # Clean up
     wandb.finish()
+
+
+def test_cli_basic(wandb_test_env):
+    """Test the CLI interface for log_wandb.py."""
+    os.environ["METTA_RUN_ID"] = "test-cli-run"
+
+    # Test basic usage
+    result = subprocess.run(
+        [sys.executable, LOG_WANDB_PY_PATH, "test/cli_metric", "42"], capture_output=True, text=True
+    )
+    assert result.returncode == 0
+    assert "42" in result.stdout
+
+    # Clean up
+    if wandb.run is not None:
+        wandb.finish()
+
+
+def test_cli_with_step(wandb_test_env):
+    """Test CLI with step parameter."""
+    os.environ["METTA_RUN_ID"] = "test-cli-step"
+
+    result = subprocess.run(
+        [sys.executable, LOG_WANDB_PY_PATH, "accuracy", "0.95", "--step", "1000"], capture_output=True, text=True
+    )
+    assert result.returncode == 0
+    assert "0.95" in result.stdout
+
+    # Clean up
+    if wandb.run is not None:
+        wandb.finish()
+
+
+def test_cli_stdin(wandb_test_env):
+    """Test CLI reading from stdin."""
+    os.environ["METTA_RUN_ID"] = "test-cli-stdin"
+
+    result = subprocess.run([sys.executable, LOG_WANDB_PY_PATH, "pi"], input="3.14159", capture_output=True, text=True)
+    assert result.returncode == 0
+    assert "3.14159" in result.stdout
+
+    # Clean up
+    if wandb.run is not None:
+        wandb.finish()
+
+
+def test_cli_debug(wandb_test_env):
+    """Test CLI debug mode."""
+    os.environ["METTA_RUN_ID"] = "test-cli-debug"
+
+    result = subprocess.run([sys.executable, LOG_WANDB_PY_PATH, "--debug"], capture_output=True, text=True)
+    assert result.returncode == 0
+
+    # Clean up
+    if wandb.run is not None:
+        wandb.finish()
+
+
+def test_cli_error_no_key(wandb_test_env):
+    """Test CLI error when no key provided."""
+    os.environ["METTA_RUN_ID"] = "test-cli-error"
+
+    result = subprocess.run([sys.executable, LOG_WANDB_PY_PATH], capture_output=True, text=True)
+    assert result.returncode != 0
+    assert "Key is required" in result.stderr
 
 
 def log_wandb_live_test():

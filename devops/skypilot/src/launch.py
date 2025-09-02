@@ -23,7 +23,7 @@ from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
 
-logger = logging.getLogger("launch.py")
+logger = logging.getLogger(__name__)
 
 
 def _validate_run_tool(module_path: str, run_id: str, filtered_args: list, overrides: list) -> None:
