@@ -18,8 +18,10 @@ from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.util.file import WANDB_ENTITY, WandbURI
 from metta.rl.checkpoint_manager import CheckpointManager, expand_wandb_uri, key_and_version
 from metta.rl.system_config import SystemConfig
+from metta.rl.wandb import upload_checkpoint_as_artifact
 
 
 @pytest.fixture
@@ -442,6 +444,68 @@ class TestEndToEndWorkflows:
             metadata = CheckpointManager.get_policy_metadata(uri)
             assert metadata["run_name"] == "cross_test"
             assert metadata["epoch"] == 5
+
+
+class TestWandbArtifactFormatting:
+    """Test wandb artifact URI formatting to prevent double entity issues."""
+
+    def test_artifact_qualified_name_to_uri_conversion(self):
+        """Test that qualified names are correctly converted to wandb:// URIs.
+
+        This test prevents the bug where qualified_name format (entity/project/artifact:version)
+        gets double-prefixed with entity when parsed as a URI.
+        """
+        # Simulate what WandB's artifact.qualified_name returns
+        qualified_names = [
+            "metta-research/metta/relh.policy-cull.902.1:v0",
+            "metta-research/metta/my-run-name:latest",
+            "test-entity/test-project/artifact-name:v42",
+        ]
+
+        for qualified_name in qualified_names:
+            # This simulates the logic in upload_checkpoint_as_artifact
+            parts = qualified_name.split("/", 2)  # Split into at most 3 parts
+
+            # Should always have 3 parts: entity, project, artifact:version
+            assert len(parts) == 3, f"Qualified name should have 3 parts: {qualified_name}"
+
+            entity, project, artifact_with_version = parts
+            wandb_uri = f"wandb://{project}/{artifact_with_version}"
+
+            # Verify the URI format is correct
+            assert wandb_uri.startswith("wandb://"), "Should start with wandb://"
+            assert entity not in wandb_uri[8:], f"Entity '{entity}' should not appear in URI path: {wandb_uri}"
+
+            # Verify parsing the URI won't cause double entity issue
+            parsed_uri = WandbURI.parse(wandb_uri)
+            qname = parsed_uri.qname()
+
+            # The qname should use the configured WANDB_ENTITY, not the original entity
+            # This is the correct behavior - we always use the configured entity
+            expected_qname = f"{WANDB_ENTITY}/{project}/{artifact_with_version}"
+            assert qname == expected_qname, f"Expected {expected_qname}, got {qname}"
+
+    def test_upload_checkpoint_returns_proper_uri_format(self):
+        """Test that upload_checkpoint_as_artifact returns wandb:// URI, not qualified name."""
+
+        # Mock the wandb artifact and run
+        mock_artifact = Mock()
+        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
+        mock_artifact.wait = Mock()
+
+        mock_run = Mock()
+        mock_run.log_artifact = Mock()
+
+        with patch("wandb.Artifact", return_value=mock_artifact):
+            with patch("wandb.run", mock_run):
+                with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
+                    result = upload_checkpoint_as_artifact(
+                        checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
+                    )
+
+                    # Should return wandb:// URI, not qualified name
+                    assert result == "wandb://metta/test-artifact:v1"
+                    assert not result.startswith("metta-research/"), "Should not start with entity"
 
 
 if __name__ == "__main__":

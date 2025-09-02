@@ -185,6 +185,18 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
+    # Return proper wandb:// URI instead of qualified name to avoid double entity issue
+    # qualified_name format: entity/project/artifact_name:version
+    # But we want wandb:// URI format: wandb://project/artifact_name:version
     qualified_name = artifact.qualified_name
     logger.info(f"Uploaded checkpoint as wandb artifact: {qualified_name}")
-    return qualified_name
+
+    # Extract project/artifact_name:version from entity/project/artifact_name:version
+    parts = qualified_name.split("/", 2)  # Split into at most 3 parts
+    if len(parts) >= 3:
+        # Skip entity, take project/artifact_name:version
+        wandb_uri = f"wandb://{parts[1]}/{parts[2]}"
+        return wandb_uri
+    else:
+        # Fallback to qualified name if parsing fails
+        return qualified_name
