@@ -185,6 +185,43 @@ class WandBDashboardMCPServer:
                     },
                 ),
                 types.Tool(
+                    name="remove_panel",
+                    description="Remove an existing panel from a dashboard",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "dashboard_url": {"type": "string", "description": "URL of the dashboard"},
+                            "panel_identifier": {
+                                "type": "object",
+                                "description": "How to identify the panel to remove",
+                                "properties": {
+                                    "index": {"type": "integer", "description": "Index of the panel (0-based)"},
+                                    "search_text": {
+                                        "type": "string",
+                                        "description": "Search for panel containing this text",
+                                    },
+                                    "block_type": {
+                                        "type": "string",
+                                        "enum": ["markdown", "h1", "h2", "h3"],
+                                        "description": "Type of block to find",
+                                    },
+                                    "occurrence": {
+                                        "type": "integer",
+                                        "description": "Which occurrence of block_type (0-based)",
+                                        "default": 0,
+                                    },
+                                },
+                                "oneOf": [
+                                    {"required": ["index"]},
+                                    {"required": ["search_text"]},
+                                    {"required": ["block_type"]},
+                                ],
+                            },
+                        },
+                        "required": ["dashboard_url", "panel_identifier"],
+                    },
+                ),
+                types.Tool(
                     name="list_available_metrics",
                     description="List available metrics for a project to use in dashboards",
                     inputSchema={
@@ -274,6 +311,11 @@ class WandBDashboardMCPServer:
                         dashboard_url=arguments["dashboard_url"],
                         panel_identifier=arguments["panel_identifier"],
                         new_content=arguments["new_content"],
+                    )
+                elif name == "remove_panel":
+                    result = await self.tools.remove_panel(
+                        dashboard_url=arguments["dashboard_url"],
+                        panel_identifier=arguments["panel_identifier"],
                     )
                 elif name == "list_available_metrics":
                     result = await self.tools.list_available_metrics(

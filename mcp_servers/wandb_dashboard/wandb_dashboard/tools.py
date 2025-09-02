@@ -222,6 +222,27 @@ class WandBDashboardTools:
             error_result = {"status": "error", "message": f"Failed to update panel: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
+    async def remove_panel(self, dashboard_url: str, panel_identifier: dict) -> str:
+        """Remove an existing panel from a dashboard."""
+        try:
+            logger.info(f"Removing panel from dashboard: {dashboard_url}")
+
+            # Remove the panel using the WandB API
+            removal_result = await self.client.remove_panel(dashboard_url, panel_identifier)
+
+            result = {
+                "status": "success",
+                "message": "Panel removed successfully",
+                "removal": removal_result,
+            }
+
+            return json.dumps(result, indent=2)
+
+        except Exception as e:
+            logger.error(f"Failed to remove panel: {e}")
+            error_result = {"status": "error", "message": f"Failed to remove panel: {str(e)}"}
+            return json.dumps(error_result, indent=2)
+
     async def delete_dashboard(self, dashboard_url: str) -> str:
         """Delete an existing dashboard using the WandB API."""
         try:
@@ -255,6 +276,7 @@ class WandBDashboardTools:
                 "get_dashboard_config",
                 "add_panel",
                 "update_panel",
+                "remove_panel",
                 "clone_dashboard",
                 "delete_dashboard",
             ],

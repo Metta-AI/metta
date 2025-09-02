@@ -876,6 +876,122 @@ class WandBClient:
             logger.error(f"Failed to update panel: {e}")
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
+    async def remove_panel(self, dashboard_url: str, panel_identifier: dict) -> Dict[str, Any]:
+        """Remove an existing panel/block from a dashboard."""
+        try:
+            logger.info(f"Removing panel from dashboard: {dashboard_url}")
+
+            # Load the existing report
+            logger.info("Loading existing report for panel removal...")
+            report = wr.Report.from_url(dashboard_url)
+
+            original_blocks_count = len(report.blocks) if hasattr(report.blocks, "__len__") else 0
+            logger.info(f"Loaded report: '{report.title}' with {original_blocks_count} blocks")
+
+            # Find the target panel/block to remove
+            target_index = None
+            target_block = None
+            original_content = None
+
+            # Method 1: Remove by index
+            if "index" in panel_identifier:
+                index = panel_identifier["index"]
+                if 0 <= index < len(report.blocks):
+                    target_index = index
+                    target_block = report.blocks[index]
+                    original_content = target_block.text
+                    logger.info(f"Found panel to remove by index {index}: {type(target_block).__name__}")
+                else:
+                    return {
+                        "status": "error",
+                        "error": f"Panel index {index} out of range (0-{len(report.blocks) - 1})",
+                        "url": dashboard_url,
+                    }
+
+            # Method 2: Remove by content search
+            elif "search_text" in panel_identifier:
+                search_text = panel_identifier["search_text"]
+                for i, block in enumerate(report.blocks):
+                    if hasattr(block, "text") and search_text in block.text:
+                        target_index = i
+                        target_block = block
+                        original_content = block.text
+                        logger.info(
+                            f"Found panel to remove by search '{search_text}' at index {i}: {type(block).__name__}"
+                        )
+                        break
+
+                if target_block is None:
+                    return {
+                        "status": "error",
+                        "error": f"No panel found containing text: '{search_text}'",
+                        "url": dashboard_url,
+                    }
+
+            # Method 3: Remove by block type
+            elif "block_type" in panel_identifier:
+                block_type = panel_identifier["block_type"].lower()
+                type_map = {"markdown": "MarkdownBlock", "h1": "H1", "h2": "H2", "h3": "H3"}
+
+                target_type = type_map.get(block_type, block_type)
+                occurrence = panel_identifier.get("occurrence", 0)  # Which occurrence of this type
+
+                matching_blocks = []
+                for i, block in enumerate(report.blocks):
+                    if type(block).__name__ == target_type:
+                        matching_blocks.append((i, block))
+
+                if occurrence < len(matching_blocks):
+                    target_index, target_block = matching_blocks[occurrence]
+                    original_content = target_block.text
+                    logger.info(f"Found {target_type} block #{occurrence} to remove at index {target_index}")
+                else:
+                    return {
+                        "status": "error",
+                        "error": f"No {target_type} block found at occurrence #{occurrence}",
+                        "url": dashboard_url,
+                    }
+
+            else:
+                return {
+                    "status": "error",
+                    "error": "Panel identifier must include 'index', 'search_text', or 'block_type'",
+                    "url": dashboard_url,
+                }
+
+            # Remove the panel
+            logger.info(f"Removing block at index {target_index}")
+            logger.info(f"Removing content: {repr(original_content[:100])}")
+
+            removed_block = report.blocks.pop(target_index)
+
+            # Save the updated report
+            logger.info("Saving report after panel removal...")
+            result = report.save(draft=False, clone=False)
+
+            new_blocks_count = len(report.blocks) if hasattr(report.blocks, "__len__") else 0
+            logger.info(f"Successfully removed panel from dashboard: {result.url}")
+
+            return {
+                "status": "success",
+                "message": "Panel removed successfully",
+                "dashboard_url": str(result.url),
+                "removed_panel": {
+                    "original_index": target_index,
+                    "type": type(removed_block).__name__,
+                    "identifier": panel_identifier,
+                    "content": original_content,
+                },
+                "blocks_before": original_blocks_count,
+                "blocks_after": new_blocks_count,
+                "blocks_removed_count": 1,
+                "note": "Panel removed from dashboard - remaining panels reindexed automatically",
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to remove panel: {e}")
+            return {"status": "error", "error": str(e), "url": dashboard_url}
+
     async def delete_dashboard(self, dashboard_url: str) -> dict:
         """Delete an existing WandB dashboard/report.
 
