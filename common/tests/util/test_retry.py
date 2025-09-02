@@ -1,178 +1,126 @@
-"""Tests for the retry_on_exception decorator."""
+"""Tests for the retry utilities with exponential backoff and jitter."""
 
 import logging
-import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
-from metta.common.util.retry import retry_function, retry_on_exception
-
-
-class TestRetryDecorator:
-    """Test the retry_on_exception decorator."""
-
-    def test_retry_on_exception_success_first_try(self):
-        """Test that function succeeds on first try without retries."""
-        mock_func = Mock(return_value="success")
-
-        @retry_on_exception(max_retries=3, retry_delay=0.1)
-        def test_func():
-            return mock_func()
-
-        result = test_func()
-        assert result == "success"
-        assert mock_func.call_count == 1
-
-    def test_retry_on_exception_success_after_retries(self):
-        """Test that function succeeds after some retries."""
-        mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
-
-        @retry_on_exception(max_retries=3, retry_delay=0.1)
-        def test_func():
-            return mock_func()
-
-        result = test_func()
-        assert result == "success"
-        assert mock_func.call_count == 3  # Initial + 2 retries
-
-    def test_retry_on_exception_all_retries_fail(self):
-        """Test that exception is raised after all retries fail."""
-        mock_func = Mock(side_effect=Exception("always fails"))
-
-        @retry_on_exception(max_retries=3, retry_delay=0.1)
-        def test_func():
-            return mock_func()
-
-        with pytest.raises(Exception, match="always fails"):
-            test_func()
-
-        assert mock_func.call_count == 4  # Initial + 3 retries
-
-    def test_retry_on_exception_with_specific_exceptions(self):
-        """Test that only specific exceptions trigger retries."""
-        mock_func = Mock(side_effect=[ValueError("retry this"), RuntimeError("don't retry")])
-
-        @retry_on_exception(max_retries=3, retry_delay=0.1, exceptions=(ValueError,))
-        def test_func():
-            return mock_func()
-
-        # Should retry on ValueError but not on RuntimeError
-        with pytest.raises(RuntimeError, match="don't retry"):
-            test_func()
-
-        assert mock_func.call_count == 2  # First ValueError, then RuntimeError
-
-    def test_retry_on_exception_with_logger(self, caplog):
-        """Test that retry attempts are logged correctly."""
-        mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
-        logger = logging.getLogger("test_logger")
-
-        @retry_on_exception(max_retries=3, retry_delay=0.1, logger=logger)
-        def test_func():
-            return mock_func()
-
-        with caplog.at_level(logging.INFO):
-            result = test_func()
-
-        assert result == "success"
-        assert "test_func failed: fail 1" in caplog.text  # Initial attempt
-        assert "test_func failed (retry 1/3): fail 2" in caplog.text  # First retry
-        assert "Retrying in 0.1 seconds..." in caplog.text
-
-    def test_retry_on_exception_preserves_function_attributes(self):
-        """Test that decorator preserves function name and docstring."""
-
-        @retry_on_exception(max_retries=3, retry_delay=0.1)
-        def test_func():
-            """Test function docstring."""
-            return "result"
-
-        assert test_func.__name__ == "test_func"
-        assert test_func.__doc__ == "Test function docstring."
-
-    def test_retry_delay_timing(self):
-        """Test that retry delays are applied correctly."""
-        mock_func = Mock(side_effect=[Exception("fail"), "success"])
-        retry_delay = 0.2
-
-        @retry_on_exception(max_retries=2, retry_delay=retry_delay)
-        def test_func():
-            return mock_func()
-
-        start_time = time.time()
-        result = test_func()
-        elapsed_time = time.time() - start_time
-
-        assert result == "success"
-        assert elapsed_time >= retry_delay
-        assert elapsed_time < retry_delay + 0.1  # Allow some margin
+from metta.common.util.retry import calculate_backoff_delay, retry_function, retry_on_exception
 
 
 class TestRetryFunction:
     """Test the retry_function utility."""
 
-    def test_retry_function_success_first_try(self):
-        """Test that function succeeds on first try without retries."""
+    def test_basic_retry_scenarios(self):
+        """Test basic retry scenarios: success, retry then success, and all fail."""
+        # Success on first try
         mock_func = Mock(return_value="success")
-
-        result = retry_function(mock_func, max_retries=3, retry_delay=0.1)
-
-        assert result == "success"
+        assert retry_function(mock_func, initial_delay=0.01) == "success"
         assert mock_func.call_count == 1
 
-    def test_retry_function_success_after_retries(self):
-        """Test that function succeeds after some retries."""
-        mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
+        # Success after retries
+        mock_func = Mock(side_effect=[Exception("fail"), "success"])
+        assert retry_function(mock_func, initial_delay=0.01) == "success"
+        assert mock_func.call_count == 2
 
-        result = retry_function(mock_func, max_retries=3, retry_delay=0.1)
-
-        assert result == "success"
-        assert mock_func.call_count == 3
-
-    def test_retry_function_all_retries_fail(self):
-        """Test that exception is raised after all retries fail."""
+        # All retries fail
         mock_func = Mock(side_effect=Exception("always fails"))
-
         with pytest.raises(Exception, match="always fails"):
-            retry_function(mock_func, max_retries=3, retry_delay=0.1)
+            retry_function(mock_func, max_retries=2, initial_delay=0.01)
+        assert mock_func.call_count == 3  # Initial + 2 retries
 
-        assert mock_func.call_count == 4  # Initial + 3 retries
-
-    def test_retry_function_with_lambda(self):
-        """Test that retry_function works with lambda functions."""
-        counter = {"value": 0}
-
-        def failing_func():
-            counter["value"] += 1
-            if counter["value"] < 3:
-                raise ValueError(f"Attempt {counter['value']} failed")
-            return "success"
-
-        result = retry_function(lambda: failing_func(), max_retries=3, retry_delay=0.1)
-
-        assert result == "success"
-        assert counter["value"] == 3
-
-    def test_retry_function_with_specific_exceptions(self):
+    def test_specific_exceptions(self):
         """Test that only specific exceptions trigger retries."""
-        mock_func = Mock(side_effect=[ValueError("retry this"), RuntimeError("don't retry")])
+        mock_func = Mock(side_effect=[ValueError("retry"), RuntimeError("don't retry")])
 
         with pytest.raises(RuntimeError, match="don't retry"):
-            retry_function(mock_func, max_retries=3, retry_delay=0.1, exceptions=(ValueError,))
+            retry_function(mock_func, exceptions=(ValueError,), initial_delay=0.01)
 
-        assert mock_func.call_count == 2  # First ValueError, then RuntimeError
+        assert mock_func.call_count == 2  # ValueError retried, RuntimeError not
 
-    def test_retry_function_with_logger(self, caplog):
-        """Test that retry attempts are logged correctly."""
-        mock_func = Mock(side_effect=[Exception("fail 1"), Exception("fail 2"), "success"])
-        logger = logging.getLogger("test_logger")
+    @patch("time.sleep")
+    @patch("random.uniform", side_effect=lambda a, b: b)  # Disable jitter
+    def test_exponential_backoff(self, mock_random, mock_sleep):
+        """Test exponential backoff timing."""
+        mock_func = Mock(side_effect=[Exception("fail")] * 3 + ["success"])
 
-        with caplog.at_level(logging.WARNING):
-            result = retry_function(
-                mock_func, max_retries=3, retry_delay=0.1, error_prefix="Test operation failed", logger=logger
-            )
+        retry_function(
+            mock_func,
+            max_retries=3,
+            initial_delay=1.0,
+            max_delay=10.0,
+            backoff_factor=2.0,
+        )
+
+        # Verify exponential delays: 1, 2, 4
+        sleep_delays = [call[0][0] for call in mock_sleep.call_args_list]
+        assert sleep_delays == [1.0, 2.0, 4.0]
+
+    def test_with_logger(self, caplog):
+        """Test logging output."""
+        mock_func = Mock(side_effect=[Exception("error"), "success"])
+        logger = logging.getLogger("test")
+
+        with caplog.at_level(logging.INFO):
+            retry_function(mock_func, initial_delay=0.01, logger=logger)
+
+        assert "Function failed: error" in caplog.text
+        assert "Retrying in" in caplog.text
+
+
+class TestRetryDecorator:
+    """Test the retry_on_exception decorator."""
+
+    def test_decorator_basic_functionality(self):
+        """Test decorator works with functions and preserves metadata."""
+        call_count = 0
+
+        @retry_on_exception(max_retries=2, initial_delay=0.01)
+        def flaky_function(value):
+            """Test function docstring."""
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise ValueError("Not yet!")
+            return f"success: {value}"
+
+        # Test it works
+        assert flaky_function("test") == "success: test"
+        assert call_count == 2
+
+        # Test metadata preserved
+        assert flaky_function.__name__ == "flaky_function"
+        assert flaky_function.__doc__ == "Test function docstring."
+
+    @patch("time.sleep")
+    def test_decorator_uses_retry_function(self, mock_sleep):
+        """Test that decorator properly uses retry_function internally."""
+        mock_func = Mock(side_effect=[Exception("fail"), "success"])
+
+        @retry_on_exception(initial_delay=0.5, max_retries=1)
+        def test_func():
+            return mock_func()
+
+        result = test_func()
 
         assert result == "success"
-        assert "Test operation failed: fail 1" in caplog.text  # Initial attempt
-        assert "Test operation failed (retry 1/3): fail 2" in caplog.text  # First retry
+        assert mock_func.call_count == 2
+        mock_sleep.assert_called_once()  # Should sleep once between retries
+
+
+class TestBackoffCalculation:
+    """Test the backoff delay calculation."""
+
+    def test_calculate_backoff_delay(self):
+        """Test backoff calculation with and without jitter."""
+        # Test exponential growth (with jitter disabled)
+        with patch("random.uniform", side_effect=lambda a, b: b):
+            assert calculate_backoff_delay(0) == 1.0
+            assert calculate_backoff_delay(1) == 2.0
+            assert calculate_backoff_delay(2) == 4.0
+            assert calculate_backoff_delay(5, max_delay=10.0) == 10.0  # Capped at max
+
+        # Test jitter adds randomness
+        delays = [calculate_backoff_delay(2, initial_delay=4.0) for _ in range(10)]
+        assert all(0 <= d <= 4.0 for d in delays)  # Jitter between 0 and max
+        assert len(set(delays)) > 1  # Should have different values

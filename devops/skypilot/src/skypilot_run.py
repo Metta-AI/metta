@@ -13,16 +13,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
-
-from runtime_monitors import start_monitors
-
 from devops.skypilot.src.cost_monitor import get_cost_info
 from devops.skypilot.src.job_latency import calculate_queue_latency
-from gitta import set_skypilot_test_status
+from devops.skypilot.src.runtime_monitors import start_monitors
+from gitta import post_commit_status
+from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 from metta.common.util.discord import send_to_discord
 from metta.common.util.log_config import getRankAwareLogger
+from metta.common.util.retry import retry_function
 from metta.common.wandb.utils import log_to_wandb
 
 logger = getRankAwareLogger(__name__)
@@ -171,6 +169,61 @@ def run_training() -> int:
     return exit_code
 
 
+def set_github_status(exit_code: int, state: str, description: str):
+    """Update GitHub commit status."""
+    # Early exit if disabled
+    if not is_master or not enable_github_status:
+        return
+
+    # Load all environment variables
+    commit_sha = os.environ.get("METTA_GIT_REF", "").strip()
+    token = os.environ.get("GITHUB_PAT", "").strip()
+    context = os.environ.get("GITHUB_STATUS_CONTEXT", "Skypilot/E2E").strip()
+    wandb_run_id = os.environ.get("METTA_RUN_ID", "").strip()
+    job_id = os.environ.get("SKYPILOT_JOB_ID", "").strip()
+
+    if not all([state, description, commit_sha, token, job_id]):
+        logger.warning("Missing required parameters for GitHub status")
+        return
+
+    # Build description
+    desc = description
+    if exit_code and exit_code != 0 and state in ["failure", "error"]:
+        desc += f" (exit code {exit_code})"
+
+    if job_id:
+        logger.info(f"Setting GitHub status for job {job_id}")
+        desc += f" - [ jl {job_id} ]"
+
+    # Build target URL
+    target_url = f"https://wandb.ai/metta-research/metta/runs/{wandb_run_id}" if wandb_run_id else None
+    if target_url:
+        logger.info(f"Target URL: {target_url}")
+
+    logger.info(f"Setting GitHub status: {state} - {desc}")
+
+    retry_function(
+        lambda: post_commit_status(
+            commit_sha=commit_sha,
+            state=state,
+            repo=None,
+            context=context,
+            description=desc,
+            target_url=target_url,
+            token=token,
+        ),
+        max_retries=3,
+        initial_delay=2.0,
+        max_delay=30.0,
+        error_prefix="Failed to post GitHub status",
+        logger=logger,
+    )
+
+    # Log success
+    display_repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+    logger.info(f"{display_repo}@{commit_sha[:8]} -> {state} ({context})")
+
+
 def send_discord_notification(emoji: str, title: str, status_msg: str, additional_info: str = "", exit_code: int = 0):
     """Send Discord notification directly using the discord module."""
     if not is_master or not enable_discord:
@@ -250,48 +303,6 @@ def send_discord_notification(emoji: str, title: str, status_msg: str, additiona
 
     except Exception as e:
         logger.warning(f"Failed to send Discord notification: {e}")
-
-
-def set_github_status(exit_code: int, state: str, description: str):
-    """Update GitHub commit status."""
-    if not is_master or not enable_github_status:
-        return
-
-    if not state or not description:
-        return
-
-    # Get required environment variables
-    commit_sha = os.environ.get("METTA_GIT_REF", "").strip()
-    token = os.environ.get("GITHUB_PAT", "").strip()
-    context = os.environ.get("GITHUB_STATUS_CONTEXT", "Skypilot/E2E").strip()
-
-    if not all([commit_sha, token]):
-        logger.warning("Missing required environment variables for GitHub status")
-        return
-
-    # Get optional parameters
-    job_id = os.environ.get("SKYPILOT_JOB_ID", "").strip()
-    if not job_id and Path("/tmp/.sky_tmp/sky_job_id").exists():
-        try:
-            job_id = Path("/tmp/.sky_tmp/sky_job_id").read_text().strip()
-        except Exception as e:
-            logger.warning(f"Could not read SkyPilot job ID: {e}")
-
-    wandb_run_id = os.environ.get("METTA_RUN_ID")
-
-    success = set_skypilot_test_status(
-        state=state,
-        description=description,
-        commit_sha=commit_sha,
-        token=token,
-        context=context,
-        exit_code=exit_code,
-        job_id=job_id,
-        wandb_run_id=wandb_run_id,
-    )
-
-    if not success:
-        logger.warning("Failed to set GitHub status")
 
 
 def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, str, int]:
