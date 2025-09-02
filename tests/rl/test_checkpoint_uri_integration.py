@@ -479,39 +479,10 @@ class TestWandbArtifactFormatting:
             assert len(parts) == 3, f"qname should have exactly 3 parts, got: {qname}"
 
     def test_upload_checkpoint_returns_proper_uri_format(self):
-        """Test that upload_checkpoint_as_artifact returns wandb:// URI built from components."""
+        """Test that upload_checkpoint_as_artifact converts qualified_name to wandb:// URI."""
 
-        # Mock the wandb artifact and run with the properties we need
         mock_artifact = Mock()
-        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"  # For logging
-        mock_artifact.version = "v1"  # The actual version we use
-        mock_artifact.wait = Mock()
-
-        mock_run = Mock()
-        mock_run.project = "metta"  # The project we use to build the URI
-        mock_run.log_artifact = Mock()
-
-        with patch("wandb.Artifact", return_value=mock_artifact):
-            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
-                result = upload_checkpoint_as_artifact(
-                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
-                )
-
-                # Should return clean wandb:// URI built from components
-                assert result == "wandb://metta/test-artifact:v1"
-                assert result.startswith("wandb://"), "Should start with wandb://"
-
-                # Verify the components are used correctly
-                mock_run.log_artifact.assert_called_once_with(mock_artifact)
-                mock_artifact.wait.assert_called_once()
-
-    def test_upload_checkpoint_handles_none_version(self):
-        """Test that upload_checkpoint_as_artifact handles None version gracefully."""
-
-        # Test case where artifact.version is None (newly created artifact)
-        mock_artifact = Mock()
-        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v2"  # Contains version info
-        mock_artifact.version = None  # This is None for new artifacts
+        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
         mock_artifact.wait = Mock()
 
         mock_run = Mock()
@@ -524,18 +495,32 @@ class TestWandbArtifactFormatting:
                     checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
                 )
 
-                # Should extract version from qualified_name
-                assert result == "wandb://metta/test-artifact:v2"
+                # Should convert qualified_name to wandb:// URI by removing entity
+                assert result == "wandb://metta/test-artifact:v1"
+                assert result.startswith("wandb://"), "Should start with wandb://"
 
-        # Test case where qualified_name also has None version
-        mock_artifact.qualified_name = "metta-research/metta/test-artifact:None"
+                # Verify the artifact upload happened
+                mock_run.log_artifact.assert_called_once_with(mock_artifact)
+                mock_artifact.wait.assert_called_once()
+
+    def test_upload_checkpoint_handles_malformed_qualified_name(self):
+        """Test fallback when qualified_name is malformed."""
+
+        mock_artifact = Mock()
+        mock_artifact.qualified_name = "malformed_name_without_slashes"  # No slashes
+        mock_artifact.wait = Mock()
+
+        mock_run = Mock()
+        mock_run.project = "metta"
+        mock_run.log_artifact = Mock()
+
         with patch("wandb.Artifact", return_value=mock_artifact):
             with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
                 result = upload_checkpoint_as_artifact(
                     checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
                 )
 
-                # Should fallback to "latest"
+                # Should fallback to constructing URI from run.project and artifact_name
                 assert result == "wandb://metta/test-artifact:latest"
 
 
