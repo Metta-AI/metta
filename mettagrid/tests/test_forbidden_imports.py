@@ -6,11 +6,7 @@ from typing import Iterable
 
 ALLOWED_METTA_PACKAGES = ["metta.mettagrid", "metta.common"]
 
-EXCLUDE_FILES = set(
-    [
-        "metta/mettagrid/mapgen/utils/show.py",  # uses conditional imports of mettascope, for now
-    ]
-)
+EXCLUDE_FILES = set()
 
 
 def find_forbidden_imports(file_path: Path) -> list[ast.stmt]:
