@@ -25,6 +25,7 @@ class BaseMettaSetupTest(unittest.TestCase):
     def setUpClass(cls):
         """Set up test environment once for the entire test class."""
         super().setUpClass()
+        print("just changing this line to cause CI to run")
 
         # Create temporary directory for the class
         cls.temp_dir = tempfile.mkdtemp(prefix="metta_test_class_")
