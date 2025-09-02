@@ -91,12 +91,7 @@ def _extract_components(state: dict):
 
 
 def _extract_agent_state(state: dict) -> dict:
-    """Extract MettaAgent-specific state from old checkpoint.
-
-    Excludes component-specific keys and includes everything else MettaAgent needs.
-    """
-    # Keys that should NOT go to MettaAgent (they belong to policy)
+    """Extract MettaAgent-specific state from old checkpoint."""
     policy_only_keys = {"components", "_modules", "components_with_memory", "clip_range", "agent_attributes"}
 
-    # Return everything except policy-only keys
     return {k: v for k, v in state.items() if k not in policy_only_keys}
