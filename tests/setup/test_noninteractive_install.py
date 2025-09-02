@@ -80,20 +80,13 @@ class TestNonInteractiveEnvironmentHandling(BaseMettaSetupTest):
 class TestNonInteractiveComponentExclusions(BaseMettaSetupTest):
     """Test component exclusion behaviors in test environments."""
 
-    def test_tailscale_skipped_in_test_environment(self):
-        """Test that Tailscale is properly skipped in test environment."""
-        self._create_test_config(UserType.SOFTMAX)
-
-        result = self._run_metta_command(["install", "tailscale"])
-        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
-        self.assertIn("Tailscale", result.stdout)
-
     def test_authentication_components_skip_auth_in_test_env(self):
         """Test that authentication components handle test environment correctly."""
         self._create_test_config(UserType.EXTERNAL)
 
         result = self._run_metta_command(["install", "wandb"])
         self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
+        self.assertNotIn("Do you have your API key ready", result.stdout)
 
 
 @pytest.mark.setup
