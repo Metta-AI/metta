@@ -56,6 +56,19 @@ class WandBClient:
             logger.error(f"Failed to initialize WandB API: {e}")
             raise
 
+    def _create_fresh_api_client(self) -> Api:
+        """Create a fresh API client to bypass caching issues."""
+        try:
+            fresh_api = Api()
+            # Test the API
+            _ = fresh_api.viewer
+            logger.info("Created fresh WandB API client")
+            return fresh_api
+        except Exception as e:
+            logger.error(f"Failed to create fresh API client: {e}")
+            # Fall back to existing client
+            return self.api
+
     async def list_workspaces(
         self, entity: str, project: Optional[str] = None, filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
@@ -77,7 +90,9 @@ class WandBClient:
                 try:
                     # Use the correct project path format for reports API
                     project_path = f"{entity}/{project}"
-                    reports = self.api.reports(project_path)
+                    # Create fresh API client to bypass caching issues
+                    fresh_api = self._create_fresh_api_client()
+                    reports = fresh_api.reports(project_path)
 
                     for report in reports:
                         workspace_info = {
@@ -548,7 +563,9 @@ class WandBClient:
 
             # Find the report using the standard API
             project_path = f"{entity}/{project}"
-            reports = self.api.reports(project_path)
+            # Create fresh API client to bypass caching issues
+            fresh_api = self._create_fresh_api_client()
+            reports = fresh_api.reports(project_path)
 
             found_report = None
             for report in reports:
