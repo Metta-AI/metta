@@ -7,6 +7,8 @@ that `export AWS_PROFILE=softmax` is added to shell config files when
 using the softmax profile.
 """
 
+import os
+
 import pytest
 
 from metta.setup.profiles import UserType
@@ -38,8 +40,6 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
 
     def test_softmax_profile_aws_installation(self):
         """Test that softmax profile AWS installation works correctly."""
-        import os
-
         print(f"DEBUG: HOME={os.environ.get('HOME')}")
         print(f"DEBUG: ZDOTDIR={os.environ.get('ZDOTDIR')}")
         print(f"DEBUG: Test home={self.test_home}")
