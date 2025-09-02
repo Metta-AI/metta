@@ -29,7 +29,7 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
-from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
+from metta.rl.hyperparameter_scheduler import step_hyperparameters
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
@@ -248,27 +248,6 @@ def train(
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
-    # Create hyperparameter scheduler
-    hyperparameter_scheduler = HyperparameterScheduler.from_trainer_config(
-        trainer_cfg=trainer_cfg,
-        optimizer=optimizer,
-        total_timesteps=trainer_cfg.total_timesteps,
-        logger=logger,
-    )
-
-    # Create callback functions for updating trainer_cfg values
-    def create_update_callbacks():
-        """Create callback functions to update trainer_cfg values when hyperparameters change."""
-        return {
-            "ppo_clip_coef": lambda value: setattr(trainer_cfg.ppo, "clip_coef", value),
-            "ppo_vf_clip_coef": lambda value: setattr(trainer_cfg.ppo, "vf_clip_coef", value),
-            "ppo_ent_coef": lambda value: setattr(trainer_cfg.ppo, "ent_coef", value),
-            "ppo_l2_reg_loss_coef": lambda value: setattr(trainer_cfg.ppo, "l2_reg_loss_coef", value),
-            "ppo_l2_init_loss_coef": lambda value: setattr(trainer_cfg.ppo, "l2_init_loss_coef", value),
-        }
-
-    update_callbacks = create_update_callbacks()
-
     # Set up monitoring (master only)
     if torch_dist_cfg.is_master:
         logger.info("Starting training")
@@ -463,7 +442,7 @@ def train(
 
             # Update hyperparameters based on current training step (master only)
             if torch_dist_cfg.is_master:
-                hyperparameter_scheduler.step(agent_step, update_callbacks)
+                step_hyperparameters(trainer_cfg, optimizer, agent_step, trainer_cfg.total_timesteps, logger)
 
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():
