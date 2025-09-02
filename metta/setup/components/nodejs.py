@@ -229,7 +229,7 @@ class NodejsSetup(SetupModule):
 
         # Set environment variables for current process
         os.environ["PNPM_HOME"] = pnpm_home
-        if pnpm_home not in os.environ.get("PATH", ""):
+        if pnpm_home not in os.environ.get('PATH', '').split(':'):
             os.environ["PATH"] = f"{pnpm_home}:{os.environ['PATH']}"
 
         # Update shell profiles
