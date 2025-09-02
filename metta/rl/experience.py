@@ -180,20 +180,29 @@ class Experience:
 
     def stats(self) -> Dict[str, float]:
         """Get mean values of all tracked buffers."""
+        # Sanitize to avoid NaN/Inf in logs
+        rewards_mean = torch.nan_to_num(self.buffer["rewards"], 0.0, 0.0, 0.0).mean().item()
+        values_mean = torch.nan_to_num(self.buffer["values"], 0.0, 0.0, 0.0).mean().item()
+        act_log_prob_mean = torch.nan_to_num(self.buffer["act_log_prob"], 0.0, 0.0, 0.0).mean().item()
+        dones_mean = torch.nan_to_num(self.buffer["dones"].float(), 0.0, 0.0, 0.0).mean().item()
+        truncateds_mean = torch.nan_to_num(self.buffer["truncateds"].float(), 0.0, 0.0, 0.0).mean().item()
+
         stats = {
-            "rewards": self.buffer["rewards"].mean().item(),
-            "values": self.buffer["values"].mean().item(),
-            "act_log_prob": self.buffer["act_log_prob"].mean().item(),
-            "dones": self.buffer["dones"].mean().item(),
-            "truncateds": self.buffer["truncateds"].mean().item(),
+            "rewards": rewards_mean,
+            "values": values_mean,
+            "act_log_prob": act_log_prob_mean,
+            "dones": dones_mean,
+            "truncateds": truncateds_mean,
         }
         if "ratio" in self.buffer.keys():
-            stats["ratio"] = self.buffer["ratio"].mean().item()
+            stats["ratio"] = torch.nan_to_num(self.buffer["ratio"], 0.0, 0.0, 0.0).mean().item()
 
         # Add episode length stats for active episodes
         active_episodes = self.ep_lengths > 0
         if active_episodes.any():
-            stats["ep_lengths"] = self.ep_lengths[active_episodes].float().mean().item()
+            stats["ep_lengths"] = (
+                torch.nan_to_num(self.ep_lengths[active_episodes].float(), 0.0, 0.0, 0.0).mean().item()
+            )
         else:
             stats["ep_lengths"] = 0.0
 
@@ -202,11 +211,11 @@ class Experience:
             actions = self.buffer["actions"]
             if actions.dtype in [torch.int32, torch.int64]:
                 # For discrete actions, we can add distribution info
-                stats["actions_mean"] = actions.float().mean().item()
-                stats["actions_std"] = actions.float().std().item()
+                stats["actions_mean"] = torch.nan_to_num(actions.float(), 0.0, 0.0, 0.0).mean().item()
+                stats["actions_std"] = torch.nan_to_num(actions.float(), 0.0, 0.0, 0.0).std().item()
             else:
                 # For continuous actions
-                stats["actions_mean"] = actions.mean().item()
-                stats["actions_std"] = actions.std().item()
+                stats["actions_mean"] = torch.nan_to_num(actions, 0.0, 0.0, 0.0).mean().item()
+                stats["actions_std"] = torch.nan_to_num(actions, 0.0, 0.0, 0.0).std().item()
 
         return stats

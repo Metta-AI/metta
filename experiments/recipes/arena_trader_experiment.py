@@ -24,7 +24,13 @@ from experiments.recipes.arena_basic_easy_shaped import (
 )
 
 
-def make_env(num_agents: int = 24, num_traders: int = 4) -> EnvConfig:
+def make_env(
+    num_agents: int = 5,
+    num_traders: int = 3,
+    map_width: int = 15,
+    map_height: int = 15,
+    num_generators: int = 3,
+) -> EnvConfig:
     """Create environment with trader NPCs.
 
     Args:
@@ -78,6 +84,19 @@ def make_env(num_agents: int = 24, num_traders: int = 4) -> EnvConfig:
             props=trader_agent_config,
         )
 
+    # Small-map defaults (single small map with few agents)
+    # - 5 agents total
+    # - 3 traders (wander by default)
+    # - map size 15x15
+    # - 3 generators (static by default)
+
+    # Apply map size
+    try:
+        arena_env.game.map_builder.width = map_width
+        arena_env.game.map_builder.height = map_height
+    except Exception:
+        pass
+
     # Place both regular agents and trader agents on the map
     try:
         root_cfg = arena_env.game.map_builder.root
@@ -85,6 +104,10 @@ def make_env(num_agents: int = 24, num_traders: int = 4) -> EnvConfig:
             # Distribute agents by group for map generation
             non_traders = max(0, num_agents - num_traders)
             root_cfg.params.agents = {"agent": non_traders, "trader": num_traders}
+
+        # Adjust generator count keeping other objects as defaults
+        if hasattr(root_cfg, "params") and hasattr(root_cfg.params, "objects"):
+            root_cfg.params.objects["generator_red"] = num_generators
     except Exception:
         # If map builder isn't MapGen.Random, skip adjusting agent placement
         pass
@@ -134,9 +157,21 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
     expensive_trader_env.game.actions.transfer.input_resources = {"ore_red": 5}
 
     return [
-        SimulationConfig(name="trader/basic", env=basic_env),
-        SimulationConfig(name="trader/combat", env=combat_env),
-        SimulationConfig(name="trader/expensive", env=expensive_trader_env),
+        SimulationConfig(
+            name="trader/basic",
+            env=basic_env,
+            npc_policy_uri="local://metta.sim.trader_npc_policy:create_trader_npc_policy",
+        ),
+        SimulationConfig(
+            name="trader/combat",
+            env=combat_env,
+            npc_policy_uri="local://metta.sim.trader_npc_policy:create_trader_npc_policy",
+        ),
+        SimulationConfig(
+            name="trader/expensive",
+            env=expensive_trader_env,
+            npc_policy_uri="local://metta.sim.trader_npc_policy:create_trader_npc_policy",
+        ),
     ]
 
 

@@ -304,10 +304,13 @@ static void DrawAgents(Hermes& ctx) {
   HermesSprites::Sprite sprite;
   for (auto node : ctx.buckets[ctx.types.agent]) {
     sprite = ctx.sprite_atlas.agent[node.object];
-    color = {static_cast<uint8_t>(fmodf(node.index * static_cast<float>(M_PI), 1.0f) * 0xFF),
-             static_cast<uint8_t>(fmodf(node.index * static_cast<float>(M_E), 1.0f) * 0xFF),
-             static_cast<uint8_t>(fmodf(node.index * static_cast<float>(M_SQRT2), 1.0f) * 0xFF),
-             0xFF};
+    // node.item_id holds agent group (set during batching). Group 99 = trader.
+    if (node.item_id == 99) {
+      color = WHITE;  // Traders: white
+    } else {
+      // Non-trader agents: consistent non-white tint (green)
+      color = {0x20, 0xC8, 0x20, 0xFF};
+    }
     Draw(ctx, ctx.sprites[sprite], Position(node), 0, color);
   }
 }
@@ -731,6 +734,8 @@ static void Hermes_Batch(Hermes& ctx) {
       const auto agent = static_cast<Agent*>(obj);
       node.index = static_cast<uint16_t>(agent->agent_id);
       node.object = agent->orientation;
+      // Reuse node.item_id to carry agent group for coloring
+      node.item_id = static_cast<uint8_t>(agent->group);
       ctx.rewards.push_back(*agent->reward);
       if (agent->frozen > 0) {
         ctx.frozen_agents.push_back(static_cast<uint16_t>(ctx.buckets[t].size()));
