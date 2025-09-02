@@ -32,7 +32,7 @@ static std::unique_ptr<py::scoped_interpreter> g_python_guard;
 
 // Helper functions for creating configuration and map
 GameConfig CreateBenchmarkConfig(size_t num_agents) {
-  std::vector<std::string> inventory_item_names = {"ore", "heart"};
+  std::vector<std::string> resource_names = {"ore", "heart"};
 
   std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
       std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>());
@@ -94,8 +94,7 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   global_obs_config.last_reward = true;
   global_obs_config.resource_rewards = true;
 
-  return GameConfig(
-      num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
+  return GameConfig(num_agents, 10000, false, 11, 11, resource_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
