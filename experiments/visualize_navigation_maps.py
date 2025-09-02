@@ -302,6 +302,7 @@ def main():
         # Visualize specific map
         map_funcs = {
             "corridors": make_corridors_env,
+            "corridors_vertical": lambda: make_corridors_env(vertical_orientation=True),
             "radial_mini": make_radial_mini_env,
             "radial_small": make_radial_small_env,
             "radial_large": make_radial_large_env,

@@ -49,6 +49,7 @@ def main():
     # Define all the procedural maps
     maps = [
         ("Corridors Map", make_corridors_env),
+        ("Corridors Vertical", lambda: make_corridors_env(vertical_orientation=True)),
         ("Radial Mini", make_radial_mini_env),
         ("Radial Small", make_radial_small_env),
         ("Radial Large", make_radial_large_env),

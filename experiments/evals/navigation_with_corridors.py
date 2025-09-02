@@ -44,42 +44,64 @@ def make_nav_ascii_env(
     return make_nav_eval_env(env)
 
 
-def make_corridors_env() -> MettaGridConfig:
-    """Generate corridors.map pattern procedurally."""
+def make_corridors_env(vertical_orientation: bool = False) -> MettaGridConfig:
+    """Generate corridors.map pattern procedurally.
+
+    Args:
+        vertical_orientation: If True, swap horizontal/vertical to create vertical version
+    """
     env = make_navigation(num_agents=4)
     env.game.max_steps = 450
 
-    # Recreate corridors.map pattern
-    corridors = [
-        horizontal(y=13, thickness=7, x_start=1, x_end=73),
-        vertical(x=10, thickness=3, y_start=1, y_end=10),
-        vertical(x=20, thickness=4),
-        vertical(x=30, thickness=2, y_start=17, y_end=26),
-        vertical(x=40, thickness=3),
-        vertical(x=50, thickness=5, y_start=5, y_end=20),
-        vertical(x=60, thickness=2),
-        vertical(x=68, thickness=3, y_start=8, y_end=18),
-    ]
-
-    # Randomize agent at either end of main horizontal corridor
     from random import choice
 
-    agent_x = choice([2, 72])
+    if vertical_orientation:
+        # Vertical version: main vertical corridor with horizontal intersectors
+        width, height = 26, 74
+        corridors = [
+            vertical(x=13, thickness=7, y_start=1, y_end=73),
+            horizontal(y=10, thickness=3, x_start=1, x_end=10),
+            horizontal(y=20, thickness=4),
+            horizontal(y=30, thickness=2, x_start=17, x_end=26),
+            horizontal(y=40, thickness=3),
+            horizontal(y=50, thickness=5, x_start=5, x_end=20),
+            horizontal(y=60, thickness=2),
+            horizontal(y=68, thickness=3, x_start=8, x_end=18),
+        ]
+        # Agent at either end of main vertical corridor
+        agent_y = choice([2, 72])
+        agent_position = (agent_y, 13)
+    else:
+        # Original horizontal version
+        width, height = 74, 26
+        corridors = [
+            horizontal(y=13, thickness=7, x_start=1, x_end=73),
+            vertical(x=10, thickness=3, y_start=1, y_end=10),
+            vertical(x=20, thickness=4),
+            vertical(x=30, thickness=2, y_start=17, y_end=26),
+            vertical(x=40, thickness=3),
+            vertical(x=50, thickness=5, y_start=5, y_end=20),
+            vertical(x=60, thickness=2),
+            vertical(x=68, thickness=3, y_start=8, y_end=18),
+        ]
+        # Agent at either end of main horizontal corridor
+        agent_x = choice([2, 72])
+        agent_position = (13, agent_x)
 
     env.game.map_builder = MapGen.Config(
         instances=4,
         border_width=6,
         instance_border_width=3,
         instance_map=MapGen.Config(
-            width=74,
-            height=26,
+            width=width,
+            height=height,
             border_width=2,
             root=AngledCorridorBuilder.factory(
                 params=AngledCorridorBuilderParams(
                     corridors=corridors,
                     objects={"altar": 3},
                     place_at_ends=True,
-                    agent_position=(13, agent_x),
+                    agent_position=agent_position,
                     ensure_altar_near_agent=False,
                     prefer_far_from_center=True,
                 )
@@ -361,6 +383,10 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
     return [
         # Procedurally generated corridor maps
         SimulationConfig(name="corridors", env=make_corridors_env()),
+        SimulationConfig(
+            name="corridors_vertical",
+            env=lambda: make_corridors_env(vertical_orientation=True),
+        ),
         SimulationConfig(name="radial_mini", env=make_radial_mini_env()),
         SimulationConfig(name="radial_small", env=make_radial_small_env()),
         SimulationConfig(name="radial_large", env=make_radial_large_env()),
