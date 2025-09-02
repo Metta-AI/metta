@@ -276,31 +276,29 @@ class NodejsSetup(SetupModule):
         # First, determine the correct PNPM_HOME path
         pnpm_home = None
 
-        # If PNPM_HOME already exists and is working, use it
-        if os.environ.get("PNPM_HOME") and self._check_pnpm():
-            pnpm_home = os.environ["PNPM_HOME"]
-            info(f"Using existing PNPM_HOME: {pnpm_home}")
-        else:
-            # Set up PNPM_HOME BEFORE running any pnpm commands
-            # Use the standard location that pnpm creates
-            pnpm_home = os.path.expanduser("~/.local/share/pnpm")
-            info(f"Setting up PNPM_HOME at: {pnpm_home}")
-
-            # Set up environment and shell profiles
-            self._setup_pnpm_environment(pnpm_home)
-
-        # Now enable corepack if pnpm is not working
+        # First enable corepack to make pnpm command available
         if not self._check_pnpm():
             if not self._enable_corepack_with_cleanup():
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
-        # Run pnpm setup to ensure shell profiles are configured correctly
-        # This is safe to run multiple times and will update configs if needed
-        info("Running pnpm setup to ensure shell configuration...")
+        # Now run pnpm setup to let pnpm configure its own PNPM_HOME
+        # This will install pnpm binaries to the proper location
+        info("Running pnpm setup to install pnpm binaries...")
         try:
             self.run_command(["pnpm", "setup"], capture_output=False)
         except subprocess.CalledProcessError as e:
             warning(f"pnpm setup failed: {e}. Continuing with manual configuration.")
+
+        # Get the PNPM_HOME that pnpm setup actually configured
+        pnpm_home = os.path.expanduser("~/.local/share/pnpm")
+        if os.environ.get("PNPM_HOME"):
+            pnpm_home = os.environ["PNPM_HOME"]
+            info(f"Using pnpm-configured PNPM_HOME: {pnpm_home}")
+        else:
+            info(f"Setting up PNPM_HOME at standard location: {pnpm_home}")
+
+        # Ensure PNPM_HOME is in our current environment and PATH
+        self._setup_pnpm_environment(pnpm_home)
 
         # Verify pnpm is working with correct PNPM_HOME
         if self._check_pnpm() and os.environ.get("PNPM_HOME"):
