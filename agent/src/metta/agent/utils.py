@@ -59,13 +59,9 @@ def _create_policy_from_old_checkpoint(state: dict):
     policy = Fast.__new__(Fast)
     nn.Module.__init__(policy)
 
-    # Extract and transfer components
     components = _extract_components(state)
     policy.components = components
 
-    # Transfer component-related attributes to policy
-    # Note: cum_action_max_params and action_index_tensor are also needed by MettaAgent
-    # and will be restored there separately in _extract_agent_state
     component_attrs = {
         "components_with_memory": [],
         "clip_range": 0,
@@ -94,10 +90,9 @@ def _extract_components(state: dict):
 
 def _extract_agent_state(state: dict) -> dict:
     """Extract MettaAgent-specific state from old checkpoint, excluding components."""
-    # Component-related keys that should be excluded from MettaAgent
+
     excluded_keys = {"components", "_modules"}
 
-    # MettaAgent-specific attributes
     agent_keys = {
         "obs_width",
         "obs_height",
