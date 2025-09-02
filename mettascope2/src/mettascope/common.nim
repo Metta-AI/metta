@@ -62,7 +62,7 @@ var
   minimapPanel*: Panel
   agentTablePanel*: Panel
   agentTracesPanel*: Panel
-  envConfigPanel*: Panel
+  mgConfigPanel*: Panel
 
   settings* = Settings()
   selection*: Entity

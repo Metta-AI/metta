@@ -20,13 +20,13 @@ from metta.rl.system_config import SystemConfig
 def create_env_and_agent():
     """Create a real environment and agent using modern configuration."""
     # Create a small test environment
-    env_config = eb.make_navigation(num_agents=1)
-    env_config.game.max_steps = 100
-    env_config.game.map_builder.width = 8
-    env_config.game.map_builder.height = 8
+    mg_config = eb.make_navigation(num_agents=1)
+    mg_config.game.max_steps = 100
+    mg_config.game.map_builder.width = 8
+    mg_config.game.map_builder.height = 8
 
     # Create a single environment (vectorization handled separately if needed)
-    env = MettaGridEnv(env_config, render_mode=None)
+    env = MettaGridEnv(mg_config, render_mode=None)
 
     # Create system and agent configs
     system_cfg = SystemConfig(device="cpu")
@@ -243,12 +243,12 @@ def test_checkpoint_compatibility(create_env_and_agent):
 def test_multi_agent_environment(create_env_and_agent):
     """Test agent with multi-agent environments."""
     # Create multi-agent environment
-    env_config = eb.make_arena(num_agents=6)
-    env_config.game.max_steps = 100
-    env_config.game.map_builder.width = 16
-    env_config.game.map_builder.height = 16
+    mg_config = eb.make_arena(num_agents=6)
+    mg_config.game.max_steps = 100
+    mg_config.game.map_builder.width = 16
+    mg_config.game.map_builder.height = 16
 
-    multi_env = MettaGridEnv(env_config, render_mode=None)
+    multi_env = MettaGridEnv(mg_config, render_mode=None)
 
     # Create agent
     system_cfg = SystemConfig(device="cpu")
@@ -281,8 +281,8 @@ def test_different_agent_architectures():
 
     for arch_name in architectures:
         # Create environment
-        env_config = eb.make_navigation(num_agents=1)
-        env = MettaGridEnv(env_config, render_mode=None)
+        mg_config = eb.make_navigation(num_agents=1)
+        env = MettaGridEnv(mg_config, render_mode=None)
 
         # Create agent with specific architecture
         system_cfg = SystemConfig(device="cpu")
@@ -312,8 +312,8 @@ def test_different_agent_architectures():
 def test_pytorch_vs_component_policies():
     """Test both PyTorch and ComponentPolicy implementations."""
     # Test ComponentPolicy version
-    env_config = eb.make_navigation(num_agents=1)
-    env = MettaGridEnv(env_config, render_mode=None)
+    mg_config = eb.make_navigation(num_agents=1)
+    env = MettaGridEnv(mg_config, render_mode=None)
 
     system_cfg = SystemConfig(device="cpu")
 

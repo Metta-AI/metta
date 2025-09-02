@@ -25,7 +25,7 @@ def test_swap():
         "obs_width": 3,
         "obs_height": 3,
         "num_observation_tokens": 100,
-        "inventory_item_names": [],
+        "resource_names": [],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
@@ -155,7 +155,7 @@ def test_swap_frozen_agent_preserves_layers():
         "obs_width": 3,
         "obs_height": 3,
         "num_observation_tokens": 100,
-        "inventory_item_names": ["laser"],
+        "resource_names": ["laser"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},

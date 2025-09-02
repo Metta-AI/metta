@@ -8,7 +8,7 @@ from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
-def test_env_config_map_builder_serialization():
+def test_mg_config_map_builder_serialization():
     """Test that map_builder polymorphic serialization includes all fields."""
 
     # Create config with specific map_builder parameters
@@ -39,7 +39,7 @@ def test_env_config_map_builder_serialization():
     assert map_builder["border_object"] == "wall"
 
 
-def test_env_config_custom_map_builder():
+def test_mg_config_custom_map_builder():
     """Test serialization with custom map_builder configuration."""
 
     # Create custom map builder config
@@ -65,7 +65,7 @@ def test_env_config_custom_map_builder():
     assert map_builder["objects"] == {"tree": 5, "rock": 3}
 
 
-def test_env_config_polymorphism_deserialization():
+def test_mg_config_polymorphism_deserialization():
     """Test that we can deserialize the polymorphic map_builder correctly."""
 
     # Create a config and serialize it
@@ -91,7 +91,7 @@ def test_env_config_polymorphism_deserialization():
 
 
 if __name__ == "__main__":
-    test_env_config_map_builder_serialization()
-    test_env_config_custom_map_builder()
-    test_env_config_polymorphism_deserialization()
+    test_mg_config_map_builder_serialization()
+    test_mg_config_custom_map_builder()
+    test_mg_config_polymorphism_deserialization()
     print("All tests passed!")

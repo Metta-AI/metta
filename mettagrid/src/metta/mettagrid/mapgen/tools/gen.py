@@ -42,16 +42,16 @@ class GenTool(Tool):
             raise ValueError(f"Env {env_fn_name} is not callable")
 
         # TODO - support env_fn args?
-        env_config = env_fn()
+        mg_config = env_fn()
 
-        if not isinstance(env_config, MettaGridConfig):
-            raise ValueError(f"Env config must be an instance of MettaGridConfig, got {type(env_config)}")
+        if not isinstance(mg_config, MettaGridConfig):
+            raise ValueError(f"Env config must be an instance of MettaGridConfig, got {type(mg_config)}")
 
         for override in self.env_overrides:
             key, value = override.split("=")
-            env_config = env_config.override(key, value)
+            mg_config = mg_config.override(key, value)
 
-        logger.info(f"Env config:\n{env_config.model_dump_json(indent=2)}")
+        logger.info(f"Env config:\n{mg_config.model_dump_json(indent=2)}")
 
         if count > 1 and not output_uri:
             # requested multiple maps, let's check that output_uri is a directory
@@ -82,7 +82,7 @@ class GenTool(Tool):
                 logger.info(f"Generating map {i + 1} of {count}")
 
             # Generate and measure time taken
-            storable_map = StorableMap.from_cfg(env_config.game.map_builder)
+            storable_map = StorableMap.from_cfg(mg_config.game.map_builder)
 
             # Save the map if requested
             target_uri = make_output_uri()

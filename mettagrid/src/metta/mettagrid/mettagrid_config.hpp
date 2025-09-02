@@ -31,7 +31,7 @@ struct GameConfig {
   bool episode_truncates;
   ObservationCoord obs_width;
   ObservationCoord obs_height;
-  std::vector<std::string> inventory_item_names;
+  std::vector<std::string> resource_names;
   unsigned int num_observation_tokens;
   GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
@@ -87,7 +87,7 @@ inline void bind_game_config(py::module& m) {
            py::arg("episode_truncates"),
            py::arg("obs_width"),
            py::arg("obs_height"),
-           py::arg("inventory_item_names"),
+           py::arg("resource_names"),
            py::arg("num_observation_tokens"),
            py::arg("global_obs"),
            py::arg("actions"),
@@ -104,7 +104,7 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
-      .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
+      .def_readwrite("resource_names", &GameConfig::resource_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
 

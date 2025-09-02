@@ -24,7 +24,7 @@ def base_config():
         "obs_width": 3,
         "obs_height": 3,
         "num_observation_tokens": 100,
-        "inventory_item_names": [],
+        "resource_names": [],
         "actions": {
             "noop": {"enabled": True},
             "rotate": {"enabled": True},
