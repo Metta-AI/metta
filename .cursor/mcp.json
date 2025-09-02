@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "codebot": {
+      "command": "codebot",
+      "args": ["mcp-server"]
+    }
+  }
+}

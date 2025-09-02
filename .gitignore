@@ -58,6 +58,9 @@ train_dir/
 personal/
 /mettagrid/multirun/
 
+# AI-generated artifacts
+.codebot/
+
 # Test and benchmark
 test_data/
 **/*benchmark_results.json
