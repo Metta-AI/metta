@@ -630,3 +630,53 @@ class WandBClient:
                 "section_name": section_name,
                 "panel_type": panel_type,
             }
+
+    async def delete_dashboard(self, dashboard_url: str) -> dict:
+        """Delete an existing WandB dashboard/report.
+
+        Args:
+            dashboard_url: URL of the dashboard to delete
+
+        Returns:
+            dict: Result of the deletion operation
+        """
+        logger.info(f"Attempting to delete dashboard: {dashboard_url}")
+
+        try:
+            # Use wandb_workspaces to load the report directly from URL
+            # This gives us a Report object with the delete() method
+            report = wr.Report.from_url(dashboard_url)
+
+            # Get report details before deletion
+            report_id = report.id
+            report_title = report.title
+
+            logger.info(f"Deleting report: {report_title} (ID: {report_id})")
+
+            # Delete the report
+            delete_result = report.delete()
+
+            if delete_result:
+                return {
+                    "status": "success",
+                    "message": f"Dashboard '{report_title}' deleted successfully",
+                    "deleted_report_id": report_id,
+                    "deleted_report_title": report_title,
+                    "url": dashboard_url,
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Failed to delete dashboard '{report_title}' - delete() returned False",
+                    "report_id": report_id,
+                    "report_title": report_title,
+                    "url": dashboard_url,
+                }
+
+        except Exception as e:
+            logger.error(f"Error deleting dashboard: {e}")
+            return {
+                "status": "error",
+                "message": f"Error deleting dashboard: {str(e)}",
+                "url": dashboard_url,
+            }

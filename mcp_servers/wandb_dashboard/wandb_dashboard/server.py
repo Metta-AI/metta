@@ -175,6 +175,17 @@ class WandBDashboardMCPServer:
                         "required": ["source_url", "new_name"],
                     },
                 ),
+                types.Tool(
+                    name="delete_dashboard",
+                    description="Delete an existing WandB dashboard",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "dashboard_url": {"type": "string", "description": "URL of the dashboard to delete"},
+                        },
+                        "required": ["dashboard_url"],
+                    },
+                ),
             ]
 
         @self.app.call_tool()
@@ -230,6 +241,8 @@ class WandBDashboardMCPServer:
                     result = await self.tools.clone_dashboard(
                         source_url=arguments["source_url"], new_name=arguments["new_name"]
                     )
+                elif name == "delete_dashboard":
+                    result = await self.tools.delete_dashboard(dashboard_url=arguments["dashboard_url"])
                 else:
                     return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 

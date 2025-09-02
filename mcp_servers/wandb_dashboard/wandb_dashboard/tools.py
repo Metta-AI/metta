@@ -201,6 +201,27 @@ class WandBDashboardTools:
             error_result = {"status": "error", "message": f"Failed to clone dashboard: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
+    async def delete_dashboard(self, dashboard_url: str) -> str:
+        """Delete an existing dashboard using the WandB API."""
+        try:
+            logger.info(f"Deleting dashboard: {dashboard_url}")
+
+            # Delete the dashboard using the WandB API
+            delete_result = await self.client.delete_dashboard(dashboard_url)
+
+            result = {
+                "status": "success",
+                "message": "Dashboard deleted successfully",
+                "deleted_dashboard": delete_result,
+            }
+
+            return json.dumps(result, indent=2)
+
+        except Exception as e:
+            logger.error(f"Failed to delete dashboard: {e}")
+            error_result = {"status": "error", "message": f"Failed to delete dashboard: {str(e)}"}
+            return json.dumps(error_result, indent=2)
+
     async def get_available_dashboards(self) -> str:
         """Get summary of available dashboards (for MCP resource)."""
         # This would typically aggregate dashboards across configured entities/projects
@@ -213,6 +234,7 @@ class WandBDashboardTools:
                 "get_dashboard_config",
                 "add_panel",
                 "clone_dashboard",
+                "delete_dashboard",
             ],
         }
         return json.dumps(summary, indent=2)
