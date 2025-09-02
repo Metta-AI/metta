@@ -7,7 +7,7 @@ from metta.tools.train import TrainTool
 
 
 def train() -> TrainTool:
-    cfg = arena.train(curriculum=arena.make_curriculum(arena.make_env()))
+    cfg = arena.train(curriculum=arena.make_curriculum(arena.make_mettagrid()))
 
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
@@ -26,7 +26,7 @@ def train() -> TrainTool:
 
 
 def replay() -> ReplayTool:
-    env = arena.make_env()
+    env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.replay(env)
     cfg.wandb.enabled = False
@@ -43,7 +43,7 @@ def replay_null() -> ReplayTool:
 
 
 def play() -> PlayTool:
-    env = arena.make_env()
+    env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.play(env)
     cfg.wandb.enabled = False

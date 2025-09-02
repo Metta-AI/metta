@@ -188,7 +188,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Flatten environment config
         env_cfg_flattened: Dict[str, str] = {}
-        env_cfg = self.env_config.model_dump()
+        env_cfg = self.mg_config.model_dump()
         for k, v in unroll_nested_dict(cast(Dict[str, Any], env_cfg)):
             env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
 
