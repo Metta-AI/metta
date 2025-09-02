@@ -31,7 +31,15 @@ def _run_bazel_build():
 
     # Determine build configuration from environment
     debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
-    config = "dbg" if debug else "opt"
+    
+    # Check if running in CI environment (GitHub Actions sets CI=true)
+    is_ci = os.environ.get("CI", "").lower() == "true" or os.environ.get("GITHUB_ACTIONS", "") == "true"
+    
+    if is_ci:
+        # Use CI configuration to avoid root user issues with hermetic Python
+        config = "ci"
+    else:
+        config = "dbg" if debug else "opt"
 
     # Build the Python extension
     cmd = [
