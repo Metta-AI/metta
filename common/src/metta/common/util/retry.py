@@ -97,7 +97,7 @@ def retry_on_exception(
                 retry_delay=retry_delay,
                 exceptions=exceptions,
                 error_prefix=f"{func.__name__} failed",
-                 logger=logger,
+                logger=logger,
             )
 
         return wrapper

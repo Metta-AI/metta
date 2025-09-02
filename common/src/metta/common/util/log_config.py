@@ -90,6 +90,7 @@ class SimpleHandler(logging.StreamHandler):
         super().__init__(*args, **kwargs)
         self.formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
 
+
 @functools.cache
 def _add_file_logging(run_dir: str) -> None:
     """Set up file logging in addition to stdout logging."""
@@ -206,6 +207,7 @@ def _init_console_logging() -> None:
 
     rich.traceback.install(show_locals=False)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 # Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
 def init_logging(run_dir: str | None = None) -> None:

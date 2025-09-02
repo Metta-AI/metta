@@ -11,6 +11,7 @@ from typing_extensions import TypeVar
 
 T = TypeVar("T")
 
+
 class SystemMonitor:
     def __init__(
         self,
