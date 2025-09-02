@@ -11,8 +11,6 @@ from typing_extensions import TypeVar
 
 T = TypeVar("T")
 
-logger = logging.getLogger(__name__)
-
 
 class SystemMonitor:
     """A utility class for monitoring system statistics with support for multiple metrics.
@@ -26,6 +24,7 @@ class SystemMonitor:
         self,
         sampling_interval_sec: float = 1.0,
         history_size: int = 100,
+        logger: logging.Logger | None = None,
         auto_start: bool = True,
         external_timer: Any | None = None,
     ):
@@ -38,6 +37,7 @@ class SystemMonitor:
             auto_start: Whether to start monitoring immediately
             external_timer: Optional external timer (e.g., trainer's Stopwatch) for elapsed time
         """
+        self.logger = logger or logging.getLogger("SystemMonitor")
         self.sampling_interval_sec = sampling_interval_sec
         self.history_size = history_size
 
@@ -144,7 +144,7 @@ class SystemMonitor:
                     self._metric_collectors["cpu_temperature"] = self._get_cpu_temperature
             except (AttributeError, OSError, NotImplementedError):
                 # Some platforms have the method but it doesn't work
-                logger.debug("Temperature sensors not functional on this platform")
+                self.logger.debug("Temperature sensors not functional on this platform")
 
         # Check for cost env var
         hourly_cost_str = os.environ.get("METTA_HOURLY_COST")
@@ -154,9 +154,9 @@ class SystemMonitor:
                 self._metric_collectors["cost/hourly_total"] = lambda: total_hourly_cost
                 # Add accrued cost metric
                 self._metric_collectors["cost/accrued_total"] = lambda: self._calculate_accrued_cost(total_hourly_cost)
-                logger.info(f"Cost monitoring enabled: ${total_hourly_cost:.4f}/hr (total for all nodes)")
+                self.logger.info(f"Cost monitoring enabled: ${total_hourly_cost:.4f}/hr (total for all nodes)")
             except (ValueError, TypeError):
-                logger.warning(f"Could not parse METTA_HOURLY_COST: {hourly_cost_str}")
+                self.logger.warning(f"Could not parse METTA_HOURLY_COST: {hourly_cost_str}")
 
         # GPU metrics - check multiple ways for compatibility
         self._has_gpu = False
@@ -187,7 +187,7 @@ class SystemMonitor:
                     }
                 )
 
-            logger.info(f"GPU monitoring enabled via CUDA ({gpu_count} devices)")
+            self.logger.info(f"GPU monitoring enabled via CUDA ({gpu_count} devices)")
 
         # Initialize history storage for all metrics
         for name in self._metric_collectors:
@@ -211,7 +211,7 @@ class SystemMonitor:
                     if temp is not None and 20 <= temp <= 120:
                         return temp
                     elif temp is not None:
-                        logger.debug(f"Ignoring invalid temperature {temp}°C from {name}")
+                        self.logger.debug(f"Ignoring invalid temperature {temp}°C from {name}")
 
             # Fallback: return first available temperature that's valid
             for sensor_name, entries in temps.items():
@@ -220,15 +220,15 @@ class SystemMonitor:
                     if temp is not None and 20 <= temp <= 120:
                         return temp
                     elif temp is not None:
-                        logger.debug(f"Ignoring invalid temperature {temp}°C from {sensor_name}")
+                        self.logger.debug(f"Ignoring invalid temperature {temp}°C from {sensor_name}")
 
         except (AttributeError, OSError, IOError) as e:
             # AttributeError: In case the sensor object doesn't have expected attributes
             # OSError/IOError: Common when sensors are not accessible (permissions, hardware)
-            logger.debug(f"Failed to read CPU temperature: {type(e).__name__}: {e}")
+            self.logger.debug(f"Failed to read CPU temperature: {type(e).__name__}: {e}")
         except Exception as e:
             # Catch any other unexpected errors and log them
-            logger.warning(f"Unexpected error reading CPU temperature: {type(e).__name__}: {e}")
+            self.logger.warning(f"Unexpected error reading CPU temperature: {type(e).__name__}: {e}")
 
         return None
 
@@ -242,20 +242,20 @@ class SystemMonitor:
                 except (RuntimeError, torch.cuda.CudaError) as e:
                     # RuntimeError: Common when CUDA is not properly initialized or device is unavailable
                     # CudaError: Specific CUDA-related errors
-                    logger.debug(f"Failed to get utilization for GPU {i}: {type(e).__name__}: {e}")
+                    self.logger.debug(f"Failed to get utilization for GPU {i}: {type(e).__name__}: {e}")
                     utils.append(0)
                 except Exception as e:
                     # Unexpected errors
-                    logger.warning(f"Unexpected error getting GPU {i} utilization: {type(e).__name__}: {e}")
+                    self.logger.warning(f"Unexpected error getting GPU {i} utilization: {type(e).__name__}: {e}")
                     utils.append(0)
             return sum(utils) / len(utils) if utils else None
         except (RuntimeError, AttributeError) as e:
             # RuntimeError: CUDA not available or not initialized
             # AttributeError: torch.cuda module issues
-            logger.debug(f"Failed to get GPU utilization: {type(e).__name__}: {e}")
+            self.logger.debug(f"Failed to get GPU utilization: {type(e).__name__}: {e}")
             return None
         except Exception as e:
-            logger.warning(f"Unexpected error in GPU utilization: {type(e).__name__}: {e}")
+            self.logger.warning(f"Unexpected error in GPU utilization: {type(e).__name__}: {e}")
             return None
 
     def _get_gpu_memory_percent_cuda(self) -> float | None:
@@ -269,14 +269,14 @@ class SystemMonitor:
                         percents.append((total - free) / total * 100)
                 except ZeroDivisionError:
                     # In case total memory is reported as 0 (shouldn't happen but defensive programming)
-                    logger.warning(f"GPU {i} reports 0 total memory")
+                    self.logger.warning(f"GPU {i} reports 0 total memory")
                     continue
                 except Exception as e:
-                    logger.warning(f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}")
+                    self.logger.warning(f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}")
                     continue
             return sum(percents) / len(percents) if percents else None
         except Exception as e:
-            logger.warning(f"Unexpected error in GPU memory percent: {type(e).__name__}: {e}")
+            self.logger.warning(f"Unexpected error in GPU memory percent: {type(e).__name__}: {e}")
             return None
 
     def _get_gpu_memory_used_mb_cuda(self) -> float | None:
@@ -290,11 +290,11 @@ class SystemMonitor:
                     total_used += (total - free) / (1024 * 1024)
                     count += 1
                 except Exception as e:
-                    logger.warning(f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}")
+                    self.logger.warning(f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}")
                     continue
             return total_used if count > 0 else None
         except Exception as e:
-            logger.warning(f"Unexpected error in GPU memory used: {type(e).__name__}: {e}")
+            self.logger.warning(f"Unexpected error in GPU memory used: {type(e).__name__}: {e}")
             return None
 
     def _get_single_gpu_memory_percent(self, gpu_idx: int) -> float | None:
@@ -319,21 +319,21 @@ class SystemMonitor:
                     self._latest[name] = value
 
             except Exception as e:
-                logger.warning(f"Failed to collect metric '{name}': {e}")
+                self.logger.warning(f"Failed to collect metric '{name}': {e}")
 
     def _monitor_loop(self) -> None:
-        logger.debug("Monitor thread started")
+        self.logger.debug("Monitor thread started")
 
         while not self._stop_flag:
             self._collect_sample()
             time.sleep(self.sampling_interval_sec)
 
-        logger.debug("Monitor thread stopped")
+        self.logger.debug("Monitor thread stopped")
 
     def start(self) -> None:
         with self._lock:
             if self._thread and self._thread.is_alive():
-                logger.warning("Monitor already running")
+                self.logger.warning("Monitor already running")
                 return
 
             self._stop_flag = False
@@ -341,7 +341,7 @@ class SystemMonitor:
                 self._start_time = time.time()
             self._thread = Thread(target=self._monitor_loop, daemon=True)
             self._thread.start()
-            logger.info("System monitoring started")
+            self.logger.info("System monitoring started")
 
     def stop(self) -> None:
         if not self._thread or not self._thread.is_alive():
@@ -349,7 +349,7 @@ class SystemMonitor:
 
         self._stop_flag = True
         self._thread.join(timeout=self.sampling_interval_sec * 2)
-        logger.info("System monitoring stopped")
+        self.logger.info("System monitoring stopped")
 
     def _calculate_accrued_cost(self, hourly_cost: float) -> float | None:
         # Prefer external timer if available (e.g., trainer's timer that persists across restarts)
@@ -361,7 +361,7 @@ class SystemMonitor:
                     elapsed_hours = elapsed_seconds / 3600.0
                     return hourly_cost * elapsed_hours
             except Exception as e:
-                logger.debug(f"Failed to get elapsed time from external timer: {e}")
+                self.logger.debug(f"Failed to get elapsed time from external timer: {e}")
 
         # Fallback to internal start time
         if self._start_time is None:
