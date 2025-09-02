@@ -44,6 +44,21 @@ runs:
         # Check if we have a complete venv (either from exact cache hit or restore-key match)
         if [ -d ".venv" ] && [ -f ".venv/pyvenv.cfg" ] && [ -d ".venv/lib" ]; then
           echo "✅ Complete cache hit - skipping uv sync (much faster!)"
+          
+          # Debug: Check what's in the venv
+          echo "🔍 Debugging cached venv:"
+          echo "  .venv/bin exists: $([ -d '.venv/bin' ] && echo 'yes' || echo 'no')"
+          echo "  metta binary exists: $([ -f '.venv/bin/metta' ] && echo 'yes' || echo 'no')"
+          if [ -f ".venv/bin/metta" ]; then
+            echo "  metta permissions: $(ls -la .venv/bin/metta)"
+            echo "  metta first few lines:"
+            head -3 .venv/bin/metta || echo "  Cannot read metta binary"
+          fi
+          echo "  Python in venv: $([ -f '.venv/bin/python' ] && echo 'yes' || echo 'no')"
+          if [ -f ".venv/bin/python" ]; then
+            echo "  Python version: $(.venv/bin/python --version 2>&1 || echo 'Python not working')"
+          fi
+          
         else
           echo "❌ Cache miss or incomplete venv - running full uv sync"
           uv venv
