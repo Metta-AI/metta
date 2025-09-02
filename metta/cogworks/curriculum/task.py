@@ -17,7 +17,7 @@ class Task:
         """Get the environment configuration."""
         return self._env_cfg
 
-    def get_env_config(self) -> MettaGridConfig:
+    def get_mg_config(self) -> MettaGridConfig:
         """Get the environment configuration (alternative method name)."""
         return self._env_cfg
 
