@@ -243,6 +243,29 @@ class WandBDashboardTools:
             error_result = {"status": "error", "message": f"Failed to remove panel: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
+    async def create_custom_chart(
+        self, entity: str, project: str, metrics: List[str], chart_type: str, config: Dict[str, Any]
+    ) -> str:
+        """Create a custom chart/visualization with specified metrics and configuration."""
+        try:
+            logger.info(f"Creating custom {chart_type} chart for {entity}/{project} with metrics: {metrics}")
+
+            # Create the custom chart using the WandB API
+            chart_result = await self.client.create_custom_chart(entity, project, metrics, chart_type, config)
+
+            result = {
+                "status": "success",
+                "message": f"Custom {chart_type} chart created successfully",
+                "chart": chart_result,
+            }
+
+            return json.dumps(result, indent=2)
+
+        except Exception as e:
+            logger.error(f"Failed to create custom chart: {e}")
+            error_result = {"status": "error", "message": f"Failed to create custom chart: {str(e)}"}
+            return json.dumps(error_result, indent=2)
+
     async def delete_dashboard(self, dashboard_url: str) -> str:
         """Delete an existing dashboard using the WandB API."""
         try:
@@ -277,6 +300,7 @@ class WandBDashboardTools:
                 "add_panel",
                 "update_panel",
                 "remove_panel",
+                "create_custom_chart",
                 "clone_dashboard",
                 "delete_dashboard",
             ],

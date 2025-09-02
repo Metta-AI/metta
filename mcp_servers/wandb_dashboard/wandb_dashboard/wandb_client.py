@@ -5,6 +5,7 @@ Wrapper around the WandB API for dashboard and metrics management.
 Handles authentication, error handling, and provides convenient methods for MCP tools.
 """
 
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -991,6 +992,157 @@ class WandBClient:
         except Exception as e:
             logger.error(f"Failed to remove panel: {e}")
             return {"status": "error", "error": str(e), "url": dashboard_url}
+
+    async def create_custom_chart(
+        self, entity: str, project: str, metrics: List[str], chart_type: str, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Create a custom chart/visualization with specified metrics and configuration."""
+        try:
+            logger.info(f"Creating custom {chart_type} chart for {entity}/{project} with metrics: {metrics}")
+
+            # Create a new report to hold our custom chart
+            chart_title = config.get("title", f"Custom {chart_type.title()} Chart")
+            report_title = config.get("report_title", f"{chart_title} - Dashboard")
+            report_description = config.get("report_description", f"Custom {chart_type} visualization created via MCP")
+
+            report = wr.Report(entity=entity, project=project, title=report_title, description=report_description)
+
+            # Add a header for the chart
+            header = wr.H1(chart_title)
+            report.blocks.append(header)
+
+            # Create the appropriate chart based on chart_type
+            chart_block = None
+
+            if chart_type.lower() == "line_plot" or chart_type.lower() == "lineplot":
+                logger.info("Creating LinePlot chart...")
+                chart_block = wr.LinePlot(
+                    x=config.get("x_axis", "step"),
+                    y=metrics,
+                    title=chart_title,
+                    title_x=config.get("x_label", "Steps"),
+                    title_y=config.get("y_label", "Value"),
+                    smoothing_factor=config.get("smoothing", None),
+                    log_x=config.get("log_x", None),
+                    log_y=config.get("log_y", None),
+                    max_runs_to_show=config.get("max_runs", None),
+                    groupby=config.get("groupby", None),  # Use None instead of []
+                    legend_position=config.get(
+                        "legend_position", None
+                    ),  # Use None, valid options: 'north', 'south', 'east', 'west'
+                )
+
+            elif chart_type.lower() == "bar_plot" or chart_type.lower() == "barplot":
+                logger.info("Creating BarPlot chart...")
+                # Map orientation values: 'vertical' -> 'v', 'horizontal' -> 'h'
+                orientation = config.get("orientation", "vertical")
+                if orientation == "vertical":
+                    orientation = "v"
+                elif orientation == "horizontal":
+                    orientation = "h"
+
+                chart_block = wr.BarPlot(
+                    metrics=metrics,
+                    title=chart_title,
+                    title_x=config.get("x_label", "Metric"),
+                    title_y=config.get("y_label", "Value"),
+                    orientation=orientation,  # Use 'v' or 'h'
+                    max_bars_to_show=config.get("max_bars", None),
+                    max_runs_to_show=config.get("max_runs", None),
+                    groupby=config.get("groupby", None),  # Use None instead of []
+                )
+
+            elif chart_type.lower() == "scatter_plot" or chart_type.lower() == "scatterplot":
+                logger.info("Creating ScatterPlot chart...")
+                x_metric = metrics[0] if len(metrics) > 0 else config.get("x_metric", "step")
+                y_metric = metrics[1] if len(metrics) > 1 else metrics[0] if metrics else config.get("y_metric", "loss")
+                z_metric = metrics[2] if len(metrics) > 2 else config.get("z_metric", None)
+
+                chart_block = wr.ScatterPlot(
+                    x=x_metric,
+                    y=y_metric,
+                    z=z_metric,
+                    title=chart_title,
+                    log_x=config.get("log_x", None),
+                    log_y=config.get("log_y", None),
+                    log_z=config.get("log_z", None),
+                    regression=config.get("show_regression", None),
+                    gradient=config.get("gradient", None),
+                )
+
+            elif chart_type.lower() == "custom_chart" or chart_type.lower() == "customchart":
+                logger.info("Creating CustomChart...")
+                # CustomChart is more advanced - requires query configuration
+                query_config = config.get("query", {})
+                chart_fields = config.get("chart_fields", {})
+                chart_strings = config.get("chart_strings", {})
+
+                chart_block = wr.CustomChart(
+                    chart_name=chart_title,
+                    query=query_config,
+                    chart_fields=chart_fields,
+                    chart_strings=chart_strings,
+                )
+
+            else:
+                return {
+                    "status": "error",
+                    "error": f"Unsupported chart type: {chart_type}. "
+                    f"Supported types: line_plot, bar_plot, scatter_plot, custom_chart",
+                }
+
+            # Wrap the chart in a PanelGrid and add to report
+            if chart_block:
+                # PanelGrid expects a flat list of panel objects, not nested lists
+                panel_grid = wr.PanelGrid(panels=[chart_block])
+                report.blocks.append(panel_grid)
+
+                # Add a description section
+                description_text = f"""
+## Chart Configuration
+
+**Chart Type:** {chart_type}
+**Metrics:** {", ".join(metrics)}
+**Entity/Project:** {entity}/{project}
+
+**Configuration:**
+```json
+{json.dumps(config, indent=2)}
+```
+
+This chart was created using the WandB MCP server's `create_custom_chart` tool.
+"""
+                description_block = wr.MarkdownBlock(description_text)
+                report.blocks.append(description_block)
+
+                # Save the report
+                logger.info("Saving custom chart dashboard...")
+                result = report.save()
+
+                logger.info(f"Custom chart created successfully: {result.url}")
+
+                return {
+                    "status": "success",
+                    "message": f"Custom {chart_type} chart created successfully",
+                    "dashboard_url": str(result.url),
+                    "chart_config": {
+                        "title": chart_title,
+                        "type": chart_type,
+                        "metrics": metrics,
+                        "entity": entity,
+                        "project": project,
+                        "configuration": config,
+                    },
+                    "note": "Chart created as a new dashboard - "
+                    "use update_panel or add_panel to modify existing dashboards",
+                }
+
+            else:
+                return {"status": "error", "error": f"Failed to create {chart_type} chart"}
+
+        except Exception as e:
+            logger.error(f"Failed to create custom chart: {e}")
+            return {"status": "error", "error": str(e)}
 
     async def delete_dashboard(self, dashboard_url: str) -> dict:
         """Delete an existing WandB dashboard/report.

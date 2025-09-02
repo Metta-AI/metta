@@ -222,6 +222,53 @@ class WandBDashboardMCPServer:
                     },
                 ),
                 types.Tool(
+                    name="create_custom_chart",
+                    description="Create a custom chart/visualization with specified metrics and configuration",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "entity": {"type": "string", "description": "WandB entity"},
+                            "project": {"type": "string", "description": "WandB project"},
+                            "metrics": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of metrics to visualize",
+                            },
+                            "chart_type": {
+                                "type": "string",
+                                "enum": ["line_plot", "bar_plot", "scatter_plot", "custom_chart"],
+                                "description": "Type of chart to create",
+                            },
+                            "config": {
+                                "type": "object",
+                                "description": "Chart configuration options",
+                                "properties": {
+                                    "title": {"type": "string", "description": "Chart title"},
+                                    "x_label": {"type": "string", "description": "X-axis label"},
+                                    "y_label": {"type": "string", "description": "Y-axis label"},
+                                    "x_axis": {"type": "string", "description": "X-axis metric (default: 'step')"},
+                                    "log_x": {"type": "boolean", "description": "Use logarithmic X-axis"},
+                                    "log_y": {"type": "boolean", "description": "Use logarithmic Y-axis"},
+                                    "smoothing": {"type": "number", "description": "Smoothing factor (0.0-1.0)"},
+                                    "max_runs": {"type": "integer", "description": "Maximum runs to show"},
+                                    "orientation": {
+                                        "type": "string",
+                                        "enum": ["vertical", "horizontal"],
+                                        "description": "Bar chart orientation",
+                                    },
+                                    "show_regression": {
+                                        "type": "boolean",
+                                        "description": "Show regression line (scatter plots)",
+                                    },
+                                    "report_title": {"type": "string", "description": "Dashboard title"},
+                                    "report_description": {"type": "string", "description": "Dashboard description"},
+                                },
+                            },
+                        },
+                        "required": ["entity", "project", "metrics", "chart_type", "config"],
+                    },
+                ),
+                types.Tool(
                     name="list_available_metrics",
                     description="List available metrics for a project to use in dashboards",
                     inputSchema={
@@ -316,6 +363,14 @@ class WandBDashboardMCPServer:
                     result = await self.tools.remove_panel(
                         dashboard_url=arguments["dashboard_url"],
                         panel_identifier=arguments["panel_identifier"],
+                    )
+                elif name == "create_custom_chart":
+                    result = await self.tools.create_custom_chart(
+                        entity=arguments["entity"],
+                        project=arguments["project"],
+                        metrics=arguments["metrics"],
+                        chart_type=arguments["chart_type"],
+                        config=arguments["config"],
                     )
                 elif name == "list_available_metrics":
                     result = await self.tools.list_available_metrics(
