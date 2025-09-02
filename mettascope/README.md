@@ -87,7 +87,10 @@ uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train
 
 1. **Launch** VSCode or Cursor.
 2. **Open the project folder**: `File > Open Folder...` → select `metta/` directory.
-3. **Use Recipe Commands**: Open terminal and use the recipe commands shown above.
+3. **Run Metta**: 
+   - Click **"Run and Debug"** in the top right
+   - Select **"Play Metta"** from the dropdown
+   - Click the **green play arrow** to start MettaScope!
 
 ## UI Controls
 
