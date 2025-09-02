@@ -139,12 +139,14 @@ class ConverterChainTaskGenerator(TaskGenerator):
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = cooldown
 
-        return make_icl_resource_chain(
+        env = make_icl_resource_chain(
             num_agents=24,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
             map_builder_objects=cfg.map_builder_objects,
         )
+        env.label = f"chain_length{chain_length}_num_sinks{num_sinks}"
+        return env
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         chain_length = rng.choice(self.config.chain_lengths)
