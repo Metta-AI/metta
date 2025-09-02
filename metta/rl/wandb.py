@@ -116,8 +116,9 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str = "cpu") -> torch.nn.
     if not wandb_uri.startswith("wandb://"):
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
-    uri = WandbURI.parse(wandb_uri)
-    artifact = wandb.Api().artifact(uri.qname())
+    logger.info(f"Loading policy from wandb URI: {wandb_uri}")
+    # uri = WandbURI.parse(wandb_uri)
+    artifact = wandb.Api().artifact(wandb_uri)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         artifact_dir = Path(temp_dir)
