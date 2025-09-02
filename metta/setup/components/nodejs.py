@@ -102,7 +102,12 @@ class NodejsSetup(SetupModule):
             return False
 
         # Check if PATH logic exists
-        if 'export PATH="$PNPM_HOME:$PATH"' not in content and '*":$PNPM_HOME:"*' not in content:
+        path_check_patterns = [
+            'export PATH="$PNPM_HOME:$PATH"',
+            'case ":$PATH:" in',
+            '*":$PNPM_HOME:"*)'
+        ]
+        if not any(pattern in content for pattern in path_check_patterns):
             return False
 
         return True
