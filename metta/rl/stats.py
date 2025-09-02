@@ -417,7 +417,9 @@ def process_policy_evaluator_stats(
             logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
             pass
 
-run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step or 0, POLICY_EVALUATOR_EPOCH_METRIC: epoch or 0})
+        run.log(
+            {**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step or 0, POLICY_EVALUATOR_EPOCH_METRIC: epoch or 0}
+        )
         logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {policy_uri}")
         if eval_results.replay_urls:
             try:
