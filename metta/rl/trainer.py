@@ -28,6 +28,7 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
 from metta.rl.experience import Experience
+from metta.rl.hyperparameter_scheduler import step_hyperparameters
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
@@ -439,6 +440,10 @@ def train(
                     var_y = y_true.var()
                     losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
                 epoch += epochs_trained
+
+            # Update hyperparameters based on current training step (master only)
+            if torch_dist_cfg.is_master:
+                step_hyperparameters(trainer_cfg, optimizer, agent_step, trainer_cfg.total_timesteps, logger)
 
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():
