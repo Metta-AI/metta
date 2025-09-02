@@ -1,4 +1,5 @@
 import json
+import os
 import platform
 import subprocess
 
@@ -55,6 +56,11 @@ class TailscaleSetup(SetupModule):
 
     def install(self, non_interactive: bool = False) -> None:
         info("Setting up Tailscale...")
+
+        # In test/CI environments or non-interactive mode, skip interactive setup
+        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
+            info("Skipping Tailscale installation in non-interactive/test/CI environment.")
+            return
 
         if self.check_installed():
             success("Tailscale already installed")

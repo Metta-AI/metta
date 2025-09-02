@@ -106,8 +106,7 @@ class TestNonInteractiveInstall(BaseMettaSetupTest):
 
         result = self._run_metta_command(["status", "--non-interactive"])
         # Should always complete without hanging, even if components not installed
-        self.assertIsNotNone(result.returncode)
-        self.assertIn("Component", result.stdout)
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
 
 @pytest.mark.setup
@@ -134,10 +133,11 @@ class TestNonInteractiveSoftmax(BaseMettaSetupTest):
         result = self._run_metta_command(["configure", "--non-interactive", "--profile=softmax"])
         self.assertEqual(result.returncode, 0)
 
-        # Note: Some softmax components may fail without proper credentials, but shouldn't hang
+        # Note: Some softmax components shouldn't fail without proper credentials
         result = self._run_metta_command(["install", "--non-interactive"])
+
         # Don't assert returncode == 0 since some components may fail without credentials
-        self.assertIsNotNone(result.returncode)  # Should complete without hanging
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
 
 @pytest.mark.setup
@@ -152,7 +152,7 @@ class TestNonInteractiveCloud(BaseMettaSetupTest):
 
         result = self._run_metta_command(["install", "--non-interactive"])
         # Don't assert returncode == 0 since some components may fail without credentials
-        self.assertIsNotNone(result.returncode)  # Should complete without hanging
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
 
 @pytest.mark.setup
@@ -167,7 +167,7 @@ class TestNonInteractiveSoftmaxDocker(BaseMettaSetupTest):
 
         # This should work better in docker environment with non-interactive mode
         result = self._run_metta_command(["install", "--non-interactive"])
-        self.assertIsNotNone(result.returncode)  # Should complete without hanging
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
 
 @pytest.mark.setup
@@ -190,7 +190,7 @@ class TestNonInteractiveComponentInstall(BaseMettaSetupTest):
 
                 # Component should complete installation without hanging
                 # Some may fail due to missing dependencies, but shouldn't hang
-                self.assertIsNotNone(result.returncode)
+                self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
                 # If installation succeeded, verify it was non-interactive
                 if result.returncode == 0:
@@ -203,12 +203,12 @@ class TestNonInteractiveComponentInstall(BaseMettaSetupTest):
         result = self._run_metta_command(["install", "--non-interactive"])
 
         # Installation should complete without hanging
-        self.assertIsNotNone(result.returncode)
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
         # Should not contain any interactive prompts in output
-        self.assertNotIn("Enter your choice", result.stdout)
+        self.assertNotIn("Enter your choice", result.stdout)  # utils.py
         self.assertNotIn("(y/n)", result.stdout)
-        self.assertNotIn("Do you have your API key ready", result.stdout)
+        self.assertNotIn("Do you have your API key ready", result.stdout)  # wandb
 
 
 @pytest.mark.setup
@@ -235,7 +235,7 @@ class TestNonInteractiveEnvironmentHandling(BaseMettaSetupTest):
         )
 
         # Should complete without hanging
-        self.assertIsNotNone(result.returncode)
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
     def test_debian_frontend_noninteractive_set(self):
         """Test that DEBIAN_FRONTEND=noninteractive is properly set in environment."""
@@ -247,7 +247,7 @@ class TestNonInteractiveEnvironmentHandling(BaseMettaSetupTest):
 
         # Should complete successfully
         # The actual environment variable setting is tested at the unit level in base.py
-        self.assertIsNotNone(result.returncode)
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
     def test_install_with_missing_dependencies_non_interactive(self):
         """Test non-interactive install handles missing dependencies gracefully."""
@@ -257,10 +257,166 @@ class TestNonInteractiveEnvironmentHandling(BaseMettaSetupTest):
         result = self._run_metta_command(["install", "--non-interactive", "aws", "skypilot"])
 
         # Should complete without hanging, even if some installations fail
-        self.assertIsNotNone(result.returncode)
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
         # Should not prompt for user input
         self.assertNotIn("Enter your choice", result.stdout)
+
+
+@pytest.mark.setup
+@pytest.mark.profile("softmax")
+class TestNonInteractiveComponentExclusions(BaseMettaSetupTest):
+    """Test that certain components are properly excluded in non-interactive/test environments."""
+
+    def test_tailscale_skipped_in_test_environment(self):
+        """Test that Tailscale installation is skipped in test environment."""
+        self._create_test_config(UserType.SOFTMAX)
+
+        # Try to install tailscale component specifically with --force to trigger install method
+        result = self._run_metta_command(["install", "--non-interactive", "--force", "tailscale"])
+
+        # Should complete without hanging
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
+
+        # Should indicate that it was skipped
+        self.assertIn("Skipping Tailscale installation in non-interactive/test/CI environment", result.stdout)
+
+    def test_authentication_components_skip_auth_in_test_env(self):
+        """Test that components requiring authentication skip auth flows in test environment."""
+        self._create_test_config(UserType.SOFTMAX)
+
+        # Test components that require authentication
+        auth_components = ["wandb", "skypilot", "observatory-key"]
+
+        for component in auth_components:
+            with self.subTest(component=component):
+                result = self._run_metta_command(["install", "--non-interactive", component])
+
+                # Should complete without hanging
+                self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
+
+                # Should not contain interactive prompts
+                self.assertNotIn("Enter your choice", result.stdout)
+                self.assertNotIn("(y/n)", result.stdout)
+                self.assertNotIn("Do you have your API key ready", result.stdout)
+
+
+@pytest.mark.setup
+@pytest.mark.profile("external")
+class TestNonInteractiveIndividualComponents(BaseMettaSetupTest):
+    """Test that each component from profile configurations can be installed individually."""
+
+    def test_external_profile_individual_components(self):
+        """Test that each component in external profile can be installed individually."""
+        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+
+        self._create_test_config(UserType.EXTERNAL)
+
+        # Get all enabled components for external profile
+        profile_config = PROFILE_DEFINITIONS[UserType.EXTERNAL]
+        enabled_components = [name for name, config in profile_config["components"].items() if config["enabled"]]
+
+        self.assertGreater(len(enabled_components), 0, "External profile should have enabled components")
+
+        # Test each component individually
+        for component in enabled_components:
+            with self.subTest(component=component):
+                result = self._run_metta_command(["install", "--non-interactive", component])
+
+                # Should complete without hanging and return success
+                self.assertEqual(result.returncode, 0, f"Component '{component}' failed to install: {result.stderr}")
+
+                # Should not contain interactive prompts
+                self.assertNotIn("Enter your choice", result.stdout, f"Component '{component}' had interactive prompts")
+                self.assertNotIn("(y/n)", result.stdout, f"Component '{component}' had interactive prompts")
+
+
+@pytest.mark.setup
+@pytest.mark.profile("cloud")
+class TestNonInteractiveIndividualComponentsCloud(BaseMettaSetupTest):
+    """Test that each component from cloud profile can be installed individually."""
+
+    def test_cloud_profile_individual_components(self):
+        """Test that each component in cloud profile can be installed individually."""
+        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+
+        self._create_test_config(UserType.CLOUD)
+
+        # Get all enabled components for cloud profile
+        profile_config = PROFILE_DEFINITIONS[UserType.CLOUD]
+        enabled_components = [name for name, config in profile_config["components"].items() if config["enabled"]]
+
+        self.assertGreater(len(enabled_components), 0, "Cloud profile should have enabled components")
+
+        # Test each component individually
+        for component in enabled_components:
+            with self.subTest(component=component):
+                result = self._run_metta_command(["install", "--non-interactive", component])
+
+                # Should complete without hanging and return success
+                self.assertEqual(result.returncode, 0, f"Component '{component}' failed to install: {result.stderr}")
+
+                # Should not contain interactive prompts
+                self.assertNotIn("Enter your choice", result.stdout, f"Component '{component}' had interactive prompts")
+
+
+@pytest.mark.setup
+@pytest.mark.profile("softmax")
+class TestNonInteractiveIndividualComponentsSoftmax(BaseMettaSetupTest):
+    """Test that each component from softmax profile can be installed individually."""
+
+    def test_softmax_profile_individual_components(self):
+        """Test that each component in softmax profile can be installed individually."""
+        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+
+        self._create_test_config(UserType.SOFTMAX)
+
+        # Get all enabled components for softmax profile
+        profile_config = PROFILE_DEFINITIONS[UserType.SOFTMAX]
+        enabled_components = [name for name, config in profile_config["components"].items() if config["enabled"]]
+
+        self.assertGreater(len(enabled_components), 0, "Softmax profile should have enabled components")
+
+        # Test each component individually (excluding tailscale as it's skipped in test env)
+        for component in enabled_components:
+            with self.subTest(component=component):
+                result = self._run_metta_command(["install", "--non-interactive", component])
+
+                # Should complete without hanging and return success
+                self.assertEqual(result.returncode, 0, f"Component '{component}' failed to install: {result.stderr}")
+
+                # Should not contain interactive prompts
+                self.assertNotIn("Enter your choice", result.stdout, f"Component '{component}' had interactive prompts")
+                self.assertNotIn("(y/n)", result.stdout, f"Component '{component}' had interactive prompts")
+
+
+@pytest.mark.setup
+@pytest.mark.profile("softmax-docker")
+class TestNonInteractiveIndividualComponentsSoftmaxDocker(BaseMettaSetupTest):
+    """Test that each component from softmax-docker profile can be installed individually."""
+
+    def test_softmax_docker_profile_individual_components(self):
+        """Test that each component in softmax-docker profile can be installed individually."""
+        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+
+        self._create_test_config(UserType.SOFTMAX_DOCKER)
+
+        # Get all enabled components for softmax-docker profile
+        profile_config = PROFILE_DEFINITIONS[UserType.SOFTMAX_DOCKER]
+        enabled_components = [name for name, config in profile_config["components"].items() if config["enabled"]]
+
+        self.assertGreater(len(enabled_components), 0, "Softmax-docker profile should have enabled components")
+
+        # Test each component individually
+        for component in enabled_components:
+            with self.subTest(component=component):
+                result = self._run_metta_command(["install", "--non-interactive", component])
+
+                # Should complete without hanging and return success
+                self.assertEqual(result.returncode, 0, f"Component '{component}' failed to install: {result.stderr}")
+
+                # Should not contain interactive prompts
+                self.assertNotIn("Enter your choice", result.stdout, f"Component '{component}' had interactive prompts")
 
 
 @pytest.mark.setup
@@ -281,8 +437,9 @@ class TestNonInteractiveErrorHandling(BaseMettaSetupTest):
 
         result = self._run_metta_command(["install", "--non-interactive", "nonexistent_component"])
 
-        # Should complete without hanging
-        self.assertIsNotNone(result.returncode)
+        # Should complete without hanging, but should fail with non-zero exit code for invalid component
+        self.assertIsNotNone(result.returncode)  # Should complete without hanging
+        # Note: Invalid components are filtered out, so this actually succeeds with "No modules to install"
 
     def test_configure_component_non_interactive(self):
         """Test configuring individual components in non-interactive mode."""
@@ -292,7 +449,7 @@ class TestNonInteractiveErrorHandling(BaseMettaSetupTest):
         result = self._run_metta_command(["configure", "--non-interactive", "githooks"])
 
         # Should complete without hanging (may succeed or fail depending on component)
-        self.assertIsNotNone(result.returncode)
+        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
 
 if __name__ == "__main__":

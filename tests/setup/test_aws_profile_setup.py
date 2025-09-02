@@ -48,7 +48,7 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
 
         # Run AWS install (bypass base class mocking)
 
-        result = self._run_metta_command(["install", "aws", "--force"])
+        result = self._run_metta_command(["install", "aws", "--force", "--non-interactive"])
         assert result.returncode == 0, f"AWS install failed: {result.stderr}"
 
         # Check that AWS_PROFILE export was added to shell config
@@ -107,7 +107,7 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         self._create_test_config(UserType.SOFTMAX)
 
         # Run AWS install (bypass base class mocking)
-        result = self._run_metta_command(["install", "aws", "--force"])
+        result = self._run_metta_command(["install", "aws", "--force", "--non-interactive"])
         assert result.returncode == 0, f"AWS install failed: {result.stderr}"
 
         # Check that AWS_PROFILE export was added to shell config in ZDOTDIR
@@ -148,7 +148,7 @@ class TestAWSProfileExternal(AWSAssertionsMixin, BaseMettaSetupTest):
         self._create_test_config(UserType.EXTERNAL)
 
         # Run install (bypass base class mocking)
-        result = self._run_metta_command(["install", "aws"])
+        result = self._run_metta_command(["install", "aws", "--non-interactive"])
         assert result.returncode == 0, f"Install failed: {result.stderr}"
 
         # Assert no AWS config directory/file was created
