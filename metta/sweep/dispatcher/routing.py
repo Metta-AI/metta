@@ -3,7 +3,8 @@
 import logging
 from typing import Optional
 
-from metta.sweep.sweep_orchestrator import Dispatcher, JobDefinition, JobTypes
+from metta.sweep.models import JobDefinition, JobTypes
+from metta.sweep.protocols import Dispatcher
 
 logger = logging.getLogger(__name__)
 

@@ -7,15 +7,9 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from metta.sweep.sweep_orchestrator import (
-    JobDefinition,
-    JobStatus,
-    JobTypes,
-    Optimizer,
-    RunInfo,
-    SweepMetadata,
-    make_monitor_table,
-)
+from metta.sweep.models import JobDefinition, JobStatus, JobTypes, RunInfo, SweepMetadata
+from metta.sweep.protocols import Optimizer
+from metta.sweep.utils import make_monitor_table
 
 logger = logging.getLogger(__name__)
 
