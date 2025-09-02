@@ -94,10 +94,14 @@ class HyperparameterScheduler:
 
         self.schedulers = {}
 
+        # Track which parameters will have scheduling enabled vs disabled
+        scheduled_params = []
+        disabled_params = []
+
         for param_name, initial_value in initial_values.items():
             schedule_config = schedule_configs.get(param_name)
             if schedule_config is not None:
-                self.logger.info(f"Initializing scheduler for: {param_name}")
+                self.logger.info(f"Initializing scheduler for: {param_name} (type: {schedule_config.type})")
                 # Create schedule object directly from Pydantic config
                 if schedule_config.type == "constant":
                     self.schedulers[param_name] = ConstantSchedule(initial_value)
@@ -116,8 +120,18 @@ class HyperparameterScheduler:
                 else:
                     self.logger.warning(f"Unknown schedule type: {schedule_config.type}, using constant")
                     self.schedulers[param_name] = ConstantSchedule(initial_value)
+                scheduled_params.append(param_name)
             else:
-                self.schedulers[param_name] = ConstantSchedule(initial_value)
+                # If schedule_config is None, don't add a scheduler for this parameter (no scheduling)
+                disabled_params.append(param_name)
+
+        # Log summary of scheduling configuration
+        if scheduled_params:
+            self.logger.info(f"Hyperparameter scheduling enabled for: {', '.join(scheduled_params)}")
+        if disabled_params:
+            self.logger.info(f"Hyperparameter scheduling disabled for: {', '.join(disabled_params)}")
+        if not scheduled_params:
+            self.logger.info("Hyperparameter scheduling is disabled for all parameters")
 
     @staticmethod
     def from_trainer_config(trainer_cfg, optimizer, total_timesteps: int, logger=None):
