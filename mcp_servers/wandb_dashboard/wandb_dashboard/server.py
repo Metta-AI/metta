@@ -15,7 +15,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
 from .config import WandBMCPConfig
-from .tools import WandBDashboardTools
+from .tools import WandBDashboardTools, WandBDashboardToolsStub
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class WandBDashboardMCPServer:
             self.authenticated = True
         except Exception as e:
             logger.warning(f"WandB authentication failed: {e}. Tools will have limited functionality.")
-            self.tools = None
+            self.tools = WandBDashboardToolsStub()  # Use a stub implementation instead of None
             self.authenticated = False
 
         self._setup_tools()
@@ -323,18 +323,6 @@ class WandBDashboardMCPServer:
         async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
             """Handle tool calls by dispatching to appropriate methods."""
             try:
-                # Check if we have authentication
-                if not self.authenticated or self.tools is None:
-                    return [
-                        types.TextContent(
-                            type="text",
-                            text=(
-                                f"❌ WandB authentication failed. Please run 'wandb login' to authenticate.\n\n"
-                                f"Tool '{name}' is not available without authentication."
-                            ),
-                        )
-                    ]
-
                 if name == "create_dashboard":
                     result = await self.tools.create_dashboard(
                         name=arguments["name"],

@@ -14,6 +14,72 @@ from .wandb_client import WandBClient
 logger = logging.getLogger(__name__)
 
 
+class WandBDashboardToolsStub:
+    """Stub implementation of WandB dashboard tools when authentication fails."""
+
+    def __init__(self):
+        self.config = WandBMCPConfig()
+
+    def _auth_error_response(self, operation: str) -> str:
+        """Return a consistent authentication error response."""
+        error_result = {
+            "status": "error",
+            "error": "authentication_required",
+            "message": f"❌ WandB authentication failed. Please run 'wandb login' to authenticate.\n\n"
+            f"Operation '{operation}' requires valid WandB credentials.",
+            "solution": "Run 'wandb login' in your terminal and restart the MCP server.",
+        }
+        return json.dumps(error_result, indent=2)
+
+    async def create_dashboard(
+        self, name: str, entity: str, project: str, description: str = "", sections: List[Dict[str, Any]] = None
+    ) -> str:
+        return self._auth_error_response("create_dashboard")
+
+    async def update_dashboard(self, dashboard_url: str, modifications: Dict[str, Any]) -> str:
+        return self._auth_error_response("update_dashboard")
+
+    async def list_dashboards(self, entity: str, project: Optional[str] = None, filters: Dict[str, Any] = None) -> str:
+        return self._auth_error_response("list_dashboards")
+
+    async def get_dashboard_config(self, dashboard_url: str) -> str:
+        return self._auth_error_response("get_dashboard_config")
+
+    async def add_panel(
+        self, dashboard_url: str, section_name: str, panel_type: str, panel_config: Dict[str, Any]
+    ) -> str:
+        return self._auth_error_response("add_panel")
+
+    async def list_available_metrics(self, entity: str, project: str, run_filters: Dict[str, Any] = None) -> str:
+        return self._auth_error_response("list_available_metrics")
+
+    async def clone_dashboard(self, source_url: str, new_name: str) -> str:
+        return self._auth_error_response("clone_dashboard")
+
+    async def update_panel(self, dashboard_url: str, panel_identifier: dict, new_content: str) -> str:
+        return self._auth_error_response("update_panel")
+
+    async def remove_panel(self, dashboard_url: str, panel_identifier: dict) -> str:
+        return self._auth_error_response("remove_panel")
+
+    async def create_custom_chart(
+        self, entity: str, project: str, metrics: List[str], chart_type: str, config: Dict[str, Any]
+    ) -> str:
+        return self._auth_error_response("create_custom_chart")
+
+    async def bulk_delete_dashboards(self, dashboard_urls: List[str], confirmed: bool = False) -> str:
+        return self._auth_error_response("bulk_delete_dashboards")
+
+    async def _delete_single_dashboard(self, dashboard_url: str) -> str:
+        return self._auth_error_response("delete_dashboard")
+
+    async def get_available_dashboards(self) -> str:
+        return self._auth_error_response("get_available_dashboards")
+
+    async def get_available_metrics_summary(self) -> str:
+        return self._auth_error_response("get_available_metrics_summary")
+
+
 class WandBDashboardTools:
     """Tools for managing WandB dashboards through the Workspace API."""
 
