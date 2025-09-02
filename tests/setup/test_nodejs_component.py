@@ -256,6 +256,25 @@ class TestNodejsInstallationFlow(BaseMettaSetupTest):
         path_env = os.environ.get("PATH", "")
         self.assertIn(pnpm_home, path_env, "PNPM_HOME should be in PATH")
 
+        # Step 9: Verify root repo dependencies were installed
+        node_modules_path = self.repo_root / "node_modules"
+        self.assertTrue(node_modules_path.exists(), "node_modules should exist after pnpm install")
+        self.assertTrue(node_modules_path.is_dir(), "node_modules should be a directory")
+
+        # Verify some expected dependencies exist (from package.json devDependencies)
+        expected_deps = ["prettier", "turbo"]  # Known deps from root package.json
+        for dep in expected_deps:
+            dep_path = node_modules_path / dep
+            if dep_path.exists():
+                # At least one expected dependency was found, confirming pnpm install worked
+                print(f"✓ Found expected dependency: {dep}")
+                break
+        else:
+            self.fail(
+                f"None of the expected dependencies {expected_deps} were found in node_modules. "
+                f"This suggests 'pnpm install --frozen-lockfile' did not run properly."
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
