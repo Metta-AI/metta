@@ -185,6 +185,13 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
-    qualified_name = artifact.qualified_name
+    # Build WandB URI directly from known components - much cleaner!
+    project = run.project  # Get project from the run context
+    version = artifact.version  # Get actual version from the artifact
+    wandb_uri = f"wandb://{project}/{artifact_name}:{version}"
+
+    qualified_name = artifact.qualified_name  # For logging only
     logger.info(f"Uploaded checkpoint as wandb artifact: {qualified_name}")
-    return qualified_name
+    logger.debug(f"Returning WandB URI: {wandb_uri}")
+
+    return wandb_uri
