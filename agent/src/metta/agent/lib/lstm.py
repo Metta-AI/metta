@@ -82,7 +82,8 @@ class LSTM(LayerBase):
         self.reset_memory()
 
     def on_rollout_start(self):
-        self.reset_memory()
+        # self.reset_memory()
+        pass
 
     def on_train_phase_start(self):
         pass
@@ -178,11 +179,13 @@ class LSTM(LayerBase):
             # if segment_ids.max() >= self.lstm_h.size(1):
             self.max_num_envs = training_env_ids.max() + 1
             if self.max_num_envs > self.lstm_h.size(1):
+                num_allocated_envs = self.max_num_envs - self.lstm_h.size(1)
                 # we haven't allocated states for these envs (ie the very first epoch or rollout)
-                h_0 = torch.zeros(self.num_layers, self.max_num_envs, self.hidden_size, device=latent.device)
-                c_0 = torch.zeros(self.num_layers, self.max_num_envs, self.hidden_size, device=latent.device)
+                h_0 = torch.zeros(self.num_layers, num_allocated_envs, self.hidden_size, device=latent.device)
+                c_0 = torch.zeros(self.num_layers, num_allocated_envs, self.hidden_size, device=latent.device)
                 self.lstm_h = torch.cat([self.lstm_h, h_0.detach()], dim=1)
                 self.lstm_c = torch.cat([self.lstm_c, c_0.detach()], dim=1)
+                print(f"Allocated {num_allocated_envs} environments on iteration {self.iter}.")
 
             h_0 = self.lstm_h[:, training_env_ids]
             c_0 = self.lstm_c[:, training_env_ids]
