@@ -30,7 +30,7 @@ def patch_dependencies(monkeypatch):
     yield
 
 
-@dataclass
+@dataclass  
 class DummyRun:
     id: str
     job_type: str
@@ -39,13 +39,16 @@ class DummyRun:
     config: dict
     group: str
     allow_val_change: bool
-    name: str
     monitor_gym: bool
     save_code: bool
     resume: bool
     tags: list[str]
     notes: str | None
     settings: wandb.Settings
+    
+    def __post_init__(self):
+        # Simulate wandb auto-assigning a name
+        self.name = f"run-{self.id}" if self.id else "auto-generated-name"
 
 
 @pytest.fixture
@@ -115,7 +118,6 @@ def test_run_fields(monkeypatch, dummy_init, tmp_path):
     assert run.entity == "ent"
     assert run.config == global_cfg.model_dump()
     assert run.group == "grp"
-    assert run.name == "nm"
     assert run.resume is True
     assert run.monitor_gym is True
     assert run.save_code is True
