@@ -116,7 +116,11 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
 
     _configure_vecenv_settings(cfg)
 
-    stats_client = _configure_evaluation_settings(cfg)
+    stats_client: StatsClient | None = None
+    if cfg.stats_server_uri is not None:
+        stats_client = StatsClient.create(cfg.stats_server_uri)
+
+    _configure_evaluation_settings(cfg, stats_client)
 
     # Handle distributed training batch scaling
     if torch_dist_cfg.distributed:
@@ -168,9 +172,9 @@ def _configure_vecenv_settings(cfg: TrainTool) -> None:
     cfg.trainer.rollout_workers = max(1, ideal_workers)
 
 
-def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
+def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | None) -> None:
     if cfg.trainer.evaluation is None:
-        return None
+        return
 
     if cfg.trainer.evaluation.replay_dir is None:
         cfg.trainer.evaluation.replay_dir = auto_replay_dir()
