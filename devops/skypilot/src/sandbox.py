@@ -9,9 +9,8 @@ import sky.exceptions
 import yaml
 
 import gitta as git
-from devops.skypilot.utils import set_task_secrets
+from devops.skypilot import get_instance_cost, set_task_secrets
 from metta.common.util.cli import spinner
-from metta.common.util.cost_monitor import get_instance_cost
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 

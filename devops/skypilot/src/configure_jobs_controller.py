@@ -10,7 +10,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
-from devops.skypilot.utils import get_jobs_controller_name
+from devops.skypilot.src.utils import get_jobs_controller_name
 from metta.common.util.text_styles import bold, green, yellow
 
 

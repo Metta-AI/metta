@@ -11,13 +11,12 @@ from metta.common.util.log_config import getRankAwareLogger, init_logging
 
 logger = getRankAwareLogger(__name__)
 
+
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Configure runtime environment for Skypilot jobs")
     parser.add_argument(
-        "--sandbox",
-        action="store_true",
-        help="Configure for sandbox environment (skip job metadata setup)"
+        "--sandbox", action="store_true", help="Configure for sandbox environment (skip job metadata setup)"
     )
     return parser.parse_args()
 
@@ -93,14 +92,14 @@ def setup_job_metadata():
 
 def write_environment_variables(metta_env_file, metadata=None):
     """Write environment variables to METTA_ENV_FILE."""
-    env_vars = f'''export PYTHONUNBUFFERED=1
-export PYTHONPATH="${{PYTHONPATH:+$PYTHONPATH:}}$(pwd)"
+    env_vars = """export PYTHONUNBUFFERED=1
+export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)"
 export PYTHONOPTIMIZE=1
 export HYDRA_FULL_ERROR=1
 
 export WANDB_DIR="./wandb"
-export WANDB_API_KEY="${{WANDB_PASSWORD}}"
-export DATA_DIR="${{DATA_DIR:-./train_dir}}"
+export WANDB_API_KEY="${WANDB_PASSWORD}"
+export DATA_DIR="${DATA_DIR:-./train_dir}"
 
 # Datadog configuration
 export DD_ENV="production"
@@ -108,12 +107,12 @@ export DD_SERVICE="skypilot-worker"
 export DD_AGENT_HOST="localhost"
 export DD_TRACE_AGENT_PORT="8126"
 
-export NUM_GPUS="${{SKYPILOT_NUM_GPUS_PER_NODE}}"
-export NUM_NODES="${{SKYPILOT_NUM_NODES}}"
+export NUM_GPUS="${SKYPILOT_NUM_GPUS_PER_NODE}"
+export NUM_NODES="${SKYPILOT_NUM_NODES}"
 export MASTER_ADDR="$(echo "$SKYPILOT_NODE_IPS" | head -n1)"
-export MASTER_PORT="${{MASTER_PORT:-29501}}"
-export NODE_INDEX="${{SKYPILOT_NODE_RANK}}"
-'''
+export MASTER_PORT="${MASTER_PORT:-29501}"
+export NODE_INDEX="${SKYPILOT_NODE_RANK}"
+"""
 
     # Add job metadata exports only if metadata is provided (non-sandbox mode)
     if metadata:
@@ -127,7 +126,7 @@ export ACCUMULATED_RUNTIME_FILE="{metadata["accumulated_runtime_file"]}"
 export HEARTBEAT_FILE="{metadata["heartbeat_file"]}"
 '''
 
-    env_vars += '''
+    env_vars += """
 # NCCL Configuration
 export NCCL_PORT_RANGE="${NCCL_PORT_RANGE:-43000-43063}"
 export NCCL_SOCKET_FAMILY="${NCCL_SOCKET_FAMILY:-AF_INET}"
@@ -141,7 +140,7 @@ export NCCL_DEBUG_SUBSYS=""
 export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-0}"
 export NCCL_SHM_DISABLE="${NCCL_SHM_DISABLE:-0}"
 export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
-'''
+"""
 
     # Append to file
     with open(metta_env_file, "a") as f:
