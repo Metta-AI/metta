@@ -1,3 +1,4 @@
+import os
 import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -75,7 +76,8 @@ class SetupModule(ABC):
         # Set up environment for non-interactive mode
         if env is None:
             env = {}
-        env = {**env}
+        # Ensure we inherit the current environment (including PATH) and then add our overrides
+        env = {**os.environ, **env}
 
         if non_interactive:
             # Set environment variables for non-interactive operation
