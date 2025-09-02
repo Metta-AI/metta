@@ -449,41 +449,34 @@ class TestEndToEndWorkflows:
 class TestWandbArtifactFormatting:
     """Test wandb artifact URI formatting to prevent double entity issues."""
 
-    def test_artifact_qualified_name_to_uri_conversion(self):
-        """Test that qualified names are correctly converted to wandb:// URIs.
+    def test_wandb_uri_parsing_prevents_double_entity(self):
+        """Test that WandB URIs are parsed correctly without double entity issues."""
 
-        This test prevents the bug where qualified_name format (entity/project/artifact:version)
-        gets double-prefixed with entity when parsed as a URI.
-        """
-        # Simulate what WandB's artifact.qualified_name returns
-        qualified_names = [
-            "metta-research/metta/relh.policy-cull.902.1:v0",
-            "metta-research/metta/my-run-name:latest",
-            "test-entity/test-project/artifact-name:v42",
+        # Test various wandb:// URI formats to ensure they parse correctly
+        test_cases = [
+            ("wandb://metta/relh.policy-cull.902.1:v0", "metta", "relh.policy-cull.902.1", "v0"),
+            ("wandb://test-project/my-artifact:latest", "test-project", "my-artifact", "latest"),
+            ("wandb://another-project/artifact-name:v42", "another-project", "artifact-name", "v42"),
         ]
 
-        for qualified_name in qualified_names:
-            # This simulates the logic in upload_checkpoint_as_artifact
-            parts = qualified_name.split("/", 2)  # Split into at most 3 parts
-
-            # Should always have 3 parts: entity, project, artifact:version
-            assert len(parts) == 3, f"Qualified name should have 3 parts: {qualified_name}"
-
-            entity, project, artifact_with_version = parts
-            wandb_uri = f"wandb://{project}/{artifact_with_version}"
-
-            # Verify the URI format is correct
-            assert wandb_uri.startswith("wandb://"), "Should start with wandb://"
-            assert entity not in wandb_uri[8:], f"Entity '{entity}' should not appear in URI path: {wandb_uri}"
-
-            # Verify parsing the URI won't cause double entity issue
+        for wandb_uri, expected_project, expected_artifact_path, expected_version in test_cases:
+            # Parse the URI
             parsed_uri = WandbURI.parse(wandb_uri)
-            qname = parsed_uri.qname()
 
-            # The qname should use the configured WANDB_ENTITY, not the original entity
-            # This is the correct behavior - we always use the configured entity
-            expected_qname = f"{WANDB_ENTITY}/{project}/{artifact_with_version}"
-            assert qname == expected_qname, f"Expected {expected_qname}, got {qname}"
+            # Verify components are extracted correctly
+            assert parsed_uri.project == expected_project
+            assert parsed_uri.artifact_path == expected_artifact_path
+            assert parsed_uri.version == expected_version
+
+            # Most importantly: verify that qname() uses the configured entity
+            # and doesn't create double entity paths
+            qname = parsed_uri.qname()
+            expected_qname = f"{WANDB_ENTITY}/{expected_project}/{expected_artifact_path}:{expected_version}"
+            assert qname == expected_qname
+
+            # Ensure no double entity issue (this was the original bug)
+            parts = qname.split("/")
+            assert len(parts) == 3, f"qname should have exactly 3 parts, got: {qname}"
 
     def test_upload_checkpoint_returns_proper_uri_format(self):
         """Test that upload_checkpoint_as_artifact returns wandb:// URI built from components."""
@@ -507,7 +500,7 @@ class TestWandbArtifactFormatting:
                 # Should return clean wandb:// URI built from components
                 assert result == "wandb://metta/test-artifact:v1"
                 assert result.startswith("wandb://"), "Should start with wandb://"
-                
+
                 # Verify the components are used correctly
                 mock_run.log_artifact.assert_called_once_with(mock_artifact)
                 mock_artifact.wait.assert_called_once()
