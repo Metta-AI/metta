@@ -49,7 +49,7 @@ class MettaGridEnv(MettaGridPufferBase):
     ):
         """Initialize MettaGridEnv for training."""
         # Add training-specific attributes first (needed by MettaGridCore)
-        self.timer = Stopwatch(logger)
+        self.timer = Stopwatch()
         self.timer.start()
         self.timer.start("thread_idle")
         self._steps = 0

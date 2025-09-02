@@ -14,6 +14,8 @@ from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
+logger = logging.getLogger(__name__)
+
 
 def evaluate_policy(
     *,
@@ -27,7 +29,6 @@ def evaluate_policy(
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
     stats_client: StatsClient | None,
-    logger: logging.Logger,
 ) -> EvalResults:
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
     stats_dir = stats_dir or "/tmp/stats"

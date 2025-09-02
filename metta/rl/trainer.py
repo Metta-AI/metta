@@ -66,10 +66,7 @@ except ImportError:
     ) from None
 
 torch.set_float32_matmul_precision("high")
-
-_rank = int(os.environ.get("RANK", 0))  # Get rank for logger name
-_local_rank = int(os.environ.get("LOCAL_RANK", 0))
-logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
+logger = logging.getLogger(__name__)
 
 
 def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:
@@ -104,7 +101,7 @@ def train(
             logger.info(f"Recent checkpoints: {', '.join(files)}")
 
     # Create timer, Losses, profiler, curriculum
-    timer = Stopwatch(logger)
+    timer = Stopwatch()
     timer.start()
     losses = Losses()
     torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)

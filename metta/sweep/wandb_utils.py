@@ -12,7 +12,7 @@ from metta.common.util.retry import retry_on_exception
 logger = logging.getLogger("sweep")
 
 
-@retry_on_exception(max_retries=3, retry_delay=5.0, logger=logger)
+@retry_on_exception(max_retries=3, retry_delay=5.0)
 def _fetch_sweep_from_api(project: str, entity: str, name: str) -> str | None:
     """
     Fetch sweep ID from WandB API by name.

@@ -1,7 +1,6 @@
 import logging
 import os
 import platform
-from logging import Logger
 from typing import Optional
 
 import torch
@@ -12,7 +11,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.logging_helpers import init_file_logging, init_logging
+from metta.common.util.logging import get_node_rank, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -23,9 +22,10 @@ from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_s
 logger = logging.getLogger(__name__)
 
 
-def log_on_master(*args, **argv):
-    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-        logger.info(*args, **argv)
+def log_master(message: str, **kwargs) -> None:
+    if get_node_rank() not in ("0", None):
+        return
+    logger.info(message, **kwargs)
 
 
 class TrainTool(Tool):
@@ -82,8 +82,6 @@ class TrainTool(Tool):
 
         record_heartbeat()
 
-        init_file_logging(run_dir=self.run_dir)
-
         init_logging(run_dir=self.run_dir)
 
         torch_dist_cfg = setup_torch_distributed(self.system.device)
@@ -91,25 +89,27 @@ class TrainTool(Tool):
         if not self.trainer.checkpoint.checkpoint_dir:
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
-        log_on_master(
+        log_master(
             f"Training {self.run} on "
             + f"{os.environ.get('NODE_INDEX', '0')}: "
-            + f"{os.environ.get('LOCAL_RANK', '0')} ({self.system.device})"
+            + f"{os.environ.get('LOCAL_RANK', '0')} ({self.system.device})",
         )
 
-        log_on_master(f"Training {self.run} on {self.system.device}")
+        log_master(
+            f"Training {self.run} on {self.system.device}",
+        )
         if torch_dist_cfg.is_master:
             with WandbContext(self.wandb, self) as wandb_run:
-                handle_train(self, torch_dist_cfg, wandb_run, logger)
+                handle_train(self, torch_dist_cfg, wandb_run)
         else:
-            handle_train(self, torch_dist_cfg, None, logger)
+            handle_train(self, torch_dist_cfg, None)
 
         cleanup_distributed()
 
         return 0
 
 
-def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_run: WandbRun | None, logger: Logger):
+def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_run: WandbRun | None) -> None:
     assert cfg.run_dir is not None
     assert cfg.run is not None
     run_dir = cfg.run_dir
@@ -135,7 +135,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     if torch_dist_cfg.is_master:
         with open(os.path.join(run_dir, "config.json"), "w") as f:
             f.write(cfg.model_dump_json(indent=2))
-            log_on_master(f"Config saved to {os.path.join(run_dir, 'config.json')}")
+            log_master(f"Config saved to {os.path.join(run_dir, 'config.json')}")
 
     # Use the functional train interface directly
     train(
@@ -169,7 +169,7 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
 
     if cfg.trainer.evaluation.replay_dir is None:
         cfg.trainer.evaluation.replay_dir = auto_replay_dir()
-        log_on_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
+        log_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
 
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:
@@ -179,22 +179,20 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
     if cfg.trainer.evaluation.evaluate_remote:
         if not stats_client:
             cfg.trainer.evaluation.evaluate_remote = False
-            log_on_master("Not connected to stats server, disabling remote evaluations")
+            log_master("Not connected to stats server, disabling remote evaluations")
         elif not cfg.trainer.evaluation.evaluate_interval:
             cfg.trainer.evaluation.evaluate_remote = False
-            log_on_master("Evaluate interval set to 0, disabling remote evaluations")
+            log_master("Evaluate interval set to 0, disabling remote evaluations")
         elif not cfg.trainer.evaluation.git_hash:
             cfg.trainer.evaluation.git_hash = git.get_git_hash_for_remote_task(
                 target_repo=REPO_SLUG,
                 skip_git_check=cfg.trainer.evaluation.skip_git_check,
                 skip_cmd="trainer.evaluation.skip_git_check=true",
-                logger=logger,
             )
             if cfg.trainer.evaluation.git_hash:
-                log_on_master(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}")
+                log_master(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}")
             else:
-                log_on_master("No git hash available for remote evaluations")
-
+                log_master("No git hash available for remote evaluations")
     return stats_client
 
 
