@@ -269,7 +269,7 @@ class NodejsSetup(SetupModule):
         warning("Failed to enable corepack after removing dead symlinks")
         return False
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Setting up pnpm...")
 
         # First, determine the correct PNPM_HOME path

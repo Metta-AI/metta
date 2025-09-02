@@ -58,7 +58,7 @@ class DatadogAgentSetup(SetupModule):
             raise Exception("Datadog API key not found in datadog/api-key secret.")
         return secret
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Getting Datadog API key...")
         try:
             api_key = self._get_dd_api_key()

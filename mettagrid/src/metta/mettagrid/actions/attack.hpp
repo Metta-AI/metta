@@ -162,7 +162,7 @@ private:
 
   void _consume_defense_resources(Agent& target) {
     for (const auto& [item, amount] : _defense_resources) {
-      InventoryDelta delta = target.update_inventory(item, -amount);
+      [[maybe_unused]] InventoryDelta delta = target.update_inventory(item, -amount);
       assert(delta == -amount);
     }
   }
