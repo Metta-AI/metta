@@ -92,7 +92,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
         converter = self.converter_types[converter_name].copy()
         converter.output_resources = {output_resource: 1}
 
-        if input_resource != "nothing":
+        if input_resource == "nothing":
+            converter.input_resources = {}
+        else:
             converter.input_resources = {input_resource: 1}
 
             cfg.all_input_resources.append(input_resource)
