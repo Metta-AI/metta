@@ -58,7 +58,6 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
   static const std::map<ObservationType, std::string> feature_names = {
       {ObservationFeature::TypeId, "type_id"},
       {ObservationFeature::Group, "agent:group"},
-      {ObservationFeature::Hp, "hp"},
       {ObservationFeature::Frozen, "agent:frozen"},
       {ObservationFeature::Orientation, "agent:orientation"},
       {ObservationFeature::Color, "agent:color"},
@@ -86,7 +85,6 @@ inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
       {ObservationFeature::LastReward, 100.0},
       {ObservationFeature::TypeId, 1.0},
       {ObservationFeature::Group, 10.0},
-      {ObservationFeature::Hp, 30.0},
       {ObservationFeature::Frozen, 1.0},
       {ObservationFeature::Orientation, 1.0},
       {ObservationFeature::Color, 255.0},
