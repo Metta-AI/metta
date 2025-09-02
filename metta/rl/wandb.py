@@ -185,23 +185,13 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
-    # Build wandb:// URI from reliable components instead of parsing qualified_name
-    # This avoids timing issues and inconsistent qualified_name formatting
-    project = run.project
+    # Always use "latest" for simplicity and reliability
+    # This avoids all timing issues with WandB version assignment
+    wandb_uri = f"wandb://{run.project}/{artifact_name}:latest"
 
-    # Use the artifact's actual version if available, otherwise use a default
-    # Note: artifact.version might be None for newly created artifacts
-    version = getattr(artifact, "version", None)
-    if version is None:
-        # For new artifacts, WandB typically assigns version "v0", "v1", etc.
-        # Since we can't reliably get it before commit, use "latest" which WandB resolves
-        version = "latest"
-
-    wandb_uri = f"wandb://{project}/{artifact_name}:{version}"
-
-    # Log the qualified_name for debugging, but don't rely on it for URI construction
+    # Log the actual qualified_name for debugging
     qualified_name = getattr(artifact, "qualified_name", "not_available_yet")
     logger.info(f"Uploaded checkpoint as wandb artifact: {qualified_name}")
-    logger.debug(f"Returning WandB URI: {wandb_uri}")
+    logger.debug(f"Returning simplified WandB URI: {wandb_uri}")
 
     return wandb_uri

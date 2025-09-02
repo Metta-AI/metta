@@ -478,12 +478,11 @@ class TestWandbArtifactFormatting:
             parts = qname.split("/")
             assert len(parts) == 3, f"qname should have exactly 3 parts, got: {qname}"
 
-    def test_upload_checkpoint_returns_proper_uri_format(self):
-        """Test that upload_checkpoint_as_artifact builds URI from reliable components."""
+    def test_upload_checkpoint_returns_latest_uri(self):
+        """Test that upload_checkpoint_as_artifact always returns latest URI for simplicity."""
 
         mock_artifact = Mock()
         mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
-        mock_artifact.version = "v1"  # Mock the version property
         mock_artifact.wait = Mock()
 
         mock_run = Mock()
@@ -496,34 +495,13 @@ class TestWandbArtifactFormatting:
                     checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
                 )
 
-                # Should build URI from project + artifact_name + version
-                assert result == "wandb://metta/test-artifact:v1"
+                # Always returns :latest for simplicity and reliability
+                assert result == "wandb://metta/test-artifact:latest"
                 assert result.startswith("wandb://"), "Should start with wandb://"
 
                 # Verify the artifact upload happened
                 mock_run.log_artifact.assert_called_once_with(mock_artifact)
                 mock_artifact.wait.assert_called_once()
-
-    def test_upload_checkpoint_handles_none_version(self):
-        """Test fallback when artifact.version is None."""
-
-        mock_artifact = Mock()
-        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
-        mock_artifact.version = None  # This causes fallback to "latest"
-        mock_artifact.wait = Mock()
-
-        mock_run = Mock()
-        mock_run.project = "metta"
-        mock_run.log_artifact = Mock()
-
-        with patch("wandb.Artifact", return_value=mock_artifact):
-            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
-                result = upload_checkpoint_as_artifact(
-                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
-                )
-
-                # Should use "latest" when version is None
-                assert result == "wandb://metta/test-artifact:latest"
 
 
 if __name__ == "__main__":
