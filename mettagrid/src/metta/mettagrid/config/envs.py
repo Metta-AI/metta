@@ -135,9 +135,9 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
 def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
     altar = building.altar.model_copy()
     altar.cooldown = 1
-    mine = building.mine.model_copy()
+    mine = building.mine_red.model_copy()
     mine.cooldown = 1
-    generator = building.generator.model_copy()
+    generator = building.generator_red.model_copy()
     generator.cooldown = 1
     altar.initial_resource_count = 1
     cfg = MettaGridConfig(
@@ -146,8 +146,8 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             objects={
                 "altar": altar,
                 "wall": building.wall,
-                "mine": mine,
-                "generator": generator,
+                "mine_red": mine,
+                "generator_red": generator,
             },
             actions=ActionsConfig(
                 move=ActionConfig(),

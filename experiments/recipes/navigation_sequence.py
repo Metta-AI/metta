@@ -54,8 +54,9 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
         instance_border_width=3,
         instance_map=TerrainFromNumpy.Config(
             agents=1,
-            objects={"altar": 3, "mine": 3, "generator": 3},
+            objects={"altar": 3, "mine_red": 3, "generator_red": 3},
             dir="varied_terrain/dense_large",
+            remove_altars=True,
         ),
     )
     return nav
@@ -74,10 +75,13 @@ def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConf
 
     dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
     dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(3, 20)])
-    dense_tasks.add_bucket("game.map_builder.instance_map.objects.mine", [Span(3, 20)])
     dense_tasks.add_bucket(
-        "game.map_builder.instance_map.objects.generator", [Span(3, 20)]
+        "game.map_builder.instance_map.objects.mine_red", [Span(3, 20)]
     )
+    dense_tasks.add_bucket(
+        "game.map_builder.instance_map.objects.generator_red", [Span(3, 20)]
+    )
+    dense_tasks.add_bucket("game.objects.altar.initial_resource_count", [0, 1])
     sparse_nav_env = nav_env.model_copy()
     sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
         agents=4,
@@ -87,8 +91,9 @@ def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConf
     sparse_tasks.add_bucket("game.map_builder.width", [Span(60, 120)])
     sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
     sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 3)])
-    sparse_tasks.add_bucket("game.map_builder.objects.mine", [Span(1, 3)])
-    sparse_tasks.add_bucket("game.map_builder.objects.generator", [Span(1, 3)])
+    sparse_tasks.add_bucket("game.map_builder.objects.mine_red", [Span(1, 3)])
+    sparse_tasks.add_bucket("game.map_builder.objects.generator_red", [Span(1, 3)])
+    sparse_tasks.add_bucket("game.objects.altar.initial_resource_count", [0, 1])
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
