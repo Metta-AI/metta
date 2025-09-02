@@ -99,7 +99,6 @@ def _extract_agent_state(state: dict) -> dict:
 
     # MettaAgent-specific attributes
     agent_keys = {
-        # Core agent attributes
         "obs_width",
         "obs_height",
         "action_space",
@@ -108,15 +107,31 @@ def _extract_agent_state(state: dict) -> dict:
         "obs_space",
         "_total_params",
         "cfg",
-        "training",
-        # Feature mapping attributes (used by MettaAgent.initialize_to_environment)
         "feature_id_to_name",
         "original_feature_mapping",
-        # Action attributes (used by MettaAgent action conversion methods)
         "action_names",
         "action_max_params",
+        "components_with_memory",
+        "clip_range",
+        "agent_attributes",
         "cum_action_max_params",
         "action_index_tensor",
+        "training",
+        "_parameters",
+        "_buffers",
+        "_non_persistent_buffers_set",
+        "_backward_pre_hooks",
+        "_backward_hooks",
+        "_is_full_backward_hook",
+        "_forward_hooks",
+        "_forward_hooks_with_kwargs",
+        "_forward_hooks_always_called",
+        "_forward_pre_hooks",
+        "_forward_pre_hooks_with_kwargs",
+        "_state_dict_hooks",
+        "_state_dict_pre_hooks",
+        "_load_state_dict_pre_hooks",
+        "_load_state_dict_post_hooks",
     }
 
     # PyTorch module internals
