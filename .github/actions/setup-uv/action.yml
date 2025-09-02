@@ -32,10 +32,20 @@ runs:
         # Check if we have cached packages (from built-in astral-sh/setup-uv caching)
         echo "🔍 Checking uv cache status:"
         echo "  .uv-cache exists: $([ -d .uv-cache ] && echo 'yes' || echo 'no')"
+        echo "  UV_CACHE_DIR env: $UV_CACHE_DIR"
         if [ -d .uv-cache ]; then
           echo "  .uv-cache size: $(du -sh .uv-cache 2>/dev/null || echo 'unknown')"
-          echo "  .uv-cache contents: $(ls -la .uv-cache 2>/dev/null || echo 'cannot list')"
+          echo "  .uv-cache top-level contents:"
+          ls -la .uv-cache/ 2>/dev/null || echo "  cannot list .uv-cache"
+          if [ -d .uv-cache/simple ]; then
+            echo "  .uv-cache/simple size: $(du -sh .uv-cache/simple 2>/dev/null || echo 'unknown')"
+            echo "  .uv-cache/simple sample contents: $(ls .uv-cache/simple | head -5)"
+          fi
         fi
+        
+        # Test uv cache info
+        echo "🔍 UV cache info:"
+        uv cache info || echo "  uv cache info failed"
         
         # Always create fresh venv (using cached packages from uv store)
         echo "🚀 Creating fresh virtual environment with cached packages..."
@@ -51,7 +61,8 @@ runs:
 
           "testing")
             echo "📦 Installing testing packages..."
-            uv sync
+            echo "🔍 Running uv sync with verbose output to check cache usage..."
+            uv sync -v
             uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
             echo "✅ Testing packages installed"
             ;;
