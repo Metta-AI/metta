@@ -89,10 +89,12 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.used_objects.append(converter_name)
         cfg.converters.append(converter_name)
 
-        converter = self.converter_types[converter_name]
+        converter = self.converter_types[converter_name].copy()
         converter.output_resources = {output_resource: 1}
 
-        if input_resource != "nothing":
+        if input_resource == "nothing":
+            converter.input_resources = {}
+        else:
             converter.input_resources = {input_resource: 1}
 
             cfg.all_input_resources.append(input_resource)
@@ -105,7 +107,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             self.converter_types, cfg.used_objects, rng
         )
         cfg.used_objects.append(sink_name)
-        sink = self.converter_types[sink_name]
+        sink = self.converter_types[sink_name].copy()
 
         for input_resource in cfg.all_input_resources:
             sink.input_resources[input_resource] = 1
