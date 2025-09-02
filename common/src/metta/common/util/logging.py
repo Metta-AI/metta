@@ -100,7 +100,7 @@ def _init_console_logging() -> None:
 
     rank = get_node_rank()
     local_rank = os.environ.get("LOCAL_RANK")
-    rank_prefix = f"[{rank}-{local_rank}]" if rank and local_rank else f"[{rank}]" if rank else ""
+    rank_prefix = f"[{rank}-{local_rank}] " if rank and local_rank else f"[{rank}] " if rank else ""
 
     if use_simple_handler:
         # Use simple handler without Rich formatting
