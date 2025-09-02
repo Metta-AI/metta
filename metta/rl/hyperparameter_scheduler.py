@@ -82,7 +82,6 @@ class HyperparameterScheduler:
         self.total_timesteps = total_timesteps
         self.logger = logger or logging.getLogger(__name__)
 
-        # Map from parameter name to schedule config key
         self.schedule_key_mapping = {
             "learning_rate": "learning_rate_schedule",
             "ppo_clip_coef": "ppo_clip_schedule",
@@ -106,7 +105,6 @@ class HyperparameterScheduler:
             schedule_config = schedule_configs.get(param_name)
             if schedule_config is not None:
                 self.logger.info(f"Initializing scheduler for: {param_name} (type: {schedule_config.type})")
-                # Create schedule object directly from Pydantic config
                 if schedule_config.type == "constant":
                     self.schedulers[param_name] = ConstantSchedule(initial_value)
                 elif schedule_config.type == "linear":
@@ -138,7 +136,6 @@ class HyperparameterScheduler:
             total_timesteps: Total timesteps for progress calculation
             logger: Logger instance (optional)
         """
-        # Extract initial values from trainer config
         initial_values = {
             "learning_rate": trainer_cfg.optimizer.learning_rate,
             "ppo_clip_coef": trainer_cfg.ppo.clip_coef,
@@ -148,12 +145,10 @@ class HyperparameterScheduler:
             "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
         }
 
-        # Extract schedule configs
         scheduler_cfg = trainer_cfg.hyperparameter_scheduler
 
         schedule_configs = {}
 
-        # Map parameter names to their schedule config keys
         schedule_key_mapping = {
             "learning_rate": "learning_rate_schedule",
             "ppo_clip_coef": "ppo_clip_schedule",
@@ -200,11 +195,9 @@ class HyperparameterScheduler:
             new_value = self._compute_scheduled_value(param_name, current_step)
             updates[param_name] = new_value
 
-        # Update optimizer learning rate directly
         if "learning_rate" in updates:
             self.optimizer.param_groups[0]["lr"] = updates["learning_rate"]
 
-        # Call update callbacks if provided
         if update_callbacks:
             for param_name, new_value in updates.items():
                 if param_name in update_callbacks:
