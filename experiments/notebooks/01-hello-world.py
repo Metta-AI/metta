@@ -290,7 +290,7 @@ temp_curriculum_path = cfg_tmp_dir / curriculum_name
 with temp_curriculum_path.open("w") as f:
     yaml.dump(
         {
-            "_pre_built_env_config": env_dict,
+            "_pre_built_mg_config": env_dict,
             "game": env_dict["game"],
             "name": "hallway_curriculum",
         },

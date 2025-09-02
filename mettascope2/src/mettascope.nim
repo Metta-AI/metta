@@ -16,7 +16,7 @@ worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
 minimapPanel = Panel(panelType: Minimap, name: "Minimap")
 agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table")
 agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces")
-envConfigPanel = Panel(panelType: EnvConfig, name: "Env Config")
+mgConfigPanel = Panel(panelType: EnvConfig, name: "Env Config")
 globalTimelinePanel = Panel(panelType: GlobalTimeline)
 globalFooterPanel = Panel(panelType: GlobalFooter)
 globalHeaderPanel = Panel(panelType: GlobalHeader)
@@ -31,7 +31,7 @@ topArea.panels.add(worldMapPanel)
 topArea.panels.add(minimapPanel)
 topArea.panels.add(agentTablePanel)
 bottomArea.panels.add(agentTracesPanel)
-bottomArea.panels.add(envConfigPanel)
+bottomArea.panels.add(mgConfigPanel)
 
 proc display() =
   let now = epochTime()
@@ -75,9 +75,9 @@ proc display() =
   drawAgentTraces(agentTracesPanel)
   agentTracesPanel.endDraw()
 
-  envConfigPanel.beginDraw()
-  drawEnvConfig(envConfigPanel)
-  envConfigPanel.endDraw()
+  mgConfigPanel.beginDraw()
+  drawEnvConfig(mgConfigPanel)
+  mgConfigPanel.endDraw()
 
   rootArea.drawFrame()
 

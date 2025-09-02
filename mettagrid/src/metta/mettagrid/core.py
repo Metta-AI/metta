@@ -49,20 +49,20 @@ class MettaGridCore:
 
     def __init__(
         self,
-        env_config: MettaGridConfig,
+        mg_config: MettaGridConfig,
         render_mode: Optional[str] = None,
     ):
         """Initialize core MettaGrid functionality."""
-        if not isinstance(env_config, MettaGridConfig):
-            raise ValueError("env_config must be an instance of MettaGridConfig")
+        if not isinstance(mg_config, MettaGridConfig):
+            raise ValueError("mg_config must be an instance of MettaGridConfig")
 
         # We protect the env config with __ to avoid accidental modification
-        # by subclasses. It should only be modified through set_env_config.
-        self.__env_config = env_config
+        # by subclasses. It should only be modified through set_mg_config.
+        self.__mg_config = mg_config
         self._render_mode = render_mode
         self._renderer = None
         self._current_seed: int = 0
-        self._map_builder = self.__env_config.game.map_builder.create()
+        self._map_builder = self.__mg_config.game.map_builder.create()
 
         # Set by PufferBase
         self.observations: np.ndarray
@@ -78,14 +78,14 @@ class MettaGridCore:
         self._update_core_buffers()
 
     @property
-    def env_config(self) -> MettaGridConfig:
+    def mg_config(self) -> MettaGridConfig:
         """Get the environment configuration."""
-        return self.__env_config
+        return self.__mg_config
 
-    def set_env_config(self, env_config: MettaGridConfig) -> None:
+    def set_mg_config(self, mg_config: MettaGridConfig) -> None:
         """Set the environment configuration."""
-        self.__env_config = env_config
-        self._map_builder = self.__env_config.game.map_builder.create()
+        self.__mg_config = mg_config
+        self._map_builder = self.__mg_config.game.map_builder.create()
 
     @property
     def c_env(self) -> MettaGridCpp:
@@ -113,11 +113,11 @@ class MettaGridCore:
 
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
-        assert self.__env_config.game.num_agents == level_agents, (
-            f"Number of agents {self.__env_config.game.num_agents} "
+        assert self.__mg_config.game.num_agents == level_agents, (
+            f"Number of agents {self.__mg_config.game.num_agents} "
             f"does not match number  of agents in map {level_agents}"
         )
-        game_config_dict = self.__env_config.game.model_dump()
+        game_config_dict = self.__mg_config.game.model_dump()
 
         # Create C++ config
         try:
