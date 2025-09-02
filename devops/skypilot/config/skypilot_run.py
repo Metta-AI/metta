@@ -22,7 +22,7 @@ from skypilot_logging import log_all, log_error, log_master, log_warning, setup_
 from gitta import set_skypilot_test_status
 from metta.common.util.cost_monitor import get_cost_info
 from metta.common.util.discord import send_to_discord
-from metta.common.util.skypilot_latency import calculate_queue_latency
+from devops.skypilot.src.skypilot_latency import calculate_queue_latency
 from metta.common.wandb.log_wandb import log_to_wandb
 
 # Initialize logger for this module

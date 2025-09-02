@@ -15,11 +15,10 @@ import subprocess
 
 import pytest
 
-from metta.common.util.skypilot_latency import (
+from devops.skypilot.src.skypilot_latency import (
     calculate_queue_latency,
     parse_submission_timestamp,
 )
-
 
 class TestSkyPilotLatency:
     """Tests for the SkyPilot latency helper."""
@@ -122,7 +121,7 @@ class TestSkyPilotLatency:
 
     def _run_script_subprocess(self, env):
         return subprocess.run(
-            ["uv", "run", "python", "-m", "metta.common.util.skypilot_latency"],
+            ["uv", "run", "python", "-m", "devops.skypilot.skypilot_latency"],
             capture_output=True,
             text=True,
             env=env,

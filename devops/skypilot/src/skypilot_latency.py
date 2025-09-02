@@ -22,18 +22,6 @@ _TS_RE: Final = re.compile(r"^sky(?:-managed)?-(?P<ts>\d{4}-\d{2}-\d{2}-\d{2}-\d
 
 
 def parse_submission_timestamp(task_id: str) -> datetime.datetime:
-    """
-    Parse submission timestamp from task ID.
-
-    Args:
-        task_id: SkyPilot task ID
-
-    Returns:
-        Submission timestamp with UTC timezone
-
-    Raises:
-        ValueError: If task ID format is invalid
-    """
     m = _TS_RE.match(task_id)
     if not m:
         raise ValueError(f"Invalid task ID format: {task_id}")
@@ -47,16 +35,7 @@ def parse_submission_timestamp(task_id: str) -> datetime.datetime:
 
 
 def calculate_queue_latency() -> float:
-    """
-    Calculate SkyPilot queue latency in seconds.
-
-    Returns:
-        Queue latency in seconds
-
-    Raises:
-        RuntimeError: If SKYPILOT_TASK_ID not set
-        ValueError: If task ID format is invalid
-    """
+    """Calculate SkyPilot queue latency in seconds."""
     task_id = os.environ.get("SKYPILOT_TASK_ID")
     if not task_id:
         raise RuntimeError("SKYPILOT_TASK_ID environment variable not set")
