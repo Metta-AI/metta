@@ -163,10 +163,10 @@ if (actor->frozen != 0) {
 
 ```yaml
 # Before
-inventory_item_names: [ore, wood, gold]  # ore=0, wood=1, gold=2
+resource_names: [ore, wood, gold]  # ore=0, wood=1, gold=2
 
 # After (BREAKING)
-inventory_item_names: [wood, ore, gold]  # wood=0, ore=1, gold=2
+resource_names: [wood, ore, gold]  # wood=0, ore=1, gold=2
 ```
 
 **Impact**: Resource checks use wrong items **Detection**: Resource-based actions fail unexpectedly
