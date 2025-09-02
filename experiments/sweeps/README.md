@@ -26,7 +26,7 @@ uv run ./tools/run.py experiments.sweeps.standard.ppo \
 
 The sweep system consists of four main components:
 
-1. **Orchestrator** (`metta/sweep/sweep_orchestrator.py`): Stateless controller that coordinates the sweep
+1. **Orchestrator** (`metta/sweep/controller.py`): Stateless controller that coordinates the sweep
 2. **Scheduler** (`metta/sweep/scheduler/`): Decides which jobs to run next
    - `OptimizingScheduler`: Uses Protein optimizer for Bayesian optimization
    - `SequentialScheduler`: Simple one-job-at-a-time scheduler
@@ -39,7 +39,7 @@ The sweep system consists of four main components:
 
 ```python
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
-from metta.tools.sweep_orchestrator import SweepOrchestratorTool
+from metta.tools.sweep import SweepOrchestratorTool
 
 def my_custom_sweep(
     sweep_name: str = None,
@@ -173,7 +173,7 @@ The orchestrator will:
 
 ### Debug Mode
 
-For debugging, modify `LocalDispatcher` in `sweep_orchestrator.py`:
+For debugging, modify `LocalDispatcher` in `metta/sweep/dispatcher/local.py`:
 ```python
 # Comment out these lines to see subprocess output
 # stdout=subprocess.DEVNULL,
@@ -211,7 +211,7 @@ The new orchestrator is a complete replacement for the old Hydra-based sweep sys
 ## API Reference
 
 See the docstrings in:
-- `metta/tools/sweep_orchestrator.py`: Main tool interface
-- `metta/sweep/sweep_orchestrator.py`: Core orchestration logic
+- `metta/tools/sweep.py`: Main tool interface
+- `metta/sweep/controller.py`: Core controller logic
 - `metta/sweep/protein_config.py`: Parameter configuration
 - `metta/sweep/scheduler/optimizing.py`: Optimizer-based scheduling

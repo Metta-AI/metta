@@ -2,14 +2,9 @@
 
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
-from metta.sweep.scheduler.sequential import SequentialScheduler, SequentialSchedulerConfig
-from metta.sweep.sweep_orchestrator import (
-    JobTypes,
-    Observation,
-    RunInfo,
-    SweepMetadata,
-)
+from metta.sweep.schedulers.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
+from metta.sweep.schedulers.sequential import SequentialScheduler, SequentialSchedulerConfig
+from metta.sweep import JobTypes, Observation, RunInfo, SweepMetadata
 
 
 class TestOptimizingScheduler:

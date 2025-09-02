@@ -7,23 +7,58 @@ from enum import StrEnum
 from typing import Any, Optional
 
 from metta.common.config.tool import Tool
-from metta.common.util.logging_helpers import init_file_logging, init_logging
+from metta.common.util.logging import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sweep.dispatcher.routing import RoutingDispatcher
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
-from metta.sweep.store.wandb import WandbStore
-from metta.sweep.sweep_orchestrator import (
-    JobTypes,
-    LocalDispatcher,
-    SweepOrchestratorConfig,
-    orchestrate_sweep,
-)
+from metta.sweep.schedulers.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
+from metta.sweep.stores.wandb import WandbStore
+from cogweb.cogweb_client import CogwebClient
+from metta.sweep import JobTypes, LocalDispatcher, SweepController, SweepControllerConfig, SweepStatus
+from metta.sweep.protocols import Dispatcher, Optimizer, Scheduler, Store
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
+
+
+def orchestrate_sweep(
+    config: SweepControllerConfig,
+    scheduler: Scheduler,
+    optimizer: Optimizer,
+    dispatcher: Dispatcher,
+    store: Store,
+) -> None:
+    """Entry point for running a sweep."""
+    cogweb_client = CogwebClient.get_client(base_url=config.sweep_server_uri)
+    sweep_client = cogweb_client.sweep_client()
+
+    sweep_info = sweep_client.get_sweep(config.sweep_name)
+    if not sweep_info.exists:
+        logger.info(f"[Orchestrator] Registering sweep {config.sweep_name}")
+        sweep_client.create_sweep(config.sweep_name, config.wandb.project, config.wandb.entity, config.sweep_name)
+        sweep_status = SweepStatus.CREATED
+    else:
+        sweep_status = SweepStatus.RESUMED
+
+    # Create the sweep controller (stateless)
+    controller = SweepController(
+        sweep_id=config.sweep_name,
+        scheduler=scheduler,
+        optimizer=optimizer,
+        dispatcher=dispatcher,
+        store=store,
+        protein_config=config.protein_config,
+        sweep_status=sweep_status,
+        max_parallel_jobs=config.max_parallel_jobs,
+        monitoring_interval=config.monitoring_interval,
+    )
+
+    try:
+        controller.run()
+    finally:
+        logger.info("[Orchestrator] Sweep Completed")
 
 
 class DispatcherType(StrEnum):
@@ -78,7 +113,6 @@ class SweepOrchestratorTool(Tool):
     # Dispatcher configuration
     dispatcher_type: DispatcherType = DispatcherType.LOCAL  # LOCAL or SKYPILOT
     capture_output: bool = True  # Capture and stream subprocess output (local only)
-    output_dir: Optional[str] = None  # Directory to save output logs (local only)
 
     consumed_args: list[str] = ["sweep_name", "max_trials"]
 
@@ -110,7 +144,6 @@ class SweepOrchestratorTool(Tool):
         os.makedirs(self.sweep_dir, exist_ok=True)
 
         # Initialize logging
-        init_file_logging(run_dir=self.sweep_dir)
         init_logging(run_dir=self.sweep_dir)
 
         logger.info("[SweepOrchestrator] " + "=" * 60)
@@ -121,13 +154,10 @@ class SweepOrchestratorTool(Tool):
         logger.info(f"[SweepOrchestrator] Monitoring interval: {self.monitoring_interval}s")
         logger.info(f"[SweepOrchestrator] Dispatcher type: {self.dispatcher_type}")
         logger.info(f"[SweepOrchestrator] Output capture: {self.capture_output}")
-        if self.capture_output and self.dispatcher_type == DispatcherType.LOCAL:
-            output_dir = self.output_dir or os.path.join(self.sweep_dir, "job_logs")
-            logger.info(f"[SweepOrchestrator] Output logs directory: {output_dir}")
         logger.info("[SweepOrchestrator] " + "=" * 60)
 
         # Build the orchestrator config
-        orchestrator_config = SweepOrchestratorConfig(
+        orchestrator_config = SweepControllerConfig(
             sweep_name=self.sweep_name,
             sweep_server_uri=self.sweep_server_uri,
             wandb=self.wandb,
@@ -141,12 +171,7 @@ class SweepOrchestratorTool(Tool):
 
         # Create dispatcher based on type
         if self.dispatcher_type == DispatcherType.LOCAL:
-            # Set default output_dir if not specified
-            output_dir = self.output_dir
-            if output_dir is None and self.capture_output:
-                output_dir = os.path.join(self.sweep_dir, "job_logs")
-
-            dispatcher = LocalDispatcher(capture_output=self.capture_output, output_dir=output_dir)
+            dispatcher = LocalDispatcher(capture_output=self.capture_output)
 
         elif self.dispatcher_type == DispatcherType.SKYPILOT:
             dispatcher = SkypilotDispatcher()
@@ -157,14 +182,10 @@ class SweepOrchestratorTool(Tool):
 
         elif self.dispatcher_type == DispatcherType.HYBRID_REMOTE_TRAIN:
             # Train on Skypilot, evaluate locally
-            output_dir = self.output_dir
-            if output_dir is None and self.capture_output:
-                output_dir = os.path.join(self.sweep_dir, "job_logs")
-
             dispatcher = RoutingDispatcher(
                 routes={
                     JobTypes.LAUNCH_TRAINING: SkypilotDispatcher(),
-                    JobTypes.LAUNCH_EVAL: LocalDispatcher(capture_output=self.capture_output, output_dir=output_dir),
+                    JobTypes.LAUNCH_EVAL: LocalDispatcher(capture_output=self.capture_output),
                 }
             )
             logger.info("[SweepOrchestrator] Using hybrid mode: training on Skypilot, evaluation locally")
