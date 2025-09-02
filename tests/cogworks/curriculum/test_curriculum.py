@@ -14,10 +14,7 @@ from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
 class TestCurriculumTask:
-    """Test cases for CurriculumTask class."""
-
     def test_curriculum_task_creation(self):
-        """Test creating a CurriculumTask with required parameters."""
         task_id = 123
         cfg = MettaGridConfig()
 
@@ -31,14 +28,12 @@ class TestCurriculumTask:
         assert task._num_scheduled == 0
 
     def test_curriculum_task_get_env_cfg(self):
-        """Test that get_env_cfg returns the correct env config."""
         cfg = MettaGridConfig()
         task = CurriculumTask(123, cfg)
 
         assert task.get_env_cfg() is cfg
 
     def test_curriculum_task_complete(self):
-        """Test task completion updates statistics."""
         task = CurriculumTask(123, MettaGridConfig())
 
         # Complete with score 0.8
@@ -55,8 +50,6 @@ class TestCurriculumTask:
 
 
 class TestCurriculumConfig:
-    """Test cases for CurriculumConfig."""
-
     def test_curriculum_config_creation(self):
         """Test creating a CurriculumConfig with valid parameters."""
         task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())

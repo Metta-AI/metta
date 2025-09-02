@@ -1,3 +1,4 @@
+import uuid
 from typing import Dict
 
 import pytest
@@ -337,7 +338,6 @@ class TestTrainingRunsRoutes:
         assert "Invalid UUID format" in response.json()["detail"]
 
         # Test non-existent training run (the exact error message may vary)
-        import uuid
 
         fake_id = str(uuid.uuid4())  # Generate a random UUID that definitely won't exist
         response = test_client.patch(
@@ -350,7 +350,6 @@ class TestTrainingRunsRoutes:
         self, test_client: TestClient, auth_headers: Dict[str, str]
     ) -> None:
         """Test that non-existent training run returns proper 'not found' error, not 'Invalid UUID format'."""
-        import uuid
 
         fake_id = str(uuid.uuid4())  # Valid UUID format but non-existent
         response = test_client.patch(
