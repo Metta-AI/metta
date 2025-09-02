@@ -150,10 +150,6 @@ def upload_checkpoint_as_artifact(
     additional_files: Optional[list[str]] = None,
 ) -> Optional[str]:
     """Upload a checkpoint file to wandb as an artifact."""
-    if not wandb:
-        logger.warning("Wandb not available, skipping artifact upload")
-        return None
-
     # Use provided run or get current run
     run = wandb_run or wandb.run
     if run is None:
@@ -190,8 +186,7 @@ def upload_checkpoint_as_artifact(
     wandb_uri = f"wandb://{run.project}/{artifact_name}:latest"
 
     # Log the actual qualified_name for debugging
-    qualified_name = getattr(artifact, "qualified_name", "not_available_yet")
-    logger.info(f"Uploaded checkpoint as wandb artifact: {qualified_name}")
+    logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
     logger.debug(f"Returning simplified WandB URI: {wandb_uri}")
 
     return wandb_uri
