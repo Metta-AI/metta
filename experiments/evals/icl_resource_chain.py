@@ -131,4 +131,6 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
             name="in_context_learning/chain_length7_3sink",
             env=make_icl_resource_chain_eval_env(7, 3),
         ),
+
+        3
     ]
