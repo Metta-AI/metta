@@ -9,7 +9,7 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.experience import Experience
-from metta.rl.ppo import compute_ppo_losses
+from metta.rl.loss.ppo import compute_ppo_losses
 from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)

@@ -224,7 +224,7 @@ def train(
     act_space = vecenv.single_action_space
     act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
     loss_spec = get_loss_experience_spec(act_space.nvec, act_dtype)
-    
+
     # Merge experience specs required by all losses
     merged_spec_dict: dict = dict(policy_spec.items())
     for inst in loss_instances.values():
@@ -243,7 +243,7 @@ def train(
         device=device,
         cpu_offload=trainer_cfg.cpu_offload,
     )
-    
+
     for loss_instance in loss_instances.values():
         loss_instance.attach_replay_buffer(experience)
     # Create optimizer
@@ -333,7 +333,7 @@ def train(
             policy.on_new_training_run()
             for _loss_name in loss_instances.keys():
                 shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
-                
+
             # Initialize main's traditional loss system alongside composable system
             losses = Losses()
             record_heartbeat()
@@ -436,7 +436,7 @@ def train(
                         for mb_idx in range(experience.num_minibatches):
                             trainer_state.mb_idx = mb_idx
                             trainer_state.stop_update_epoch = False
-                            
+
                             policy.reset_memory()
                             minibatch, indices, prio_weights = experience.sample_minibatch(
                                 advantages=advantages,
@@ -445,7 +445,7 @@ def train(
                             )
 
                             policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
-                            
+
                             # Hybrid approach: Use composable losses AND main's traditional processing
                             total_loss = torch.tensor(0.0, dtype=torch.float32, device=device)
                             for _lname in list(all_losses):

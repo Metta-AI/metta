@@ -7,8 +7,8 @@ from torch import Tensor
 from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.base_loss import BaseLoss
 
 # from metta.rl.trainer_config import TrainerConfig
@@ -30,11 +30,11 @@ class PPO(BaseLoss):
         trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
-        policy_store: PolicyStore,
+        checkpoint_manager: CheckpointManager,
         instance_name: str,
         loss_config: Any,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, checkpoint_manager, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.anneal_beta = 0.0
 
@@ -280,3 +280,50 @@ class PPO(BaseLoss):
             minibatch["returns"] = advantages[idx] + minibatch["values"]
             prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
         return minibatch.clone(), idx, prio_weights
+
+
+def compute_ppo_losses(
+    minibatch: TensorDict,
+    new_logprob: Tensor,
+    entropy: Tensor,
+    newvalue: Tensor,
+    importance_sampling_ratio: Tensor,
+    adv: Tensor,
+    trainer_cfg: Any,
+) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+    """Standalone function to compute PPO losses for policy and value functions."""
+    # Policy loss
+    pg_loss1 = -adv * importance_sampling_ratio
+    pg_loss2 = -adv * torch.clamp(
+        importance_sampling_ratio,
+        1 - trainer_cfg.ppo.clip_coef,
+        1 + trainer_cfg.ppo.clip_coef,
+    )
+    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+    returns = minibatch["returns"]
+    old_values = minibatch["values"]
+
+    # Value loss
+    newvalue_reshaped = newvalue.view(returns.shape)
+    if trainer_cfg.ppo.clip_vloss:
+        v_loss_unclipped = (newvalue_reshaped - returns) ** 2
+        vf_clip_coef = trainer_cfg.ppo.vf_clip_coef
+        v_clipped = old_values.detach() + torch.clamp(
+            newvalue_reshaped - old_values.detach(),
+            -vf_clip_coef,
+            vf_clip_coef,
+        )
+        v_loss_clipped = (v_clipped - returns) ** 2
+        v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+    else:
+        v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
+
+    entropy_loss = entropy.mean()
+
+    # Compute metrics
+    with torch.no_grad():
+        logratio = new_logprob - minibatch["act_log_prob"]
+        approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
+        clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.ppo.clip_coef).float().mean()
+
+    return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac

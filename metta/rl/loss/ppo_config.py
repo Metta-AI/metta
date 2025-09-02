@@ -4,8 +4,8 @@ import torch
 from pydantic import Field
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
 from metta.common.config import Config
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.ppo import PPO
 
 # from metta.rl.trainer_config import TrainerConfig
@@ -83,11 +83,17 @@ class PPOConfig(Config):
         trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
-        policy_store: PolicyStore,
+        checkpoint_manager: CheckpointManager,
         instance_name: str,
         loss_config: Any,
     ):
         """Points to the PPO class for initialization."""
         return PPO(
-            policy, trainer_cfg, vec_env, device, policy_store, instance_name=instance_name, loss_config=loss_config
+            policy,
+            trainer_cfg,
+            vec_env,
+            device,
+            checkpoint_manager,
+            instance_name=instance_name,
+            loss_config=loss_config,
         )

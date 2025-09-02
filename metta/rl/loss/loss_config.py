@@ -4,8 +4,8 @@ import torch
 from pydantic import Field
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.common.config import Config
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.ppo_config import PPOConfig
 
 

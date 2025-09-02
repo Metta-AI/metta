@@ -7,7 +7,7 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.base_loss import BaseLoss
 
 # from metta.rl.trainer_config import TrainerConfig
@@ -27,11 +27,11 @@ class EMA(BaseLoss):
         trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
-        policy_store: PolicyStore,
+        checkpoint_manager: CheckpointManager,
         instance_name: str,
         loss_config: Any,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, checkpoint_manager, instance_name, loss_config)
 
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():

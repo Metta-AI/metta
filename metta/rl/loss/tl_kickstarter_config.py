@@ -4,8 +4,8 @@ import torch
 from pydantic import Field
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
 from metta.common.config import Config
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.tl_kickstarter import TLKickstarter
 from metta.rl.trainer_config import TrainerConfig
 
@@ -21,8 +21,8 @@ class TLKickstarterConfig(Config):
         trainer_cfg: TrainerConfig,
         vec_env: Any,
         device: torch.device,
-        policy_store: PolicyStore,
+        checkpoint_manager: CheckpointManager,
         instance_name: str,
     ):
         """Points to the TLKickstarter class for initialization."""
-        return TLKickstarter(policy, trainer_cfg, vec_env, device, policy_store, instance_name=instance_name)
+        return TLKickstarter(policy, trainer_cfg, vec_env, device, checkpoint_manager, instance_name=instance_name)

@@ -270,6 +270,14 @@ class MettaAgent(nn.Module):
         """Compute weight metrics - delegates to policy."""
         return self.policy.compute_weight_metrics(delta)
 
+    def clip_weights(self):
+        """Clip weights to prevent large updates during training - delegates to policy."""
+        return self.policy.clip_weights()
+
+    def l2_init_loss(self) -> torch.Tensor:
+        """Calculate L2 initialization loss for regularization - delegates to policy."""
+        return self.policy.l2_init_loss()
+
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
         if hasattr(self.policy, "_convert_action_to_logit_index"):

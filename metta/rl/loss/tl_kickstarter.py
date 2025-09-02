@@ -7,7 +7,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.base_loss import BaseLoss
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
@@ -29,16 +29,15 @@ class TLKickstarter(BaseLoss):
         trainer_cfg: TrainerConfig,
         vec_env: Any,
         device: torch.device,
-        policy_store: PolicyStore,
+        checkpoint_manager: CheckpointManager,
         instance_name: str,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, instance_name)
+        super().__init__(policy, trainer_cfg, vec_env, device, checkpoint_manager, instance_name)
         self.action_loss_coef = self.loss_cfg.action_loss_coef
         self.value_loss_coef = self.loss_cfg.value_loss_coef
 
         # load teacher policy
-        policy_record = self.policy_store.policy_record(self.loss_cfg.teacher_uri)
-        self.teacher_policy: PolicyAgent = policy_record.policy
+        self.teacher_policy: PolicyAgent = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
         if hasattr(self.teacher_policy, "initialize_to_environment"):
             features = self.vec_env.driver_env.get_observation_features()
             self.teacher_policy.initialize_to_environment(

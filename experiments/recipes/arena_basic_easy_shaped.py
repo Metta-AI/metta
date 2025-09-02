@@ -3,13 +3,7 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mapgen.mapgen import MapGen
-from metta.mettagrid.config import building
 from metta.mettagrid.mettagrid_config import (
-    ActionConfig,
-    ActionsConfig,
-    AttackActionConfig,
-    ChangeGlyphActionConfig,
     MettaGridConfig,
 )
 from metta.rl.loss.loss_config import LossConfig

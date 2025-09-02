@@ -282,3 +282,17 @@ class ComponentPolicy(nn.Module, ABC):
                 # Update the component's normalization tensor
                 if hasattr(component, "update_normalization_tensor"):
                     component.update_normalization_tensor(norm_tensor)
+
+    def clip_weights(self):
+        """Clip weights in all components that support it."""
+        for _, component in self.components.items():
+            if hasattr(component, "clip_weights"):
+                component.clip_weights()
+
+    def l2_init_loss(self) -> torch.Tensor:
+        """Calculate L2 initialization loss across all components."""
+        total_loss = torch.tensor(0.0, dtype=torch.float32)
+        for _, component in self.components.items():
+            if hasattr(component, "l2_init_loss"):
+                total_loss += component.l2_init_loss()
+        return total_loss

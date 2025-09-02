@@ -244,9 +244,9 @@ def test_agent_experience_spec(create_metta_agent):
     # Check it's a Composite spec
     assert isinstance(spec, Composite)
 
-    # Check it has expected keys
-    assert "action" in spec
-    assert "action_dist" in spec
+    # Check it has expected keys (updated for simplified architecture)
+    assert "env_obs" in spec
+    assert "dones" in spec
 
 
 def test_clip_weights(create_metta_agent):
