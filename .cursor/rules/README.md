@@ -2,23 +2,19 @@
 
 Modern Cursor IDE rule configuration for Metta AI using the latest 2025 numbered `.mdc` format with enhanced Agent mode capabilities.
 
-## Rule Organization (2025 Standard)
+## Simplified Rules (2025 Standard)
 
-### Numbered File Convention
-- **001-099**: Core/workspace rules  
-- **100-199**: Integration rules
-- **200-299**: Pattern-specific rules
-- Higher numbers take precedence for conflicting rules
+All rules kept under 25 lines with concise, actionable directives only.
 
-### Current Configuration
-- **001_workspace.mdc** (Always) - Project architecture and core workflows
-- **002_rules.mdc** (Always) - AI assistant behavioral guidelines  
-- **003_docs.mdc** (Auto) - Documentation and planning standards
-- **004_tools.mdc** (Auto) - Tool and script usage patterns
-- **101_python.mdc** (Auto: `*.py`) - Python coding standards and formatting
-- **102_ml_rl.mdc** (Auto: `metta/**/*.py`) - ML/RL specific patterns
-- **201_testing.mdc** (Auto: `tests/**/*.py`) - Testing guidelines and patterns  
-- **202_frontend.mdc** (Auto: `**/*.ts`, `**/*.tsx`) - TypeScript/React standards
+### Current Configuration  
+- **001_workspace.mdc** (Always) - Core project context (24 lines)
+- **002_rules.mdc** (Always) - AI behavioral guidelines (23 lines)
+- **003_docs.mdc** (Auto) - Task planning basics (14 lines)
+- **004_tools.mdc** (Auto) - Recipe system commands (16 lines)
+- **101_python.mdc** (Auto: `*.py`) - Python standards (22 lines)
+- **102_ml_rl.mdc** (Auto: `metta/**/*.py`) - ML/RL patterns (19 lines)
+- **201_testing.mdc** (Auto: `tests/**/*.py`) - Testing commands (18 lines)
+- **202_frontend.mdc** (Auto: `**/*.ts`, `**/*.tsx`) - Frontend basics (17 lines)
 
 ## 2025 Features Integration
 

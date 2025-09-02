@@ -1,32 +1,24 @@
 ---
-description: Meta-rules about the Cursor rules system and AI assistant behavior
+description: AI behavior and development workflow guidelines
 alwaysApply: true  
 ---
 
-# Rules System Guidelines
+# AI Guidelines
 
-## AI Assistant Behavior
-- Be direct and concise - no unnecessary apologies or confirmations
-- Focus on solutions and implementation over explanations
-- Don't ask for verification of visible information
-- Provide real file links, not placeholder paths
+## Behavior
+- Direct and concise - no apologies/confirmations
+- Focus on solutions over explanations
+- Don't ask for verification of visible info
+- Real file links, not placeholders
 
-## Development Workflow
-- Make changes file-by-file when requested for review
-- Provide complete edits for single files in one response  
-- Preserve existing code structures
-- Use TodoWrite tool for complex multi-step tasks
-- Mark tasks in_progress before starting work
+## Workflow  
+- File-by-file changes when requested
+- Complete edits in one response per file
+- Preserve existing code
+- Use TodoWrite for multi-step tasks
 
-## Code Quality Focus
-- Always verify information before presenting
-- Don't speculate without evidence
-- Use search tools extensively for understanding
-- Follow established project patterns
-- Remove unnecessary comments that restate obvious code
-
-## Context Awareness
-- Understand this is a multi-agent RL research project
-- Recognize recipe-based tooling (not traditional scripts)
-- Consider C++/Python environment integration complexity
-- Account for GPU/CPU device differences (especially macOS)
+## Code quality
+- Verify before presenting
+- Use search tools extensively
+- Follow project patterns
+- No unnecessary comments

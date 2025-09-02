@@ -1,44 +1,20 @@
 ---
-description: Machine learning and reinforcement learning patterns for Metta AI
+description: ML/RL patterns for Metta AI
 globs: ["metta/**/*.py", "tests/**/*.py", "tools/**/*.py"]
 alwaysApply: false
 ---
 
 # ML/RL Patterns
 
-## Core Libraries
-- **PyTorch**: Primary ML framework
-- **Pufferlib**: RL environment (check `metta install` if missing)
-- **Weights & Biases**: Experiment tracking
-- **UV**: Package management (`uv run` prefix always)
+## Core components
+- PolicyStore - checkpoint management
+- MettaAgent - single GPU
+- DistributedMettaAgent - multi-GPU
 
-## Agent Architecture
-- **PolicyStore**: Manages checkpoints and loading
-- **MettaAgent**: Single GPU agent
-- **DistributedMettaAgent**: Multi-GPU agent
-- **Configs**: `configs/agent/` (latent_attn_tiny, etc.)
+## Policy URIs
+- `file://./path/to/checkpoint`
+- `wandb://run/name` or `wandb://entity/project/model/name:version`
 
-## Configuration Patterns
-**Recipe overrides**:
-```bash
-# Training
-trainer.num_workers=4 trainer.total_timesteps=100000
-
-# Environment (8-way movement example)
-++trainer.env_overrides.game.actions.move_8way.enabled=true
-```
-
-## Policy URI Formats
-- Local: `file://./path/to/checkpoint`
-- Wandb: `wandb://run/experiment_name`
-- Artifact: `wandb://entity/project/model/name:version`
-
-## Device Management  
-- Explicit `torch.device` type hints
-- Consistent tensor placement
-- macOS: Use `device=cpu` (no CUDA)
-
-## Performance
-- Monitor: `nvidia-smi` (NVIDIA) or Activity Monitor (macOS)
-- Profile: `torch.profiler` integration
-- Memory: Check environment step timing
+## Device hints
+- Use explicit `torch.device` type hints
+- macOS: `device=cpu` (no CUDA)

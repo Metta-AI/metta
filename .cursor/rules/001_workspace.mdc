@@ -1,50 +1,25 @@
 ---
-description: Core workspace definition for Metta AI reinforcement learning project
+description: Metta AI RL project workspace
 alwaysApply: true
 ---
 
-# Metta AI Workspace
+# Metta AI - Multi-agent RL project
 
-**Metta AI** - Multi-agent reinforcement learning project studying cooperation and alignment in AI systems.
+## Key paths
+- `metta/` - Core Python (agents, RL, simulation)
+- `mettagrid/` - C++/Python environment
 
-## Project Structure
-- `metta/`: Core Python (agents, maps, RL algorithms, simulation)
-- `mettagrid/`: C++/Python grid environment (Pybind11)  
-- `mettascope/`: TypeScript visualization tools
-- `observatory/`: React training dashboard
-- `gridworks/`: Next.js web interface
-- `app_backend/`: FastAPI backend
+## Commands  
+- Always use `uv run` for Python
+- Setup: `./install.sh`, Test: `metta test`, Lint: `metta lint --fix`
 
-## Key Components
-- **MettaAgent** - Main agent implementation
-- **PolicyStore** - Policy checkpoint management  
-- **DistributedMettaAgent** - Multi-GPU agent
-
-## Development Commands
-- Setup: `./install.sh`
-- Status: `metta status`
-- Test: `metta test` 
-- Lint: `metta lint --fix`
-- Always use `uv run` prefix for Python commands
-
-## Recipe System (Primary Interface)
+## Recipe system
 ```bash
-# Training
-uv run ./tools/run.py experiments.recipes.arena.train run=experiment_name
-
-# Evaluation  
+uv run ./tools/run.py experiments.recipes.arena.train run=name
 uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints
-
-# Analysis
-uv run ./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./stats.db
-
-# Interactive
-uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpoints
 ```
 
-## Quality Standards
-**CRITICAL**: After editing Python files:
+## After Python edits - ALWAYS:
 ```bash
-ruff format [file_path]
-ruff check --fix [file_path]
+ruff format [file_path] && ruff check --fix [file_path]
 ```
