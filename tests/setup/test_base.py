@@ -147,10 +147,8 @@ class BaseMettaSetupTest(unittest.TestCase):
             CompletedProcess with stdout, stderr, and returncode
         """
         # Automatically add --non-interactive flag for commands that support it
-        # when running in test/CI environments
-        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
-            if args and args[0] in ["install", "configure", "status"] and "--non-interactive" not in args:
-                args = args + ["--non-interactive"]
+        if args and args[0] in ["install", "configure", "status"] and "--non-interactive" not in args:
+            args = args + ["--non-interactive"]
 
         cmd = [sys.executable, "-m", "metta.setup.metta_cli"] + args
         return subprocess.run(
