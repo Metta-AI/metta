@@ -17,7 +17,46 @@ def get_node_rank() -> str | None:
     return None
 
 
-# Create a custom formatter that supports milliseconds
+class RankAwareLogger(logging.Logger):
+    """Logger with built-in rank-aware methods."""
+
+    def __init__(self, name, level=logging.NOTSET):
+        super().__init__(name, level)
+        self._rank = None
+        self._is_master = None
+
+    @property
+    def is_master(self):
+        if self._is_master is None:
+            self._is_master = (get_node_rank() or "0") == "0"
+        return self._is_master
+
+    def debug_master(self, msg, *args, **kwargs):
+        """Log debug message only on master (rank 0)."""
+        if self.is_master:
+            self.debug(msg, *args, **kwargs)
+
+    def info_master(self, msg, *args, **kwargs):
+        """Log info message only on master (rank 0)."""
+        if self.is_master:
+            self.info(msg, *args, **kwargs)
+
+    def warning_master(self, msg, *args, **kwargs):
+        """Log warning message only on master (rank 0)."""
+        if self.is_master:
+            self.warning(msg, *args, **kwargs)
+
+    def error_master(self, msg, *args, **kwargs):
+        """Log error message only on master (rank 0)."""
+        if self.is_master:
+            self.error(msg, *args, **kwargs)
+
+    def critical_master(self, msg, *args, **kwargs):
+        """Log critical message only on master (rank 0)."""
+        if self.is_master:
+            self.critical(msg, *args, **kwargs)
+
+
 class MillisecondFormatter(logging.Formatter):
     def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
         created = datetime.fromtimestamp(record.created)
@@ -35,7 +74,6 @@ class MillisecondFormatter(logging.Formatter):
             return created.strftime(f"[%H:%M:%S.{msec:03d}]")
 
 
-# Create a custom handler that always shows the timestamp
 class AlwaysShowTimeRichHandler(RichHandler):
     def emit(self, record: logging.LogRecord) -> None:
         # Force a unique timestamp for each record
@@ -43,7 +81,6 @@ class AlwaysShowTimeRichHandler(RichHandler):
         super().emit(record)
 
 
-# Simple handler that formats logs without Rich when needed
 class SimpleHandler(logging.StreamHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -78,6 +115,10 @@ def _add_file_logging(run_dir: str) -> None:
 
 @functools.cache
 def _init_console_logging() -> None:
+    # Set the logger class to our rank-aware version
+    # This must be done before any loggers are created
+    logging.setLoggerClass(RankAwareLogger)
+
     # Remove all handlers from the root logger
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
@@ -88,13 +129,13 @@ def _init_console_logging() -> None:
     use_simple_handler = any(
         os.environ.get(key) is not None
         for key in (
-            "WANDB_MODE",
-            "WANDB_RUN_ID",
-            "METTA_RUN_ID",
-            "AWS_BATCH_JOB_ID",
-            "SKYPILOT_TASK_ID",
-            "NO_HYPERLINKS",
-            "NO_RICH_LOGS",
+            "WANDB_MODE",  # wandb is configured
+            "WANDB_RUN_ID",  # wandb run is active
+            "METTA_RUN_ID",  # metta run that might use wandb
+            "AWS_BATCH_JOB_ID",  # AWS batch job
+            "SKYPILOT_TASK_ID",  # SkyPilot job
+            "NO_HYPERLINKS",  # explicit disable
+            "NO_RICH_LOGS",  # explicit disable rich
         )
     )
 
@@ -164,8 +205,15 @@ def _init_console_logging() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-# Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
 def init_logging(run_dir: str | None = None) -> None:
+    """Initialize logging with optional file output and automatic rank awareness.
+
+    All loggers created with logging.getLogger() will have rank-aware methods.
+
+    Args:
+        run_dir: Optional directory for log files. If provided, logs will be written to
+                {run_dir}/logs/script.log (master) or script_{rank}.log (workers)
+    """
     _init_console_logging()
     if run_dir:
         _add_file_logging(run_dir)
