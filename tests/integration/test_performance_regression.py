@@ -14,11 +14,6 @@ import time
 import numpy as np
 import pytest
 
-try:
-    import torch
-except ImportError:
-    torch = None
-
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_observations,
@@ -178,10 +173,6 @@ class TestBufferSharingRegression:
 
         print("✅ Memory allocation pattern detection working correctly")
 
-    @pytest.mark.skipif(
-        not pytest.importorskip("torch", reason="PyTorch not available"),
-        reason="Torch required for GPU compatibility test",
-    )
     def test_gpu_compatibility_check(self):
         """
         Test GPU compatibility when CUDA is available.
@@ -189,6 +180,7 @@ class TestBufferSharingRegression:
         This test only runs when PyTorch with CUDA is available and verifies
         that buffer sharing works in GPU environments.
         """
+        torch = pytest.importorskip("torch", reason="PyTorch not available for GPU test")
 
         if not torch.cuda.is_available():
             pytest.skip("CUDA not available for GPU compatibility test")

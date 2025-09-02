@@ -1,9 +1,3 @@
-"""Consolidated tests for CheckpointManager core functionality.
-
-Tests basic save/load operations, caching, trainer state management,
-cleanup operations, filename parsing utilities, and error handling.
-"""
-
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -44,20 +38,16 @@ def mock_agent():
 
 class TestBasicSaveLoad:
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent):
-        # Create metadata dictionary
         metadata = {"agent_step": 5280, "total_time": 120.0, "score": 0.75}
 
-        # Save the agent
         checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
 
-        # Verify checkpoint file exists with correct format
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
         expected_filename = "test_run__e5__s5280__t120__sc7500.pt"
         agent_file = checkpoint_dir / expected_filename
 
         assert agent_file.exists()
 
-        # Verify metadata is embedded in filename
         parsed = parse_checkpoint_filename(expected_filename)
         assert parsed[0] == "test_run"  # run name
         assert parsed[1] == 5  # epoch
@@ -65,11 +55,9 @@ class TestBasicSaveLoad:
         assert parsed[3] == 120  # total_time
         assert abs(parsed[4] - 0.75) < 0.0001  # score
 
-        # Load the agent back
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
         assert loaded_agent is not None
 
-        # Verify the loaded agent works
         test_input = TensorDict({"env_obs": torch.randn(1, 10)}, batch_size=(1,))
         output = loaded_agent(test_input)
         assert "actions" in output
