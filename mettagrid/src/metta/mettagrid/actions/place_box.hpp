@@ -48,7 +48,7 @@ protected:
     }
 
     for (const auto& [item, qty_required] : resources_to_create) {
-        actor->update_inventory(item, -static_cast<InventoryDelta>(qty_required));
+        actor->update_inventory(item, -qty_required);
     }
 
     if (actor->box) {
