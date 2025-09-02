@@ -266,13 +266,34 @@ class WandBDashboardTools:
             error_result = {"status": "error", "message": f"Failed to create custom chart: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
-    async def delete_dashboard(self, dashboard_url: str) -> str:
-        """Delete an existing dashboard using the WandB API."""
+    async def bulk_delete_dashboards(self, dashboard_urls: List[str], confirmed: bool = False) -> str:
+        """Bulk delete multiple dashboards with confirmation using the WandB API."""
         try:
-            logger.info(f"Deleting dashboard: {dashboard_url}")
+            logger.info(f"Bulk deleting {len(dashboard_urls)} dashboards, confirmed={confirmed}")
 
-            # Delete the dashboard using the WandB API
-            delete_result = await self.client.delete_dashboard(dashboard_url)
+            # Use the bulk delete method from the WandB API client
+            delete_result = await self.client.bulk_delete_dashboards(dashboard_urls, confirmed)
+
+            result = {
+                "status": "success",
+                "message": "Bulk deletion operation completed",
+                "deletion_results": delete_result,
+            }
+
+            return json.dumps(result, indent=2)
+
+        except Exception as e:
+            logger.error(f"Failed to bulk delete dashboards: {e}")
+            error_result = {"status": "error", "message": f"Failed to bulk delete dashboards: {str(e)}"}
+            return json.dumps(error_result, indent=2)
+
+    async def _delete_single_dashboard(self, dashboard_url: str) -> str:
+        """Delete a single existing dashboard using the WandB API (hidden method)."""
+        try:
+            logger.info(f"Deleting single dashboard: {dashboard_url}")
+
+            # Delete the single dashboard using the WandB API
+            delete_result = await self.client._delete_single_dashboard(dashboard_url)
 
             result = {
                 "status": "success",
@@ -302,7 +323,7 @@ class WandBDashboardTools:
                 "remove_panel",
                 "create_custom_chart",
                 "clone_dashboard",
-                "delete_dashboard",
+                "bulk_delete_dashboards",
             ],
         }
         return json.dumps(summary, indent=2)

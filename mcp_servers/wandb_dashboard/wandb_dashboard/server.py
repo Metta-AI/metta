@@ -298,14 +298,23 @@ class WandBDashboardMCPServer:
                     },
                 ),
                 types.Tool(
-                    name="delete_dashboard",
-                    description="Delete an existing WandB dashboard",
+                    name="bulk_delete_dashboards",
+                    description="Bulk delete multiple WandB dashboards with confirmation",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "dashboard_url": {"type": "string", "description": "URL of the dashboard to delete"},
+                            "dashboard_urls": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of dashboard URLs to delete",
+                            },
+                            "confirmed": {
+                                "type": "boolean",
+                                "description": "Confirmation flag - set to true after reviewing deletion details",
+                                "default": False,
+                            },
                         },
-                        "required": ["dashboard_url"],
+                        "required": ["dashboard_urls"],
                     },
                 ),
             ]
@@ -382,8 +391,11 @@ class WandBDashboardMCPServer:
                     result = await self.tools.clone_dashboard(
                         source_url=arguments["source_url"], new_name=arguments["new_name"]
                     )
-                elif name == "delete_dashboard":
-                    result = await self.tools.delete_dashboard(dashboard_url=arguments["dashboard_url"])
+                elif name == "bulk_delete_dashboards":
+                    result = await self.tools.bulk_delete_dashboards(
+                        dashboard_urls=arguments["dashboard_urls"],
+                        confirmed=arguments.get("confirmed", False),
+                    )
                 else:
                     return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 

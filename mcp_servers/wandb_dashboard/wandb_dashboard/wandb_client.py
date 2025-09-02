@@ -1144,7 +1144,117 @@ This chart was created using the WandB MCP server's `create_custom_chart` tool.
             logger.error(f"Failed to create custom chart: {e}")
             return {"status": "error", "error": str(e)}
 
-    async def delete_dashboard(self, dashboard_url: str) -> dict:
+    async def bulk_delete_dashboards(self, dashboard_urls: List[str], confirmed: bool = False) -> Dict[str, Any]:
+        """Bulk delete multiple WandB dashboards with confirmation.
+
+        Args:
+            dashboard_urls: List of dashboard URLs to delete
+            confirmed: Whether the user has confirmed the deletion
+
+        Returns:
+            dict: Result of the bulk deletion operation
+        """
+        logger.info(f"Bulk delete request for {len(dashboard_urls)} dashboards, confirmed={confirmed}")
+
+        if not dashboard_urls:
+            return {"status": "error", "error": "No dashboard URLs provided"}
+
+        # First pass: Get details of all dashboards for confirmation
+        dashboard_details = []
+        invalid_urls = []
+
+        for url in dashboard_urls:
+            try:
+                report = wr.Report.from_url(url)
+                dashboard_details.append(
+                    {
+                        "url": url,
+                        "title": report.title,
+                        "id": report.id,
+                        "report_object": report,
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to load dashboard {url}: {e}")
+                invalid_urls.append({"url": url, "error": str(e)})
+
+        # If not confirmed, return confirmation request with details
+        if not confirmed:
+            return {
+                "status": "confirmation_required",
+                "message": "Bulk deletion requires confirmation",
+                "dashboards_to_delete": [
+                    {
+                        "url": d["url"],
+                        "title": d["title"],
+                        "id": d["id"],
+                    }
+                    for d in dashboard_details
+                ],
+                "invalid_urls": invalid_urls,
+                "total_valid": len(dashboard_details),
+                "total_invalid": len(invalid_urls),
+                "confirmation_message": f"Are you sure you want to delete {len(dashboard_details)} dashboards? "
+                f"This action cannot be undone.",
+                "next_step": "Call this function again with confirmed=True to proceed with deletion",
+            }
+
+        # Confirmed deletion: Proceed with actual deletion
+        successful_deletions = []
+        failed_deletions = []
+
+        for dashboard in dashboard_details:
+            try:
+                logger.info(f"Deleting dashboard: {dashboard['title']} ({dashboard['id']})")
+                delete_result = dashboard["report_object"].delete()
+
+                if delete_result:
+                    successful_deletions.append(
+                        {
+                            "url": dashboard["url"],
+                            "title": dashboard["title"],
+                            "id": dashboard["id"],
+                            "status": "deleted",
+                        }
+                    )
+                else:
+                    failed_deletions.append(
+                        {
+                            "url": dashboard["url"],
+                            "title": dashboard["title"],
+                            "id": dashboard["id"],
+                            "error": "Delete operation returned False",
+                        }
+                    )
+            except Exception as e:
+                logger.error(f"Failed to delete dashboard {dashboard['title']}: {e}")
+                failed_deletions.append(
+                    {
+                        "url": dashboard["url"],
+                        "title": dashboard["title"],
+                        "id": dashboard["id"],
+                        "error": str(e),
+                    }
+                )
+
+        # Return comprehensive results
+        return {
+            "status": "completed",
+            "message": f"Bulk deletion completed: {len(successful_deletions)} successful, "
+            f"{len(failed_deletions)} failed",
+            "successful_deletions": successful_deletions,
+            "failed_deletions": failed_deletions,
+            "invalid_urls": invalid_urls,
+            "summary": {
+                "total_requested": len(dashboard_urls),
+                "valid_dashboards": len(dashboard_details),
+                "successful": len(successful_deletions),
+                "failed": len(failed_deletions),
+                "invalid": len(invalid_urls),
+            },
+        }
+
+    async def _delete_single_dashboard(self, dashboard_url: str) -> dict:
         """Delete an existing WandB dashboard/report.
 
         Args:
