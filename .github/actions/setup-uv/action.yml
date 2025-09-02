@@ -41,11 +41,11 @@ runs:
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
 
-        # Check if we hit the cache AND have a complete venv
-        if [ "${{ steps.cache-uv-store.outputs.cache-hit }}" = "true" ] && [ -d ".venv" ]; then
+        # Check if we have a complete venv (either from exact cache hit or restore-key match)
+        if [ -d ".venv" ] && [ -f ".venv/pyvenv.cfg" ] && [ -d ".venv/lib" ]; then
           echo "✅ Complete cache hit - skipping uv sync (much faster!)"
         else
-          echo "❌ Cache miss - running full uv sync"
+          echo "❌ Cache miss or incomplete venv - running full uv sync"
           uv venv
 
           # Handle different installation modes
