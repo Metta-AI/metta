@@ -1,12 +1,10 @@
-"""
-Sequential Scheduler for Sweep Orchestration.
+"""Sequential Scheduler for Sweep Orchestration.
 
 This scheduler implements the simplest possible scheduling strategy:
 - Always schedule exactly one job at a time
 - No parallelism
 - No early stopping
-- Runs through all configurations sequentially
-"""
+- Runs through all configurations sequentially"""
 
 import logging
 from dataclasses import dataclass
@@ -37,15 +35,13 @@ class SequentialSchedulerConfig:
 
 
 class SequentialScheduler:
-    """
-    Sequential scheduler that always schedules exactly one job at a time.
+    """Sequential scheduler that always schedules exactly one job at a time.
 
     This is the simplest possible scheduler:
     - Maintains internal count of trials
     - Always returns one job if under trial limit
     - No early stopping
-    - Schedules evaluations for all completed training jobs
-    """
+    - Schedules evaluations for all completed training jobs"""
 
     def __init__(self, config: SequentialSchedulerConfig):
         self.config = config
@@ -53,11 +49,9 @@ class SequentialScheduler:
         self._initialized = False
 
     def initialize(self, sweep_id: str) -> list[JobDefinition]:
-        """
-        Generate initial job for warmup phase.
+        """Generate initial job for warmup phase.
 
-        For sequential scheduling, we start with exactly one job.
-        """
+        For sequential scheduling, we start with exactly one job."""
         if self._initialized:
             logger.warning(f"Scheduler already initialized for sweep {sweep_id}")
             return []
@@ -77,16 +71,14 @@ class SequentialScheduler:
         return [job]
 
     def schedule(self, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]) -> list[JobDefinition]:
-        """
-        Decide which jobs to schedule based on current state of all runs.
+        """Decide which jobs to schedule based on current state of all runs.
         Handles both training and evaluation jobs.
 
         Sequential logic:
         - Only schedule if no jobs are currently running
         - Schedule evaluations for completed training jobs
         - Schedule next training job if under trial limit
-        - Always return at most one job at a time
-        """
+        - Always return at most one job at a time"""
 
         # First, check if any training runs need evaluation
         runs_needing_eval = [run for run in all_runs if run.has_completed_training and not run.has_been_evaluated]
@@ -142,8 +134,7 @@ def create_sequential_scheduler(
     eval_entrypoint: str = "evaluate",
     **kwargs,
 ) -> SequentialScheduler:
-    """
-    Factory function to create a sequential scheduler.
+    """Factory function to create a sequential scheduler.
 
     Args:
         max_trials: Maximum number of trials to run
@@ -153,8 +144,7 @@ def create_sequential_scheduler(
         **kwargs: Additional config options
 
     Returns:
-        Configured SequentialScheduler instance
-    """
+        Configured SequentialScheduler instance"""
     config = SequentialSchedulerConfig(
         max_trials=max_trials,
         recipe_module=recipe_module,

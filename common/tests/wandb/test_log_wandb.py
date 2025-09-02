@@ -11,6 +11,7 @@ Integration tests for the wandb debug logger.
 These tests actually create wandb runs and verify data is logged correctly.
 """
 
+import json
 import os
 import time
 
@@ -191,8 +192,6 @@ def test_log_debug_info(wandb_test_env, tmp_path):
     latency_dir = tmp_path / ".metta"
     latency_dir.mkdir(exist_ok=True)
     latency_file = latency_dir / "skypilot_latency.json"
-
-    import json
 
     latency_data = {
         "latency_s": 123.45,
