@@ -21,7 +21,7 @@ class SystemMonitor:
         auto_start: bool = True,
         external_timer: Any | None = None,
     ):
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger("SystemMonitor")
         self.logger.addHandler(logging.NullHandler())
 
         self.sampling_interval_sec = sampling_interval_sec
