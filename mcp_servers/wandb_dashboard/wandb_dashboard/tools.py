@@ -201,6 +201,27 @@ class WandBDashboardTools:
             error_result = {"status": "error", "message": f"Failed to clone dashboard: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
+    async def update_panel(self, dashboard_url: str, panel_identifier: dict, new_content: str) -> str:
+        """Update content of an existing panel in a dashboard."""
+        try:
+            logger.info(f"Updating panel in dashboard: {dashboard_url}")
+
+            # Update the panel using the WandB API
+            update_result = await self.client.update_panel(dashboard_url, panel_identifier, new_content)
+
+            result = {
+                "status": "success",
+                "message": "Panel updated successfully",
+                "update": update_result,
+            }
+
+            return json.dumps(result, indent=2)
+
+        except Exception as e:
+            logger.error(f"Failed to update panel: {e}")
+            error_result = {"status": "error", "message": f"Failed to update panel: {str(e)}"}
+            return json.dumps(error_result, indent=2)
+
     async def delete_dashboard(self, dashboard_url: str) -> str:
         """Delete an existing dashboard using the WandB API."""
         try:
@@ -233,6 +254,7 @@ class WandBDashboardTools:
                 "list_dashboards",
                 "get_dashboard_config",
                 "add_panel",
+                "update_panel",
                 "clone_dashboard",
                 "delete_dashboard",
             ],

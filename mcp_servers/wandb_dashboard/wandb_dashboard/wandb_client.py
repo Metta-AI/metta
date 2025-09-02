@@ -761,6 +761,121 @@ class WandBClient:
             logger.error(f"Failed to add panel to dashboard: {e}")
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
+    async def update_panel(self, dashboard_url: str, panel_identifier: dict, new_content: str) -> Dict[str, Any]:
+        """Update content of an existing panel/block in a dashboard."""
+        try:
+            logger.info(f"Updating panel in dashboard: {dashboard_url}")
+
+            # Load the existing report
+            logger.info("Loading existing report for panel update...")
+            report = wr.Report.from_url(dashboard_url)
+
+            original_blocks_count = len(report.blocks) if hasattr(report.blocks, "__len__") else 0
+            logger.info(f"Loaded report: '{report.title}' with {original_blocks_count} blocks")
+
+            # Find the target panel/block
+            target_index = None
+            target_block = None
+            original_content = None
+
+            # Method 1: Update by index
+            if "index" in panel_identifier:
+                index = panel_identifier["index"]
+                if 0 <= index < len(report.blocks):
+                    target_index = index
+                    target_block = report.blocks[index]
+                    original_content = target_block.text
+                    logger.info(f"Found panel by index {index}: {type(target_block).__name__}")
+                else:
+                    return {
+                        "status": "error",
+                        "error": f"Panel index {index} out of range (0-{len(report.blocks) - 1})",
+                        "url": dashboard_url,
+                    }
+
+            # Method 2: Update by content search
+            elif "search_text" in panel_identifier:
+                search_text = panel_identifier["search_text"]
+                for i, block in enumerate(report.blocks):
+                    if hasattr(block, "text") and search_text in block.text:
+                        target_index = i
+                        target_block = block
+                        original_content = block.text
+                        logger.info(f"Found panel by search '{search_text}' at index {i}: {type(block).__name__}")
+                        break
+
+                if target_block is None:
+                    return {
+                        "status": "error",
+                        "error": f"No panel found containing text: '{search_text}'",
+                        "url": dashboard_url,
+                    }
+
+            # Method 3: Update by block type
+            elif "block_type" in panel_identifier:
+                block_type = panel_identifier["block_type"].lower()
+                type_map = {"markdown": "MarkdownBlock", "h1": "H1", "h2": "H2", "h3": "H3"}
+
+                target_type = type_map.get(block_type, block_type)
+                occurrence = panel_identifier.get("occurrence", 0)  # Which occurrence of this type
+
+                matching_blocks = []
+                for i, block in enumerate(report.blocks):
+                    if type(block).__name__ == target_type:
+                        matching_blocks.append((i, block))
+
+                if occurrence < len(matching_blocks):
+                    target_index, target_block = matching_blocks[occurrence]
+                    original_content = target_block.text
+                    logger.info(f"Found {target_type} block #{occurrence} at index {target_index}")
+                else:
+                    return {
+                        "status": "error",
+                        "error": f"No {target_type} block found at occurrence #{occurrence}",
+                        "url": dashboard_url,
+                    }
+
+            else:
+                return {
+                    "status": "error",
+                    "error": "Panel identifier must include 'index', 'search_text', or 'block_type'",
+                    "url": dashboard_url,
+                }
+
+            # Update the panel content
+            logger.info(f"Updating block at index {target_index}")
+            logger.info(f"Original content: {repr(original_content[:100])}")
+
+            target_block.text = new_content
+            logger.info(f"New content: {repr(new_content[:100])}")
+
+            # Save the updated report
+            logger.info("Saving updated report with modified panel...")
+            result = report.save(draft=False, clone=False)
+
+            logger.info(f"Successfully updated panel in dashboard: {result.url}")
+
+            return {
+                "status": "success",
+                "message": "Panel updated successfully",
+                "dashboard_url": str(result.url),
+                "updated_panel": {
+                    "index": target_index,
+                    "type": type(target_block).__name__,
+                    "identifier": panel_identifier,
+                },
+                "content_change": {
+                    "original": original_content,
+                    "updated": new_content,
+                    "length_change": len(new_content) - len(original_content),
+                },
+                "note": "Panel content updated in-place - no clone created",
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to update panel: {e}")
+            return {"status": "error", "error": str(e), "url": dashboard_url}
+
     async def delete_dashboard(self, dashboard_url: str) -> dict:
         """Delete an existing WandB dashboard/report.
 
