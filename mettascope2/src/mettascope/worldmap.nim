@@ -231,7 +231,7 @@ proc drawTrajectory*() =
           # Draw centered at the tile with rotation. Use a slightly larger scale on diagonals.
           bxy.drawImage(
             image,
-            vec2(cx0.float32 + 0.5, cy0.float32 + 0.5),
+            vec2(cx0.float32, cy0.float32),
             angle = rotation,
             scale = (1.0'f32 / 200.0'f32) * diagScale,
             tint = tint
