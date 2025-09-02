@@ -92,21 +92,9 @@ def prompt_choice(
     Returns:
         The selected value
     """
-    # Handle non-interactive mode
+    # Handle non-interactive mode by delegating to simple fallback
     if non_interactive:
-        # Use default if provided, otherwise use current, otherwise use first choice
-        if default is not None:
-            info(f"{prompt} -> Using default: {default}")
-            return default
-        elif current is not None:
-            info(f"{prompt} -> Using current: {current}")
-            return current
-        elif choices:
-            choice_value = choices[0][0]
-            info(f"{prompt} -> Using first option: {choice_value}")
-            return choice_value
-        else:
-            raise ValueError("No valid choice available for non-interactive mode")
+        return _simple_prompt_choice(prompt, choices, default, current, non_interactive)
 
     try:
         from simple_term_menu import TerminalMenu
@@ -162,7 +150,7 @@ def _simple_prompt_choice(
     non_interactive: bool = False,
 ) -> T:
     """Simple numbered choice prompt without arrow keys."""
-    # Handle non-interactive mode (same logic as main function)
+    # Handle non-interactive mode
     if non_interactive:
         if default is not None:
             info(f"{prompt} -> Using default: {default}")
