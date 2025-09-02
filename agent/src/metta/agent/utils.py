@@ -59,10 +59,12 @@ def _create_policy_from_old_checkpoint(state: dict):
     policy = Fast.__new__(Fast)
     nn.Module.__init__(policy)
 
-    components = _extract_components(state)
-    policy.components = components
+    # Extract and transfer components
+    policy.components = _extract_components(state)
 
-    component_attrs = {
+    # Transfer all relevant attributes from old state to policy
+    # Policy needs these specific attributes to function
+    policy_attrs = {
         "components_with_memory": [],
         "clip_range": 0,
         "agent_attributes": {},
@@ -71,7 +73,7 @@ def _create_policy_from_old_checkpoint(state: dict):
         "cfg": None,
     }
 
-    for attr, default in component_attrs.items():
+    for attr, default in policy_attrs.items():
         setattr(policy, attr, state.get(attr, default))
 
     logger.info("Converting old checkpoint to Fast agent")
@@ -89,47 +91,12 @@ def _extract_components(state: dict):
 
 
 def _extract_agent_state(state: dict) -> dict:
-    """Extract MettaAgent-specific state from old checkpoint, excluding components."""
+    """Extract MettaAgent-specific state from old checkpoint.
 
-    excluded_keys = {"components", "_modules"}
+    Excludes component-specific keys and includes everything else MettaAgent needs.
+    """
+    # Keys that should NOT go to MettaAgent (they belong to policy)
+    policy_only_keys = {"components", "_modules", "components_with_memory", "clip_range", "agent_attributes"}
 
-    agent_keys = {
-        "obs_width",
-        "obs_height",
-        "action_space",
-        "feature_normalizations",
-        "device",
-        "obs_space",
-        "_total_params",
-        "cfg",
-        "feature_id_to_name",
-        "original_feature_mapping",
-        "action_names",
-        "action_max_params",
-        "components_with_memory",
-        "clip_range",
-        "agent_attributes",
-        "cum_action_max_params",
-        "action_index_tensor",
-        "training",
-        "_parameters",
-        "_buffers",
-        "_non_persistent_buffers_set",
-        "_backward_pre_hooks",
-        "_backward_hooks",
-        "_is_full_backward_hook",
-        "_forward_hooks",
-        "_forward_hooks_with_kwargs",
-        "_forward_hooks_always_called",
-        "_forward_pre_hooks",
-        "_forward_pre_hooks_with_kwargs",
-        "_state_dict_hooks",
-        "_state_dict_pre_hooks",
-        "_load_state_dict_pre_hooks",
-        "_load_state_dict_post_hooks",
-    }
-
-    pytorch_internals = {k for k in state.keys() if k.startswith("_") and k not in excluded_keys}
-    agent_keys.update(pytorch_internals)
-
-    return {k: v for k, v in state.items() if k in agent_keys}
+    # Return everything except policy-only keys
+    return {k: v for k, v in state.items() if k not in policy_only_keys}
