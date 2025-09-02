@@ -1,3 +1,4 @@
+import atexit
 import os
 import tempfile
 
@@ -26,10 +27,11 @@ def make_nav_ascii_env(
     # for navigation we replace all objects with altars
     map_content = map_content.replace("n", "_", 1).replace("m", "_", 1)
 
-    # Create temporary file
-    temp_fd, ascii_map_nav = tempfile.mkstemp(suffix=".map", text=True)
-    with os.fdopen(temp_fd, "w") as f:
-        f.write(map_content)
+    # Create temporary file safely; ensure cleanup at process exit
+    with tempfile.NamedTemporaryFile(suffix=".map", mode="w", delete=False) as tmp:
+        tmp.write(map_content)
+        ascii_map_nav = tmp.name
+    atexit.register(lambda p=ascii_map_nav: os.path.exists(p) and os.remove(p))
 
     env = make_navigation(num_agents=num_agents)
     env.game.max_steps = max_steps
@@ -41,8 +43,6 @@ def make_nav_ascii_env(
             ascii_map_nav, border_width=border_width
         ),
     )
-    os.close(temp_fd)
-    os.remove(ascii_map_nav)
 
     return make_nav_eval_env(env)
 
