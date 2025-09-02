@@ -11,7 +11,6 @@ Expected format: sky-YYYY-MM-DD-HH-MM-SS-ffffff_<cluster>_<n>
 import datetime
 import os
 import re
-import sys
 from typing import Final
 
 _EPOCH: Final = datetime.timezone.utc
@@ -42,26 +41,3 @@ def calculate_queue_latency() -> float:
 
     submitted = parse_submission_timestamp(task_id)
     return (datetime.datetime.now(_EPOCH) - submitted).total_seconds()
-
-
-def main() -> int:
-    """Calculate and output SkyPilot queue latency."""
-    try:
-        latency_sec = calculate_queue_latency()
-
-        # Output latency to stdout
-        print(latency_sec)
-
-        # Log info to stderr
-        task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
-        print(f"SkyPilot queue latency: {latency_sec:.1f}s (task: {task_id})", file=sys.stderr)
-
-        return 0
-
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

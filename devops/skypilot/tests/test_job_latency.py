@@ -11,11 +11,10 @@ Tests for the SkyPilot latency calculation utility.
 
 import datetime
 import os
-import subprocess
 
 import pytest
 
-from devops.skypilot.src.skypilot_latency import (
+from devops.skypilot import (
     calculate_queue_latency,
     parse_submission_timestamp,
 )
@@ -118,70 +117,6 @@ class TestSkyPilotLatency:
         latency = calculate_queue_latency()
         # Should be very close to 0 since we just created it
         assert 0 <= latency < 1
-
-    def _run_script_subprocess(self, env):
-        return subprocess.run(
-            ["uv", "run", "python", "-m", "devops.skypilot.skypilot_latency"],
-            capture_output=True,
-            text=True,
-            env=env,
-            check=False,  # We check returncode manually in tests
-        )
-
-    def test_main_function_success(self):
-        """Test the main() function with valid task ID."""
-        # Create a timestamp 10 seconds ago
-        past_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=10)
-        task_id = f"sky-{past_time:%Y-%m-%d-%H-%M-%S-%f}_test_123"
-
-        env = os.environ.copy()
-        env["SKYPILOT_TASK_ID"] = task_id
-
-        try:
-            result = self._run_script_subprocess(env)
-        except FileNotFoundError:
-            pytest.skip("Could not find skypilot_latency script/module")
-
-        assert result.returncode == 0
-
-        # Check stdout contains just the latency number
-        try:
-            latency = float(result.stdout.strip())
-            assert 9.5 < latency < 11.0  # Should be around 10 seconds
-        except ValueError:
-            pytest.fail(f"Expected float in stdout, got: {result.stdout}")
-
-        # Check stderr contains the info message
-        assert "SkyPilot queue latency:" in result.stderr
-        assert task_id in result.stderr
-
-    def test_main_function_no_env(self):
-        """Test the main() function without SKYPILOT_TASK_ID."""
-        env = os.environ.copy()
-        env.pop("SKYPILOT_TASK_ID", None)
-
-        try:
-            result = self._run_script_subprocess(env)
-        except FileNotFoundError:
-            pytest.skip("Could not find skypilot_latency script/module")
-
-        assert result.returncode == 1
-        assert "Error:" in result.stderr
-        assert "SKYPILOT_TASK_ID environment variable not set" in result.stderr
-
-    def test_main_function_invalid_format(self):
-        """Test the main() function with invalid task ID."""
-        env = os.environ.copy()
-        env["SKYPILOT_TASK_ID"] = "not-a-valid-task-id"
-
-        try:
-            result = self._run_script_subprocess(env)
-        except FileNotFoundError:
-            pytest.skip("Could not find skypilot_latency script/module")
-
-        assert result.returncode == 1
-        assert "Error:" in result.stderr
-        assert "Invalid task ID format" in result.stderr
 
     def test_queue_latency_precision(self):
         """Test that latency calculation maintains microsecond precision."""
