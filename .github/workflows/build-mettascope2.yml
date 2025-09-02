@@ -32,6 +32,9 @@ jobs:
       - name: Build mettascope2 (release)
         run: cd mettascope2 && nim c -d:release --out:mettascope src/mettascope.nim
 
+      - name: Install Emscripten
+        run: sudo apt-get update && sudo apt-get install -y emscripten
+
       - name: Upload mettascope2 artifact
         uses: actions/upload-artifact@v4
         with:
@@ -40,6 +43,16 @@ jobs:
             mettascope2/mettascope
             mettascope2/data/
             mettascope2/replays
+          if-no-files-found: error
+          
+      - name: Build mettascope2 (browser)
+        run: cd mettascope2 && nim c -d:emscripten -d:release src/mettascope.nim
+
+      - name: Upload mettascope2 browser artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mettascope2-dist
+          path: mettascope2/dist
           if-no-files-found: error
 
 
