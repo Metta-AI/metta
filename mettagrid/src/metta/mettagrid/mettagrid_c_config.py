@@ -31,7 +31,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # If it's a dict, create a GameConfig instance
         game_config = GameConfig(**mettagrid_config)
 
-    resource_names = list(game_config.inventory_item_names)
+    resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
     objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
@@ -168,7 +168,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if not action_config["enabled"]:
             continue
 
-        # Check if any consumed resources are not in inventory_item_names
+        # Check if any consumed resources are not in resource_names
         missing_consumed = []
         for resource in action_config["consumed_resources"].keys():
             if resource not in resource_name_to_id:
@@ -177,8 +177,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if missing_consumed:
             raise ValueError(
                 f"Action '{action_name}' has consumed_resources {missing_consumed} that are not in "
-                f"inventory_item_names. These resources will be ignored, making the action free! "
-                f"Either add these resources to inventory_item_names or disable the action."
+                f"resource_names. These resources will be ignored, making the action free! "
+                f"Either add these resources to resource_names or disable the action."
             )
 
         action_cpp_params = {

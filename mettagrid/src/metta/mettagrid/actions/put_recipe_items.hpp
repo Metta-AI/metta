@@ -43,7 +43,7 @@ protected:
         if (resources_put > 0) {
           InventoryDelta delta = actor->update_inventory(item, -resources_put);
           assert(delta == -resources_put);
-          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", resources_put);
+          actor->stats.add(actor->stats.resource_name(item) + ".put", resources_put);
           success = true;
         }
       }
