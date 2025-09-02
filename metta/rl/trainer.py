@@ -524,81 +524,81 @@ def train(
 
                 if wandb_uri:
                     latest_wandb_uri = wandb_uri
+                    logger.info(f"Saved checkpoint to wandb: {latest_wandb_uri}")
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with CheckpointManager - use current policy directly
-                if True:  # Always evaluate if configured
-                    if stats_client and stats_tracker.stats_run_id:
-                        stats_tracker.stats_epoch_id = stats_client.create_epoch(
-                            run_id=stats_tracker.stats_run_id,
-                            start_training_epoch=stats_tracker.stats_epoch_start,
-                            end_training_epoch=epoch,
-                        ).id
+                if stats_client and stats_tracker.stats_run_id:
+                    stats_tracker.stats_epoch_id = stats_client.create_epoch(
+                        run_id=stats_tracker.stats_run_id,
+                        start_training_epoch=stats_tracker.stats_epoch_start,
+                        end_training_epoch=epoch,
+                    ).id
 
-                    sims = [
-                        SimulationConfig(
-                            name=f"train_task_{i}",
-                            env=curriculum.get_task().get_env_cfg(),
-                        )
-                        for i in range(trainer_cfg.evaluation.num_training_tasks)
-                    ]
-                    sims.extend(trainer_cfg.evaluation.simulations)
+                sims = [
+                    SimulationConfig(
+                        name=f"train_task_{i}",
+                        env=curriculum.get_task().get_env_cfg(),
+                    )
+                    for i in range(trainer_cfg.evaluation.num_training_tasks)
+                ]
+                sims.extend(trainer_cfg.evaluation.simulations)
 
-                    evaluate_local = trainer_cfg.evaluation.evaluate_local
-                    if latest_wandb_uri:
-                        policy_uri = f"wandb://{latest_wandb_uri}"
-                    else:
-                        checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
-                        policy_uri = checkpoint_uris[0] if checkpoint_uris else None
-                    if trainer_cfg.evaluation.evaluate_remote:
-                        try:
-                            # Get the most recent checkpoint URI for remote evaluation
-                            # Prefer wandb artifact if available, otherwise use local file
-                            if policy_uri:
-                                logger.info(f"Evaluating policy remotely from {policy_uri}")
-                                evaluate_policy_remote_with_checkpoint_manager(
-                                    policy_uri=policy_uri,
-                                    simulations=sims,
-                                    stats_epoch_id=stats_tracker.stats_epoch_id,
-                                    stats_client=stats_client,
-                                    wandb_run=wandb_run,
-                                    trainer_cfg=trainer_cfg,
-                                )
-                            else:
-                                logger.warning("No checkpoint available for remote evaluation")
-                        except Exception as e:
-                            logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
-                            logger.error("Falling back to local evaluation")
-                            evaluate_local = True
-                    if evaluate_local:
+                evaluate_local = trainer_cfg.evaluation.evaluate_local
+                if latest_wandb_uri:
+                    policy_uri = f"wandb://{latest_wandb_uri}"
+                else:
+                    checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
+                    policy_uri = checkpoint_uris[0] if checkpoint_uris else None
+                if trainer_cfg.evaluation.evaluate_remote:
+                    try:
+                        # Get the most recent checkpoint URI for remote evaluation
+                        # Prefer wandb artifact if available, otherwise use local file
                         if policy_uri:
-                            evaluation_results = evaluate_policy(
-                                checkpoint_uri=policy_uri,
+                            logger.info(f"Evaluating policy remotely from {policy_uri}")
+                            evaluate_policy_remote_with_checkpoint_manager(
+                                policy_uri=policy_uri,
                                 simulations=sims,
-                                device=device,
-                                vectorization=system_cfg.vectorization,
-                                replay_dir=trainer_cfg.evaluation.replay_dir if trainer_cfg.evaluation else None,
                                 stats_epoch_id=stats_tracker.stats_epoch_id,
                                 stats_client=stats_client,
+                                wandb_run=wandb_run,
+                                trainer_cfg=trainer_cfg,
                             )
-                            logger.info("Simulation complete")
-                            eval_scores = evaluation_results.scores
-                            if wandb_run is not None and evaluation_results.replay_urls:
-                                upload_replay_html(
-                                    replay_urls=evaluation_results.replay_urls,
-                                    agent_step=agent_step,
-                                    epoch=epoch,
-                                    wandb_run=wandb_run,
-                                    metric_prefix="training_eval",
-                                    step_metric_key="metric/epoch",
-                                    epoch_metric_key="metric/epoch",
-                                )
                         else:
-                            logger.warning("No checkpoint available for local evaluation")
-                            evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
-                            eval_scores = evaluation_results.scores
+                            logger.warning("No checkpoint available for remote evaluation")
+                    except Exception as e:
+                        logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+                        logger.error("Falling back to local evaluation")
+                        evaluate_local = True
+                if evaluate_local:
+                    if policy_uri:
+                        evaluation_results = evaluate_policy(
+                            checkpoint_uri=policy_uri,
+                            simulations=sims,
+                            device=device,
+                            vectorization=system_cfg.vectorization,
+                            replay_dir=trainer_cfg.evaluation.replay_dir if trainer_cfg.evaluation else None,
+                            stats_epoch_id=stats_tracker.stats_epoch_id,
+                            stats_client=stats_client,
+                        )
+                        logger.info("Simulation complete")
+                        eval_scores = evaluation_results.scores
+                        if wandb_run is not None and evaluation_results.replay_urls:
+                            upload_replay_html(
+                                replay_urls=evaluation_results.replay_urls,
+                                agent_step=agent_step,
+                                epoch=epoch,
+                                wandb_run=wandb_run,
+                                metric_prefix="training_eval",
+                                step_metric_key="metric/epoch",
+                                epoch_metric_key="metric/epoch",
+                            )
+                    else:
+                        logger.warning("No checkpoint available for local evaluation")
+                        evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
+                        eval_scores = evaluation_results.scores
 
-                    stats_tracker.update_epoch_tracking(epoch + 1)
+                stats_tracker.update_epoch_tracking(epoch + 1)
 
             # Compute gradient stats
             if should_run(epoch, trainer_cfg.grad_mean_variance_interval):
