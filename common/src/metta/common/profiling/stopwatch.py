@@ -7,7 +7,6 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, ContextManager, Final, Tuple, TypedDict, TypeVar, cast
 
-logger = logging.getLogger("Stopwatch")
 F = TypeVar("F", bound=Callable[..., Any])
 
 
@@ -143,7 +142,8 @@ class Stopwatch:
 
     _GLOBAL_TIMER_NAME: Final[str] = "global"  # Reserved name for the global timer
 
-    def __init__(self, max_laps: int = 4):
+    def __init__(self, logger: logging.Logger | None = None, max_laps: int = 4):
+        self.logger = logger or logging.getLogger("Stopwatch")
         self.max_laps = max_laps
         self._timers: dict[str, Timer] = {}
         # Create global timer but don't start it automatically
@@ -225,7 +225,7 @@ class Stopwatch:
         name = name or self.GLOBAL_TIMER_NAME
 
         if timer.is_running():
-            logger.warning(f"Timer '{name}' already running")
+            self.logger.warning(f"Timer '{name}' already running")
             return
 
         # Capture caller info if not provided
@@ -245,11 +245,11 @@ class Stopwatch:
         name = name or self.GLOBAL_TIMER_NAME
 
         if not timer.is_running():
-            logger.warning(f"Timer '{name}' not running")
+            self.logger.warning(f"Timer '{name}' not running")
             return 0.0
 
         if timer.start_time is None:
-            logger.warning(f"Timer '{name}' has no start time")
+            self.logger.warning(f"Timer '{name}' has no start time")
             return 0.0
 
         elapsed = time.time() - timer.start_time
@@ -281,7 +281,7 @@ class Stopwatch:
             elapsed = self.stop(name)
             if log_level is not None:
                 display_name = name or self.GLOBAL_TIMER_NAME
-                logger.log(log_level, f"{display_name} took {elapsed:.3f}s")
+                self.logger.log(log_level, f"{display_name} took {elapsed:.3f}s")
 
     def __call__(self, name: str | None = None, log_level: int | None = None) -> ContextManager["Stopwatch"]:
         """Make Stopwatch callable to return context manager.
@@ -494,7 +494,7 @@ class Stopwatch:
         _remaining_time, time_str = self.estimate_remaining(current_steps, total_steps, name)
 
         timer_label = f" [{name}]" if name else ""
-        logger.info(
+        self.logger.info(
             f"{prefix}{timer_label}: {current_steps}/{total_steps} [{rate:.0f} steps/sec] "
             f"({percent:.2f}%) - {time_str} remaining"
         )

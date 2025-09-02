@@ -87,6 +87,10 @@ class SimpleHandler(logging.StreamHandler):
         self.formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
 
 
+def getRankAwareLogger(name: str | None = None) -> RankAwareLogger:
+    return logging.getLogger(name)  # type: ignore[return-value]
+
+
 @functools.cache
 def _add_file_logging(run_dir: str) -> None:
     """Set up file logging in addition to stdout logging."""

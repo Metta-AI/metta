@@ -105,6 +105,7 @@
     "getline",
     "getpid",
     "getsizeof",
+    "gitta",
     "googlebenchmark",
     "googletest",
     "griddly",
@@ -294,5 +295,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }

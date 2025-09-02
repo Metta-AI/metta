@@ -43,11 +43,11 @@ When `run_dir` is specified:
 
 ## Environment Variables
 
-| Variable             | Purpose                 | Example               |
-| -------------------- | ----------------------- | --------------------- |
-| `LOG_LEVEL`          | Set default level       | `LOG_LEVEL=DEBUG`     |
-| `RANK`, `LOCAL_RANK` | Add rank prefixes       | Set by torchrun/slurm |
-| `NO_RICH_LOGS`       | Force simple formatting | `NO_RICH_LOGS=1`      |
+| Variable             | Purpose                 | Example           |
+| -------------------- | ----------------------- | ----------------- |
+| `LOG_LEVEL`          | Set default level       | `LOG_LEVEL=DEBUG` |
+| `RANK`, `LOCAL_RANK` | Add rank prefixes       | Set by torchrun   |
+| `NO_RICH_LOGS`       | Force simple formatting | `NO_RICH_LOGS=1`  |
 
 The following variables automatically trigger simple (non-Rich) formatting: `WANDB_MODE`, `AWS_BATCH_JOB_ID`,
 `SKYPILOT_TASK_ID`, `NO_HYPERLINKS`

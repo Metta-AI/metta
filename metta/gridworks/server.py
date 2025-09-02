@@ -8,7 +8,7 @@
 # from fastapi.middleware.cors import CORSMiddleware
 # from typing_extensions import TypedDict
 
-# from metta.common.util.logging_helpers import init_logging
+# from metta.common.util.log_config import init_logging
 # from metta.mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
 # from metta.mettagrid.mapgen.utils.storable_map_index import StorableMapIndex
 # from metta.mettagrid.util.file import read
