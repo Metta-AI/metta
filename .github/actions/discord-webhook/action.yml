@@ -2,9 +2,6 @@ name: "Discord Webhook Post"
 description: "Posts content to Discord via webhook with automatic message splitting"
 author: "Metta-AI"
 
-env:
-  UV_NO_SYNC: 1
-
 inputs:
   webhook-url:
     description: "Discord webhook URL"

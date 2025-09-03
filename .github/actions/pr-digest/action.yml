@@ -73,7 +73,6 @@ runs:
       id: digest
       shell: bash
       env:
-        UV_NO_SYNC: "1"
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ inputs.repository }}
         DAYS_TO_SCAN: ${{ inputs.days }}
