@@ -1,3 +1,4 @@
+import logging
 import os
 import platform
 from typing import Optional
@@ -10,7 +11,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.log_config import getRankAwareLogger, init_logging, _init_console_logging
+from metta.common.util.log_config import RankAwareLogger, getRankAwareLogger, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -18,8 +19,10 @@ from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
 
-# Ensure the RankAwareLogger class is set before creating any loggers
-_init_console_logging()
+# Set up the logger class before any loggers are created
+logging.setLoggerClass(RankAwareLogger)
+
+# Now create the logger - it will be a RankAwareLogger
 logger = getRankAwareLogger(__name__)
 
 
