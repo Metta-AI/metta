@@ -343,6 +343,44 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return validation
 
+    def _validate_completion_densities(self) -> dict[str, Any]:
+        """Validate that completion densities are properly normalized."""
+        validation = {}
+
+        for bucket_name in self._bucket_tracking:
+            if bucket_name not in self._bucket_completion_counts:
+                continue
+
+            completion_counts = self._bucket_completion_counts[bucket_name]
+            if not completion_counts:
+                continue
+
+            total_completions = sum(completion_counts.values())
+            if total_completions == 0:
+                continue
+
+            # Calculate densities for validation
+            densities = []
+            if self._bucket_is_discrete[bucket_name]:
+                for bin_index, count in completion_counts.items():
+                    if bin_index < len(self._bucket_bins[bucket_name]):
+                        density = count / total_completions
+                        densities.append(density)
+            else:
+                for bin_index, count in completion_counts.items():
+                    if bin_index < len(self._bucket_bins[bucket_name]) - 1:
+                        density = count / total_completions
+                        densities.append(density)
+
+            if densities:
+                density_sum = sum(densities)
+                validation[f"{bucket_name}/density_sum"] = density_sum
+                validation[f"{bucket_name}/density_sum_error"] = abs(density_sum - 1.0)
+                validation[f"{bucket_name}/num_density_bins"] = len(densities)
+                validation[f"{bucket_name}/total_completions"] = total_completions
+
+        return validation
+
     # Statistics and logging methods
     def stats(self) -> dict[str, float]:
         """Return unified statistics for the pool including bucket completion density."""
@@ -358,6 +396,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         for key, value in validation_stats.items():
             if isinstance(value, (int, float)):
                 stats[f"index_management/{key}"] = float(value)
+
+        # Add completion density validation stats
+        density_validation = self._validate_completion_densities()
+        for key, value in density_validation.items():
+            if isinstance(value, (int, float)):
+                stats[f"density_validation/{key}"] = float(value)
 
         # Performance optimization: only recalculate expensive bucket stats periodically
         if self._stats_update_counter < self._stats_update_frequency:
@@ -611,30 +655,36 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return
 
         # Calculate current completion density across all bins
-        total_completions = sum(self._bucket_completion_counts[bucket_name].values())
+        completion_counts = self._bucket_completion_counts[bucket_name]
+        if not completion_counts:
+            return
+
+        total_completions = sum(completion_counts.values())
         if total_completions == 0:
             return
 
-        # Calculate density for each bin
+        # Calculate density for each bin that has completions
         densities = []
         if self._bucket_is_discrete[bucket_name]:
-            # For discrete, normalize by total completions
-            for bin_index in range(len(self._bucket_bins[bucket_name])):
-                count = self._bucket_completion_counts[bucket_name].get(bin_index, 0)
-                density = count / total_completions if total_completions > 0 else 0.0
-                densities.append(density)
+            # For discrete, only normalize bins that have completions
+            for bin_index, count in completion_counts.items():
+                if bin_index < len(self._bucket_bins[bucket_name]):
+                    density = count / total_completions
+                    densities.append(density)
         else:
             # For continuous, we need bins to be initialized
             if len(self._bucket_bins[bucket_name]) < 2:
                 return
 
-            for bin_index in range(len(self._bucket_bins[bucket_name]) - 1):
-                count = self._bucket_completion_counts[bucket_name].get(bin_index, 0)
-                density = count / total_completions if total_completions > 0 else 0.0
-                densities.append(density)
+            # Only include bins that have completions
+            for bin_index, count in completion_counts.items():
+                if bin_index < len(self._bucket_bins[bucket_name]) - 1:
+                    density = count / total_completions
+                    densities.append(density)
 
         # Store the current density distribution
         if densities:
+            # Now densities should sum to 1.0 (or very close due to floating point)
             self._bucket_completion_history[bucket_name].append(np.mean(densities))
 
     def _initialize_continuous_bins(self, bucket_name: str, values: List[float]):
