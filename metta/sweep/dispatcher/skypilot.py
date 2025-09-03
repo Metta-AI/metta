@@ -23,7 +23,9 @@ class SkypilotDispatcher(Dispatcher):
 
         # Build command parts starting with the launcher script
         cmd_parts = [
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "devops", "skypilot", "launch.py"))
+            os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "devops", "skypilot", "launch.py")
+            )
         ]
 
         # Add Skypilot flags (in order)
