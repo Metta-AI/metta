@@ -57,18 +57,8 @@ class RankAwareLogger(logging.Logger):
 
 
 def getRankAwareLogger(name: str | None = None) -> RankAwareLogger:
-    # if a user calls for our custom logger but has not set up the global logger
-    # we can set it up for them here and print a warning
-
-    root_logger = logging.getLogger(name)
-    has_stream_handler = any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers)
-    if not has_stream_handler:
-        init_logging()
-        root_logger.warning(
-            "getRankAwareLogger() called before setting up the root logger. Calling init_logging() now."
-        )
-
-    return root_logger  # type: ignore[return-value]
+    init_logging()
+    return logging.getLogger(name)  # type: ignore[return-value]
 
 
 class MillisecondFormatter(logging.Formatter):
