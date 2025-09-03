@@ -30,7 +30,8 @@ runs:
         # we hash in the action script in case the install-mode content has changed
         cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles(inputs.extra-dependencies) }}-${{ hashFiles(inputs.dependencies-files) }}"
         cache-dependency-glob: |
-          ${{ inputs.install-mode == 'linting' && '.github/actions/setup-uv/dependencies-linting.txt' || 'uv.lock' }}
+          uv.lock
+          ${{ inputs.install-mode == 'linting' && '.github/actions/setup-uv/dependencies-linting.txt' || '' }}
           ${{ inputs.install-mode == 'testing' && '.github/actions/setup-uv/dependencies-testing.txt' || '' }}
           ${{ (inputs.install-mode == 'testing' || inputs.install-mode == 'runtime') && '**/pyproject.toml' || '' }}
           ${{ inputs.dependencies-files }}
