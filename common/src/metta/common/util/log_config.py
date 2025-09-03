@@ -9,6 +9,8 @@ from rich.logging import RichHandler
 
 from metta.common.util.constants import RANK_ENV_VARS
 
+logger = logging.getLogger(__name__)
+
 
 def get_node_rank() -> str | None:
     for var in RANK_ENV_VARS:
@@ -211,3 +213,4 @@ def init_logging(run_dir: str | None = None) -> None:
     _init_console_logging()
     if run_dir:
         _add_file_logging(run_dir)
+    logger.info("Logging initialized")

@@ -13,6 +13,7 @@ from typing_extensions import TypeVar
 
 from metta.common.config.config import Config
 from metta.common.config.tool import Tool
+from metta.common.util.log_config import init_logging
 from metta.common.util.module import load_symbol
 from metta.rl.system_config import seed_everything
 
@@ -40,6 +41,9 @@ T = TypeVar("T", bound=Config)
 
 
 def main():
+    # Initialize logging at the start
+    init_logging()
+
     # Parse CLI arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("make_tool_cfg_path", type=str, help="Path to the function to run")

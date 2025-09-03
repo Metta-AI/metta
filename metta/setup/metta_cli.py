@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 # Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
+from metta.common.util.log_config import init_logging
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
 from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success
@@ -925,6 +926,9 @@ Examples:
 
 
 def main():
+    # Initialize logging at the start
+    init_logging()
+
     # Quick check for commands that can use fast path
     if len(sys.argv) > 1 and sys.argv[1] in COMMAND_REGISTRY:
         cmd_config = COMMAND_REGISTRY[sys.argv[1]]
