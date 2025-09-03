@@ -9,12 +9,13 @@ build --action_env=PYTHON_BIN_PATH
 build --action_env=PYTHON_LIB_PATH
 build --python_path=python
 
-# Build modes
+# Prod build mode. --compilation_mode=[opt|dbg] is a required Bazel field.
 build:opt --compilation_mode=opt
 build:opt --copt=-O3
 build:opt --copt=-DNDEBUG
 build:opt --strip=always
 
+# Debug build mode. --compilation_mode=[opt|dbg] is a required Bazel field.
 build:dbg --compilation_mode=dbg
 build:dbg --copt=-O0
 build:dbg --copt=-g
