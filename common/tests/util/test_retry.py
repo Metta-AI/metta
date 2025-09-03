@@ -1,6 +1,5 @@
 """Tests for the retry utilities with exponential backoff and jitter."""
 
-import logging
 from unittest.mock import Mock, patch
 
 import pytest
@@ -56,17 +55,6 @@ class TestRetryFunction:
         sleep_delays = [call[0][0] for call in mock_sleep.call_args_list]
         assert sleep_delays == [1.0, 2.0, 4.0]
 
-    def test_with_logger(self, caplog):
-        """Test logging output."""
-        mock_func = Mock(side_effect=[Exception("error"), "success"])
-        logger = logging.getLogger("test")
-
-        with caplog.at_level(logging.INFO):
-            retry_function(mock_func, initial_delay=0.01, logger=logger)
-
-        assert "Function failed: error" in caplog.text
-        assert "Retrying in" in caplog.text
-
 
 class TestRetryDecorator:
     """Test the retry_on_exception decorator."""
@@ -121,6 +109,7 @@ class TestBackoffCalculation:
             assert calculate_backoff_delay(5, max_delay=10.0) == 10.0  # Capped at max
 
         # Test jitter adds randomness
+        # For attempt=2 with initial_delay=4.0: 4.0 * 2^2 = 16.0
         delays = [calculate_backoff_delay(2, initial_delay=4.0) for _ in range(10)]
-        assert all(0 <= d <= 4.0 for d in delays)  # Jitter between 0 and max
+        assert all(0 <= d <= 16.0 for d in delays)  # Jitter between 0 and calculated delay
         assert len(set(delays)) > 1  # Should have different values

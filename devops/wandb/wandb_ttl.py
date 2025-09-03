@@ -1,6 +1,7 @@
 import argparse
 
 import wandb
+from wandb.errors import CommError
 
 ENTITY_NAME = "metta-research"
 PROJECT_NAME = "metta"
@@ -21,7 +22,7 @@ def apply_ttl_to_artifacts(artifact_project: str, version_start: int, version_en
             artifact.ttl = ttl_days
             artifact.save()
             version += 1
-        except wandb.errors.CommError:
+        except CommError:
             print(f"No more artifacts found after version {version - 1}.")
             break
         except Exception as e:

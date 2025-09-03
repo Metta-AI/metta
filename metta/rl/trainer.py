@@ -1,4 +1,3 @@
-import logging
 import os
 from collections import defaultdict
 from typing import cast
@@ -15,6 +14,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.wandb_context import WandbRun
 from metta.core.distributed import TorchDistributedConfig
 from metta.core.monitoring import (
@@ -67,7 +67,9 @@ except ImportError:
     ) from None
 
 torch.set_float32_matmul_precision("high")
-logger = logging.getLogger(__name__)
+
+
+logger = getRankAwareLogger(__name__)
 
 
 def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:

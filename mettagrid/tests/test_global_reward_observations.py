@@ -80,9 +80,10 @@ def create_env(game_config_factory):
 def find_resource_rewards_token():
     """Helper to find resource rewards token in observations."""
 
-    def _find(agent_obs):
+    def _find(feature_spec, agent_obs):
+        feature_id = feature_spec["resource_rewards"]["id"]
         for token in agent_obs:
-            if token[0] != 0xFF and token[1] == 13:  # Feature ID 13 is ResourceRewards
+            if token[0] != 0xFF and token[1] == feature_id:
                 return token
         return None
 
@@ -123,7 +124,7 @@ class TestGlobalRewardObservations:
         assert observations.shape == (1, 50, 3), f"Unexpected shape: {observations.shape}"
 
         # Find and verify resource rewards token
-        resource_rewards_token = find_resource_rewards_token(observations[0])
+        resource_rewards_token = find_resource_rewards_token(env.feature_spec(), observations[0])
         assert resource_rewards_token is not None, "Inventory rewards token not found in observation"
 
         # Expected packed value: 10101010 = 0xAA = 170
@@ -142,6 +143,8 @@ class TestGlobalRewardObservations:
         env = create_env(2, resource_names, agent_config)
         observations, _ = env.reset()
 
+        feature_id = env.feature_spec()["resource_rewards"]["id"]
+
         # Check that each agent sees their own game rewards at center
         for agent_idx in range(2):
             agent_obs = observations[agent_idx]
@@ -151,7 +154,7 @@ class TestGlobalRewardObservations:
 
             resource_rewards_found_at_center = False
             for token in agent_obs:
-                if token[0] == center_packed and token[1] == 13:  # Feature ID 13
+                if token[0] == center_packed and token[1] == feature_id:
                     resource_rewards_found_at_center = True
                     # All 4 items have rewards, so packed value should be 0b11110000 = 240
                     assert token[2] == 0b11110000, f"Wrong packed value for agent {agent_idx}: {token[2]}"
@@ -174,7 +177,7 @@ class TestGlobalRewardObservations:
         observations, _ = env.reset()
 
         # Find and verify resource rewards token
-        resource_rewards_token = find_resource_rewards_token(observations[0])
+        resource_rewards_token = find_resource_rewards_token(env.feature_spec(), observations[0])
         assert resource_rewards_token is not None
 
         # Expected: 10100000 = 0xA0 = 160
@@ -228,6 +231,6 @@ class TestGlobalRewardObservations:
         observations, _ = env.reset()
 
         # Find and verify resource rewards token
-        resource_rewards_token = find_resource_rewards_token(observations[0])
+        resource_rewards_token = find_resource_rewards_token(env.feature_spec(), observations[0])
         assert resource_rewards_token is not None
         assert resource_rewards_token[2] == expected_packed

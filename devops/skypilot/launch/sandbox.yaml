@@ -43,7 +43,7 @@ run: |
   fi
   . .venv/bin/activate
 
-  uv run python ./devops/skypilot/config/configure_environment.py --sandbox
+  uv run python ./devops/skypilot/utils/configure_environment.py --sandbox
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
   source "$METTA_ENV_FILE"
 

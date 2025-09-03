@@ -9,7 +9,7 @@ from pathlib import Path
 import sky.jobs
 import yaml
 
-from devops.skypilot.src.utils import get_jobs_controller_name
+from devops.skypilot.utils.job_helpers import get_jobs_controller_name
 from metta.common.util.text_styles import bold
 
 
@@ -34,7 +34,7 @@ def main():
 
     print("Looking up EC2 instance...")
 
-    REGIONS = get_regions_from_yaml(Path("devops/skypilot/config/skypilot_run.yaml"))
+    REGIONS = get_regions_from_yaml(Path("devops/skypilot/launch/skypilot_run.yaml"))
 
     instance = None
     for region in REGIONS:

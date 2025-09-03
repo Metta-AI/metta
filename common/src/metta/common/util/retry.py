@@ -72,7 +72,11 @@ def retry_function(
 
 
 def retry_on_exception(
-    max_retries: int = 3, retry_delay: float = 5.0, exceptions: tuple[type[Exception], ...] = (Exception,)
+    max_retries: int = 3,
+    initial_delay: float = 1.0,
+    max_delay: float = 60.0,
+    backoff_factor: float = 2.0,
+    exceptions: tuple[type[Exception], ...] = (Exception,),
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator to retry a function on exception with exponential backoff."""
 
@@ -88,7 +92,6 @@ def retry_on_exception(
                 backoff_factor=backoff_factor,
                 exceptions=exceptions,
                 error_prefix=f"{func.__name__} failed",
-                logger=logger,
             )
 
         return wrapper

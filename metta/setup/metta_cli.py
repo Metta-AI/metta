@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
+import gitta
+
 # Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
@@ -532,6 +534,10 @@ class MettaCLI:
     def cmd_report_env_details(self, args, unknown_args=None) -> None:
         print(f"UV Project Directory: {self.repo_root}")
         print(f"Metta CLI Working Directory: {Path.cwd()}")
+        if branch := gitta.get_current_branch():
+            print(f"Git Branch: {branch}")
+        if commit := gitta.get_current_commit():
+            print(f"Git Commit: {commit}")
 
     def cmd_local(self, args, unknown_args=None) -> None:
         self.local_commands.main(unknown_args)
