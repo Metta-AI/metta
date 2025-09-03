@@ -780,7 +780,8 @@ class BidirectionalLearningProgress:
         self._mean_samples_per_eval = []
         self._num_nans = []
         self._update_mask = np.ones(max_num_levels).astype(bool)
-        self._sample_levels = np.arange(max_num_levels).astype(np.int32)
+        # Initialize _sample_levels properly - start with first N tasks
+        self._sample_levels = np.arange(min(self.num_active_tasks, max_num_levels)).astype(np.int32)
         self._counter = {i: 0 for i in self._sample_levels}
         self._task_dist = None
         self._stale_dist = True
@@ -788,7 +789,14 @@ class BidirectionalLearningProgress:
     def add_stats(self) -> Dict[str, float]:
         """Return learning progress statistics for logging."""
         stats = {}
-        stats["lp/num_active_tasks"] = len(self._sample_levels) if self._sample_levels is not None else 0
+
+        # Ensure _sample_levels is properly initialized
+        if self._sample_levels is not None and len(self._sample_levels) > 0:
+            stats["lp/num_active_tasks"] = len(self._sample_levels)
+        else:
+            # Fallback to the configured number of active tasks
+            stats["lp/num_active_tasks"] = self.num_active_tasks
+
         stats["lp/mean_sample_prob"] = float(np.mean(self._task_dist)) if self._task_dist is not None else 0.0
         stats["lp/num_zeros_lp_dist"] = int(np.sum(self._task_dist == 0)) if self._task_dist is not None else 0
         stats["lp/task_1_success_rate"] = float(self._task_success_rate[0]) if len(self._task_success_rate) > 0 else 0.0
@@ -865,6 +873,7 @@ class BidirectionalLearningProgress:
         self._num_nans.append(sum(np.isnan(task_success_rates)))
         self._mean_samples_per_eval.append(np.mean([len(self._outcomes[i]) for i in range(self._num_tasks)]))
 
+        # Mark distribution as stale so it gets recalculated when needed
         self._stale_dist = True
         self._task_dist = None
 
