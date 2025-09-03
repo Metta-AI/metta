@@ -26,7 +26,7 @@ class SystemMonitor:
 
         # Configure logger based on log_level
         if log_level is None:
-            self.logger.addHandler(logging.NullHandler())
+            self.logger.disabled = True
         else:
             self.logger.setLevel(log_level)
 
