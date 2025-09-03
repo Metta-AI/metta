@@ -242,21 +242,23 @@ jobs:
         run: |
           # Create directories
           mkdir -p coverage-reports
+          
+          # Store absolute path to workspace root
+          WORKSPACE_ROOT="$(pwd)"
 
           # pytest args for single package (use 8 cores for ubuntu-8core)
           PYTEST_BASE_ARGS="-n 8 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
           echo "🚀 Running tests for package: ${{ matrix.package }}"
 
-          # Run tests for the specific package
-          if [ "${{ matrix.package }}" == "core" ]; then
-            pytest $PYTEST_BASE_ARGS \
-              --cov-report=xml:coverage-reports/coverage-${{ matrix.package }}.xml
-          else
+          # Change to package directory (or stay in root for core)
+          if [ "${{ matrix.package }}" != "core" ]; then
             cd "${{ matrix.package }}"
-            pytest $PYTEST_BASE_ARGS \
-              --cov-report=xml:../coverage-reports/coverage-${{ matrix.package }}.xml
           fi
+          
+          # Run tests with absolute coverage path
+          pytest $PYTEST_BASE_ARGS \
+            --cov-report=xml:"${WORKSPACE_ROOT}/coverage-reports/coverage-${{ matrix.package }}.xml"
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'

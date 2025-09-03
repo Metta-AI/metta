@@ -10,7 +10,7 @@ inputs:
     required: false
     default: ""
   dependencies-files:
-    description: "Paths to dependencies files relative to calling action directory (newline-separated)"
+    description: "Paths to pip dependencies.txt files relative to calling action directory (newline-separated)"
     required: false
     default: ""
 

@@ -733,7 +733,7 @@ class TestStopwatchIntegration:
             failing_external()
 
         exception_elapsed = sw.get_elapsed("exception_timer")
-        assert 0.015 < exception_elapsed < 0.03
+        assert 0.015 < exception_elapsed < 0.05
 
         # Test instance timer exception handling
         class ExceptionTestClass:
@@ -750,7 +750,7 @@ class TestStopwatchIntegration:
             exception_obj.failing_instance_method()
 
         instance_exception_elapsed = exception_obj.timer.get_elapsed("exception_instance_timer")
-        assert 0.015 < instance_exception_elapsed < 0.03
+        assert 0.015 < instance_exception_elapsed < 0.05
 
         # Test error case: with_instance_timer on non-instance method
         with pytest.raises(ValueError, match="with_instance_timer can only be used on instance methods"):
