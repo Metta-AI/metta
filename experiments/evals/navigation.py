@@ -21,7 +21,7 @@ def replace_objects_with_altars(name: str) -> str:
     with open(ascii_map, "r") as f:
         map_content = f.read()
 
-    map_content = map_content.replace("n", "_", 1).replace("m", "_", 1)
+    map_content = map_content.replace("n", "_").replace("m", "_")
 
     with tempfile.NamedTemporaryFile(suffix=".map", mode="w", delete=False) as tmp:
         tmp.write(map_content)
