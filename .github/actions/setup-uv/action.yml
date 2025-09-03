@@ -61,3 +61,4 @@ runs:
             ;;
 
         esac
+# Test cache hit
