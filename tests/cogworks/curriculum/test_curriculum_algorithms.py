@@ -119,7 +119,7 @@ class TestLearningProgressCoreBehavior:
         num_samples = 100
         samples = []
         for _ in range(num_samples):
-            sampled_task_id = algorithm._sample_from_pool()
+            sampled_task_id = algorithm._choose_task()
             samples.append(sampled_task_id)
 
         # Count samples for each task
@@ -226,7 +226,7 @@ class TestLearningProgressCoreBehavior:
         # Test that exploration bonus affects sampling
         samples = []
         for _ in range(10):
-            sampled_task_id = algorithm._sample_from_pool()
+            sampled_task_id = algorithm._choose_task()
             samples.append(sampled_task_id)
 
         # Should sample from multiple tasks
@@ -386,7 +386,7 @@ class TestLearningProgressProductionPatterns:
         # Test sampling distribution
         samples = []
         for _ in range(10):
-            sampled_task_id = algorithm._sample_from_pool()
+            sampled_task_id = algorithm._choose_task()
             samples.append(sampled_task_id)
 
         # Should sample from multiple tasks

@@ -264,6 +264,9 @@ class Curriculum:
         self._algorithm: Optional[CurriculumAlgorithm] = None
         if config.algorithm_config is not None:
             self._algorithm = config.algorithm_config.create(config.num_active_tasks)
+            # Pass curriculum reference to algorithm for stats updates
+            if hasattr(self._algorithm, "set_curriculum_reference"):
+                self._algorithm.set_curriculum_reference(self)
 
     def get_task(self) -> CurriculumTask:
         """Sample a task from the population."""

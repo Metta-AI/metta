@@ -77,6 +77,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         super().__init__(num_tasks, hypers, initialize_weights=False)
 
         self.hypers = hypers
+        self._curriculum = None  # Reference to base curriculum for unified task tracking
 
         # Initialize bidirectional learning progress tracker
         # Use a larger search space to accommodate all possible task indices
@@ -88,9 +89,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             num_active_tasks=hypers.pool_size,
         )
 
-        # Task management
+        # Task management - now unified with base curriculum
         self._task_memory: Dict[int, Tuple[int, str, int, float, float, float]] = {}
-        self._task_objects: Dict[int, CurriculumTask] = {}
         self._task_id_to_index: Dict[int, int] = {}
         self._next_index: int = 0
 
@@ -112,10 +112,225 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Track which buckets we're actually monitoring
         self._monitored_buckets: set = set()
 
-    def _update_weights(self, child_idx: int, score: float):
-        """Update weights - not used in this implementation."""
-        pass
+    def set_curriculum_reference(self, curriculum):
+        """Set reference to base curriculum for stats updates."""
+        self._curriculum = curriculum
 
+    # Core task management methods
+    def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
+        """Get a task from the unified pool, creating or evicting as needed."""
+        # Create new task if pool not full
+        if len(self._task_memory) < self.hypers.pool_size:
+            return self._create_task(task_generator, rng)
+
+        # Pool is full - we need to evict a task and create a new one
+        # Force eviction to make room
+        self._evict_task()
+
+        # Create new task
+        return self._create_task(task_generator, rng)
+
+    def _create_task(self, task_generator, rng) -> CurriculumTask:
+        """Create a new task and add it to the pool."""
+        if len(self._task_memory) >= self.hypers.pool_size:
+            self._evict_task()
+
+        # Generate a unique task ID
+        task_id = self._generate_task_id(rng)
+        env_cfg = task_generator.get_task(task_id)
+        task = CurriculumTask(task_id, env_cfg)
+
+        # Assign sequential index for learning progress tracking
+        self._task_id_to_index[task_id] = self._next_index
+        self._next_index += 1
+
+        # Add to memory for algorithm tracking
+        self._task_memory[task_id] = (task_id, "default", 0, 0.0, 0.0, 0.0)
+
+        # Add to base curriculum's task storage for unified tracking
+        if self._curriculum is not None:
+            self._curriculum._tasks[task_id] = task
+            self._curriculum._task_ids.add(task_id)
+            self._curriculum._num_created += 1
+
+        # Extract and track bucket values for this task
+        bucket_values = self._extract_bucket_values(task)
+        self._initialize_bucket_tracking(bucket_values)
+        self._update_bucket_tracking(task_id, bucket_values)
+
+        # Store the bucket values in the task for later use
+        if hasattr(task, "_bucket_values"):
+            task._bucket_values = bucket_values
+            logger.debug(f"Stored bucket values for task {task_id}: {bucket_values}")
+
+        return task
+
+    def _choose_task(self) -> int:
+        """Choose a task from the pool based on learning progress scores."""
+        if not self._task_memory:
+            raise ValueError("No tasks in pool to sample from")
+
+        # Get learning progress scores
+        self._lp_tracker._update()
+        lp_scores = self._lp_tracker._learning_progress()
+
+        # Create sampling probabilities
+        task_ids = list(self._task_memory.keys())
+        task_probs = []
+
+        for task_id in task_ids:
+            task_index = self._task_id_to_index.get(task_id, 0)
+            lp_score = lp_scores[task_index] if task_index < len(lp_scores) else 0.0
+            prob = lp_score + self.hypers.exploration_bonus
+            task_probs.append(prob)
+
+        # Normalize probabilities
+        total_prob = sum(task_probs)
+        if total_prob > 0:
+            task_probs = [p / total_prob for p in task_probs]
+        else:
+            task_probs = [1.0 / len(task_ids)] * len(task_ids)
+
+        return np.random.choice(task_ids, p=task_probs)
+
+    def _evict_task(self):
+        """Evict a task from the pool based on learning progress and sample count."""
+        if not self._task_memory:
+            return
+
+        # If pool is full, we need to evict a task to make room
+        if len(self._task_memory) >= self.hypers.pool_size:
+            # Find task with lowest LP score that has enough samples
+            worst_task_id = None
+            worst_score = float("inf")
+
+            for task_id, (_, _, sample_count, _, _, lp_score) in self._task_memory.items():
+                # Evict tasks that have enough samples OR if we need to make room
+                if sample_count >= self.hypers.max_samples or len(self._task_memory) >= self.hypers.pool_size:
+                    if lp_score < worst_score:
+                        worst_score = lp_score
+                        worst_task_id = task_id
+
+            # If no task meets the criteria, evict the one with lowest LP score
+            if worst_task_id is None:
+                worst_task_id = min(
+                    self._task_memory.keys(), key=lambda tid: self._task_memory[tid][5]
+                )  # Index 5 is lp_score
+
+            if worst_task_id is not None:
+                # Remove from task memory
+                if worst_task_id in self._task_memory:
+                    del self._task_memory[worst_task_id]
+                    del self._task_id_to_index[worst_task_id]
+
+                    # Remove bucket tracking for this task
+                    for bucket_name in self._bucket_tracking:
+                        if worst_task_id in self._bucket_tracking[bucket_name]:
+                            del self._bucket_tracking[bucket_name][worst_task_id]
+
+                    # Remove from base curriculum's task storage for unified tracking
+                    if self._curriculum is not None:
+                        if worst_task_id in self._curriculum._tasks:
+                            del self._curriculum._tasks[worst_task_id]
+                        if worst_task_id in self._curriculum._task_ids:
+                            self._curriculum._task_ids.remove(worst_task_id)
+                        self._curriculum._num_evicted += 1
+
+    def update_task_performance(self, task_id: int, score: float):
+        """Update task performance and learning progress."""
+        if task_id not in self._task_memory:
+            return
+
+        # Update task memory
+        seed, family, sample_count, current_score, recent_score, lp_score = self._task_memory[task_id]
+        self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, lp_score)
+
+        # Update base curriculum's task completion tracking
+        if self._curriculum is not None and task_id in self._curriculum._tasks:
+            task = self._curriculum._tasks[task_id]
+            task._num_completions += 1
+            task._num_scheduled += 1
+
+        # Update learning progress tracker
+        task_index = self._task_id_to_index.get(task_id, 0)
+
+        # Safety check: ensure task_index is within bounds of _outcomes
+        if task_index >= len(self._lp_tracker._outcomes):
+            logger.warning(f"Task index {task_index} out of bounds for outcomes size {len(self._lp_tracker._outcomes)}")
+            return
+
+        self._lp_tracker._outcomes[task_index].append(score)
+        self._lp_tracker._update()
+
+        # Update LP score in memory
+        raw_lp_scores = self._lp_tracker._learning_progress()
+        if task_index < len(raw_lp_scores):
+            new_lp_score = float(raw_lp_scores[task_index])
+            self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, new_lp_score)
+
+        # Update bucket completion density tracking
+        if self._curriculum and task_id in self._curriculum._tasks:
+            self._update_bucket_completion_density(task_id, score)
+
+        # Increment stats counter for batching
+        self._stats_update_counter += 1
+
+    # Helper methods for task management
+    def _generate_task_id(self, rng) -> int:
+        """Generate a unique task ID."""
+        while True:
+            task_id = rng.randint(0, 1000000)
+            if task_id not in self._task_memory:
+                return task_id
+
+    def _get_task_lp_score(self, task_id: int) -> float:
+        """Get the learning progress score for a specific task."""
+        if task_id not in self._task_memory:
+            return 0.0
+
+        # Force update of learning progress calculation
+        self._lp_tracker._update()
+
+        # Get the raw learning progress score, not the distribution value
+        task_index = self._task_id_to_index.get(task_id, 0)
+        raw_lp_scores = self._lp_tracker._learning_progress()
+
+        # Safety check: ensure task_index is within bounds
+        if task_index >= len(raw_lp_scores):
+            return 0.0
+
+        return float(raw_lp_scores[task_index])
+
+    # Statistics and logging methods
+    def stats(self) -> dict[str, float]:
+        """Return unified statistics for the pool including bucket completion density."""
+        stats = {}
+
+        # Add learning progress stats if enabled
+        if self.hypers.enable_learning_progress_logging:
+            base_stats = self._lp_tracker.add_stats()
+            stats.update(base_stats)
+
+        # Performance optimization: only recalculate expensive bucket stats periodically
+        if self._stats_update_counter < self._stats_update_frequency:
+            # Return cached bucket stats but always include basic bucket info
+            basic_bucket_stats = self._get_basic_bucket_stats()
+            stats.update(basic_bucket_stats)
+            stats.update(self._cached_stats)
+        else:
+            # Update expensive bucket stats and cache them
+            self._stats_update_counter = 0
+
+            # Add bucket completion density statistics (always detailed, restored from 4b37673)
+            bucket_stats = self._get_lightweight_bucket_stats()
+
+            # Cache the expensive results
+            self._cached_stats = bucket_stats
+            stats.update(bucket_stats)
+
+        return stats
+
+    # Bucket tracking methods
     def _extract_bucket_values(self, task: CurriculumTask) -> Dict[str, Any]:
         """Extract bucket parameter values from a task's environment configuration."""
         bucket_values = {}
@@ -149,15 +364,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 "game.map_builder.width",
                 "game.map_builder.height",
                 "game.map_builder.objects.altar",
-                # Generic reward paths
-                "game.agent.rewards.inventory.wood",
-                "game.agent.rewards.inventory.stone",
-                "game.agent.rewards.inventory.iron",
-                "game.agent.rewards.inventory.gold",
-                "game.agent.rewards.inventory_max.wood",
-                "game.agent.rewards.inventory_max.stone",
-                "game.agent.rewards.inventory_max.iron",
-                "game.agent.rewards.inventory_max.gold",
             ]
 
             # Extract values for potential bucket paths
@@ -283,31 +489,32 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _update_bucket_completion_density(self, task_id: int, score: float):
         """Update bucket completion density tracking when a task completes."""
-        if task_id not in self._task_objects:
+        if task_id not in self._task_memory:
             return
 
-        # Get bucket values for this task
-        task = self._task_objects[task_id]
-        bucket_values = self._extract_bucket_values(task)
+        # Get bucket values for this task from base curriculum
+        if self._curriculum and task_id in self._curriculum._tasks:
+            task = self._curriculum._tasks[task_id]
+            bucket_values = self._extract_bucket_values(task)
 
-        # Update completion density for each bucket
-        for bucket_name, value in bucket_values.items():
-            # Only process buckets we're monitoring
-            if bucket_name not in self._monitored_buckets:
-                continue
+            # Update completion density for each bucket
+            for bucket_name, value in bucket_values.items():
+                # Only process buckets we're monitoring
+                if bucket_name not in self._monitored_buckets:
+                    continue
 
-            if bucket_name in self._bucket_tracking:
-                # Find the appropriate bin for this value
-                bin_index = self._get_bin_index(bucket_name, value)
+                if bucket_name in self._bucket_tracking:
+                    # Find the appropriate bin for this value
+                    bin_index = self._get_bin_index(bucket_name, value)
 
-                if bin_index is not None:
-                    # Increment completion count for this bin
-                    if bin_index not in self._bucket_completion_counts[bucket_name]:
-                        self._bucket_completion_counts[bucket_name][bin_index] = 0
-                    self._bucket_completion_counts[bucket_name][bin_index] += 1
+                    if bin_index is not None:
+                        # Increment completion count for this bin
+                        if bin_index not in self._bucket_completion_counts[bucket_name]:
+                            self._bucket_completion_counts[bucket_name][bin_index] = 0
+                        self._bucket_completion_counts[bucket_name][bin_index] += 1
 
-                    # Update completion density history
-                    self._update_completion_density_history(bucket_name)
+                        # Update completion density history
+                        self._update_completion_density_history(bucket_name)
 
     def _get_bin_index(self, bucket_name: str, value: Any) -> Optional[int]:
         """Get the bin index for a given bucket value."""
@@ -402,194 +609,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         logger.debug(f"Created {len(bin_edges) - 1} bins for {bucket_name}: {self._bucket_bins[bucket_name]}")
 
-    def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
-        """Get a task from the unified pool, creating or evicting as needed."""
-        # Create new task if pool not full
-        if len(self._task_memory) < self.hypers.pool_size:
-            task_id = self._generate_task_id(rng)
-            env_cfg = task_generator.get_task(task_id)
-            task = CurriculumTask(task_id, env_cfg)
-            self._add_task_to_pool(task_id, task)
-            return task
-
-        # Sample from existing pool
-        selected_task_id = self._sample_from_pool()
-        if selected_task_id in self._task_objects:
-            return self._task_objects[selected_task_id]
-
-        # Fallback: create new task and evict one
-        self._evict_from_pool()
-        task_id = self._generate_task_id(rng)
-        env_cfg = task_generator.get_task(task_id)
-        task = CurriculumTask(task_id, env_cfg)
-        self._add_task_to_pool(task_id, task)
-        return task
-
-    def _generate_task_id(self, rng) -> int:
-        """Generate a unique task ID."""
-        while True:
-            task_id = rng.randint(0, 1000000)
-            if task_id not in self._task_memory:
-                return task_id
-
-    def _add_task_to_pool(self, task_id: int, task: CurriculumTask):
-        """Add a task to the unified pool."""
-        if len(self._task_memory) >= self.hypers.pool_size:
-            self._evict_from_pool()
-
-        # Assign sequential index for learning progress tracking
-        self._task_id_to_index[task_id] = self._next_index
-        self._next_index += 1
-
-        # Add to memory and objects
-        self._task_memory[task_id] = (task_id, "default", 0, 0.0, 0.0, 0.0)
-        self._task_objects[task_id] = task
-
-        # Extract and track bucket values for this task
-        bucket_values = self._extract_bucket_values(task)
-        self._initialize_bucket_tracking(bucket_values)
-        self._update_bucket_tracking(task_id, bucket_values)
-
-        # Store the bucket values in the task for later use
-        if hasattr(task, "_bucket_values"):
-            task._bucket_values = bucket_values
-            logger.debug(f"Stored bucket values for task {task_id}: {bucket_values}")
-
-    def _sample_from_pool(self) -> int:
-        """Sample a task from the pool based on learning progress scores."""
-        if not self._task_memory:
-            raise ValueError("No tasks in pool to sample from")
-
-        # Get learning progress scores
-        self._lp_tracker._update()
-        lp_scores = self._lp_tracker._learning_progress()
-
-        # Create sampling probabilities
-        task_ids = list(self._task_memory.keys())
-        task_probs = []
-
-        for task_id in task_ids:
-            task_index = self._task_id_to_index.get(task_id, 0)
-            lp_score = lp_scores[task_index] if task_index < len(lp_scores) else 0.0
-            prob = lp_score + self.hypers.exploration_bonus
-            task_probs.append(prob)
-
-        # Normalize probabilities
-        total_prob = sum(task_probs)
-        if total_prob > 0:
-            task_probs = [p / total_prob for p in task_probs]
-        else:
-            task_probs = [1.0 / len(task_ids)] * len(task_ids)
-
-        return np.random.choice(task_ids, p=task_probs)
-
-    def _evict_from_pool(self):
-        """Evict a task from the pool based on learning progress and sample count."""
-        if not self._task_memory:
-            return
-
-        # Find task with lowest LP score that has enough samples
-        worst_task_id = None
-        worst_score = float("inf")
-
-        for task_id, (_, _, sample_count, _, _, lp_score) in self._task_memory.items():
-            if sample_count >= self.hypers.max_samples and lp_score < worst_score:
-                worst_score = lp_score
-                worst_task_id = task_id
-
-        if worst_task_id is not None:
-            self._evict_task(worst_task_id)
-
-    def _evict_task(self, task_id: int):
-        """Evict a task from the pool."""
-        if task_id in self._task_memory:
-            del self._task_memory[task_id]
-            if task_id in self._task_objects:
-                del self._task_objects[task_id]
-
-            # Remove bucket tracking for this task
-            for bucket_name in self._bucket_tracking:
-                if task_id in self._bucket_tracking[bucket_name]:
-                    del self._bucket_tracking[bucket_name][task_id]
-
-    def update_task_performance(self, task_id: int, score: float):
-        """Update task performance and learning progress."""
-        if task_id not in self._task_memory:
-            return
-
-        # Update task memory
-        seed, family, sample_count, current_score, recent_score, lp_score = self._task_memory[task_id]
-        self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, lp_score)
-
-        # Update learning progress tracker
-        task_index = self._task_id_to_index.get(task_id, 0)
-
-        # Safety check: ensure task_index is within bounds of _outcomes
-        if task_index >= len(self._lp_tracker._outcomes):
-            logger.warning(f"Task index {task_index} out of bounds for outcomes size {len(self._lp_tracker._outcomes)}")
-            return
-
-        self._lp_tracker._outcomes[task_index].append(score)
-        self._lp_tracker._update()
-
-        # Update LP score in memory
-        raw_lp_scores = self._lp_tracker._learning_progress()
-        if task_index < len(raw_lp_scores):
-            new_lp_score = float(raw_lp_scores[task_index])
-            self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, new_lp_score)
-
-        # Update bucket completion density tracking
-        self._update_bucket_completion_density(task_id, score)
-
-        # Increment stats counter for batching
-        self._stats_update_counter += 1
-
-    def _get_task_lp_score(self, task_id: int) -> float:
-        """Get the learning progress score for a specific task."""
-        if task_id not in self._task_memory:
-            return 0.0
-
-        # Force update of learning progress calculation
-        self._lp_tracker._update()
-
-        # Get the raw learning progress score, not the distribution value
-        task_index = self._task_id_to_index.get(task_id, 0)
-        raw_lp_scores = self._lp_tracker._learning_progress()
-
-        # Safety check: ensure task_index is within bounds
-        if task_index >= len(raw_lp_scores):
-            return 0.0
-
-        return float(raw_lp_scores[task_index])
-
-    def stats(self) -> dict[str, float]:
-        """Return unified statistics for the pool including bucket completion density."""
-        stats = {}
-
-        # Add learning progress stats if enabled
-        if self.hypers.enable_learning_progress_logging:
-            base_stats = self._lp_tracker.add_stats()
-            stats.update(base_stats)
-
-        # Performance optimization: only recalculate expensive bucket stats periodically
-        if self._stats_update_counter < self._stats_update_frequency:
-            # Return cached bucket stats but always include basic bucket info
-            basic_bucket_stats = self._get_basic_bucket_stats()
-            stats.update(basic_bucket_stats)
-            stats.update(self._cached_stats)
-        else:
-            # Update expensive bucket stats and cache them
-            self._stats_update_counter = 0
-
-            # Add bucket completion density statistics (always detailed, restored from 4b37673)
-            bucket_stats = self._get_lightweight_bucket_stats()
-
-            # Cache the expensive results
-            self._cached_stats = bucket_stats
-            stats.update(bucket_stats)
-
-        return stats
-
+    # Statistics generation methods
     def _get_basic_bucket_stats(self) -> dict[str, float]:
         """Get consolidated bucket statistics to reduce logging overhead."""
         stats = {}
@@ -620,53 +640,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                                     stats[f"bucket/{bucket_name}/completion_variance"] = float(np.var(bin_counts))
 
         return stats
-
-    def get_real_time_bucket_density(self) -> dict[str, float]:
-        """Get real-time bucket density information without any caching."""
-        return self._get_basic_bucket_stats()
-
-    def set_logging_frequency(self, debug_frequency: int, stats_frequency: int):
-        """Dynamically adjust logging frequency for different environments."""
-        self._debug_log_frequency = debug_frequency
-        self._stats_update_frequency = stats_frequency
-        logger.info(f"Updated logging frequencies: debug={debug_frequency}, stats={stats_frequency}")
-
-    def set_logging_verbosity(self, enable_detailed_bucket: bool = None, enable_learning_progress: bool = None):
-        """Dynamically adjust logging verbosity for different environments.
-
-        Args:
-            enable_detailed_bucket: Whether to enable detailed bucket statistics
-            enable_learning_progress: Whether to enable learning progress statistics
-        """
-        if enable_detailed_bucket is not None:
-            self.hypers.enable_detailed_bucket_logging = enable_detailed_bucket
-        if enable_learning_progress is not None:
-            self.hypers.enable_learning_progress_logging = enable_learning_progress
-
-        logger.info(
-            f"Updated logging verbosity: detailed_bucket={self.hypers.enable_detailed_bucket_logging}, "
-            f"learning_progress={self.hypers.enable_learning_progress_logging}"
-        )
-
-    def set_monitored_bucket_axes(self, max_axes: int):
-        """Dynamically change how many bucket axes to monitor for logging."""
-        old_max = self._max_bucket_axes
-        self._max_bucket_axes = max_axes
-
-        # If reducing the number of monitored axes, remove excess buckets
-        if max_axes < old_max:
-            current_buckets = list(self._monitored_buckets)
-            for bucket_name in current_buckets[max_axes:]:
-                self._monitored_buckets.discard(bucket_name)
-                # Note: We keep the data but stop updating it
-                logger.info(f"Stopped monitoring bucket: {bucket_name}")
-
-        logger.info(f"Updated monitored bucket axes: {old_max} -> {max_axes}")
-
-    def disable_debug_logging(self):
-        """Disable all debug logging for maximum performance."""
-        self._debug_log_frequency = float("inf")  # Never log debug
-        logger.info("Debug logging disabled for maximum performance")
 
     def _get_lightweight_bucket_stats(self) -> dict[str, float]:
         """Get lightweight bucket completion density statistics for performance."""
@@ -720,6 +693,54 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return stats
 
+    # Configuration and utility methods
+    def get_real_time_bucket_density(self) -> dict[str, float]:
+        """Get real-time bucket density information without any caching."""
+        return self._get_basic_bucket_stats()
+
+    def set_logging_frequency(self, debug_frequency: int, stats_frequency: int):
+        """Dynamically adjust logging frequency for different environments."""
+        self._debug_log_frequency = debug_frequency
+        self._stats_update_frequency = stats_frequency
+        logger.info(f"Updated logging frequencies: debug={debug_frequency}, stats={stats_frequency}")
+
+    def set_logging_verbosity(self, enable_detailed_bucket: bool = None, enable_learning_progress: bool = None):
+        """Dynamically adjust logging verbosity for different environments.
+
+        Args:
+            enable_detailed_bucket: Whether to enable detailed bucket statistics
+            enable_learning_progress: Whether to enable learning progress statistics
+        """
+        if enable_detailed_bucket is not None:
+            self.hypers.enable_detailed_bucket_logging = enable_detailed_bucket
+        if enable_learning_progress is not None:
+            self.hypers.enable_learning_progress_logging = enable_learning_progress
+
+        logger.info(
+            f"Updated logging verbosity: detailed_bucket={self.hypers.enable_detailed_bucket_logging}, "
+            f"learning_progress={self.hypers.enable_learning_progress_logging}"
+        )
+
+    def set_monitored_bucket_axes(self, max_axes: int):
+        """Dynamically change how many bucket axes to monitor for logging."""
+        old_max = self._max_bucket_axes
+        self._max_bucket_axes = max_axes
+
+        # If reducing the number of monitored axes, remove excess buckets
+        if max_axes < old_max:
+            current_buckets = list(self._monitored_buckets)
+            for bucket_name in current_buckets[max_axes:]:
+                self._monitored_buckets.discard(bucket_name)
+                # Note: We keep the data but stop updating it
+                logger.info(f"Stopped monitoring bucket: {bucket_name}")
+
+        logger.info(f"Updated monitored bucket axes: {old_max} -> {max_axes}")
+
+    def disable_debug_logging(self):
+        """Disable all debug logging for maximum performance."""
+        self._debug_log_frequency = float("inf")  # Never log debug
+        logger.info("Debug logging disabled for maximum performance")
+
     def get_bucket_summary(self) -> dict[str, dict]:
         """Get a summary of bucket tracking for debugging and analysis."""
         summary = {}
@@ -741,6 +762,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     summary[bucket_name]["value_range"] = (min(values), max(values))
 
         return summary
+
+    # Legacy methods (kept for compatibility)
+    def _update_weights(self, child_idx: int, score: float):
+        """Update weights - not used in this implementation."""
+        pass
 
 
 class BidirectionalLearningProgress:
