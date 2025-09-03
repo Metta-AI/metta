@@ -35,8 +35,8 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     exploration_bonus: float = Field(default=0.1, description="Exploration bonus for sampling")
 
     # Performance optimization settings
-    stats_update_frequency: int = Field(default=500, description="Update stats every N task completions")
-    debug_log_frequency: int = Field(default=1000, description="Log debug info every N operations")
+    stats_update_frequency: int = Field(default=50, description="Update stats every N task completions")
+    debug_log_frequency: int = Field(default=100, description="Log debug info every N operations")
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -56,10 +56,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     Learning progress algorithm that manages a unified pool of tasks.
 
     Performance optimizations:
-    - Stats are cached and only updated every 500 task completions
-    - Debug logging is limited to every 1000 operations
+    - Stats are cached and only updated every 50 task completions
+    - Debug logging is limited to every 100 operations
+    - Basic bucket density information is always logged for real-time insight
+    - Expensive bucket statistics are cached to reduce computation overhead
     - Lightweight bucket stats focus on summary metrics rather than per-bin details
-    - Continuous bucket tracking uses summary statistics instead of detailed bin breakdowns
     """
 
     def __init__(self, num_tasks: int, hypers: LearningProgressConfig):
@@ -572,22 +573,62 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def stats(self) -> dict[str, float]:
         """Return unified statistics for the pool including bucket completion density."""
-        # Performance optimization: use cached stats if recent enough
-        if self._stats_update_counter < self._stats_update_frequency:
-            return self._cached_stats
-
-        # Update stats and cache them
-        self._stats_update_counter = 0
-
-        # Get base learning progress stats
+        # Get base learning progress stats (always fresh)
         base_stats = self._lp_tracker.add_stats()
+
+        # Performance optimization: only recalculate expensive bucket stats periodically
+        if self._stats_update_counter < self._stats_update_frequency:
+            # Return cached bucket stats but always include basic bucket info
+            basic_bucket_stats = self._get_basic_bucket_stats()
+            return {**base_stats, **basic_bucket_stats, **self._cached_stats}
+
+        # Update expensive bucket stats and cache them
+        self._stats_update_counter = 0
 
         # Add bucket completion density statistics (lightweight version)
         bucket_stats = self._get_lightweight_bucket_stats()
 
-        # Cache the results
-        self._cached_stats = {**base_stats, **bucket_stats}
-        return self._cached_stats
+        # Cache the expensive results
+        self._cached_stats = bucket_stats
+        return {**base_stats, **bucket_stats}
+
+    def _get_basic_bucket_stats(self) -> dict[str, float]:
+        """Get basic bucket statistics that are always available."""
+        stats = {}
+
+        for bucket_name in self._bucket_tracking:
+            if bucket_name in self._bucket_completion_counts:
+                completion_counts = self._bucket_completion_counts[bucket_name]
+                if completion_counts:
+                    total_completions = sum(completion_counts.values())
+                    if total_completions > 0:
+                        # Always log basic bucket completion info
+                        stats[f"bucket/{bucket_name}/total_completions"] = float(total_completions)
+                        stats[f"bucket/{bucket_name}/num_bins"] = float(len(completion_counts))
+
+                        # For discrete buckets, always show completion density
+                        if self._bucket_is_discrete[bucket_name]:
+                            for bin_index, count in completion_counts.items():
+                                if bin_index < len(self._bucket_bins[bucket_name]):
+                                    value = self._bucket_bins[bucket_name][bin_index]
+                                    stats[f"bucket/{bucket_name}/value_{value}_completions"] = float(count)
+                                    density = float(count / total_completions)
+                                    stats[f"bucket/{bucket_name}/value_{value}_density"] = density
+                        else:
+                            # For continuous buckets, always show summary stats
+                            if len(self._bucket_bins[bucket_name]) >= 2:
+                                bin_counts = list(completion_counts.values())
+                                if bin_counts:
+                                    stats[f"bucket/{bucket_name}/max_bin_completions"] = float(max(bin_counts))
+                                    stats[f"bucket/{bucket_name}/min_bin_completions"] = float(min(bin_counts))
+                                    mean_completions = float(sum(bin_counts) / len(bin_counts))
+                                    stats[f"bucket/{bucket_name}/mean_bin_completions"] = mean_completions
+
+        return stats
+
+    def get_real_time_bucket_density(self) -> dict[str, float]:
+        """Get real-time bucket density information without any caching."""
+        return self._get_basic_bucket_stats()
 
     def set_logging_frequency(self, debug_frequency: int, stats_frequency: int):
         """Dynamically adjust logging frequency for different environments."""
