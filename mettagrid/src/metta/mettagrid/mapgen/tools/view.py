@@ -1,4 +1,5 @@
 import logging
+from typing import Annotated
 
 import typer
 
@@ -9,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 def main(
-    uri: str = typer.Argument(..., help="Path or URI to the map file"),
-    mode: ShowMode = typer.Option("ascii_border", help="Show mode: ascii, ascii_border, or none"),
+    uri: Annotated[str, typer.Argument(help="Path or URI to the map file")],
+    mode: Annotated[ShowMode, typer.Option(help="Show mode: ascii, ascii_border, or none")] = "ascii_border",
 ):
     """
     View a map from a file or URI using the specified display mode.

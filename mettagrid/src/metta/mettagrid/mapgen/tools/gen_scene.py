@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 import logging
+from typing import Annotated, Optional
 
 import typer
 from omegaconf import OmegaConf
@@ -13,13 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 def main(
-    scene: str = typer.Argument(..., help="Path to the scene config file"),
-    width: int = typer.Option(..., help="Width of the map"),
-    height: int = typer.Option(..., help="Height of the map"),
-    show_mode: ShowMode = typer.Option("ascii_border", help="Show mode: ascii, ascii_border, or none"),
-    scene_override: list[str] = typer.Option(
-        [], "--scene-override", help="OmegaConf-style overrides for the scene config"
-    ),
+    scene: Annotated[str, typer.Argument(help="Path to the scene config file")],
+    width: Annotated[int, typer.Option(help="Width of the map")],
+    height: Annotated[int, typer.Option(help="Height of the map")],
+    show_mode: Annotated[ShowMode, typer.Option(help="Show mode: ascii, ascii_border, or none")] = "ascii_border",
+    scene_override: Annotated[
+        Optional[list[str]], typer.Option("--scene-override", help="OmegaConf-style overrides for the scene config")
+    ] = None,
 ):
     """
     Generate a map from a scene config and display it.
@@ -30,9 +31,10 @@ def main(
         raise ValueError(f"Invalid config type: {type(scene_omega_cfg)}")
 
     # Apply overrides if any
-    for override in scene_override:
-        key, value = override.split("=", 1)
-        OmegaConf.update(scene_omega_cfg, key, value)
+    if scene_override:
+        for override in scene_override:
+            key, value = override.split("=", 1)
+            OmegaConf.update(scene_omega_cfg, key, value)
 
     scene_cfg = SceneConfig.model_validate(scene_omega_cfg)
 

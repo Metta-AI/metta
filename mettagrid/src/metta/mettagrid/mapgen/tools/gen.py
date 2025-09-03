@@ -2,6 +2,7 @@
 import logging
 import random
 import string
+from typing import Annotated, Optional
 
 import typer
 
@@ -20,11 +21,15 @@ def uri_is_file(uri: str) -> bool:
 
 
 def main(
-    env_fn: str = typer.Argument(..., help="Path to the function that makes MettaGridConfig"),
-    output_uri: str = typer.Option(None, help="Output URI (file or directory)"),
-    show_mode: str = typer.Option(None, help="Show the map in the specified mode (ascii, ascii_border, none)"),
-    count: int = typer.Option(1, help="Number of maps to generate"),
-    env_override: list[str] = typer.Option([], "--env-override", help="OmegaConf-style overrides for the env config"),
+    env_fn: Annotated[str, typer.Argument(help="Path to the function that makes MettaGridConfig")],
+    output_uri: Annotated[Optional[str], typer.Option(help="Output URI (file or directory)")] = None,
+    show_mode: Annotated[
+        Optional[str], typer.Option(help="Show the map in the specified mode (ascii, ascii_border, none)")
+    ] = None,
+    count: Annotated[int, typer.Option(help="Number of maps to generate")] = 1,
+    env_override: Annotated[
+        Optional[list[str]], typer.Option("--env-override", help="OmegaConf-style overrides for the env config")
+    ] = None,
 ):
     """
     Generate one or more maps using a MettaGridConfig-producing function.
@@ -42,9 +47,10 @@ def main(
     if not isinstance(mg_config, MettaGridConfig):
         raise ValueError(f"Env config must be an instance of MettaGridConfig, got {type(mg_config)}")
 
-    for override in env_override:
-        key, value = override.split("=")
-        mg_config = mg_config.override(key, value)
+    if env_override:
+        for override in env_override:
+            key, value = override.split("=")
+            mg_config = mg_config.override(key, value)
 
     logger.info(f"Env config:\n{mg_config.model_dump_json(indent=2)}")
 
