@@ -19,9 +19,6 @@ runs:
         prune-cache: ${{ inputs.install-mode != 'testing' }}
         # we hash in the action script in case the install-mode content has changed
         cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
-        cache-dependency-glob: |
-          **/pyproject.toml
-          **/uv.lock
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
 

@@ -323,16 +323,11 @@ jobs:
         if: needs.setup-checks.outputs.is_external != 'true'
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          SUBPACKAGES: "agent common app_backend mettagrid codebot core"
         run: |
           chmod +x .github/scripts/upload_codecov.py
-
           # Upload all coverage files
-          for package in agent common app_backend mettagrid codebot core; do
-            if [ -f "coverage-reports/coverage-${package}.xml" ]; then
-              echo "📤 Uploading coverage for $package..."
-              SUBPACKAGES="$package" .github/scripts/upload_codecov.py
-            fi
-          done
+          .github/scripts/upload_codecov.py
 
   unit-tests-summary:
     name: "Tests"
