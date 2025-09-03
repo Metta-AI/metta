@@ -242,13 +242,13 @@ Sandboxes provide persistent development environments for experimentation.
 
 ```bash
 # Create sandbox with main branch
-./devops/skypilot/launch/sandbox.py
+./devops/skypilot/sandbox.py
 
 # Create sandbox with specific commit/branch
-./devops/skypilot/launch/sandbox.py --git-ref feature/my-branch
+./devops/skypilot/sandbox.py --git-ref feature/my-branch
 
 # Force create new sandbox (even if one exists)
-./devops/skypilot/launch/sandbox.py --new
+./devops/skypilot/sandbox.py --new
 ```
 
 ### Connecting to Sandbox

@@ -144,7 +144,7 @@ def main():
     print(f"📌 Git ref: {cyan(git_ref)}")
 
     # Load the sandbox configuration
-    config_path = "./devops/skypilot/config/sandbox.yaml"
+    config_path = "./devops/skypilot/launch/sandbox.yaml"
     config = load_sandbox_config(config_path)
 
     # Extract cloud configuration
