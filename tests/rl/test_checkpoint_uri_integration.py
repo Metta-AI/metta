@@ -168,16 +168,16 @@ class TestWandbURIHandling:
 
     @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
     def test_wandb_uri_loading(self, mock_load_wandb, mock_policy):
-        """Test wandb URI loading with expansion."""
+        """Test wandb URI loading - expansion now happens inside load_policy_from_wandb_uri."""
         mock_load_wandb.return_value = mock_policy
 
-        # Test short format gets expanded before loading
+        # Test that the URI is passed as-is (expansion happens inside load_policy_from_wandb_uri)
         uri = "wandb://run/my-experiment"
         loaded_policy = CheckpointManager.load_from_uri(uri)
 
         assert type(loaded_policy).__name__ == type(mock_policy).__name__
-        # Verify expanded URI was passed to wandb loader
-        mock_load_wandb.assert_called_once_with("wandb://metta/model/my-experiment:latest", device="cpu")
+        # Verify the original URI was passed (expansion happens inside the function)
+        mock_load_wandb.assert_called_once_with("wandb://run/my-experiment", device="cpu")
 
     @patch("metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata")
     def test_wandb_metadata_extraction(self, mock_get_metadata):
@@ -266,10 +266,10 @@ class TestURIUtilities:
         assert result.startswith("file://")
         assert result.endswith("/path/to/checkpoint.pt")
 
-        # Test wandb URI expansion during normalization
+        # Test wandb URI passthrough (expansion happens in wandb.py now)
         wandb_short = "wandb://run/test"
         normalized = CheckpointManager.normalize_uri(wandb_short)
-        assert normalized == "wandb://metta/model/test:latest"
+        assert normalized == "wandb://run/test"  # Should be unchanged
 
         # Test already normalized URIs remain unchanged
         file_uri = "file:///path/to/checkpoint.pt"
@@ -295,7 +295,7 @@ class TestRealEnvironmentIntegration:
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="integration_test")
+            checkpoint_manager = CheckpointManager(run="integration_test", run_dir=tmpdir)
 
             # Test forward pass before saving
             obs = env.reset()[0]
@@ -321,7 +321,7 @@ class TestRealEnvironmentIntegration:
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="uri_test")
+            checkpoint_manager = CheckpointManager(run="uri_test", run_dir=tmpdir)
 
             # Save agent
             checkpoint_manager.save_agent(agent, epoch=10, metadata={"agent_step": 5000, "total_time": 300})
@@ -346,7 +346,7 @@ class TestRealEnvironmentIntegration:
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="progress_test")
+            checkpoint_manager = CheckpointManager(run="progress_test", run_dir=tmpdir)
 
             # Simulate training progress with improving scores
             training_data = [
@@ -399,7 +399,7 @@ class TestEndToEndWorkflows:
             policy.initialize_to_environment(features, original_env.action_names, original_env.max_action_args, "cpu")
 
             # Step 2: Save trained policy
-            checkpoint_manager = CheckpointManager(run_dir=tmpdir, run_name="workflow_test")
+            checkpoint_manager = CheckpointManager(run="workflow_test", run_dir=tmpdir)
             metadata = {"agent_step": 10000, "epoch": 50, "score": 0.95}
             checkpoint_manager.save_agent(policy, epoch=50, metadata=metadata)
 
