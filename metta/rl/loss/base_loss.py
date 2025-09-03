@@ -7,6 +7,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
+from metta.rl.callbacks import TrainerCallback
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.experience import Experience
 
@@ -14,23 +15,21 @@ from metta.rl.experience import Experience
 from metta.rl.trainer_state import TrainerState
 
 
-class BaseLoss:
+class BaseLoss(TrainerCallback):
     """
-    The Loss class acts as a manager for different loss computations.
+    A specialized callback that handles loss computation and training.
 
-    It is initialized with the shared trainer state (policy, config, device, etc.)
-    and dynamically instantiates the required loss components (e.g., PPO, Contrastive)
-    based on the configuration. Each component holds a reference to this manager
-    to access the shared state, favoring composition over inheritance.
+    BaseLoss extends TrainerCallback to provide training-specific functionality
+    while sharing the same lifecycle callbacks. It adds methods for rollout
+    collection, loss computation, and experience buffer management.
     """
 
     __slots__ = (
+        # Additional slots beyond TrainerCallback
         "policy",
         "replay",
         "policy_experience_spec",
-        "trainer_cfg",
         "vec_env",
-        "device",
         "loss_tracker",
         "checkpoint_manager",
         "policy_cfg",
@@ -39,7 +38,6 @@ class BaseLoss:
         "rollout_end_epoch",
         "train_start_epoch",
         "train_end_epoch",
-        "instance_name",
         "rollout_cycle_length",
         "rollout_active_in_cycle",
         "train_cycle_length",
@@ -56,12 +54,13 @@ class BaseLoss:
         instance_name: str,
         loss_config: Any,
     ):
+        # Initialize parent TrainerCallback
+        super().__init__(trainer_cfg, device, instance_name)
+
+        # Loss-specific attributes
         self.policy = policy
-        self.trainer_cfg = trainer_cfg
         self.vec_env = vec_env
-        self.device = device
         self.checkpoint_manager = checkpoint_manager
-        self.instance_name = instance_name
         self.loss_cfg = loss_config
         # self.policy_cfg = self.policy.get_cfg()
         self.policy_experience_spec = self.policy.get_agent_experience_spec()
@@ -74,19 +73,18 @@ class BaseLoss:
         return Composite()
 
     # ======================================================================
-    # ============================ CONTROL FLOW ============================
-    # BaseLoss provides defaults for every control flow method and even handles the scheduling logic. Simply override
-    # any of these methods in your Loss class to implement your own logic when needed.
+    # ========================= TRAINING METHODS ==========================
+    # These methods are specific to loss computation and training logic.
 
     def on_new_training_run(self, trainer_state: TrainerState) -> None:
-        """We're at the very beginning of the training loop."""
+        """Override to also notify the policy."""
+        super().on_new_training_run(trainer_state)
         self.policy.on_new_training_run()
-        return
 
     def on_rollout_start(self, trainer_state: TrainerState) -> None:
-        """We're about to start a new rollout phase."""
+        """Override to also notify the policy."""
+        super().on_rollout_start(trainer_state)
         self.policy.on_rollout_start()
-        return
 
     def rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
         """Repeatedly called rollout steps until you set completion.
@@ -114,17 +112,6 @@ class BaseLoss:
 
     def on_mb_end(self, trainer_state: TrainerState) -> None:
         """For instance, allow losses with their own optimizers to run"""
-        return
-
-    def on_train_phase_end(self, trainer_state: TrainerState) -> None:
-        """We've completed the train phase and will be transitioning to the next rollout phase."""
-
-    def on_rollout_end(self, trainer_state: TrainerState) -> None:
-        """Called after rollout phase completes, before training phase begins."""
-        return
-
-    def on_epoch_end(self, trainer_state: TrainerState) -> None:
-        """Called at the end of each epoch, after training phase completes."""
         return
 
     def save_loss_states(self):
@@ -167,8 +154,8 @@ class BaseLoss:
 
     # ---------------- END Internal Scheduling Logic for Rollout and Train ----------------
 
-    # ============================ END CONTROL FLOW ============================
-    # ==========================================================================
+    # ========================= END TRAINING METHODS =========================
+    # =========================================================================
 
     def _get_schedule(self):
         """Helper for initializing variables used in scheduling logic."""

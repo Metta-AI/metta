@@ -27,6 +27,7 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
 from metta.rl.experience import Experience
+from metta.rl.callbacks import TrainerCallback
 from metta.rl.hyperparameter_scheduler import step_hyperparameters
 from metta.rl.losses import get_loss_experience_spec
 from metta.rl.optimization import (
@@ -209,8 +210,9 @@ def train(
     # Instantiate configured composable losses dynamically
     loss_instances = trainer_cfg.losses.init_losses(policy, trainer_cfg, vecenv, device, checkpoint_manager)
 
-    # Initialize hooks (empty list for now, will be populated in later phases)
-    hook_instances: list = []
+    # Initialize additional callbacks (empty list for now, will be populated in later phases)
+    # Note: loss_instances are also callbacks now (BaseLoss extends TrainerCallback)
+    callback_instances: list[TrainerCallback] = []
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
@@ -314,11 +316,6 @@ def train(
         update_epoch=0,
         mb_idx=0,
         optimizer=optimizer,
-        # Initialize hook-related fields
-        policy=policy,
-        experience=experience,
-        timer=timer,
-        stats_tracker=stats_tracker,
     )
     try:
         while agent_step < trainer_cfg.total_timesteps:
@@ -332,9 +329,9 @@ def train(
                 loss_instances[_loss_name].on_new_training_run(trainer_state)
                 shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
 
-            # Call hooks at training start
-            for hook in hook_instances:
-                hook.on_new_training_run(trainer_state)
+            # Call additional callbacks at training start
+            for callback in callback_instances:
+                callback.on_new_training_run(trainer_state)
 
             # Initialize main's traditional loss system alongside composable system
             record_heartbeat()
@@ -347,9 +344,9 @@ def train(
                     for _loss_name in list(all_losses):
                         loss_instances[_loss_name].on_rollout_start(trainer_state)
 
-                    # Call hooks at rollout start
-                    for hook in hook_instances:
-                        hook.on_rollout_start(trainer_state)
+                    # Call additional callbacks at rollout start
+                    for callback in callback_instances:
+                        callback.on_rollout_start(trainer_state)
 
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
                     buffer_step = buffer_step.select(*policy_spec.keys())
@@ -405,9 +402,9 @@ def train(
                     for _loss_name in loss_instances.keys():
                         loss_instances[_loss_name].on_rollout_end(trainer_state)
 
-                    # Call hooks at rollout end
-                    for hook in hook_instances:
-                        hook.on_rollout_end(trainer_state)
+                    # Call additional callbacks at rollout end
+                    for callback in callback_instances:
+                        callback.on_rollout_end(trainer_state)
 
                 # Training phase
                 with timer("_train"):
@@ -460,9 +457,9 @@ def train(
                                 loss_obj = loss_instances[_lname]
                                 loss_obj.on_mb_end(trainer_state)
 
-                            # Call hooks after minibatch
-                            for hook in hook_instances:
-                                hook.on_mb_end(trainer_state)
+                            # Call additional callbacks after minibatch
+                            for callback in callback_instances:
+                                callback.on_mb_end(trainer_state)
 
                         epochs_trained += 1
 
@@ -470,9 +467,9 @@ def train(
                         loss_obj = loss_instances[_lname]
                         loss_obj.on_train_phase_end(trainer_state)
 
-                    # Call hooks at train phase end
-                    for hook in hook_instances:
-                        hook.on_train_phase_end(trainer_state)
+                    # Call additional callbacks at train phase end
+                    for callback in callback_instances:
+                        callback.on_train_phase_end(trainer_state)
 
                 epoch += epochs_trained
                 trainer_state.epoch = epoch
@@ -497,9 +494,9 @@ def train(
                 for _loss_name in loss_instances.keys():
                     loss_instances[_loss_name].on_epoch_end(trainer_state)
 
-                # Call hooks at epoch end
-                for hook in hook_instances:
-                    hook.on_epoch_end(trainer_state)
+                # Call additional callbacks at epoch end
+                for callback in callback_instances:
+                    callback.on_epoch_end(trainer_state)
 
             # Update hyperparameters based on current training step (master only)
             if torch_dist_cfg.is_master:
@@ -735,9 +732,9 @@ def train(
     )
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
 
-    # Call hooks at training end
-    for hook in hook_instances:
-        hook.on_training_end(trainer_state)
+    # Call additional callbacks at training end
+    for callback in callback_instances:
+        callback.on_training_end(trainer_state)
 
     cleanup_monitoring(memory_monitor, system_monitor)
 

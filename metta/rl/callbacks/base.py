@@ -1,16 +1,21 @@
-"""Base class for trainer hooks, following the same pattern as BaseLoss."""
+"""Base class for all trainer callbacks."""
+
+from typing import TYPE_CHECKING
 
 import torch
 
 from metta.rl.trainer_state import TrainerState
 
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
 
-class TrainerHook:
-    """Base class for trainer hooks, following BaseLoss patterns.
 
-    Hooks provide a way to extract non-training concerns from the Trainer class
-    while maintaining consistency with the existing callback system. Hooks can
-    coexist with losses and use the same TrainerState-based data flow pattern.
+class TrainerCallback:
+    """Base class for all trainer callbacks.
+
+    Callbacks are components that get invoked at specific points during training.
+    This includes both losses (which compute gradients) and services (checkpointing,
+    metrics, evaluation, etc). All callbacks share the same lifecycle methods.
     """
 
     __slots__ = (
@@ -22,18 +27,18 @@ class TrainerHook:
 
     def __init__(
         self,
-        trainer_cfg,
+        trainer_cfg: "TrainerConfig",
         device: torch.device,
-        instance_name: str = "hook",
+        instance_name: str = "callback",
         critical: bool = False,
     ):
-        """Initialize the hook with shared configuration.
+        """Initialize the callback with shared configuration.
 
         Args:
             trainer_cfg: The trainer configuration object
             device: The torch device to use for operations
-            instance_name: Unique name for this hook instance
-            critical: If True, failures in this hook will stop training
+            instance_name: Unique name for this callback instance
+            critical: If True, failures in this callback will stop training
         """
         self.trainer_cfg = trainer_cfg
         self.device = device
@@ -41,14 +46,13 @@ class TrainerHook:
         self.critical = critical
 
     # ======================================================================
-    # ============================ CONTROL FLOW ============================
-    # Following the same pattern as BaseLoss, hooks provide callbacks for
-    # different stages of the training loop.
+    # ============================ CALLBACK METHODS ========================
+    # These methods are called at specific points during the training loop.
 
     def on_new_training_run(self, trainer_state: TrainerState) -> None:
         """Called at the start of training.
 
-        This is where hooks can perform initialization tasks like:
+        This is where callbacks can perform initialization tasks like:
         - Setting up monitoring systems
         - Loading previous state if resuming
         - Initializing data structures
@@ -97,7 +101,7 @@ class TrainerHook:
         - trainer_state.latest_checkpoint_uri may contain checkpoint location
         - The epoch counter has been incremented
 
-        This is typically where hooks perform major operations like:
+        This is typically where callbacks perform major operations like:
         - Saving checkpoints
         - Running evaluations
         - Logging metrics
