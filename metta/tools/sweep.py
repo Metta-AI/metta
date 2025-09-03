@@ -111,10 +111,10 @@ class SweepOrchestratorTool(Tool):
     stats_server_uri: Optional[str] = auto_stats_server_uri()  # Stats server for remote evaluations
 
     # Dispatcher configuration
-    dispatcher_type: DispatcherType = DispatcherType.LOCAL  # LOCAL or SKYPILOT
+    dispatcher_type: DispatcherType = DispatcherType.HYBRID_REMOTE_TRAIN  # Default: train on Skypilot, evaluate locally
     capture_output: bool = True  # Capture and stream subprocess output (local only)
 
-    consumed_args: list[str] = ["sweep_name", "max_trials"]
+    consumed_args: list[str] = ["sweep_name", "max_trials", "recipe_module", "train_entrypoint", "eval_entrypoint"]
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         """Execute the sweep."""
@@ -131,6 +131,18 @@ class SweepOrchestratorTool(Tool):
         # Handle max_trials from args
         if "max_trials" in args:
             self.max_trials = int(args["max_trials"])
+
+        # Handle recipe_module from args
+        if "recipe_module" in args:
+            self.recipe_module = args["recipe_module"]
+
+        # Handle train_entrypoint from args
+        if "train_entrypoint" in args:
+            self.train_entrypoint = args["train_entrypoint"]
+
+        # Handle eval_entrypoint from args
+        if "eval_entrypoint" in args:
+            self.eval_entrypoint = args["eval_entrypoint"]
 
         # Set sweep_dir based on sweep name if not explicitly set
         if self.sweep_dir is None:
