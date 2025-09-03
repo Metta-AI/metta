@@ -2,7 +2,7 @@ name: "Setup uv"
 description: "Set up uv and activate the environment"
 inputs:
   install-mode:
-    description: "Installation mode: 'testing', 'minimal', or 'linting'"
+    description: "Installation mode: 'testing', 'runtime', 'linting', or 'minimal'"
     required: false
     default: "testing"
 
@@ -16,7 +16,7 @@ runs:
         enable-cache: true
         cache-local-path: "${{ github.workspace }}/.uv-cache"
         # disabling cache saves 30 sec on testing but costs 40 sec in other modes
-        prune-cache: ${{ inputs.install-mode != 'testing' }}
+        prune-cache: ${{ inputs.install-mode == 'linting' || inputs.install-mode == 'minimal'}}
         # we hash in the action script in case the install-mode content has changed
         cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
       env:
@@ -40,13 +40,18 @@ runs:
             # don't install any packages
             ;;
 
+          "testing")
+            uv sync
+            uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
+            ;;
+
           "linting")
             uv pip install ruff cpplint
             ;;
 
-          "testing")
-            uv sync
-            uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
+          # used in the mettascope tests where we run code to generate outputs but do not run tests
+          "runtime")
+            uv sync --no-dev
             ;;
 
         esac

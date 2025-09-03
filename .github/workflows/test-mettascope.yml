@@ -64,6 +64,8 @@ jobs:
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "runtime"
 
       - name: Install Mettascope
         run: |
