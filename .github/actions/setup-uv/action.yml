@@ -105,7 +105,7 @@ runs:
             fi
           done
         else
-          echo "No extra inline pip dependencies specified
+          echo "No extra inline pip dependencies specified"
         fi
         if [ -n "${{ inputs.dependencies-files }}" ]; then
           echo "Installing dependencies from files:"
