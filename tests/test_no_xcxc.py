@@ -54,9 +54,7 @@ def test_no_xcxc_debug():
 
             if offenders:
                 message = f"'xcxc' found in {len(offenders)} file(s):\n"
-                message += "\n".join(
-                    f"  {line}" for line in offenders[:20]
-                )  # Show up to 20 matches
+                message += "\n".join(f"  {line}" for line in offenders[:20])  # Show up to 20 matches
                 if len(offenders) > 20:
                     message += f"\n  ... and {len(offenders) - 20} more"
                 raise AssertionError(message)
@@ -70,6 +68,4 @@ def test_no_xcxc_debug():
         raise AssertionError("xcxc search timed out after 15 seconds") from e
 
     except FileNotFoundError as e:
-        raise AssertionError(
-            "grep command not found - this test requires grep to be available"
-        ) from e
+        raise AssertionError("grep command not found - this test requires grep to be available") from e
