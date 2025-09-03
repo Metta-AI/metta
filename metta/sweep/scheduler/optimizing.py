@@ -7,6 +7,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+import wandb
+
 from metta.sweep.sweep_orchestrator import (
     JobDefinition,
     JobStatus,
@@ -18,6 +20,26 @@ from metta.sweep.sweep_orchestrator import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _check_wandb_artifact_exists(run_id: str) -> bool:
+    """Check if a wandb artifact exists for the given run_id.
+
+    The artifact name follows the pattern where dots are replaced with underscores.
+    """
+    try:
+        # Replace dots with underscores to match wandb artifact naming
+        artifact_name = run_id.replace(".", "_")
+        artifact_path = f"metta-research/metta/model/{artifact_name}:latest"
+
+        # Try to get the artifact - this will raise an exception if it doesn't exist
+        api = wandb.Api()
+        _ = api.artifact(artifact_path)  # Will raise if artifact doesn't exist
+        logger.debug(f"Found wandb artifact: {artifact_path}")
+        return True
+    except Exception as e:
+        logger.debug(f"Wandb artifact not found for {run_id}: {e}")
+        return False
 
 
 @dataclass
@@ -52,6 +74,16 @@ class OptimizingScheduler:
 
         if runs_needing_eval:
             train_run = runs_needing_eval[0]
+
+            # Check if the wandb artifact exists before scheduling evaluation
+            if not _check_wandb_artifact_exists(train_run.run_id):
+                # Extract just the trial portion for cleaner display
+                display_id = (
+                    train_run.run_id.split("_trial_")[-1] if "_trial_" in train_run.run_id else train_run.run_id
+                )
+                display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
+                logger.info(f"[OptimizingScheduler] Waiting for wandb artifact upload for {display_id}")
+                return []  # Don't schedule evaluation yet
 
             # Merge eval_overrides with required defaults
             eval_overrides = self.config.eval_overrides.copy() if self.config.eval_overrides else {}
