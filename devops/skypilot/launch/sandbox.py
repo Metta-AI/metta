@@ -5,8 +5,6 @@ import os
 import subprocess
 import time
 
-import botocore.exceptions
-import botocore.tokens
 import sky
 import sky.exceptions
 import yaml
@@ -17,8 +15,28 @@ from devops.skypilot.utils.job_helpers import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
-# Suppress botocore credential traceback display
-logging.getLogger("botocore.credentials").setLevel(logging.ERROR)
+
+class CredentialWarningHandler(logging.Handler):
+    """Custom handler to intercept and reformat botocore credential warnings."""
+
+    def emit(self, record):
+        if record.levelno == logging.WARNING and "credential" in record.getMessage().lower():
+            # Extract just the warning message without the traceback
+            message = record.getMessage()
+
+            # Check for specific credential-related messages
+            if "refresh failed" in message or "Token has expired" in message:
+                print(f"\n{yellow('⚠️  AWS credentials need refresh')}")
+                print("   Your AWS session is expiring but still functional")
+                print(f"   Run {green('aws sso login')} when convenient to refresh\n")
+
+
+# Set up custom logging for botocore.credentials
+credentials_logger = logging.getLogger("botocore.credentials")
+credentials_logger.setLevel(logging.WARNING)
+credentials_logger.addHandler(CredentialWarningHandler())
+# Prevent propagation to avoid duplicate output
+credentials_logger.propagate = False
 
 
 def get_existing_clusters():
@@ -86,7 +104,7 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     else:
         estimated_multiplier = 1
 
-    # Try to calculate cost, but handle AWS authentication errors gracefully
+    # Try to calculate cost
     hourly_cost = None
     try:
         with spinner(f"Calculating cost for {instance_type}", style=cyan):
@@ -95,12 +113,7 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
         if hourly_cost is not None:
             hourly_cost *= estimated_multiplier
 
-    except (botocore.exceptions.TokenRetrievalError, botocore.tokens.TokenRetrievalError):
-        print(f"\n{yellow('⚠️  AWS authentication expired')} - Cost calculation unavailable")
-        print(f"   Run {green('aws sso login')} to refresh your credentials")
-        print("   Continuing without cost information...\n")
     except Exception as e:
-        # Handle other AWS-related errors
         print(f"\n{yellow('⚠️  Unable to calculate cost:')} {str(e)}")
         print("   Continuing without cost information...\n")
 
