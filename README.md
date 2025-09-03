@@ -148,8 +148,13 @@ Clone the repository and run the setup:
 ```bash
 git clone https://github.com/Metta-AI/metta.git
 cd metta
-./install.sh  # Interactive setup - installs uv, configures metta, and installs components
+./install.sh
 ```
+
+The interactive setup will guide you through configuration:
+- **Option 1**: Quick setup with defaults for external users (recommended for most users)
+- **Option 2**: Quick setup with defaults for Softmax employees  
+- **Option 3**: Full configuration wizard (customize everything)
 
 After installation, you can use metta commands directly:
 
@@ -159,13 +164,22 @@ metta install      # Install additional components
 metta configure    # Reconfigure for a different profile
 ```
 
-#### Additional installation options
+### Installation Options
 
+For automated/scripted setups:
+
+```bash
+# Quick setup with external defaults (no prompts)
+./install.sh --profile=external --non-interactive
+
+# Quick setup with Softmax defaults  
+./install.sh --profile=softmax --non-interactive
+
+# Fully automated setup (uses external defaults)
+./install.sh --non-interactive
 ```
-./install.sh --profile=softmax   # For Softmax employees
-./install.sh --profile=external  # For external collaborators
-./install.sh --help             # Show all available options
-```
+
+**Re-running setup**: If configuration already exists, `./install.sh` will skip configuration and only update components.
 
 ## Configuration
 
@@ -411,7 +425,7 @@ To use WandB with your personal account:
 Now you can run training with WandB enabled:
 
 ```
-./tools/run.py experiments.recipes.arena.train --args run=local.yourname.123 --overrides wandb.enabled=true wandb.entity=<your_user>
+./tools/run.py experiments.recipes.arena.train --args run=local.<your_name>.123 --overrides wandb.enabled=true wandb.entity=<your_user>
 ```
 
 ## Visualizing a Model
@@ -460,8 +474,8 @@ Evaluate a policy against the arena eval suite:
 
 Evaluate on the navigation eval suite (provide the policy URI):
 
-```
-./tools/run.py experiments.recipes.navigation.eval --overrides policy_uris=wandb://run/local.alice.1
+```bash
+./tools/run.py experiments.recipes.navigation.eval --args policy_uri=wandb://run/local.alice.1
 ```
 
 ### Specifying your agent architecture
@@ -516,7 +530,7 @@ pytest
 | Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                        |
 | Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay --overrides policy_uri=wandb://run/local.alice.1`     |
 | Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/local.alice.1`        |
-| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval --overrides policy_uris=wandb://run/local.alice.1` |
+| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval --args policy_uri=wandb://run/local.alice.1` |
 | Dry-run (print config)      | `./tools/run.py experiments.recipes.arena.train --args run=my_experiment --dry-run`                    |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

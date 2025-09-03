@@ -359,6 +359,83 @@ class MettaCLI:
         else:
             self.setup_wizard(non_interactive=getattr(args, "non_interactive", False))
 
+    def configure_wizard(self) -> None:
+        """Interactive configuration wizard for all components."""
+        from metta.config.components import CONFIGURATION_COMPONENTS
+        from metta.config.schema import get_config
+
+        config = get_config()
+        header("Metta Configuration Wizard")
+        info("This will help you configure Metta for your environment.")
+        info("Configuration will be saved to: ~/.metta/config.yaml\n")
+
+        # Ask about environment variable behavior
+        env_behavior = input("Should environment variables override config file values? (y/n) [y]: ").strip().lower()
+        if env_behavior == "n":
+            config.ignore_env_vars = True
+            info("Environment variables will be ignored - config file is authoritative (dbt-style)")
+        else:
+            config.ignore_env_vars = False
+            info("Environment variables will override config file values (Unix-style)")
+        print()
+
+        # Go through each component
+        for name, component in CONFIGURATION_COMPONENTS.items():
+            response = input(f"\nConfigure {component.description}? (y/n) [n]: ").strip().lower()
+            if response == "y":
+                current = getattr(config, name).__dict__
+                updated = component.interactive_configure(current)
+
+                # Update config object
+                for key, value in updated.items():
+                    setattr(getattr(config, name), key, value)
+
+        # Save configuration
+        config.save()
+        success("\nConfiguration saved!")
+        info("You can modify ~/.metta/config.yaml directly or run 'metta configure' again.")
+
+    def configure_component_unified(self, component_name: str) -> None:
+        """Configure a specific component using the unified system."""
+        from metta.config.components import CONFIGURATION_COMPONENTS
+        from metta.config.schema import get_config
+
+        if component_name not in CONFIGURATION_COMPONENTS:
+            # Fall back to old setup system for non-unified components (like githooks)
+            info(f"Component '{component_name}' not found in unified config system.")
+            info("Falling back to legacy setup system...")
+            return self.configure_component(component_name)
+
+        config = get_config()
+        component = CONFIGURATION_COMPONENTS[component_name]
+
+        header(f"Configuring {component.description}")
+        current = getattr(config, component_name).__dict__
+        updated = component.interactive_configure(current)
+
+        # Update config
+        for key, value in updated.items():
+            setattr(getattr(config, component_name), key, value)
+
+        config.save()
+        success(f"\n{component_name} configuration saved!")
+
+    def cmd_export_env(self, args, unknown_args=None) -> None:
+        """Export configuration as environment variables."""
+        from metta.config.schema import get_config
+
+        config = get_config()
+        env_vars = config.export_env_vars()
+
+        # Output format suitable for shell evaluation
+        for key, value in env_vars.items():
+            print(f"export {key}='{value}'")
+
+    def configure_cloud(self, args, unknown_args) -> None:
+        """Legacy cloud configuration - redirects to unified system."""
+        info("Redirecting to unified configuration system...")
+        self.configure_component_unified("storage")
+
     def configure_component(self, component_name: str) -> None:
         from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info
