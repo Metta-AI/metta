@@ -5,27 +5,27 @@ essential functionality for training, evaluation, visualization, and development
 
 ## Quick Reference Table
 
-| Category          | Tool                              | Purpose                                         | GPU Required | Database Access |
-| ----------------- | --------------------------------- | ----------------------------------------------- | ------------ | --------------- |
-| **Training**      | `run.py experiments.recipes.*.train` | Train policies with recipe configurations     | ✓            | Optional        |
-|                   | `sweep_init.py`                   | Initialize hyperparameter sweep experiments     | ✗            | ✗               |
-|                   | `sweep_eval.py`                   | Evaluate policies from sweep runs               | ✓            | ✗               |
-| **Evaluation**    | `run.py experiments.recipes.*.evaluate` | Run policy evaluation with recipe system     | ✓            | ✓               |
-|                   | `run.py experiments.recipes.*.analyze`  | Analyze evaluation results with recipes      | ✗            | ✓               |
-| **Visualization** | `run.py experiments.recipes.*.play`   | Interactive gameplay via recipe system        | ✗            | ✗               |
-|                   | `run.py experiments.recipes.*.replay` | Generate replay files via recipe system       | ✓            | ✗               |
-|                   | `renderer.py`                     | Real-time ASCII/Miniscope rendering (legacy)    | ✓            | ✗               |
-|                   | `dashboard.py`                    | Generate dashboard data for web visualization   | ✗            | ✓               |
-| **Map Tools**     | `map/gen.py`                      | Generate maps from configuration files          | ✗            | ✗               |
-|                   | `map/gen_scene.py`                | Generate maps from scene templates              | ✗            | ✗               |
-|                   | `map/view.py`                     | View stored maps in various formats             | ✗            | ✗               |
-|                   | `map/normalize_ascii_map.py`      | Normalize ASCII map characters                  | ✗            | ✗               |
-|                   | `map/normalize_scene_patterns.py` | Normalize WFC/ConvChain patterns                | ✗            | ✗               |
-| **Utilities**     | `validate_config.py`              | Validate and print Hydra configurations         | ✗            | ✗               |
-|                   | `stats_duckdb_cli.py`             | Interactive DuckDB CLI for stats analysis       | ✗            | ✓               |
-|                   | `upload_map_imgs.py`              | Upload map images to S3                         | ✗            | ✗               |
-|                   | `dump_src.py`                     | Dump source files for LLM context               | ✗            | ✗               |
-|                   | `autotune.py`                     | Auto-tune vectorization parameters              | ✗            | ✗               |
+| Category          | Tool                                    | Purpose                                       | GPU Required | Database Access |
+| ----------------- | --------------------------------------- | --------------------------------------------- | ------------ | --------------- |
+| **Training**      | `run.py experiments.recipes.*.train`    | Train policies with recipe configurations     | ✓            | Optional        |
+|                   | `sweep_init.py`                         | Initialize hyperparameter sweep experiments   | ✗            | ✗               |
+|                   | `sweep_eval.py`                         | Evaluate policies from sweep runs             | ✓            | ✗               |
+| **Evaluation**    | `run.py experiments.recipes.*.evaluate` | Run policy evaluation with recipe system      | ✓            | ✓               |
+|                   | `run.py experiments.recipes.*.analyze`  | Analyze evaluation results with recipes       | ✗            | ✓               |
+| **Visualization** | `run.py experiments.recipes.*.play`     | Interactive gameplay via recipe system        | ✗            | ✗               |
+|                   | `run.py experiments.recipes.*.replay`   | Generate replay files via recipe system       | ✓            | ✗               |
+|                   | `renderer.py`                           | Real-time ASCII/Miniscope rendering (legacy)  | ✓            | ✗               |
+|                   | `dashboard.py`                          | Generate dashboard data for web visualization | ✗            | ✓               |
+| **Map Tools**     | `map/gen.py`                            | Generate maps from configuration files        | ✗            | ✗               |
+|                   | `map/gen_scene.py`                      | Generate maps from scene templates            | ✗            | ✗               |
+|                   | `map/view.py`                           | View stored maps in various formats           | ✗            | ✗               |
+|                   | `map/normalize_ascii_map.py`            | Normalize ASCII map characters                | ✗            | ✗               |
+|                   | `map/normalize_scene_patterns.py`       | Normalize WFC/ConvChain patterns              | ✗            | ✗               |
+| **Utilities**     | `validate_config.py`                    | Validate and print Hydra configurations       | ✗            | ✗               |
+|                   | `stats_duckdb_cli.py`                   | Interactive DuckDB CLI for stats analysis     | ✗            | ✓               |
+|                   | `upload_map_imgs.py`                    | Upload map images to S3                       | ✗            | ✗               |
+|                   | `dump_src.py`                           | Dump source files for LLM context             | ✗            | ✗               |
+|                   | `autotune.py`                           | Auto-tune vectorization parameters            | ✗            | ✗               |
 
 ## Tool Execution
 

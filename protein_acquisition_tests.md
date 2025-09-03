@@ -1,6 +1,7 @@
 # Protein Optimizer Acquisition Function Test Results
 
-This document presents the test results for the Protein optimizer after applying patches to fix acquisition function implementations. The tests evaluate three canonical optimization problems of increasing difficulty.
+This document presents the test results for the Protein optimizer after applying patches to fix acquisition function
+implementations. The tests evaluate three canonical optimization problems of increasing difficulty.
 
 ## Test Configuration
 
@@ -17,28 +18,28 @@ This document presents the test results for the Protein optimizer after applying
 
 ### Results
 
-| Acq. Function | Randomize | Best Value | Value Error | Param Error | Converged |
-|---------------|-----------|------------|-------------|-------------|-----------|
-| naive         | No        | 0.051197   | 0.051197    | 0.2263      | ✓         |
-| naive         | Yes       | 0.011377   | 0.011377    | 0.1067      | ✓         |
-| **ei**        | **No**    | **0.002923** | **0.002923** | **0.0541** | **✓**     |
-| ei            | Yes       | 0.009500   | 0.009500    | 0.0975      | ✓         |
-| ucb           | No        | 0.005917   | 0.005917    | 0.0769      | ✓         |
-| ucb           | Yes       | 0.011448   | 0.011448    | 0.1070      | ✓         |
+| Acq. Function | Randomize | Best Value   | Value Error  | Param Error | Converged |
+| ------------- | --------- | ------------ | ------------ | ----------- | --------- |
+| naive         | No        | 0.051197     | 0.051197     | 0.2263      | ✓         |
+| naive         | Yes       | 0.011377     | 0.011377     | 0.1067      | ✓         |
+| **ei**        | **No**    | **0.002923** | **0.002923** | **0.0541**  | **✓**     |
+| ei            | Yes       | 0.009500     | 0.009500     | 0.0975      | ✓         |
+| ucb           | No        | 0.005917     | 0.005917     | 0.0769      | ✓         |
+| ucb           | Yes       | 0.011448     | 0.011448     | 0.1070      | ✓         |
 
 **Convergence Rate**: 6/6 (100%)  
 **Best Performer**: EI (randomize=False) with error of 0.002923
 
 ### Convergence Over Iterations
 
-| Acq Function | Randomize | Iter 10 | Iter 20 | Iter 30 | Iter 40 | Final   |
-|--------------|-----------|---------|---------|---------|---------|---------|
-| naive        | No        | 1.1841  | 0.2721  | 0.2721  | 0.0904  | 0.0512  |
-| naive        | Yes       | 1.1435  | 0.0373  | 0.0160  | 0.0160  | 0.0114  |
-| ei           | No        | 0.0535  | 0.0535  | 0.0029  | 0.0029  | 0.0029  |
-| ei           | Yes       | 0.0201  | 0.0201  | 0.0171  | 0.0171  | 0.0095  |
-| ucb          | No        | 1.0916  | 0.0213  | 0.0059  | 0.0059  | 0.0059  |
-| ucb          | Yes       | 0.8405  | 0.6889  | 0.0114  | 0.0114  | 0.0114  |
+| Acq Function | Randomize | Iter 10 | Iter 20 | Iter 30 | Iter 40 | Final  |
+| ------------ | --------- | ------- | ------- | ------- | ------- | ------ |
+| naive        | No        | 1.1841  | 0.2721  | 0.2721  | 0.0904  | 0.0512 |
+| naive        | Yes       | 1.1435  | 0.0373  | 0.0160  | 0.0160  | 0.0114 |
+| ei           | No        | 0.0535  | 0.0535  | 0.0029  | 0.0029  | 0.0029 |
+| ei           | Yes       | 0.0201  | 0.0201  | 0.0171  | 0.0171  | 0.0095 |
+| ucb          | No        | 1.0916  | 0.0213  | 0.0059  | 0.0059  | 0.0059 |
+| ucb          | Yes       | 0.8405  | 0.6889  | 0.0114  | 0.0114  | 0.0114 |
 
 ## Problem 2: Medium - Branin Function
 
@@ -48,14 +49,14 @@ This document presents the test results for the Protein optimizer after applying
 
 ### Results
 
-| Acq. Function | Randomize | Best Value | Value Error | Param Error | Converged |
-|---------------|-----------|------------|-------------|-------------|-----------|
-| naive         | No        | 0.467803   | 0.069916    | 0.2227      | ✓         |
-| naive         | Yes       | 0.486526   | 0.088639    | 0.3193      | ✓         |
-| **ei**        | **No**    | **0.411027** | **0.013140** | **0.1026** | **✓**   |
-| ei            | Yes       | 0.416232   | 0.018345    | 0.1282      | ✓         |
-| ucb           | No        | 0.447319   | 0.049432    | 0.2126      | ✓         |
-| ucb           | Yes       | 0.457105   | 0.059218    | 0.2597      | ✓         |
+| Acq. Function | Randomize | Best Value   | Value Error  | Param Error | Converged |
+| ------------- | --------- | ------------ | ------------ | ----------- | --------- |
+| naive         | No        | 0.467803     | 0.069916     | 0.2227      | ✓         |
+| naive         | Yes       | 0.486526     | 0.088639     | 0.3193      | ✓         |
+| **ei**        | **No**    | **0.411027** | **0.013140** | **0.1026**  | **✓**     |
+| ei            | Yes       | 0.416232     | 0.018345     | 0.1282      | ✓         |
+| ucb           | No        | 0.447319     | 0.049432     | 0.2126      | ✓         |
+| ucb           | Yes       | 0.457105     | 0.059218     | 0.2597      | ✓         |
 
 **Convergence Rate**: 6/6 (100%)  
 **Best Performer**: EI (randomize=False) with error of 0.013140  
@@ -69,14 +70,14 @@ This document presents the test results for the Protein optimizer after applying
 
 ### Results
 
-| Acq. Func | Random | Best Val  | Val Err  | Param Err | Improve | Conv |
-|-----------|--------|-----------|----------|-----------|---------|------|
+| Acq. Func | Random  | Best Val   | Val Err   | Param Err  | Improve   | Conv  |
+| --------- | ------- | ---------- | --------- | ---------- | --------- | ----- |
 | **naive** | **Yes** | **-3.231** | **0.091** | **0.0722** | **3.122** | **✓** |
-| naive     | No     | -3.195    | 0.128    | 0.0745    | 2.930   | ✓    |
-| ei        | No     | -0.401    | 2.921    | 0.6886    | 0.359   | ✗    |
-| ei        | Yes    | -2.857    | 0.465    | 0.2051    | 2.787   | ✓    |
-| ucb       | No     | -2.971    | 0.351    | 0.1958    | 1.996   | ✓    |
-| ucb       | Yes    | -2.925    | 0.397    | 0.1349    | 1.679   | ✓    |
+| naive     | No      | -3.195     | 0.128     | 0.0745     | 2.930     | ✓     |
+| ei        | No      | -0.401     | 2.921     | 0.6886     | 0.359     | ✗     |
+| ei        | Yes     | -2.857     | 0.465     | 0.2051     | 2.787     | ✓     |
+| ucb       | No      | -2.971     | 0.351     | 0.1958     | 1.996     | ✓     |
+| ucb       | Yes     | -2.925     | 0.397     | 0.1349     | 1.679     | ✓     |
 
 **Convergence Rate**: 5/6 (83%)  
 **Best Performer**: Naive (randomize=True) with error of 0.091345  
@@ -86,9 +87,11 @@ This document presents the test results for the Protein optimizer after applying
 
 ### 1. Acquisition Function Performance by Problem Difficulty
 
-- **Easy (2D Quadratic)**: EI performs best (0.003 error), demonstrating superior exploitation in smooth, unimodal landscapes
+- **Easy (2D Quadratic)**: EI performs best (0.003 error), demonstrating superior exploitation in smooth, unimodal
+  landscapes
 - **Medium (2D Branin)**: EI continues to excel (0.013 error), efficiently navigating the multi-modal landscape
-- **Hard (6D Hartmann)**: Naive performs best (0.091 error), suggesting simpler exploration strategies can be effective in high-dimensional spaces
+- **Hard (6D Hartmann)**: Naive performs best (0.091 error), suggesting simpler exploration strategies can be effective
+  in high-dimensional spaces
 
 ### 2. Impact of Randomization
 
@@ -106,13 +109,16 @@ This document presents the test results for the Protein optimizer after applying
 ### 4. Theoretical Validation
 
 The results confirm that the acquisition functions now behave according to theoretical expectations:
+
 - EI excels at efficient exploration-exploitation tradeoff in low-to-medium dimensions
 - UCB provides robust performance with controllable exploration
-- Naive's random cost-based exploration can be surprisingly effective in high dimensions where GP uncertainty estimates may be less reliable
+- Naive's random cost-based exploration can be surprisingly effective in high dimensions where GP uncertainty estimates
+  may be less reliable
 
 ## Conclusion
 
 The patched Protein optimizer successfully demonstrates:
+
 1. **Correct acquisition function behavior** aligned with Bayesian optimization theory
 2. **Strong performance** across problems of varying difficulty
 3. **Proper handling of minimize/maximize** objectives
