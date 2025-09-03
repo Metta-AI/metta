@@ -466,19 +466,26 @@ class Simulation:
     def name(self) -> str:
         return self._name
 
-    def get_env(self):
-        """Get the underlying environment for mettascope server compatibility."""
-        driver_env = self._vecenv.driver_env  # type: ignore
-        metta_grid_env = getattr(driver_env, "_env", driver_env)
-        return metta_grid_env
+    def get_envs(self):
+        """Returns a list of all envs in the simulation."""
+        return self._vecenv.envs
 
-    def get_replay(self):
-        """Get replay data for mettascope server compatibility."""
-        # Return replay writer's data if available
-        if hasattr(self._replay_writer, "get_replay"):
-            return self._replay_writer.get_replay()
-        # Otherwise return an empty replay structure
-        return {"steps": [], "metadata": {}}
+    def get_env(self):
+        """Make sure this sim has a single env, and return it."""
+        if len(self._vecenv.envs) != 1:
+            raise ValueError("Attempting to get single env, but simulation has multiple envs")
+        return self._vecenv.envs[0]
+
+    def get_replays(self) -> dict:
+        """Get all replays for this simulation."""
+        return self._replay_writer.episodes.values()
+
+    def get_replay(self) -> dict:
+        """Makes sure this sim has a single replay, and return it."""
+        if len(self._replay_writer.episodes) != 1:
+            raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
+        for _, episode_replay in self._replay_writer.episodes.items():
+            return episode_replay.get_replay_data()
 
 
 @dataclass

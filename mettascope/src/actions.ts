@@ -38,10 +38,10 @@ function flushComboIfAny() {
     // Single key or opposing keys fallback: prefer last in insertion order.
     let lastKey: 'w' | 'a' | 's' | 'd' | null = null
     for (const k of comboKeys) lastKey = k
-    if (lastKey === 'w') param = 0
-    else if (lastKey === 'd') param = 3
-    else if (lastKey === 's') param = 1
-    else if (lastKey === 'a') param = 2
+    if (lastKey === 'w') param = 0  // NORTH
+    else if (lastKey === 's') param = 1  // SOUTH
+    else if (lastKey === 'a') param = 2  // WEST
+    else if (lastKey === 'd') param = 3  // EAST
   }
   if (param !== -1) {
     sendAction('move', param)
@@ -52,19 +52,19 @@ function flushComboIfAny() {
 /** Initializes the action buttons. */
 export function initActionButtons() {
   find('#action-buttons .north').addEventListener('click', () => {
-    sendAction('rotate', 0)
-  })
-
-  find('#action-buttons .west').addEventListener('click', () => {
-    sendAction('rotate', 2)
+    sendAction('rotate', 0)  // NORTH = 0
   })
 
   find('#action-buttons .south').addEventListener('click', () => {
-    sendAction('rotate', 1)
+    sendAction('rotate', 1)  // SOUTH = 1
+  })
+
+  find('#action-buttons .west').addEventListener('click', () => {
+    sendAction('rotate', 2)  // WEST = 2
   })
 
   find('#action-buttons .east').addEventListener('click', () => {
-    sendAction('rotate', 3)
+    sendAction('rotate', 3)  // EAST = 3
   })
 
   find('#action-buttons .forward').addEventListener('click', () => {
