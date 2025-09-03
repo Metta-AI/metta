@@ -41,5 +41,3 @@ jobs:
             mettascope2/data/
             mettascope2/replays
           if-no-files-found: error
-
-

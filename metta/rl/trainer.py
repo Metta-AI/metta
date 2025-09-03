@@ -321,6 +321,7 @@ def train(
             shared_loss_mb_data = experience.give_me_empty_md_td()
             policy.on_new_training_run()
             for _loss_name in loss_instances.keys():
+                loss_instances[_loss_name].on_new_training_run(trainer_state)
                 shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
 
             # Initialize main's traditional loss system alongside composable system
@@ -366,14 +367,13 @@ def train(
                             loss_obj.rollout(td, trainer_state)
 
                         # If no composable losses did inference, do it here
+                        # This fallback is needed when losses are disabled by scheduling or no losses do inference
                         if "actions" not in td:
                             with torch.no_grad():
                                 policy(td)
+                            # Store experience since no loss did it
+                            experience.store(data_td=td, env_id=training_env_id)
 
-                        experience.store(
-                            data_td=td,
-                            env_id=training_env_id,
-                        )
                         send_observation(vecenv, td["actions"], dtype_actions, timer)
 
                         if info:
@@ -415,8 +415,16 @@ def train(
                             total_loss.backward()
 
                             if (mb_idx + 1) % experience.accumulate_minibatches == 0:
-                                torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)  # av fix this
+                                # Get max_grad_norm from first loss config that has it (typically PPO)
+                                max_grad_norm = 0.5  # default fallback
+                                for loss_inst in loss_instances.values():
+                                    if hasattr(loss_inst.loss_cfg, "max_grad_norm"):
+                                        max_grad_norm = loss_inst.loss_cfg.max_grad_norm
+                                        break
+                                torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
                                 optimizer.step()
+
+                                policy.clip_weights()
 
                                 if device.type == "cuda":
                                     torch.cuda.synchronize()

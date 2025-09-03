@@ -94,48 +94,6 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     return TrainTool(trainer=trainer_cfg)
 
 
-def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
-    env_cfg = make_mettagrid()
-    env_cfg.game.agent.rewards.inventory.heart = 1
-    env_cfg.game.agent.rewards.inventory.heart_max = 100
-
-    if rewards:
-        env_cfg.game.agent.rewards.inventory.ore_red = 0.1
-        env_cfg.game.agent.rewards.inventory.ore_red_max = 1
-        env_cfg.game.agent.rewards.inventory.battery_red = 0.8
-        env_cfg.game.agent.rewards.inventory.battery_red_max = 1
-        env_cfg.game.agent.rewards.inventory.laser = 0.5
-        env_cfg.game.agent.rewards.inventory.laser_max = 1
-        env_cfg.game.agent.rewards.inventory.armor = 0.5
-        env_cfg.game.agent.rewards.inventory.armor_max = 1
-        env_cfg.game.agent.rewards.inventory.blueprint = 0.5
-        env_cfg.game.agent.rewards.inventory.blueprint_max = 1
-
-        # Set the same rewards on group config
-        env_cfg.game.groups["agent"].props.rewards.inventory.ore_red = 0.1
-        env_cfg.game.groups["agent"].props.rewards.inventory.ore_red_max = 1
-        env_cfg.game.groups["agent"].props.rewards.inventory.battery_red = 0.8
-        env_cfg.game.groups["agent"].props.rewards.inventory.battery_red_max = 1
-        env_cfg.game.groups["agent"].props.rewards.inventory.laser = 0.5
-        env_cfg.game.groups["agent"].props.rewards.inventory.laser_max = 1
-        env_cfg.game.groups["agent"].props.rewards.inventory.armor = 0.5
-        env_cfg.game.groups["agent"].props.rewards.inventory.armor_max = 1
-        env_cfg.game.groups["agent"].props.rewards.inventory.blueprint = 0.5
-        env_cfg.game.groups["agent"].props.rewards.inventory.blueprint_max = 1
-
-    if converters:
-        env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
-
-    trainer_cfg = TrainerConfig(
-        curriculum=cc.env_curriculum(env_cfg),
-        evaluation=EvaluationConfig(
-            simulations=make_evals(env_cfg),
-        ),
-    )
-
-    return TrainTool(trainer=trainer_cfg)
-
-
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
     return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))

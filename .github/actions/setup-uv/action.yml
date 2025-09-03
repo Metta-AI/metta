@@ -2,9 +2,9 @@ name: "Setup uv"
 description: "Set up uv and activate the environment"
 inputs:
   install-mode:
-    description: "Installation mode: 'full' (default), 'testing', 'minimal', or 'linting'"
+    description: "Installation mode: 'testing', 'runtime', 'linting', or 'minimal'"
     required: false
-    default: "full"
+    default: "testing"
 
 runs:
   using: "composite"
@@ -15,7 +15,9 @@ runs:
         version: "0.7.3"
         enable-cache: true
         cache-local-path: "${{ github.workspace }}/.uv-cache"
-        prune-cache: true
+        # disabling cache saves 30 sec on testing but costs 40 sec in other modes
+        prune-cache: ${{ inputs.install-mode == 'linting' || inputs.install-mode == 'minimal'}}
+        # we hash in the action script in case the install-mode content has changed
         cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
@@ -47,8 +49,9 @@ runs:
             uv pip install ruff cpplint
             ;;
 
-          "full"|*)
-            uv sync
+          # used in the mettascope tests where we run code to generate outputs but do not run tests
+          "runtime")
+            uv sync --no-dev
             ;;
 
         esac
