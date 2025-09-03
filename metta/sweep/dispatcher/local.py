@@ -25,7 +25,7 @@ class LocalDispatcher:
             # poll() returns None if process is still running, returncode otherwise
             if process.poll() is not None:
                 finished_pids.append(pid)
-                logger.debug(f"[LocalDispatcher] Process {pid} finished with return code {process.returncode}")
+                logger.debug(f"Process {pid} finished with return code {process.returncode}")
 
         # Clean up finished processes
         for pid in finished_pids:
@@ -46,10 +46,7 @@ class LocalDispatcher:
         self._reap_finished_processes()
         active_count = len(self._processes)
         if active_count > 0:
-            logger.debug(f"[LocalDispatcher] Active subprocesses: {active_count}")
-            for pid, process in self._processes.items():
-                status = "running" if process.poll() is None else f"finished({process.returncode})"
-                logger.debug(f"[LocalDispatcher]   PID {pid}: {status}")
+            logger.debug(f"Active subprocesses: {active_count}")
         return active_count
 
     def _stream_output(self, process: subprocess.Popen, run_id: str, pid: str):
@@ -73,7 +70,7 @@ class LocalDispatcher:
                 logger.info(f"[{display_id}] {line}")
 
         except Exception as e:
-            logger.error(f"[LocalDispatcher] Error streaming output for PID {pid}: {e}")
+            logger.error(f"Error streaming output for PID {pid}: {e}")
 
     def dispatch(self, job: JobDefinition) -> str:
         """Dispatch job locally as subprocess."""
@@ -122,10 +119,7 @@ class LocalDispatcher:
         display_id = job.run_id.split("_trial_")[-1] if "_trial_" in job.run_id else job.run_id
         display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
 
-        # Get job type name (e.g., "LAUNCH_TRAINING" -> "training")
-        job_type_name = job.type.name
-
-        logger.info(f"[LocalDispatcher] Dispatching local {job_type_name} for {display_id}: {' '.join(cmd_parts)}")
+        logger.info(f"Dispatching {display_id}: {' '.join(cmd_parts)}")
 
         try:
             # Configure subprocess output handling
@@ -162,11 +156,9 @@ class LocalDispatcher:
                 output_thread.start()
                 self._output_threads[pid] = output_thread
 
-            logger.info(
-                f"[LocalDispatcher] Started {display_id} with PID {pid} (output_capture={self._capture_output})"
-            )
+            logger.info(f"Started {display_id} with PID {pid}")
             return pid
 
         except Exception as e:
-            logger.error(f"[LocalDispatcher] Failed to start local run {job.run_id}: {e}")
+            logger.error(f"Failed to start local run {job.run_id}: {e}")
             raise

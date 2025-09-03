@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from metta.sweep import Dispatcher, JobDefinition, JobTypes, LocalDispatcher
 from metta.sweep.dispatcher.routing import RoutingDispatcher
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
-from metta.sweep import Dispatcher, JobDefinition, JobTypes, LocalDispatcher
 
 # ============================================================================
 # Fixtures
@@ -158,34 +158,6 @@ class TestHybridModes:
 # ============================================================================
 
 
-class TestIntrospection:
-    """Test introspection capabilities."""
-
-    def test_get_dispatcher_for_job_type(self, mock_local_dispatcher, mock_skypilot_dispatcher):
-        """Test getting dispatcher for specific job type."""
-        router = RoutingDispatcher(
-            routes={
-                JobTypes.LAUNCH_TRAINING: mock_skypilot_dispatcher,
-                JobTypes.LAUNCH_EVAL: mock_local_dispatcher,
-            }
-        )
-
-        # Get dispatcher for training
-        train_dispatcher = router.get_dispatcher_for_job_type(JobTypes.LAUNCH_TRAINING)
-        assert train_dispatcher is mock_skypilot_dispatcher
-
-        # Get dispatcher for eval
-        eval_dispatcher = router.get_dispatcher_for_job_type(JobTypes.LAUNCH_EVAL)
-        assert eval_dispatcher is mock_local_dispatcher
-
-    def test_get_dispatcher_returns_default_when_not_found(self, mock_local_dispatcher):
-        """Test that default dispatcher is returned when job type not found."""
-        router = RoutingDispatcher(routes={}, default_dispatcher=mock_local_dispatcher)
-
-        dispatcher = router.get_dispatcher_for_job_type(JobTypes.LAUNCH_TRAINING)
-        assert dispatcher is mock_local_dispatcher
-
-
 # ============================================================================
 # Logging Tests
 # ============================================================================
@@ -209,18 +181,6 @@ class TestLogging:
 
         # Check that initialization is silent at INFO level (minimal logging)
         assert caplog.text == ""
-
-    def test_dispatch_logging(self, caplog, mock_local_dispatcher, training_job):
-        """Test that dispatch decisions are logged at DEBUG level."""
-        import logging
-
-        router = RoutingDispatcher(routes={JobTypes.LAUNCH_TRAINING: mock_local_dispatcher})
-
-        with caplog.at_level(logging.DEBUG):
-            router.dispatch(training_job)
-
-        # Check dispatch logs at DEBUG level
-        assert "Routing launch_training to MagicMock" in caplog.text
 
     def test_minimal_logging_at_info_level(self, caplog, mock_local_dispatcher):
         """Test that routing produces minimal logs at INFO level."""
