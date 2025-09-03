@@ -6,14 +6,8 @@ from metta.common.util.fs import get_repo_root
 
 def test_no_xcxc_debug():
     """
-    Test to ensure no 'xcxc' debug markers are left in the codebase.
-
     Some of our developers use 'xcxc' as a special marker (similar to TODO or FIXME)
-    to mark code sections that need attention, debugging, or temporary changes.
-    This test ensures that no such markers are accidentally left in the code
-    before committing or deploying.
-
-    Think of 'xcxc' as our custom debug flag that should never make it to production.
+    to mark code that should never make it to production.
     """
     project_root = get_repo_root()
 
@@ -72,8 +66,6 @@ def test_no_xcxc_debug():
         elif result.returncode == 2:
             # grep returns 2 for errors
             assert False, f"grep command failed: {result.stderr}"
-
-        # returncode 1 means no matches found, which is what we want
 
     except subprocess.TimeoutExpired:
         # If grep times out, fail the test with a clear message
