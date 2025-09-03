@@ -7,13 +7,17 @@ bidirectional learning progress tracking with local task memory pool.
 """
 
 import logging
-from typing import Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gym.spaces import Discrete
 from pydantic import ConfigDict, Field
 
-from metta.cogworks.curriculum.curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithm,
+    CurriculumAlgorithmConfig,
+    CurriculumTask,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +72,203 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._task_id_to_index: Dict[int, int] = {}
         self._next_index: int = 0
 
+        # Bucket tracking for completion density analysis
+        self._bucket_tracking: Dict[str, Dict[int, Any]] = {}  # bucket_name -> task_id -> value
+        self._bucket_completion_counts: Dict[str, Dict[int, int]] = {}  # bucket_name -> bin_index -> count
+        self._bucket_bins: Dict[str, List[float]] = {}  # bucket_name -> bin_edges
+        self._bucket_is_discrete: Dict[str, bool] = {}  # bucket_name -> is_discrete
+        self._bucket_completion_history: Dict[str, List[float]] = {}  # bucket_name -> completion_density_over_time
+
     def _update_weights(self, child_idx: int, score: float):
         """Update weights - not used in this implementation."""
         pass
+
+    def _extract_bucket_values(self, task: CurriculumTask) -> Dict[str, Any]:
+        """Extract bucket parameter values from a task's environment configuration."""
+        bucket_values = {}
+
+        try:
+            # Access the environment configuration to extract bucket values
+            env_cfg = task.get_env_cfg()
+
+            # Look for bucket-related fields in the config
+            # This is a heuristic approach - we look for fields that might be bucket parameters
+            # The actual implementation depends on how buckets are stored in the config
+
+            # Try to access common bucket patterns
+            if hasattr(env_cfg, "game") and hasattr(env_cfg.game, "level_map"):
+                if hasattr(env_cfg.game.level_map, "num_agents"):
+                    bucket_values["game.level_map.num_agents"] = env_cfg.game.level_map.num_agents
+                if hasattr(env_cfg.game.level_map, "width"):
+                    bucket_values["game.level_map.width"] = env_cfg.game.level_map.width
+                if hasattr(env_cfg.game.level_map, "height"):
+                    bucket_values["game.level_map.height"] = env_cfg.game.level_map.height
+
+            if hasattr(env_cfg, "game") and hasattr(env_cfg.game, "actions"):
+                if hasattr(env_cfg.game.actions, "attack") and hasattr(
+                    env_cfg.game.actions.attack, "consumed_resources"
+                ):
+                    if hasattr(env_cfg.game.actions.attack.consumed_resources, "laser"):
+                        bucket_values["game.actions.attack.consumed_resources.laser"] = (
+                            env_cfg.game.actions.attack.consumed_resources.laser
+                        )
+
+            # Look for reward-related bucket parameters
+            if hasattr(env_cfg, "game") and hasattr(env_cfg.game, "agent") and hasattr(env_cfg.game.agent, "rewards"):
+                if hasattr(env_cfg.game.agent.rewards, "inventory"):
+                    for item_name in ["wood", "stone", "iron", "gold"]:
+                        if hasattr(env_cfg.game.agent.rewards.inventory, item_name):
+                            bucket_values[f"game.agent.rewards.inventory.{item_name}"] = getattr(
+                                env_cfg.game.agent.rewards.inventory, item_name
+                            )
+
+                if hasattr(env_cfg.game.agent.rewards, "inventory_max"):
+                    for item_name in ["wood", "stone", "iron", "gold"]:
+                        if hasattr(env_cfg.game.agent.rewards.inventory_max, item_name):
+                            bucket_values[f"game.agent.rewards.inventory_max.{item_name}"] = getattr(
+                                env_cfg.game.agent.rewards.inventory_max, item_name
+                            )
+
+        except Exception as e:
+            logger.debug(f"Could not extract bucket values from task: {e}")
+
+        return bucket_values
+
+    def _initialize_bucket_tracking(self, bucket_values: Dict[str, Any]):
+        """Initialize bucket tracking for newly discovered bucket parameters."""
+        for bucket_name, value in bucket_values.items():
+            if bucket_name not in self._bucket_tracking:
+                self._bucket_tracking[bucket_name] = {}
+                self._bucket_completion_counts[bucket_name] = {}
+                self._bucket_completion_history[bucket_name] = []
+
+                # Determine if bucket is discrete or continuous
+                if isinstance(value, (int, str)) or (isinstance(value, float) and value.is_integer()):
+                    self._bucket_is_discrete[bucket_name] = True
+                    # For discrete values, create bins for each unique value
+                    self._bucket_bins[bucket_name] = []
+                else:
+                    self._bucket_is_discrete[bucket_name] = False
+                    # For continuous values, create 10 histogram bins
+                    self._bucket_bins[bucket_name] = []
+
+    def _update_bucket_tracking(self, task_id: int, bucket_values: Dict[str, Any]):
+        """Update bucket tracking with new task values."""
+        for bucket_name, value in bucket_values.items():
+            if bucket_name in self._bucket_tracking:
+                self._bucket_tracking[bucket_name][task_id] = value
+
+                # Update bins for continuous parameters
+                if not self._bucket_is_discrete[bucket_name]:
+                    if not self._bucket_bins[bucket_name]:
+                        # Initialize bins for continuous parameter
+                        # We'll need to collect some data first to determine range
+                        pass
+
+                # Collect values for continuous bin initialization
+                if not self._bucket_is_discrete[bucket_name]:
+                    # Store values to initialize bins later when we have enough data
+                    if not hasattr(self, "_continuous_values_buffer"):
+                        self._continuous_values_buffer = {}
+                    if bucket_name not in self._continuous_values_buffer:
+                        self._continuous_values_buffer[bucket_name] = []
+                    self._continuous_values_buffer[bucket_name].append(float(value))
+
+                    # Initialize bins when we have enough data points
+                    if len(self._continuous_values_buffer[bucket_name]) >= 10:
+                        self._initialize_continuous_bins(bucket_name, self._continuous_values_buffer[bucket_name])
+                        # Clear buffer after initialization
+                        self._continuous_values_buffer[bucket_name] = []
+
+    def _update_bucket_completion_density(self, task_id: int, score: float):
+        """Update bucket completion density tracking when a task completes."""
+        if task_id not in self._task_objects:
+            return
+
+        # Get bucket values for this task
+        task = self._task_objects[task_id]
+        bucket_values = self._extract_bucket_values(task)
+
+        # Update completion density for each bucket
+        for bucket_name, value in bucket_values.items():
+            if bucket_name in self._bucket_tracking:
+                # Find the appropriate bin for this value
+                bin_index = self._get_bin_index(bucket_name, value)
+                if bin_index is not None:
+                    # Increment completion count for this bin
+                    if bin_index not in self._bucket_completion_counts[bucket_name]:
+                        self._bucket_completion_counts[bucket_name][bin_index] = 0
+                    self._bucket_completion_counts[bucket_name][bin_index] += 1
+
+                    # Update completion density history
+                    self._update_completion_density_history(bucket_name)
+
+    def _get_bin_index(self, bucket_name: str, value: Any) -> Optional[int]:
+        """Get the bin index for a given bucket value."""
+        if bucket_name not in self._bucket_tracking:
+            return None
+
+        if self._bucket_is_discrete[bucket_name]:
+            # For discrete values, find or create bin for this value
+            if value not in self._bucket_bins[bucket_name]:
+                self._bucket_bins[bucket_name].append(value)
+            return self._bucket_bins[bucket_name].index(value)
+        else:
+            # For continuous values, we need to have bins initialized
+            if not self._bucket_bins[bucket_name]:
+                return None
+
+            # Find the appropriate bin
+            for i, (min_val, max_val) in enumerate(
+                zip(self._bucket_bins[bucket_name][:-1], self._bucket_bins[bucket_name][1:], strict=True)
+            ):
+                if min_val <= value < max_val:
+                    return i
+            return None
+
+    def _update_completion_density_history(self, bucket_name: str):
+        """Update the completion density history for a bucket."""
+        if bucket_name not in self._bucket_completion_counts:
+            return
+
+        # Calculate current completion density across all bins
+        total_completions = sum(self._bucket_completion_counts[bucket_name].values())
+        if total_completions == 0:
+            return
+
+        # Calculate density for each bin
+        densities = []
+        if self._bucket_is_discrete[bucket_name]:
+            # For discrete, normalize by total completions
+            for bin_index in range(len(self._bucket_bins[bucket_name])):
+                count = self._bucket_completion_counts[bucket_name].get(bin_index, 0)
+                density = count / total_completions if total_completions > 0 else 0.0
+                densities.append(density)
+        else:
+            # For continuous, we need bins to be initialized
+            if len(self._bucket_bins[bucket_name]) < 2:
+                return
+
+            for bin_index in range(len(self._bucket_bins[bucket_name]) - 1):
+                count = self._bucket_completion_counts[bucket_name].get(bin_index, 0)
+                density = count / total_completions if total_completions > 0 else 0.0
+                densities.append(density)
+
+        # Store the current density distribution
+        if densities:
+            self._bucket_completion_history[bucket_name].append(np.mean(densities))
+
+    def _initialize_continuous_bins(self, bucket_name: str, values: List[float]):
+        """Initialize histogram bins for continuous bucket parameters."""
+        if not values:
+            return
+
+        min_val = min(values)
+        max_val = max(values)
+
+        # Create 10 bins for continuous parameters
+        bin_edges = np.linspace(min_val, max_val, 11)  # 11 edges = 10 bins
+        self._bucket_bins[bucket_name] = bin_edges.tolist()
 
     def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
         """Get a task from the unified pool, creating or evicting as needed."""
@@ -114,6 +312,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Add to memory and objects
         self._task_memory[task_id] = (task_id, "default", 0, 0.0, 0.0, 0.0)
         self._task_objects[task_id] = task
+
+        # Extract and track bucket values for this task
+        bucket_values = self._extract_bucket_values(task)
+        self._initialize_bucket_tracking(bucket_values)
+        self._update_bucket_tracking(task_id, bucket_values)
 
     def _sample_from_pool(self) -> int:
         """Sample a task from the pool based on learning progress scores."""
@@ -167,6 +370,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             if task_id in self._task_objects:
                 del self._task_objects[task_id]
 
+            # Remove bucket tracking for this task
+            for bucket_name in self._bucket_tracking:
+                if task_id in self._bucket_tracking[bucket_name]:
+                    del self._bucket_tracking[bucket_name][task_id]
+
     def update_task_performance(self, task_id: int, score: float):
         """Update task performance and learning progress."""
         if task_id not in self._task_memory:
@@ -193,6 +401,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             new_lp_score = float(raw_lp_scores[task_index])
             self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, new_lp_score)
 
+        # Update bucket completion density tracking
+        self._update_bucket_completion_density(task_id, score)
+
     def _get_task_lp_score(self, task_id: int) -> float:
         """Get the learning progress score for a specific task."""
         if task_id not in self._task_memory:
@@ -212,11 +423,94 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         return float(raw_lp_scores[task_index])
 
     def stats(self) -> dict[str, float]:
-        """Return unified statistics for the pool."""
+        """Return unified statistics for the pool including bucket completion density."""
         # Get base learning progress stats
         base_stats = self._lp_tracker.add_stats()
 
-        return base_stats
+        # Add bucket completion density statistics
+        bucket_stats = self._get_bucket_completion_stats()
+
+        return {**base_stats, **bucket_stats}
+
+    def _get_bucket_completion_stats(self) -> dict[str, float]:
+        """Get bucket completion density statistics."""
+        stats = {}
+
+        for bucket_name in self._bucket_tracking:
+            if bucket_name not in self._bucket_completion_counts:
+                continue
+
+            # Get completion counts for this bucket
+            completion_counts = self._bucket_completion_counts[bucket_name]
+            if not completion_counts:
+                continue
+
+            # Calculate basic statistics
+            total_completions = sum(completion_counts.values())
+            if total_completions == 0:
+                continue
+
+            # Add bucket completion statistics
+            stats[f"bucket/{bucket_name}/total_completions"] = float(total_completions)
+            stats[f"bucket/{bucket_name}/num_bins"] = float(len(completion_counts))
+
+            # Calculate completion density distribution
+            if self._bucket_is_discrete[bucket_name]:
+                # For discrete buckets, show completion count per value
+                for bin_index, count in completion_counts.items():
+                    if bin_index < len(self._bucket_bins[bucket_name]):
+                        value = self._bucket_bins[bucket_name][bin_index]
+                        stats[f"bucket/{bucket_name}/value_{value}_completions"] = float(count)
+                        stats[f"bucket/{bucket_name}/value_{value}_density"] = float(count / total_completions)
+            else:
+                # For continuous buckets, show completion density across bins
+                if len(self._bucket_bins[bucket_name]) >= 2:
+                    for bin_index, count in completion_counts.items():
+                        if bin_index < len(self._bucket_bins[bucket_name]) - 1:
+                            min_val = self._bucket_bins[bucket_name][bin_index]
+                            max_val = self._bucket_bins[bucket_name][bin_index + 1]
+                            bin_center = (min_val + max_val) / 2
+                            stats[f"bucket/{bucket_name}/bin_{bin_index}_center_{bin_center:.2f}_completions"] = float(
+                                count
+                            )
+                            stats[f"bucket/{bucket_name}/bin_{bin_index}_center_{bin_center:.2f}_density"] = float(
+                                count / total_completions
+                            )
+
+            # Add completion density evolution statistics
+            if self._bucket_completion_history[bucket_name]:
+                history = self._bucket_completion_history[bucket_name]
+                stats[f"bucket/{bucket_name}/completion_density_mean"] = float(np.mean(history))
+                stats[f"bucket/{bucket_name}/completion_density_std"] = (
+                    float(np.std(history)) if len(history) > 1 else 0.0
+                )
+                stats[f"bucket/{bucket_name}/completion_density_trend"] = (
+                    float(history[-1] - history[0]) if len(history) > 1 else 0.0
+                )
+
+        return stats
+
+    def get_bucket_summary(self) -> dict[str, dict]:
+        """Get a summary of bucket tracking for debugging and analysis."""
+        summary = {}
+
+        for bucket_name in self._bucket_tracking:
+            summary[bucket_name] = {
+                "is_discrete": self._bucket_is_discrete.get(bucket_name, False),
+                "num_tasks": len(self._bucket_tracking[bucket_name]),
+                "num_completions": sum(self._bucket_completion_counts.get(bucket_name, {}).values()),
+                "bins": self._bucket_bins.get(bucket_name, []),
+                "completion_history_length": len(self._bucket_completion_history.get(bucket_name, [])),
+            }
+
+            # Add sample values for continuous buckets
+            if not self._bucket_is_discrete.get(bucket_name, True):
+                values = list(self._bucket_tracking[bucket_name].values())
+                if values:
+                    summary[bucket_name]["sample_values"] = values[:5]  # First 5 values
+                    summary[bucket_name]["value_range"] = (min(values), max(values))
+
+        return summary
 
 
 class BidirectionalLearningProgress:
