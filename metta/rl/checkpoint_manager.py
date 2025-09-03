@@ -67,6 +67,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
         wandb_uri = WandbURI.parse(expanded_uri)
         artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
         # Note: We can't reliably convert underscores back since the original might have had underscores
+        # Just return the artifact name as-is
         return artifact_name, 0
 
     if uri.startswith("s3://"):
