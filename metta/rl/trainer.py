@@ -209,6 +209,9 @@ def train(
     # Instantiate configured composable losses dynamically
     loss_instances = trainer_cfg.losses.init_losses(policy, trainer_cfg, vecenv, device, checkpoint_manager)
 
+    # Initialize hooks (empty list for now, will be populated in later phases)
+    hook_instances: list = []
+
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
     act_space = vecenv.single_action_space
@@ -329,6 +332,10 @@ def train(
                 loss_instances[_loss_name].on_new_training_run(trainer_state)
                 shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
 
+            # Call hooks at training start
+            for hook in hook_instances:
+                hook.on_new_training_run(trainer_state)
+
             # Initialize main's traditional loss system alongside composable system
             record_heartbeat()
 
@@ -339,6 +346,10 @@ def train(
                     experience.reset_for_rollout()
                     for _loss_name in list(all_losses):
                         loss_instances[_loss_name].on_rollout_start(trainer_state)
+
+                    # Call hooks at rollout start
+                    for hook in hook_instances:
+                        hook.on_rollout_start(trainer_state)
 
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
                     buffer_step = buffer_step.select(*policy_spec.keys())
@@ -386,13 +397,17 @@ def train(
 
                         agent_step += num_steps * torch_dist_cfg.world_size
                     accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
-                    
+
                     # Populate trainer state for rollout end hooks
                     trainer_state.rollout_stats = stats_tracker.rollout_stats
-                    
+
                     # Call rollout end hooks for all loss instances
                     for _loss_name in loss_instances.keys():
                         loss_instances[_loss_name].on_rollout_end(trainer_state)
+
+                    # Call hooks at rollout end
+                    for hook in hook_instances:
+                        hook.on_rollout_end(trainer_state)
 
                 # Training phase
                 with timer("_train"):
@@ -445,34 +460,46 @@ def train(
                                 loss_obj = loss_instances[_lname]
                                 loss_obj.on_mb_end(trainer_state)
 
+                            # Call hooks after minibatch
+                            for hook in hook_instances:
+                                hook.on_mb_end(trainer_state)
+
                         epochs_trained += 1
 
                     for _lname in list(all_losses):
                         loss_obj = loss_instances[_lname]
                         loss_obj.on_train_phase_end(trainer_state)
 
+                    # Call hooks at train phase end
+                    for hook in hook_instances:
+                        hook.on_train_phase_end(trainer_state)
+
                 epoch += epochs_trained
                 trainer_state.epoch = epoch
                 trainer_state.agent_step = agent_step  # update agent_step count state not in between rollout and train
-                
+
                 # Collect loss stats before calling epoch end hooks
                 loss_stats = {}
                 for _lname in list(all_losses):
                     loss_obj = loss_instances[_lname]
                     loss_stats.update(loss_obj.stats())
-                
+
                 # Populate trainer state for epoch end hooks
                 trainer_state.loss_stats = loss_stats
                 trainer_state.eval_scores = eval_scores
                 # Set checkpoint URIs if available
                 trainer_state.latest_checkpoint_uri = None
-                if checkpoint_manager and hasattr(checkpoint_manager, 'latest_checkpoint_uri'):
+                if checkpoint_manager and hasattr(checkpoint_manager, "latest_checkpoint_uri"):
                     trainer_state.latest_checkpoint_uri = checkpoint_manager.latest_checkpoint_uri
-                trainer_state.latest_wandb_uri = latest_wandb_uri if 'latest_wandb_uri' in locals() else None
-                
+                trainer_state.latest_wandb_uri = latest_wandb_uri if "latest_wandb_uri" in locals() else None
+
                 # Call epoch end hooks for all loss instances
                 for _loss_name in loss_instances.keys():
                     loss_instances[_loss_name].on_epoch_end(trainer_state)
+
+                # Call hooks at epoch end
+                for hook in hook_instances:
+                    hook.on_epoch_end(trainer_state)
 
             # Update hyperparameters based on current training step (master only)
             if torch_dist_cfg.is_master:
@@ -707,6 +734,10 @@ def train(
         wandb_run=wandb_run,  # Upload final checkpoint if wandb is available
     )
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
+
+    # Call hooks at training end
+    for hook in hook_instances:
+        hook.on_training_end(trainer_state)
 
     cleanup_monitoring(memory_monitor, system_monitor)
 
