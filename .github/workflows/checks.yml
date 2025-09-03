@@ -243,7 +243,7 @@ jobs:
             local color=$2
 
             # packages run in parallel so we will start (packages)*(pytest_workers) processes
-            PYTEST_BASE_ARGS="-n 3 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+            PYTEST_BASE_ARGS="-n 2 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
             # Save raw output for duration parsing
             local raw_output="test-results/${package}_raw.log"
@@ -304,7 +304,7 @@ jobs:
             fi
           done
 
-          echo -e "\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+          echo -e "\n\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
           echo -e "\n\033[1;37m🐌 TOP 10 SLOWEST TESTS\033[0m"
           # Combine all duration files and sort
           for package in agent common app_backend mettagrid codebot core; do
