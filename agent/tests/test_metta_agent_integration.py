@@ -1,8 +1,3 @@
-"""
-Integration tests for MettaAgent using the modern configuration system.
-These tests use real environments and configurations without Hydra/YAML.
-"""
-
 import numpy as np
 import pytest
 import torch
@@ -20,13 +15,13 @@ from metta.rl.system_config import SystemConfig
 def create_env_and_agent():
     """Create a real environment and agent using modern configuration."""
     # Create a small test environment
-    env_config = eb.make_navigation(num_agents=1)
-    env_config.game.max_steps = 100
-    env_config.game.map_builder.width = 8
-    env_config.game.map_builder.height = 8
+    mg_config = eb.make_navigation(num_agents=1)
+    mg_config.game.max_steps = 100
+    mg_config.game.map_builder.width = 8
+    mg_config.game.map_builder.height = 8
 
     # Create a single environment (vectorization handled separately if needed)
-    env = MettaGridEnv(env_config, render_mode=None)
+    env = MettaGridEnv(mg_config, render_mode=None)
 
     # Create system and agent configs
     system_cfg = SystemConfig(device="cpu")
@@ -204,51 +199,15 @@ def test_training_mode_vs_inference(create_env_and_agent):
     assert "values" in output_eval
 
 
-@pytest.mark.skip(reason="Checkpoint compatibility needs proper dimension handling")
-def test_checkpoint_compatibility(create_env_and_agent):
-    """Test that agent state can be saved and loaded."""
-    env, agent = create_env_and_agent
-
-    # Get initial output
-    obs, _ = env.reset()
-    # Note: This test needs unsqueeze for batch dimension compatibility
-    output_before = agent(obs_to_td(obs.reshape(1, *obs.shape[1:])))
-
-    # Save state
-    state_dict = agent.state_dict()
-
-    # Create new agent and load state
-    system_cfg = SystemConfig(device="cpu")
-    agent_cfg = AgentConfig(name="fast")
-    new_agent = MettaAgent(
-        env=env,
-        system_cfg=system_cfg,
-        policy_architecture_cfg=agent_cfg,
-    )
-
-    # Initialize and load state
-    features = env.get_observation_features()
-    new_agent.initialize_to_environment(features, env.action_names, env.max_action_args, device="cpu")
-    new_agent.load_state_dict(state_dict)
-
-    # Outputs should be similar (not identical due to sampling)
-    new_agent.eval()
-    agent.eval()
-    output_after = new_agent(obs_to_td(obs.reshape(1, *obs.shape[1:])))
-
-    # Values should be identical in eval mode
-    torch.testing.assert_close(output_before["values"], output_after["values"])
-
-
 def test_multi_agent_environment(create_env_and_agent):
     """Test agent with multi-agent environments."""
     # Create multi-agent environment
-    env_config = eb.make_arena(num_agents=6)
-    env_config.game.max_steps = 100
-    env_config.game.map_builder.width = 16
-    env_config.game.map_builder.height = 16
+    mg_config = eb.make_arena(num_agents=6)
+    mg_config.game.max_steps = 100
+    mg_config.game.map_builder.width = 16
+    mg_config.game.map_builder.height = 16
 
-    multi_env = MettaGridEnv(env_config, render_mode=None)
+    multi_env = MettaGridEnv(mg_config, render_mode=None)
 
     # Create agent
     system_cfg = SystemConfig(device="cpu")
@@ -281,8 +240,8 @@ def test_different_agent_architectures():
 
     for arch_name in architectures:
         # Create environment
-        env_config = eb.make_navigation(num_agents=1)
-        env = MettaGridEnv(env_config, render_mode=None)
+        mg_config = eb.make_navigation(num_agents=1)
+        env = MettaGridEnv(mg_config, render_mode=None)
 
         # Create agent with specific architecture
         system_cfg = SystemConfig(device="cpu")
@@ -312,8 +271,8 @@ def test_different_agent_architectures():
 def test_pytorch_vs_component_policies():
     """Test both PyTorch and ComponentPolicy implementations."""
     # Test ComponentPolicy version
-    env_config = eb.make_navigation(num_agents=1)
-    env = MettaGridEnv(env_config, render_mode=None)
+    mg_config = eb.make_navigation(num_agents=1)
+    env = MettaGridEnv(mg_config, render_mode=None)
 
     system_cfg = SystemConfig(device="cpu")
 

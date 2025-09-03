@@ -53,7 +53,7 @@ This is the primary training tool in the Metta ecosystem, supporting:
 
 The tool integrates with:
 
-- PolicyStore: For saving and versioning trained policies
+- CheckpointManager: For saving and managing trained policy checkpoints
 - StatsClient: For metrics logging and analysis
 - WandbContext: For experiment tracking and visualization
 - SimulationSuite: For periodic evaluation during training
@@ -173,7 +173,7 @@ NODE_INDEX=1 ./tools/sweep_init.py sweep_name=distributed_exp
 
 - Requires completed training run
 - GPU for policy evaluation
-- Access to PolicyStore
+- Access to saved checkpoints
 
 ## Evaluation Tools
 
@@ -195,7 +195,7 @@ programmatic processing
 
 **Integration points**:
 
-- PolicyStore: For loading trained policies
+- CheckpointManager: For loading trained policies
 - SimulationSuite: For running evaluation scenarios
 - StatsDB: For storing and exporting metrics
 - StatsClient: For real-time metrics streaming
@@ -260,11 +260,11 @@ performance metrics, and learning progress.
 - Behavior pattern detection and visualization
 - Comparative analysis between checkpoints
 - Export to multiple formats (HTML, JSON, PDF)
-- Integration with PolicyStore for policy metadata
+- Integration with CheckpointManager for policy metadata
 
 **The analysis pipeline**:
 
-1. Load policy from PolicyStore using specified selector
+1. Load policy from checkpoints using specified selector
 2. Retrieve evaluation statistics from connected databases
 3. Generate statistical summaries and visualizations
 4. Export analysis results to specified output path
@@ -286,7 +286,7 @@ performance metrics, and learning progress.
 
 - Requires completed evaluation data
 - Access to stats database
-- PolicyStore for loading policies
+- CheckpointManager for loading policies
 
 ## Visualization Tools
 
@@ -310,7 +310,7 @@ environments with support for multiple rendering backends.
 
 - `random`: Generates valid random actions for baseline comparison
 - `simple`: Heuristic policy with movement preferences (60% cardinal, 20% diagonal, etc.)
-- `trained`: Loads policies from PolicyStore with automatic action validation
+- `trained`: Loads policies from checkpoints with automatic action validation
 
 **Rendering modes**:
 

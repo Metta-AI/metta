@@ -11,7 +11,7 @@ from metta.tools.train import TrainTool
 
 
 def train() -> TrainTool:
-    env = arena.make_env()
+    env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.train(
         curriculum=arena.make_curriculum(env),
@@ -32,7 +32,7 @@ def play() -> PlayTool:
 
 
 def replay() -> ReplayTool:
-    env = arena.make_env()
+    env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.replay(env)
     # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"

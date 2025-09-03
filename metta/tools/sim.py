@@ -9,13 +9,12 @@ from typing import Sequence
 import torch
 from pydantic import Field
 
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicySelectorType, PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
-from metta.common.wandb.wandb_context import WandbConfig
+from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 from metta.eval.eval_service import evaluate_policy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -46,7 +45,6 @@ class SimTool(Tool):
 
     wandb: WandbConfig = auto_wandb_config()
 
-    selector_type: PolicySelectorType = "top"
     stats_dir: str | None = None  # The (local) directory where stats should be stored
     stats_db_uri: str | None = None  # If set, export stats to this url (local path, wandb:// or s3://)
     stats_server_uri: str | None = None  # If set, send stats to this http server
@@ -61,69 +59,69 @@ class SimTool(Tool):
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
 
-        # TODO(daveey): #dehydration
-        policy_store = PolicyStore.create(
-            device=self.system.device,
-            wandb_config=self.wandb,
-            data_dir=self.system.data_dir,
-            wandb_run=None,
-        )
         stats_client: StatsClient | None = None
         if self.stats_server_uri is not None:
             stats_client = StatsClient.create(self.stats_server_uri)
 
-        policy_records_by_uri: dict[str, list[PolicyRecord]] = {
-            policy_uri: policy_store.policy_records(
-                uri_or_config=policy_uri,
-                selector_type=self.selector_type,
-                n=1,
-                metric=self.simulations[0].name + "_score",
-            )
-            for policy_uri in self.policy_uris
-        }
-
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)
 
+        wandb_run = None
+        wandb_context = None
+        if self.wandb and self.wandb.enabled:
+            wandb_context = WandbContext(self.wandb, self)
+            wandb_context.__enter__()
+            wandb_run = wandb_context.run
+            logger.info(f"Initialized wandb run: {wandb_run.id if wandb_run else 'None'}")
         # Get eval_task_id from config if provided
         eval_task_id = None
         if self.eval_task_id:
             eval_task_id = uuid.UUID(self.eval_task_id)
 
-        for policy_uri, policy_prs in policy_records_by_uri.items():
+        for policy_uri in self.policy_uris:
+            # Normalize the URI using CheckpointManager
+            normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+
+            # Verify the checkpoint exists
+            try:
+                agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
+                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+                del agent
+            except Exception as e:
+                logger.warning(f"Failed to load policy from {policy_uri}: {e}")
+                continue
+
             eval_run_name = _determine_run_name(policy_uri)
             results = {"policy_uri": policy_uri, "checkpoints": []}
-            for pr in policy_prs:
-                eval_results = evaluate_policy(
-                    policy_record=pr,
-                    simulations=list(self.simulations),
-                    stats_dir=self.stats_dir,
-                    replay_dir=f"{self.replay_dir}/{eval_run_name}/{pr.run_name}",
-                    device=device,
-                    vectorization=self.system.vectorization,
-                    export_stats_db_uri=self.stats_db_uri,
-                    policy_store=policy_store,
-                    stats_client=stats_client,
-                    eval_task_id=eval_task_id,
-                )
-                if self.push_metrics_to_wandb:
-                    try:
-                        process_policy_evaluator_stats(pr, eval_results)
-                    except Exception as e:
-                        logger.error(f"Error logging evaluation results to wandb: {e}")
 
-                results["checkpoints"].append(
-                    {
-                        "name": pr.run_name,
-                        "uri": pr.uri,
-                        "metrics": {
-                            "reward_avg": eval_results.scores.avg_simulation_score,
-                            "reward_avg_category_normalized": eval_results.scores.avg_category_score,
-                            "detailed": eval_results.scores.to_wandb_metrics_format(),
-                        },
-                        "replay_url": eval_results.replay_urls,
-                    }
-                )
+            eval_results = evaluate_policy(
+                checkpoint_uri=normalized_uri,
+                simulations=list(self.simulations),
+                stats_dir=self.stats_dir,
+                replay_dir=f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}",
+                device=device,
+                vectorization=self.system.vectorization,
+                export_stats_db_uri=self.stats_db_uri,
+                stats_client=stats_client,
+                eval_task_id=eval_task_id,
+            )
+            if self.push_metrics_to_wandb:
+                try:
+                    process_policy_evaluator_stats(policy_uri, eval_results)
+                except Exception as e:
+                    logger.error(f"Error logging evaluation results to wandb: {e}")
+            results["checkpoints"].append(
+                {
+                    "name": metadata.get("run_name", "unknown"),
+                    "uri": normalized_uri,
+                    "metrics": {
+                        "reward_avg": eval_results.scores.avg_simulation_score,
+                        "reward_avg_category_normalized": eval_results.scores.avg_category_score,
+                        "detailed": eval_results.scores.to_wandb_metrics_format(),
+                    },
+                    "replay_url": eval_results.replay_urls,
+                }
+            )
             all_results["policies"].append(results)
 
         # Always output JSON results to stdout

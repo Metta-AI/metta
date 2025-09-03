@@ -14,7 +14,7 @@ class TestTask:
         task = Task(task_id=task_id, env_cfg=cfg)
 
         assert task.env_cfg == cfg
-        assert task.get_env_config() == cfg
+        assert task.get_mg_config() == cfg
         assert task.get_id() == task_id
 
     def test_task_with_custom_id(self):
@@ -24,10 +24,10 @@ class TestTask:
         task = Task(task_id=custom_id, env_cfg=cfg)
 
         assert task.env_cfg == cfg
-        assert task.get_env_config() == cfg
+        assert task.get_mg_config() == cfg
         assert task.get_id() == custom_id
 
-    def test_task_with_different_env_configs(self):
+    def test_task_with_different_mg_configs(self):
         """Test tasks with different env configs."""
         # Create env configs with different values
         cfg1 = MettaGridConfig(game=GameConfig(num_agents=1))
@@ -36,16 +36,16 @@ class TestTask:
         task1 = Task(task_id="task1", env_cfg=cfg1)
         task2 = Task(task_id="task2", env_cfg=cfg2)
 
-        assert task1.get_env_config() != task2.get_env_config()
+        assert task1.get_mg_config() != task2.get_mg_config()
         assert task1.get_id() != task2.get_id()
 
     def test_task_immutability_assumption(self):
-        """Test that Task preserves env_config reference."""
+        """Test that Task preserves mg_config reference."""
         cfg = MettaGridConfig()
         task = Task(task_id="test", env_cfg=cfg)
 
-        # Task should maintain reference to the same env_config object
-        assert task.get_env_config() is cfg
+        # Task should maintain reference to the same mg_config object
+        assert task.get_mg_config() is cfg
         assert task.env_cfg is cfg
 
     def test_task_str_representation(self):

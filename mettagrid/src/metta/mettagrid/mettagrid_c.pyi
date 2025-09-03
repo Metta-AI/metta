@@ -177,7 +177,7 @@ class GameConfig:
         episode_truncates: bool,
         obs_width: int,
         obs_height: int,
-        inventory_item_names: list[str],
+        resource_names: list[str],
         num_observation_tokens: int,
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
@@ -193,7 +193,7 @@ class GameConfig:
     episode_truncates: bool
     obs_width: int
     obs_height: int
-    inventory_item_names: list[str]
+    resource_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
     resource_loss_prob: float
@@ -228,5 +228,5 @@ class MettaGrid:
     def action_success(self) -> list[bool]: ...
     def max_action_args(self) -> list[int]: ...
     def object_type_names(self) -> list[str]: ...
-    def inventory_item_names(self) -> list[str]: ...
+    def resource_names(self) -> list[str]: ...
     def feature_spec(self) -> dict[str, dict[str, float | int]]: ...
