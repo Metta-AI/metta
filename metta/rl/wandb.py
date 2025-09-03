@@ -107,8 +107,55 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     return None
 
 
+def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
+    """Expand short wandb URI formats to full format.
+
+    Handles both short and full wandb URI formats:
+    - "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
+    - "wandb://run/my-run:v5" -> "wandb://metta/model/my-run:v5"
+    - "wandb://sweep/sweep-abc" -> "wandb://metta/sweep_model/sweep-abc:latest"
+
+    Also handles dot-to-underscore conversion for artifact names since
+    wandb artifacts don't support dots in names.
+    """
+    if not uri.startswith("wandb://"):
+        return uri
+
+    # Parse the URI path
+    path = uri[len("wandb://") :]
+
+    # Check for short format patterns
+    if path.startswith("run/"):
+        run_name = path[4:]  # Remove "run/"
+        if ":" in run_name:
+            run_name, version = run_name.split(":", 1)
+        else:
+            version = "latest"
+        # Replace dots with underscores for wandb artifact compatibility
+        sanitized_name = run_name.replace(".", "_")
+        return f"wandb://{default_project}/model/{sanitized_name}:{version}"
+
+    elif path.startswith("sweep/"):
+        sweep_name = path[6:]  # Remove "sweep/"
+        if ":" in sweep_name:
+            sweep_name, version = sweep_name.split(":", 1)
+        else:
+            version = "latest"
+        # Replace dots with underscores for wandb artifact compatibility
+        sanitized_name = sweep_name.replace(".", "_")
+        return f"wandb://{default_project}/sweep_model/{sanitized_name}:{version}"
+
+    # Already in full format or unrecognized pattern - return as-is
+    return uri
+
+
 def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:
-    """Load policy from wandb://entity/project/artifact_name:version format.
+    """Load policy from wandb URI (handles both short and full formats).
+
+    Accepts:
+    - Short format: "wandb://run/my-run"
+    - Full format: "wandb://project/type/artifact:version"
+
     Raises:
         ValueError: If URI is not a wandb:// URI
         FileNotFoundError: If no .pt files found in artifact
@@ -116,8 +163,11 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     if not wandb_uri.startswith("wandb://"):
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
-    logger.info(f"Loading policy from wandb URI: {wandb_uri}")
-    uri = WandbURI.parse(wandb_uri)
+    # Expand short URIs to full format
+    expanded_uri = expand_wandb_uri(wandb_uri)
+
+    logger.info(f"Loading policy from wandb URI: {expanded_uri}")
+    uri = WandbURI.parse(expanded_uri)
     qname = uri.qname()
     logger.debug(f"Calling wandb.Api().artifact() with qname: {qname}")
     artifact = wandb.Api().artifact(qname)
