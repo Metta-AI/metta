@@ -194,6 +194,7 @@
     "pettingzoo",
     "PGID",
     "pipefail",
+    "PIPESTATUS",
     "pluginmanager",
     "policydash",
     "preauthorized",
@@ -294,5 +295,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }

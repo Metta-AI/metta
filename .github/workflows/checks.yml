@@ -244,14 +244,18 @@ jobs:
                 2>&1 | tee "$raw_output" | while IFS= read -r line; do
                   echo -e "${color}[${package}]\033[0m $line"
                 done
-              echo ${PIPESTATUS[0]} > test-results/${package}.exit
+              # Capture PIPESTATUS immediately after the pipeline
+              local exit_code=${PIPESTATUS[0]}
+              echo $exit_code > test-results/${package}.exit
             else
               (cd "$package" && pytest $PYTEST_BASE_ARGS \
                 --cov-report=xml:../coverage-reports/coverage-${package}.xml) \
                 2>&1 | tee "$raw_output" | while IFS= read -r line; do
                   echo -e "${color}[${package}]\033[0m $line"
                 done
-              echo ${PIPESTATUS[0]} > test-results/${package}.exit
+              # Capture PIPESTATUS immediately after the pipeline
+              local exit_code=${PIPESTATUS[0]}
+              echo $exit_code > test-results/${package}.exit
             fi
 
             # Extract duration info for later summary
