@@ -1,7 +1,12 @@
 """Tests for the sweep orchestrator core components."""
 
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+from metta.sweep.optimizer.protein import ProteinOptimizer
+from metta.sweep.protein_config import ProteinConfig
+from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
+from metta.sweep.store.wandb import WandbStore
 from metta.sweep.sweep_orchestrator import (
     JobDefinition,
     JobStatus,
@@ -154,10 +159,6 @@ class TestProtocolCompliance:
 
     def test_scheduler_protocol(self):
         """Test that schedulers follow the Scheduler protocol."""
-        from metta.sweep.optimizer.protein import ProteinOptimizer
-        from metta.sweep.protein_config import ProteinConfig
-        from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
-
         # Create a simple protein config
         protein_config = ProteinConfig(
             metric="test_metric",
@@ -181,8 +182,6 @@ class TestProtocolCompliance:
 
     def test_store_protocol(self):
         """Test that stores follow the Store protocol."""
-        from metta.sweep.store.wandb import WandbStore
-
         store = WandbStore(entity="test_entity", project="test_project")
 
         # Verify protocol methods exist
@@ -211,8 +210,6 @@ class TestSweepMetadata:
 
     def test_sweep_metadata_creation(self):
         """Test creating SweepMetadata."""
-        from datetime import datetime
-
         metadata = SweepMetadata(
             sweep_id="test_sweep_001",
         )
