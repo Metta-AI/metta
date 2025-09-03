@@ -67,7 +67,6 @@ def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dt
         ),
         act_log_prob=scalar_f32,
         values=scalar_f32,
-        returns=scalar_f32,
     )
 
 
