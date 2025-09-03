@@ -388,30 +388,22 @@ class Simulation:
 
             if self._policy_uri:  # Only add if we have a URI
                 policy_details.append((self._policy_uri, None))
-                # Extract policy name for later use
-                metadata = CheckpointManager.get_policy_metadata(self._policy_uri)
-                policy_name = metadata["run_name"]
-            else:
-                policy_name = None
 
             # Add NPC policy if it exists
-            npc_name = None
             if self._npc_policy_uri:
                 policy_details.append((self._npc_policy_uri, "NPC policy"))
-                # Extract NPC name for later use
-                metadata = CheckpointManager.get_policy_metadata(self._npc_policy_uri)
-                npc_name = f"npc_{metadata['run_name']}"
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 
             agent_map: Dict[int, uuid.UUID] = {}
-            if policy_name:
-                for idx in self._policy_idxs:
-                    agent_map[int(idx.item())] = policy_ids[policy_name]
 
-            if npc_name:
+            if self._policy_uri:
+                for idx in self._policy_idxs:
+                    agent_map[int(idx.item())] = policy_ids[self._policy_uri]
+
+            if self._npc_policy_uri:
                 for idx in self._npc_idxs:
-                    agent_map[int(idx.item())] = policy_ids[npc_name]
+                    agent_map[int(idx.item())] = policy_ids[self._npc_policy_uri]
 
             # Get all episodes from the database
             episodes_df = stats_db.query("SELECT * FROM episodes")
@@ -448,7 +440,7 @@ class Simulation:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
-                        primary_policy_id=policy_ids[policy_name],
+                        primary_policy_id=policy_ids[self._policy_uri],
                         stats_epoch=self._stats_epoch_id,
                         sim_name=self._name,
                         env_label=self._config.env.label,
