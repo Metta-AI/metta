@@ -39,8 +39,6 @@ runs:
         echo "RUNNER_OS: ${{ runner.os }}"
         echo "Cache suffix: ${{ inputs.install-mode }}"
 
-        uv run pip freeze
-
     - name: Create virtual environment with uv
       shell: bash
       run: |
