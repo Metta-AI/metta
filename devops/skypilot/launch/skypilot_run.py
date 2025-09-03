@@ -13,9 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from devops.skypilot.src.cost_monitor import get_cost_info
-from devops.skypilot.src.job_latency import calculate_queue_latency
-from devops.skypilot.src.runtime_monitors import start_monitors
+from devops.skypilot.utils.cost_monitor import get_cost_info
+from devops.skypilot.utils.job_latency import calculate_queue_latency
+from devops.skypilot.utils.runtime_monitors import start_monitors
 from gitta import post_commit_status
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 from metta.common.util.discord import send_to_discord
