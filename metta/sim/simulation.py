@@ -396,7 +396,7 @@ class Simulation:
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 
             agent_map: Dict[int, uuid.UUID] = {}
-            # Use URIs as keys since that's what get_or_create_policy_ids returns
+
             if self._policy_uri:
                 for idx in self._policy_idxs:
                     agent_map[int(idx.item())] = policy_ids[self._policy_uri]
@@ -437,12 +437,10 @@ class Simulation:
                 # Record the episode remotely
                 episode_tags = self._episode_tags or None
                 try:
-                    # Use the primary policy URI if available
-                    primary_policy_id = policy_ids[self._policy_uri] if self._policy_uri else None
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
-                        primary_policy_id=primary_policy_id,
+                        primary_policy_id=policy_ids[self._policy_uri],
                         stats_epoch=self._stats_epoch_id,
                         sim_name=self._name,
                         env_label=self._config.env.label,
