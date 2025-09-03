@@ -213,3 +213,7 @@ def init_logging(run_dir: str | None = None) -> None:
     _init_console_logging()
     if run_dir:
         _add_file_logging(run_dir)
+
+    root_logger = logging.getLogger()
+    run_dir_msg = f"run_dir={run_dir}" if run_dir else ""
+    root_logger.info(f"called init_logging({run_dir_msg})")
