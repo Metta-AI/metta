@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
@@ -130,4 +130,13 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def eval() -> SimTool:
-    return SimTool(simulations=make_navigation_eval_suite())
+    return SimTool(simulations=make_navigation_eval_suite(), policy_uris=["wandb://run/daphne.navigation_sequence.test.09-02"])
+
+def evaluate(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    simulations = simulations or make_navigation_eval_suite()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
+    )
