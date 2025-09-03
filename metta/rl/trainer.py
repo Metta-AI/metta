@@ -356,23 +356,10 @@ def train(
                             ),
                         )
 
-                        # Inference - composable losses handle their own rollout and storage
-                        # Each loss modifies the shared td, allowing efficient reuse of computations
-                        # Losses should handle their own storage needs
+                        # Losses handle their own rollout and storage
                         for _lname in list(all_losses):
                             loss_obj = loss_instances[_lname]
                             loss_obj.rollout(td, trainer_state)
-
-                        # Fallback: if no loss handled inference, we need to ensure actions are generated
-                        # This shouldn't happen with PPO configured, but kept for safety
-                        if "actions" not in td:
-                            with torch.no_grad():
-                                policy(td)
-                            # If we had to run inference here, store the basic experience
-                            experience.store(
-                                data_td=td,
-                                env_id=training_env_id,
-                            )
 
                         send_observation(vecenv, td["actions"], dtype_actions, timer)
 
