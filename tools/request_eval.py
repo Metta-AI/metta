@@ -108,7 +108,7 @@ async def _create_remote_eval_tasks(
 
     # Register policies with stats server
     policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(
-        stats_client, [(p["run_name"], p["uri"], None) for p in valid_policies]
+        stats_client, [(p["uri"], None) for p in valid_policies]
     )
 
     if not policy_ids:
