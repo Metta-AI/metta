@@ -119,6 +119,14 @@ class BaseLoss:
     def on_train_phase_end(self, trainer_state: TrainerState) -> None:
         """We've completed the train phase and will be transitioning to the next rollout phase."""
 
+    def on_rollout_end(self, trainer_state: TrainerState) -> None:
+        """Called after rollout phase completes, before training phase begins."""
+        return
+
+    def on_epoch_end(self, trainer_state: TrainerState) -> None:
+        """Called at the end of each epoch, after training phase completes."""
+        return
+
     def save_loss_states(self):
         # TODO: Implement this
         """Save loss states at the end of the training run in case you need to resume training later. This is currentnly

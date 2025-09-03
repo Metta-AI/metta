@@ -311,6 +311,11 @@ def train(
         update_epoch=0,
         mb_idx=0,
         optimizer=optimizer,
+        # Initialize hook-related fields
+        policy=policy,
+        experience=experience,
+        timer=timer,
+        stats_tracker=stats_tracker,
     )
     try:
         while agent_step < trainer_cfg.total_timesteps:
@@ -381,6 +386,13 @@ def train(
 
                         agent_step += num_steps * torch_dist_cfg.world_size
                     accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
+                    
+                    # Populate trainer state for rollout end hooks
+                    trainer_state.rollout_stats = stats_tracker.rollout_stats
+                    
+                    # Call rollout end hooks for all loss instances
+                    for _loss_name in loss_instances.keys():
+                        loss_instances[_loss_name].on_rollout_end(trainer_state)
 
                 # Training phase
                 with timer("_train"):
@@ -442,6 +454,22 @@ def train(
                 epoch += epochs_trained
                 trainer_state.epoch = epoch
                 trainer_state.agent_step = agent_step  # update agent_step count state not in between rollout and train
+                
+                # Collect loss stats before calling epoch end hooks
+                losses_stats = {}
+                for _lname in list(all_losses):
+                    loss_obj = loss_instances[_lname]
+                    losses_stats.update(loss_obj.stats())
+                
+                # Populate trainer state for epoch end hooks
+                trainer_state.loss_stats = losses_stats
+                trainer_state.eval_scores = eval_scores
+                trainer_state.latest_checkpoint_uri = getattr(checkpoint_manager, 'latest_checkpoint_uri', None) if 'checkpoint_manager' in locals() else None
+                trainer_state.latest_wandb_uri = latest_wandb_uri if 'latest_wandb_uri' in locals() else None
+                
+                # Call epoch end hooks for all loss instances
+                for _loss_name in loss_instances.keys():
+                    loss_instances[_loss_name].on_epoch_end(trainer_state)
 
             # Update hyperparameters based on current training step (master only)
             if torch_dist_cfg.is_master:
@@ -457,17 +485,12 @@ def train(
 
             torch_profiler.on_epoch_end(epoch)
 
-            losses_stats = {}
-            for _lname in list(all_losses):
-                loss_obj = loss_instances[_lname]
-                losses_stats.update(loss_obj.stats())
-
             with timer("_process_stats"):
                 if wandb_run:
                     process_stats(
                         agent_cfg=agent_cfg,
                         stats=stats_tracker.rollout_stats,
-                        losses_stats=losses_stats,
+                        losses_stats=trainer_state.loss_stats,
                         evals=eval_scores,
                         grad_stats=stats_tracker.grad_stats,
                         experience=experience,

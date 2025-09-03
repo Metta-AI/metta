@@ -13,7 +13,7 @@ This engineering plan describes a hook-based architecture to extract non-trainin
 ## Key Design Changes from Original Plan
 
 1. **Align with existing callbacks** - Use `on_new_training_run`, `on_rollout_start`, `on_train_phase_end`, `on_mb_end` 
-2. **Add missing callbacks minimally** - Only add `on_epoch_end` and `on_rollout_end` which are genuinely needed
+2. **Add missing callbacks minimally** - Only add `on_epoch_end` and `on_train_start` (renamed from on_rollout_end for clarity)
 3. **Follow TrainerState pattern** - All data passes through `TrainerState`, not explicit parameters
 4. **Extend rather than replace** - Build hooks alongside losses, not as replacement
 
