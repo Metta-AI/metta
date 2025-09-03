@@ -98,7 +98,7 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     required_fields = ["run_name", "epoch", "agent_step", "total_time", "score"]
     if all(field in metadata for field in required_fields):
         return {
-            "run_name": f"{metadata['run_name']}:{artifact.version}",
+            "run_name": metadata["run_name"],  # Don't append version - run_name should be clean
             "epoch": metadata["epoch"],
             "agent_step": metadata["agent_step"],
             "total_time": metadata["total_time"],

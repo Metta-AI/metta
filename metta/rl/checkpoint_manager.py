@@ -61,7 +61,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
             return metadata["run_name"], metadata["epoch"]
         # Fallback: parse artifact name from URI
         wandb_uri = WandbURI.parse(expanded_uri)
-        artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
+        artifact_name = wandb_uri.artifact_path.split("/")[-1]  # No need to split by ":", version already parsed
         return artifact_name, 0
 
     if uri.startswith("s3://"):
