@@ -16,7 +16,7 @@ runs:
         enable-cache: true
         cache-local-path: "${{ github.workspace }}/.uv-cache"
         prune-cache: true
-        cache-suffix: "${{ github.workflow }}-${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
+        cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
         cache-dependency-glob: |
           **/pyproject.toml
           **/uv.lock
