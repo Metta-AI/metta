@@ -483,7 +483,7 @@ class TestWandbArtifactFormatting:
 
         mock_artifact = Mock()
         mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
-        mock_artifact.version = "v1"  # Set the version attribute
+        mock_artifact.version = "v1"
         mock_artifact.wait = Mock()
 
         mock_run = Mock()

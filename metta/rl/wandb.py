@@ -98,7 +98,7 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     required_fields = ["run_name", "epoch", "agent_step", "total_time", "score"]
     if all(field in metadata for field in required_fields):
         return {
-            "run_name": metadata["run_name"],  # Don't append version - run_name should be clean
+            "run_name": metadata["run_name"],
             "epoch": metadata["epoch"],
             "agent_step": metadata["agent_step"],
             "total_time": metadata["total_time"],
@@ -223,7 +223,6 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
-    # Return the specific version that was uploaded
     wandb_uri = f"wandb://{run.project}/{artifact_name}:{artifact.version}"
     logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
 
