@@ -21,26 +21,25 @@ metta install mettascope
 
 ## Usage
 
-### Running the server
+### Quick Start
 
-From within the metta/mettascope/ directory:
+Use MettaScope through the recipe system:
+
+```bash
+# Interactive play with trained policies
+uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_run/checkpoints
+
+# View replays
+uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/my_run_name
+```
+
+### Standalone Server
 
 ```bash
 python -m http.server 2000
 ```
 
-As this is using WebGPU, we recommend using Chrome. Ensure you have set `chrome://flags/#enable-unsafe-webgpu` to
-Enabled.
-
-Then open the browser and go to `http://localhost:2000` to see the player.
-
-### Viewing replays
-
-You can either drag and drop a replay file or pass a url parameter to the player.
-
-`?replayUrl=...the replay file...`
-
-Most tools dealing with replays will provide a full link.
+Use Chrome with `chrome://flags/#enable-unsafe-webgpu` enabled. Open `http://localhost:2000` and drag/drop replay files or use `?replayUrl=...` parameter.
 
 Here are some replays to try out:
 
@@ -62,16 +61,36 @@ To regenerate the html and css files, run the following command:
 python tools/gen_html.py
 ```
 
+## Integration with Training Pipeline
+
+MettaScope is deeply integrated with the new recipe-based training system:
+
+### From Training to Visualization
+
+```bash
+# 1. Train a model
+uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
+
+# 2. Interactively test the trained policy in MettaScope
+uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_experiment/checkpoints
+
+# 3. Generate and view replays
+uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_experiment/checkpoints
+```
+
+### Policy URI Formats
+
+- `file://./train_dir/run_name/checkpoints` - Local checkpoints  
+- `wandb://run/project_name/run_id` - Wandb artifacts
+
 ## Running Metta in VSCode/Cursor
 
 1. **Launch** VSCode or Cursor.
-2. **Open the project folder**:
-   - Go to `File > Open Folder...` and select the `metta/` directory.
-3. **Run Metta**:
-   - In the top right of VSCode/Cursor, click **"Run and Debug"**.
-     - If hidden, open the dropdown menu to find it.
-   - In the second dropdown (default: "Train Metta"), select **"Play Metta"**.
-   - Click the **green play arrow** to start!
+2. **Open the project folder**: `File > Open Folder...` → select `metta/` directory.
+3. **Run Metta**: 
+   - Click **"Run and Debug"** in the top right
+   - Select **"Play Metta"** from the dropdown
+   - Click the **green play arrow** to start MettaScope!
 
 ## UI Controls
 
