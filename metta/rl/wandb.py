@@ -111,12 +111,11 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format.
 
     Handles both short and full wandb URI formats:
-    - "wandb://run/my.run.name" -> "wandb://metta/model/my_run_name:latest"
-    - "wandb://run/my.run:v5" -> "wandb://metta/model/my_run:v5"
-    - "wandb://sweep/sweep.abc" -> "wandb://metta/sweep_model/sweep_abc:latest"
+    - "wandb://run/my_run_name" -> "wandb://metta/model/my_run_name:latest"
+    - "wandb://run/my_run_name:v5" -> "wandb://metta/model/my_run_name:v5"
+    - "wandb://sweep/sweep_name" -> "wandb://metta/sweep_model/sweep_name:latest"
 
-    NOTE: Dots in names are converted to underscores since wandb artifacts
-    don't support dots. The original name is preserved in artifact metadata.
+    Dots in names are replaced with underscores for wandb compatibility.
     """
     if not uri.startswith("wandb://"):
         return uri
@@ -209,20 +208,15 @@ def upload_checkpoint_as_artifact(
         return None
 
     # Sanitize artifact name - replace dots with underscores for wandb compatibility
-    # Store original name in metadata for reference
-    original_artifact_name = artifact_name
     sanitized_artifact_name = artifact_name.replace(".", "_")
 
-    # Prepare metadata with original filename and original artifact name
+    # Prepare metadata
     artifact_metadata = metadata.copy() if metadata else {}
-    artifact_metadata["original_filename"] = Path(checkpoint_path).name
-    artifact_metadata["original_artifact_name"] = original_artifact_name
 
-    # Create artifact with sanitized name and complete metadata
+    # Create artifact with sanitized name and metadata
     artifact = wandb.Artifact(name=sanitized_artifact_name, type=artifact_type, metadata=artifact_metadata)
 
-    # Add the main checkpoint file - we use a generic name for consistency
-    # The actual metadata is stored in the artifact's metadata field
+    # Add the checkpoint file as model.pt for consistency
     artifact.add_file(checkpoint_path, name="model.pt")
 
     # Add any additional files
@@ -239,12 +233,7 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
-    # Always use "latest" for simplicity and reliability
-    # This avoids all timing issues with WandB version assignment
     wandb_uri = f"wandb://{run.project}/{sanitized_artifact_name}:latest"
-
-    # Log the actual qualified_name for debugging
     logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
-    logger.debug(f"Returning simplified WandB URI: {wandb_uri}")
 
     return wandb_uri

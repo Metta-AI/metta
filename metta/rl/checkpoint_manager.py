@@ -55,19 +55,13 @@ def key_and_version(uri: str) -> tuple[str, int]:
         return path.stem if path.suffix else path.name, 0
 
     if uri.startswith("wandb://"):
-        # Expand the URI to get the full format (handles dot-to-underscore conversion)
         expanded_uri = expand_wandb_uri(uri)
         metadata = get_wandb_checkpoint_metadata(expanded_uri)
         if metadata:
-            # Use original_artifact_name if available (preserves dots/underscores correctly)
-            if "original_artifact_name" in metadata:
-                return metadata["original_artifact_name"], metadata.get("epoch", 0)
             return metadata["run_name"], metadata["epoch"]
-        # Fallback: parse artifact name from URI (can't reliably restore original name)
+        # Fallback: parse artifact name from URI
         wandb_uri = WandbURI.parse(expanded_uri)
         artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
-        # Note: We can't reliably convert underscores back since the original might have had underscores
-        # Just return the artifact name as-is
         return artifact_name, 0
 
     if uri.startswith("s3://"):
@@ -158,10 +152,7 @@ class CheckpointManager:
 
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device = "cpu"):
-        """Load a policy from a URI.
-
-        Expects explicit URI format: file://, wandb://, s3://, or mock://
-        """
+        """Load a policy from a URI (file://, wandb://, s3://, or mock://)."""
         if uri.startswith("file://"):
             path = Path(_parse_uri_path(uri, "file"))
             if path.is_dir():
@@ -189,7 +180,7 @@ class CheckpointManager:
 
     @staticmethod
     def normalize_uri(uri: str) -> str:
-        """Convert paths to file:// URIs. Wandb URIs are kept as-is (expansion happens in wandb.py)."""
+        """Convert paths to file:// URIs. Keep other URI schemes as-is."""
         if uri.startswith(("file://", "s3://", "mock://", "wandb://")):
             return uri
         # Assume it's a file path - convert to URI
