@@ -34,6 +34,10 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     max_samples: int = Field(default=10, description="Maximum samples before eviction")
     exploration_bonus: float = Field(default=0.1, description="Exploration bonus for sampling")
 
+    # Performance optimization settings
+    stats_update_frequency: int = Field(default=500, description="Update stats every N task completions")
+    debug_log_frequency: int = Field(default=1000, description="Log debug info every N operations")
+
     def algorithm_type(self) -> str:
         return "learning_progress"
 
@@ -48,7 +52,15 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
 
 class LearningProgressAlgorithm(CurriculumAlgorithm):
-    """Learning progress algorithm that manages a unified pool of tasks."""
+    """
+    Learning progress algorithm that manages a unified pool of tasks.
+
+    Performance optimizations:
+    - Stats are cached and only updated every 500 task completions
+    - Debug logging is limited to every 1000 operations
+    - Lightweight bucket stats focus on summary metrics rather than per-bin details
+    - Continuous bucket tracking uses summary statistics instead of detailed bin breakdowns
+    """
 
     def __init__(self, num_tasks: int, hypers: LearningProgressConfig):
         # Don't initialize weights since this algorithm uses its own sampling strategy
@@ -79,6 +91,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._bucket_is_discrete: Dict[str, bool] = {}  # bucket_name -> is_discrete
         self._bucket_completion_history: Dict[str, List[float]] = {}  # bucket_name -> completion_density_over_time
 
+        # Performance optimization: batch logging
+        self._stats_update_counter = 0
+        self._stats_update_frequency = hypers.stats_update_frequency
+        self._debug_log_frequency = hypers.debug_log_frequency
+        self._cached_stats = {}
+        self._last_stats_update = 0
+
     def _update_weights(self, child_idx: int, score: float):
         """Update weights - not used in this implementation."""
         pass
@@ -91,11 +110,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # First, try to get stored bucket values from the task
             stored_bucket_values = task.get_bucket_values()
             if stored_bucket_values:
-                logger.debug(f"Using stored bucket values: {stored_bucket_values}")
+                # Only log every N extractions based on config to reduce overhead
+                if self._stats_update_counter % self._debug_log_frequency == 0:
+                    logger.debug(f"Using stored bucket values: {stored_bucket_values}")
                 return stored_bucket_values
 
             # Fallback: try to extract from env_cfg (for backward compatibility)
-            logger.debug("No stored bucket values, falling back to env_cfg extraction")
+            if self._stats_update_counter % self._debug_log_frequency == 0:
+                logger.debug("No stored bucket values, falling back to env_cfg extraction")
 
             # Access the environment configuration to extract bucket values
             env_cfg = task.get_env_cfg()
@@ -134,19 +156,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 value = self._get_nested_value(config_dict, path)
                 if value is not None:
                     bucket_values[path] = value
-                    logger.debug(f"Found bucket value: {path} = {value}")
+                    if self._stats_update_counter % self._debug_log_frequency == 0:
+                        logger.debug(f"Found bucket value: {path} = {value}")
 
             # Also look for any other numeric/string values in the config that might be buckets
             # This catches any buckets we didn't explicitly listed above
             self._extract_potential_buckets_recursive(config_dict, "", bucket_values)
 
-            if bucket_values:
+            if bucket_values and self._stats_update_counter % self._debug_log_frequency == 0:
                 logger.debug(f"Extracted bucket values: {bucket_values}")
-            else:
+            elif not bucket_values and self._stats_update_counter % self._debug_log_frequency == 0:
                 logger.debug("No bucket values extracted from task")
 
         except Exception as e:
-            logger.debug(f"Could not extract bucket values from task: {e}")
+            if self._stats_update_counter % self._debug_log_frequency == 0:
+                logger.debug(f"Could not extract bucket values from task: {e}")
 
         return bucket_values
 
@@ -262,29 +286,36 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         task = self._task_objects[task_id]
         bucket_values = self._extract_bucket_values(task)
 
-        logger.debug(f"Updating bucket completion density for task {task_id} with score {score}")
-        logger.debug(f"Bucket values: {bucket_values}")
+        # Only log every N task completions based on config to reduce overhead
+        should_log = self._stats_update_counter % self._debug_log_frequency == 0
+        if should_log:
+            logger.debug(f"Updating bucket completion density for task {task_id} with score {score}")
+            logger.debug(f"Bucket values: {bucket_values}")
 
         # Update completion density for each bucket
         for bucket_name, value in bucket_values.items():
             if bucket_name in self._bucket_tracking:
                 # Find the appropriate bin for this value
                 bin_index = self._get_bin_index(bucket_name, value)
-                logger.debug(f"Bucket {bucket_name}, value {value} -> bin_index {bin_index}")
+                if should_log:
+                    logger.debug(f"Bucket {bucket_name}, value {value} -> bin_index {bin_index}")
 
                 if bin_index is not None:
                     # Increment completion count for this bin
                     if bin_index not in self._bucket_completion_counts[bucket_name]:
                         self._bucket_completion_counts[bucket_name][bin_index] = 0
                     self._bucket_completion_counts[bucket_name][bin_index] += 1
-                    logger.debug(f"Incremented completion count for bucket {bucket_name}, bin {bin_index}")
+                    if should_log:
+                        logger.debug(f"Incremented completion count for bucket {bucket_name}, bin {bin_index}")
 
                     # Update completion density history
                     self._update_completion_density_history(bucket_name)
                 else:
-                    logger.debug(f"Could not find bin for bucket {bucket_name}, value {value}")
+                    if should_log:
+                        logger.debug(f"Could not find bin for bucket {bucket_name}, value {value}")
             else:
-                logger.debug(f"Bucket {bucket_name} not in tracking")
+                if should_log:
+                    logger.debug(f"Bucket {bucket_name} not in tracking")
 
     def _get_bin_index(self, bucket_name: str, value: Any) -> Optional[int]:
         """Get the bin index for a given bucket value."""
@@ -518,6 +549,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Update bucket completion density tracking
         self._update_bucket_completion_density(task_id, score)
 
+        # Increment stats counter for batching
+        self._stats_update_counter += 1
+
     def _get_task_lp_score(self, task_id: int) -> float:
         """Get the learning progress score for a specific task."""
         if task_id not in self._task_memory:
@@ -538,89 +572,107 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def stats(self) -> dict[str, float]:
         """Return unified statistics for the pool including bucket completion density."""
+        # Performance optimization: use cached stats if recent enough
+        if self._stats_update_counter < self._stats_update_frequency:
+            return self._cached_stats
+
+        # Update stats and cache them
+        self._stats_update_counter = 0
+
         # Get base learning progress stats
         base_stats = self._lp_tracker.add_stats()
 
-        # Add bucket completion density statistics
-        bucket_stats = self._get_bucket_completion_stats()
+        # Add bucket completion density statistics (lightweight version)
+        bucket_stats = self._get_lightweight_bucket_stats()
 
-        return {**base_stats, **bucket_stats}
+        # Cache the results
+        self._cached_stats = {**base_stats, **bucket_stats}
+        return self._cached_stats
 
-    def _get_bucket_completion_stats(self) -> dict[str, float]:
-        """Get bucket completion density statistics."""
+    def set_logging_frequency(self, debug_frequency: int, stats_frequency: int):
+        """Dynamically adjust logging frequency for different environments."""
+        self._debug_log_frequency = debug_frequency
+        self._stats_update_frequency = stats_frequency
+        logger.info(f"Updated logging frequencies: debug={debug_frequency}, stats={stats_frequency}")
+
+    def disable_debug_logging(self):
+        """Disable all debug logging for maximum performance."""
+        self._debug_log_frequency = float("inf")  # Never log debug
+        logger.info("Debug logging disabled for maximum performance")
+
+    def _get_lightweight_bucket_stats(self) -> dict[str, float]:
+        """Get lightweight bucket completion density statistics for performance."""
         stats = {}
 
-        logger.debug(f"Generating bucket completion stats for {len(self._bucket_tracking)} buckets")
+        # Only log every N calls based on config to reduce overhead
+        should_log = self._stats_update_counter % self._debug_log_frequency == 0
+        if should_log:
+            logger.debug(f"Generating bucket completion stats for {len(self._bucket_tracking)} buckets")
 
         for bucket_name in self._bucket_tracking:
             if bucket_name not in self._bucket_completion_counts:
-                logger.debug(f"Bucket {bucket_name} has no completion counts")
+                if should_log:
+                    logger.debug(f"Bucket {bucket_name} has no completion counts")
                 continue
 
             # Get completion counts for this bucket
             completion_counts = self._bucket_completion_counts[bucket_name]
             if not completion_counts:
-                logger.debug(f"Bucket {bucket_name} has empty completion counts")
+                if should_log:
+                    logger.debug(f"Bucket {bucket_name} has empty completion counts")
                 continue
 
             # Calculate basic statistics
             total_completions = sum(completion_counts.values())
             if total_completions == 0:
-                logger.debug(f"Bucket {bucket_name} has 0 total completions")
+                if should_log:
+                    logger.debug(f"Bucket {bucket_name} has 0 total completions")
                 continue
 
-            logger.debug(
-                f"Bucket {bucket_name}: total_completions={total_completions}, "
-                f"counts={completion_counts}, bins={self._bucket_bins[bucket_name]}"
-            )
+            if should_log:
+                logger.debug(
+                    f"Bucket {bucket_name}: total_completions={total_completions}, "
+                    f"counts={completion_counts}, bins={self._bucket_bins[bucket_name]}"
+                )
 
-            # Add bucket completion statistics
+            # Add bucket completion statistics (lightweight version)
             stats[f"bucket/{bucket_name}/total_completions"] = float(total_completions)
             stats[f"bucket/{bucket_name}/num_bins"] = float(len(completion_counts))
 
-            # Calculate completion density distribution
+            # For discrete buckets, only log top 3 most completed values to reduce overhead
             if self._bucket_is_discrete[bucket_name]:
-                # For discrete buckets, show completion count per value
-                for bin_index, count in completion_counts.items():
+                # Sort by completion count and take top 3
+                sorted_bins = sorted(completion_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+                for bin_index, count in sorted_bins:
                     if bin_index < len(self._bucket_bins[bucket_name]):
                         value = self._bucket_bins[bucket_name][bin_index]
                         stats[f"bucket/{bucket_name}/value_{value}_completions"] = float(count)
                         stats[f"bucket/{bucket_name}/value_{value}_density"] = float(count / total_completions)
-                        logger.debug(
-                            f"Discrete bucket {bucket_name}, value {value}: count={count}, "
-                            f"density={count / total_completions}"
-                        )
-            else:
-                # For continuous buckets, show completion density across bins
-                if len(self._bucket_bins[bucket_name]) >= 2:
-                    for bin_index, count in completion_counts.items():
-                        if bin_index < len(self._bucket_bins[bucket_name]) - 1:
-                            min_val = self._bucket_bins[bucket_name][bin_index]
-                            max_val = self._bucket_bins[bucket_name][bin_index + 1]
-                            bin_center = (min_val + max_val) / 2
-                            stats[f"bucket/{bucket_name}/bin_{bin_index}_center_{bin_center:.2f}_completions"] = float(
-                                count
-                            )
-                            stats[f"bucket/{bucket_name}/bin_{bin_index}_center_{bin_center:.2f}_density"] = float(
-                                count / total_completions
-                            )
+                        if should_log:
                             logger.debug(
-                                f"Continuous bucket {bucket_name}, bin {bin_index} [{min_val}, {max_val}): "
-                                f"count={count}, density={count / total_completions}"
+                                f"Discrete bucket {bucket_name}, value {value}: count={count}, "
+                                f"density={count / total_completions}"
                             )
+            else:
+                # For continuous buckets, only log summary stats to reduce overhead
+                if len(self._bucket_bins[bucket_name]) >= 2:
+                    # Calculate summary statistics instead of per-bin details
+                    bin_counts = list(completion_counts.values())
+                    if bin_counts:
+                        stats[f"bucket/{bucket_name}/max_bin_completions"] = float(max(bin_counts))
+                        stats[f"bucket/{bucket_name}/min_bin_completions"] = float(min(bin_counts))
+                        stats[f"bucket/{bucket_name}/mean_bin_completions"] = float(sum(bin_counts) / len(bin_counts))
 
-            # Add completion density evolution statistics
+            # Add completion density evolution statistics (lightweight)
             if self._bucket_completion_history[bucket_name]:
                 history = self._bucket_completion_history[bucket_name]
                 stats[f"bucket/{bucket_name}/completion_density_mean"] = float(np.mean(history))
-                stats[f"bucket/{bucket_name}/completion_density_std"] = (
-                    float(np.std(history)) if len(history) > 1 else 0.0
-                )
-                stats[f"bucket/{bucket_name}/completion_density_trend"] = (
-                    float(history[-1] - history[0]) if len(history) > 1 else 0.0
-                )
+                # Only add trend if we have enough history
+                if len(history) > 1:
+                    stats[f"bucket/{bucket_name}/completion_density_trend"] = float(history[-1] - history[0])
 
-        logger.debug(f"Generated {len(stats)} bucket completion stats")
+        if should_log:
+            logger.debug(f"Generated {len(stats)} lightweight bucket completion stats")
         return stats
 
     def get_bucket_summary(self) -> dict[str, dict]:
