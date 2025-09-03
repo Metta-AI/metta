@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --active
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["gcovr>=6.0"]
+# dependencies = ["gcovr>=6.0", "colorama"]
 # ///
 """
 generate_coverage.py - Generate C++ coverage report
