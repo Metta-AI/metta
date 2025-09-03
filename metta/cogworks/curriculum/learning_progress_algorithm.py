@@ -41,6 +41,10 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
         default=3, description="Maximum number of bucket axes to track for logging (reduces overhead)"
     )
 
+    # Logging verbosity control
+    enable_detailed_bucket_logging: bool = Field(default=False, description="Enable detailed bucket statistics")
+    enable_learning_progress_logging: bool = Field(default=True, description="Enable learning progress statistics")
+
     def algorithm_type(self) -> str:
         return "learning_progress"
 
@@ -560,27 +564,34 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def stats(self) -> dict[str, float]:
         """Return unified statistics for the pool including bucket completion density."""
-        # Get base learning progress stats (always fresh)
-        base_stats = self._lp_tracker.add_stats()
+        stats = {}
+
+        # Add learning progress stats if enabled
+        if self.hypers.enable_learning_progress_logging:
+            base_stats = self._lp_tracker.add_stats()
+            stats.update(base_stats)
 
         # Performance optimization: only recalculate expensive bucket stats periodically
         if self._stats_update_counter < self._stats_update_frequency:
             # Return cached bucket stats but always include basic bucket info
             basic_bucket_stats = self._get_basic_bucket_stats()
-            return {**base_stats, **basic_bucket_stats, **self._cached_stats}
+            stats.update(basic_bucket_stats)
+            stats.update(self._cached_stats)
+        else:
+            # Update expensive bucket stats and cache them
+            self._stats_update_counter = 0
 
-        # Update expensive bucket stats and cache them
-        self._stats_update_counter = 0
+            # Add bucket completion density statistics (lightweight version)
+            bucket_stats = self._get_lightweight_bucket_stats()
 
-        # Add bucket completion density statistics (lightweight version)
-        bucket_stats = self._get_lightweight_bucket_stats()
+            # Cache the expensive results
+            self._cached_stats = bucket_stats
+            stats.update(bucket_stats)
 
-        # Cache the expensive results
-        self._cached_stats = bucket_stats
-        return {**base_stats, **bucket_stats}
+        return stats
 
     def _get_basic_bucket_stats(self) -> dict[str, float]:
-        """Get basic bucket statistics that are always available."""
+        """Get consolidated bucket statistics to reduce logging overhead."""
         stats = {}
 
         for bucket_name in self._bucket_tracking:
@@ -589,27 +600,27 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 if completion_counts:
                     total_completions = sum(completion_counts.values())
                     if total_completions > 0:
-                        # Always log basic bucket completion info
+                        # Log essential bucket completion info
                         stats[f"bucket/{bucket_name}/total_completions"] = float(total_completions)
                         stats[f"bucket/{bucket_name}/num_bins"] = float(len(completion_counts))
 
-                        # For discrete buckets, always show completion density
-                        if self._bucket_is_discrete[bucket_name]:
-                            for bin_index, count in completion_counts.items():
-                                if bin_index < len(self._bucket_bins[bucket_name]):
-                                    value = self._bucket_bins[bucket_name][bin_index]
-                                    stats[f"bucket/{bucket_name}/value_{value}_completions"] = float(count)
-                                    density = float(count / total_completions)
-                                    stats[f"bucket/{bucket_name}/value_{value}_density"] = density
-                        else:
-                            # For continuous buckets, always show summary stats
-                            if len(self._bucket_bins[bucket_name]) >= 2:
-                                bin_counts = list(completion_counts.values())
-                                if bin_counts:
-                                    stats[f"bucket/{bucket_name}/max_bin_completions"] = float(max(bin_counts))
-                                    stats[f"bucket/{bucket_name}/min_bin_completions"] = float(min(bin_counts))
-                                    mean_completions = float(sum(bin_counts) / len(bin_counts))
-                                    stats[f"bucket/{bucket_name}/mean_bin_completions"] = mean_completions
+                        # Only log detailed bucket info if enabled
+                        if self.hypers.enable_detailed_bucket_logging:
+                            # For discrete buckets, only log top 2 most completed values
+                            if self._bucket_is_discrete[bucket_name]:
+                                sorted_bins = sorted(completion_counts.items(), key=lambda x: x[1], reverse=True)[:2]
+                                for bin_index, count in sorted_bins:
+                                    if bin_index < len(self._bucket_bins[bucket_name]):
+                                        value = self._bucket_bins[bucket_name][bin_index]
+                                        stats[f"bucket/{bucket_name}/top_value_{value}_density"] = float(
+                                            count / total_completions
+                                        )
+                            else:
+                                # For continuous buckets, only log essential summary stats
+                                if len(self._bucket_bins[bucket_name]) >= 2:
+                                    bin_counts = list(completion_counts.values())
+                                    if bin_counts:
+                                        stats[f"bucket/{bucket_name}/completion_variance"] = float(np.var(bin_counts))
 
         return stats
 
@@ -622,6 +633,23 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._debug_log_frequency = debug_frequency
         self._stats_update_frequency = stats_frequency
         logger.info(f"Updated logging frequencies: debug={debug_frequency}, stats={stats_frequency}")
+
+    def set_logging_verbosity(self, enable_detailed_bucket: bool = None, enable_learning_progress: bool = None):
+        """Dynamically adjust logging verbosity for different environments.
+
+        Args:
+            enable_detailed_bucket: Whether to enable detailed bucket statistics
+            enable_learning_progress: Whether to enable learning progress statistics
+        """
+        if enable_detailed_bucket is not None:
+            self.hypers.enable_detailed_bucket_logging = enable_detailed_bucket
+        if enable_learning_progress is not None:
+            self.hypers.enable_learning_progress_logging = enable_learning_progress
+
+        logger.info(
+            f"Updated logging verbosity: detailed_bucket={self.hypers.enable_detailed_bucket_logging}, "
+            f"learning_progress={self.hypers.enable_learning_progress_logging}"
+        )
 
     def set_monitored_bucket_axes(self, max_axes: int):
         """Dynamically change how many bucket axes to monitor for logging."""
@@ -665,26 +693,27 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             stats[f"bucket/{bucket_name}/total_completions"] = float(total_completions)
             stats[f"bucket/{bucket_name}/num_bins"] = float(len(completion_counts))
 
-            # For discrete buckets, only log top 3 most completed values to reduce overhead
-            if self._bucket_is_discrete[bucket_name]:
-                # Sort by completion count and take top 3
-                sorted_bins = sorted(completion_counts.items(), key=lambda x: x[1], reverse=True)[:3]
-                for bin_index, count in sorted_bins:
-                    if bin_index < len(self._bucket_bins[bucket_name]):
-                        value = self._bucket_bins[bucket_name][bin_index]
-                        stats[f"bucket/{bucket_name}/value_{value}_completions"] = float(count)
-                        density = float(count / total_completions)
-                        stats[f"bucket/{bucket_name}/value_{value}_density"] = density
-            else:
-                # For continuous buckets, only log summary stats to reduce overhead
-                if len(self._bucket_bins[bucket_name]) >= 2:
-                    # Calculate summary statistics instead of per-bin details
-                    bin_counts = list(completion_counts.values())
-                    if bin_counts:
-                        stats[f"bucket/{bucket_name}/max_bin_completions"] = float(max(bin_counts))
-                        stats[f"bucket/{bucket_name}/min_bin_completions"] = float(min(bin_counts))
-                        mean_completions = float(sum(bin_counts) / len(bin_counts))
-                        stats[f"bucket/{bucket_name}/mean_bin_completions"] = mean_completions
+            # Only log detailed bucket info if enabled
+            if self.hypers.enable_detailed_bucket_logging:
+                # For discrete buckets, only log top 3 most completed values to reduce overhead
+                if self._bucket_is_discrete[bucket_name]:
+                    # Sort by completion count and take top 3
+                    sorted_bins = sorted(completion_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+                    for bin_index, count in sorted_bins:
+                        if bin_index < len(self._bucket_bins[bucket_name]):
+                            value = self._bucket_bins[bucket_name][bin_index]
+                            stats[f"bucket/{bucket_name}/value_{value}_completions"] = float(count)
+                            density = float(count / total_completions)
+                            stats[f"bucket/{bucket_name}/value_{value}_density"] = density
+                else:
+                    # For continuous buckets, only log summary stats to reduce overhead
+                    if len(self._bucket_bins[bucket_name]) >= 2:
+                        bin_counts = list(completion_counts.values())
+                        if bin_counts:
+                            stats[f"bucket/{bucket_name}/max_bin_completions"] = float(max(bin_counts))
+                            stats[f"bucket/{bucket_name}/min_bin_completions"] = float(min(bin_counts))
+                            mean_completions = float(sum(bin_counts) / len(bin_counts))
+                            stats[f"bucket/{bucket_name}/mean_bin_completions"] = mean_completions
 
             # Add completion density evolution statistics (lightweight)
             if self._bucket_completion_history[bucket_name]:
