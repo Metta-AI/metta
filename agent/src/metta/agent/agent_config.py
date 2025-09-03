@@ -6,21 +6,17 @@ from typing import Literal
 
 # ComponentPolicy implementations (modular architecture)
 from metta.agent.component_policies.fast import Fast as ComponentFast
+from metta.agent.component_policies.latent_attn_med import LatentAttnMed as ComponentLatentAttnMed
 from metta.agent.component_policies.latent_attn_small import LatentAttnSmall as ComponentLatentAttnSmall
-from metta.common.util.config import Config
-
-# TODO: Import these when they exist
-ComponentLatentAttnMed = None
-ComponentLatentAttnTiny = None
+from metta.agent.component_policies.latent_attn_tiny import LatentAttnTiny as ComponentLatentAttnTiny
 
 # PyTorch implementations (vanilla models)
 from metta.agent.pytorch.example import Example
-
-# TODO: Import these when they exist
-PyTorchFast = None
-PyTorchLatentAttnMed = None
-PyTorchLatentAttnSmall = None
-PyTorchLatentAttnTiny = None
+from metta.agent.pytorch.fast import Fast as PyTorchFast
+from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAttnMed
+from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
+from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
+from metta.common.config import Config
 
 
 class AgentConfig(Config):
@@ -69,10 +65,6 @@ def create_agent(
         raise ValueError(f"Unknown agent: '{config.name}'. Available: {list(AGENT_REGISTRY.keys())}")
 
     AgentClass = AGENT_REGISTRY[config.name]
-
-    # Check if the agent class is available
-    if AgentClass is None:
-        raise NotImplementedError(f"Agent '{config.name}' is not yet implemented")
 
     # PyTorch models use env, ComponentPolicies use structured parameters
     if config.name.startswith("pytorch/"):

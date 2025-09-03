@@ -141,20 +141,23 @@ layout of the gridworld, the placement of objects, and various properties of the
 
 ## Environment Architecture
 
-MettaGrid uses a modular architecture designed primarily for the Softmax Studio ML project, with lightweight adapters to maintain compatibility with external RL frameworks:
+MettaGrid uses a modular architecture designed primarily for the Softmax Studio ML project, with lightweight adapters to
+maintain compatibility with external RL frameworks:
 
 ### Primary Training Environment
 
 **`MettaGridEnv`** - The main environment actively developed for Softmax Studio training systems
+
 - Full-featured environment with comprehensive stats collection, replay recording, and curriculum support
-- Inherits from `MettaGridCore` for C++ environment implementation  
+- Inherits from `MettaGridCore` for C++ environment implementation
 - **Exclusively used** by `metta.rl.trainer` and `metta.sim.simulation`
 - Continuously developed and optimized for Softmax Studio use cases
 - Backward compatible with existing training code
 
-### Core Infrastructure  
+### Core Infrastructure
 
 **`MettaGridCore`** - Low-level C++ environment wrapper
+
 - Foundation that provides the core game mechanics and performance
 - **Not used directly** for training - serves as implementation detail for `MettaGridEnv`
 - Provides the base functionality that external adapters wrap
@@ -164,7 +167,7 @@ MettaGrid uses a modular architecture designed primarily for the Softmax Studio 
 Lightweight wrappers around `MettaGridCore` to maintain compatibility with other training systems:
 
 - **`MettaGridGymEnv`** - Gymnasium compatibility for research workflows
-- **`MettaGridPettingZooEnv`** - PettingZoo compatibility for multi-agent research  
+- **`MettaGridPettingZooEnv`** - PettingZoo compatibility for multi-agent research
 - **`MettaGridPufferEnv`** - PufferLib compatibility for high-performance external training
 
 **Important**: These adapters are **only used with their respective training systems**, not with the Metta trainer.
@@ -172,7 +175,7 @@ Lightweight wrappers around `MettaGridCore` to maintain compatibility with other
 ### Design Philosophy
 
 - **Primary Focus**: `MettaGridEnv` receives active development and new features for Softmax Studio
-- **Compatibility Maintenance**: External adapters ensure other frameworks continue working as the core evolves  
+- **Compatibility Maintenance**: External adapters ensure other frameworks continue working as the core evolves
 - **Testing for Compatibility**: Demos verify external frameworks remain functional during core development
 - **Clear Separation**: Each environment type serves its specific training system - no mixing between systems
 
@@ -184,14 +187,15 @@ These demos ensure external framework adapters remain functional as the core env
 # Verify PettingZoo compatibility
 python -m mettagrid.demos.demo_train_pettingzoo
 
-# Verify PufferLib compatibility  
+# Verify PufferLib compatibility
 python -m mettagrid.demos.demo_train_puffer
 
 # Verify Gymnasium compatibility
 python -m mettagrid.demos.demo_train_gym
 ```
 
-The demos serve as regression tests to catch compatibility issues during core development, ensuring external users can continue using their preferred frameworks.
+The demos serve as regression tests to catch compatibility issues during core development, ensuring external users can
+continue using their preferred frameworks.
 
 ## Building and testing
 

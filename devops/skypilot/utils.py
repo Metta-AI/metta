@@ -6,9 +6,11 @@ from pathlib import Path
 import sky
 import sky.jobs
 import sky.server.common
+import wandb
 
-import metta.common.util.stats_client_cfg
-from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
+import gitta as git
+from metta.app_backend.clients.base_client import get_machine_token
+from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -23,13 +25,7 @@ def print_tip(text: str):
     print(blue(text), file=sys.stderr)
 
 
-def launch_task(task: sky.Task, dry_run=False):
-    if dry_run:
-        print_tip("DRY RUN.")
-        print_tip("Tip: Pipe this command to `| yq -P .` to get the pretty yaml config.\n")
-        print(task.to_yaml_config())
-        return
-
+def launch_task(task: sky.Task):
     request_id = sky.jobs.launch(task)
 
     print(green(f"Submitted sky.jobs.launch request: {request_id}"))
@@ -44,7 +40,7 @@ def launch_task(task: sky.Task, dry_run=False):
 def check_git_state(commit_hash: str) -> str | None:
     error_lines = []
 
-    has_changes, status_output = has_unstaged_changes()
+    has_changes, status_output = git.has_unstaged_changes()
     if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
@@ -53,7 +49,7 @@ def check_git_state(commit_hash: str) -> str | None:
         error_lines.append("\nDebug:\n" + status_output)
         return "\n".join(error_lines)
 
-    if not is_commit_pushed(commit_hash):
+    if not git.is_commit_pushed(commit_hash):
         commit_display = commit_hash[:8]
         error_lines.append(
             red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job.")
@@ -184,12 +180,12 @@ def display_job_summary(
 
     print(f"{bold('Commit Hash:')} {yellow(commit_hash)}")
 
-    commit_message = get_commit_message(commit_hash)
+    commit_message = git.get_commit_message(commit_hash)
     if commit_message:
         first_line = commit_message.split("\n")[0]
         print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
-    pr_info = get_matched_pr(commit_hash)
+    pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
     if pr_info:
         pr_number, pr_title = pr_info
         first_line = pr_title.split("\n")[0]
@@ -222,14 +218,16 @@ def set_task_secrets(task: sky.Task) -> None:
     if not wandb_password:
         raise ValueError("Failed to get wandb password, run 'metta install' to fix")
 
-    observatory_token = metta.common.util.stats_client_cfg.get_machine_token(
-        "https://observatory.softmax-research.net/api"
-    )
+    observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
+    if not wandb.api.api_key:
+        raise ValueError("Failed to get wandb api key, run 'metta install' to fix")
+
     task.update_secrets(
         dict(
+            WANDB_API_KEY=wandb.api.api_key,
             WANDB_PASSWORD=wandb_password,
             OBSERVATORY_TOKEN=observatory_token,
         )

@@ -153,9 +153,9 @@ class ObsLatentAttn(LayerBase):
         key_mask = None
         if self._use_mask:
             key_mask = td["obs_mask"]
-        B_TT = td["_BxTT_"]
+        BT = x_features.shape[0]
 
-        queries = self._q_token.expand(B_TT, -1, -1)
+        queries = self._q_token.expand(BT, -1, -1)
 
         kv_norm = self.norm_kv(x_features)
         k_p = self.k_proj(kv_norm)
@@ -204,8 +204,7 @@ class ObsLatentAttn(LayerBase):
 
 
 class ObsSelfAttn(LayerBase):
-    """Future work can go beyond just using the feat dim as the attn qv dim, a single layer and single head,
-    adding a GRU before the out projection..."""
+    """Self-attention layer for observation features with optional CLS token."""
 
     def __init__(
         self,

@@ -1,17 +1,13 @@
-import copy
 import json
 import logging
 import os
 import socket
-from typing import Annotated, Literal, Union, cast
 
 import wandb
 import wandb.errors
 import wandb.sdk.wandb_run
-from omegaconf import OmegaConf
-from pydantic import Field, TypeAdapter
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -21,25 +17,30 @@ WandbRun = wandb.sdk.wandb_run.Run
 WANDB_IPC_FILENAME = "wandb_ipc.json"
 
 
-class WandbConfigOn(Config):
-    enabled: Literal[True] = True
-
+class WandbConfig(Config):
+    enabled: bool
     project: str
     entity: str
-    group: str
-    name: str
-    run_id: str
-    data_dir: str
-    job_type: str
+    group: str | None = None
+    name: str | None = None
+    run_id: str | None = None
+    data_dir: str | None = None
+    job_type: str | None = None
     tags: list[str] = []
     notes: str = ""
 
+    @staticmethod
+    def Off() -> "WandbConfig":
+        return WandbConfig(enabled=False, project="na", entity="na")
 
-class WandbConfigOff(Config, extra="allow"):
-    enabled: Literal[False] = False
+    # Has the same behavior as Off, but indicates that it should be replaced by wandb_auto_config
+    @staticmethod
+    def Unconfigured() -> "WandbConfig":
+        return WandbConfig(enabled=False, project="unconfigured", entity="unconfigured")
 
-
-WandbConfig = Annotated[Union[WandbConfigOff, WandbConfigOn], Field(discriminator="enabled")]
+    @property
+    def uri(self):
+        return f"wandb://run/{self.run_id}"
 
 
 class WandbContext:
@@ -54,20 +55,12 @@ class WandbContext:
 
     def __init__(
         self,
-        # Either a `DictConfig` from Hydra, or already validated `WandbConfig` object.
-        cfg: object,
-        # Global Hydra config, needed because we store it to WanDB.
-        global_cfg: object,
+        cfg: WandbConfig,
+        global_cfg: Config,
         timeout: int = 30,
     ):
-        if isinstance(cfg, (WandbConfigOn, WandbConfigOff)):
-            self.cfg = cfg
-        else:
-            # validate
-            self.cfg = TypeAdapter(WandbConfig).validate_python(cfg)
-
+        self.cfg = cfg
         self.global_cfg = global_cfg
-
         self.run: WandbRun | None = None
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
@@ -78,7 +71,7 @@ class WandbContext:
         if not self.cfg.enabled:
             return None
 
-        assert isinstance(self.cfg, WandbConfigOn)
+        assert self.cfg.enabled
 
         # Check internet connection before proceeding
         try:
@@ -90,7 +83,6 @@ class WandbContext:
             logger.info("Continuing without W&B logging")
             return None
 
-        global_cfg = copy.deepcopy(self.global_cfg)
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
         try:
@@ -101,10 +93,9 @@ class WandbContext:
                 job_type=self.cfg.job_type,
                 project=self.cfg.project,
                 entity=self.cfg.entity,
-                config=cast(dict, OmegaConf.to_container(global_cfg, resolve=False)),
+                config=self.global_cfg.model_dump(),
                 group=self.cfg.group,
                 allow_val_change=True,
-                name=self.cfg.name,
                 monitor_gym=True,
                 save_code=True,
                 resume=True,
@@ -114,9 +105,9 @@ class WandbContext:
             )
 
             # Save config and set up file syncing only if wandb init succeeded
-            OmegaConf.save(global_cfg, os.path.join(self.cfg.data_dir, "config.yaml"))
             wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
             wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
+            wandb.save(os.path.join(self.cfg.data_dir, "*.json"), base_path=self.cfg.data_dir, policy="live")
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
             # --- File-based IPC: Write to the same directory as HEARTBEAT_FILE ---

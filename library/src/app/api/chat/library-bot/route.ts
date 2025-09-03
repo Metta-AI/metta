@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 
 import { getSessionOrRedirect } from "@/lib/auth";
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       // Use LLM-generated abstract if available (most comprehensive)
       const llmContent = post.paper.llmAbstract as any;
       paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}\n\nDetailed Analysis: ${llmContent.summary || llmContent.explanation || JSON.stringify(llmContent)}`;
-    } else if (post.paper.link && process.env.OPENAI_API_KEY) {
+    } else if (post.paper.link && process.env.ANTHROPIC_API_KEY) {
       // Try to extract PDF content on-demand
       try {
         console.log(
@@ -114,7 +114,7 @@ Remember: You are responding as @library_bot in a discussion thread, so your res
 The paper content is provided below for reference.`;
 
     const result = await generateText({
-      model: openai("gpt-4o"), // Using gpt-4o as the most advanced available
+      model: anthropic("claude-3-5-sonnet-20241022"), // Using Claude 3.5 Sonnet as the most advanced available
       messages: [
         {
           role: "system",
@@ -132,7 +132,7 @@ User Question: ${message}
 Please provide a helpful response about this paper.`,
         },
       ],
-      maxTokens: 1000, // Reasonable limit for comment responses
+
       temperature: 0.7, // Balanced creativity
     });
 

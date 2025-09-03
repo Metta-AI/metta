@@ -231,7 +231,8 @@ export default function NavigablePaperOverlay({
                     params.set("search", tag);
                     window.open(`/papers?${params.toString()}`, "_blank");
                   }}
-                  className="inline-block cursor-pointer rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-200"
+                  className="inline-block cursor-pointer rounded px-3 py-1 text-sm font-bold transition-colors hover:bg-gray-200"
+                  style={{ backgroundColor: "#EFF3F9", color: "#131720" }}
                   title={`Click to view all papers tagged with "${tag}"`}
                 >
                   {tag}

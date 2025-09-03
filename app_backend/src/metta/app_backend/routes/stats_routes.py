@@ -52,9 +52,9 @@ class EpisodeCreate(BaseModel):
     # agent_id -> metric_name -> metric_value
     agent_metrics: dict[int, dict[str, float]]
     primary_policy_id: uuid.UUID
+    sim_name: str
+    env_label: str
     stats_epoch: uuid.UUID | None = None
-    eval_name: str | None = None
-    simulation_suite: str | None = None
     replay_url: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
     eval_task_id: uuid.UUID | None = None
@@ -179,8 +179,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 agent_metrics=episode.agent_metrics,
                 primary_policy_id=episode.primary_policy_id,
                 stats_epoch=episode.stats_epoch,
-                eval_name=episode.eval_name,
-                simulation_suite=episode.simulation_suite,
+                sim_name=episode.sim_name,
+                env_label=episode.env_label,
                 replay_url=episode.replay_url,
                 attributes=episode.attributes,
                 eval_task_id=episode.eval_task_id,

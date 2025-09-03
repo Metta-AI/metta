@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import { TagVocabularyService } from "./tag-vocabulary-service";
 import { prisma } from "@/lib/db/prisma";
@@ -70,8 +70,14 @@ export class AutoTaggingService {
       let suggestedTags: string[] = [];
 
       // Try PDF analysis first (if available)
-      if (paper.link && this.canAnalyzePdf(paper)) {
-        suggestedTags = await this.generateTagsFromPdf(paper, tagVocabulary);
+      if (
+        paper.link &&
+        this.canAnalyzePdf({ link: paper.link, source: paper.source })
+      ) {
+        suggestedTags = await this.generateTagsFromPdf(
+          { ...paper, link: paper.link },
+          tagVocabulary
+        );
       }
 
       // Fallback to text-based analysis
@@ -101,6 +107,24 @@ export class AutoTaggingService {
   }
 
   /**
+   * Normalize URL to get the actual PDF, not HTML pages
+   */
+  private static normalizePdfUrl(url: string): string {
+    if (!url) return url;
+
+    // arXiv URLs: convert from abstract page to PDF
+    if (url.includes("arxiv.org/abs/")) {
+      const normalizedUrl = url.replace("/abs/", "/pdf/") + ".pdf";
+      console.log(`📄 Converted arXiv abstract URL to PDF: ${normalizedUrl}`);
+      return normalizedUrl;
+    }
+
+    // Other common patterns can be added here
+    // For now, return the original URL
+    return url;
+  }
+
+  /**
    * Generate tags from PDF content using OpenAI vision
    */
   private static async generateTagsFromPdf(
@@ -108,41 +132,59 @@ export class AutoTaggingService {
     tagVocabulary: string[]
   ): Promise<string[]> {
     try {
-      if (!process.env.OPENAI_API_KEY) {
-        console.warn("⚠️ OpenAI API key not available for PDF analysis");
+      if (!process.env.ANTHROPIC_API_KEY) {
+        console.warn("⚠️ Anthropic API key not available for PDF analysis");
         return [];
       }
 
       console.log(`📄 Analyzing PDF for paper: ${paper.title}`);
 
+      // Normalize URL to get actual PDF
+      const normalizedUrl = this.normalizePdfUrl(paper.link);
+      console.log(`📥 Fetching PDF from: ${normalizedUrl}`);
+
       // Fetch PDF
-      const pdfResponse = await fetch(paper.link);
+      const pdfResponse = await fetch(normalizedUrl, {
+        headers: {
+          Accept: "application/pdf,*/*",
+          "User-Agent": "Mozilla/5.0 (compatible; LibraryBot/1.0)",
+        },
+        redirect: "follow",
+      });
       if (!pdfResponse.ok) {
         console.warn(`⚠️ Could not fetch PDF: ${pdfResponse.status}`);
         return [];
       }
 
-      const contentType = pdfResponse.headers.get("content-type");
+      const contentType = pdfResponse.headers.get("content-type") || "";
       console.log(`📄 PDF response content-type: ${contentType}`);
+
+      if (contentType.includes("text/html")) {
+        console.warn(
+          `⚠️ URL returned HTML instead of PDF. URL might be incorrect: ${normalizedUrl}`
+        );
+        console.warn(`⚠️ Original URL: ${paper.link}`);
+        return [];
+      }
 
       const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
       console.log(`📄 PDF buffer size: ${pdfBuffer.length} bytes`);
 
       // Validate PDF header
-      const pdfHeader = pdfBuffer.slice(0, 4).toString();
+      const pdfHeader = pdfBuffer.slice(0, 8).toString();
       console.log(`📄 PDF header: ${pdfHeader}`);
       if (!pdfHeader.startsWith("%PDF")) {
         console.warn(
           `⚠️ Invalid PDF header: ${pdfHeader}. Content might not be a valid PDF.`
         );
         console.warn(
-          `⚠️ First 100 bytes: ${pdfBuffer.slice(0, 100).toString()}`
+          `⚠️ First 50 bytes: ${pdfBuffer.slice(0, 50).toString("hex")}`
         );
         return [];
       }
 
-      // Check file size (OpenAI has limits)
-      const maxSize = 512 * 1024 * 1024; // 512MB limit for OpenAI
+      // Check file size (Anthropic has limits)
+      const maxSize = 512 * 1024 * 1024; // 512MB limit for Anthropic
       if (pdfBuffer.length > maxSize) {
         console.warn(
           `⚠️ PDF too large: ${pdfBuffer.length} bytes (max: ${maxSize})`
@@ -152,9 +194,9 @@ export class AutoTaggingService {
 
       const tagVocabularyText = tagVocabulary.join(", ");
 
-      console.log(`📄 Sending PDF to OpenAI for analysis...`);
+      console.log(`📄 Sending PDF to Anthropic for analysis...`);
       const result = await generateObject({
-        model: openai("gpt-4o"),
+        model: anthropic("claude-3-5-sonnet-20241022"),
         schema: TagSuggestionSchema,
         messages: [
           {
@@ -228,8 +270,8 @@ IMPORTANT: Only return tags that appear EXACTLY in the vocabulary list above.`,
     tagVocabulary: string[]
   ): Promise<string[]> {
     try {
-      if (!process.env.OPENAI_API_KEY) {
-        console.warn("⚠️ OpenAI API key not available for text analysis");
+      if (!process.env.ANTHROPIC_API_KEY) {
+        console.warn("⚠️ Anthropic API key not available for text analysis");
         return [];
       }
 
@@ -239,7 +281,7 @@ IMPORTANT: Only return tags that appear EXACTLY in the vocabulary list above.`,
       const textContent = `Title: ${paper.title}\n${paper.abstract ? `Abstract: ${paper.abstract}` : ""}`;
 
       const result = await generateObject({
-        model: openai("gpt-4o-mini"), // Use cheaper model for text-only analysis
+        model: anthropic("claude-3-haiku-20240307"), // Use faster, cheaper model for text-only analysis
         schema: TagSuggestionSchema,
         messages: [
           {

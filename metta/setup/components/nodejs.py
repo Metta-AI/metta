@@ -14,8 +14,8 @@ class NodejsSetup(SetupModule):
     def description(self) -> str:
         return "Node.js infrastructure - pnpm and turborepo"
 
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("nodejs")
+    def dependencies(self) -> list[str]:
+        return ["system"]  # Ensure Node.js/corepack is installed before running pnpm setup
 
     def _script_exists(self, script: str) -> bool:
         try:
@@ -84,40 +84,47 @@ class NodejsSetup(SetupModule):
         warning("Failed to enable corepack after removing dead symlinks")
         return False
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Setting up pnpm...")
 
+        # First enable corepack to make pnpm command available
         if not self._check_pnpm():
-            # Try to enable corepack with automatic cleanup
             if not self._enable_corepack_with_cleanup():
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
-        def _set_pnpm_home_now(value: str) -> None:
-            os.environ["PNPM_HOME"] = value
-            os.environ["PATH"] = f"{value}:{os.environ['PATH']}"  # pnpm complains if PNPM_HOME is not in PATH
-            info("PNPM_HOME configured. Restart your shell to apply.")
-
-        if not os.environ.get("PNPM_HOME"):
-            # We need to setup pnpm before we can install turbo globally
-            # This command will update the user's `~/.bashrc` or `~/.zshrc`.
+        # Let pnpm setup itself - this handles shell profile configuration
+        info("Running pnpm setup to configure shell profiles...")
+        try:
             self.run_command(["pnpm", "setup"], capture_output=False)
+            info("pnpm setup completed successfully")
+        except subprocess.CalledProcessError as e:
+            # pnpm setup can fail if there's already a config, but that's usually OK
+            warning(f"pnpm setup returned non-zero exit code: {e}. Continuing...")
 
-            # PNPM_HOME configuration is in the user's shell profile, but we need to set it now.
-            # Apply some heuristics to detect the correct directory.
-            #
-            # Note: we could run a new temporary shell script, print env from it and capture, but that might be more
-            # error prone.
-            if platform.system() == "Darwin":
-                _set_pnpm_home_now(os.path.expanduser("~/Library/pnpm"))
-            elif os.path.exists(os.path.expanduser("~/.pnpm")):
-                _set_pnpm_home_now(os.path.expanduser("~/.pnpm"))
+        # Set PNPM_HOME for current process if pnpm setup configured it
+        # Use platform-specific default locations that match pnpm setup behavior
+        if platform.system() == "Darwin":
+            pnpm_home = os.path.expanduser("~/Library/pnpm")
+        else:
+            pnpm_home = os.path.expanduser("~/.local/share/pnpm")
 
-        if os.environ.get("PNPM_HOME"):
-            info("Installing turbo...")
+        if os.path.exists(pnpm_home):
+            info(f"Setting PNPM_HOME to {pnpm_home} for current process")
+            os.environ["PNPM_HOME"] = pnpm_home
+            # Add to PATH for current process
+            current_path = os.environ.get("PATH", "")
+            if pnpm_home not in current_path:
+                os.environ["PATH"] = f"{pnpm_home}:{current_path}"
+
+        # Install global turbo if pnpm is working
+        if self._check_pnpm():
+            info("Installing turbo globally...")
             self.run_command(["pnpm", "install", "--global", "turbo"], capture_output=False)
         else:
-            warning("Failed to detect PNPM_HOME dir, skipping global turbo install")
+            warning("pnpm not working properly, skipping global turbo install")
 
-        info("Installing dependencies...")
+        info("Installing project dependencies...")
         # pnpm install with frozen lockfile to avoid prompts
-        self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False)
+        self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False, cwd=self.repo_root)
+
+        info("Nodejs setup completed! You may need to restart your shell to use global packages.")

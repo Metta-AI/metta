@@ -6,51 +6,43 @@
       "name": "Train Metta",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.train",
-      "args": [
-        "+user=${env:USER}"
-      ],
+      "module": "tools.run",
+      "args": ["experiments.recipes.scratchpad.${env:USER}.train"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Sweep: Init",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sweep_init",
-      "args": [
-        "+user=${env:USER}",
-        "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"
-      ],
+      "args": ["+user=${env:USER}", "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Sweep: Eval",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sweep_eval",
-      "args": [
-        "+user=${env:USER}",
-        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
-      ],
+      "args": ["+user=${env:USER}", "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Sweep: Train",
@@ -60,129 +52,85 @@
       "args": [
         "+user=${env:USER}",
         "data_dir=./train_dir/sweep/${sweep_name}/runs",
-        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
+        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
       ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Evaluate",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.sim",
-      "args": [
-        "+user=${env:USER}",
-        "cmd=sim"
-      ],
+      "module": "tools.run",
+      "args": ["experiments.recipes.scratchpad.${env:USER}.evaluate"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Dashboard",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.dashboard",
-      "args": [
-        "+user=${env:USER}",
-      ],
+      "args": ["+user=${env:USER}"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Analyze",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.analyze",
-      "args": [
-        "+user=${env:USER}",
-        "cmd=analyze"
-      ],
+      "module": "tools.run",
+      "args": ["experiments.recipes.scratchpad.${env:USER}.analyze"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Generate Replay",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.replay",
-      "args": [
-        "+user=${env:USER}",
-      ],
+      "module": "tools.run",
+      "args": ["experiments.recipes.scratchpad.${env:USER}.replay"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Play Metta",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.play",
-      "args": [
-        "+user=${env:USER}",
-      ],
+      "module": "tools.run",
+      "args": ["experiments.recipes.scratchpad.${env:USER}.play"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
-    {
-      "name": "Test",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "pytest",
-      "args": [
-        "-v",
-        "-s",
-        "./tests"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
-      },
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
-    },
-    {
-      "name": "MettaGridTest",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "pytest",
-      "args": [],
-      "cwd": "${workspaceFolder}/mettagrid",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
-      },
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
-    }
-  ]
+  ],
 }

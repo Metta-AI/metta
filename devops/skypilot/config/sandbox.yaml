@@ -23,7 +23,7 @@ file_mounts:
 
 setup: |
   set -u
-  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/sk_setup.sh")
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
 
 run: |
   set -e
@@ -38,7 +38,7 @@ run: |
   echo "[SETUP] Setting up Python environment..."
   uv sync
 
-  bash ./devops/skypilot/config/configure_environment.sh
+  bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
   source "$METTA_ENV_FILE"

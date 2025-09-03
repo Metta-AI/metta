@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 
+#include "actions/orientation.hpp"
 #include "grid_object.hpp"
 #include "objects/constants.hpp"
 
@@ -76,7 +77,6 @@ public:
     this->objects.push_back(std::unique_ptr<GridObject>(obj));
     return true;
   }
-
 
   // Removes an object from the grid and gives ownership of the object to the caller.
   // Since the caller is now the owner, this can make the raw pointer invalid, if the
@@ -158,42 +158,41 @@ public:
     return object(grid[loc.r][loc.c][loc.layer]);
   }
 
-  /**
-   * Get the location at a relative offset from the given orientation.
-   * Note: The returned location has the same layer as the input location.
-   */
   inline const GridLocation relative_location(const GridLocation& loc,
                                               Orientation facing,
-                                              short forward_distance,  // + is forward, - is backward
-                                              short lateral_offset) {  // + is relative right, - is relative left
+                                              short forward_distance,
+                                              short lateral_offset) {
     const int r = static_cast<int>(loc.r);
     const int c = static_cast<int>(loc.c);
+    int new_r = r;
+    int new_c = c;
 
-    int new_r = loc.r;
-    int new_c = loc.c;
+    // Get the forward direction deltas
+    int forward_dr, forward_dc;
+    getOrientationDelta(facing, forward_dc, forward_dr);
 
-    switch (facing) {
-      case Orientation::Up:
-        new_r = r - forward_distance;  // Positive dist = go up (decrease row)
-        new_c = c + lateral_offset;    // Positive offset = go right (increase col)
-        break;
-      case Orientation::Down:
-        new_r = r + forward_distance;  // Positive dist = go down (increase row)
-        new_c = c - lateral_offset;    // Positive offset = go left (decrease col)
-        break;
-      case Orientation::Left:
-        new_c = c - forward_distance;  // Positive dist = go left (decrease col)
-        new_r = r - lateral_offset;    // Positive offset = go up (decrease row)
-        break;
-      case Orientation::Right:
-        new_c = c + forward_distance;  // Positive dist = go right (increase col)
-        new_r = r + lateral_offset;    // Positive offset = go down (increase row)
-        break;
-      default:
-        assert(false && "Invalid orientation passed to relative_location()");
+    // Apply forward/backward movement
+    new_r += forward_dr * forward_distance;
+    new_c += forward_dc * forward_distance;
+
+    // Apply lateral movement (right/left)
+    if (lateral_offset != 0) {
+      // Right is 90 degrees clockwise from facing direction
+      Orientation right_facing = getClockwise(facing);
+
+      // Get the right direction deltas
+      int right_dr, right_dc;
+      getOrientationDelta(right_facing, right_dc, right_dr);
+
+      // Apply lateral movement
+      new_r += right_dr * lateral_offset;
+      new_c += right_dc * lateral_offset;
     }
+
+    // Clamp to grid bounds
     new_r = std::clamp(new_r, 0, static_cast<int>(this->height - 1));
     new_c = std::clamp(new_c, 0, static_cast<int>(this->width - 1));
+
     return GridLocation(static_cast<GridCoord>(new_r), static_cast<GridCoord>(new_c), loc.layer);
   }
 

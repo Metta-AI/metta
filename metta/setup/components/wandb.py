@@ -1,9 +1,11 @@
 import os
 import subprocess
 
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info, success, warning
 
 
@@ -14,9 +16,6 @@ class WandbSetup(SetupModule):
     @property
     def description(self) -> str:
         return "Weights & Biases experiment tracking"
-
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("wandb")
 
     def check_installed(self) -> bool:
         if os.environ.get("WANDB_API_KEY"):
@@ -29,21 +28,32 @@ class WandbSetup(SetupModule):
 
         return False
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
+        """Set up Weights & Biases authentication and configuration.
+
+        Handles different user types:
+        - SOFTMAX: Uses internal W&B setup
+        - SOFTMAX_DOCKER: Expects W&B access via environment variables
+        - Others: Provides guidance for manual setup
+
+        Args:
+            non_interactive: If True, skip interactive authentication prompts
+        """
         info("Setting up Weights & Biases...")
 
         if self.check_installed():
             success("W&B already configured")
             return
 
-        if self.config.user_type == UserType.SOFTMAX:
+        saved_settings = get_saved_settings()
+        if saved_settings.user_type == UserType.SOFTMAX:
             info("""
                 Your Weights & Biases access should have been provisioned.
                 If you don't have access, contact your team lead.
 
                 Visit https://wandb.ai/authorize to get your API key.
             """)
-        elif self.config.user_type == UserType.SOFTMAX_DOCKER:
+        elif saved_settings.user_type == UserType.SOFTMAX_DOCKER:
             info("Weights & Biases access should be provided via environment variables.")
             info("Skipping W&B setup.")
         else:
@@ -52,9 +62,9 @@ class WandbSetup(SetupModule):
                 Visit https://wandb.ai/authorize to get your API key.
             """)
 
-        # In test/CI environments, avoid interactive prompts entirely
-        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
-            info("Skipping W&B interactive setup in test/CI environment.")
+        # In test/CI environments or non-interactive mode, avoid interactive prompts entirely
+        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
+            info("Skipping W&B interactive setup in non-interactive/test/CI environment.")
             return
 
         use_wandb = input("\nDo you have your API key ready? (y/n): ").strip().lower()
@@ -82,3 +92,33 @@ class WandbSetup(SetupModule):
             return None
         except Exception:
             return None
+
+    def to_config_settings(self) -> dict[str, str | bool]:
+        saved_settings = get_saved_settings()
+        if saved_settings.user_type.is_softmax:
+            return dict(
+                enabled=True,
+                project=METTA_WANDB_PROJECT,
+                entity=METTA_WANDB_ENTITY,
+            )
+        if self.is_enabled():
+            try:
+                import wandb
+
+                # TODO: let users specify their intended entity and project as part of configuration
+                return dict(
+                    enabled=True,
+                    entity=wandb.Api().default_entity or "",
+                    project="",
+                )
+            except Exception:
+                return dict(
+                    enabled=True,
+                    project="",
+                    entity="",
+                )
+        return dict(
+            enabled=False,
+            project="",
+            entity="",
+        )

@@ -26,17 +26,7 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
         num_layers=2,
         **kwargs,
     ):
-        """Initialize LatentAttnSmall policy with mixin support.
-
-        Args:
-            env: Environment
-            policy: Optional inner policy
-            cnn_channels: Number of CNN channels
-            input_size: LSTM input size
-            hidden_size: LSTM hidden size
-            num_layers: Number of LSTM layers
-            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
-        """
+        """Initialize LatentAttnSmall policy with mixin support."""
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
 
@@ -92,54 +82,13 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
         # Decode actions and value
         logits_list, value = self.policy.decode_actions(flat_hidden)
 
+        # Use mixin for mode-specific processing
         if action is None:
-            # ---------- Inference Mode ----------
-            action_log_probs = F.log_softmax(logits_list, dim=-1)
-            action_probs = torch.exp(action_log_probs)
-
-            sampled_actions = torch.multinomial(action_probs, num_samples=1).view(-1)
-            batch_indices = torch.arange(sampled_actions.shape[0], device=sampled_actions.device)
-            full_log_probs = action_log_probs[batch_indices, sampled_actions]
-
-            converted_action = self._convert_logit_index_to_action(sampled_actions)
-
-            td["actions"] = converted_action.to(dtype=torch.int32)
-            td["act_log_prob"] = full_log_probs
-            td["values"] = value.flatten()
-            td["full_log_probs"] = action_log_probs
-
+            # Mixin handles inference mode
+            td = self.forward_inference(td, logits_list, value)
         else:
-            # ---------- Training Mode ----------
-            # CRITICAL: ComponentPolicy expects the action to be flattened already during training
-            # The TD should be reshaped to match the flattened batch dimension
-            if action.dim() == 3:  # (B, T, A) -> (BT, A)
-                batch_size_orig, time_steps, A = action.shape
-                action = action.view(batch_size_orig * time_steps, A)
-                # Also flatten the TD to match
-                if td.batch_dims > 1:
-                    td = td.reshape(td.batch_size.numel())
-
-            action_log_probs = F.log_softmax(logits_list, dim=-1)
-            action_probs = torch.exp(action_log_probs)
-
-            action_logit_index = self._convert_action_to_logit_index(action)
-            batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
-            full_log_probs = action_log_probs[batch_indices, action_logit_index]
-
-            entropy = -(action_probs * action_log_probs).sum(dim=-1)
-
-            # Store in flattened TD (will be reshaped by caller if needed)
-            td["act_log_prob"] = full_log_probs
-            td["entropy"] = entropy
-            td["full_log_probs"] = action_log_probs
-            td["value"] = value
-
-            # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
-            # The reshaping happens in ComponentPolicy.forward() after forward_training()
-            if "batch" in td.keys() and "bptt" in td.keys():
-                batch_size = td["batch"][0].item()
-                bptt_size = td["bptt"][0].item()
-                td = td.reshape(batch_size, bptt_size)
+            # Mixin handles training mode with proper reshaping
+            td = self.forward_training(td, action, logits_list, value)
 
         return td
 
@@ -178,19 +127,26 @@ class Policy(nn.Module):
             num_layers=1,
         )
         self.obs_latent_self_attn = ObsSelfAttn(
-            out_dim=128, _feat_dim=32, num_heads=4, num_layers=2, use_mask=False, use_cls_token=True
+            out_dim=128,
+            _feat_dim=32,
+            num_heads=4,
+            num_layers=2,
+            use_mask=False,
+            use_cls_token=True,
         )
+
+        # Define layer dimensions that are used multiple times
+        self.actor_hidden_dim = 512  # Used in actor_1 and create_action_heads
+        self.action_embed_dim = 16  # Used in action_embeddings and create_action_heads
 
         self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
-        self.action_embeddings = nn.Embedding(100, 16)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.actor_hidden_dim))
+        self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
 
-        # Action heads - will be initialized based on action space
-        action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
-
-        self.actor_heads = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
+        # Create action heads using mixin pattern
+        self.actor_heads = PyTorchAgentMixin.create_action_heads(
+            self, env, input_size=self.actor_hidden_dim + self.action_embed_dim
         )
 
     def network_forward(self, x):
@@ -202,9 +158,7 @@ class Policy(nn.Module):
         return x
 
     def encode_observations(self, observations, state=None):
-        """
-        Encode observations into a hidden representation.
-        """
+        """Encode observations into a hidden representation."""
 
         # Initialize dictionary for TensorDict
         td = {"env_obs": observations, "state": None}

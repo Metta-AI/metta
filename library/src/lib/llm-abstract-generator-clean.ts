@@ -40,8 +40,8 @@ export async function generateLLMAbstract(
   homepageUrl?: string,
   pdfBuffer?: Buffer
 ): Promise<LLMAbstract> {
-  // Use the new enhanced OpenAI extraction if available
-  if (process.env.OPENAI_API_KEY) {
+  // Use the new enhanced Anthropic extraction if available
+  if (process.env.ANTHROPIC_API_KEY) {
     try {
       console.log(
         "🤖 Generating enhanced abstract with OpenAI + Adobe for paper:",
@@ -55,7 +55,7 @@ export async function generateLLMAbstract(
       );
     } catch (error) {
       console.warn(
-        "⚠️ Enhanced OpenAI generation failed:",
+        "⚠️ Enhanced Anthropic generation failed:",
         error instanceof Error ? error.message : String(error)
       );
     }

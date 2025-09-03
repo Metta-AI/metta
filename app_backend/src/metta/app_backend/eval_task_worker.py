@@ -9,11 +9,11 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
+import base64
 import json
 import logging
 import os
 import subprocess
-import tempfile
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -32,8 +32,10 @@ from metta.app_backend.routes.eval_task_routes import (
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
-from metta.common.util.git import METTA_API_REPO_URL
-from metta.common.util.logging_helpers import init_logging
+from metta.common.util.git_repo import REPO_URL
+from metta.common.util.log_config import init_logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -50,16 +52,12 @@ class AbstractTaskExecutor(ABC):
 
 
 class SimTaskExecutor(AbstractTaskExecutor):
-    def __init__(self, backend_url: str, machine_token: str, logger: logging.Logger):
+    def __init__(self, backend_url: str) -> None:
         self._backend_url = backend_url
-        CLIAuthenticator(backend_url).save_token(machine_token)
-        self._logger = logger
-        self._logger.info(f"Backend URL: {self._backend_url}")
 
     def _run_cmd_from_versioned_checkout(
         self,
         cmd: list[str],
-        error_msg: str,
         capture_output: bool = True,
     ) -> subprocess.CompletedProcess:
         """Run a command from the versioned checkout with a clean environment."""
@@ -84,7 +82,9 @@ class SimTaskExecutor(AbstractTaskExecutor):
         return f"jobs/{job_id}/stderr.txt"
 
     def _upload_logs_to_s3(self, job_id: str, process: subprocess.CompletedProcess) -> None:
-        self._logger.info(f"Uploading logs to S3: {job_id}")
+        logger.info(f"Uploading logs to S3: {job_id}")
+        logger.info(f"Stdout: {process.stdout}")
+        logger.info(f"Stderr: {process.stderr}")
         s3_client = boto3.client("s3")
         s3_client.put_object(
             Bucket=SOFTMAX_S3_BUCKET,
@@ -104,15 +104,15 @@ class SimTaskExecutor(AbstractTaskExecutor):
     def _setup_versioned_checkout(self, git_hash: str) -> None:
         self._versioned_path = f"/tmp/metta-versioned/{git_hash}"
         if os.path.exists(self._versioned_path):
-            self._logger.info(f"Versioned checkout already exists at {self._versioned_path}")
+            logger.info(f"Versioned checkout already exists at {self._versioned_path}")
             return
 
-        self._logger.info(f"Setting up versioned checkout at {self._versioned_path}")
+        logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
         os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
         result = subprocess.run(
-            ["git", "clone", METTA_API_REPO_URL, self._versioned_path],
+            ["git", "clone", REPO_URL, self._versioned_path],
             capture_output=True,
             text=True,
         )
@@ -130,17 +130,16 @@ class SimTaskExecutor(AbstractTaskExecutor):
             raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
 
         # Install dependencies in the versioned checkout
-        self._logger.info("Installing dependencies in versioned checkout...")
+        logger.info("Installing dependencies in versioned checkout...")
         self._run_cmd_from_versioned_checkout(
             ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
-            "Failed to configure dependencies",
+            capture_output=True,
         )
         self._run_cmd_from_versioned_checkout(
             ["uv", "run", "metta", "install"],
-            "Failed to install dependencies",
         )
 
-        self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
+        logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
     @trace("worker.execute_task")
     async def execute_task(
@@ -156,65 +155,46 @@ class SimTaskExecutor(AbstractTaskExecutor):
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
 
+        # Convert simulations list to a base64-encoded JSON string to avoid parsing issues
+        simulations = task.attributes.get("simulations", [])
+        simulations_json = json.dumps(simulations)
+        simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
+
         cmd = [
             "uv",
             "run",
-            "tools/sim.py",
+            "tools/run.py",
+            "experiments.evals.run.eval",
+            "--args",
             f"policy_uri=wandb://run/{policy_name}",
-            f"sim={task.sim_suite}",
+            f"simulations_json_base64={simulations_base64}",
+            "--overrides",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
-            "device=cpu",
-            "vectorization=serial",
             "push_metrics_to_wandb=true",
-            f"sim_job.replay_dir={SOFTMAX_S3_BASE}/replays/" + "${run}",
         ]
+        logger.info(f"Running command: {' '.join(cmd)}")
 
-        with tempfile.TemporaryDirectory(prefix=f"metta-policy-evaluator-{task.id}", dir="/tmp") as task_tmp_dir:
-            if task.sim_suite_config:
-                path = os.path.join(task_tmp_dir, "sim_suite_config.json")
-                with open(path, "w") as f:
-                    json.dump(task.sim_suite_config, f)
-                cmd.append(f"sim_suite_config_path={path}")
+        result = self._run_cmd_from_versioned_checkout(cmd)
 
-            if task.trainer_task:
-                path = os.path.join(task_tmp_dir, "trainer_task.json")
-                with open(path, "w") as f:
-                    json.dump(task.trainer_task, f)
-                cmd.append(f"trainer_task_path={path}")
+        self._upload_logs_to_s3(str(task.id), result)
 
-            self._logger.info(f"Running command: {' '.join(cmd)}")
+        logger.info(f"Simulation completed successfully: {result.stdout}")
 
-            result = self._run_cmd_from_versioned_checkout(
-                cmd,
-                "sim.py failed with exit code",
-            )
-
-            self._upload_logs_to_s3(str(task.id), result)
-
-            self._logger.info(f"Simulation completed successfully: {result.stdout}")
-
-            return TaskResult(
-                success=result.returncode == 0,
-                stdout_log_path=f"{SOFTMAX_S3_BASE}/{self._stdout_log_path(str(task.id))}",
-                stderr_log_path=f"{SOFTMAX_S3_BASE}/{self._stderr_log_path(str(task.id))}",
-            )
+        return TaskResult(
+            success=result.returncode == 0,
+            stdout_log_path=f"{SOFTMAX_S3_BASE}/{self._stdout_log_path(str(task.id))}",
+            stderr_log_path=f"{SOFTMAX_S3_BASE}/{self._stderr_log_path(str(task.id))}",
+        )
 
 
 class EvalTaskWorker:
     def __init__(
-        self,
-        client: EvalTaskClient,
-        task_executor: AbstractTaskExecutor,
-        assignee: str,
-        poll_interval: float = 5.0,
-        logger: logging.Logger | None = None,
+        self, client: EvalTaskClient, task_executor: AbstractTaskExecutor, assignee: str, poll_interval: float = 5.0
     ):
         self._client = client
         self._task_executor = task_executor
         self._assignee = assignee
-
-        self._logger = logger or logging.getLogger(__name__)
         self._poll_interval = poll_interval
 
     async def __aenter__(self):
@@ -249,18 +229,15 @@ class EvalTaskWorker:
                 },
             )
         )
-        self._logger.info(
+        logger.info(
             f"Updated task {task_id} status to: {status}" + "\n" + f"Error reason: {error_reason}"
             if error_reason
             else ""
         )
 
     async def run(self) -> None:
-        self._logger.info("Starting eval worker")
-        self._logger.info(f"Worker id: {self._assignee}")
-
-        self._logger.info("Worker running from main branch, sim.py will use git hash")
-
+        logger.info("Starting eval worker")
+        logger.info(f"Worker id: {self._assignee}")
         while True:
             loop_start_time = datetime.now()
             try:
@@ -268,53 +245,61 @@ class EvalTaskWorker:
 
                 if claimed_tasks.tasks:
                     task: TaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
-                    self._logger.info(f"Processing task {task.id}")
+                    logger.info(f"Processing task {task.id}")
                     try:
                         task_result = await self._task_executor.execute_task(task)
                         status = "done" if task_result.success else "error"
 
-                        self._logger.info(f"Task {task.id} completed with status {status}")
+                        logger.info(f"Task {task.id} completed with status {status}")
                         await self._update_task_status(
                             task.id,
                             status,
                             stdout_log_path=task_result.stdout_log_path,
                             stderr_log_path=task_result.stderr_log_path,
                         )
-                        self._logger.info(f"Task {task.id} updated to {status}")
+                        logger.info(f"Task {task.id} updated to {status}")
                     except Exception as e:
-                        self._logger.error(f"Task failed: {e}", exc_info=True)
+                        logger.error(f"Task failed: {e}", exc_info=True)
                         await self._update_task_status(
                             task.id,
                             "error",
                             str(e),
                         )
                 else:
-                    self._logger.debug("No tasks claimed")
+                    logger.debug("No tasks claimed")
 
                 elapsed_time = (datetime.now() - loop_start_time).total_seconds()
                 await asyncio.sleep(max(0, self._poll_interval - elapsed_time))
 
             except KeyboardInterrupt:
-                self._logger.info("Worker interrupted")
+                logger.info("Worker interrupted")
                 break
             except Exception as e:
-                self._logger.error(f"Error in worker loop: {e}", exc_info=True)
+                logger.error(f"Error in worker loop: {e}", exc_info=True)
                 await asyncio.sleep(10)
 
 
 async def main() -> None:
     init_logging()
     init_tracing()
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logger = logging.getLogger(__name__)
 
     backend_url = os.environ["BACKEND_URL"]
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
-
+    CLIAuthenticator(backend_url).save_token(machine_token)
     client = EvalTaskClient(backend_url)
-    task_executor = SimTaskExecutor(backend_url, machine_token, logger)
-    async with EvalTaskWorker(client, task_executor, assignee, logger=logger) as worker:
+    task_executor = SimTaskExecutor(backend_url)
+    logger.info(
+        "Running with: "
+        + "\n".join(
+            f"{k}={v}"
+            for k, v in {
+                "backend_url": backend_url,
+                "assignee": assignee,
+            }.items()
+        )
+    )
+    async with EvalTaskWorker(client, task_executor, assignee) as worker:
         await worker.run()
 
 

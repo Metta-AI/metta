@@ -1,7 +1,6 @@
 import subprocess
 
 from metta.setup.components.base import SetupModule
-from metta.setup.config import SetupConfig
 from metta.setup.registry import register_module
 from metta.setup.utils import info, warning
 
@@ -23,12 +22,9 @@ class NotebookWidgetsSetup(SetupModule):
     def description(self) -> str:
         return "The python notebook widgets we create"
 
-    def __init__(self, config: SetupConfig):
-        super().__init__(config)
+    def __init__(self):
+        super().__init__()
         self.widget_root = self.repo_root / "experiments/notebooks/utils"
-
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("notebookwidgets")
 
     def should_install_widget(self, widget: str) -> bool:
         widget_path = self.widget_root / widget
@@ -41,7 +37,7 @@ class NotebookWidgetsSetup(SetupModule):
             [
                 "bash",
                 "-c",
-                "npx turbo run build --dry=json 2>/dev/null | jq .tasks[0].cache.status",
+                "pnpm exec turbo run build --dry=json 2>/dev/null | jq .tasks[0].cache.status",
             ],
             cwd=widget_path,
             stdout=subprocess.PIPE,
@@ -60,7 +56,7 @@ class NotebookWidgetsSetup(SetupModule):
                 return False
         return True
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Setting up Metta's custom Python notebook widgets...")
         try:
             for widget in self._widgets:
@@ -70,7 +66,7 @@ class NotebookWidgetsSetup(SetupModule):
                         [
                             "bash",
                             "-c",
-                            "pnpm install && npx turbo run build",
+                            "pnpm install && pnpm exec turbo run build",
                         ],
                         check=True,
                         cwd=self.widget_root / widget,
@@ -82,7 +78,7 @@ class NotebookWidgetsSetup(SetupModule):
                         [
                             "bash",
                             "-c",
-                            "npx turbo run build",
+                            "pnpm exec turbo run build",
                         ],
                         check=True,
                         cwd=self.widget_root / widget,
@@ -106,9 +102,9 @@ class NotebookWidgetsSetup(SetupModule):
             warning("""
                 NotebookWidgets compilation failed. You can compile them manually:
                 1. cd ./experiments/notebooks/utils/scorecard_widget
-                2. npm install
-                3. npm run build
+                2. pnpm install
+                3. pnpm run build
                 4. cd ./experiments/notebooks/utils/eval_finder_widget
-                5. npm install
-                6. npm run build
+                5. pnpm install
+                6. pnpm run build
             """)

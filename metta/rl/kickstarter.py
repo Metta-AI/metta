@@ -1,31 +1,24 @@
 import torch
 from tensordict import TensorDict
-from torch import Tensor, nn
+from torch import Tensor
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
 from metta.mettagrid import MettaGridEnv
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
-
-
-class KickstartTeacher:
-    def __init__(self, policy: nn.Module, action_loss_coef: float, value_loss_coef: float):
-        self.policy = policy
-        self.action_loss_coef = action_loss_coef
-        self.value_loss_coef = value_loss_coef
-
-    def __call__(self, td: TensorDict) -> TensorDict:
-        return self.policy(td)
 
 
 class Kickstarter:
     def __init__(
-        self, cfg: KickstartConfig, device: torch.device, policy_store: PolicyStore, metta_grid_env: MettaGridEnv
+        self,
+        cfg: KickstartConfig,
+        device: torch.device,
+        checkpoint_manager: CheckpointManager,
+        metta_grid_env: MettaGridEnv,
     ):
-        """
-        Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
-        This is done by adding a loss term that encourages the student's output (action logits and value) to match the
-        teacher's.
+        """Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher
+        policies. This is done by adding a loss term that encourages the student's output (action logits and value)
+        to match the teacher's.
 
         The kickstarting loss is annealed over a number of steps (`kickstart_steps`).
         The `anneal_ratio` parameter controls what fraction of the `kickstart_steps` are used for annealing.
@@ -33,8 +26,7 @@ class Kickstarter:
         be 1.0 for the first 80% of `kickstart_steps`, then anneal linearly from 1.0 down to 0 over the last 20%.
 
         Linear annealing is used because cosine's rapid dropping phase can come when the policy transition is unstable
-        although this hunch hasn't been tested yet.
-        """
+        although this hunch hasn't been tested yet."""
         self.device = device
         self.metta_grid_env = metta_grid_env
         self.teacher_cfgs = cfg.additional_teachers
@@ -58,7 +50,7 @@ class Kickstarter:
             self.enabled = False
             return
 
-        self.policy_store: PolicyStore = policy_store
+        self.checkpoint_manager: CheckpointManager = checkpoint_manager
         self.kickstart_steps: int = cfg.kickstart_steps
         self.anneal_factor = 1.0
 
@@ -72,26 +64,23 @@ class Kickstarter:
         self._load_policies()
 
     def _load_policies(self) -> None:
-        self.teachers: list[KickstartTeacher] = []
+        self.teachers: dict[PolicyAgent, KickstartTeacherConfig] = {}
         for teacher_cfg in self.teacher_cfgs or []:
-            policy_record = self.policy_store.policy_record(teacher_cfg.teacher_uri)
-            policy: PolicyAgent = policy_record.policy
-            policy.action_loss_coef = teacher_cfg.action_loss_coef
-            policy.value_loss_coef = teacher_cfg.value_loss_coef
-            # Support both new and old initialization methods
+            # Use CheckpointManager's static method to load from any URI, directly to the correct device
+            policy: PolicyAgent = CheckpointManager.load_from_uri(teacher_cfg.teacher_uri, device=self.device)
+
+            # Initialize policy to environment if needed
             if hasattr(policy, "initialize_to_environment"):
-                # Note: We don't have features here, so we pass None
-                # The policy should handle this gracefully
                 features = self.metta_grid_env.get_observation_features()
                 policy.initialize_to_environment(
-                    features, self.metta_grid_env.action_names, self.metta_grid_env.max_action_args, self.device
+                    features,
+                    self.metta_grid_env.action_names,
+                    self.metta_grid_env.max_action_args,
+                    self.device,
                 )
-            teacher = KickstartTeacher(
-                policy=policy,
-                action_loss_coef=teacher_cfg.action_loss_coef,
-                value_loss_coef=teacher_cfg.value_loss_coef,
-            )
-            self.teachers.append(teacher)
+
+            # Store policy with its config
+            self.teachers[policy] = teacher_cfg
 
     def loss(
         self,
@@ -111,17 +100,21 @@ class Kickstarter:
             progress = (agent_step - self.ramp_down_start_step) / self.anneal_duration
             self.anneal_factor = 1.0 - progress
 
-        for _, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits = self._forward(teacher, td)
-            ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
-            ks_action_loss *= teacher.action_loss_coef * self.anneal_factor
+        for policy, teacher_cfg in self.teachers.items():
+            # Forward pass through teacher policy
+            teacher_td = policy(td)
+            teacher_value = teacher_td["value"]
+            teacher_normalized_logits = teacher_td["full_log_probs"]
 
+            # Calculate action loss (KL divergence)
+            ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
+            ks_action_loss *= teacher_cfg.action_loss_coef * self.anneal_factor
+
+            # Calculate value loss (MSE)
             ks_value_loss += (
-                ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef * self.anneal_factor
+                ((teacher_value.squeeze() - student_value) ** 2).mean()
+                * teacher_cfg.value_loss_coef
+                * self.anneal_factor
             )
 
         return ks_action_loss, ks_value_loss
-
-    def _forward(self, teacher, td):
-        td = teacher(td)
-        return td["value"], td["full_log_probs"]

@@ -5,6 +5,4 @@
  * hardcoding URLs in `<Link>` components and other routing logic.
  */
 
-export function postRoute(postId: string) {
-  return `/posts/${postId}`;
-}
+// Post route removed as part of consolidating feed and discussion views

@@ -1,10 +1,11 @@
 import json
+import os
 import platform
 import subprocess
 
 from metta.setup.components.base import SetupModule
-from metta.setup.config import UserType
 from metta.setup.registry import register_module
+from metta.setup.saved_settings import UserType, get_saved_settings
 from metta.setup.utils import info, success, warning
 
 
@@ -16,12 +17,9 @@ class TailscaleSetup(SetupModule):
     def description(self) -> str:
         return "Tailscale VPN for internal network access"
 
-    def is_applicable(self) -> bool:
-        return (
-            platform.system() == "Darwin"
-            and self.config.user_type == UserType.SOFTMAX
-            and self.config.is_component_enabled("tailscale")
-        )
+    def _is_applicable(self) -> bool:
+        saved_settings = get_saved_settings()
+        return platform.system() == "Darwin" and saved_settings.user_type == UserType.SOFTMAX
 
     def check_installed(self) -> bool:
         try:
@@ -56,8 +54,13 @@ class TailscaleSetup(SetupModule):
         except Exception:
             return None
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Setting up Tailscale...")
+
+        # In test/CI environments or non-interactive mode, skip interactive setup
+        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
+            info("Skipping Tailscale installation in non-interactive/test/CI environment.")
+            return
 
         if self.check_installed():
             success("Tailscale already installed")

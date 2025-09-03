@@ -20,10 +20,11 @@ class LearningProgressCurriculumConfig(CurriculumConfig):
     memory: int = Field(default=25, gt=0, description="Number of recent outcomes to remember per task")
 
 
+# TODO #dehydration
 # class LearningProgressCurriculumTask(CurriculumTask):
 #     """CurriculumTask that tracks learning progress internally."""
 
-#     def __init__(self, config: LearningProgressCurriculumConfig, task_id: int, env_cfg: EnvConfig):
+#     def __init__(self, config: LearningProgressCurriculumConfig, task_id: int, env_cfg: MettaGridConfig):
 #         super().__init__(task_id, env_cfg)
 #         self._config: LearningProgressCurriculumConfig = config
 

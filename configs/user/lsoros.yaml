@@ -1,5 +1,0 @@
-# @package __global__
-
-run: test-addtests
-trainer:
-  env: /env/mettagrid/debug

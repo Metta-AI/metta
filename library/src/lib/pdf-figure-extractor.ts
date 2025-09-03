@@ -87,7 +87,7 @@ export async function extractPdfFigures(
       console.log("✅ pdf-parse successful");
     } catch (error) {
       console.log("⚠️ pdf-parse failed, falling back to pdfreader...");
-      console.log("   Error:", error?.message);
+      console.log("   Error:", (error as any)?.message);
       textItems = await extractPdfText(pdfBuffer);
       fullText = assembleFullText(textItems);
     }

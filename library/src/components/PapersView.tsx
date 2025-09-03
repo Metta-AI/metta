@@ -523,7 +523,8 @@ export function PapersView({
                 <button
                   key={idx}
                   onClick={() => handleTagClick(tag)}
-                  className="inline-block flex-shrink-0 cursor-pointer rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                  className="inline-block flex-shrink-0 cursor-pointer rounded px-2 py-0.5 text-xs font-bold transition-colors hover:bg-gray-200"
+                  style={{ backgroundColor: "#EFF3F9", color: "#131720" }}
                   title={`Click to filter by "${tag}"`}
                 >
                   {highlightText(tag, searchQuery)}

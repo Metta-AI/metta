@@ -1,10 +1,11 @@
 import os
 import subprocess
 
+from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
-from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info, success, warning
 
 
@@ -22,9 +23,6 @@ class ObservatoryKeySetup(SetupModule):
     def description(self) -> str:
         return "Observatory auth key"
 
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("observatory-key")
-
     def get_token(self, server_url: str | None = None) -> str | None:
         """Get token for specific server using the shared implementation"""
         return get_machine_token(server_url)
@@ -37,18 +35,20 @@ class ObservatoryKeySetup(SetupModule):
                 return False
         return True
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info(f"Setting up Observatory authentication for {self.server_url}...")
         login_script = self.repo_root / "devops" / "observatory_login.py"
 
         if login_script.exists():
             try:
-                # In test/CI environments, skip interactive OAuth to avoid opening browsers
-                if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
-                    warning("Skipping Observatory interactive login in test/CI environment.")
+                # In test/CI environments or non-interactive mode, skip interactive OAuth to avoid opening browsers
+                if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
+                    warning("Skipping Observatory interactive login in non-interactive/test/CI environment.")
                 else:
                     # Don't capture output - this is an interactive OAuth flow
-                    self.run_command([str(login_script), self.server_url], capture_output=False)
+                    self.run_command(
+                        [str(login_script), self.server_url], capture_output=False, non_interactive=non_interactive
+                    )
                 success(f"Observatory auth configured for {self.server_url}")
             except subprocess.CalledProcessError:
                 warning("Observatory login failed. You can manually run:")
@@ -66,6 +66,12 @@ class ObservatoryKeySetup(SetupModule):
 
         return None
 
+    def to_config_settings(self) -> dict[str, str | None]:
+        if self.is_enabled() and get_saved_settings().user_type.is_softmax:
+            return {"stats_server_uri": PROD_STATS_SERVER_URI}
+
+        return {"stats_server_uri": None}
+
 
 @register_module
 class ObservatoryKeyLocalSetup(ObservatoryKeySetup):
@@ -79,6 +85,3 @@ class ObservatoryKeyLocalSetup(ObservatoryKeySetup):
     @property
     def description(self) -> str:
         return "Observatory auth key (local development)"
-
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("observatory-key-local")

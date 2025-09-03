@@ -1,12 +1,3 @@
-"""
-Vectorized simulation runner.
-
-• Launches a MettaGrid vec-env batch
-• Each worker writes its own *.duckdb* shard
-• At shutdown the shards are merged into **one** StatsDB object that the
-  caller can further merge / export.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -20,25 +11,23 @@ from typing import Any, Dict
 import numpy as np
 import torch
 from einops import rearrange
-from omegaconf import OmegaConf
-from tensordict import TensorDict
 
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
+from metta.agent.metta_agent import PolicyAgent
+from metta.agent.mocks import MockAgent
+from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
+from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.rl.policy_management import initialize_policy_for_environment
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+from metta.sim.utils import get_or_create_policy_ids
 
-# Prefix for synthetic evaluation framework simulations (not real environment evaluations)
 SYNTHETIC_EVAL_PREFIX = "eval/"
 
 logger = logging.getLogger(__name__)
@@ -50,74 +39,30 @@ class SimulationCompatibilityError(Exception):
     pass
 
 
-class PreBuiltConfigCurriculum(Curriculum):
-    """A curriculum that uses a pre-built config instead of loading from Hydra.
-    This allows us to bypass Hydra entirely when running evaluation or replay
-    generation without having Hydra initialized.
-    """
-
-    def __init__(self, env_name: str, pre_built_config: Any):
-        self._env_name = env_name
-        self._cfg_template = pre_built_config
-
-    def get_task(self) -> Task:
-        """Return a task with the pre-built config."""
-        return SingleTrialTask(f"prebuilt({self._env_name})", self, self._cfg_template)
-
-    def get_task_probs(self) -> Dict[str, float]:
-        """Return the current task probability for logging purposes."""
-        task_name = f"prebuilt({self._env_name})"
-        return {task_name: 1.0}
-
-
 class Simulation:
-    """
-    A vectorized batch of MettaGrid environments sharing the same parameters.
-    """
+    """A vectorized batch of MettaGrid environments sharing the same parameters."""
 
     def __init__(
         self,
         name: str,
-        config: SingleEnvSimulationConfig,
-        policy_pr: PolicyRecord,
-        policy_store: PolicyStore,
+        cfg: SimulationConfig,
+        policy: PolicyAgent,
+        policy_uri: str,
         device: torch.device,
         vectorization: str,
-        sim_suite_name: str | None = None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
-        wandb_policy_name: str | None = None,
         eval_task_id: uuid.UUID | None = None,
         episode_tags: list[str] | None = None,
     ):
         self._name = name
-        self._sim_suite_name = sim_suite_name
-        self._config = config
+        self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
         self._episode_tags = episode_tags
-        self._wandb_policy_name: str | None = None
-        self._wandb_uri: str | None = None
-        if wandb_policy_name is not None:
-            self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
-
-        # ---------------- env config ----------------------------------- #
-        logger.info(f"config.env {config.env}")
-        logger.info(f"config.env_overrides {config.env_overrides}")
-
-        # Extract pre_built_config if present (for Hydra-free operation)
-        pre_built_config = config.env_overrides.get("_pre_built_env_config", None)
-
-        # Create env_overrides without _pre_built_env_config
-        if pre_built_config is not None:
-            env_overrides_dict = {k: v for k, v in config.env_overrides.items() if k != "_pre_built_env_config"}
-            env_overrides = OmegaConf.create(env_overrides_dict)
-        else:
-            env_overrides = OmegaConf.create(config.env_overrides)
-
-        self._env_name = config.env
+        self._policy_uri = policy_uri
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
@@ -128,36 +73,25 @@ class Simulation:
         self._replay_writer = ReplayWriter(replay_dir)
         self._device = device
 
-        # ----------------
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
         max_envs = os.cpu_count() or 1
-        if config.num_episodes <= max_envs:
+        if cfg.num_episodes <= max_envs:
             # If we want fewer episodes than CPUs, create one env per episode
-            num_envs = config.num_episodes
+            num_envs = cfg.num_episodes
             episodes_per_env = 1
         else:
             # Otherwise, use all CPUs and distribute episodes
             num_envs = max_envs
-            episodes_per_env = (config.num_episodes + num_envs - 1) // num_envs  # Ceiling division
+            episodes_per_env = (cfg.num_episodes + num_envs - 1) // num_envs  # Ceiling division
 
         logger.info(
             f"Creating vecenv with {num_envs} environments, {episodes_per_env} "
-            f"episodes per env (total target: {config.num_episodes})"
+            f"episodes per env (total target: {cfg.num_episodes})"
         )
 
-        if pre_built_config is not None:
-            # Use our custom curriculum that doesn't require Hydra
-            # Apply any additional env_overrides to the pre_built config
-            if env_overrides:
-                pre_built_config = OmegaConf.merge(pre_built_config, env_overrides)
-            curriculum = PreBuiltConfigCurriculum(config.env, pre_built_config)
-        else:
-            curriculum = curriculum_from_config_path(config.env, env_overrides)
-
-        env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
-            curriculum,
+            Curriculum(CurriculumConfig.from_mg(cfg.env)),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
@@ -166,39 +100,42 @@ class Simulation:
 
         self._num_envs = num_envs
         self._min_episodes = episodes_per_env
-        self._max_time_s = config.max_time_s
-        self._agents_per_env = env_cfg.game.num_agents
+        self._max_time_s = cfg.max_time_s
+        self._agents_per_env = cfg.env.game.num_agents
 
-        # ---------------- policies ------------------------------------- #
-        self._policy_pr = policy_pr
-        self._policy_store = policy_store
-        self._npc_pr = policy_store.policy_record(config.npc_policy_uri) if config.npc_policy_uri else None
-        self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
+        self._policy = policy
+        self._policy_uri = policy_uri
+        # Load NPC policy if specified
+        if cfg.npc_policy_uri:
+            self._npc_policy = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+        else:
+            self._npc_policy = None
+        self._npc_policy_uri = cfg.npc_policy_uri
+        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
-        metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        driver_env = self._vecenv.driver_env  # type: ignore
+        metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
+        assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
         # Initialize policy to environment
-        initialize_policy_for_environment(
-            policy_record=self._policy_pr,
-            metta_grid_env=metta_grid_env,
-            device=self._device,
-            restore_feature_mapping=True,
+        self._policy.eval()  # Set to evaluation mode for simulation
+        features = metta_grid_env.get_observation_features()
+        self._policy.initialize_to_environment(
+            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
         )
 
-        if self._npc_pr is not None:
+        if self._npc_policy is not None:
             # Initialize NPC policy to environment
-            initialize_policy_for_environment(
-                policy_record=self._npc_pr,
-                metta_grid_env=metta_grid_env,
-                device=self._device,
-                restore_feature_mapping=True,
+            self._npc_policy.eval()  # Set to evaluation mode for simulation
+            features = metta_grid_env.get_observation_features()
+            self._npc_policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
             )
 
-        # ---------------- agent-index bookkeeping ---------------------- #
+        # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
@@ -213,10 +150,40 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
+    @classmethod
+    def create(
+        cls,
+        sim_config: SimulationConfig,
+        device: str,
+        vectorization: str,
+        stats_dir: str = "./train_dir/stats",
+        replay_dir: str = "./train_dir/replays",
+        policy_uri: str | None = None,
+    ) -> "Simulation":
+        """Create a Simulation with sensible defaults."""
+        # Create policy record from URI
+        if policy_uri:
+            policy = CheckpointManager.load_from_uri(policy_uri)
+        else:
+            policy = MockAgent()
+
+        # Create replay directory path with simulation name
+        full_replay_dir = f"{replay_dir}/{sim_config.name}"
+
+        # Create and return simulation
+        return cls(
+            sim_config.name,
+            sim_config,
+            policy,
+            policy_uri or "mock://",
+            device=torch.device(device),
+            vectorization=vectorization,
+            stats_dir=stats_dir,
+            replay_dir=full_replay_dir,
+        )
+
     def start_simulation(self) -> None:
-        """
-        Start the simulation.
-        """
+        """Start the simulation."""
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
             self._name,
@@ -225,20 +192,24 @@ class Simulation:
             100 * self._policy_agents_per_env / self._agents_per_env,
         )
         logger.info("Stats dir: %s", self._stats_dir)
-        # ---------------- reset ------------------------------- #
         self._obs, _ = self._vecenv.reset()
         self._env_done_flags = [False] * self._num_envs
 
         self._t0 = time.time()
 
+    def _get_actions_for_agents(self, agent_indices: torch.Tensor, policy) -> torch.Tensor:
+        """Get actions for a group of agents, preserving agent dimension for single-agent cases."""
+        agent_obs = self._obs[agent_indices]
+        # Ensure agent dimension is preserved for single-agent environments
+        if agent_obs.ndim == 2 and len(agent_indices) == 1:
+            agent_obs = agent_obs[None, ...]  # Add back the agent dimension
+        td = obs_to_td(agent_obs, self._device)
+        policy(td)
+        return td["actions"]
+
     def generate_actions(self) -> np.ndarray:
-        """
-        Generate actions for the simulation.
-        """
+        """Generate actions for the simulation."""
         if __debug__:
-            # Debug assertion: verify indices are correctly ordered
-            # Policy indices should be 0 to N-1
-            # NPC indices should be N to M-1
             num_policy = len(self._policy_idxs)
             num_npc = len(self._npc_idxs)
 
@@ -251,7 +222,7 @@ class Simulation:
                     "Policy indices should be continuous sequence starting from 0"
                 )
 
-            if self._npc_pr is not None and num_npc > 0:
+            if self._npc_policy is not None and num_npc > 0:
                 expected_npc_start = num_policy
                 assert self._npc_idxs[0] == expected_npc_start, (
                     f"NPC indices should start at {expected_npc_start}, got {self._npc_idxs[0]}"
@@ -263,7 +234,6 @@ class Simulation:
                     f"NPC indices should be continuous sequence from {expected_npc_start}"
                 )
 
-            # Verify no overlap between policy and NPC indices
             if num_policy > 0 and num_npc > 0:
                 policy_set = set(self._policy_idxs)
                 npc_set = set(self._npc_idxs)
@@ -271,33 +241,15 @@ class Simulation:
                     f"Policy and NPC indices should not overlap. Overlap: {policy_set.intersection(npc_set)}"
                 )
 
-        # ---------------- forward passes ------------------------- #
         with torch.no_grad():
-            obs_t = torch.as_tensor(self._obs, device=self._device)
-            # Candidate-policy agents
-            my_obs = obs_t[self._policy_idxs]
-            td = TensorDict({"env_obs": my_obs}, batch_size=my_obs.shape[0])
-            policy = self._policy_pr.policy
-            policy(td)
-            policy_actions = td["actions"]
-            # NPC agents (if any)
-            if self._npc_pr is not None and len(self._npc_idxs):
-                npc_obs = obs_t[self._npc_idxs]
-                td = TensorDict({"env_obs": npc_obs}, batch_size=npc_obs.shape[0])
-                npc_policy = self._npc_pr.policy
-                try:
-                    npc_policy(td)
-                    npc_actions = td["actions"]
-                except Exception as e:
-                    logger.error(f"Error generating NPC actions: {e}")
-                    raise SimulationCompatibilityError(
-                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.run_name}: {e}"
-                    ) from e
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy)
 
-        # ---------------- action stitching ----------------------- #
+            npc_actions = None
+            if self._npc_policy is not None and len(self._npc_idxs):
+                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
+
         actions = policy_actions
         if self._npc_agents_per_env:
-            # Reshape policy and npc actions to (num_envs, agents_per_env, action_dim)
             policy_actions = rearrange(
                 policy_actions,
                 "(envs policy_agents) act -> envs policy_agents act",
@@ -319,10 +271,8 @@ class Simulation:
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
-        # ---------------- env.step ------------------------------- #
-        obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
+        obs, rewards, dones, trunc, infos = self._vecenv.step(actions_np)
 
-        # ---------------- episode FSM ---------------------------- #
         done_now = np.logical_or(
             dones.reshape(self._num_envs, self._agents_per_env).all(1),
             trunc.reshape(self._num_envs, self._agents_per_env).all(1),
@@ -335,11 +285,7 @@ class Simulation:
                 self._env_done_flags[e] = False
 
     def _maybe_generate_thumbnail(self) -> str | None:
-        """Generate thumbnail if this is the first run for this eval_name.
-
-        Returns:
-            Thumbnail URL if generated successfully, None otherwise
-        """
+        """Generate thumbnail if this is the first run for this eval_name."""
         try:
             # Skip synthetic evaluation framework simulations
             if self._name.startswith(SYNTHETIC_EVAL_PREFIX):
@@ -370,7 +316,6 @@ class Simulation:
             return None
 
     def end_simulation(self) -> SimulationResults:
-        # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
         db = self._from_shards_and_context()
 
@@ -387,65 +332,86 @@ class Simulation:
         return SimulationResults(db)
 
     def simulate(self) -> SimulationResults:
-        """
-        Run the simulation; returns the merged `StatsDB`.
-        """
+        """Run the simulation; returns the merged `StatsDB`."""
         self.start_simulation()
 
-        self._policy_pr.policy.reset_memory()
-        if self._npc_pr is not None:
-            self._npc_pr.policy.reset_memory()
+        self._policy.reset_memory()
+        if self._npc_policy is not None:
+            self._npc_policy.reset_memory()
+
+        # Track iterations for heartbeat
+        iteration_count = 0
+        heartbeat_interval = 100  # Record heartbeat every 100 iterations
 
         while (self._episode_counters < self._min_episodes).any() and (time.time() - self._t0) < self._max_time_s:
             actions_np = self.generate_actions()
             self.step_simulation(actions_np)
 
+            # Record heartbeat periodically
+            iteration_count += 1
+            if iteration_count % heartbeat_interval == 0:
+                record_heartbeat()
+
         return self.end_simulation()
 
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
-        # Make sure we're creating a dictionary of the right type
-        agent_map: Dict[int, PolicyRecord] = {}
+        # Create agent map using URIs for database integration
+        agent_map: Dict[int, str] = {}
 
-        # Add policy agents to the map
-        for idx in self._policy_idxs:
-            agent_map[int(idx.item())] = self._policy_pr
+        # Add policy agents to the map if they have a URI
+        if self._policy_uri:
+            for idx in self._policy_idxs:
+                agent_map[int(idx.item())] = self._policy_uri
 
         # Add NPC agents to the map if they exist
-        if self._npc_pr is not None:
+        if self._npc_policy is not None and self._npc_policy_uri:
             for idx in self._npc_idxs:
-                agent_map[int(idx.item())] = self._npc_pr
+                agent_map[int(idx.item())] = self._npc_policy_uri
 
-        suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
+        # Pass the policy URI directly
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_pr
+            sim_id=self._id,
+            dir_with_shards=self._stats_dir,
+            agent_map=agent_map,
+            sim_name=self._name,
+            sim_env=self._config.env.label,
+            policy_uri=self._policy_uri or "",
         )
         return db
-
-    def _get_policy_name(self) -> str:
-        return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.run_name
-
-    def _get_policy_uri(self) -> str:
-        return self._wandb_uri if self._wandb_uri is not None else self._policy_pr.uri
 
     def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
-            policy_name = self._get_policy_name()
-            policy_uri = self._get_policy_uri()
-            policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
-            if self._npc_pr is not None:
-                policy_details.append((self._npc_pr.run_name, self._npc_pr.uri, None))
+            # Use policy_uri directly
+            policy_details: list[tuple[str, str | None]] = []
+
+            if self._policy_uri:  # Only add if we have a URI
+                policy_details.append((self._policy_uri, None))
+                # Extract policy name for later use
+                metadata = CheckpointManager.get_policy_metadata(self._policy_uri)
+                policy_name = metadata["run_name"]
+            else:
+                policy_name = None
+
+            # Add NPC policy if it exists
+            npc_name = None
+            if self._npc_policy_uri:
+                policy_details.append((self._npc_policy_uri, "NPC policy"))
+                # Extract NPC name for later use
+                metadata = CheckpointManager.get_policy_metadata(self._npc_policy_uri)
+                npc_name = f"npc_{metadata['run_name']}"
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 
             agent_map: Dict[int, uuid.UUID] = {}
-            for idx in self._policy_idxs:
-                agent_map[int(idx.item())] = policy_ids[policy_name]
+            if policy_name:
+                for idx in self._policy_idxs:
+                    agent_map[int(idx.item())] = policy_ids[policy_name]
 
-            if self._npc_pr is not None:
+            if npc_name:
                 for idx in self._npc_idxs:
-                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.run_name]
+                    agent_map[int(idx.item())] = policy_ids[npc_name]
 
             # Get all episodes from the database
             episodes_df = stats_db.query("SELECT * FROM episodes")
@@ -477,15 +443,15 @@ class Simulation:
                     attributes[attr_name] = attr_value
 
                 # Record the episode remotely
-                episode_tags = self._episode_tags if self._episode_tags else None
+                episode_tags = self._episode_tags or None
                 try:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
                         primary_policy_id=policy_ids[policy_name],
                         stats_epoch=self._stats_epoch_id,
-                        eval_name=self._name,
-                        simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
+                        sim_name=self._name,
+                        env_label=self._config.env.label,
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
                         eval_task_id=self._eval_task_id,
@@ -496,34 +462,15 @@ class Simulation:
                     logger.error(f"Failed to record episode {episode_id} remotely: {e}")
                     # Continue with other episodes even if one fails
 
-    def get_replays(self) -> dict:
-        """Get all replays for this simulation."""
-        return self._replay_writer.episodes.values()
-
-    def get_replay(self) -> dict:
-        """Makes sure this sim has a single replay, and return it."""
-        if len(self._replay_writer.episodes) != 1:
-            raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
-        for _, episode_replay in self._replay_writer.episodes.items():
-            return episode_replay.get_replay_data()
-
-    def get_envs(self):
-        """Returns a list of all envs in the simulation."""
-        return self._vecenv.envs
-
-    def get_env(self):
-        """Make sure this sim has a single env, and return it."""
-        if len(self._vecenv.envs) != 1:
-            raise ValueError("Attempting to get single env, but simulation has multiple envs")
-        return self._vecenv.envs[0]
+    @property
+    def name(self) -> str:
+        return self._name
 
 
 @dataclass
 class SimulationResults:
-    """
-    Results of a simulation.
-    For now just a stats db. Replay plays can be retrieved from the stats db.
-    """
+    """Results of a simulation.
+    For now just a stats db. Replay plays can be retrieved from the stats db."""
 
     stats_db: SimulationStatsDB
     replay_urls: dict[str, list[str]] | None = None  # Maps simulation names to lists of replay URLs

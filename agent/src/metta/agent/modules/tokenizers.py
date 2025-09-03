@@ -19,12 +19,10 @@ class ObsTokenPadStrip(nn.Module):
         self._remapping_active = False
 
     def update_feature_remapping(self, feature_id_remap: torch.Tensor):
-        """
-        Update the feature ID remapping table.
+        """Update the feature ID remapping table.
 
         Args:
-            feature_id_remap: A 256-element tensor where index is new_id and value is original_id
-        """
+            feature_id_remap: A 256-element tensor where index is new_id and value is original_id"""
         self.register_buffer("feature_id_remap", feature_id_remap.to(self.feature_id_remap.device))
         identity = torch.arange(256, dtype=torch.uint8, device=self.feature_id_remap.device)
         self._remapping_active = not torch.equal(self.feature_id_remap, identity)

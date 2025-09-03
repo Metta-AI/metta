@@ -6,55 +6,11 @@
 #include <vector>
 
 #include "../event.hpp"
-#include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
 #include "agent.hpp"
 #include "constants.hpp"
+#include "converter_config.hpp"
 #include "has_inventory.hpp"
-
-// Forward declaration
-class MettaGrid;
-
-// #MettagridConfig
-struct ConverterConfig : public GridObjectConfig {
-  ConverterConfig(TypeId type_id,
-                  const std::string& type_name,
-                  const std::map<InventoryItem, InventoryQuantity>& input_resources,
-                  const std::map<InventoryItem, InventoryQuantity>& output_resources,
-                  short max_output,
-                  short max_conversions,
-                  unsigned short conversion_ticks,
-                  unsigned short cooldown,
-                  InventoryQuantity initial_resource_count,
-                  ObservationType color,
-                  bool recipe_details_obs)
-      : GridObjectConfig(type_id, type_name),
-        input_resources(input_resources),
-        output_resources(output_resources),
-        max_output(max_output),
-        max_conversions(max_conversions),
-        conversion_ticks(conversion_ticks),
-        cooldown(cooldown),
-        initial_resource_count(initial_resource_count),
-        color(color),
-        recipe_details_obs(recipe_details_obs),
-        // These are always 0 when this is created, since we want a single constructor, and these
-        // shouldn't be provided by Python.
-        input_recipe_offset(0),
-        output_recipe_offset(0) {}
-
-  std::map<InventoryItem, InventoryQuantity> input_resources;
-  std::map<InventoryItem, InventoryQuantity> output_resources;
-  short max_output;
-  short max_conversions;
-  unsigned short conversion_ticks;
-  unsigned short cooldown;
-  InventoryQuantity initial_resource_count;
-  ObservationType color;
-  bool recipe_details_obs;
-  ObservationType input_recipe_offset;
-  ObservationType output_recipe_offset;
-};
 
 class Converter : public HasInventory {
 private:
@@ -108,7 +64,7 @@ private:
       if (this->inventory[item] == 0) {
         this->inventory.erase(item);
       }
-      stats.add(stats.inventory_item_name(item) + ".consumed", static_cast<float>(amount));
+      stats.add(stats.resource_name(item) + ".consumed", amount);
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
@@ -157,7 +113,7 @@ public:
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
-      HasInventory::update_inventory(item, static_cast<InventoryDelta>(cfg.initial_resource_count));
+      HasInventory::update_inventory(item, cfg.initial_resource_count);
     }
   }
 
@@ -178,8 +134,8 @@ public:
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
-      HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
-      stats.add(stats.inventory_item_name(item) + ".produced", static_cast<float>(amount));
+      HasInventory::update_inventory(item, amount);
+      stats.add(stats.resource_name(item) + ".produced", amount);
     }
 
     if (this->cooldown > 0) {
@@ -203,9 +159,9 @@ public:
     InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);
     if (delta != 0) {
       if (delta > 0) {
-        stats.add(stats.inventory_item_name(item) + ".added", delta);
+        stats.add(stats.resource_name(item) + ".added", delta);
       } else {
-        stats.add(stats.inventory_item_name(item) + ".removed", -delta);
+        stats.add(stats.resource_name(item) + ".removed", -delta);
       }
     }
     this->maybe_start_converting();

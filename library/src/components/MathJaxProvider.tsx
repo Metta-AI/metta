@@ -118,8 +118,8 @@ export function MathJaxProvider({ children }: MathJaxProviderProps) {
     } catch (err) {
       // Silently ignore errors related to removed DOM elements
       if (
-        err?.message?.includes("nextSibling") ||
-        err?.message?.includes("parentNode")
+        (err as any)?.message?.includes("nextSibling") ||
+        (err as any)?.message?.includes("parentNode")
       ) {
         return;
       }

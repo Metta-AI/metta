@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.level_builder import create_grid
+from metta.mettagrid.map_builder.utils import create_grid
 from metta.mettagrid.mettagrid_c import (
     MettaGrid,
     dtype_actions,
@@ -47,12 +47,11 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
-        "inventory_item_names": ["laser", "armor"],
+        "resource_names": ["laser", "armor"],
         "actions": {
             # don't really care about the actions for this test
             "noop": {"enabled": True},
             "move": {"enabled": True},
-            "rotate": {"enabled": True},
             "attack": {"enabled": False},
             "put_items": {"enabled": False},
             "get_items": {"enabled": False},

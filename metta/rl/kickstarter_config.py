@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 
 
 class KickstartTeacherConfig(Config):

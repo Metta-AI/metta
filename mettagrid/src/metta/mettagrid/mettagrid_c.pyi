@@ -64,12 +64,28 @@ class WallConfig(GridObjectConfig):
     swappable: bool
 
 class BoxConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, resources_to_create: dict[int, int]): ...
+    def __init__(self, type_id: int, type_name: str, returned_resources: dict[int, int]): ...
     type_id: int
     type_name: str
-    resources_to_create: dict[int, int]
+    returned_resources: dict[int, int]
 
 class AgentConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str = "agent",
+        group_id: int = ...,
+        group_name: str = ...,
+        freeze_duration: int = 0,
+        action_failure_penalty: float = 0,
+        resource_limits: dict[int, int] = {},
+        resource_rewards: dict[int, float] = {},
+        resource_reward_max: dict[int, float] = {},
+        stat_rewards: dict[str, float] = {},
+        stat_reward_max: dict[str, float] = {},
+        group_reward_pct: float = 0,
+        initial_inventory: dict[int, int] = {},
+    ) -> None: ...
     type_id: int
     type_name: str
     group_id: int
@@ -79,10 +95,26 @@ class AgentConfig(GridObjectConfig):
     resource_limits: dict[int, int]
     resource_rewards: dict[int, float]
     resource_reward_max: dict[int, float]
+    stat_rewards: dict[str, float]  # Added this
+    stat_reward_max: dict[str, float]  # Added this
     group_reward_pct: float
     initial_inventory: dict[int, int]
 
 class ConverterConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        input_resources: dict[int, int],
+        output_resources: dict[int, int],
+        max_output: int,
+        max_conversions: int,
+        conversion_ticks: int,
+        cooldown: int,
+        initial_resource_count: int = 0,
+        color: int = 0,
+        recipe_details_obs: bool = False,
+    ) -> None: ...
     type_id: int
     type_name: str
     input_resources: dict[int, int]
@@ -93,16 +125,33 @@ class ConverterConfig(GridObjectConfig):
     cooldown: int
     initial_resource_count: int
     color: int
+    recipe_details_obs: bool
 
 class ActionConfig:
-    enabled: bool
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+    ) -> None: ...
     required_resources: dict[int, int]
     consumed_resources: dict[int, int]
 
 class AttackActionConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+        defense_resources: dict[int, int] = {},
+    ) -> None: ...
     defense_resources: dict[int, int]
 
 class ChangeGlyphActionConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+        number_of_glyphs: int = ...,
+    ) -> None: ...
     number_of_glyphs: int
 
 class GlobalObsConfig:
@@ -112,11 +161,13 @@ class GlobalObsConfig:
         last_action: bool = True,
         last_reward: bool = True,
         resource_rewards: bool = False,
-    ): ...
+        visitation_counts: bool = False,
+    ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
     resource_rewards: bool
+    visitation_counts: bool
 
 class GameConfig:
     def __init__(
@@ -126,20 +177,31 @@ class GameConfig:
         episode_truncates: bool,
         obs_width: int,
         obs_height: int,
-        inventory_item_names: list[str],
+        resource_names: list[str],
         num_observation_tokens: int,
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
-    ): ...
+        resource_loss_prob: float = 0.0,
+        track_movement_metrics: bool = False,
+        no_agent_interference: bool = False,
+        recipe_details_obs: bool = False,
+        allow_diagonals: bool = False,
+    ) -> None: ...
     num_agents: int
     max_steps: int
     episode_truncates: bool
     obs_width: int
     obs_height: int
-    inventory_item_names: list[str]
+    resource_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
+    resource_loss_prob: float
+    # FEATURE FLAGS
+    track_movement_metrics: bool
+    no_agent_interference: bool
+    recipe_details_obs: bool
+    allow_diagonals: bool
 
 class MettaGrid:
     obs_width: int
@@ -166,5 +228,5 @@ class MettaGrid:
     def action_success(self) -> list[bool]: ...
     def max_action_args(self) -> list[int]: ...
     def object_type_names(self) -> list[str]: ...
-    def inventory_item_names(self) -> list[str]: ...
+    def resource_names(self) -> list[str]: ...
     def feature_spec(self) -> dict[str, dict[str, float | int]]: ...

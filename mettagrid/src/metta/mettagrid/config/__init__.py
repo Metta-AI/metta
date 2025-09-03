@@ -2,6 +2,6 @@
 Configuration builders for Metta environments.
 """
 
-from . import builder, object
+from . import building, envs
 
-__all__ = ["builder", "object"]
+__all__ = ["building", "envs"]

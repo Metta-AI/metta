@@ -11,7 +11,6 @@ check_cmd() {
   return $?
 }
 
-
 _find_project_root() {
   # When sourced from install.sh, SCRIPT_DIR is already the project root
   if [ -n "${REPO_ROOT:-}" ]; then

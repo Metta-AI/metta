@@ -1,42 +1,16 @@
 import importlib.util
-import logging
 import sys
-from functools import partial
 
 import IPython
-from omegaconf import DictConfig
 from traitlets.config import Config as IPythonConfig
 
 from metta.common.util.fs import get_repo_root
-from metta.common.wandb.wandb_context import WandbRun
 from metta.setup.utils import header, info, success, warning
 
-sys.path.insert(0, str(get_repo_root() / "tools"))
-from validate_config import load_and_print_config  # type: ignore
-
 __name__ = "__ipython__"
-logger = logging.getLogger(__name__)
 
 REPO_ROOT = get_repo_root()
 CONFIGS_DIR = REPO_ROOT / "configs"
-
-load_cfg = partial(load_and_print_config, exit_on_failure=False, print_cfg=False)
-
-from metta.common.util.stats_client_cfg import get_stats_client  # noqa
-from metta.agent.policy_store import PolicyStore  # noqa
-from metta.app_backend.clients.stats_client import StatsClient  # noqa
-
-
-def get_policy_store_from_cfg(cfg: DictConfig, wandb_run: WandbRun | None = None) -> PolicyStore:
-    policy_store = PolicyStore(
-        device=cfg.device,
-        wandb_run=wandb_run,
-        data_dir=getattr(cfg, "data_dir", None),
-        wandb_entity=cfg.wandb.entity if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "entity") else None,
-        wandb_project=cfg.wandb.project if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "project") else None,
-        pytorch_cfg=getattr(cfg, "pytorch", None),
-    )
-    return policy_store
 
 
 def help_configs() -> None:
@@ -46,6 +20,11 @@ def help_configs() -> None:
     info('cfg = load_cfg("trainer/trainer.yaml")')
     success("# Load configs with overrides:")
     info('cfg = load_cfg("train_job.yaml", ["trainer.curriculum=/env/mettagrid/arena/advanced"])')
+    success("# Load checkpoints:")
+    info('policy = CheckpointManager.load_from_uri("file://./train_dir/my_run/checkpoints")')
+    info('policy = CheckpointManager.load_from_uri("wandb://project/artifact:version")')
+    success("# Create checkpoint manager:")
+    info('cm = CheckpointManager(run="my_run", run_dir="./train_dir")')
 
 
 # Create a new IPython config object
@@ -54,8 +33,8 @@ ipython_config.InteractiveShellApp.extensions = ["autoreload"]
 ipython_config.InteractiveShellApp.exec_lines = [
     "%autoreload 2",
     "success('Autoreload enabled: modules will be reloaded automatically when changed.')",
-    "info('Use help_configs() to see available configurations')",
-    "info('Use load_cfg() to load a configuration')",
+    "info('Use help_configs() to see usage examples')",
+    "info('CheckpointManager is available for loading/saving checkpoints')",
 ]
 
 

@@ -8,20 +8,7 @@ def safe_get_from_obs_space(
     obs_key: str,
     property_name: str,
 ) -> Any:
-    """
-    Safely extract properties from observation spaces with comprehensive error handling.
-
-    Args:
-        obs_space: the observation space to search
-        obs_key: The obs_key to access in the observation space
-        property_name: The name of the property to extract
-
-    Returns:
-        The extracted property value
-
-    Raises:
-        ValueError: If the property cannot be safely extracted
-    """
+    """Safely extract properties from observation spaces with comprehensive error handling."""
     try:
         if isinstance(obs_space, gym.spaces.Dict):
             if obs_key in obs_space.spaces:

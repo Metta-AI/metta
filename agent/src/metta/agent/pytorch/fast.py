@@ -20,19 +20,8 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
     """Fast CNN-based policy with LSTM using PyTorchAgentMixin for shared functionality."""
 
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2, **kwargs):
-        """Initialize Fast policy with mixin support.
-
-        Args:
-            env: Environment
-            policy: Optional inner policy
-            cnn_channels: Number of CNN channels
-            input_size: LSTM input size
-            hidden_size: LSTM hidden size
-            num_layers: Number of LSTM layers
-            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
-        """
-        # Extract mixin parameters before passing to parent
-        mixin_params = self.extract_mixin_params(kwargs)
+        """Initialize Fast CNN-based policy with LSTM and mixin support."""
+        mixin_params = self.extract_mixin_params(kwargs)  # Extract mixin parameters before passing to parent
 
         if policy is None:
             policy = Policy(
@@ -40,8 +29,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
                 input_size=input_size,
                 hidden_size=hidden_size,
             )
-        # Pass num_layers=2 to match YAML configuration
-        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)  # Pass num_layers=2 to match YAML
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
@@ -105,26 +93,28 @@ class Policy(nn.Module):
         self.is_continuous = False
         self.action_space = env.single_action_space
 
-        self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
-        self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
+        self.out_width = env.obs_width
+        self.out_height = env.obs_height
 
         # Dynamically determine num_layers from environment features
         # This matches what ComponentPolicy does via ObsTokenToBoxShaper
-        if hasattr(env, "feature_normalizations"):
-            self.num_layers = max(env.feature_normalizations.keys()) + 1
-        else:
-            # Fallback for environments without feature_normalizations
-            self.num_layers = 25  # Default value
+        self.num_layers = max(env.feature_normalizations.keys()) + 1
+
+        # Define layer dimensions that are used multiple times
+        self.cnn_channels = 64  # Used in cnn1 and cnn2
+        self.critic_hidden_dim = 1024  # Used in critic_1 and value_head
+        self.actor_hidden_dim = 512  # Used in actor_1, actor_W, and bilinear calculations
+        self.action_embed_dim = 16  # Used in action_embeddings, actor_W, and bilinear calculations
 
         # Match YAML component initialization more closely
         # Use dynamically determined num_layers as input channels
         # Note: YAML uses orthogonal with gain=1, not sqrt(2) like pufferlib default
         self.cnn1 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(in_channels=self.num_layers, out_channels=64, kernel_size=5, stride=3),
+            nn.Conv2d(in_channels=self.num_layers, out_channels=self.cnn_channels, kernel_size=5, stride=3),
             std=1.0,  # Match YAML orthogonal gain=1
         )
         self.cnn2 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            nn.Conv2d(in_channels=self.cnn_channels, out_channels=self.cnn_channels, kernel_size=3, stride=1),
             std=1.0,  # Match YAML orthogonal gain=1
         )
 
@@ -137,41 +127,34 @@ class Policy(nn.Module):
 
         # Match YAML: Linear layers use orthogonal with gain=1
         self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128), std=1.0)
-        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, 128), std=1.0)
+        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, self.input_size), std=1.0)
 
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
-        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024), std=np.sqrt(2))
+        self.critic_1 = pufferlib.pytorch.layer_init(
+            nn.Linear(self.hidden_size, self.critic_hidden_dim), std=np.sqrt(2)
+        )
         # value_head has no nonlinearity (YAML: nonlinearity: null), so gain=1
-        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.critic_hidden_dim, 1), std=1.0)
 
         # Actor branch
         # actor_1 uses gain=1 (YAML default for Linear layers with ReLU)
-        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512), std=1.0)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.actor_hidden_dim), std=1.0)
 
         # Action embeddings - will be properly initialized via activate_action_embeddings
-        self.action_embeddings = nn.Embedding(100, 16)
+        self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
         self._initialize_action_embeddings()
-
-        # Store for dynamic action head
-        self.action_embed_dim = 16
-        self.actor_hidden_dim = 512
 
         # Bilinear layer to match MettaActorSingleHead
         self._init_bilinear_actor()
 
         # Build normalization vector dynamically from environment
         # This matches what ObservationNormalizer does in ComponentPolicy
-        if hasattr(env, "feature_normalizations"):
-            # Create max_vec from feature_normalizations
-            max_values = [1.0] * self.num_layers  # Default to 1.0
-            for feature_id, norm_value in env.feature_normalizations.items():
-                if feature_id < self.num_layers:
-                    max_values[feature_id] = norm_value if norm_value > 0 else 1.0
-            max_vec = torch.tensor(max_values, dtype=torch.float32)[None, :, None, None]
-        else:
-            # Fallback normalization vector
-            max_vec = torch.ones(1, self.num_layers, 1, 1, dtype=torch.float32)
+        max_values = [1.0] * self.num_layers  # Default to 1.0
+        for feature_id, norm_value in env.feature_normalizations.items():
+            if feature_id < self.num_layers:
+                max_values[feature_id] = norm_value if norm_value > 0 else 1.0
+        max_vec = torch.tensor(max_values, dtype=torch.float32)[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
         # Track active actions
@@ -201,8 +184,8 @@ class Policy(nn.Module):
         nn.init.uniform_(self.actor_W, -bound, bound)
         nn.init.uniform_(self.actor_bias, -bound, bound)
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
-        """Activate action embeddings, matching the YAML ActionEmbedding component behavior."""
+    def initialize_to_environment(self, full_action_names: list[str], device):
+        """Initialize to environment, setting up action embeddings to match the available actions."""
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
 
@@ -223,12 +206,10 @@ class Policy(nn.Module):
         return x
 
     def encode_observations(self, observations, state=None):
-        """
-        Encode observations into a hidden representation.
+        """Encode observations into a hidden representation.
 
         This implementation matches ComponentPolicy's ObsTokenToBoxShaper exactly,
-        using scatter operation for efficient token placement.
-        """
+        using scatter operation for efficient token placement."""
         token_observations = observations
         B = token_observations.shape[0]
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
@@ -240,7 +221,6 @@ class Policy(nn.Module):
         assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
 
         # Don't modify original tensor - ComponentPolicy doesn't do this
-        # token_observations[token_observations == 255] = 0  # REMOVED
 
         # Extract coordinates and attributes (matching ObsTokenToBoxShaper exactly)
         coords_byte = token_observations[..., 0].to(torch.uint8)

@@ -9,20 +9,19 @@ from typing import Any
 import numpy as np
 import torch
 import wandb
-from omegaconf import DictConfig
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyRecord
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.util.system_monitor import SystemMonitor
+from metta.common.profiling.system_monitor import SystemMonitor
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
 from metta.rl.wandb import (
@@ -131,19 +130,17 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
 
 def process_training_stats(
     raw_stats: dict[str, Any],
-    losses: Losses,
+    losses_stats: dict[str, Any],
     experience: Experience,
     trainer_config: TrainerConfig,
-    kickstarter: Kickstarter | None,
 ) -> dict[str, Any]:
     """Process training statistics into a clean format.
 
     Args:
         raw_stats: Raw statistics dictionary (possibly with lists of values)
-        losses: Losses object with stats() method
+        losses_stats: Loss statistics dictionary
         experience: Experience object with stats() method
         trainer_config: Training configuration
-        kickstarter: Kickstarter object
 
     Returns:
         Dictionary with processed statistics including:
@@ -162,17 +159,7 @@ def process_training_stats(
             mean_stats[k] = v
 
     # Get loss and experience statistics
-    losses_stats = losses.stats() if hasattr(losses, "stats") else {}
     experience_stats = experience.stats() if hasattr(experience, "stats") else {}
-
-    # Remove unused losses
-    if trainer_config.ppo.l2_reg_loss_coef == 0:
-        losses_stats.pop("l2_reg_loss", None)
-    if trainer_config.ppo.l2_init_loss_coef == 0:
-        losses_stats.pop("l2_init_loss", None)
-    if kickstarter is None or not kickstarter.enabled:
-        losses_stats.pop("ks_action_loss", None)
-        losses_stats.pop("ks_value_loss", None)
 
     # Calculate environment statistics
     environment_stats = {
@@ -204,20 +191,7 @@ def compute_timing_stats(
     timer: Stopwatch,
     agent_step: int,
 ) -> dict[str, Any]:
-    """Compute timing statistics from a Stopwatch timer.
-
-    Args:
-        timer: Stopwatch instance
-        agent_step: Current agent step count
-
-    Returns:
-        Dictionary with timing statistics including:
-        - lap_times: Per-operation lap times
-        - epoch_steps: Steps in this epoch
-        - epoch_steps_per_second: Steps per second (epoch)
-        - steps_per_second: Overall steps per second
-        - timing_stats: Formatted timing statistics for logging
-    """
+    """Compute timing statistics from a Stopwatch timer."""
     elapsed_times = timer.get_all_elapsed()
     wall_time = timer.get_elapsed()
     train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
@@ -275,24 +249,7 @@ def build_wandb_stats(
     agent_step: int,
     epoch: int,
 ) -> dict[str, Any]:
-    """Build complete statistics dictionary for wandb logging.
-
-    Args:
-        processed_stats: Output from process_training_stats
-        timing_info: Output from compute_timing_stats
-        weight_stats: Weight analysis statistics
-        grad_stats: Gradient statistics
-        system_stats: System monitor statistics
-        memory_stats: Memory monitor statistics
-        parameters: Training parameters
-        hyperparameters: Current hyperparameter values
-        evals: Evaluation scores
-        agent_step: Current agent step
-        epoch: Current epoch
-
-    Returns:
-        Complete dictionary ready for wandb logging
-    """
+    """Build complete statistics dictionary for wandb logging."""
     # Build overview with sps and rewards
     overview = {
         "sps": timing_info["epoch_steps_per_second"],
@@ -335,22 +292,21 @@ def build_wandb_stats(
 
 def process_stats(
     stats: dict[str, Any],
-    losses: Losses,
+    losses_stats: dict[str, Any],
     evals: EvalRewardSummary,
     grad_stats: dict[str, float],
     experience: Experience,
     policy: PolicyAgent,
     timer: Stopwatch,
     trainer_cfg: TrainerConfig,
-    agent_cfg: DictConfig,
+    agent_cfg: AgentConfig,
     agent_step: int,
     epoch: int,
     wandb_run: WandbRun | None,
     memory_monitor: MemoryMonitor,
     system_monitor: SystemMonitor,
-    latest_saved_policy_record: PolicyRecord,
+    latest_saved_epoch: int,
     optimizer: torch.optim.Optimizer,
-    kickstarter: Kickstarter | None = None,
 ) -> None:
     """Process and log training statistics."""
     if not wandb_run:
@@ -359,10 +315,9 @@ def process_stats(
     # Process training stats
     processed_stats = process_training_stats(
         raw_stats=stats,
-        losses=losses,
+        losses_stats=losses_stats,
         experience=experience,
         trainer_config=trainer_cfg,
-        kickstarter=kickstarter,
     )
 
     # Compute timing stats
@@ -386,7 +341,7 @@ def process_stats(
         "learning_rate": optimizer.param_groups[0]["lr"] if optimizer else trainer_cfg.optimizer.learning_rate,
         "epoch_steps": timing_info["epoch_steps"],
         "num_minibatches": experience.num_minibatches,
-        "latest_saved_policy_epoch": latest_saved_policy_record.metadata.epoch if latest_saved_policy_record else 0,
+        "latest_saved_policy_epoch": latest_saved_epoch,
     }
 
     # Get system stats - note: can impact performance
@@ -394,13 +349,14 @@ def process_stats(
     memory_stats = memory_monitor.stats()
 
     # Current hyperparameter values (after potential scheduler updates)
+    # TODO: please don't hardcode PPO-specific hyperparameters.
     hyperparameters = {
         "learning_rate": parameters["learning_rate"],
-        "ppo_clip_coef": trainer_cfg.ppo.clip_coef,
-        "ppo_vf_clip_coef": trainer_cfg.ppo.vf_clip_coef,
-        "ppo_ent_coef": trainer_cfg.ppo.ent_coef,
-        "ppo_l2_reg_loss_coef": trainer_cfg.ppo.l2_reg_loss_coef,
-        "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
+        "ppo_clip_coef": trainer_cfg.losses.loss_configs["ppo"].clip_coef,
+        "ppo_vf_clip_coef": trainer_cfg.losses.loss_configs["ppo"].vf_clip_coef,
+        "ppo_ent_coef": trainer_cfg.losses.loss_configs["ppo"].ent_coef,
+        "ppo_l2_reg_loss_coef": trainer_cfg.losses.loss_configs["ppo"].l2_reg_loss_coef,
+        "ppo_l2_init_loss_coef": trainer_cfg.losses.loss_configs["ppo"].l2_init_loss_coef,
     }
 
     # Build complete stats
@@ -423,7 +379,7 @@ def process_stats(
 
 
 def process_policy_evaluator_stats(
-    pr: PolicyRecord,
+    policy_uri: str,
     eval_results: EvalResults,
 ) -> None:
     metrics_to_log: dict[str, float] = {
@@ -440,24 +396,19 @@ def process_policy_evaluator_stats(
         logger.warning("No metrics to log for policy evaluator")
         return
 
-    if not (epoch := pr.metadata.epoch) or not (agent_step := pr.metadata.agent_step):
-        logger.warning("No epoch or agent_step found in policy record")
-        return
+    # Policy records might not have epoch/agent_step metadata, but we still want to log
+    metadata = CheckpointManager.get_policy_metadata(policy_uri)
+    epoch = metadata.get("epoch")
+    agent_step = metadata.get("agent_step")
+    run_name = metadata.get("run_name")
+    if epoch is None or agent_step is None or not run_name:
+        logger.warning("No epoch or agent_step found in policy record - using defaults")
 
-    try:
-        wandb_entity, wandb_project, wandb_run_id, _ = pr.extract_wandb_run_info()
-    except ValueError as e:
-        logger.warning(f"Failed to get wandb info from policy record {pr.uri}: {e}")
-        return
-
-    if not all((wandb_run_id, wandb_project, wandb_entity)):
-        logger.warning("No wandb info found in policy record")
-        return
-
+    # TODO: improve this parsing to be more general
     run = wandb.init(
-        id=wandb_run_id,
-        project=wandb_project,
-        entity=wandb_entity,
+        id=run_name,
+        project=METTA_WANDB_PROJECT,
+        entity=METTA_WANDB_ENTITY,
         resume="must",
     )
     try:
@@ -467,20 +418,22 @@ def process_policy_evaluator_stats(
             logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
             pass
 
-        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
-        logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {pr.uri}")
+        run.log(
+            {**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step or 0, POLICY_EVALUATOR_EPOCH_METRIC: epoch or 0}
+        )
+        logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {policy_uri}")
         if eval_results.replay_urls:
             try:
                 upload_replay_html(
                     replay_urls=eval_results.replay_urls,
-                    agent_step=agent_step,
-                    epoch=epoch,
+                    agent_step=agent_step,  # type: ignore
+                    epoch=epoch,  # type: ignore
                     wandb_run=run,
                     metric_prefix=POLICY_EVALUATOR_METRIC_PREFIX,
                     step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
                     epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
                 )
             except Exception as e:
-                logger.error(f"Failed to upload replays for {pr.uri}: {e}", exc_info=True)
+                logger.error(f"Failed to upload replays for {policy_uri}: {e}", exc_info=True)
     finally:
         run.finish()

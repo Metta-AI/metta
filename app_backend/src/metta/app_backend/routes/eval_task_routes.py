@@ -5,10 +5,11 @@ from typing import Any, TypeVar
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+import gitta as git
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import EvalTaskRow, EvalTaskWithPolicyName, MettaRepo, TaskStatus, TaskStatusUpdate
 from metta.app_backend.route_logger import timed_http_handler
-from metta.common.util.git import get_latest_commit
+from metta.common.util.git_repo import REPO_SLUG
 
 T = TypeVar("T")
 
@@ -61,14 +62,6 @@ class TaskResponse(BaseModel):
 
     def _attribute_property(self, key: str) -> Any | None:
         return self.attributes.get(key)
-
-    @property
-    def sim_suite_config(self) -> dict | None:
-        return self._attribute_property("sim_suite_config")
-
-    @property
-    def trainer_task(self) -> dict | None:
-        return self._attribute_property("trainer_task")
 
     @property
     def git_hash(self) -> str | None:
@@ -140,7 +133,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
                 # Remove this once clients have migrated
                 attributes["git_hash"] = request.git_hash
             else:
-                attributes["git_hash"] = await get_latest_commit(branch="main")
+                attributes["git_hash"] = await git.get_latest_commit(REPO_SLUG, branch="main")
 
         policy = await stats_repo.get_policy_by_id(request.policy_id)
         if not policy:

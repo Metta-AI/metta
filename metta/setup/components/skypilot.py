@@ -5,6 +5,7 @@ import subprocess
 from metta.common.util.constants import METTA_SKYPILOT_URL
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info, success
 
 
@@ -20,9 +21,6 @@ class SkypilotSetup(SetupModule):
     @property
     def description(self) -> str:
         return "SkyPilot cloud compute orchestration"
-
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("skypilot") and self.config.is_component_enabled("aws")
 
     def check_installed(self) -> bool:
         try:
@@ -43,13 +41,13 @@ class SkypilotSetup(SetupModule):
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Setting up SkyPilot...")
 
-        # In CI/test environments, avoid interactive login flows altogether
-        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
-            info("Detected test/CI environment; skipping SkyPilot interactive authentication.")
-            success("SkyPilot installed (test mode)")
+        # In CI/test environments or non-interactive mode, avoid interactive login flows altogether
+        if non_interactive:
+            info("Detected non-interactive/test/CI environment; skipping SkyPilot interactive authentication.")
+            success("SkyPilot installed (non-interactive mode)")
             return
 
         # Check and setup GitHub authentication first
@@ -58,7 +56,7 @@ class SkypilotSetup(SetupModule):
             info("GitHub CLI authentication required for SkyPilot...")
             info("SkyPilot uses 'gh' to check PR status when launching jobs.")
             # In non-interactive/test environments, skip attempting to open a browser
-            if not (os.environ.get("METTA_TEST_ENV") or os.environ.get("CI")):
+            if not (os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive):
                 try:
                     subprocess.run(["gh", "auth", "login", "--web"], check=False)
                 except subprocess.CalledProcessError:
@@ -72,7 +70,7 @@ class SkypilotSetup(SetupModule):
             info("SkyPilot is already configured for external use. Skipping authentication.")
         else:
             # Need to authenticate skypilot.
-            if self.config.user_type.is_softmax:
+            if get_saved_settings().user_type.is_softmax:
                 try:
                     # Temporarily block Ctrl+C for parent process during script execution
                     # This is necessary because `sky api login` flow requires ctrl+c before the token can be pasted.
@@ -96,9 +94,9 @@ class SkypilotSetup(SetupModule):
         if not self.check_installed():
             return None
 
-        if self.config.user_type.is_softmax:
+        if get_saved_settings().user_type.is_softmax:
             try:
-                result = subprocess.run(["uv", "run", "sky", "api", "info"], capture_output=True, text=True)
+                result = subprocess.run(["uv", "run", "--active", "sky", "api", "info"], capture_output=True, text=True)
 
                 if result.returncode == 0:
                     if self.softmax_url in result.stdout:
@@ -111,7 +109,7 @@ class SkypilotSetup(SetupModule):
                 return None
         else:
             try:
-                result = subprocess.run(["uv", "run", "sky", "check"], capture_output=True, text=True)
+                result = subprocess.run(["uv", "run", "--active", "sky", "check"], capture_output=True, text=True)
                 if result.returncode == 0:
                     return "configured"
                 return None

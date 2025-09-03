@@ -2,9 +2,8 @@
 
 import numpy as np
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.hydra import get_cfg
 
 
 def test_buffer_reuse_across_resets():
@@ -16,13 +15,8 @@ def test_buffer_reuse_across_resets():
     4. Makes sure it has a new cpp env, but uses the same buffers
     """
     # Get basic config
-    cfg = get_cfg("test_basic")
-
-    # Create curriculum with task name and config
-    curriculum = SingleTaskCurriculum("buffer_test", task_cfg=cfg)
-
     # Create environment
-    env = MettaGridEnv(curriculum=curriculum, render_mode=None)
+    env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
 
     # Get initial C++ environment reference
     initial_cpp_env = env.c_env
@@ -89,13 +83,9 @@ def test_buffer_reuse_across_resets():
 def test_buffer_consistency_during_episode():
     """Test that buffers remain consistent during an episode."""
     # Get basic config
-    cfg = get_cfg("test_basic")
-
-    # Create curriculum with task name and config
-    curriculum = SingleTaskCurriculum("buffer_test", task_cfg=cfg)
 
     # Create environment
-    env = MettaGridEnv(curriculum=curriculum, render_mode=None)
+    env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
 
     # Reset environment
     obs, info = env.reset(seed=42)

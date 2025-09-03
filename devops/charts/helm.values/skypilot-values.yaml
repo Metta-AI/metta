@@ -13,6 +13,20 @@ apiService:
       memory: "16Gi"
   metrics:
     enabled: true
+  # Datadog environment variables for the API server
+  extraEnvs:
+    - name: DD_AGENT_HOST
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+    - name: DD_TRACE_ENABLED
+      value: "true"
+    - name: DD_ENV
+      value: "production"
+    - name: DD_SERVICE
+      value: "skypilot-api"
+    - name: DD_VERSION
+      value: "latest"
 awsCredentials:
   enabled: true
 ingress:
