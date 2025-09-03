@@ -19,38 +19,13 @@ from typing import List, Optional
 # Add common package to path
 script_path = Path(__file__).resolve()
 repo_root = script_path.parents[1]
-sys.path.insert(0, str(repo_root))
+sys.path.insert(0, str(repo_root / "common" / "src"))
 
-try:
-    from metta.common.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
-except ImportError:
-    # Fallback if text_styles not available
-    def bold(text):
-        return text
-
-    def cyan(text):
-        return text
-
-    def green(text):
-        return text
-
-    def magenta(text):
-        return text
-
-    def red(text):
-        return text
-
-    def yellow(text):
-        return text
-
-    def use_colors(enabled):
-        pass
-
+from metta.common.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
 
 # Configuration
 BUILD_DIR = Path("build-debug")
 COVERAGE_FILE = "coverage.info"
-
 
 def run_command(cmd: List[str], cwd: Optional[Path] = None, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command and return the result"""

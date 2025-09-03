@@ -48,7 +48,7 @@ coverage:
 	@echo "🔨 Building with coverage..."
 	bazel coverage --combined_report=lcov //:tests_all
 	@echo "📊 Processing coverage data..."
-	@./generate_coverage.py
+	@UV_PROJECT_ENVIRONMENT=../.venv uv run generate_coverage.py
 
 # Alias for clang_tidy that only fails on errors (not warnings)
 tidy:
