@@ -25,19 +25,42 @@ class TestInitialization:
         assert monitor.history_size == 100
         assert not monitor._thread or not monitor._thread.is_alive()
 
+        # Check logger is created with unique instance name
+        assert isinstance(monitor.logger, logging.Logger)
+        assert monitor.logger.name == f"SystemMonitor.{id(monitor)}"
+
+        # Check that NullHandler was added (default log_level is None)
+        null_handlers = [h for h in monitor.logger.handlers if isinstance(h, logging.NullHandler)]
+        assert len(null_handlers) >= 1, "Logger should have at least one NullHandler when log_level is None"
+
     def test_init_custom_params(self):
         """Test initialization with custom parameters"""
-        monitor = SystemMonitor(sampling_interval_sec=2.0, history_size=50, auto_start=False)
+        monitor = SystemMonitor(sampling_interval_sec=2.0, history_size=50, log_level=logging.DEBUG, auto_start=False)
 
         assert monitor.sampling_interval_sec == 2.0
         assert monitor.history_size == 50
+        assert monitor.logger.level == logging.DEBUG
 
-    def test_custom_logger(self):
-        """Test initialization with custom logger"""
-        custom_logger = logging.getLogger("test_logger")
-        monitor = SystemMonitor(logger=custom_logger, auto_start=False)
+    def test_log_levels(self):
+        """Test initialization with different log levels"""
+        # Test with None (should add NullHandler)
+        monitor1 = SystemMonitor(log_level=None, auto_start=False)
+        null_handlers = [h for h in monitor1.logger.handlers if isinstance(h, logging.NullHandler)]
+        assert len(null_handlers) >= 1
 
-        assert monitor.logger == custom_logger
+        # Test with explicit log level
+        monitor2 = SystemMonitor(log_level=logging.INFO, auto_start=False)
+        assert monitor2.logger.level == logging.INFO
+
+        # Verify each instance has unique logger
+        assert monitor1.logger.name != monitor2.logger.name
+        assert monitor1.logger.name == f"SystemMonitor.{id(monitor1)}"
+        assert monitor2.logger.name == f"SystemMonitor.{id(monitor2)}"
+
+        # Test that log levels are isolated
+        monitor3 = SystemMonitor(log_level=logging.ERROR, auto_start=False)
+        assert monitor2.logger.level == logging.INFO  # Unchanged
+        assert monitor3.logger.level == logging.ERROR
 
     def test_auto_start(self):
         """Test auto_start functionality"""
