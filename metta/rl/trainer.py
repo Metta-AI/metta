@@ -456,15 +456,18 @@ def train(
                 trainer_state.agent_step = agent_step  # update agent_step count state not in between rollout and train
                 
                 # Collect loss stats before calling epoch end hooks
-                losses_stats = {}
+                loss_stats = {}
                 for _lname in list(all_losses):
                     loss_obj = loss_instances[_lname]
-                    losses_stats.update(loss_obj.stats())
+                    loss_stats.update(loss_obj.stats())
                 
                 # Populate trainer state for epoch end hooks
-                trainer_state.loss_stats = losses_stats
+                trainer_state.loss_stats = loss_stats
                 trainer_state.eval_scores = eval_scores
-                trainer_state.latest_checkpoint_uri = getattr(checkpoint_manager, 'latest_checkpoint_uri', None) if 'checkpoint_manager' in locals() else None
+                # Set checkpoint URIs if available
+                trainer_state.latest_checkpoint_uri = None
+                if checkpoint_manager and hasattr(checkpoint_manager, 'latest_checkpoint_uri'):
+                    trainer_state.latest_checkpoint_uri = checkpoint_manager.latest_checkpoint_uri
                 trainer_state.latest_wandb_uri = latest_wandb_uri if 'latest_wandb_uri' in locals() else None
                 
                 # Call epoch end hooks for all loss instances
