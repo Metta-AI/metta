@@ -128,7 +128,7 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     if path.startswith("run/"):
         run_name = path[4:]  # Remove "run/"
         if ":" in run_name:
-            run_name, version = run_name.split(":", 1)
+            run_name, version = run_name.rsplit(":", 1)  # Split from right to handle colons in names
         else:
             version = "latest"
         # Replace dots with underscores for wandb artifact compatibility
@@ -138,7 +138,7 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     elif path.startswith("sweep/"):
         sweep_name = path[6:]  # Remove "sweep/"
         if ":" in sweep_name:
-            sweep_name, version = sweep_name.split(":", 1)
+            sweep_name, version = sweep_name.rsplit(":", 1)  # Split from right to handle colons in names
         else:
             version = "latest"
         # Replace dots with underscores for wandb artifact compatibility
