@@ -30,12 +30,15 @@ runs:
         # disabling cache saves 30 sec on testing but costs 40 sec in other modes
         prune-cache: false
         # we hash in the action script in case the install-mode content has changed
-        cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles(inputs.extra-dependencies) }}"
+        cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles(inputs.extra-dependencies) }}-${{ hashFiles(inputs.dependencies-files) }}"
         cache-dependency-glob: |
-          uv.lock
-          **/pyproject.toml
-          .github/actions/setup-uv/dependencies-testing.txt
-          .github/actions/setup-uv/dependencies-linting.txt
+          ${{ inputs.install-mode == 'linting' && '.github/actions/setup-uv/dependencies-linting.txt' || '' }}
+          ${{ inputs.install-mode == 'testing' && 'uv.lock' || '' }}
+          ${{ inputs.install-mode == 'testing' && '.github/actions/setup-uv/dependencies-testing.txt' || '' }}
+          ${{ inputs.install-mode == 'testing' && '**/pyproject.toml' || '' }}
+          ${{ inputs.install-mode == 'runtime' && 'uv.lock' || '' }}
+          ${{ inputs.install-mode == 'runtime' && '**/pyproject.toml' || '' }}
+          ${{ inputs.dependencies-files }}
 
     - name: Debug dependencies and cache
       shell: bash
