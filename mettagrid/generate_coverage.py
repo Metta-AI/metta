@@ -81,7 +81,7 @@ def setup_and_build() -> bool:
 
     # Run tests with bazel coverage (don't fail if tests fail - we still want coverage)
     print(cyan("🧪 Running tests with coverage..."))
-    test_targets = ["//:tests_all"]
+    test_targets = ["//tests:tests_all"]
     run_command(["bazel", "coverage", "--config=dbg"] + test_targets, check=False)
     return True
 

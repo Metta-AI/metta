@@ -41,12 +41,12 @@ benchmark:
 # Run unit tests
 test: build
 	@echo "🧪 Running unit tests..."
-	bazel test //:tests_all
+	bazel test //tests:tests_all
 
 # Generate coverage report
 coverage:
 	@echo "🔨 Building with coverage..."
-	bazel coverage --combined_report=lcov //:tests_all
+	bazel coverage --combined_report=lcov //tests:tests_all
 	@echo "📊 Processing coverage data..."
 	@UV_PROJECT_ENVIRONMENT=../.venv uv run generate_coverage.py
 
