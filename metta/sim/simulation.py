@@ -390,8 +390,12 @@ class Simulation:
                 policy_details.append((self._policy_uri, None))
 
             # Add NPC policy if it exists
-            if self._npc_policy_uri:
-                policy_details.append((self._npc_policy_uri, "NPC policy"))
+            # npc_name = None
+            # if self._npc_policy_uri:
+            #     policy_details.append((self._npc_policy_uri, "NPC policy"))
+            #     # Extract NPC name for later use
+            #     metadata = CheckpointManager.get_policy_metadata(self._npc_policy_uri)
+            #     npc_name = f"npc_{metadata['run_name']}"
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 
