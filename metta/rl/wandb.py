@@ -111,12 +111,12 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format.
 
     Handles both short and full wandb URI formats:
-    - "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
-    - "wandb://run/my-run:v5" -> "wandb://metta/model/my-run:v5"
-    - "wandb://sweep/sweep-abc" -> "wandb://metta/sweep_model/sweep-abc:latest"
+    - "wandb://run/my.run.name" -> "wandb://metta/model/my_run_name:latest"
+    - "wandb://run/my.run:v5" -> "wandb://metta/model/my_run:v5"
+    - "wandb://sweep/sweep.abc" -> "wandb://metta/sweep_model/sweep_abc:latest"
 
-    Also handles dot-to-underscore conversion for artifact names since
-    wandb artifacts don't support dots in names.
+    NOTE: Dots in names are converted to underscores since wandb artifacts
+    don't support dots. The original name is preserved in artifact metadata.
     """
     if not uri.startswith("wandb://"):
         return uri

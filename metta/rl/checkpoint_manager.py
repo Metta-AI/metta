@@ -59,13 +59,15 @@ def key_and_version(uri: str) -> tuple[str, int]:
         expanded_uri = expand_wandb_uri(uri)
         metadata = get_wandb_checkpoint_metadata(expanded_uri)
         if metadata:
+            # Use original_artifact_name if available (preserves dots/underscores correctly)
+            if "original_artifact_name" in metadata:
+                return metadata["original_artifact_name"], metadata.get("epoch", 0)
             return metadata["run_name"], metadata["epoch"]
-        # Fallback: parse artifact name from URI
+        # Fallback: parse artifact name from URI (can't reliably restore original name)
         wandb_uri = WandbURI.parse(expanded_uri)
         artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
-        # Convert underscores back to dots for the original run name
-        original_name = artifact_name.replace("_", ".")
-        return original_name, 0
+        # Note: We can't reliably convert underscores back since the original might have had underscores
+        return artifact_name, 0
 
     if uri.startswith("s3://"):
         filename = uri.split("/")[-1]
