@@ -218,6 +218,8 @@ proc loadReplay*(data: string, fileName: string): Replay =
     # Gain map for step 0.
     let inventory = agent.inventory[0]
     var gainMap = newSeq[ItemAmount]()
+    for i in 0 ..< items[0].len:
+      items[0][i] = 0
     for item in inventory:
       gainMap.add(item)
       items[0][item.itemId] = item.count
@@ -228,6 +230,8 @@ proc loadReplay*(data: string, fileName: string): Replay =
       let inventory = agent.inventory[i]
       var gainMap = newSeq[ItemAmount]()
       let n = i mod 2
+      for j in 0 ..< items[n].len:
+        items[n][j] = 0
       for item in inventory:
         items[n][item.itemId] = item.count
       let m = 1 - n
