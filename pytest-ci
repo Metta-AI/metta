@@ -171,7 +171,7 @@ main() {
             package="."
         fi
         
-        echo -e "${GREEN}Running $1 package tests with CI settings${NC}"
+        echo -e "${GREEN}Running $package package tests with CI settings${NC}"
         run_ci_pytest "$package" "$@"
         
     else
