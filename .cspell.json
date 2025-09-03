@@ -195,10 +195,12 @@
     "pettingzoo",
     "PGID",
     "pipefail",
+    "PIPESTATUS",
     "pluginmanager",
     "policydash",
     "preauthorized",
     "prio",
+    "pufferl",
     "pufferlib",
     "pybind",
     "pycache",
@@ -296,9 +298,5 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": [
-    "node_modules",
-    "venv",
-    ".git"
-  ]
+  "ignorePaths": ["node_modules", "venv", ".git"]
 }

@@ -2,7 +2,9 @@
 
 ## Overview
 
-The new sweep orchestrator provides a stateless, distributed-friendly hyperparameter optimization system for Metta. It uses Protein (Bayesian optimization) to efficiently explore hyperparameter spaces and WandB for persistent state management.
+The new sweep orchestrator provides a stateless, distributed-friendly hyperparameter optimization system for Metta. It
+uses Protein (Bayesian optimization) to efficiently explore hyperparameter spaces and WandB for persistent state
+management.
 
 ## Quick Start
 
@@ -46,7 +48,7 @@ def my_custom_sweep(
     max_trials: int = 20,
 ) -> SweepOrchestratorTool:
     """Create a custom hyperparameter sweep."""
-    
+
     # Define parameters to sweep
     protein_config = ProteinConfig(
         metric="evaluator/eval_arena/score",  # Metric to optimize
@@ -73,7 +75,7 @@ def my_custom_sweep(
             max_suggestion_cost=300,  # Max seconds per trial
         ),
     )
-    
+
     return SweepOrchestratorTool(
         sweep_name=sweep_name,
         protein_config=protein_config,
@@ -95,8 +97,9 @@ def my_custom_sweep(
 ### Required Fields
 
 Each `ParameterConfig` requires:
+
 - `min`: Minimum value
-- `max`: Maximum value  
+- `max`: Maximum value
 - `distribution`: Distribution type
 - `mean`: Mean value (geometric mean for log_normal)
 - `scale`: Scale parameter (use "auto" for automatic scaling)
@@ -106,6 +109,7 @@ Each `ParameterConfig` requires:
 ### Via Logs
 
 The orchestrator provides detailed logging:
+
 ```
 [SweepOrchestrator] Starting sweep: my_sweep
 [SweepOrchestrator] Dispatching trial_0001: trainer.optimizer.learning_rate=0.001
@@ -115,6 +119,7 @@ The orchestrator provides detailed logging:
 ### Via WandB
 
 All sweep runs are grouped in WandB by sweep name. View them at:
+
 ```
 https://wandb.ai/YOUR_ENTITY/YOUR_PROJECT/groups/SWEEP_NAME
 ```
@@ -144,6 +149,7 @@ SweepOrchestratorTool(
 ### Optimization Methods
 
 The Protein optimizer supports three methods:
+
 - `"bayes"`: Bayesian optimization (default, most efficient)
 - `"random"`: Random search
 - `"genetic"`: Genetic algorithm for multi-objective optimization
@@ -159,6 +165,7 @@ uv run ./tools/run.py experiments.sweeps.standard.ppo \
 ```
 
 The orchestrator will:
+
 1. Fetch existing runs from WandB
 2. Continue from where it left off
 3. Schedule remaining trials
@@ -174,6 +181,7 @@ The orchestrator will:
 ### Debug Mode
 
 For debugging, modify `LocalDispatcher` in `sweep_orchestrator.py`:
+
 ```python
 # Comment out these lines to see subprocess output
 # stdout=subprocess.DEVNULL,
@@ -186,13 +194,13 @@ The new orchestrator is a complete replacement for the old Hydra-based sweep sys
 
 ### Key Differences
 
-| Old System | New System |
-|------------|------------|
-| Hydra configuration | Pydantic configuration |
-| Stateful controller | Stateless orchestrator |
-| Single machine only | Distributed-ready |
+| Old System               | New System                         |
+| ------------------------ | ---------------------------------- |
+| Hydra configuration      | Pydantic configuration             |
+| Stateful controller      | Stateless orchestrator             |
+| Single machine only      | Distributed-ready                  |
 | Basic grid/random search | Bayesian optimization with Protein |
-| File-based state | WandB-based persistent state |
+| File-based state         | WandB-based persistent state       |
 
 ### Benefits
 
@@ -211,6 +219,7 @@ The new orchestrator is a complete replacement for the old Hydra-based sweep sys
 ## API Reference
 
 See the docstrings in:
+
 - `metta/tools/sweep_orchestrator.py`: Main tool interface
 - `metta/sweep/sweep_orchestrator.py`: Core orchestration logic
 - `metta/sweep/protein_config.py`: Parameter configuration
