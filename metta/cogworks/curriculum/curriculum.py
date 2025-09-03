@@ -10,8 +10,9 @@ from typing import ClassVar, Optional, Union
 import numpy as np
 from pydantic import ConfigDict, Field
 
-from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig
+from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
 from metta.common.config import Config
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
 def get_algorithm_hypers_discriminator(v):
@@ -71,6 +72,12 @@ class CurriculumAlgorithmConfig(Config, ABC):
         validate_assignment=True,
         populate_by_name=True,
     )
+
+    @classmethod
+    def from_mg(cls, mg_config: MettaGridConfig) -> CurriculumConfig:
+        return cls(
+            task_generator=SingleTaskGeneratorConfig(env=mg_config),
+        )
 
 
 class CurriculumAlgorithm(ABC):

@@ -37,8 +37,8 @@ class TestCurriculumEnv:
             {},  # infos
         )
 
-        mock_env.get_episode_rewards = Mock(return_value=np.array([1.0, 2.0]))
-        mock_env.set_env_config = Mock()
+        mock_env.get_episode_rewards = Mock(return_value=np.array([1.0, 2.0]))  # Add get_episode_rewards method
+        mock_env.set_mg_config = Mock()  # Add set_mg_config method
         return mock_env
 
     def test_curriculum_env_creation(self):
@@ -148,22 +148,61 @@ class TestCurriculumEnv:
             {},
         )
         mock_env.get_episode_rewards.return_value = rewards
-        mock_env.set_env_config = Mock()
+        mock_env.set_mg_config = Mock()
 
         task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
+
+        initial_task = wrapper._current_task
+        initial_completions = initial_task._num_completions
+
+        # Step the environment
+        _ = wrapper.step([1, 0])
+
+        # Should call env.step
+        mock_env.step.assert_called_once_with([1, 0])
+
+        # Task should have been completed with mean reward
+        assert initial_task._num_completions == initial_completions + 1
+        assert abs(initial_task._total_score - 0.85) < 1e-10  # (0.8 + 0.9) / 2
+
+        # Should have gotten a new task
+        assert wrapper._current_task is not initial_task
+        assert isinstance(wrapper._current_task, CurriculumTask)
+
+        # Should have set new env config
+        mock_env.set_mg_config.assert_called_once_with(wrapper._current_task.get_env_cfg())
+
+    def test_curriculum_env_step_with_truncation(self):
+        """Test step method when episode truncates."""
+        mock_env = self.create_mock_env()
+        # Set up truncation condition
+        mock_env.step.return_value = (
+            np.array([1, 2, 3]),
+            np.array([0.6, 0.4]),
+            np.array([False, False]),
+            np.array([True, True]),  # Both truncated
+            {},
+        )
+        # Set up get_episode_rewards to return matching values
+        mock_env.get_episode_rewards.return_value = np.array([0.6, 0.4])
+
+        curriculum = self.create_test_curriculum()
+        wrapper = CurriculumEnv(mock_env, curriculum)
         initial_task = wrapper._current_task
 
         # Step with appropriate number of agent actions
+        rewards = np.array([0.6, 0.4])  # From mock setup above
         if len(rewards) == 1:
             wrapper.step([1])
         else:
             wrapper.step([[0, 0]] * len(rewards))
 
         # Check that task was completed with correct mean reward
+        expected_mean = np.mean(rewards)  # 0.5
         assert initial_task._num_completions == 1
         assert abs(initial_task._total_score - expected_mean) < 1e-6
 
@@ -240,7 +279,7 @@ class TestCurriculumEnv:
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.0, 0.0]))
-        mock_env.set_env_config = Mock()
+        mock_env.set_mg_config = Mock()
 
         task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
@@ -268,7 +307,7 @@ class TestCurriculumEnv:
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.8]))
-        mock_env.set_env_config = Mock()
+        mock_env.set_mg_config = Mock()
 
         task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
@@ -295,7 +334,7 @@ class TestCurriculumEnv:
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.7, 0.3]))
-        mock_env.set_env_config = Mock()
+        mock_env.set_mg_config = Mock()
 
         task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)

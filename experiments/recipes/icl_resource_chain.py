@@ -7,6 +7,7 @@ from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGenerato
 from metta.mettagrid.config import empty_converters
 from metta.mettagrid.config.envs import make_icl_resource_chain
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -156,7 +157,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         return icl_env
 
 
-def make_env() -> MettaGridConfig:
+def make_mettagrid() -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[6],
         num_sinks=[2],
@@ -180,6 +181,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     )
 
     trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
@@ -192,7 +194,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_env()
+    eval_env = env or make_mettagrid()
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -202,7 +204,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_env()
+    eval_env = env or make_mettagrid()
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,

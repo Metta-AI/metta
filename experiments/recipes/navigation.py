@@ -10,6 +10,7 @@ from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -45,7 +46,7 @@ def _default_run_name() -> str:
         return f"navigation.{user}.{timestamp}"
 
 
-def make_env(num_agents: int = 4) -> MettaGridConfig:
+def make_mettagrid(num_agents: int = 4) -> MettaGridConfig:
     nav = eb.make_navigation(num_agents=num_agents)
 
     nav.game.map_builder = MapGen.Config(
@@ -62,7 +63,7 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
 
 
 def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
-    nav_env = nav_env or make_env()
+    nav_env = nav_env or make_mettagrid()
 
     # make a set of training tasks for navigation
     nav_tasks = cc.bucketed(nav_env)
@@ -107,6 +108,7 @@ def train(
         run = _default_run_name()
 
     trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
@@ -117,7 +119,7 @@ def train(
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_env()
+    eval_env = env or make_mettagrid()
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -127,7 +129,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_env()
+    eval_env = env or make_mettagrid()
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,

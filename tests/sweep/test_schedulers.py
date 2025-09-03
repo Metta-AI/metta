@@ -1,5 +1,7 @@
 """Tests for sweep schedulers."""
 
+from metta.sweep.optimizer.protein import ProteinOptimizer
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
 from metta.sweep.scheduler.sequential import SequentialScheduler, SequentialSchedulerConfig
 from metta.sweep.sweep_orchestrator import (
@@ -15,9 +17,6 @@ class TestOptimizingScheduler:
 
     def test_optimizing_scheduler_initialization(self):
         """Test that OptimizingScheduler initializes correctly."""
-        from metta.sweep.optimizer.protein import ProteinOptimizer
-        from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-
         # Use proper ParameterConfig like in standard.py
         protein_config = ProteinConfig(
             metric="test_metric",
@@ -51,9 +50,6 @@ class TestOptimizingScheduler:
 
     def test_optimizing_scheduler_suggest_flow(self):
         """Test that OptimizingScheduler gets suggestions from optimizer."""
-        from metta.sweep.optimizer.protein import ProteinOptimizer
-        from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-
         # Create protein config with proper ParameterConfig
         protein_config = ProteinConfig(
             metric="test_metric",
@@ -93,9 +89,6 @@ class TestOptimizingScheduler:
 
     def test_optimizing_scheduler_completion_detection(self):
         """Test that OptimizingScheduler detects when all trials are complete."""
-        from metta.sweep.optimizer.protein import ProteinOptimizer
-        from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",

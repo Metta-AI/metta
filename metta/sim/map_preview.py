@@ -9,6 +9,7 @@ import wandb
 from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
+from metta.common.util.fs import get_repo_root
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import write_file
@@ -40,7 +41,8 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
 
 
 def write_local_map_preview(env: MettaGridEnv):
-    maps_dir = "./outputs/maps"
+    repo_root = get_repo_root()
+    maps_dir = repo_root / "outputs" / "maps"
     os.makedirs(maps_dir, exist_ok=True)
 
     with tempfile.NamedTemporaryFile(delete=False, dir=maps_dir, suffix=".json") as temp_file:

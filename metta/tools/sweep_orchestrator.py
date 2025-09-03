@@ -6,7 +6,7 @@ import uuid
 from typing import Any, Optional
 
 from metta.common.config.tool import Tool
-from metta.common.util.logging_helpers import init_file_logging, init_logging
+from metta.common.util.log_config import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
@@ -98,7 +98,6 @@ class SweepOrchestratorTool(Tool):
         os.makedirs(self.sweep_dir, exist_ok=True)
 
         # Initialize logging
-        init_file_logging(run_dir=self.sweep_dir)
         init_logging(run_dir=self.sweep_dir)
 
         logger.info("[SweepOrchestrator] " + "=" * 60)
