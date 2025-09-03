@@ -65,7 +65,7 @@ class TestInitialization:
     def test_custom_logger(self):
         """Test initialization with custom logger"""
         custom_logger = logging.getLogger("test_logger")
-        monitor = SystemMonitor(logger=custom_logger, auto_start=False)
+        monitor = SystemMonitor(log_level=custom_logger.getEffectiveLevel(), auto_start=False)
 
         assert monitor.logger == custom_logger
 
