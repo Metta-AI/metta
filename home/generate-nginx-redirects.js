@@ -20,12 +20,22 @@ linksConfig.links.forEach(link => {
   }
 });
 
+const version = Date.now().toString(36);
+
 allItems.forEach(item => {
   item.short_urls.forEach(shortUrl => {
-    allRedirects.push(`    location = /${shortUrl} {
-        set $target_url "${item.url}"; # need this so that item.url gets evaluated for string interpolation
-        return 301 $target_url;
-    }`);
+    const hasUsername = item.url.includes('$username');
+
+    const lines = [
+      `    location = /${shortUrl} {`,
+      `        set $target_url "${item.url}";`,
+      `        add_header X-Redirect-Version "${version}";`,
+      hasUsername && `        add_header Vary "X-Auth-Request-Email";`,
+      `        return 301 $target_url;`,
+      `    }`
+    ].filter(Boolean);
+
+    allRedirects.push(lines.join('\n'));
   });
 });
 
@@ -34,8 +44,9 @@ const redirects = allRedirects.join('\n');
 // Read the nginx config template
 const nginxTemplate = fs.readFileSync('nginx.conf.template', 'utf8');
 
-// Replace the placeholder with actual redirects
-const nginxConfig = nginxTemplate.replace('    # SHORTLINK_REDIRECTS_PLACEHOLDER', redirects);
+// Replace placeholders with actual values
+let nginxConfig = nginxTemplate.replace('    # SHORTLINK_REDIRECTS_PLACEHOLDER', redirects);
+nginxConfig = nginxConfig.replace('BUILD_VERSION_PLACEHOLDER', version);
 
 // Write the final nginx.conf
 fs.writeFileSync('nginx.conf', nginxConfig);
