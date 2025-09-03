@@ -408,3 +408,80 @@ pytest
 | Dry-run (print config)      | `./tools/run.py experiments.recipes.arena.train --args run=my_experiment --dry-run`                    |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.
+
+## Quick Start with RL Environment
+
+For a quick introduction to using the MettaGrid RL environment, try the simple demo:
+
+```bash
+./simple_rl_demo.py
+```
+
+This demo shows:
+- How to create and configure a MettaGrid environment
+- Understanding observation and action spaces
+- Running a basic RL loop with random actions
+- Handling episode termination and reset
+
+### Writing Your Own RL Loops
+
+The MettaGrid environment supports multiple interfaces:
+
+#### Single-Agent (Gymnasium)
+```python
+from metta.mettagrid import MettaGridGymEnv
+from metta.mettagrid.config.envs import make_arena
+
+# Create single-agent environment
+env = MettaGridGymEnv(mg_config=make_arena(num_agents=1))
+
+# Basic RL loop
+observation, info = env.reset()
+for step in range(1000):
+    action = env.action_space.sample()  # Your RL algorithm here
+    observation, reward, terminated, truncated, info = env.step(action)
+    if terminated or truncated:
+        observation, info = env.reset()
+```
+
+#### Multi-Agent (PettingZoo)
+```python
+from metta.mettagrid import MettaGridPettingZooEnv, MettaGridConfig
+
+# Create multi-agent environment
+env = MettaGridPettingZooEnv(mg_config=MettaGridConfig())
+
+# Multi-agent RL loop
+observations, infos = env.reset()
+while env.agents:
+    actions = {agent: env.action_space(agent).sample() for agent in env.agents}
+    observations, rewards, terminations, truncations, infos = env.step(actions)
+```
+
+#### Environment Configuration
+
+Customize your environment using the config system:
+
+```python
+from metta.mettagrid.config.envs import make_arena, make_navigation
+
+# Arena environment with combat
+arena_config = make_arena(num_agents=4, combat=True)
+
+# Navigation-focused environment
+nav_config = make_navigation(num_agents=2)
+```
+
+### Action and Observation Spaces
+
+- **Actions**: MultiDiscrete space with shape (2,) representing [action_type, action_argument]
+  - Action types include: move, rotate, attack, use objects, etc.
+  - Action arguments specify direction, target, or other parameters
+- **Observations**: Box space containing multi-channel grid observations
+  - Includes agent positions, object locations, resource states, etc.
+  - Shape varies based on environment configuration
+
+For more advanced examples and training integration, see:
+- `mettagrid/demos/` - Framework-specific demos
+- `experiments/recipes/` - Training configurations
+- [MettaGrid Environment Documentation](mettagrid/README.md)
