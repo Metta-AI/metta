@@ -11,7 +11,6 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
-from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.checkpoint_manager import CheckpointManager

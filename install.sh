@@ -29,14 +29,16 @@ while [ $# -gt 0 ]; do
       echo "  3. Installs components"
       echo ""
       echo "Options:"
-      echo "  --profile PROFILE      Set user profile (external, cloud, or softmax)"
-      echo "                         If not specified, runs interactive configuration"
-      echo "  --non-interactive      Run in non-interactive mode (no prompts)"
+      echo "  --profile PROFILE      Set user profile (external, softmax)"
+      echo "                         If not specified, shows interactive menu"
+      echo "  --non-interactive      Run in non-interactive mode (uses 'external' defaults)"
       echo "  -h, --help             Show this help message"
       echo ""
       echo "Examples:"
-      echo "  $0                     # Interactive setup"
-      echo "  $0 --profile=softmax   # Setup for Softmax employee"
+      echo "  $0                           # Interactive menu: choose defaults or full wizard"
+      echo "  $0 --profile=softmax         # Quick setup for Softmax employees"
+      echo "  $0 --profile=external        # Quick setup for external users"
+      echo "  $0 --non-interactive         # Automated setup with external defaults"
       exit 0
       ;;
     *)
@@ -65,9 +67,43 @@ uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up me
 if [ ! -f "$REPO_ROOT/.metta/config.yaml" ] && [ ! -f "$HOME/.metta/config.yaml" ]; then
   echo "No configuration found, running setup wizard..."
   if [ -n "$PROFILE" ]; then
+    # Use provided profile directly
     uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" $NON_INTERACTIVE || err "Failed to run configuration"
   else
-    uv run python -m metta.setup.metta_cli configure $NON_INTERACTIVE || err "Failed to run configuration"
+    if [ "$NON_INTERACTIVE" = "--non-interactive" ]; then
+      # In non-interactive mode, use external profile as default
+      echo "Non-interactive mode: using 'external' profile defaults"
+      uv run python -m metta.setup.metta_cli configure --profile="external" $NON_INTERACTIVE || err "Failed to run configuration"
+    else
+      # Interactive mode: ask user what they want to do
+      echo ""
+      echo "Configuration options:"
+      echo "  1) Quick setup with defaults for external users"
+      echo "  2) Quick setup with defaults for Softmax employees"  
+      echo "  3) Full configuration wizard (customize everything)"
+      echo ""
+      printf "Choose an option [1-3]: "
+      read -r choice
+      
+      case "$choice" in
+        1)
+          echo "Using external user defaults..."
+          uv run python -m metta.setup.metta_cli configure --profile="external" $NON_INTERACTIVE || err "Failed to run configuration"
+          ;;
+        2)
+          echo "Using Softmax employee defaults..."
+          uv run python -m metta.setup.metta_cli configure --profile="softmax" $NON_INTERACTIVE || err "Failed to run configuration"
+          ;;
+        3)
+          echo "Starting full configuration wizard..."
+          uv run python -m metta.setup.metta_cli configure $NON_INTERACTIVE || err "Failed to run configuration"
+          ;;
+        *)
+          echo "Invalid choice. Using external user defaults..."
+          uv run python -m metta.setup.metta_cli configure --profile="external" $NON_INTERACTIVE || err "Failed to run configuration"
+          ;;
+      esac
+    fi
   fi
 else
   if [ -f "$REPO_ROOT/.metta/config.yaml" ]; then
