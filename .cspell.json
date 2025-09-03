@@ -288,11 +288,16 @@
     "wyhash",
     "wymix",
     "wymum",
+    "xcxc",
     "xdist",
     "xlarge",
     "yrange",
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }
