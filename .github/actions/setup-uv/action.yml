@@ -101,7 +101,10 @@ runs:
               uv pip install "$dep"
             fi
           done
-        elif [ -n "${{ inputs.dependencies-files }}" ]; then
+        else
+          echo "No extra inline pip dependencies specified
+        fi
+        if [ -n "${{ inputs.dependencies-files }}" ]; then
           echo "Installing dependencies from files:"
           echo "${{ inputs.dependencies-files }}" | while read -r dep_file; do
             if [ -n "$dep_file" ] && [ -f "$dep_file" ]; then
@@ -112,5 +115,5 @@ runs:
             fi
           done
         else
-          echo "No extra dependencies specified - skipping dependency installation"
+          echo "No extra pip dependencies files specified
         fi
