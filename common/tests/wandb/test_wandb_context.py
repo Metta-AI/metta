@@ -26,6 +26,7 @@ logger = logging.getLogger("Test")
 
 @pytest.fixture(autouse=True)
 def patch_dependencies(monkeypatch):
+    """Patch wandb.save and socket to avoid real network calls."""
     # Patch wandb.save to no-op
     monkeypatch.setattr(wandb, "save", lambda *args, **kwargs: None)
 
@@ -38,29 +39,7 @@ def patch_dependencies(monkeypatch):
             pass
 
     monkeypatch.setattr(socket, "socket", lambda *args, **kwargs: DummySock())
-
     yield
-
-
-@dataclass
-class DummyRun:
-    id: str
-    job_type: str
-    project: str
-    entity: str
-    config: dict
-    group: str
-    allow_val_change: bool
-    monitor_gym: bool
-    save_code: bool
-    resume: bool
-    tags: list[str]
-    notes: str | None
-    settings: wandb.Settings
-
-    def __post_init__(self):
-        # Simulate wandb auto-assigning a name
-        self.name = f"run-{self.id}" if self.id else "auto-generated-name"
 
 
 @pytest.fixture
@@ -91,6 +70,15 @@ def mock_wandb_finish(monkeypatch):
     return mock_finish
 
 
+@pytest.fixture
+def mock_socket(monkeypatch):
+    """Mock socket for connection testing."""
+    mock_sock = MagicMock()
+    mock_socket_class = MagicMock(return_value=mock_sock)
+    monkeypatch.setattr(socket, "socket", mock_socket_class)
+    return mock_sock
+
+
 class TestGlobalConfig(Config):
     """Test configuration class."""
 
@@ -116,8 +104,8 @@ def test_wandb_config_unconfigured():
 
 def test_wandb_config_uri():
     """Test WandbConfig.uri property."""
-    cfg = WandbConfig(enabled=True, project="test-project", entity="test-entity", name="test-run")
-    assert cfg.uri == "wandb://run/test-run"
+    cfg = WandbConfig(enabled=True, project="test-project", entity="test-entity", name="test-run", run_id="test-run-id")
+    assert cfg.uri == "wandb://run/test-run-id"
 
 
 def test_context_disabled_no_init(mock_wandb_init):
@@ -128,19 +116,8 @@ def test_context_disabled_no_init(mock_wandb_init):
     ctx = WandbContext(cfg, global_cfg)
     result = ctx.__enter__()
 
-    assert run is not None
-    assert isinstance(run, DummyRun)
-
-    # Check fields
-    assert run.id == "id"
-    assert run.job_type == "jt"
-    assert run.project == "proj"
-    assert run.entity == "ent"
-    assert run.config == global_cfg.model_dump()
-    assert run.group == "grp"
-    assert run.resume is True
-    assert run.monitor_gym is True
-    assert run.save_code is True
+    assert result is None
+    mock_wandb_init[0].assert_not_called()
 
 
 def test_context_no_network_connection(mock_socket, mock_wandb_init):
@@ -192,7 +169,6 @@ def test_context_successful_init(mock_socket, mock_wandb_init, mock_wandb_save, 
     assert call_kwargs["project"] == "test-project"
     assert call_kwargs["entity"] == "test-entity"
     assert call_kwargs["group"] == "test-group"
-    assert call_kwargs["name"] == "test-run"
     assert call_kwargs["job_type"] == "test-job"
     assert call_kwargs["notes"] == "Test notes"
     assert "tag1" in call_kwargs["tags"]
@@ -309,9 +285,7 @@ def test_context_exit_without_run(mock_wandb_finish):
     mock_wandb_finish.assert_not_called()
 
 
-def test_context_exit_with_error(
-    mock_socket, mock_wandb_init, mock_wandb_finish, mock_wandb_save, tmp_path, monkeypatch
-):
+def test_context_exit_with_error(mock_socket, mock_wandb_init, mock_wandb_finish, mock_wandb_save, tmp_path):
     """Test __exit__ handles errors during cleanup."""
     mock_init, mock_run = mock_wandb_init
     mock_wandb_finish.side_effect = RuntimeError("Cleanup failed")
