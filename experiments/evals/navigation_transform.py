@@ -1,8 +1,19 @@
-"""Navigation evaluation suite with map transformations.
+"""Navigation evaluation suite with composable map transformations.
 
-This is a variant of navigation.py that applies transformations (rotation, mirroring, stretching)
-to the ASCII maps. Each transformation can be enabled/disabled via the configuration flags below.
+This module generates, per ASCII map, a set of transformed variants
+without requiring manual enumeration in the return list.
+
+Example naming per map:
+  knotty -> {knotty, knotty_90, knotty_180, knotty_270, knotty_hflip, knotty_vflip, knotty_sx2, knotty_sy2, knotty_sxy2}
+
+You can choose which transformation families to include by passing
+`transform_set` and whether to include combinations (`transform_combo`).
+By default we include a single transformation per map (no combos).
 """
+
+from dataclasses import dataclass
+from itertools import product
+from typing import Callable, Iterable
 
 from metta.mettagrid.config.envs import make_navigation
 from metta.mettagrid.mapgen.mapgen import MapGen
@@ -15,64 +26,55 @@ from metta.mettagrid.mapgen.utils.ascii_transform import (
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
 
-# ============================================================================
-# TRANSFORMATION CONFIGURATION
-# Set these flags to control which transformations are applied to the maps
-# ============================================================================
 
-# Rotation (clockwise)
-ENABLE_ROTATE_90 = False  # Rotate maps 90 degrees clockwise
-ENABLE_ROTATE_180 = False  # Rotate maps 180 degrees
-ENABLE_ROTATE_270 = False  # Rotate maps 270 degrees
+@dataclass(frozen=True)
+class Transform:
+    """Describes a single map transformation and its naming suffix."""
 
-# Mirroring
-ENABLE_MIRROR_HORIZONTAL = False  # Mirror left-right
-ENABLE_MIRROR_VERTICAL = False  # Mirror top-bottom
-
-# Stretching (2x scale)
-ENABLE_STRETCH_HORIZONTAL = False  # Double width (scale_x=2)
-ENABLE_STRETCH_VERTICAL = False  # Double height (scale_y=2)
-ENABLE_STRETCH_BOTH = False  # Double both dimensions (scale_x=2, scale_y=2)
-
-# ============================================================================
+    name: str
+    suffix: str
+    apply: Callable[[str], str]  # takes map content, returns transformed content
 
 
-def _apply_transformations(ascii_map_path: str) -> str:
-    """Load and optionally transform an ASCII map based on configuration flags.
+# Families of single transformations (clockwise rotations, flips, and 2x stretch)
+# Comment out transformations you don't want to use
+ROTATIONS: list[Transform] = [
+    Transform(name="rotate", suffix="90", apply=lambda s: rotate_ascii_map(s, 90)),
+    Transform(name="rotate", suffix="180", apply=lambda s: rotate_ascii_map(s, 180)),
+    Transform(name="rotate", suffix="270", apply=lambda s: rotate_ascii_map(s, 270)),
+]
 
-    Args:
-        ascii_map_path: Path to the ASCII map file
+MIRRORS: list[Transform] = [
+    Transform(
+        name="mirror", suffix="hflip", apply=lambda s: mirror_ascii_map(s, "horizontal")
+    ),
+    Transform(
+        name="mirror", suffix="vflip", apply=lambda s: mirror_ascii_map(s, "vertical")
+    ),
+]
 
-    Returns:
-        Transformed ASCII map content as a string
-    """
-    # Read the original map
+STRETCHES: list[Transform] = [
+    Transform(
+        name="stretch",
+        suffix="sx2",
+        apply=lambda s: stretch_ascii_map(s, scale_x=2, scale_y=1),
+    ),
+    Transform(
+        name="stretch",
+        suffix="sy2",
+        apply=lambda s: stretch_ascii_map(s, scale_x=1, scale_y=2),
+    ),
+    Transform(
+        name="stretch",
+        suffix="sxy2",
+        apply=lambda s: stretch_ascii_map(s, scale_x=2, scale_y=2),
+    ),
+]
+
+
+def _load_map_content(ascii_map_path: str) -> str:
     with open(ascii_map_path, "r", encoding="utf-8") as f:
-        map_content = f.read().strip()
-
-    # Apply rotation if enabled
-    if ENABLE_ROTATE_90:
-        map_content = rotate_ascii_map(map_content, 90)
-    elif ENABLE_ROTATE_180:
-        map_content = rotate_ascii_map(map_content, 180)
-    elif ENABLE_ROTATE_270:
-        map_content = rotate_ascii_map(map_content, 270)
-
-    # Apply mirroring if enabled
-    if ENABLE_MIRROR_HORIZONTAL:
-        map_content = mirror_ascii_map(map_content, "horizontal")
-    if ENABLE_MIRROR_VERTICAL:
-        map_content = mirror_ascii_map(map_content, "vertical")
-
-    # Apply stretching if enabled (only one stretch mode at a time)
-    if ENABLE_STRETCH_BOTH:
-        map_content = stretch_ascii_map(map_content, scale_x=2, scale_y=2)
-    elif ENABLE_STRETCH_HORIZONTAL:
-        map_content = stretch_ascii_map(map_content, scale_x=2, scale_y=1)
-    elif ENABLE_STRETCH_VERTICAL:
-        map_content = stretch_ascii_map(map_content, scale_x=1, scale_y=2)
-
-    return map_content
+        return f.read().strip()
 
 
 def _save_transformed_map(transformed_content: str, original_path: str) -> str:
@@ -114,41 +116,111 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     return env
 
 
-def make_nav_ascii_env(
-    name: str, max_steps: int, border_width: int = 1, num_agents=4
+def _build_env_from_ascii_path(
+    ascii_path: str, max_steps: int, border_width: int = 1, num_agents: int = 4
 ) -> MettaGridConfig:
-    original_ascii_map = f"mettagrid/configs/maps/navigation/{name}.map"
-
-    # Apply transformations if any are enabled
-    any_transformations = any(
-        [
-            ENABLE_ROTATE_90,
-            ENABLE_ROTATE_180,
-            ENABLE_ROTATE_270,
-            ENABLE_MIRROR_HORIZONTAL,
-            ENABLE_MIRROR_VERTICAL,
-            ENABLE_STRETCH_HORIZONTAL,
-            ENABLE_STRETCH_VERTICAL,
-            ENABLE_STRETCH_BOTH,
-        ]
-    )
-
-    if any_transformations:
-        transformed_content = _apply_transformations(original_ascii_map)
-        ascii_map = _save_transformed_map(transformed_content, original_ascii_map)
-    else:
-        ascii_map = original_ascii_map
-
     env = make_navigation(num_agents=num_agents)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGen.Config(
         instances=num_agents,
         border_width=6,
         instance_border_width=3,
-        instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
+        instance_map=MapGen.Config.with_ascii_uri(
+            ascii_path, border_width=border_width
+        ),
     )
-
     return make_nav_eval_env(env)
+
+
+def apply_transformations(
+    name: str,
+    max_steps: int,
+    *,
+    transform_set: Iterable[str] | str = "all",
+    transform_combo: bool = False,
+    include_original: bool = True,
+    border_width: int = 1,
+    num_agents: int = 4,
+) -> list[SimulationConfig]:
+    """Generate a list of SimulationConfigs for one map with selected transforms.
+
+    - transform_set: "all" | Iterable of families ("rotation", "mirror", "stretch")
+    - transform_combo: if True, also include pairwise combinations of families (off by default)
+    - include_original: include the unmodified base map
+    """
+    original_ascii_map = f"mettagrid/configs/maps/navigation/{name}.map"
+    original_content = _load_map_content(original_ascii_map)
+
+    families: dict[str, list[Transform]] = {
+        "rotation": ROTATIONS,
+        "mirror": MIRRORS,
+        "stretch": STRETCHES,
+    }
+
+    if transform_set == "all":
+        selected_families = list(families.keys())
+    else:
+        selected_families = [fam for fam in transform_set if fam in families]
+
+    sims: list[SimulationConfig] = []
+
+    # Baseline (no transform)
+    if include_original:
+        sims.append(
+            SimulationConfig(
+                name=name,
+                env=_build_env_from_ascii_path(
+                    original_ascii_map, max_steps, border_width, num_agents
+                ),
+            )
+        )
+
+    # Single-family transforms
+    for fam in selected_families:
+        for t in families[fam]:
+            transformed = t.apply(original_content)
+            tmp_path = _save_transformed_map(transformed, original_ascii_map)
+            sims.append(
+                SimulationConfig(
+                    name=f"{name}_{t.suffix}",
+                    env=_build_env_from_ascii_path(
+                        tmp_path, max_steps, border_width, num_agents
+                    ),
+                )
+            )
+
+    # Optional: simple combinations (rotation x mirror x stretch), single op from each
+    if transform_combo:
+        # Restrict to one from each selected family, generate Cartesian product
+        pools: list[list[Transform]] = [families[f] for f in selected_families]
+        for combo in product(*pools):
+            # Apply in the standard order: rotation -> mirror -> stretch
+            content = original_content
+            suffix_parts: list[str] = []
+            # Enforce order using family names
+            by_family = {c.name: c for c in combo}
+            if "rotate" in by_family:
+                content = by_family["rotate"].apply(content)
+                suffix_parts.append(by_family["rotate"].suffix)
+            if "mirror" in by_family:
+                content = by_family["mirror"].apply(content)
+                suffix_parts.append(by_family["mirror"].suffix)
+            if "stretch" in by_family:
+                content = by_family["stretch"].apply(content)
+                suffix_parts.append(by_family["stretch"].suffix)
+
+            suffix = "_".join(suffix_parts)
+            tmp_path = _save_transformed_map(content, original_ascii_map)
+            sims.append(
+                SimulationConfig(
+                    name=f"{name}_{suffix}",
+                    env=_build_env_from_ascii_path(
+                        tmp_path, max_steps, border_width, num_agents
+                    ),
+                )
+            )
+
+    return sims
 
 
 def make_emptyspace_sparse_env() -> MettaGridConfig:
@@ -173,52 +245,52 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
 
 
 def make_navigation_eval_suite() -> list[SimulationConfig]:
-    """Create the navigation evaluation suite with optional transformations.
+    """Create the navigation evaluation suite with per-map transformed variants.
 
-    Note: Transformations are applied to all ASCII map-based environments based on
-    the configuration flags at the top of this file.
+    For each ASCII map, include: original + all single transforms from
+    selected families (rotation, mirror, stretch). Combinations are disabled
+    by default to limit explosion of variants.
     """
-    return [
-        SimulationConfig(name="corridors", env=make_nav_ascii_env("corridors", 450)),
-        SimulationConfig(
-            name="cylinder_easy", env=make_nav_ascii_env("cylinder_easy", 250)
-        ),
-        SimulationConfig(name="cylinder", env=make_nav_ascii_env("cylinder", 250)),
-        SimulationConfig(name="honeypot", env=make_nav_ascii_env("honeypot", 300)),
-        SimulationConfig(name="knotty", env=make_nav_ascii_env("knotty", 500)),
-        SimulationConfig(
-            name="memory_palace", env=make_nav_ascii_env("memory_palace", 200)
-        ),
-        SimulationConfig(name="obstacles0", env=make_nav_ascii_env("obstacles0", 100)),
-        SimulationConfig(name="obstacles1", env=make_nav_ascii_env("obstacles1", 300)),
-        SimulationConfig(name="obstacles2", env=make_nav_ascii_env("obstacles2", 350)),
-        SimulationConfig(name="obstacles3", env=make_nav_ascii_env("obstacles3", 300)),
-        SimulationConfig(
-            name="radial_large", env=make_nav_ascii_env("radial_large", 1000)
-        ),
-        SimulationConfig(
-            name="radial_mini", env=make_nav_ascii_env("radial_mini", 150)
-        ),
-        SimulationConfig(
-            name="radial_small", env=make_nav_ascii_env("radial_small", 120)
-        ),
-        SimulationConfig(
-            name="radial_maze", env=make_nav_ascii_env("radial_maze", 200)
-        ),
-        SimulationConfig(name="swirls", env=make_nav_ascii_env("swirls", 350)),
-        SimulationConfig(name="thecube", env=make_nav_ascii_env("thecube", 350)),
-        SimulationConfig(name="walkaround", env=make_nav_ascii_env("walkaround", 250)),
-        SimulationConfig(name="wanderout", env=make_nav_ascii_env("wanderout", 500)),
-        SimulationConfig(
-            name="emptyspace_outofsight",
-            env=make_nav_ascii_env("emptyspace_outofsight", 150),
-        ),
-        SimulationConfig(
-            name="walls_outofsight", env=make_nav_ascii_env("walls_outofsight", 250)
-        ),
-        SimulationConfig(
-            name="walls_withinsight", env=make_nav_ascii_env("walls_withinsight", 120)
-        ),
-        SimulationConfig(name="labyrinth", env=make_nav_ascii_env("labyrinth", 250)),
-        SimulationConfig(name="emptyspace_sparse", env=make_emptyspace_sparse_env()),
-    ]
+    sims: list[SimulationConfig] = []
+
+    # Helper to add a map with variants
+    def transform_map(name: str, max_steps: int):
+        sims.extend(
+            apply_transformations(
+                name,
+                max_steps,
+                transform_set="all",  # rotation + mirror + stretch
+                transform_combo=False,  # only single transform per map
+                include_original=True,
+            )
+        )
+
+    transform_map("corridors", 450)
+    transform_map("cylinder_easy", 250)
+    transform_map("cylinder", 250)
+    transform_map("honeypot", 300)
+    transform_map("knotty", 500)
+    transform_map("memory_palace", 200)
+    transform_map("obstacles0", 100)
+    transform_map("obstacles1", 300)
+    transform_map("obstacles2", 350)
+    transform_map("obstacles3", 300)
+    transform_map("radial_large", 1000)
+    transform_map("radial_mini", 150)
+    transform_map("radial_small", 120)
+    transform_map("radial_maze", 200)
+    transform_map("swirls", 350)
+    transform_map("thecube", 350)
+    transform_map("walkaround", 250)
+    transform_map("wanderout", 500)
+    transform_map("emptyspace_outofsight", 150)
+    transform_map("walls_outofsight", 250)
+    transform_map("walls_withinsight", 120)
+    transform_map("labyrinth", 250)
+
+    # Non-ASCII procedural env left unchanged
+    sims.append(
+        SimulationConfig(name="emptyspace_sparse", env=make_emptyspace_sparse_env())
+    )
+
+    return sims
