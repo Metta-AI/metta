@@ -503,7 +503,3 @@ class TestWandbArtifactFormatting:
                 # Verify the artifact upload happened
                 mock_run.log_artifact.assert_called_once_with(mock_artifact)
                 mock_artifact.wait.assert_called_once()
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
