@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 import subprocess
 
@@ -101,7 +102,12 @@ class NodejsSetup(SetupModule):
             warning(f"pnpm setup returned non-zero exit code: {e}. Continuing...")
 
         # Set PNPM_HOME for current process if pnpm setup configured it
-        pnpm_home = os.path.expanduser("~/.local/share/pnpm")
+        # Use platform-specific default locations
+        if platform.system() == "Darwin":
+            pnpm_home = os.path.expanduser("~/Library/pnpm")
+        else:
+            pnpm_home = os.path.expanduser("~/.local/share/pnpm")
+
         if os.path.exists(pnpm_home):
             info(f"Setting PNPM_HOME to {pnpm_home} for current process")
             os.environ["PNPM_HOME"] = pnpm_home
