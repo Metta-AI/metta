@@ -213,6 +213,7 @@ def main():
         GITHUB_PAT=args.github_pat,
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
         DISCORD_WEBHOOK_URL=args.discord_webhook_url,
+        TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
         TEST_NCCL="true" if args.run_ci_tests else "false",
     )
 

@@ -342,6 +342,12 @@ def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, 
         description = f"Job ran successfully for {max_runtime_hours} hours"
         final_exit_code = EXIT_SUCCESS  # Prevent SkyPilot restart
 
+    elif termination_reason == "force_restart_test":
+        logger.info("Job restarting to simulate a node failure")
+        state = "pending"
+        description = f"Forced a restart test (restart count: {restart_count + 1})"
+        final_exit_code = EXIT_FAILURE  # Cause SkyPilot restart
+
     elif not termination_reason and exit_code == EXIT_SUCCESS:
         logger.info("Job completed successfully")
         state = "success"
@@ -447,6 +453,9 @@ def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
         send_wandb_alert_notification(state, description)
     elif exit_code == EXIT_NCCL_TEST_FAILURE:
         send_discord_notification("🔧", "SkyPilot Job NCCL Config Error", description, "")
+        send_wandb_alert_notification(state, description)
+    elif exit_code != EXIT_SUCCESS and termination_reason != "force_restart_test":
+        send_discord_notification("❌", "SkyPilot Job Failed", description, "")
         send_wandb_alert_notification(state, description)
     elif state == "success":
         # Only W&B gets success notifications
