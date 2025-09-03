@@ -712,6 +712,7 @@ export function sendAction(actionName: string, actionParam: number) {
       console.error('Action not found: ', actionName)
       return
     }
+    console.log(`Sending action: ${actionName}(${actionParam}) -> actionId=${actionId}`)
     state.ws.send(
       JSON.stringify({
         type: 'action',

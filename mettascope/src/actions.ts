@@ -52,28 +52,23 @@ function flushComboIfAny() {
 /** Initializes the action buttons. */
 export function initActionButtons() {
   find('#action-buttons .north').addEventListener('click', () => {
-    sendAction('rotate', 0)  // NORTH = 0
+    sendAction('move', 0)  // Move North = 0
   })
 
   find('#action-buttons .south').addEventListener('click', () => {
-    sendAction('rotate', 1)  // SOUTH = 1
+    sendAction('move', 1)  // Move South = 1
   })
 
   find('#action-buttons .west').addEventListener('click', () => {
-    sendAction('rotate', 2)  // WEST = 2
+    sendAction('move', 2)  // Move West = 2
   })
 
   find('#action-buttons .east').addEventListener('click', () => {
-    sendAction('rotate', 3)  // EAST = 3
+    sendAction('move', 3)  // Move East = 3
   })
 
-  find('#action-buttons .forward').addEventListener('click', () => {
-    sendAction('move', 0)
-  })
-
-  find('#action-buttons .backward').addEventListener('click', () => {
-    sendAction('move', 1)
-  })
+  // Note: Forward/backward buttons removed - they don't make sense with unified movement
+  // where each move specifies an absolute direction
 
   find('#action-buttons .put-recipe-items').addEventListener('click', () => {
     sendAction('put_items', 0)
@@ -119,120 +114,58 @@ export function processActions(event: KeyboardEvent) {
     const supportsMove = state.replay.actionNames.includes('move')
     const supportsMove8 = state.replay.MettaGridConfig.game?.allow_diagonals ?? false
 
-    // Movement handling.
+    // Movement handling - unified movement system
     if (key === 'w' || key === 'ArrowUp') {
-      if (supportsMove) {
-        if (supportsMove8) {
-          pushComboKey('w')
-        } else {
-          sendAction('move', 0) // North
-        }
+      if (supportsMove8) {
+        pushComboKey('w')
       } else {
-        if (orientation !== 0) {
-          sendAction('rotate', 0)
-        } else {
-          sendAction('move', 0)
-        }
+        sendAction('move', 0) // Move North
       }
     }
     if (key === 'a' || key === 'ArrowLeft') {
-      if (supportsMove) {
-        if (supportsMove8) {
-          pushComboKey('a')
-        } else {
-          sendAction('move', 2) // West
-        }
+      if (supportsMove8) {
+        pushComboKey('a')
       } else {
-        if (orientation !== 2) {
-          sendAction('rotate', 2)
-        } else {
-          sendAction('move', 0)
-        }
+        sendAction('move', 2) // Move West
       }
     }
     if (key === 's' || key === 'ArrowDown') {
-      if (supportsMove) {
-        if (supportsMove8) {
-          pushComboKey('s')
-        } else {
-          sendAction('move', 1) // South
-        }
+      if (supportsMove8) {
+        pushComboKey('s')
       } else {
-        if (orientation !== 1) {
-          sendAction('rotate', 1)
-        } else {
-          sendAction('move', 0)
-        }
+        sendAction('move', 1) // Move South
       }
     }
     if (key === 'd' || key === 'ArrowRight') {
-      if (supportsMove) {
-        if (supportsMove8) {
-          pushComboKey('d')
-        } else {
-          sendAction('move', 3) // East
-        }
+      if (supportsMove8) {
+        pushComboKey('d')
       } else {
-        if (orientation !== 3) {
-          sendAction('rotate', 3)
-        } else {
-          sendAction('move', 0)
-        }
+        sendAction('move', 3) // Move East
       }
     }
 
     // Numpad movement (immediate, no combo buffering)
     if (code === 'Numpad8') {
-      if (supportsMove) {
-        sendAction('move', 0) // North
-      } else {
-        if (orientation !== 0) {
-          sendAction('rotate', 0)
-        } else {
-          sendAction('move', 0)
-        }
-      }
+      sendAction('move', 0) // Move North
     }
     if (code === 'Numpad4') {
-      if (supportsMove) {
-        sendAction('move', 2) // West
-      } else {
-        if (orientation !== 2) {
-          sendAction('rotate', 2)
-        } else {
-          sendAction('move', 0)
-        }
-      }
+      sendAction('move', 2) // Move West
     }
     if (code === 'Numpad2') {
-      if (supportsMove) {
-        sendAction('move', 1) // South
-      } else {
-        if (orientation !== 1) {
-          sendAction('rotate', 1)
-        } else {
-          sendAction('move', 0)
-        }
-      }
+      sendAction('move', 1) // Move South
     }
     if (code === 'Numpad6') {
-      if (supportsMove) {
-        sendAction('move', 3) // East
-      } else {
-        if (orientation !== 3) {
-          sendAction('rotate', 3)
-        } else {
-          sendAction('move', 0)
-        }
-      }
+      sendAction('move', 3) // Move East
     }
+    // Forward/backward relative to current orientation
     if (event.key === 'f') {
-      // Just move forward.
-      sendAction('move', 0)
+      // Move in current facing direction
+      sendAction('move', orientation)
     }
     if (event.key === 'r') {
-      // Just move backward/reverse.
-      sendAction('move', 1)
+      // Move backward (opposite of current facing)
+      const opposites: { [key: number]: number } = { 0: 1, 1: 0, 2: 3, 3: 2 }
+      sendAction('move', opposites[orientation] || 0)
     }
     if (event.key === 'q') {
       // Put recipe items.
@@ -248,63 +181,39 @@ export function processActions(event: KeyboardEvent) {
     }
     // Diagonal numpad
     if (event.code === 'Numpad7') {
-      if (supportsMove) {
-        if (supportsMove8) {
-          sendAction('move', 4) // Northwest
-        } else {
-          sendAction('move', 0) // North
-          sendAction('move', 2) // West
-        }
+      if (supportsMove8) {
+        sendAction('move', 4) // Northwest
       } else {
-        sendAction('rotate', 0) // Rotate up.
-        sendAction('move', 0) // Move up.
-        sendAction('rotate', 2) // Rotate left.
-        sendAction('move', 0) // Move left.
+        // For 4-directional movement, move North then West
+        sendAction('move', 0) // North
+        setTimeout(() => sendAction('move', 2), 50) // West after small delay
       }
     }
     if (event.code === 'Numpad9') {
-      if (supportsMove) {
-        if (supportsMove8) {
-          sendAction('move', 5) // Northeast
-        } else {
-          sendAction('move', 0) // North
-          sendAction('move', 3) // East
-        }
+      if (supportsMove8) {
+        sendAction('move', 5) // Northeast
       } else {
-        sendAction('rotate', 0) // Rotate up.
-        sendAction('move', 0) // Move up.
-        sendAction('rotate', 3) // Rotate right.
-        sendAction('move', 0) // Move right.
+        // For 4-directional movement, move North then East
+        sendAction('move', 0) // North
+        setTimeout(() => sendAction('move', 3), 50) // East after small delay
       }
     }
     if (event.code === 'Numpad1') {
-      if (supportsMove) {
-        if (supportsMove8) {
-          sendAction('move', 6) // Southwest
-        } else {
-          sendAction('move', 1) // South
-          sendAction('move', 2) // West
-        }
+      if (supportsMove8) {
+        sendAction('move', 6) // Southwest
       } else {
-        sendAction('rotate', 1) // Rotate down.
-        sendAction('move', 0) // Move down.
-        sendAction('rotate', 2) // Rotate left.
-        sendAction('move', 0) // Move left.
+        // For 4-directional movement, move South then West
+        sendAction('move', 1) // South
+        setTimeout(() => sendAction('move', 2), 50) // West after small delay
       }
     }
     if (event.code === 'Numpad3') {
-      if (supportsMove) {
-        if (supportsMove8) {
-          sendAction('move', 7) // Southeast
-        } else {
-          sendAction('move', 1) // South
-          sendAction('move', 3) // East
-        }
+      if (supportsMove8) {
+        sendAction('move', 7) // Southeast
       } else {
-        sendAction('rotate', 1) // Rotate down.
-        sendAction('move', 0) // Move down.
-        sendAction('rotate', 3) // Rotate right.
-        sendAction('move', 0) // Move right.
+        // For 4-directional movement, move South then East
+        sendAction('move', 1) // South
+        setTimeout(() => sendAction('move', 3), 50) // East after small delay
       }
     }
 
