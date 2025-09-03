@@ -64,7 +64,7 @@ run_ci_pytest() {
     pytest_args+=("${extra_args[@]}")
     
     echo -e "${BLUE}Running pytest in: ${test_dir}${NC}"
-    echo -e "${YELLOW}Command: pytest ${pytest_args[*]} ${extra_args[*]}${NC}"
+    echo -e "${YELLOW}Command: pytest ${pytest_args[*]}${NC}"
     
     if [[ "$test_dir" != "." ]]; then
         cd "$test_dir"
