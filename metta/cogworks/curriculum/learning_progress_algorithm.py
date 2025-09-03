@@ -53,8 +53,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.hypers = hypers
 
         # Initialize bidirectional learning progress tracker
+        # Use a larger search space to accommodate all possible task indices
+        # The search space should be large enough for the pool size and potential task growth
+        search_space_size = max(num_tasks, hypers.pool_size * 2, 100)  # Ensure sufficient capacity
         self._lp_tracker = BidirectionalLearningProgress(
-            search_space=num_tasks,
+            search_space=search_space_size,
             ema_timescale=hypers.ema_timescale,
             num_active_tasks=hypers.pool_size,
         )
@@ -175,6 +178,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Update learning progress tracker
         task_index = self._task_id_to_index.get(task_id, 0)
+
+        # Safety check: ensure task_index is within bounds of _outcomes
+        if task_index >= len(self._lp_tracker._outcomes):
+            logger.warning(f"Task index {task_index} out of bounds for outcomes size {len(self._lp_tracker._outcomes)}")
+            return
+
         self._lp_tracker._outcomes[task_index].append(score)
         self._lp_tracker._update()
 
@@ -196,10 +205,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         task_index = self._task_id_to_index.get(task_id, 0)
         raw_lp_scores = self._lp_tracker._learning_progress()
 
-        if task_index < len(raw_lp_scores):
-            return float(raw_lp_scores[task_index])
-        else:
+        # Safety check: ensure task_index is within bounds
+        if task_index >= len(raw_lp_scores):
             return 0.0
+
+        return float(raw_lp_scores[task_index])
 
     def stats(self) -> dict[str, float]:
         """Return unified statistics for the pool."""
