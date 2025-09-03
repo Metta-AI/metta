@@ -17,6 +17,7 @@ from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAt
 from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
 from metta.common.config import Config
+from torch import nn
 
 
 class AgentConfig(Config):
@@ -59,7 +60,7 @@ def create_agent(
     obs_height=None,
     feature_normalizations=None,
     env=None,
-):
+) -> nn.Module:
     """Create an agent instance from configuration."""
     if config.name not in AGENT_REGISTRY:
         raise ValueError(f"Unknown agent: '{config.name}'. Available: {list(AGENT_REGISTRY.keys())}")

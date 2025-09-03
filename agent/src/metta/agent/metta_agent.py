@@ -46,6 +46,8 @@ class DistributedMettaAgent(DistributedDataParallel):
 
 
 class MettaAgent(nn.Module):
+    policy: nn.Module
+
     def __init__(
         self,
         env: MettaGridEnv,
@@ -70,7 +72,7 @@ class MettaAgent(nn.Module):
 
         # Create policy if not provided
         if policy is None:
-            policy = create_agent(
+            self.policy = create_agent(
                 config=policy_architecture_cfg,
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
@@ -79,8 +81,8 @@ class MettaAgent(nn.Module):
                 env=env,
             )
             logger.info(f"Using agent: {policy_architecture_cfg.name}")
-
-        self.policy = policy
+        else:
+            self.policy = policy
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
@@ -94,6 +96,31 @@ class MettaAgent(nn.Module):
 
     def get_cfg(self) -> AgentConfig:
         return self.cfg
+
+    @classmethod
+    def from_weights(
+        cls,
+        weights: dict[str, torch.Tensor],
+        env: "MettaGridEnv",
+        cfg: "AgentConfig",
+    ) -> "MettaAgent":
+        """Create a MettaAgent instance from pre-trained weights.
+
+        Args:
+            weights: Dictionary mapping parameter names to tensors
+            env: The MettaGridEnv environment
+            cfg: The AgentConfig configuration
+
+        Returns:
+            A new MettaAgent instance with the loaded weights
+        """
+        # Create agent instance
+        agent = cls(env=env, policy_architecture_cfg=cfg)
+
+        # Load the weights into the policy
+        agent.policy.load_state_dict(weights)
+
+        return agent
 
     def on_new_training_run(self):
         if hasattr(self.policy, "on_new_training_run"):
@@ -152,7 +179,6 @@ class MettaAgent(nn.Module):
         if is_training is None:
             is_training = self.training
             log_on_master(f"Auto-detected {'training' if is_training else 'simulation'} context")
-
 
         if self.policy is not None:
             self.policy = self.policy.to(device)
