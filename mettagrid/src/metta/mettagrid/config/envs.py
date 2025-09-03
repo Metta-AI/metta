@@ -103,9 +103,11 @@ def make_arena(
 
 
 def make_navigation(num_agents: int) -> MettaGridConfig:
-    altar = building.altar.model_copy()
+    altar = empty_converters.altar.model_copy()
     altar.cooldown = 255  # Maximum cooldown
     altar.initial_resource_count = 1
+    altar.input_resources = {}
+    altar.output_resources = {"heart": 1}
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
@@ -113,6 +115,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
                 "altar": altar,
                 "wall": building.wall,
             },
+            resource_names = ["heart"],
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(),
@@ -133,12 +136,9 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
 
 
 def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
-    altar = building.altar.model_copy()
+    altar = empty_converters.altar.model_copy()
     altar.cooldown = 1
-    mine = building.mine_red.model_copy()
-    mine.cooldown = 1
-    generator = building.generator_red.model_copy()
-    generator.cooldown = 1
+    altar.output_resources = {"heart": 1}
     altar.initial_resource_count = 1
     cfg = MettaGridConfig(
         game=GameConfig(
@@ -146,8 +146,6 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             objects={
                 "altar": altar,
                 "wall": building.wall,
-                "mine_red": mine,
-                "generator_red": generator,
             },
             actions=ActionsConfig(
                 move=ActionConfig(),
