@@ -15,7 +15,7 @@
 class ObservationEncoder {
 public:
   explicit ObservationEncoder(const std::vector<std::string>& resource_names, bool recipe_details_obs = false)
-      : recipe_details_obs(recipe_details_obs), inventory_item_count(resource_names.size()) {
+      : recipe_details_obs(recipe_details_obs), resource_count(resource_names.size()) {
     _feature_normalizations = FeatureNormalizations;
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
@@ -30,10 +30,8 @@ public:
 
     if (this->recipe_details_obs) {
       // Define offsets based on actual inventory item count
-      const ObservationType input_recipe_offset =
-          InventoryFeatureOffset + static_cast<ObservationType>(inventory_item_count);
-      const ObservationType output_recipe_offset =
-          input_recipe_offset + static_cast<ObservationType>(inventory_item_count);
+      const ObservationType input_recipe_offset = InventoryFeatureOffset + static_cast<ObservationType>(resource_count);
+      const ObservationType output_recipe_offset = input_recipe_offset + static_cast<ObservationType>(resource_count);
 
       // Add input recipe features
       for (size_t i = 0; i < resource_names.size(); i++) {
@@ -77,22 +75,22 @@ public:
     return _feature_names;
   }
 
-  size_t get_inventory_item_count() const {
-    return inventory_item_count;
+  size_t get_resource_count() const {
+    return resource_count;
   }
 
   ObservationType get_input_recipe_offset() const {
-    return InventoryFeatureOffset + static_cast<ObservationType>(inventory_item_count);
+    return InventoryFeatureOffset + static_cast<ObservationType>(resource_count);
   }
 
   ObservationType get_output_recipe_offset() const {
-    return InventoryFeatureOffset + static_cast<ObservationType>(2 * inventory_item_count);
+    return InventoryFeatureOffset + static_cast<ObservationType>(2 * resource_count);
   }
 
   bool recipe_details_obs;
 
 private:
-  size_t inventory_item_count;
+  size_t resource_count;
   std::map<ObservationType, float> _feature_normalizations;
   std::map<ObservationType, std::string> _feature_names;
 };
