@@ -18,7 +18,6 @@ runs:
       uses: ./.github/actions/setup-uv
       with:
         install-mode: minimal
-        dependencies-files: dependencies.txt
 
     - name: Combine all benchmarks into BMF format
       shell: bash

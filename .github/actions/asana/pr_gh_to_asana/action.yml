@@ -60,7 +60,10 @@ runs:
       uses: ./.github/actions/setup-uv
       with:
         install-mode: minimal
-        dependencies-files: dependencies.txt
+        extra-dependencies: |
+          requests>=2.31.0
+          vcrpy>=6.0.0
+          pyyaml>=6.0.0
 
     - name: Ensure Asana Task
       id: ensure-task

@@ -22,7 +22,7 @@ runs:
       uses: ./.github/actions/setup-uv
       with:
         install-mode: minimal
-        dependencies-files: dependencies.txt
+        extra-dependencies: requests>=2.31.0
 
     - run: uv run ${{ github.action_path }}/pr_description_asana_to_gh.py
       shell: bash

@@ -29,7 +29,7 @@ runs:
       uses: ./.github/actions/setup-uv
       with:
         install-mode: minimal
-        dependencies-files: dependencies.txt
+        extra-dependencies: requests>=2.31.0
 
     - name: Post to Discord
       run: |
