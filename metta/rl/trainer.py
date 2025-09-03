@@ -24,12 +24,11 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.hyperparameter_scheduler import step_hyperparameters
-from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
+from metta.rl.losses import get_loss_experience_spec
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -57,7 +56,7 @@ from metta.rl.wandb import (
     setup_wandb_metrics,
 )
 from metta.sim.simulation_config import SimulationConfig
-from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
+from metta.utils.batch import calculate_batch_sizes
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -325,7 +324,6 @@ def train(
                 shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
 
             # Initialize main's traditional loss system alongside composable system
-            losses = Losses()
             record_heartbeat()
 
             with torch_profiler:
@@ -386,34 +384,9 @@ def train(
 
                 # Training phase
                 with timer("_train"):
-                    # Reset both loss systems
+                    # Reset loss tracking
                     shared_loss_mb_data.zero_()
-                    losses.zero()
                     experience.reset_importance_sampling_ratios()
-
-                    anneal_beta = calculate_prioritized_sampling_params(
-                        epoch=epoch,
-                        total_timesteps=trainer_cfg.total_timesteps,
-                        batch_size=trainer_cfg.batch_size,
-                        prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                        prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
-                    )
-
-                    advantages = torch.zeros(experience.buffer["values"].shape, device=device)
-                    initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
-
-                    advantages = compute_advantage(
-                        experience.buffer["values"],
-                        experience.buffer["rewards"],
-                        experience.buffer["dones"],
-                        initial_importance_sampling_ratio,
-                        advantages,
-                        trainer_cfg.ppo.gamma,
-                        trainer_cfg.ppo.gae_lambda,
-                        trainer_cfg.vtrace.vtrace_rho_clip,
-                        trainer_cfg.vtrace.vtrace_c_clip,
-                        device,
-                    )
 
                     epochs_trained = 0
                     for _lname in list(all_losses):
@@ -426,36 +399,12 @@ def train(
                             trainer_state.mb_idx = mb_idx
                             trainer_state.stop_update_epoch = False
 
-                            policy.reset_memory()
-                            minibatch, indices, prio_weights = experience.sample_minibatch(
-                                advantages=advantages,
-                                prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                                prio_beta=anneal_beta,
-                            )
-
-                            policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
-
-                            # Hybrid approach: Use composable losses AND main's traditional processing
+                            # Use composable losses system
                             total_loss = torch.tensor(0.0, dtype=torch.float32, device=device)
                             for _lname in list(all_losses):
                                 loss_obj = loss_instances[_lname]
                                 loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)
                                 total_loss = total_loss + loss_val
-
-                            # Also run main's traditional loss processing
-                            main_loss = process_minibatch_update(
-                                policy=policy,
-                                experience=experience,
-                                minibatch=minibatch,
-                                policy_td=policy_td,
-                                indices=indices,
-                                prio_weights=prio_weights,
-                                trainer_cfg=trainer_cfg,
-                                agent_step=agent_step,
-                                losses=losses,
-                                device=device,
-                            )
-                            total_loss = total_loss + main_loss
 
                             if trainer_state.stop_update_epoch:
                                 break
@@ -469,7 +418,6 @@ def train(
                                 torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)  # av fix this
                                 optimizer.step()
 
-                                policy.clip_weights()
                                 if device.type == "cuda":
                                     torch.cuda.synchronize()
 
