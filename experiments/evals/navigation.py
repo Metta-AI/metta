@@ -179,14 +179,14 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="easy_memory",
-            env=make_nav_ascii_env("easy", 42, num_agents=8),
+            env=make_nav_ascii_env("easy_sequence", 42, num_agents=8),
         ),
         SimulationConfig(
             name="medium_memory",
-            env=make_nav_ascii_env("medium", 58, num_agents=8),
+            env=make_nav_ascii_env("medium_sequence", 58, num_agents=8),
         ),
         SimulationConfig(
             name="hard_memory",
-            env=make_nav_ascii_env("hard", 70, num_agents=8),
+            env=make_nav_ascii_env("hard_sequence", 70, num_agents=8),
         ),
     ]
