@@ -196,7 +196,7 @@ class CheckpointManager:
     def get_policy_metadata(uri: str) -> PolicyMetadata:
         """Extract metadata from policy URI."""
         normalized_uri = CheckpointManager.normalize_uri(uri)
-        run_name, epoch = key_and_version(uri)  # Use original URI for metadata extraction
+        run_name, epoch = key_and_version(normalized_uri)  # Use normalized URI for metadata extraction
         metadata: PolicyMetadata = {"run_name": run_name, "epoch": epoch, "uri": normalized_uri, "original_uri": uri}
 
         # Add extra metadata for file:// URIs with valid checkpoint filenames
