@@ -425,7 +425,6 @@ def train(
                         device,
                     )
 
-                    minibatch_idx = 0
                     epochs_trained = 0
                     for _lname in list(all_losses):
                         loss_obj = loss_instances[_lname]
