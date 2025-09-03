@@ -41,12 +41,12 @@ benchmark:
 # Run unit tests
 test: build
 	@echo "🧪 Running unit tests..."
-	bazel test //:test_stats_tracker //:test_grid_object //:test_mettagrid //:test_observations
+	bazel test //:tests_all
 
 # Generate coverage report
 coverage:
 	@echo "🔨 Building with coverage..."
-	bazel coverage --combined_report=lcov //:test_stats_tracker //:test_grid_object //:test_mettagrid //:test_observations
+	bazel coverage --combined_report=lcov //:tests_all
 	@echo "📊 Processing coverage data..."
 	@./generate_coverage.py
 

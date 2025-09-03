@@ -132,3 +132,14 @@ py_test(
     data = [":test_observations_bin"],
     size = "small",
 )
+
+# Test suite that runs all tests
+test_suite(
+    name = "tests_all",
+    tests = [
+        ":test_stats_tracker",
+        ":test_grid_object",
+        ":test_mettagrid",
+        ":test_observations",
+    ],
+)
