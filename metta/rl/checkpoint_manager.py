@@ -285,7 +285,6 @@ class CheckpointManager:
                 metadata=wandb_metadata,
                 wandb_run=wandb_run,
             )
-            logger.info("")
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
         if existing_files:
