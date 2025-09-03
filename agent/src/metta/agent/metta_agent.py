@@ -50,7 +50,7 @@ class MettaAgent(nn.Module):
         self,
         env: MettaGridEnv,
         policy_architecture_cfg: AgentConfig,
-        policy: Optional[nn.Module] = None,
+        policy: Optional[nn.Module] = None,  # ?? Note that policy param is only used in test code. can this be removed?
     ):
         super().__init__()
         self.cfg = policy_architecture_cfg
