@@ -1,108 +1,20 @@
 import std/[random, os, times, strformat, strutils],
-  boxy, opengl, windy, windy/http, chroma, vmath,
-  mettascope/[replays, common, panels, utils, header, footer, timeline,
-  worldmap, minimap, agenttable, agenttraces, envconfig]
+  boxy, opengl, windy, windy/httpchroma, vmath, fidget2, puppy, fidget2/hybridrender,
+  mettascope/[actions, replays, common, panels, utils, worldmap, header, footer, timeline]
 
-window = newWindow("MettaScope in Nim", ivec2(1280, 800))
-makeContextCurrent(window)
+var replay = ""
 
-when not defined(emscripten):
-  loadExtensions()
+find "/UI/Main":
+  onShow:
 
-bxy = newBoxy(quadsPerBatch = 10921)
+    # Build the atlas.
+    for path in walkDirRec("data/"):
+      if path.endsWith(".png"):
+        echo path
+        bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
 
-rootArea = Area(layout: Horizontal)
-worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
-minimapPanel = Panel(panelType: Minimap, name: "Minimap")
-agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table")
-agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces")
-mgConfigPanel = Panel(panelType: EnvConfig, name: "Env Config")
-globalTimelinePanel = Panel(panelType: GlobalTimeline)
-globalFooterPanel = Panel(panelType: GlobalFooter)
-globalHeaderPanel = Panel(panelType: GlobalHeader)
+    echo "onShow"
 
-rootArea.areas.add(Area(layout: Horizontal))
-let topArea = Area(layout: Horizontal)
-rootArea.areas.add(topArea)
-let bottomArea = Area(layout: Horizontal)
-rootArea.areas.add(bottomArea)
-
-topArea.panels.add(worldMapPanel)
-topArea.panels.add(minimapPanel)
-topArea.panels.add(agentTablePanel)
-bottomArea.panels.add(agentTracesPanel)
-bottomArea.panels.add(mgConfigPanel)
-
-proc display() =
-  if window.buttonReleased[MouseLeft]:
-    mouseCaptured = false
-    mouseCapturedPanel = nil
-
-  bxy.beginFrame(window.size)
-  const RibbonHeight = 64
-  rootArea.rect = IRect(x: 0, y: RibbonHeight, w: window.size.x, h: window.size.y - RibbonHeight*3)
-  topArea.rect = IRect(x: 0, y: rootArea.rect.y, w: rootArea.rect.w, h: (rootArea.rect.h.float32 * 0.75).int)
-  bottomArea.rect = IRect(x: 0, y: rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, w: rootArea.rect.w, h: (rootArea.rect.h.float32 * 0.25).int)
-  rootArea.updatePanelsSizes()
-
-  globalHeaderPanel.rect = IRect(x: 0, y: 0, w: window.size.x, h: RibbonHeight)
-  globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
-  globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
-
-  globalHeaderPanel.beginDraw()
-  drawHeader(globalHeaderPanel)
-  globalHeaderPanel.endDraw()
-
-  globalFooterPanel.beginDraw()
-  drawFooter(globalFooterPanel)
-  globalFooterPanel.endDraw()
-
-  globalTimelinePanel.beginDraw()
-  drawTimeline(globalTimelinePanel)
-  globalTimelinePanel.endDraw()
-
-  worldMapPanel.beginDraw()
-  drawWorldMap(worldMapPanel)
-  worldMapPanel.endDraw()
-
-  minimapPanel.beginDraw()
-  drawMinimap(minimapPanel)
-  minimapPanel.endDraw()
-
-  agentTablePanel.beginDraw()
-  drawAgentTable(agentTablePanel)
-  agentTablePanel.endDraw()
-
-  agentTracesPanel.beginDraw()
-  drawAgentTraces(agentTracesPanel)
-  agentTracesPanel.endDraw()
-
-  mgConfigPanel.beginDraw()
-  drawEnvConfig(mgConfigPanel)
-  mgConfigPanel.endDraw()
-
-  rootArea.drawFrame()
-
-  bxy.endFrame()
-  window.swapBuffers()
-  inc frame
-
-# Build the atlas.
-for path in walkDirRec("data/"):
-  if path.endsWith(".png"):
-    echo path
-    bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
-
-when defined(emscripten):
-  common.replay = loadReplay("replays/pens.json.z")
-  proc main() {.cdecl.} =
-    display()
-    pollEvents()
-  window.run(main)
-
-else:
-  import cligen
-  proc cmd(replay: string = "") =
     if replay != "":
       if replay.startsWith("http"):
         let req = startHttpRequest(replay)
@@ -116,8 +28,57 @@ else:
     else:
       common.replay = loadReplay("replays/pens.json.z")
 
-    while not window.closeRequested:
-      display()
-      pollEvents()
 
-  dispatch(cmd)
+    rootArea = Area(layout: Horizontal)
+    worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
+    minimapPanel = Panel(panelType: Minimap, name: "Minimap")
+    agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table")
+    agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces")
+    globalTimelinePanel = Panel(panelType: GlobalTimeline)
+    globalFooterPanel = Panel(panelType: GlobalFooter)
+    globalHeaderPanel = Panel(panelType: GlobalHeader)
+
+    rootArea.areas.add(Area(layout: Horizontal))
+    rootArea.panels.add(worldMapPanel)
+    rootArea.panels.add(minimapPanel)
+    rootArea.panels.add(agentTablePanel)
+    rootArea.panels.add(agentTracesPanel)
+
+
+    let worldMap = find "**/WorldMap"
+    worldMap.onRenderCallback = proc(thisNode: Node) =
+      echo "onRender WorldMap"
+      bxy.drawImage("meta_grid_icon", vec2(100, 100))
+
+      worldMapPanel.beginPanAndZoom()
+
+      useSelections()
+      agentControls()
+      playControls()
+
+      drawFloor()
+      drawWalls()
+      drawObjects()
+      # drawActions()
+      # drawAgentDecorations()
+
+      if settings.showGrid:
+        drawGrid()
+      if settings.showVisualRange:
+        drawVisualRanges()
+
+      drawSelection()
+      drawInventory()
+
+      if settings.showFogOfWar:
+        drawFogOfWar()
+
+      worldMapPanel.endPanAndZoom()
+
+
+startFidget(
+  figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
+  windowTitle = "MetaScope V2",
+  entryFrame = "UI/Main",
+  windowStyle = DecoratedResizable
+)

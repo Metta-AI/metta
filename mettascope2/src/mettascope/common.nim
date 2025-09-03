@@ -53,9 +53,7 @@ type
     lockFocus* = false
 
 var
-  window*: Window
   rootArea*: Area
-  bxy*: Boxy
   frame*: int
 
   globalTimelinePanel*: Panel

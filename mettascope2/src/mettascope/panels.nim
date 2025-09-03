@@ -1,5 +1,5 @@
 import
-  vmath, bumpy, windy, boxy, chroma,
+  vmath, bumpy, windy, boxy, chroma, fidget2/[hybridrender, common],
   common, utils
 
 const HeaderSize = 30

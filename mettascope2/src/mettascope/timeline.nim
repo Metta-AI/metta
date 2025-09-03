@@ -1,6 +1,6 @@
 import
   std/[strformat],
-  boxy, vmath, windy,
+  boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, sim, actions, utils
 
 const
