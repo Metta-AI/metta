@@ -135,12 +135,15 @@ Examples:
   %(prog)s --new        # Launch a new sandbox with 1 GPU
   %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
+  %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
 
 Common management commands:
   ssh <sandbox-name>     # Connect to a running sandbox
   sky stop <name>        # Stop a sandbox (keeps data)
   sky start <name>       # Restart a stopped sandbox
   sky down <name>        # Delete a sandbox completely
+  sky logs <name>        # Check cluster logs
+  sky launch -c <name> --no-setup  # Retry launch for stuck clusters
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -152,6 +155,12 @@ Common management commands:
     parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use (default: 1)")
     parser.add_argument(
         "--retry-until-up", action="store_true", help="Keep retrying until cluster is successfully launched"
+    )
+    parser.add_argument(
+        "--wait-timeout",
+        type=int,
+        default=300,
+        help="Timeout in seconds to wait for cluster to reach UP state (default: 300)",
     )
 
     args = parser.parse_args()
@@ -165,12 +174,16 @@ Common management commands:
         print(f"You already have {len(existing_clusters)} sandbox(es) running:")
         for cluster in existing_clusters:
             message = ""
+            color_func = yellow  # default color
             if cluster["status"].name == "INIT":
-                message = " (launching)"
+                message = " (launching - may take several minutes)"
+                color_func = cyan
             elif cluster["status"].name == "STOPPED":
                 message = " (stopped)"
+                color_func = red
             elif cluster["status"].name == "UP":
                 message = " (running)"
+                color_func = green
 
             gpu_info = ""
             if "handle" in cluster and cluster["handle"]:
@@ -178,7 +191,15 @@ Common management commands:
                 if resources and resources.accelerators:
                     gpu_info = f" [{resources.accelerators}]"
 
-            print(f"  {yellow(cluster['name'])}{message}{gpu_info}")
+            print(f"  {color_func(cluster['name'])}{message}{gpu_info}")
+
+            # Additional guidance for INIT state clusters
+            if cluster["status"].name == "INIT":
+                cluster_name_ref = cluster["name"]
+                print(
+                    f"    💡 If stuck in INIT for >10min, try: {green(f'sky launch -c {cluster_name_ref} --no-setup')}"
+                )
+                print(f"    📊 Check logs: {green(f'sky logs {cluster_name_ref}')}")
 
         first_cluster_name = existing_clusters[0]["name"]
         first_stopped_cluster_name = next(
@@ -197,7 +218,7 @@ Common management commands:
 
     cluster_name = get_next_name(existing_clusters)
     print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
-    print(f"📌 Git ref: {cyan(git_ref)}")
+    print(f"🔌 Git ref: {cyan(git_ref)}")
 
     # Load the sandbox configuration
     config_path = "./devops/skypilot/launch/sandbox.yaml"
@@ -276,20 +297,76 @@ Common management commands:
         print(f"\n{red('✗ Launch failed:')} {str(e)}")
         return
 
+    # Wait for cluster to be fully ready before attempting SSH setup
+    print("⏳ Waiting for cluster to be fully ready...")
+    max_wait_seconds = args.wait_timeout
+    wait_interval = 10  # Check every 10 seconds
+    max_wait_attempts = max_wait_seconds // wait_interval
+
+    for wait_attempt in range(max_wait_attempts):
+        # Wait between checks, but not on the first attempt
+        if wait_attempt > 0:
+            time.sleep(wait_interval)
+
+        try:
+            with spinner(f"Checking cluster status (attempt {wait_attempt + 1}/{max_wait_attempts})", style=cyan):
+                request_id = sky.status()
+                cluster_records = sky.get(request_id)
+
+            # Find our cluster in the status
+            cluster_status = None
+            for cluster in cluster_records:
+                if cluster["name"] == cluster_name:
+                    cluster_status = cluster["status"].name
+                    break
+
+            if cluster_status == "UP":
+                print(f"{green('✓')} Cluster is now UP and ready")
+                break
+            elif cluster_status == "INIT":
+                print(f"{yellow('⏳')} Cluster still initializing... (attempt {wait_attempt + 1}/{max_wait_attempts})")
+            elif cluster_status is None:
+                print(f"{red('✗')} Cluster not found in status output")
+                return
+            else:
+                print(f"{red('✗')} Cluster in unexpected state: {cluster_status}")
+                return
+
+        except Exception as e:
+            print(f"{yellow('⚠')} Error checking cluster status: {str(e)}, retrying...")
+
+    else:
+        # This else clause runs if the for loop completed without breaking (timeout)
+        print(f"\n{red('✗')} Cluster did not reach UP state within {max_wait_seconds} seconds")
+        print("Current status might still be INIT. You can:")
+        print(f"  • Check status manually: {green(f'sky status {cluster_name}')}")
+        print(f"  • Try connecting anyway: {green(f'ssh {cluster_name}')}")
+        print(f"  • Re-run launch to retry: {green(f'sky launch -c {cluster_name} --no-setup')}")
+        print(f"  • Increase timeout: {green(f'--wait-timeout {max_wait_seconds + 300}')}")
+        return
+
     # Don't use spinner during log tailing - it interferes with output
     print("⚙️ Running setup job...")
     try:
         setup_result = sky.tail_logs(cluster_name, job_id=1, follow=True)
         if setup_result != 0:
             print(f"{red('✗')} Setup job failed with exit code {setup_result}")
+            print(f"You can check logs with: {green(f'sky logs {cluster_name}')}")
             return
     except Exception as e:
         print(f"{red('✗')} Failed to tail setup logs: {str(e)}")
+        print(f"You can check logs manually with: {green(f'sky logs {cluster_name}')}")
         return
 
-    # Force ssh setup
+    # Configure SSH access after cluster is fully ready
     with spinner("Configuring SSH access", style=cyan):
-        subprocess.run(["sky", "status", cluster_name], check=True, capture_output=True)
+        try:
+            subprocess.run(["sky", "status", cluster_name], check=True, capture_output=True)
+        except subprocess.CalledProcessError as e:
+            print(f"\n{yellow('⚠')} SSH setup may not be complete. You can try:")
+            print(f"  • Manual SSH: {green(f'ssh {cluster_name}')}")
+            print(f"  • Update SSH config: {green(f'sky status {cluster_name}')}")
+            print(f"Error: {str(e)}")
 
     print(f"\n{green('✓')} Sandbox is ready!")
     print("\nConnect to your sandbox:")
