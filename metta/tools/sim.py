@@ -68,7 +68,7 @@ class SimTool(Tool):
 
         wandb_run = None
         wandb_context = None
-        if self.wandb and self.wandb.is_configured():
+        if self.wandb and self.wandb.enabled:
             wandb_context = WandbContext(self.wandb, self)
             wandb_context.__enter__()
             wandb_run = wandb_context.run
