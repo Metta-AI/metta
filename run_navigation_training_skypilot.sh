@@ -11,8 +11,8 @@ echo "======================================================"
 
 # Configuration
 WANDB_GROUP="navigation_learning_progress"
-NODES=4
-GPUS_PER_NODE=2
+NODES=1
+GPUS_PER_NODE=1
 
 echo "📊 Training Configuration:"
 echo "   WandB group: $WANDB_GROUP"
