@@ -2,9 +2,8 @@ name: "Setup uv"
 description: "Set up uv and activate the environment"
 inputs:
   install-mode:
-    description: "Installation mode: 'full' (default), 'testing', 'minimal', or 'linting'"
-    required: false
-    default: "full"
+    description: "Installation mode: 'testing', 'minimal', or 'linting'"
+    required: true
 
 runs:
   using: "composite"
@@ -30,6 +29,7 @@ runs:
       shell: bash
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
+        UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}/.uv-cache/python
       run: |
         uv venv
 
@@ -44,17 +44,13 @@ runs:
             # don't install any packages
             ;;
 
-          "testing")
-            uv sync
-            uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
-            ;;
-
           "linting")
             uv pip install ruff cpplint
             ;;
 
-          "full"|*)
+          "testing")
             uv sync
+            uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
             ;;
 
         esac
