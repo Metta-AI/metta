@@ -18,7 +18,7 @@ import unittest
 
 import pytest
 
-from metta.setup.saved_settings import UserType
+from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
 from tests.setup.test_base import BaseMettaSetupTest
 
 
@@ -96,8 +96,6 @@ class TestNonInteractiveIndividualComponents(BaseMettaSetupTest):
 
     def test_external_profile_individual_components(self):
         """Test that each component in external profile can be installed individually."""
-        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-
         self._create_test_config(UserType.EXTERNAL)
 
         # Get all enabled components for external profile
@@ -122,8 +120,6 @@ class TestNonInteractiveIndividualComponentsCloud(BaseMettaSetupTest):
 
     def test_cloud_profile_individual_components(self):
         """Test that each component in cloud profile can be installed individually."""
-        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-
         self._create_test_config(UserType.CLOUD)
 
         # Get all enabled components for cloud profile
@@ -148,8 +144,6 @@ class TestNonInteractiveIndividualComponentsSoftmax(BaseMettaSetupTest):
 
     def test_softmax_profile_individual_components(self):
         """Test that each component in softmax profile can be installed individually."""
-        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-
         self._create_test_config(UserType.SOFTMAX)
 
         # Get all enabled components for softmax profile
@@ -174,8 +168,6 @@ class TestNonInteractiveIndividualComponentsSoftmaxDocker(BaseMettaSetupTest):
 
     def test_softmax_docker_profile_individual_components(self):
         """Test that each component in softmax-docker profile can be installed individually."""
-        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-
         self._create_test_config(UserType.SOFTMAX_DOCKER)
 
         # Get all enabled components for softmax-docker profile
