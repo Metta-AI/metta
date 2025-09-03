@@ -88,51 +88,110 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         bucket_values = {}
 
         try:
+            # First, try to get stored bucket values from the task
+            stored_bucket_values = task.get_bucket_values()
+            if stored_bucket_values:
+                logger.debug(f"Using stored bucket values: {stored_bucket_values}")
+                return stored_bucket_values
+
+            # Fallback: try to extract from env_cfg (for backward compatibility)
+            logger.debug("No stored bucket values, falling back to env_cfg extraction")
+
             # Access the environment configuration to extract bucket values
             env_cfg = task.get_env_cfg()
 
-            # Look for bucket-related fields in the config
-            # This is a heuristic approach - we look for fields that might be bucket parameters
-            # The actual implementation depends on how buckets are stored in the config
+            # Get the flattened config as a dict to search for bucket values
+            config_dict = env_cfg.model_dump()
 
-            # Try to access common bucket patterns
-            if hasattr(env_cfg, "game") and hasattr(env_cfg.game, "level_map"):
-                if hasattr(env_cfg.game.level_map, "num_agents"):
-                    bucket_values["game.level_map.num_agents"] = env_cfg.game.level_map.num_agents
-                if hasattr(env_cfg.game.level_map, "width"):
-                    bucket_values["game.level_map.width"] = env_cfg.game.level_map.width
-                if hasattr(env_cfg.game.level_map, "height"):
-                    bucket_values["game.level_map.height"] = env_cfg.game.level_map.height
+            # Common bucket paths that might exist in different environments
+            potential_bucket_paths = [
+                # Arena-style paths
+                "game.level_map.num_agents",
+                "game.level_map.width",
+                "game.level_map.height",
+                "game.actions.attack.consumed_resources.laser",
+                # Navigation-style paths
+                "game.agent.rewards.inventory.heart",
+                "game.agent.rewards.inventory.heart_max",
+                "game.map_builder.instance_map.dir",
+                "game.map_builder.instance_map.objects.altar",
+                "game.map_builder.width",
+                "game.map_builder.height",
+                "game.map_builder.objects.altar",
+                # Generic reward paths
+                "game.agent.rewards.inventory.wood",
+                "game.agent.rewards.inventory.stone",
+                "game.agent.rewards.inventory.iron",
+                "game.agent.rewards.inventory.gold",
+                "game.agent.rewards.inventory_max.wood",
+                "game.agent.rewards.inventory_max.stone",
+                "game.agent.rewards.inventory_max.iron",
+                "game.agent.rewards.inventory_max.gold",
+            ]
 
-            if hasattr(env_cfg, "game") and hasattr(env_cfg.game, "actions"):
-                if hasattr(env_cfg.game.actions, "attack") and hasattr(
-                    env_cfg.game.actions.attack, "consumed_resources"
-                ):
-                    if hasattr(env_cfg.game.actions.attack.consumed_resources, "laser"):
-                        bucket_values["game.actions.attack.consumed_resources.laser"] = (
-                            env_cfg.game.actions.attack.consumed_resources.laser
-                        )
+            # Extract values for potential bucket paths
+            for path in potential_bucket_paths:
+                value = self._get_nested_value(config_dict, path)
+                if value is not None:
+                    bucket_values[path] = value
+                    logger.debug(f"Found bucket value: {path} = {value}")
 
-            # Look for reward-related bucket parameters
-            if hasattr(env_cfg, "game") and hasattr(env_cfg.game, "agent") and hasattr(env_cfg.game.agent, "rewards"):
-                if hasattr(env_cfg.game.agent.rewards, "inventory"):
-                    for item_name in ["wood", "stone", "iron", "gold"]:
-                        if hasattr(env_cfg.game.agent.rewards.inventory, item_name):
-                            bucket_values[f"game.agent.rewards.inventory.{item_name}"] = getattr(
-                                env_cfg.game.agent.rewards.inventory, item_name
-                            )
+            # Also look for any other numeric/string values in the config that might be buckets
+            # This catches any buckets we didn't explicitly listed above
+            self._extract_potential_buckets_recursive(config_dict, "", bucket_values)
 
-                if hasattr(env_cfg.game.agent.rewards, "inventory_max"):
-                    for item_name in ["wood", "stone", "iron", "gold"]:
-                        if hasattr(env_cfg.game.agent.rewards.inventory_max, item_name):
-                            bucket_values[f"game.agent.rewards.inventory_max.{item_name}"] = getattr(
-                                env_cfg.game.agent.rewards.inventory_max, item_name
-                            )
+            if bucket_values:
+                logger.debug(f"Extracted bucket values: {bucket_values}")
+            else:
+                logger.debug("No bucket values extracted from task")
 
         except Exception as e:
             logger.debug(f"Could not extract bucket values from task: {e}")
 
         return bucket_values
+
+    def _get_nested_value(self, config_dict: dict, path: str) -> Any:
+        """Get a nested value from a config dict using dot notation."""
+        try:
+            keys = path.split(".")
+            value = config_dict
+            for key in keys:
+                if isinstance(value, dict) and key in value:
+                    value = value[key]
+                else:
+                    return None
+            return value
+        except (KeyError, AttributeError, TypeError):
+            return None
+
+    def _extract_potential_buckets_recursive(self, config_dict: dict, current_path: str, bucket_values: dict):
+        """Recursively extract potential bucket values from config dict."""
+        if not isinstance(config_dict, dict):
+            return
+
+        for key, value in config_dict.items():
+            path = f"{current_path}.{key}" if current_path else key
+
+            # Skip very deep nesting to avoid noise
+            if path.count(".") > 5:
+                continue
+
+            # Look for values that could be bucket parameters
+            if isinstance(value, (int, float, str)) and value is not None:
+                # Skip very long strings (likely not bucket values)
+                if isinstance(value, str) and len(value) > 100:
+                    continue
+
+                # Skip paths that are likely not bucket parameters
+                if any(skip in path.lower() for skip in ["id", "uuid", "hash", "timestamp", "url", "path"]):
+                    continue
+
+                # Add as potential bucket value
+                bucket_values[path] = value
+
+            elif isinstance(value, dict):
+                # Recursively search nested dicts
+                self._extract_potential_buckets_recursive(value, path, bucket_values)
 
     def _initialize_bucket_tracking(self, bucket_values: Dict[str, Any]):
         """Initialize bucket tracking for newly discovered bucket parameters."""
@@ -147,10 +206,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     self._bucket_is_discrete[bucket_name] = True
                     # For discrete values, create bins for each unique value
                     self._bucket_bins[bucket_name] = []
+                    logger.debug(f"Initialized discrete bucket: {bucket_name} with value: {value}")
                 else:
                     self._bucket_is_discrete[bucket_name] = False
                     # For continuous values, create 10 histogram bins
                     self._bucket_bins[bucket_name] = []
+                    logger.debug(f"Initialized continuous bucket: {bucket_name} with value: {value}")
+            else:
+                logger.debug(f"Bucket already exists: {bucket_name}")
 
     def _update_bucket_tracking(self, task_id: int, bucket_values: Dict[str, Any]):
         """Update bucket tracking with new task values."""
@@ -174,11 +237,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                         self._continuous_values_buffer[bucket_name] = []
                     self._continuous_values_buffer[bucket_name].append(float(value))
 
-                    # Initialize bins when we have enough data points
-                    if len(self._continuous_values_buffer[bucket_name]) >= 10:
+                    logger.debug(
+                        f"Added value {value} to continuous buffer for {bucket_name} "
+                        f"(buffer size: {len(self._continuous_values_buffer[bucket_name])})"
+                    )
+
+                    # Initialize bins when we have enough data points (reduced from 10 to 3)
+                    if len(self._continuous_values_buffer[bucket_name]) >= 3:
+                        logger.debug(
+                            f"Initializing continuous bins for {bucket_name} with values: "
+                            f"{self._continuous_values_buffer[bucket_name]}"
+                        )
                         self._initialize_continuous_bins(bucket_name, self._continuous_values_buffer[bucket_name])
                         # Clear buffer after initialization
                         self._continuous_values_buffer[bucket_name] = []
+                        logger.debug(f"Initialized bins for {bucket_name}: {self._bucket_bins[bucket_name]}")
 
     def _update_bucket_completion_density(self, task_id: int, score: float):
         """Update bucket completion density tracking when a task completes."""
@@ -189,41 +262,72 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         task = self._task_objects[task_id]
         bucket_values = self._extract_bucket_values(task)
 
+        logger.debug(f"Updating bucket completion density for task {task_id} with score {score}")
+        logger.debug(f"Bucket values: {bucket_values}")
+
         # Update completion density for each bucket
         for bucket_name, value in bucket_values.items():
             if bucket_name in self._bucket_tracking:
                 # Find the appropriate bin for this value
                 bin_index = self._get_bin_index(bucket_name, value)
+                logger.debug(f"Bucket {bucket_name}, value {value} -> bin_index {bin_index}")
+
                 if bin_index is not None:
                     # Increment completion count for this bin
                     if bin_index not in self._bucket_completion_counts[bucket_name]:
                         self._bucket_completion_counts[bucket_name][bin_index] = 0
                     self._bucket_completion_counts[bucket_name][bin_index] += 1
+                    logger.debug(f"Incremented completion count for bucket {bucket_name}, bin {bin_index}")
 
                     # Update completion density history
                     self._update_completion_density_history(bucket_name)
+                else:
+                    logger.debug(f"Could not find bin for bucket {bucket_name}, value {value}")
+            else:
+                logger.debug(f"Bucket {bucket_name} not in tracking")
 
     def _get_bin_index(self, bucket_name: str, value: Any) -> Optional[int]:
         """Get the bin index for a given bucket value."""
         if bucket_name not in self._bucket_tracking:
+            logger.debug(f"Bucket {bucket_name} not in tracking")
             return None
 
         if self._bucket_is_discrete[bucket_name]:
             # For discrete values, find or create bin for this value
             if value not in self._bucket_bins[bucket_name]:
                 self._bucket_bins[bucket_name].append(value)
-            return self._bucket_bins[bucket_name].index(value)
+                logger.debug(f"Added new discrete bin for {bucket_name}: {value}")
+            bin_index = self._bucket_bins[bucket_name].index(value)
+            logger.debug(
+                f"Discrete bucket {bucket_name}, value {value} -> bin {bin_index} "
+                f"(bins: {self._bucket_bins[bucket_name]})"
+            )
+            return bin_index
         else:
             # For continuous values, we need to have bins initialized
-            if not self._bucket_bins[bucket_name]:
+            if not self._bucket_bins[bucket_name] or len(self._bucket_bins[bucket_name]) < 2:
+                logger.debug(f"Continuous bucket {bucket_name} bins not initialized: {self._bucket_bins[bucket_name]}")
                 return None
 
             # Find the appropriate bin
-            for i, (min_val, max_val) in enumerate(
-                zip(self._bucket_bins[bucket_name][:-1], self._bucket_bins[bucket_name][1:], strict=True)
-            ):
-                if min_val <= value < max_val:
-                    return i
+            try:
+                for i in range(len(self._bucket_bins[bucket_name]) - 1):
+                    min_val = self._bucket_bins[bucket_name][i]
+                    max_val = self._bucket_bins[bucket_name][i + 1]
+                    if min_val <= value < max_val:
+                        logger.debug(
+                            f"Continuous bucket {bucket_name}, value {value} -> bin {i} [{min_val}, {max_val})"
+                        )
+                        return i
+                # Handle edge case where value equals the last bin edge
+                if value == self._bucket_bins[bucket_name][-1]:
+                    bin_index = len(self._bucket_bins[bucket_name]) - 2
+                    logger.debug(f"Continuous bucket {bucket_name}, value {value} -> edge bin {bin_index}")
+                    return bin_index
+                logger.debug(f"Continuous bucket {bucket_name}, value {value} not in any bin range")
+            except (IndexError, TypeError) as e:
+                logger.debug(f"Error finding bin for continuous bucket {bucket_name}, value {value}: {e}")
+                return None
             return None
 
     def _update_completion_density_history(self, bucket_name: str):
@@ -261,14 +365,19 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def _initialize_continuous_bins(self, bucket_name: str, values: List[float]):
         """Initialize histogram bins for continuous bucket parameters."""
         if not values:
+            logger.debug(f"No values provided for continuous bin initialization of {bucket_name}")
             return
 
         min_val = min(values)
         max_val = max(values)
 
+        logger.debug(f"Initializing continuous bins for {bucket_name}: min={min_val}, max={max_val}, values={values}")
+
         # Create 10 bins for continuous parameters
         bin_edges = np.linspace(min_val, max_val, 11)  # 11 edges = 10 bins
         self._bucket_bins[bucket_name] = bin_edges.tolist()
+
+        logger.debug(f"Created {len(bin_edges) - 1} bins for {bucket_name}: {self._bucket_bins[bucket_name]}")
 
     def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
         """Get a task from the unified pool, creating or evicting as needed."""
@@ -317,6 +426,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         bucket_values = self._extract_bucket_values(task)
         self._initialize_bucket_tracking(bucket_values)
         self._update_bucket_tracking(task_id, bucket_values)
+
+        # Store the bucket values in the task for later use
+        if hasattr(task, "_bucket_values"):
+            task._bucket_values = bucket_values
+            logger.debug(f"Stored bucket values for task {task_id}: {bucket_values}")
 
     def _sample_from_pool(self) -> int:
         """Sample a task from the pool based on learning progress scores."""
@@ -436,19 +550,29 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Get bucket completion density statistics."""
         stats = {}
 
+        logger.debug(f"Generating bucket completion stats for {len(self._bucket_tracking)} buckets")
+
         for bucket_name in self._bucket_tracking:
             if bucket_name not in self._bucket_completion_counts:
+                logger.debug(f"Bucket {bucket_name} has no completion counts")
                 continue
 
             # Get completion counts for this bucket
             completion_counts = self._bucket_completion_counts[bucket_name]
             if not completion_counts:
+                logger.debug(f"Bucket {bucket_name} has empty completion counts")
                 continue
 
             # Calculate basic statistics
             total_completions = sum(completion_counts.values())
             if total_completions == 0:
+                logger.debug(f"Bucket {bucket_name} has 0 total completions")
                 continue
+
+            logger.debug(
+                f"Bucket {bucket_name}: total_completions={total_completions}, "
+                f"counts={completion_counts}, bins={self._bucket_bins[bucket_name]}"
+            )
 
             # Add bucket completion statistics
             stats[f"bucket/{bucket_name}/total_completions"] = float(total_completions)
@@ -462,6 +586,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                         value = self._bucket_bins[bucket_name][bin_index]
                         stats[f"bucket/{bucket_name}/value_{value}_completions"] = float(count)
                         stats[f"bucket/{bucket_name}/value_{value}_density"] = float(count / total_completions)
+                        logger.debug(
+                            f"Discrete bucket {bucket_name}, value {value}: count={count}, "
+                            f"density={count / total_completions}"
+                        )
             else:
                 # For continuous buckets, show completion density across bins
                 if len(self._bucket_bins[bucket_name]) >= 2:
@@ -476,6 +604,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                             stats[f"bucket/{bucket_name}/bin_{bin_index}_center_{bin_center:.2f}_density"] = float(
                                 count / total_completions
                             )
+                            logger.debug(
+                                f"Continuous bucket {bucket_name}, bin {bin_index} [{min_val}, {max_val}): "
+                                f"count={count}, density={count / total_completions}"
+                            )
 
             # Add completion density evolution statistics
             if self._bucket_completion_history[bucket_name]:
@@ -488,6 +620,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     float(history[-1] - history[0]) if len(history) > 1 else 0.0
                 )
 
+        logger.debug(f"Generated {len(stats)} bucket completion stats")
         return stats
 
     def get_bucket_summary(self) -> dict[str, dict]:

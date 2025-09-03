@@ -5,7 +5,7 @@ from __future__ import annotations
 import abc
 import random
 from abc import ABC
-from typing import ClassVar, Optional, Union
+from typing import Any, ClassVar, Dict, Optional, Union
 
 import numpy as np
 from pydantic import ConfigDict, Field
@@ -25,9 +25,10 @@ def get_algorithm_hypers_discriminator(v):
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 
-    def __init__(self, task_id: int, env_cfg):
+    def __init__(self, task_id: int, env_cfg, bucket_values: Optional[Dict[str, Any]] = None):
         self._task_id = task_id
         self._env_cfg = env_cfg
+        self._bucket_values = bucket_values or {}
         self._num_completions = 0
         self._total_score = 0.0
         self._mean_score = 0.0
@@ -42,6 +43,10 @@ class CurriculumTask:
     def get_env_cfg(self):
         """Get the environment configuration for this task."""
         return self._env_cfg
+
+    def get_bucket_values(self):
+        """Get the bucket values that were used to generate this task."""
+        return self._bucket_values
 
 
 class CurriculumAlgorithmConfig(Config, ABC):
