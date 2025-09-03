@@ -10,7 +10,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import (
 )
 from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
 
-from .test_helpers import LearningProgressTestHelper, MockTaskGenerator
+from .test_helpers import CurriculumTestHelper, MockTaskGenerator
 
 
 class TestLearningProgressCoreBehavior:
@@ -40,7 +40,7 @@ class TestLearningProgressCoreBehavior:
         task2_id = tasks[1]._task_id
 
         # Use helper to setup learning patterns - REDUCED from 20 to 5 iterations
-        LearningProgressTestHelper.setup_fast_vs_slow_learning(algorithm, task1_id, task2_id, iterations=5)
+        CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=5)
 
         # Get LP scores for both tasks
         lp_score_1 = algorithm._get_task_lp_score(task1_id)
@@ -74,8 +74,10 @@ class TestLearningProgressCoreBehavior:
         task1_id = tasks[0]._task_id
         task2_id = tasks[1]._task_id
 
-        # Use helper to setup performance patterns - REDUCED from 20 to 5 iterations
-        LearningProgressTestHelper.setup_changing_vs_consistent_performance(algorithm, task1_id, task2_id, iterations=5)
+        # Use helper to setup performance patterns - REDUCED from 5 iterations
+        CurriculumTestHelper.setup_learning_comparison(
+            algorithm, (task1_id, task2_id), "changing_vs_consistent", iterations=5
+        )
 
         # Get LP scores for both tasks
         lp_score_1 = algorithm._get_task_lp_score(task1_id)
@@ -111,7 +113,7 @@ class TestLearningProgressCoreBehavior:
         task3_id = tasks[2]._task_id
 
         # Use helper to setup learning patterns - REDUCED from 20 to 5 iterations
-        LearningProgressTestHelper.setup_fast_vs_slow_learning(algorithm, task1_id, task2_id, iterations=5)
+        CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=5)
 
         # Test that sampling favors higher LP scores
         num_samples = 100
