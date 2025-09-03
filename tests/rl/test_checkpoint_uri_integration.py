@@ -483,6 +483,7 @@ class TestWandbArtifactFormatting:
 
         mock_artifact = Mock()
         mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
+        mock_artifact.version = "v1"
         mock_artifact.wait = Mock()
 
         mock_run = Mock()
@@ -496,7 +497,8 @@ class TestWandbArtifactFormatting:
                 )
 
                 # Always returns :latest for simplicity and reliability
-                assert str(result).startswith("wandb://metta/test-artifact:")
+                assert result == "wandb://metta/test-artifact:v1"
+                assert result.startswith("wandb://"), "Should start with wandb://"
 
                 # Verify the artifact upload happened
                 mock_run.log_artifact.assert_called_once_with(mock_artifact)
