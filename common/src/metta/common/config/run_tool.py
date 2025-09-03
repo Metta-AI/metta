@@ -13,7 +13,6 @@ from typing_extensions import TypeVar
 
 from metta.common.config.config import Config
 from metta.common.config.tool import Tool
-from metta.common.util.log_config import init_logging
 from metta.common.util.module import load_symbol
 from metta.rl.system_config import seed_everything
 
@@ -101,8 +100,3 @@ def main():
 
     if result is not None:
         sys.exit(result)
-
-
-if __name__ == "__main__":
-    init_logging()
-    main()
