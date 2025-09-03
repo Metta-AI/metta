@@ -31,7 +31,7 @@ def ppo(
                 scale="auto",
             ),
             # 2. PPO clip coefficient - uniform from 0.05 to 0.3
-            "trainer.ppo.clip_coef": ParameterConfig(
+            "trainer.losses.loss_configs.ppo.clip_coef": ParameterConfig(
                 min=0.05,
                 max=0.3,
                 distribution="uniform",
@@ -39,7 +39,7 @@ def ppo(
                 scale="auto",
             ),
             # 3. Entropy coefficient - log scale from 0.0001 to 0.01
-            "trainer.ppo.ent_coef": ParameterConfig(
+            "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
                 min=0.0001,
                 max=0.01,
                 distribution="log_normal",
@@ -47,7 +47,7 @@ def ppo(
                 scale="auto",
             ),
             # 4. GAE lambda - uniform from 0.8 to 0.99
-            "trainer.ppo.gae_lambda": ParameterConfig(
+            "trainer.losses.loss_configs.ppo.gae_lambda": ParameterConfig(
                 min=0.8,
                 max=0.99,
                 distribution="uniform",
@@ -55,7 +55,7 @@ def ppo(
                 scale="auto",
             ),
             # 5. Value function coefficient - uniform from 0.1 to 1.0
-            "trainer.ppo.vf_coef": ParameterConfig(
+            "trainer.losses.loss_configs.ppo.vf_coef": ParameterConfig(
                 min=0.1,
                 max=1.0,
                 distribution="uniform",
@@ -117,7 +117,7 @@ def quick_test(
                 scale="auto",
             ),
             # 2. PPO clip coefficient - uniform from 0.05 to 0.3
-            "trainer.ppo.clip_coef": ParameterConfig(
+            "trainer.losses.loss_configs.ppo.clip_coef": ParameterConfig(
                 min=0.05,
                 max=0.3,
                 distribution="uniform",
@@ -125,7 +125,7 @@ def quick_test(
                 scale="auto",
             ),
             # 3. Entropy coefficient - log scale from 0.0001 to 0.01
-            "trainer.ppo.ent_coef": ParameterConfig(
+            "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
                 min=0.0001,
                 max=0.01,
                 distribution="log_normal",
@@ -133,7 +133,7 @@ def quick_test(
                 scale="auto",
             ),
             # 4. GAE lambda - uniform from 0.8 to 0.99
-            "trainer.ppo.gae_lambda": ParameterConfig(
+            "trainer.losses.loss_configs.ppo.gae_lambda": ParameterConfig(
                 min=0.8,
                 max=0.99,
                 distribution="uniform",
@@ -141,7 +141,7 @@ def quick_test(
                 scale="auto",
             ),
             # 5. Value function coefficient - uniform from 0.1 to 1.0
-            "trainer.ppo.vf_coef": ParameterConfig(
+            "trainer.losses.loss_configs.ppo.vf_coef": ParameterConfig(
                 min=0.1,
                 max=1.0,
                 distribution="uniform",
