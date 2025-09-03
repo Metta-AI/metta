@@ -21,7 +21,8 @@ runs:
         cache-dependency-glob: |
           uv.lock
           **/pyproject.toml
-          .github/actions/setup-uv/action.yml
+          .github/actions/setup-uv/dependencies-testing.txt
+          .github/actions/setup-uv/dependencies-linting.txt
 
     - name: Debug dependencies and cache
       shell: bash
@@ -60,11 +61,11 @@ runs:
 
           "testing")
             uv sync
-            uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
+            uv pip install -r .github/actions/setup-uv/dependencies-testing.txt
             ;;
 
           "linting")
-            uv pip install ruff cpplint
+            uv pip install -r .github/actions/setup-uv/dependencies-linting.txt
             ;;
 
           # used in the mettascope tests where we run code to generate outputs but do not run tests
