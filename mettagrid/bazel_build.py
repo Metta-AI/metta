@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-
 from setuptools.build_meta import (
     build_editable as _build_editable,
 )
@@ -64,26 +63,23 @@ def _run_bazel_build():
     # Bazel outputs the extension directly to bazel-bin/mettagrid_c.so
     extension_patterns = ["mettagrid_c.so", "mettagrid_c.pyd", "mettagrid_c.dylib"]
     extension_file = None
-
     for pattern in extension_patterns:
         file_path = bazel_bin / pattern
         if file_path.exists():
             extension_file = file_path
             break
+    if not extension_file:
+        raise RuntimeError("mettagrid_c.{so,pyd,dylib} not found")
 
-    if extension_file:
-        # Ensure destination directory exists
-        src_dir.mkdir(parents=True, exist_ok=True)
-        # Copy the extension to the source directory
-        dest = src_dir / extension_file.name
-        # Remove existing file if it exists (it might be read-only from previous build)
-        if dest.exists():
-            dest.unlink()
-        shutil.copy2(extension_file, dest)
-        print(f"Copied {extension_file} to {dest}")
-    else:
-        # If no pre-built extension found, we'll let setuptools handle it
-        print("No pre-built extension found, continuing with standard build")
+    # Ensure destination directory exists
+    src_dir.mkdir(parents=True, exist_ok=True)
+    # Copy the extension to the source directory
+    dest = src_dir / extension_file.name
+    # Remove existing file if it exists (it might be read-only from previous build)
+    if dest.exists():
+        dest.unlink()
+    shutil.copy2(extension_file, dest)
+    print(f"Copied {extension_file} to {dest}")
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
