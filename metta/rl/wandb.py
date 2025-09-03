@@ -158,12 +158,18 @@ def upload_checkpoint_as_artifact(
         logger.warning("No wandb run active, cannot upload artifact")
         return None
 
-    # Prepare metadata with original filename
+    # Sanitize artifact name - replace dots with underscores for wandb compatibility
+    # Store original name in metadata for reference
+    original_artifact_name = artifact_name
+    sanitized_artifact_name = artifact_name.replace(".", "_")
+
+    # Prepare metadata with original filename and original artifact name
     artifact_metadata = metadata.copy() if metadata else {}
     artifact_metadata["original_filename"] = Path(checkpoint_path).name
+    artifact_metadata["original_artifact_name"] = original_artifact_name
 
-    # Create artifact with complete metadata
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type, metadata=artifact_metadata)
+    # Create artifact with sanitized name and complete metadata
+    artifact = wandb.Artifact(name=sanitized_artifact_name, type=artifact_type, metadata=artifact_metadata)
 
     # Add the main checkpoint file - we use a generic name for consistency
     # The actual metadata is stored in the artifact's metadata field
@@ -185,7 +191,7 @@ def upload_checkpoint_as_artifact(
 
     # Always use "latest" for simplicity and reliability
     # This avoids all timing issues with WandB version assignment
-    wandb_uri = f"wandb://{run.project}/{artifact_name}:latest"
+    wandb_uri = f"wandb://{run.project}/{sanitized_artifact_name}:latest"
 
     # Log the actual qualified_name for debugging
     logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")

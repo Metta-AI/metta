@@ -38,6 +38,8 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
     "wandb://run/my-run:v5" -> "wandb://metta/model/my-run:v5"
     "wandb://sweep/sweep-abc" -> "wandb://metta/sweep_model/sweep-abc:latest"
+
+    Note: Dots in run names are replaced with underscores for wandb artifact compatibility.
     """
     if not uri.startswith("wandb://"):
         return uri
@@ -51,7 +53,9 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
             run_name, version = run_name.split(":", 1)
         else:
             version = "latest"
-        return f"wandb://{default_project}/model/{run_name}:{version}"
+        # Replace dots with underscores for wandb artifact compatibility
+        sanitized_name = run_name.replace(".", "_")
+        return f"wandb://{default_project}/model/{sanitized_name}:{version}"
 
     elif path.startswith("sweep/"):
         sweep_name = path[6:]  # Remove "sweep/"
@@ -59,7 +63,9 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
             sweep_name, version = sweep_name.split(":", 1)
         else:
             version = "latest"
-        return f"wandb://{default_project}/sweep_model/{sweep_name}:{version}"
+        # Replace dots with underscores for wandb artifact compatibility
+        sanitized_name = sweep_name.replace(".", "_")
+        return f"wandb://{default_project}/sweep_model/{sanitized_name}:{version}"
 
     # Already in full format or unrecognized pattern - return as-is
     return uri
