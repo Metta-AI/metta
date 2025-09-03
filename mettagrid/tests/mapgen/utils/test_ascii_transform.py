@@ -336,12 +336,6 @@ class TestStretchAsciiMap:
         # '@' -> '@..'
         # 'R' -> 'R..'
         # Second vertical row: objects replaced by '.'
-        expected = (
-            "###c..@..R..\n"
-            "###... .. ..\n"  # spaces just for annot; replace with no spaces
-            "...___"  # placeholder
-        )
-        # Build exact expected without formatting noise
         # Final exact expected based on rules:
         # Row1: '#c@R' -> '###c..@..R..'
         # Row1 copy: '###.........'
