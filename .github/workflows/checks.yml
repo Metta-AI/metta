@@ -33,7 +33,6 @@ permissions:
 env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
-  PYTEST_WORKERS: auto
   EVAL_SMOKE_TEST_POLICY: m.av.replay.probe.751 # just the name, no need to include any uri preamble like "wandb://run/"
   EVAL_SMOKE_TEST_MAX_ATTEMPTS: 3
   EVAL_SMOKE_TEST_MIN_REWARD: 0.0
@@ -209,7 +208,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-8core # 4core 150sec; 8core 143 sec; 16core 141 sec
+    runs-on: ubuntu-16core # 4core 150sec; 8core 143 sec; 16core 141 sec
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -247,7 +246,8 @@ jobs:
 
             echo -e "${color}[${package}]\033[0m 🚀 Starting tests..."
 
-            PYTEST_BASE_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+            # packages run in parallel; assign 4 cores to each to reduce contention
+            PYTEST_BASE_ARGS="-n 2 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
             # Also save raw output for duration parsing
             local raw_output="test-results/${package}_raw.log"
