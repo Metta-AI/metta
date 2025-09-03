@@ -5,6 +5,7 @@ import subprocess
 import time
 
 import botocore.exceptions
+import botocore.tokens
 import sky
 import sky.exceptions
 import yaml
@@ -90,7 +91,7 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
         if hourly_cost is not None:
             hourly_cost *= estimated_multiplier
 
-    except botocore.exceptions.TokenRetrievalError:
+    except (botocore.exceptions.TokenRetrievalError, botocore.tokens.TokenRetrievalError):
         print(f"\n{yellow('⚠️  AWS authentication expired')} - Cost calculation unavailable")
         print(f"   Run {green('aws sso login')} to refresh your credentials")
         print("   Continuing without cost information...\n")
