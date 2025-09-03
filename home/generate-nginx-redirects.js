@@ -22,19 +22,10 @@ linksConfig.links.forEach(link => {
 
 allItems.forEach(item => {
   item.short_urls.forEach(shortUrl => {
-    // Check if URL contains $username variable
-    if (item.url.includes('$username')) {
-      // For URLs with username, build the URL dynamically
-      const urlParts = item.url.split('$username');
-      allRedirects.push(`    location = /${shortUrl} {
-        # Build URL with username substitution
-        set $target_url "${urlParts[0]}$username${urlParts[1] || ''}";
-        return 302 $target_url;
+    allRedirects.push(`    location = /${shortUrl} {
+        set $target_url "${item.url}"; // need this so that item.url gets evaluated for string interpolation
+        return 301 $target_url;
     }`);
-    } else {
-      // Simple redirect for URLs without username
-      allRedirects.push(`    location = /${shortUrl} { return 301 "${item.url}"; }`);
-    }
   });
 });
 
