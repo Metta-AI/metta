@@ -56,25 +56,33 @@ class PPO(BaseLoss):
             values=scalar_f32,
         )
 
+    # BaseLoss calls this method
     def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
-        """PPO handles its own inference and storage during rollout."""
         with torch.no_grad():
             self.policy(td)
 
+        # Store experience
         self.replay.store(data_td=td, env_id=trainer_state.training_env_id)
 
+        return
+
+    # BaseLoss calls this method
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
-        """PPO training loop for a single minibatch."""
+        """This is the PPO algorithm training loop."""
+        # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
         self.policy.on_train_mb_start()
 
+        # Check if we should early stop this update epoch (on subsequent minibatches)
         if self.loss_cfg.target_kl is not None and trainer_state.mb_idx > 0:
             average_approx_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
             if average_approx_kl > self.loss_cfg.target_kl:
                 trainer_state.stop_update_epoch = True
 
+        # On the first minibatch of the update epoch, compute advantages and sampling params
         if trainer_state.mb_idx == 0:
             self.advantages, self.anneal_beta = self._on_first_mb(trainer_state)
 
+        # Then sample from the buffer (this happens at every minibatch)
         minibatch, indices, prio_weights = self._sample_minibatch(
             advantages=self.advantages,
             prio_alpha=self.loss_cfg.prioritized_experience_replay.prio_alpha,
