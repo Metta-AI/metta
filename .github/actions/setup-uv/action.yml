@@ -15,7 +15,7 @@ runs:
         version: "0.7.3"
         enable-cache: true
         cache-local-path: "${{ github.workspace }}/.uv-cache"
-        prune-cache: true
+        prune-cache: false
         cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
         cache-dependency-glob: |
           **/pyproject.toml
