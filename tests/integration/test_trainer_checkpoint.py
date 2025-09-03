@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Integration test for trainer and policy checkpoint functionality.
 
