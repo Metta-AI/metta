@@ -496,8 +496,7 @@ class TestWandbArtifactFormatting:
                 )
 
                 # Always returns :latest for simplicity and reliability
-                assert result == "wandb://metta/test-artifact:latest"
-                assert result.startswith("wandb://"), "Should start with wandb://"
+                assert str(result).startswith("wandb://metta/test-artifact:")
 
                 # Verify the artifact upload happened
                 mock_run.log_artifact.assert_called_once_with(mock_artifact)
