@@ -3,8 +3,8 @@ import os
 import socket
 
 import wandb
-import wandb.errors
 import wandb.sdk.wandb_run
+from wandb.errors import CommError
 
 from metta.common.config import Config
 
@@ -108,7 +108,7 @@ class WandbContext:
             wandb.save(os.path.join(self.cfg.data_dir, "*.json"), base_path=self.cfg.data_dir, policy="live")
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
-        except (TimeoutError, wandb.errors.CommError) as e:
+        except (TimeoutError, CommError) as e:
             error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
             logger.warning(f"W&B initialization failed due to {error_type} error: {str(e)}")
             logger.info("Continuing without W&B logging")
