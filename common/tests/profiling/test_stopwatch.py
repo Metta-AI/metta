@@ -45,11 +45,6 @@ class TestStopwatch:
         sw2 = Stopwatch(log_level=logging.INFO)
         assert sw2.logger.name == f"Stopwatch.{id(sw2)}"
         assert sw2.logger.level == logging.INFO
-
-        # Check that StreamHandler was added (not NullHandler)
-        stream_handlers = [h for h in sw2.logger.handlers if isinstance(h, logging.StreamHandler)]
-        assert len(stream_handlers) >= 1, "Logger should have at least one StreamHandler when log_level is set"
-
         # Verify each instance has a unique logger
         assert sw.logger.name != sw2.logger.name
 

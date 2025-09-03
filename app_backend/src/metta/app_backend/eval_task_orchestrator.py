@@ -33,7 +33,6 @@ from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
-from metta.common.util.log_config import init_logging
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +260,6 @@ class EvalTaskOrchestrator:
 
 
 async def main() -> None:
-    init_logging()
     init_tracing()
 
     backend_url = os.environ.get("BACKEND_URL", DEV_STATS_SERVER_URI)
