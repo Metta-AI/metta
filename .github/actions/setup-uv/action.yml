@@ -108,7 +108,7 @@ runs:
               safe_file=$(basename "$dep_file")
               if [ -f "${{ github.action_path }}/$safe_file" ]; then
               echo "Installing from $dep_file:"
-              uv pip install -r "${{ github.action_path }}/$dep_file"
+              uv pip install -r "${{ github.action_path }}/$safe_file"
             elif [ -n "$dep_file" ]; then
               echo "Dependencies file not found: ${{ github.action_path }}/$dep_file"
             fi
