@@ -244,12 +244,10 @@ jobs:
             local package=$1
             local color=$2
 
-            echo -e "${color}[${package}]\033[0m 🚀 Starting tests..."
-
             # packages run in parallel so we will start (packages)*(pytest_workers) processes
-            PYTEST_BASE_ARGS="-n 4 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+            PYTEST_BASE_ARGS="-n 2 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
-            # Also save raw output for duration parsing
+            # Save raw output for duration parsing
             local raw_output="test-results/${package}_raw.log"
 
             # Run tests and prefix each line with package name and color
@@ -259,30 +257,18 @@ jobs:
                 2>&1 | tee "$raw_output" | while IFS= read -r line; do
                   echo -e "${color}[${package}]\033[0m $line"
                 done
-              # Capture PIPESTATUS immediately after the pipeline
-              local exit_code=${PIPESTATUS[0]}
-              echo $exit_code > test-results/${package}.exit
+              echo ${PIPESTATUS[0]} > test-results/${package}.exit
             else
               (cd "$package" && pytest $PYTEST_BASE_ARGS \
                 --cov-report=xml:../coverage-reports/coverage-${package}.xml) \
                 2>&1 | tee "$raw_output" | while IFS= read -r line; do
                   echo -e "${color}[${package}]\033[0m $line"
                 done
-              # Capture PIPESTATUS immediately after the pipeline
-              local exit_code=${PIPESTATUS[0]}
-              echo $exit_code > test-results/${package}.exit
+              echo ${PIPESTATUS[0]} > test-results/${package}.exit
             fi
 
             # Extract duration info for later summary
             grep -E "^[0-9]+\.[0-9]+s " "$raw_output" > "test-results/${package}_durations.txt" || true
-
-            # Print completion status
-            local exit_code=$(cat test-results/${package}.exit)
-            if [ "$exit_code" -eq 0 ]; then
-              echo -e "${color}[${package}]\033[0m ✅ Tests passed!"
-            else
-              echo -e "${color}[${package}]\033[0m ❌ Tests failed (exit code: $exit_code)"
-            fi
           }
 
           # Export function
@@ -292,7 +278,8 @@ jobs:
           START_TIME=$(date +%s)
 
           # Launch all packages in parallel with different colors
-          run_package_tests "mettagrid" "\033[1;34m" &   # Bold Blue -- slowest package
+          echo "⏳ Running tests in parallel..."
+          run_package_tests "mettagrid" "\033[1;34m" &   # Bold Blue
           run_package_tests "agent" "\033[1;31m" &        # Bold Red
           run_package_tests "common" "\033[1;32m" &       # Bold Green
           run_package_tests "app_backend" "\033[1;33m" & # Bold Yellow
@@ -300,45 +287,31 @@ jobs:
           run_package_tests "core" "\033[1;36m" &         # Bold Cyan
 
           # Wait for all to complete
-          echo "⏳ Running tests on $(nproc) cores..."
           wait
 
           # Calculate total time
           END_TIME=$(date +%s)
           TOTAL_TIME=$((END_TIME - START_TIME))
 
-          # Summary
-          echo -e "\n\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-          echo -e "\033[1;37m📊 TEST SUMMARY\033[0m"
-          echo -e "\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-
+          # Check for failures
           OVERALL_FAILED=0
           FAILED_PACKAGES=""
 
           for package in agent common app_backend mettagrid codebot core; do
             if [ -f "test-results/${package}.exit" ]; then
               EXIT_CODE=$(cat "test-results/${package}.exit")
-              # Count tests run
-              TEST_COUNT=$(grep -c "PASSED\|FAILED\|SKIPPED" "test-results/${package}_raw.log" || echo "0")
-              if [ "$EXIT_CODE" -eq 0 ]; then
-                echo -e "  ✅ \033[1;32m${package}\033[0m - PASSED (${TEST_COUNT} tests)"
-              else
-                echo -e "  ❌ \033[1;31m${package}\033[0m - FAILED (exit code: $EXIT_CODE, ${TEST_COUNT} tests)"
+              if [ "$EXIT_CODE" -ne 0 ]; then
                 OVERALL_FAILED=1
                 FAILED_PACKAGES="$FAILED_PACKAGES $package"
               fi
             else
-              echo -e "  ⚠️  \033[1;33m${package}\033[0m - NO RESULTS"
               OVERALL_FAILED=1
+              FAILED_PACKAGES="$FAILED_PACKAGES $package"
             fi
           done
 
-          echo -e "\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-          echo -e "\033[1;37m⏱️  Total execution time: ${TOTAL_TIME}s\033[0m"
-          echo -e "\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-
           # Show top 10 slowest tests across all packages
-          echo -e "\n\033[1;37m🐌 TOP 10 SLOWEST TESTS (across all packages)\033[0m"
+          echo -e "\n\033[1;37m🐌 TOP 10 SLOWEST TESTS\033[0m"
           echo -e "\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 
           # Combine all duration files and sort
@@ -353,6 +326,7 @@ jobs:
 
           if [ $OVERALL_FAILED -ne 0 ]; then
             echo -e "\n\033[1;31m💥 Tests failed in:$FAILED_PACKAGES\033[0m"
+            echo -e "Total time: ${TOTAL_TIME}s"
             exit 1
           else
             echo -e "\n\033[1;32m🎉 All tests passed in ${TOTAL_TIME}s!\033[0m"
