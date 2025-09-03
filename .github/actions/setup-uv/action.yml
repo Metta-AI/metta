@@ -19,8 +19,6 @@ inputs:
 
 runs:
   using: "composite"
-  env:
-    UV_NO_SYNC: "1"
   steps:
     - name: Install uv with built-in caching
       uses: astral-sh/setup-uv@v6
@@ -54,10 +52,13 @@ runs:
 
     - name: Create virtual environment with uv
       shell: bash
+      env:
+        UV_NO_SYNC: "1"
       run: |
         # Export environment variables
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+        echo "UV_NO_SYNC=1" >> $GITHUB_ENV
 
         # Always create fresh venv (using cached packages from uv store)
         echo "🚀 Creating fresh virtual environment..."
