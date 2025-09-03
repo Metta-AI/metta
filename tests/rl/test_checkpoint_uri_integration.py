@@ -479,10 +479,11 @@ class TestWandbArtifactFormatting:
             assert len(parts) == 3, f"qname should have exactly 3 parts, got: {qname}"
 
     def test_upload_checkpoint_returns_latest_uri(self):
-        """Test that upload_checkpoint_as_artifact always returns latest URI for simplicity."""
+        """Test that upload_checkpoint_as_artifact returns URI with specific version."""
 
         mock_artifact = Mock()
         mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
+        mock_artifact.version = "v1"  # Set the version attribute
         mock_artifact.wait = Mock()
 
         mock_run = Mock()
@@ -495,8 +496,8 @@ class TestWandbArtifactFormatting:
                     checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
                 )
 
-                # Always returns :latest for simplicity and reliability
-                assert result == "wandb://metta/test-artifact:latest"
+                # Returns the specific version that was uploaded
+                assert result == "wandb://metta/test-artifact:v1"
                 assert result.startswith("wandb://"), "Should start with wandb://"
 
                 # Verify the artifact upload happened

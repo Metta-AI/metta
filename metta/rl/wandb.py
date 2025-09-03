@@ -223,6 +223,7 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
+    # Return the specific version that was uploaded
     wandb_uri = f"wandb://{run.project}/{artifact_name}:{artifact.version}"
     logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
 
