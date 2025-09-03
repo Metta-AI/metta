@@ -499,8 +499,9 @@ class Simulation:
             }
         if len(self._replay_writer.episodes) != 1:
             raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
-        for _, episode_replay in self._replay_writer.episodes.items():
-            return episode_replay.get_replay_data()
+        # Get the single episode directly
+        episode_id = next(iter(self._replay_writer.episodes))
+        return self._replay_writer.episodes[episode_id].get_replay_data()
 
 
 @dataclass
