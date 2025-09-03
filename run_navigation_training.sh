@@ -20,7 +20,7 @@ echo ""
 run_training() {
     local curriculum_type=$1
     local use_lp=$2
-    local run_name="navigation_${curriculum_type}_$(date +%m%d_%H%M%S)"
+    local run_name="bullm_navigation_${curriculum_type}_$(date +%m%d_%H%M%S)"
 
     echo "🎯 Running $curriculum_type curriculum training..."
     echo "   Run name: $run_name"

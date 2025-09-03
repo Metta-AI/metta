@@ -73,12 +73,6 @@ class CurriculumAlgorithmConfig(Config, ABC):
         populate_by_name=True,
     )
 
-    @classmethod
-    def from_mg(cls, mg_config: MettaGridConfig) -> CurriculumConfig:
-        return cls(
-            task_generator=SingleTaskGeneratorConfig(env=mg_config),
-        )
-
 
 class CurriculumAlgorithm(ABC):
     """
@@ -215,6 +209,13 @@ class CurriculumConfig(Config):
     algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
         default=None, description="Curriculum algorithm hyperparameters"
     )
+
+    @classmethod
+    def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
+        """Create a CurriculumConfig from a MettaGridConfig."""
+        return cls(
+            task_generator=SingleTaskGeneratorConfig(env=mg_config),
+        )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
