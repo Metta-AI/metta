@@ -99,7 +99,7 @@ when defined(emscripten):
   window.run(main)
 
 else:
-  import cligen, puppy
+  import cligen
   proc cmd(replay: string = "") =
     if replay != "":
       if replay.startsWith("http"):
