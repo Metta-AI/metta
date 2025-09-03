@@ -80,9 +80,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._curriculum = None  # Reference to base curriculum for unified task tracking
 
         # Initialize bidirectional learning progress tracker
-        # Use a larger search space to accommodate all possible task indices
-        # The search space should be large enough for the pool size and potential task growth
-        search_space_size = max(num_tasks, hypers.pool_size * 2, 100)  # Ensure sufficient capacity
+        # Search space should be exactly the pool size - no expansion needed
+        search_space_size = hypers.pool_size
         self._lp_tracker = BidirectionalLearningProgress(
             search_space=search_space_size,
             ema_timescale=hypers.ema_timescale,
@@ -92,7 +91,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Task management - now unified with base curriculum
         self._task_memory: Dict[int, Tuple[int, str, int, float, float, float]] = {}
         self._task_id_to_index: Dict[int, int] = {}
-        self._next_index: int = 0
+        self._next_index = 0
+
+        # Index recycling - maintain a pool of available indices
+        self._available_indices = set(range(search_space_size))
+        self._used_indices = set()
 
         # Bucket tracking for completion density analysis
         self._bucket_tracking: Dict[str, Dict[int, Any]] = {}  # bucket_name -> task_id -> value
@@ -140,9 +143,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         env_cfg = task_generator.get_task(task_id)
         task = CurriculumTask(task_id, env_cfg)
 
-        # Assign sequential index for learning progress tracking
-        self._task_id_to_index[task_id] = self._next_index
-        self._next_index += 1
+        # Get an available index from the pool (recycle indices)
+        if not self._available_indices:
+            # This should never happen if we're properly evicting tasks
+            raise RuntimeError("No available indices in search space - pool management error")
+
+        task_index = self._available_indices.pop()
+        self._used_indices.add(task_index)
+        self._task_id_to_index[task_id] = task_index
 
         # Add to memory for algorithm tracking
         self._task_memory[task_id] = (task_id, "default", 0, 0.0, 0.0, 0.0)
@@ -218,10 +226,24 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 )  # Index 5 is lp_score
 
             if worst_task_id is not None:
+                # Get the index to recycle
+                task_index = self._task_id_to_index.get(worst_task_id)
+
                 # Remove from task memory
                 if worst_task_id in self._task_memory:
                     del self._task_memory[worst_task_id]
                     del self._task_id_to_index[worst_task_id]
+
+                    # Recycle the index back to available pool
+                    if task_index is not None:
+                        self._used_indices.discard(task_index)
+                        self._available_indices.add(task_index)
+
+                        # Clear the learning progress data for this index
+                        if task_index < len(self._lp_tracker._outcomes):
+                            self._lp_tracker._outcomes[task_index] = []
+                        if task_index < len(self._lp_tracker._task_success_rate):
+                            self._lp_tracker._task_success_rate[task_index] = 0.0
 
                     # Remove bucket tracking for this task
                     for bucket_name in self._bucket_tracking:
@@ -256,7 +278,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Safety check: ensure task_index is within bounds of _outcomes
         if task_index >= len(self._lp_tracker._outcomes):
-            logger.warning(f"Task index {task_index} out of bounds for outcomes size {len(self._lp_tracker._outcomes)}")
+            # This should never happen with proper index recycling
+            logger.error(f"Task index {task_index} out of bounds for outcomes size {len(self._lp_tracker._outcomes)}")
+            logger.error(f"Available indices: {self._available_indices}, Used indices: {self._used_indices}")
             return
 
         self._lp_tracker._outcomes[task_index].append(score)
@@ -301,6 +325,24 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return float(raw_lp_scores[task_index])
 
+    def _validate_index_management(self) -> dict[str, Any]:
+        """Validate that index management is working correctly."""
+        validation = {
+            "pool_size": self.hypers.pool_size,
+            "active_tasks": len(self._task_memory),
+            "available_indices": len(self._available_indices),
+            "used_indices": len(self._used_indices),
+            "total_indices": len(self._available_indices) + len(self._used_indices),
+            "search_space_size": len(self._lp_tracker._outcomes),
+        }
+
+        # Validate invariants
+        validation["indices_match_pool"] = validation["total_indices"] == validation["search_space_size"]
+        validation["pool_not_overfull"] = validation["active_tasks"] <= validation["pool_size"]
+        validation["indices_available"] = validation["available_indices"] >= 0
+
+        return validation
+
     # Statistics and logging methods
     def stats(self) -> dict[str, float]:
         """Return unified statistics for the pool including bucket completion density."""
@@ -310,6 +352,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if self.hypers.enable_learning_progress_logging:
             base_stats = self._lp_tracker.add_stats()
             stats.update(base_stats)
+
+        # Add index management validation stats
+        validation_stats = self._validate_index_management()
+        for key, value in validation_stats.items():
+            if isinstance(value, (int, float)):
+                stats[f"index_management/{key}"] = float(value)
 
         # Performance optimization: only recalculate expensive bucket stats periodically
         if self._stats_update_counter < self._stats_update_frequency:
@@ -449,11 +497,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             else:
                 pass  # Bucket already exists
 
-        # Log which buckets we're monitoring
-        if bucket_names:
-            logger.info(f"Monitoring {len(bucket_names)} bucket axes: {bucket_names}")
-        else:
-            logger.info("No bucket axes selected for monitoring")
+        # Track which buckets we're monitoring (no logging)
+        pass
 
     def _update_bucket_tracking(self, task_id: int, bucket_values: Dict[str, Any]):
         """Update bucket tracking with new task values."""
@@ -1042,3 +1087,5 @@ class BidirectionalLearningProgress:
         tasks = self._sample_tasks()
 
         return task_dist, tasks
+
+    # No _expand_search_space method needed - search space is fixed at pool size
