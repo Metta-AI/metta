@@ -4,6 +4,7 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -63,6 +64,7 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
             simulations=[
@@ -108,6 +110,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
 
     trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
         curriculum=cc.env_curriculum(env_cfg),
         evaluation=EvaluationConfig(
             simulations=make_evals(env_cfg),

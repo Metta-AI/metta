@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.mettagrid.util.file import WandbURI, local_copy
-from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb_uri
+from metta.rl.wandb import expand_wandb_uri, get_wandb_checkpoint_metadata, load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
 
@@ -31,38 +31,6 @@ def _parse_uri_path(uri: str, scheme: str) -> str:
     """
     prefix = f"{scheme}://"
     return uri[len(prefix) :] if uri.startswith(prefix) else uri
-
-
-def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
-    """Expand short wandb URI formats to full format.
-    "wandb://run/my-run" -> "wandb://metta/model/my-run:latest"
-    "wandb://run/my-run:v5" -> "wandb://metta/model/my-run:v5"
-    "wandb://sweep/sweep-abc" -> "wandb://metta/sweep_model/sweep-abc:latest"
-    """
-    if not uri.startswith("wandb://"):
-        return uri
-
-    path = _parse_uri_path(uri, "wandb")
-
-    # Check for short format patterns
-    if path.startswith("run/"):
-        run_name = path[4:]  # Remove "run/"
-        if ":" in run_name:
-            run_name, version = run_name.split(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{default_project}/model/{run_name}:{version}"
-
-    elif path.startswith("sweep/"):
-        sweep_name = path[6:]  # Remove "sweep/"
-        if ":" in sweep_name:
-            sweep_name, version = sweep_name.split(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{default_project}/sweep_model/{sweep_name}:{version}"
-
-    # Already in full format or unrecognized pattern - return as-is
-    return uri
 
 
 def key_and_version(uri: str) -> tuple[str, int]:
@@ -91,6 +59,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
         metadata = get_wandb_checkpoint_metadata(expanded_uri)
         if metadata:
             return metadata["run_name"], metadata["epoch"]
+        # Fallback: parse artifact name from URI
         wandb_uri = WandbURI.parse(expanded_uri)
         artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
         return artifact_name, 0
@@ -160,20 +129,19 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
 class CheckpointManager:
     """Checkpoint manager with filename-embedded metadata and LRU cache."""
 
-    def __init__(self, run_name: str = "default", run_dir: str = "./train_dir", cache_size: int = 3):
+    def __init__(self, run: str = "default", run_dir: str = "./train_dir", cache_size: int = 3):
         # Validate run name
-        if not run_name or not run_name.strip():
+        if not run or not run.strip():
             raise ValueError("Run name cannot be empty")
-        if any(char in run_name for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
-            raise ValueError(f"Run name contains invalid characters: {run_name}")
-        if "__" in run_name:
-            raise ValueError(
-                f"Run name cannot contain '__' as it's used as a delimiter in checkpoint filenames: {run_name}"
-            )
+        if any(char in run for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
+            raise ValueError(f"Run name contains invalid characters: {run}")
+        if "__" in run:
+            raise ValueError(f"Run name cannot contain '__' as it's used as a delimiter in checkpoint filenames: {run}")
 
-        self.run_name = run_name
+        self.run = run
+        self.run_name = run
         self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / self.run_name / "checkpoints"
+        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
 
@@ -183,10 +151,7 @@ class CheckpointManager:
 
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device = "cpu"):
-        """Load a policy from a URI.
-
-        Expects explicit URI format: file://, wandb://, s3://, or mock://
-        """
+        """Load a policy from a URI (file://, wandb://, s3://, or mock://)."""
         if uri.startswith("file://"):
             path = Path(_parse_uri_path(uri, "file"))
             if path.is_dir():
@@ -203,8 +168,7 @@ class CheckpointManager:
                 return torch.load(local_path, weights_only=False, map_location=device)
 
         if uri.startswith("wandb://"):
-            expanded_uri = expand_wandb_uri(uri)
-            return load_policy_from_wandb_uri(expanded_uri, device=device)
+            return load_policy_from_wandb_uri(uri, device=device)
 
         if uri.startswith("mock://"):
             from metta.agent.mocks import MockAgent
@@ -215,10 +179,8 @@ class CheckpointManager:
 
     @staticmethod
     def normalize_uri(uri: str) -> str:
-        """Convert paths to file:// URIs and expand wandb:// URIs."""
-        if uri.startswith("wandb://"):
-            return expand_wandb_uri(uri)
-        if uri.startswith(("file://", "s3://", "mock://")):
+        """Convert paths to file:// URIs. Keep other URI schemes as-is."""
+        if uri.startswith(("file://", "s3://", "mock://", "wandb://")):
             return uri
         # Assume it's a file path - convert to URI
         return f"file://{Path(uri).resolve()}"
@@ -227,7 +189,7 @@ class CheckpointManager:
     def get_policy_metadata(uri: str) -> PolicyMetadata:
         """Extract metadata from policy URI."""
         normalized_uri = CheckpointManager.normalize_uri(uri)
-        run_name, epoch = key_and_version(normalized_uri)
+        run_name, epoch = key_and_version(normalized_uri)  # Use normalized URI for metadata extraction
         metadata: PolicyMetadata = {"run_name": run_name, "epoch": epoch, "uri": normalized_uri, "original_uri": uri}
 
         # Add extra metadata for file:// URIs with valid checkpoint filenames
