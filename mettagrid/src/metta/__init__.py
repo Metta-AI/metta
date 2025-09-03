@@ -1,2 +1,4 @@
 # mettagrid/src/metta/__init__.py
-__path__ = __import__("pkgutil").extend_path(__path__, __name__)
+from metta.common.util.namespace import setup_metta_namespace_package
+
+__path__ = setup_metta_namespace_package(__name__, __path__)

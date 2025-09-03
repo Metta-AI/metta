@@ -6,9 +6,7 @@
 from metta.common.util.log_config import init_logging
 
 if __name__ == "__main__":
-    init_logging()  # Basic console logging
-    # OR
-    init_logging(run_dir="./experiments/run_001")  # Console + file logging
+    init_logging(run_dir="./experiments/run_001")  # Optional; only if you want file logging
 ```
 
 ## Features
@@ -51,31 +49,6 @@ When `run_dir` is specified:
 
 The following variables automatically trigger simple (non-Rich) formatting: `WANDB_MODE`, `AWS_BATCH_JOB_ID`,
 `SKYPILOT_TASK_ID`, `NO_HYPERLINKS`
-
-## Python Logging Primer
-
-Child loggers inherit from root through propagation:
-
-```python
-init_logging()  # Configures root logger
-
-# In any module:
-logger = logging.getLogger(__name__)  # Gets a child logger
-logger.info("Message")  # Propagates to root's handlers
-```
-
-**Key point**: Call `init_logging()` early, before importing modules that create loggers.
-
-## Rank Aware Type Hints
-
-For IDE support with rank-aware methods, use `getRankAwareLogger`:
-
-```python
-from metta.common.util.log_config import getRankAwareLogger
-
-logger = getRankAwareLogger(__name__)  # Returns typed RankAwareLogger
-logger.info_master("...")  # IDE knows about master-only methods
-```
 
 ## Troubleshooting
 
