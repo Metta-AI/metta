@@ -18,16 +18,15 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
 def make_nav_ascii_env(
     name: str, max_steps: int, border_width: int = 1, num_agents=4
 ) -> MettaGridConfig:
+    # we re-use nav sequence maps, but replace all objects with altars
     ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
 
-    # Load map, replace first two underscores with 'm' and 'g'
     with open(ascii_map, "r") as f:
         map_content = f.read()
 
     # for navigation we replace all objects with altars
     map_content = map_content.replace("n", "_", 1).replace("m", "_", 1)
 
-    # Create temporary file safely; ensure cleanup at process exit
     with tempfile.NamedTemporaryFile(suffix=".map", mode="w", delete=False) as tmp:
         tmp.write(map_content)
         ascii_map_nav = tmp.name
