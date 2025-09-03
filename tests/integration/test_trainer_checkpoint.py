@@ -163,7 +163,7 @@ class TestTrainerCheckpointIntegration:
         policy_files_2 = list(Path(self.checkpoint_dir).glob("model_*.pt"))
         assert len(policy_files_2) >= len(policy_files), "Should have at least as many policy files"
 
-        print("✅ Checkpoint save and resume test passed!")
+        print("Checkpoint save and resume test passed!")
 
     def test_checkpoint_fields_are_preserved(self) -> None:
         trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config()
@@ -209,7 +209,7 @@ class TestTrainerCheckpointIntegration:
         if checkpoint.extra_args:
             assert isinstance(checkpoint.extra_args, dict), "Extra args is not a dict"
 
-        print("✅ Checkpoint fields preservation test passed!")
+        print("Checkpoint fields preservation test passed!")
         print(f"Checkpoint details: agent_step={checkpoint.agent_step}, epoch={checkpoint.epoch}")
         print(f"Policy path: {checkpoint.policy_path}")
         print(f"Optimizer state keys: {list(checkpoint.optimizer_state_dict.keys())[:5]}...")
@@ -251,7 +251,7 @@ class TestTrainerCheckpointIntegration:
         assert policy_record is not None, "Failed to load policy record"
         assert policy_record.policy is not None, "Policy not loaded in record"
 
-        print(f"✅ Policy loading test passed! Policy loaded from: {checkpoint.policy_path}")
+        print(f"Policy loading test passed! Policy loaded from: {checkpoint.policy_path}")
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
     def test_checkpoint_with_gpu_device(self) -> None:
@@ -289,7 +289,7 @@ class TestTrainerCheckpointIntegration:
         assert checkpoint is not None, "Failed to create checkpoint with GPU"
         assert checkpoint.agent_step > 0, "No training progress recorded"
 
-        print("✅ GPU checkpoint test passed!")
+        print("GPU checkpoint test passed!")
 
 
 if __name__ == "__main__":
