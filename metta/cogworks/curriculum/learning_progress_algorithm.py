@@ -35,10 +35,10 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     exploration_bonus: float = Field(default=0.1, description="Exploration bonus for sampling")
 
     # Performance optimization settings
-    stats_update_frequency: int = Field(default=50, description="Update stats every N task completions")
-    debug_log_frequency: int = Field(default=100, description="Log debug info every N operations")
+    stats_update_frequency: int = Field(default=100, description="Update stats every N task completions")
+    debug_log_frequency: int = Field(default=1000, description="Log debug info every N operations")
     max_bucket_axes_for_logging: int = Field(
-        default=1, description="Maximum number of bucket axes to track for logging (reduces overhead)"
+        default=3, description="Maximum number of bucket axes to track for logging (reduces overhead)"
     )
 
     def algorithm_type(self) -> str:
@@ -59,9 +59,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     Learning progress algorithm that manages a unified pool of tasks.
 
     Performance optimizations:
-    - Stats are cached and only updated every 50 task completions
-    - Debug logging is limited to every 100 operations
-    - Only tracks the first N bucket axes (default: 1) to reduce overhead
+    - Stats are cached and only updated every 100 task completions
+    - Debug logging is limited to every 1000 operations (minimal overhead)
+    - Only tracks the first 3 bucket axes (default) to reduce overhead
+    - Verbose debug logging removed for maximum performance
     - Basic bucket density information is always logged for real-time insight
     - Expensive bucket statistics are cached to reduce computation overhead
     - Lightweight bucket stats focus on summary metrics rather than per-bin details
@@ -119,14 +120,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # First, try to get stored bucket values from the task
             stored_bucket_values = task.get_bucket_values()
             if stored_bucket_values:
-                # Only log every N extractions based on config to reduce overhead
-                if self._stats_update_counter % self._debug_log_frequency == 0:
-                    logger.debug(f"Using stored bucket values: {stored_bucket_values}")
                 return stored_bucket_values
 
             # Fallback: try to extract from env_cfg (for backward compatibility)
-            if self._stats_update_counter % self._debug_log_frequency == 0:
-                logger.debug("No stored bucket values, falling back to env_cfg extraction")
 
             # Access the environment configuration to extract bucket values
             env_cfg = task.get_env_cfg()
@@ -165,21 +161,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 value = self._get_nested_value(config_dict, path)
                 if value is not None:
                     bucket_values[path] = value
-                    if self._stats_update_counter % self._debug_log_frequency == 0:
-                        logger.debug(f"Found bucket value: {path} = {value}")
 
             # Also look for any other numeric/string values in the config that might be buckets
             # This catches any buckets we didn't explicitly listed above
             self._extract_potential_buckets_recursive(config_dict, "", bucket_values)
 
-            if bucket_values and self._stats_update_counter % self._debug_log_frequency == 0:
-                logger.debug(f"Extracted bucket values: {bucket_values}")
-            elif not bucket_values and self._stats_update_counter % self._debug_log_frequency == 0:
-                logger.debug("No bucket values extracted from task")
-
-        except Exception as e:
-            if self._stats_update_counter % self._debug_log_frequency == 0:
-                logger.debug(f"Could not extract bucket values from task: {e}")
+        except Exception:
+            pass  # Silently handle extraction errors
 
         return bucket_values
 
@@ -244,18 +232,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     self._bucket_is_discrete[bucket_name] = True
                     # For discrete values, create bins for each unique value
                     self._bucket_bins[bucket_name] = []
-                    logger.debug(f"Initialized discrete bucket: {bucket_name} with value: {value}")
                 else:
                     self._bucket_is_discrete[bucket_name] = False
                     # For continuous values, create 10 histogram bins
                     self._bucket_bins[bucket_name] = []
-                    logger.debug(f"Initialized continuous bucket: {bucket_name} with value: {value}")
             else:
-                logger.debug(f"Bucket already exists: {bucket_name}")
+                pass  # Bucket already exists
 
         # Log which buckets we're monitoring
         if bucket_names:
-            logger.info(f"Monitoring {len(bucket_names)} bucket axes for logging: {bucket_names}")
+            logger.info(f"Monitoring {len(bucket_names)} bucket axes: {bucket_names}")
         else:
             logger.info("No bucket axes selected for monitoring")
 
@@ -285,21 +271,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                         self._continuous_values_buffer[bucket_name] = []
                     self._continuous_values_buffer[bucket_name].append(float(value))
 
-                    logger.debug(
-                        f"Added value {value} to continuous buffer for {bucket_name} "
-                        f"(buffer size: {len(self._continuous_values_buffer[bucket_name])})"
-                    )
-
                     # Initialize bins when we have enough data points (reduced from 10 to 3)
                     if len(self._continuous_values_buffer[bucket_name]) >= 3:
-                        logger.debug(
-                            f"Initializing continuous bins for {bucket_name} with values: "
-                            f"{self._continuous_values_buffer[bucket_name]}"
-                        )
                         self._initialize_continuous_bins(bucket_name, self._continuous_values_buffer[bucket_name])
                         # Clear buffer after initialization
                         self._continuous_values_buffer[bucket_name] = []
-                        logger.debug(f"Initialized bins for {bucket_name}: {self._bucket_bins[bucket_name]}")
 
     def _update_bucket_completion_density(self, task_id: int, score: float):
         """Update bucket completion density tracking when a task completes."""
@@ -310,12 +286,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         task = self._task_objects[task_id]
         bucket_values = self._extract_bucket_values(task)
 
-        # Only log every N task completions based on config to reduce overhead
-        should_log = self._stats_update_counter % self._debug_log_frequency == 0
-        if should_log:
-            logger.debug(f"Updating bucket completion density for task {task_id} with score {score}")
-            logger.debug(f"Bucket values: {bucket_values}")
-
         # Update completion density for each bucket
         for bucket_name, value in bucket_values.items():
             # Only process buckets we're monitoring
@@ -325,25 +295,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             if bucket_name in self._bucket_tracking:
                 # Find the appropriate bin for this value
                 bin_index = self._get_bin_index(bucket_name, value)
-                if should_log:
-                    logger.debug(f"Bucket {bucket_name}, value {value} -> bin_index {bin_index}")
 
                 if bin_index is not None:
                     # Increment completion count for this bin
                     if bin_index not in self._bucket_completion_counts[bucket_name]:
                         self._bucket_completion_counts[bucket_name][bin_index] = 0
                     self._bucket_completion_counts[bucket_name][bin_index] += 1
-                    if should_log:
-                        logger.debug(f"Incremented completion count for bucket {bucket_name}, bin {bin_index}")
 
                     # Update completion density history
                     self._update_completion_density_history(bucket_name)
-                else:
-                    if should_log:
-                        logger.debug(f"Could not find bin for bucket {bucket_name}, value {value}")
-            else:
-                if should_log:
-                    logger.debug(f"Bucket {bucket_name} not in tracking")
 
     def _get_bin_index(self, bucket_name: str, value: Any) -> Optional[int]:
         """Get the bin index for a given bucket value."""
@@ -687,36 +647,19 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Get lightweight bucket completion density statistics for performance."""
         stats = {}
 
-        # Only log every N calls based on config to reduce overhead
-        should_log = self._stats_update_counter % self._debug_log_frequency == 0
-        if should_log:
-            logger.debug(f"Generating bucket completion stats for {len(self._bucket_tracking)} buckets")
-
         for bucket_name in self._bucket_tracking:
             if bucket_name not in self._bucket_completion_counts:
-                if should_log:
-                    logger.debug(f"Bucket {bucket_name} has no completion counts")
                 continue
 
             # Get completion counts for this bucket
             completion_counts = self._bucket_completion_counts[bucket_name]
             if not completion_counts:
-                if should_log:
-                    logger.debug(f"Bucket {bucket_name} has empty completion counts")
                 continue
 
             # Calculate basic statistics
             total_completions = sum(completion_counts.values())
             if total_completions == 0:
-                if should_log:
-                    logger.debug(f"Bucket {bucket_name} has 0 total completions")
                 continue
-
-            if should_log:
-                logger.debug(
-                    f"Bucket {bucket_name}: total_completions={total_completions}, "
-                    f"counts={completion_counts}, bins={self._bucket_bins[bucket_name]}"
-                )
 
             # Add bucket completion statistics (lightweight version)
             stats[f"bucket/{bucket_name}/total_completions"] = float(total_completions)
@@ -730,12 +673,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     if bin_index < len(self._bucket_bins[bucket_name]):
                         value = self._bucket_bins[bucket_name][bin_index]
                         stats[f"bucket/{bucket_name}/value_{value}_completions"] = float(count)
-                        stats[f"bucket/{bucket_name}/value_{value}_density"] = float(count / total_completions)
-                        if should_log:
-                            logger.debug(
-                                f"Discrete bucket {bucket_name}, value {value}: count={count}, "
-                                f"density={count / total_completions}"
-                            )
+                        density = float(count / total_completions)
+                        stats[f"bucket/{bucket_name}/value_{value}_density"] = density
             else:
                 # For continuous buckets, only log summary stats to reduce overhead
                 if len(self._bucket_bins[bucket_name]) >= 2:
@@ -744,7 +683,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     if bin_counts:
                         stats[f"bucket/{bucket_name}/max_bin_completions"] = float(max(bin_counts))
                         stats[f"bucket/{bucket_name}/min_bin_completions"] = float(min(bin_counts))
-                        stats[f"bucket/{bucket_name}/mean_bin_completions"] = float(sum(bin_counts) / len(bin_counts))
+                        mean_completions = float(sum(bin_counts) / len(bin_counts))
+                        stats[f"bucket/{bucket_name}/mean_bin_completions"] = mean_completions
 
             # Add completion density evolution statistics (lightweight)
             if self._bucket_completion_history[bucket_name]:
@@ -754,8 +694,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 if len(history) > 1:
                     stats[f"bucket/{bucket_name}/completion_density_trend"] = float(history[-1] - history[0])
 
-        if should_log:
-            logger.debug(f"Generated {len(stats)} lightweight bucket completion stats")
         return stats
 
     def get_bucket_summary(self) -> dict[str, dict]:
