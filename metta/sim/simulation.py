@@ -388,11 +388,6 @@ class Simulation:
 
             if self._policy_uri:  # Only add if we have a URI
                 policy_details.append((self._policy_uri, None))
-                # Extract policy name for later use
-                metadata = CheckpointManager.get_policy_metadata(self._policy_uri)
-                policy_name = metadata["run_name"]
-            else:
-                policy_name = None
 
             # Add NPC policy if it exists
             if self._npc_policy_uri:
@@ -444,7 +439,7 @@ class Simulation:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
-                        primary_policy_id=policy_ids[policy_name],
+                        primary_policy_id=policy_ids[self._policy_uri] if self._policy_uri else None,
                         stats_epoch=self._stats_epoch_id,
                         sim_name=self._name,
                         env_label=self._config.env.label,
