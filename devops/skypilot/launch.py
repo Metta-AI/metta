@@ -168,8 +168,6 @@ def main():
     # Always add run= to the filtered args so it gets passed to run.py
     filtered_args.append(f"run={run_id}")
 
-    cd_repo_root()
-
     # check that the parsed args.git_ref provides a valid commit hash
     if args.git_ref:
         commit_hash = git.validate_git_ref(args.git_ref)
@@ -195,6 +193,9 @@ def main():
         sys.exit(1)
 
     assert commit_hash
+
+    # Change to repository root BEFORE validation so tools/run.py can be found
+    cd_repo_root()
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
     _validate_run_tool(args.module_path, run_id, filtered_args, args.overrides)
