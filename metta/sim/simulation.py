@@ -466,6 +466,20 @@ class Simulation:
     def name(self) -> str:
         return self._name
 
+    def get_env(self):
+        """Get the underlying environment for mettascope server compatibility."""
+        driver_env = self._vecenv.driver_env  # type: ignore
+        metta_grid_env = getattr(driver_env, "_env", driver_env)
+        return metta_grid_env
+
+    def get_replay(self):
+        """Get replay data for mettascope server compatibility."""
+        # Return replay writer's data if available
+        if hasattr(self._replay_writer, "get_replay"):
+            return self._replay_writer.get_replay()
+        # Otherwise return an empty replay structure
+        return {"steps": [], "metadata": {}}
+
 
 @dataclass
 class SimulationResults:
