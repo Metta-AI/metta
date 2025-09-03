@@ -60,7 +60,7 @@ class PPO(BaseLoss):
         """PPO handles its own inference and storage during rollout."""
         with torch.no_grad():
             self.policy(td)
-        
+
         self.replay.store(data_td=td, env_id=trainer_state.training_env_id)
 
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
