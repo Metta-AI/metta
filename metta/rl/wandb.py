@@ -120,31 +120,29 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     if not uri.startswith("wandb://"):
         return uri
 
-    # Parse the URI path
     path = uri[len("wandb://") :]
 
-    # Check for short format patterns
     if path.startswith("run/"):
-        run_name = path[4:]  # Remove "run/"
+        run_name = path[4:]
         if ":" in run_name:
-            run_name, version = run_name.rsplit(":", 1)  # Split from right to handle colons in names
+            run_name, version = run_name.rsplit(":", 1)
         else:
             version = "latest"
-        # Replace dots with underscores for wandb artifact compatibility
+        # Dots -> underscores for wandb compatibility
         sanitized_name = run_name.replace(".", "_")
         return f"wandb://{default_project}/model/{sanitized_name}:{version}"
 
     elif path.startswith("sweep/"):
-        sweep_name = path[6:]  # Remove "sweep/"
+        sweep_name = path[6:]
         if ":" in sweep_name:
-            sweep_name, version = sweep_name.rsplit(":", 1)  # Split from right to handle colons in names
+            sweep_name, version = sweep_name.rsplit(":", 1)
         else:
             version = "latest"
-        # Replace dots with underscores for wandb artifact compatibility
+        # Dots -> underscores for wandb compatibility
         sanitized_name = sweep_name.replace(".", "_")
         return f"wandb://{default_project}/sweep_model/{sanitized_name}:{version}"
 
-    # Already in full format or unrecognized pattern - return as-is
+    # Already in full format or unrecognized pattern
     return uri
 
 
@@ -162,30 +160,42 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     if not wandb_uri.startswith("wandb://"):
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
-    # Expand short URIs to full format
     expanded_uri = expand_wandb_uri(wandb_uri)
-
     logger.info(f"Loading policy from wandb URI: {expanded_uri}")
     uri = WandbURI.parse(expanded_uri)
     qname = uri.qname()
-    logger.debug(f"Calling wandb.Api().artifact() with qname: {qname}")
-    artifact = wandb.Api().artifact(qname)
+
+    # Try loading artifact with fallback
+    try:
+        logger.debug(f"Attempting to load artifact: {qname}")
+        artifact = wandb.Api().artifact(qname)
+    except wandb.errors.CommError as e:
+        # Fallback: try unsanitized name if dots were replaced
+        if "." in wandb_uri:
+            original_uri = expanded_uri.replace("_", ".")
+            original_qname = WandbURI.parse(original_uri).qname()
+            logger.debug(f"Trying original name: {original_qname}")
+            try:
+                artifact = wandb.Api().artifact(original_qname)
+                logger.info(f"Found using original name: {original_qname}")
+            except wandb.errors.CommError:
+                raise ValueError(f"Artifact not found: {qname} or {original_qname}") from e
+        else:
+            raise ValueError(f"Artifact not found: {qname}") from e
 
     with tempfile.TemporaryDirectory() as temp_dir:
         artifact_dir = Path(temp_dir)
         artifact.download(root=str(artifact_dir))
 
-        # Look for model.pt file (our standard name)
+        # Load model.pt
         model_file = artifact_dir / "model.pt"
         if not model_file.exists():
             # Fallback to any .pt file
             policy_files = list(artifact_dir.rglob("*.pt"))
             if not policy_files:
-                raise FileNotFoundError(f"No .pt files found in wandb artifact {wandb_uri}")
+                raise FileNotFoundError(f"No .pt files in artifact {wandb_uri}")
             model_file = policy_files[0]
-            logger.warning(f"model.pt not found, using {model_file.name}")
 
-        # Load the policy
         return torch.load(model_file, map_location=device, weights_only=False)
 
 
@@ -216,7 +226,7 @@ def upload_checkpoint_as_artifact(
     # Create artifact with sanitized name and metadata
     artifact = wandb.Artifact(name=sanitized_artifact_name, type=artifact_type, metadata=artifact_metadata)
 
-    # Add the checkpoint file as model.pt for consistency
+    # Add checkpoint file as model.pt
     artifact.add_file(checkpoint_path, name="model.pt")
 
     # Add any additional files
