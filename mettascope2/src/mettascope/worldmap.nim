@@ -194,7 +194,7 @@ proc drawTrajectory*() =
               image = "agents/past_arrow"
           else:
             # Future trajectory is white.
-            tint = color(a, a, a, a)
+            tint = color(1, 1, 1, a)
             if isAgent:
               image = "agents/path"
             else:
