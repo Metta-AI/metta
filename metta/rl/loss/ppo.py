@@ -61,9 +61,7 @@ class PPO(BaseLoss):
         with torch.no_grad():
             self.policy(td)
 
-        # Store experience
-        self.replay.store(data_td=td, env_id=trainer_state.training_env_id)
-
+        # Don't store here - trainer.py handles storage after rollout
         return
 
     # BaseLoss calls this method
