@@ -161,6 +161,8 @@ class PPO(BaseLoss):
         newvalue = policy_td["value"]
 
         logratio = new_logprob - old_act_log_prob
+        # Bound the log ratio to prevent extreme importance sampling ratios
+        logratio = torch.clamp(logratio, -10, 10)  # exp(-10) ≈ 0.000045, exp(10) ≈ 22026
         importance_sampling_ratio = logratio.exp()
 
         # Re-compute advantages with new ratios (V-trace)
@@ -238,8 +240,8 @@ class PPO(BaseLoss):
         if self.loss_cfg.clip_vloss:
             v_loss_unclipped = (newvalue_reshaped - returns) ** 2
             vf_clip_coef = self.loss_cfg.vf_clip_coef
-            v_clipped = old_values.detach() + torch.clamp(
-                newvalue_reshaped - old_values.detach(),
+            v_clipped = old_values + torch.clamp(
+                newvalue_reshaped - old_values,
                 -vf_clip_coef,
                 vf_clip_coef,
             )
