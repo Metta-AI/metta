@@ -132,10 +132,6 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     )
 
 
-def eval() -> SimTool:
-    return SimTool(simulations=make_navigation_eval_suite())
-
-
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:

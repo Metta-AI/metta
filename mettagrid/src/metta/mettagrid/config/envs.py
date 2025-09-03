@@ -33,7 +33,7 @@ def make_arena(
     actions = ActionsConfig(
         noop=ActionConfig(),
         move=ActionConfig(),
-        rotate=ActionConfig(),
+        rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
         put_items=ActionConfig(),
         get_items=ActionConfig(),
         attack=AttackActionConfig(
@@ -149,7 +149,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             },
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -187,7 +187,7 @@ def make_icl_resource_chain(
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),
