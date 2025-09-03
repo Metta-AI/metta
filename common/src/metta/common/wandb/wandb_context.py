@@ -40,7 +40,7 @@ class WandbConfig(Config):
 
     @property
     def uri(self):
-        return f"wandb://run/{self.name}"
+        return f"wandb://run/{self.run_id}"
 
 
 class WandbContext:
@@ -96,7 +96,6 @@ class WandbContext:
                 config=self.global_cfg.model_dump(),
                 group=self.cfg.group,
                 allow_val_change=True,
-                name=self.cfg.name,
                 monitor_gym=True,
                 save_code=True,
                 resume=True,

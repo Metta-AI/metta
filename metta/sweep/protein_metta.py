@@ -14,10 +14,8 @@ if logger.level == logging.NOTSET:
 
 
 class MettaProtein:
-    """
-    MettaProtein is a thin wrapper around Protein that allows for easy integration with the rest of the codebase.
-    It is used to generate suggestions and record observations.
-    """
+    """MettaProtein is a thin wrapper around Protein that allows for easy integration with the rest of the codebase.
+    It is used to generate suggestions and record observations."""
 
     def __init__(
         self,

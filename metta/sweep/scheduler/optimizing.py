@@ -1,9 +1,7 @@
-"""
-Optimizing Scheduler for Sweep Orchestration.
+"""Optimizing Scheduler for Sweep Orchestration.
 
 This scheduler integrates with an Optimizer (e.g., Protein) to get hyperparameter suggestions
-and schedules jobs based on those suggestions.
-"""
+and schedules jobs based on those suggestions."""
 
 import logging
 from dataclasses import dataclass
