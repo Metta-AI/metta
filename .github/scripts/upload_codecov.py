@@ -105,36 +105,37 @@ def main():
 
     subpackages = os.environ.get("SUBPACKAGES", " ".join(DEFAULT_SUBPACKAGES)).split()
 
+    # Check for coverage directory override
+    coverage_dir = os.environ.get("COVERAGE_DIR", "coverage-reports")
+    coverage_path = Path(coverage_dir)
+
     # Build list of coverage files to upload
     coverage_files = []
 
     for pkg in subpackages:
-        # Determine base path
-        base_path = Path(".") if pkg == "core" else Path(pkg)
+        # Look for coverage file in the coverage directory
+        coverage_file = coverage_path / f"coverage-{pkg}.xml"
 
-        # Find all coverage files in this package
-        found_files = find_coverage_files(base_path)
-
-        if not found_files:
-            print(f"⚠️  No coverage files found for package: {pkg}")
-            continue
-
-        # Add each found file with appropriate flag
-        for coverage_file in found_files:
-            # Extract suffix if present (e.g., "fast" from "coverage-fast.xml")
-            if coverage_file.stem == "coverage":
-                flag = pkg
+        if coverage_file.exists():
+            coverage_files.append((coverage_file, pkg))
+        else:
+            # Fallback: check if there's a generic coverage.xml for this package
+            # (for backward compatibility)
+            if pkg == "core":
+                alt_file = Path("coverage.xml")
             else:
-                suffix = coverage_file.stem.replace("coverage-", "")
-                flag = f"{pkg}-{suffix}"
+                alt_file = Path(pkg) / "coverage.xml"
 
-            coverage_files.append((coverage_file, flag))
+            if alt_file.exists():
+                coverage_files.append((alt_file, pkg))
+            else:
+                print(f"⚠️  No coverage files found for package: {pkg}")
 
     if not coverage_files:
         print("❌ No coverage files found to upload")
         sys.exit(1)
 
-    print("🔍 Codecov Upload Plan:")
+    print("📋 Codecov Upload Plan:")
     for path, flag in coverage_files:
         print(f"   - {path} → flag: {flag}")
     print()
