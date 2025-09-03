@@ -23,7 +23,7 @@ linksConfig.links.forEach(link => {
 allItems.forEach(item => {
   item.short_urls.forEach(shortUrl => {
     allRedirects.push(`    location = /${shortUrl} {
-        set $target_url "${item.url}"; // need this so that item.url gets evaluated for string interpolation
+        set $target_url "${item.url}"; # need this so that item.url gets evaluated for string interpolation
         return 301 $target_url;
     }`);
   });
