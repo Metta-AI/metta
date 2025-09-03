@@ -78,7 +78,6 @@ def log_config():
 
     logger.info(f"  - MAX_RUNTIME_HOURS: {max_runtime_hours or 'NOT SET'}")
     logger.info(f"  - RESTART_COUNT: {restart_count}")
-
     logger.info(f"  - TEST_NCCL: {test_nccl}")
 
     logger.info(
@@ -227,7 +226,6 @@ def set_github_status(exit_code: int, state: str, description: str):
             initial_delay=2.0,
             max_delay=30.0,
             error_prefix="Failed to post GitHub status",
-            logger=logger,
         )
 
         # Log success
