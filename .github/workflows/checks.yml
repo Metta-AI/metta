@@ -209,7 +209,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-8core # 16core 141 sec
+    runs-on: ubuntu-4core # 8core 143 sec; 16core 141 sec
     timeout-minutes: 15
     steps:
       - name: Checkout code
