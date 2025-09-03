@@ -123,7 +123,6 @@ def train(
     run: Optional[str] = None,
     curriculum: Optional[CurriculumConfig] = None,
     use_learning_progress: bool = True,
-    wandb_group: str = "navigation_learning_progress",
 ) -> TrainTool:
     """Create a navigation training tool.
 
@@ -131,7 +130,6 @@ def train(
         run: Run name (auto-generated if not provided)
         curriculum: Curriculum configuration (auto-generated if not provided)
         use_learning_progress: Whether to use learning progress algorithm
-        wandb_group: WandB group name for experiment tracking
     """
     # Generate structured run name if not provided
     if run is None:
@@ -150,10 +148,6 @@ def train(
 
     # Create the training tool
     train_tool = TrainTool(trainer=trainer_cfg)
-
-    # Set wandb group if provided
-    if wandb_group:
-        train_tool.wandb.group = wandb_group
 
     return train_tool
 

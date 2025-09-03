@@ -10,12 +10,10 @@ echo "🚀 Starting Navigation Training Comparison via SkyPilot"
 echo "======================================================"
 
 # Configuration
-WANDB_GROUP="navigation_learning_progress"
 NODES=1
 GPUS_PER_NODE=1
 
 echo "📊 Training Configuration:"
-echo "   WandB group: $WANDB_GROUP"
 echo "   Cloud infrastructure: $NODES nodes × $GPUS_PER_NODE GPUs"
 echo "   Using default trainer configuration"
 echo ""
@@ -45,7 +43,6 @@ launch_training() {
         "--args"
         "run=$run_name"
         "use_learning_progress=$use_lp"
-        "wandb_group=$WANDB_GROUP"
     )
 
     echo "🚀 Executing: ${launch_cmd[*]}"
@@ -118,12 +115,11 @@ echo ""
 echo "📊 Job Summary:"
 echo "   - Learning Progress: Launched via SkyPilot"
 echo "   - Random Curriculum: Launched via SkyPilot"
-echo "   - Both grouped under WandB group: '$WANDB_GROUP'"
 echo ""
 echo "📈 Next Steps:"
 echo "   1. Check SkyPilot dashboard: sky queue"
 echo "   2. Monitor job status: sky logs <job_id>"
-echo "   3. View WandB experiments grouped under '$WANDB_GROUP'"
+echo "   3. View WandB experiments in the metta project"
 echo "   4. Compare training progress between curricula"
 echo ""
 echo "💡 Tips:"

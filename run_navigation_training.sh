@@ -9,10 +9,7 @@ echo "🚀 Starting Navigation Training Comparison"
 echo "=========================================="
 
 # Configuration
-WANDB_GROUP="navigation_learning_progress"
-
 echo "📊 Training Configuration:"
-echo "   WandB group: $WANDB_GROUP"
 echo "   Using default trainer configuration"
 echo ""
 
@@ -30,8 +27,7 @@ run_training() {
     uv run ./tools/run.py experiments.recipes.navigation.train \
         --args \
         run="$run_name" \
-        use_learning_progress="$use_lp" \
-        wandb_group="$WANDB_GROUP"
+        use_learning_progress="$use_lp"
 
     echo "✅ $curriculum_type training completed"
     echo ""
@@ -49,4 +45,4 @@ echo "🔄 Starting Random Curriculum Training..."
 run_training "random" "false"
 
 echo "🎉 All training runs completed!"
-echo "📈 Check WandB group '$WANDB_GROUP' for results comparison"
+echo "📈 Check WandB for results comparison"
