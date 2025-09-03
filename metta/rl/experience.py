@@ -121,6 +121,11 @@ class Experience:
         """Update buffer with new data for given indices."""
         self.buffer[indices].update(data_td)
 
+    def reset_importance_sampling_ratios(self) -> None:
+        """Reset the importance sampling ratio to 1.0."""
+        if "ratio" in self.buffer.keys():
+            self.buffer["ratio"].fill_(1.0)
+
     def stats(self) -> Dict[str, float]:
         """Get mean values of all tracked buffers."""
         stats = {
