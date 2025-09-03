@@ -27,6 +27,7 @@ from metta.common.util.text_styles import bold, cyan, green, magenta, red, use_c
 BUILD_DIR = Path("build-debug")
 COVERAGE_FILE = "coverage.info"
 
+
 def run_command(cmd: List[str], cwd: Optional[Path] = None, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command and return the result"""
     print(yellow(f"→ {' '.join(cmd)}"))
