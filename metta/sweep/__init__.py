@@ -1,12 +1,15 @@
 """Sweep orchestration package for Metta."""
 
 # Protocols
-from .protocols import Dispatcher, Optimizer, Scheduler, Store
+# Controller
+from .controller import SweepController, SweepControllerConfig
+
+# Implementations
+from .dispatcher import LocalDispatcher, RoutingDispatcher, SkypilotDispatcher
 
 # Models
 from .models import (
     JobDefinition,
-    JobResult,
     JobStatus,
     JobTypes,
     Observation,
@@ -14,24 +17,19 @@ from .models import (
     SweepMetadata,
     SweepStatus,
 )
-
-# Controller
-from .controller import SweepController, SweepControllerConfig
-
-# Utils
-from .utils import make_monitor_table, retry
-
-# Implementations
-from .dispatcher import LocalDispatcher, RoutingDispatcher, SkypilotDispatcher
 from .optimizer.protein import ProteinOptimizer
 from .protein import Protein
 from .protein_config import ParameterConfig, ProteinConfig
 from .protein_metta import MettaProtein
+from .protocols import Dispatcher, Optimizer, Scheduler, Store
 from .schedulers import OptimizingScheduler, OptimizingSchedulerConfig
 from .stores import WandbStore
 
+# Utils
+from .utils import make_monitor_table
+
 __all__ = [
-    # Legacy exports (for backwards compatibility)
+    # Core components
     "Protein",
     "MettaProtein",
     # Protocols
@@ -47,12 +45,10 @@ __all__ = [
     "Observation",
     "SweepMetadata",
     "SweepStatus",
-    "JobResult",
     # Controller
     "SweepController",
     "SweepControllerConfig",
     # Utils
-    "retry",
     "make_monitor_table",
     # Implementations
     "LocalDispatcher",

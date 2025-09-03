@@ -7,18 +7,18 @@ from enum import StrEnum
 from typing import Any, Optional
 
 from metta.common.tool import Tool
+from cogweb.cogweb_client import CogwebClient
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
+from metta.sweep import JobTypes, LocalDispatcher, SweepController, SweepControllerConfig, SweepStatus
 from metta.sweep.dispatcher.routing import RoutingDispatcher
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
+from metta.sweep.protocols import Dispatcher, Optimizer, Scheduler, Store
 from metta.sweep.schedulers.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
 from metta.sweep.stores.wandb import WandbStore
-from cogweb.cogweb_client import CogwebClient
-from metta.sweep import JobTypes, LocalDispatcher, SweepController, SweepControllerConfig, SweepStatus
-from metta.sweep.protocols import Dispatcher, Optimizer, Scheduler, Store
-from metta.tools.utils.auto_config import auto_wandb_config
+from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ class SweepOrchestratorTool(Tool):
 
     # Infrastructure configuration
     wandb: WandbConfig = WandbConfig.Unconfigured()
-    stats_server_uri: Optional[str] = None  # Stats server for remote evaluations
+    stats_server_uri: Optional[str] = auto_stats_server_uri()  # Stats server for remote evaluations
 
     # Dispatcher configuration
     dispatcher_type: DispatcherType = DispatcherType.LOCAL  # LOCAL or SKYPILOT
