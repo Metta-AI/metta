@@ -93,11 +93,39 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--git-ref", type=str, default=None)
-    parser.add_argument("--new", action="store_true")
-    parser.add_argument("--gpus", type=int, default=1, help="Number of L4 GPUs to use.")
-    parser.add_argument("--retry-until-up", action="store_true", help="Keep retrying until cluster is up")
+    parser = argparse.ArgumentParser(
+        prog="sandbox.py",
+        description="""
+Manage GPU development sandboxes on SkyPilot.
+
+When run without arguments, displays existing sandboxes and management commands.
+Use --new to launch a new sandbox cluster.
+        """.strip(),
+        epilog="""
+Examples:
+  %(prog)s              # Show existing sandboxes and management commands
+  %(prog)s --new        # Launch a new sandbox with 1 GPU
+  %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
+  %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
+
+Common management commands:
+  ssh <sandbox-name>     # Connect to a running sandbox
+  sky stop <name>        # Stop a sandbox (keeps data)
+  sky start <name>       # Restart a stopped sandbox
+  sky down <name>        # Delete a sandbox completely
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--git-ref", type=str, default=None, help="Git branch or commit to deploy (default: current branch)"
+    )
+    parser.add_argument("--new", action="store_true", help="Launch a new sandbox cluster")
+    parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use (default: 1)")
+    parser.add_argument(
+        "--retry-until-up", action="store_true", help="Keep retrying until cluster is successfully launched"
+    )
+
     args = parser.parse_args()
 
     # Get git ref - use current branch/commit if not specified
