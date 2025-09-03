@@ -23,6 +23,7 @@ runs:
           **/pyproject.toml
           .github/actions/setup-uv/dependencies-testing.txt
           .github/actions/setup-uv/dependencies-linting.txt
+          pnpm-lock.yaml
 
     - name: Debug dependencies and cache
       shell: bash
