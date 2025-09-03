@@ -33,7 +33,6 @@ from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
-from metta.common.util.logging import init_logging
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +160,7 @@ class EvalTaskOrchestrator:
                 else:
                     status = "error"
 
-                logger.info(f"Unclaiming task {task.id} because {reason}. Setting status to {status}")
+                logger.info(f"Releasing claim on task {task.id} because {reason}. Setting status to {status}")
                 await self._task_client.update_task_status(
                     TaskUpdateRequest(
                         updates={
@@ -261,7 +260,6 @@ class EvalTaskOrchestrator:
 
 
 async def main() -> None:
-    init_logging()
     init_tracing()
 
     backend_url = os.environ.get("BACKEND_URL", DEV_STATS_SERVER_URI)

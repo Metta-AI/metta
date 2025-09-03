@@ -1,12 +1,13 @@
 import random
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.mettagrid.config import empty_converters
 from metta.mettagrid.config.envs import make_icl_resource_chain
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -89,10 +90,12 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.used_objects.append(converter_name)
         cfg.converters.append(converter_name)
 
-        converter = self.converter_types[converter_name]
+        converter = self.converter_types[converter_name].copy()
         converter.output_resources = {output_resource: 1}
 
-        if input_resource != "nothing":
+        if input_resource == "nothing":
+            converter.input_resources = {}
+        else:
             converter.input_resources = {input_resource: 1}
 
             cfg.all_input_resources.append(input_resource)
@@ -105,7 +108,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             self.converter_types, cfg.used_objects, rng
         )
         cfg.used_objects.append(sink_name)
-        sink = self.converter_types[sink_name]
+        sink = self.converter_types[sink_name].copy()
 
         for input_resource in cfg.all_input_resources:
             sink.input_resources[input_resource] = 1
@@ -154,7 +157,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         return icl_env
 
 
-def make_env() -> MettaGridConfig:
+def make_mettagrid() -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[6],
         num_sinks=[2],
@@ -178,6 +181,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     )
 
     trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
@@ -190,7 +194,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_env()
+    eval_env = env or make_mettagrid()
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -200,7 +204,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_env()
+    eval_env = env or make_mettagrid()
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -210,16 +214,17 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     )
 
 
-def eval() -> SimTool:
+def evaluate(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
         make_icl_resource_chain_eval_suite,
     )
 
+    simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
-        simulations=make_icl_resource_chain_eval_suite(),
-        policy_uris=[
-            "wandb://run/georgedeane.operant_conditioning.in_context_learning.all.0.1_progress_smoothing.08-19:v50"
-        ],
+        simulations=simulations,
+        policy_uris=[policy_uri],
         stats_server_uri="https://api.observatory.softmax-research.net",
     )

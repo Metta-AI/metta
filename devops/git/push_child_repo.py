@@ -52,6 +52,11 @@ CONFIG_REGISTRY = {
         paths=["mettagrid", "mettascope"],
         remote=f"git@github.com:{GITHUB_ORGANIZATION}/test_filter_repo.git",
     ),
+    "mettagrid": FilterRepoConfig(
+        name="mettagrid",
+        paths=["common", "mettagrid", "mettascope"],
+        remote=f"git@github.com:{GITHUB_ORGANIZATION}/mettagrid.git",
+    ),
 }
 
 

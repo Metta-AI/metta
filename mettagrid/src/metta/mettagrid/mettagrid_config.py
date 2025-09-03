@@ -144,7 +144,7 @@ class GameConfig(Config):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    inventory_item_names: list[str] = Field(
+    resource_names: list[str] = Field(
         default=[
             "ore_red",
             "ore_blue",
@@ -218,7 +218,7 @@ class MettaGridConfig(Config):
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move=ActionConfig(),
-            rotate=ActionConfig(),
+            rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
         )
         objects = {}
         if border_width > 0 or with_walls:

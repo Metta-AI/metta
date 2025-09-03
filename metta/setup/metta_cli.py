@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
+import gitta
+
 # Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
@@ -48,6 +50,7 @@ class CommandConfig:
 # Parser setup functions for commands
 def _setup_configure_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("component", nargs="?", help="Specific component to configure. If omitted, runs setup wizard.")
+    parser.add_argument("--non-interactive", action="store_true", help="Non-interactive mode")
     # Profile choices will be added dynamically in _build_parser
 
 
@@ -60,6 +63,7 @@ def _setup_install_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("components", nargs="*", help="Components to install")
     parser.add_argument("--force", action="store_true", help="Force reinstall")
     parser.add_argument("--no-clean", action="store_true", help="Skip cleaning before install")
+    parser.add_argument("--non-interactive", action="store_true", help="Non-interactive mode")
 
 
 def _setup_status_parser(parser: argparse.ArgumentParser) -> None:
@@ -251,7 +255,7 @@ class MettaCLI:
             self._book_commands = BookCommands()
         return self._book_commands
 
-    def setup_wizard(self) -> None:
+    def setup_wizard(self, non_interactive: bool = False) -> None:
         from metta.setup.profiles import UserType
 
         header("Welcome to Metta!\n\n")
@@ -279,10 +283,11 @@ class MettaCLI:
             "Select configuration:",
             choices,
             current=current_user_type,
+            non_interactive=non_interactive,
         )
 
         if result == UserType.CUSTOM:
-            self._custom_setup()
+            self._custom_setup(non_interactive=non_interactive)
         else:
             saved_settings.apply_profile(result)
             success(f"\nConfigured as {result.value} user.")
@@ -291,13 +296,14 @@ class MettaCLI:
         if not self.path_setup.check_installation():
             info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
-    def _custom_setup(self) -> None:
+    def _custom_setup(self, non_interactive: bool = False) -> None:
         from metta.setup.registry import get_all_modules
 
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
             [(ut, ut.get_description()) for ut in UserType if ut != UserType.CUSTOM],
             default=UserType.EXTERNAL,
+            non_interactive=non_interactive,
         )
 
         saved_settings = get_saved_settings()
@@ -316,6 +322,7 @@ class MettaCLI:
                 [(True, "Yes"), (False, "No")],
                 default=current_enabled,
                 current=current_enabled,
+                non_interactive=non_interactive,
             )
 
             # Only save if different from profile default
@@ -342,7 +349,7 @@ class MettaCLI:
                 error(f"Unknown profile: {args.profile}")
                 sys.exit(1)
         else:
-            self.setup_wizard()
+            self.setup_wizard(non_interactive=getattr(args, "non_interactive", False))
 
     def configure_component(self, component_name: str) -> None:
         from metta.setup.registry import get_all_modules
@@ -428,7 +435,7 @@ class MettaCLI:
                 continue
 
             try:
-                module.install()
+                module.install(non_interactive=getattr(args, "non_interactive", False))
                 print()
             except Exception as e:
                 error(f"  Error: {e}\n")
@@ -527,6 +534,10 @@ class MettaCLI:
     def cmd_report_env_details(self, args, unknown_args=None) -> None:
         print(f"UV Project Directory: {self.repo_root}")
         print(f"Metta CLI Working Directory: {Path.cwd()}")
+        if branch := gitta.get_current_branch():
+            print(f"Git Branch: {branch}")
+        if commit := gitta.get_current_commit():
+            print(f"Git Commit: {commit}")
 
     def cmd_local(self, args, unknown_args=None) -> None:
         self.local_commands.main(unknown_args)

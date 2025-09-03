@@ -32,103 +32,103 @@ def make_icl_resource_chain_eval_env(
 def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
     return [
         SimulationConfig(
-            name="chain_length2_1sink",
+            name="in_context_learning/chain_length2_1sink",
             env=make_icl_resource_chain_eval_env(2, 1),
         ),
         SimulationConfig(
-            name="chain_length2_2sink",
+            name="in_context_learning/chain_length2_2sink",
             env=make_icl_resource_chain_eval_env(2, 2),
         ),
         SimulationConfig(
-            name="chain_length3_0sink",
+            name="in_context_learning/chain_length3_0sink",
             env=make_icl_resource_chain_eval_env(3, 0),
         ),
         SimulationConfig(
-            name="chain_length3_1sink",
+            name="in_context_learning/chain_length3_1sink",
             env=make_icl_resource_chain_eval_env(3, 1),
         ),
         SimulationConfig(
-            name="chain_length3_2sink",
+            name="in_context_learning/chain_length3_2sink",
             env=make_icl_resource_chain_eval_env(3, 2),
         ),
         SimulationConfig(
-            name="chain_length3_3sink",
+            name="in_context_learning/chain_length3_3sink",
             env=make_icl_resource_chain_eval_env(3, 3),
         ),
         SimulationConfig(
-            name="chain_length3_4sink",
+            name="in_context_learning/chain_length3_4sink",
             env=make_icl_resource_chain_eval_env(3, 4),
         ),
         SimulationConfig(
-            name="chain_length4_0sink",
+            name="in_context_learning/chain_length4_0sink",
             env=make_icl_resource_chain_eval_env(4, 0),
         ),
         SimulationConfig(
-            name="chain_length4_1sink",
+            name="in_context_learning/chain_length4_1sink",
             env=make_icl_resource_chain_eval_env(4, 1),
         ),
         SimulationConfig(
-            name="chain_length4_2sink",
+            name="in_context_learning/chain_length4_2sink",
             env=make_icl_resource_chain_eval_env(4, 2),
         ),
         SimulationConfig(
-            name="chain_length4_3sink",
+            name="in_context_learning/chain_length4_3sink",
             env=make_icl_resource_chain_eval_env(4, 3),
         ),
         SimulationConfig(
-            name="chain_length4_4sink",
+            name="in_context_learning/chain_length4_4sink",
             env=make_icl_resource_chain_eval_env(4, 4),
         ),
         SimulationConfig(
-            name="chain_length5_0sink",
+            name="in_context_learning/chain_length5_0sink",
             env=make_icl_resource_chain_eval_env(5, 0),
         ),
         SimulationConfig(
-            name="chain_length5_1sink",
+            name="in_context_learning/chain_length5_1sink",
             env=make_icl_resource_chain_eval_env(5, 1),
         ),
         SimulationConfig(
-            name="chain_length5_2sink",
+            name="in_context_learning/chain_length5_2sink",
             env=make_icl_resource_chain_eval_env(5, 2),
         ),
         SimulationConfig(
-            name="chain_length5_3sink",
+            name="in_context_learning/chain_length5_3sink",
             env=make_icl_resource_chain_eval_env(5, 3),
         ),
         SimulationConfig(
-            name="chain_length5_4sink",
+            name="in_context_learning/chain_length5_4sink",
             env=make_icl_resource_chain_eval_env(5, 4),
         ),
         SimulationConfig(
-            name="chain_length5_5sink",
+            name="in_context_learning/chain_length5_5sink",
             env=make_icl_resource_chain_eval_env(5, 5),
         ),
         SimulationConfig(
-            name="chain_length6_0sink",
+            name="in_context_learning/chain_length6_0sink",
             env=make_icl_resource_chain_eval_env(6, 0),
         ),
         SimulationConfig(
-            name="chain_length6_1sink",
+            name="in_context_learning/chain_length6_1sink",
             env=make_icl_resource_chain_eval_env(6, 1),
         ),
         SimulationConfig(
-            name="chain_length6_2sink",
+            name="in_context_learning/chain_length6_2sink",
             env=make_icl_resource_chain_eval_env(6, 2),
         ),
         SimulationConfig(
-            name="chain_length6_3sink",
+            name="in_context_learning/chain_length6_3sink",
             env=make_icl_resource_chain_eval_env(6, 3),
         ),
         SimulationConfig(
-            name="chain_length7_1sink",
+            name="in_context_learning/chain_length7_1sink",
             env=make_icl_resource_chain_eval_env(7, 1),
         ),
         SimulationConfig(
-            name="chain_length7_2sink",
+            name="in_context_learning/chain_length7_2sink",
             env=make_icl_resource_chain_eval_env(7, 2),
         ),
         SimulationConfig(
-            name="chain_length7_3sink",
+            name="in_context_learning/chain_length7_3sink",
             env=make_icl_resource_chain_eval_env(7, 3),
         ),
     ]

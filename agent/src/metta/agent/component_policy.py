@@ -6,6 +6,7 @@ import gymnasium as gym
 import torch
 from tensordict import TensorDict
 from torch import nn
+from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
@@ -58,17 +59,14 @@ class ComponentPolicy(nn.Module, ABC):
         # Add all components to the ModuleDict
         self.components.update(components)
 
-        # Setup components
-        self._setup_components(self.components["_value_"])
-        self._setup_components(self.components["_action_"])
+        # Setup components by triggering leaf node setup
+        for component_name in self._get_output_heads():
+            component = self.components[component_name]
+            self._setup_components(component)
 
-        # Track components with memory
-        self.components_with_memory = []
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
                 raise RuntimeError(f"Component {name} in {self.__class__.__name__} policy was never setup.")
-            if hasattr(component, "has_memory") and component.has_memory():
-                self.components_with_memory.append(name)
 
         # Check for duplicate component names
         all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
@@ -87,6 +85,11 @@ class ComponentPolicy(nn.Module, ABC):
     @abstractmethod
     def _build_components(self) -> dict:
         """Build the component dictionary. Must be implemented by subclasses to define architecture."""
+        pass
+
+    @abstractmethod
+    def _get_output_heads(self) -> list[str]:
+        """Get the output heads for the policy."""
         pass
 
     def _setup_components(self, component):
@@ -217,42 +220,31 @@ class ComponentPolicy(nn.Module, ABC):
     # Memory-related Methods
     # ============================================================================
 
-    def reset_memory(self) -> None:
-        """Reset memory for all components that have memory."""
-        for name in self.components_with_memory:
-            comp = self.components[name]
-            if not hasattr(comp, "reset_memory"):
-                raise ValueError(
-                    f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
-                    + " Perhaps an obsolete policy?"
-                )
-            comp.reset_memory()
+    def get_agent_experience_spec(self) -> Composite:
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+        )
 
-    def get_memory(self) -> dict:
-        """Get memory state from all components that have memory."""
-        memory = {}
-        for name in self.components_with_memory:
-            if hasattr(self.components[name], "get_memory"):
-                memory[name] = self.components[name].get_memory()
-        return memory
+    def on_new_training_run(self):
+        for _, component in self.components.items():
+            component.on_new_training_run()
+
+    def on_rollout_start(self):
+        for _, component in self.components.items():
+            component.on_rollout_start()
+
+    def on_train_mb_start(self):
+        for _, component in self.components.items():
+            component.on_train_mb_start()
+
+    def on_eval_start(self):
+        for _, component in self.components.items():
+            component.on_eval_start()
 
     # ============================================================================
     # Weight/Training Utility Methods
     # ============================================================================
-
-    def clip_weights(self):
-        """Apply weight clipping if enabled."""
-        if self.clip_range > 0:
-            self._apply_to_components("clip_weights")
-
-    def l2_init_loss(self) -> torch.Tensor:
-        """Calculate L2 initialization loss for all components."""
-        losses = self._apply_to_components("l2_init_loss")
-        return torch.sum(torch.stack(losses)) if losses else torch.tensor(0.0, dtype=torch.float32)
-
-    def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copies for all components."""
-        self._apply_to_components("update_l2_init_weight_copy")
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for all components."""
@@ -291,40 +283,16 @@ class ComponentPolicy(nn.Module, ABC):
                 if hasattr(component, "update_normalization_tensor"):
                     component.update_normalization_tensor(norm_tensor)
 
-    # ============================================================================
-    # Helper Methods and Properties
-    # ============================================================================
-
-    def _apply_to_components(self, method_name, *args, **kwargs):
-        """Apply a method to all components that have it."""
-        results = []
+    def clip_weights(self):
+        """Clip weights in all components that support it."""
         for _, component in self.components.items():
-            if hasattr(component, method_name):
-                method = getattr(component, method_name)
-                if callable(method):
-                    result = method(*args, **kwargs)
-                    if result is not None:
-                        results.append(result)
-        return results
+            if hasattr(component, "clip_weights"):
+                component.clip_weights()
 
-    @property
-    def lstm(self):
-        """Access to underlying PyTorch LSTM network if it exists."""
-        if "_core_" in self.components:
-            # LSTM component stores the actual nn.LSTM in _net attribute
-            return getattr(self.components["_core_"], "_net", None)
-        return None
-
-    @property
-    def hidden_size(self):
-        """Get hidden size from LSTM component."""
-        if "_core_" in self.components:
-            return getattr(self.components["_core_"], "hidden_size", None)
-        return None
-
-    @property
-    def num_lstm_layers(self):
-        """Get number of LSTM layers."""
-        if "_core_" in self.components:
-            return getattr(self.components["_core_"], "num_layers", None)
-        return None
+    def l2_init_loss(self) -> torch.Tensor:
+        """Calculate L2 initialization loss across all components."""
+        total_loss = torch.tensor(0.0, dtype=torch.float32)
+        for _, component in self.components.items():
+            if hasattr(component, "l2_init_loss"):
+                total_loss += component.l2_init_loss()
+        return total_loss
