@@ -209,39 +209,6 @@ class TimeoutMonitor(JobMonitor):
         super().run()
 
 
-class ForceRestartTestMonitor(JobMonitor):
-    """Monitor that simulates node failure for testing job recovery."""
-
-    def __init__(
-        self,
-        rank: int,
-        restart_time_hours: float,
-        shutdown_callback: Callable[[str], None],
-    ):
-        super().__init__(
-            name="force_restart_test",
-            shutdown_callback=shutdown_callback,
-            check_interval_sec=10.0,  # Check every 10 seconds
-        )
-        self.start_time = time.time()
-        self.failure_delay_sec = int(restart_time_hours * 3600)
-        self.rank = rank
-
-    def check_condition(self) -> tuple[bool, Optional[str]]:
-        """Check if it's time to simulate a failure."""
-
-        elapsed = time.time() - self.start_time
-
-        if elapsed >= self.failure_delay_sec:
-            return True, "force_restart_test"
-
-        return False, None
-
-    def run(self):
-        logger.info(f"Test failure monitor started on node {self.rank} (will fail in {self.failure_delay_sec}s)")
-        super().run()
-
-
 def start_monitors(
     shutdown_callback: Callable[[str], None],
 ) -> None:
@@ -264,9 +231,6 @@ def start_monitors(
     max_runtime_hours = float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None
 
     rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
-    is_master = rank == 0
-
-    restart_count = int(os.environ.get("RESTART_COUNT", "0"))
 
     if heartbeat_timeout:
         heartbeat_monitor = HeartbeatMonitor(
@@ -283,13 +247,3 @@ def start_monitors(
             shutdown_callback=shutdown_callback,
         )
         threading.Thread(target=timeout_monitor.run, name="timeout_monitor", daemon=True).start()
-
-        if is_master and restart_count == 0:
-            force_restart_test_monitor = ForceRestartTestMonitor(
-                rank,
-                restart_time_hours=max_runtime_hours / 2.0,
-                shutdown_callback=shutdown_callback,
-            )
-            threading.Thread(
-                target=force_restart_test_monitor.run, name="force_restart_test_monitor", daemon=True
-            ).start()
