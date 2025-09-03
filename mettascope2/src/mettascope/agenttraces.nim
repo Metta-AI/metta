@@ -1,12 +1,10 @@
 import
   std/[times],
   boxy, chroma, windy,
-  common, panels, replays
+  common, panels, replays, worldmap
 
 let traceWidth = 0.54 / 2
 let traceHeight = 2.0
-
-var followSelection = false
 
 # Double-click detection variables
 var lastClickTime: float64 = 0.0
@@ -35,8 +33,6 @@ proc drawAgentTraces*(panel: Panel) =
       if currentTime - lastClickTime < clickInterval and isClick:
         echo "Double-click detected at position: ", mousePos
         followSelection = true
-        # panel.zoom = 1.0
-        # worldMapPanel.zoom = 1.0
       else:
         echo "Single press at position: ", mousePos
         followSelection = false
@@ -44,11 +40,9 @@ proc drawAgentTraces*(panel: Panel) =
         let agentId = floor(mousePos.y() / traceHeight).int
         if newStep >= 0 and newStep < replay.maxSteps and agentId >= 0 and
             agentId < replay.agents.len:
-          selection = replay.agents[agentId]
           step = newStep
-
-          let loc = selection.location[newStep]
-          worldMapPanel.pos = -vec2(loc[0].float32, loc[1].float32)
+          selection = replay.agents[agentId]
+          centerAt(worldMapPanel, selection)
 
       lastClickTime = currentTime
       lastClickPos = mousePos
@@ -91,6 +85,6 @@ proc drawAgentTraces*(panel: Panel) =
         for item in gainMap:
           for j in 0..<item.count:
             bxy.drawImage(replay.itemImages[item.itemId], vec2(pos.x, pos.y - (
-                traceHeight / 2) - (j * 32/256)), angle = 0, scale = 1/800)
+                traceHeight / 2) + ((j + 1) * 32/256)), angle = 0, scale = 1/800)
 
   panel.endPanAndZoom()

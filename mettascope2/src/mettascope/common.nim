@@ -78,6 +78,7 @@ var
   playSpeed*: float32 = 0.1
   lastSimTime*: float64 = epochTime()
 
+  followSelection*: bool = false
   mouseCaptured*: bool = false
   mouseCapturedPanel*: Panel = nil
 
