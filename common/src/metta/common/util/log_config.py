@@ -214,6 +214,6 @@ def init_logging(run_dir: str | None = None) -> None:
     if run_dir:
         _add_file_logging(run_dir)
 
-    root_logger = logging.getLogger()
-    run_dir_msg = f"run_dir={run_dir}" if run_dir else ""
-    root_logger.info(f"called init_logging({run_dir_msg})")
+    # root_logger = logging.getLogger()
+    # run_dir_msg = f"run_dir={run_dir}" if run_dir else ""
+    # root_logger.info(f"called init_logging({run_dir_msg})")
