@@ -125,7 +125,7 @@ class GitHooksSetup(SetupModule):
                 return False
         return True
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         """Install git hooks by symlinking from devops/git-hooks to .git/hooks"""
         # Check if we're in a worktree
         if self._is_in_worktree():

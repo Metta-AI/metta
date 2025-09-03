@@ -43,7 +43,7 @@ def demo_single_agent_gym():
     print("=" * 60)
 
     env = MettaGridGymEnv(
-        env_config=make_arena(num_agents=1),
+        mg_config=make_arena(num_agents=1),
         render_mode=None,
     )
 
@@ -85,7 +85,7 @@ def demo_sb3_training():
 
     try:
         env = MettaGridGymEnv(
-            env_config=make_arena(num_agents=1),
+            mg_config=make_arena(num_agents=1),
             render_mode=None,
         )
 
@@ -138,16 +138,16 @@ def demo_vectorized_envs():
 
     try:
 
-        def make_env():
+        def make_mettagrid():
             def _init():
                 return MettaGridGymEnv(
-                    env_config=make_arena(num_agents=1),
+                    mg_config=make_arena(num_agents=1),
                     render_mode=None,
                 )
 
             return _init
 
-        vec_env = DummyVecEnv([make_env() for _ in range(4)])
+        vec_env = DummyVecEnv([make_mettagrid() for _ in range(4)])
 
         print("Created 4 vectorized environments")
         print(f"   - Observation space: {vec_env.observation_space}")
