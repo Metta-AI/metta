@@ -115,7 +115,6 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     # Global configuration flags from old mettagrid.yaml
     env_cfg.desync_episodes = True  # Changes max_steps for first episode only
     env_cfg.game.track_movement_metrics = True
-    env_cfg.game.no_agent_interference = False
     env_cfg.game.resource_loss_prob = 0.0
     env_cfg.game.recipe_details_obs = False
 
