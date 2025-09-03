@@ -154,6 +154,14 @@ jobs:
         with:
           install-mode: "linting"
 
+      - name: Debug UV environment
+        run: |
+          echo "UV_NO_SYNC: $UV_NO_SYNC"
+          echo "UV_CACHE_DIR: $UV_CACHE_DIR"
+          echo "UV_CACHE_EXPIRE: $UV_CACHE_EXPIRE"
+          echo "UV_CACHE_ENABLED: $UV_CACHE_ENABLED"
+          echo "UV_CACHE_HASH: $UV_CACHE_HASH"
+
       - name: Run Ruff linter
         run: |
           uv run ruff format --check .

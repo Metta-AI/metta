@@ -56,11 +56,11 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
+    - name: Setup uv
+      uses: ./.github/actions/setup-uv
       with:
-        version: "0.7.3"
-        enable-cache: true
+        install-mode: minimal
+        dependencies-files: dependencies.txt
 
     - name: Ensure Asana Task
       id: ensure-task

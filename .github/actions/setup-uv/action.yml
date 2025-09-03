@@ -5,9 +5,22 @@ inputs:
     description: "Installation mode: 'testing', 'runtime', 'linting', or 'minimal'"
     required: false
     default: "testing"
+  extra-dependencies:
+    description: "Extra pip dependencies to install (newline-separated list)"
+    required: false
+    default: ""
+  dependencies-files:
+    description: "Paths to dependencies files relative to calling action directory (newline-separated)"
+    required: false
+    default: ""
+
+  # NOTE: This action automatically sets UV_NO_SYNC=1 to prevent uv from syncing ALL project dependencies
+  # when workflows/actions run `uv run` commands
 
 runs:
   using: "composite"
+  env:
+    UV_NO_SYNC: "1"
   steps:
     - name: Install uv with built-in caching
       uses: astral-sh/setup-uv@v6
@@ -17,13 +30,12 @@ runs:
         # disabling cache saves 30 sec on testing but costs 40 sec in other modes
         prune-cache: false
         # we hash in the action script in case the install-mode content has changed
-        cache-suffix: "${{ inputs.install-mode }}"
+        cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles(inputs.extra-dependencies) }}"
         cache-dependency-glob: |
           uv.lock
           **/pyproject.toml
           .github/actions/setup-uv/dependencies-testing.txt
           .github/actions/setup-uv/dependencies-linting.txt
-          pnpm-lock.yaml
 
     - name: Debug dependencies and cache
       shell: bash
@@ -77,3 +89,26 @@ runs:
             ;;
 
         esac
+
+        # Install extra dependencies if provided (inline or from files)
+        if [ -n "${{ inputs.extra-dependencies }}" ]; then
+          echo "Installing extra dependencies (inline):"
+          echo "${{ inputs.extra-dependencies }}" | while read -r dep; do
+            if [ -n "$dep" ]; then
+              echo "  - $dep"
+              uv pip install "$dep"
+            fi
+          done
+        elif [ -n "${{ inputs.dependencies-files }}" ]; then
+          echo "Installing dependencies from files:"
+          echo "${{ inputs.dependencies-files }}" | while read -r dep_file; do
+            if [ -n "$dep_file" ] && [ -f "${{ github.action_path }}/$dep_file" ]; then
+              echo "Installing from $dep_file:"
+              uv pip install -r "${{ github.action_path }}/$dep_file"
+            elif [ -n "$dep_file" ]; then
+              echo "Dependencies file not found: ${{ github.action_path }}/$dep_file"
+            fi
+          done
+        else
+          echo "No extra dependencies specified - skipping dependency installation"
+        fi

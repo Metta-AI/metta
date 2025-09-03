@@ -1,6 +1,9 @@
 name: "Sync PR Description (Asana to GH)"
 description: "Updates a GitHub pull request description with a link to an Asana task."
 
+env:
+  UV_NO_SYNC: 1
+
 inputs:
   pr_number:
     description: "The number of the pull request."
@@ -18,11 +21,11 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
+    - name: Setup uv
+      uses: ./.github/actions/setup-uv
       with:
-        version: "0.7.3"
-        enable-cache: true
+        install-mode: minimal
+        dependencies-files: dependencies.txt
 
     - run: uv run ${{ github.action_path }}/pr_description_asana_to_gh.py
       shell: bash
