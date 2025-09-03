@@ -19,7 +19,6 @@ type
     AgentTraces
     EnvConfig
 
-
   Panel* = ref object
     panelType*: PanelType
     rect*: IRect
@@ -29,6 +28,8 @@ type
     vel*: Vec2
     zoom*: float32 = 10
     zoomVel*: float32
+
+    drawFn*: proc(panel: Panel)
 
   AreaLayout* = enum
     Horizontal
@@ -54,15 +55,7 @@ var
   bxy*: Boxy
   frame*: int
 
-  globalTimelinePanel*: Panel
-  globalFooterPanel*: Panel
-  globalHeaderPanel*: Panel
-
-  worldMapPanel*: Panel
-  minimapPanel*: Panel
-  agentTablePanel*: Panel
-  agentTracesPanel*: Panel
-  mgConfigPanel*: Panel
+  panels*: array[PanelType, Panel]
 
   settings* = Settings()
   selection*: Entity
