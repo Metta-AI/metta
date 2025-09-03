@@ -101,11 +101,11 @@ class WandbContext:
                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
             )
 
-            # Save config and set up file syncing only if wandb init succeeded
-            assert self.cfg.data_dir
-            wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
-            wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
-            wandb.save(os.path.join(self.cfg.data_dir, "*.json"), base_path=self.cfg.data_dir, policy="live")
+            # Save config and set up file syncing only if wandb init succeeded and data_dir is set
+            if self.cfg.data_dir:
+                wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
+                wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
+                wandb.save(os.path.join(self.cfg.data_dir, "*.json"), base_path=self.cfg.data_dir, policy="live")
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
         except (TimeoutError, CommError) as e:
