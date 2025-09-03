@@ -1,7 +1,7 @@
 import logging
 import os
 from collections import defaultdict
-from typing import cast
+from typing import Any, Protocol, cast
 
 import numpy as np
 import torch
@@ -11,21 +11,18 @@ from torchrl.data import Composite
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
-from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.wandb.wandb_context import WandbRun
 from metta.core.distributed import TorchDistributedConfig
 from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.hyperparameter_scheduler import step_hyperparameters
 from metta.rl.losses import get_loss_experience_spec
@@ -50,12 +47,6 @@ from metta.rl.utils import (
     should_run,
 )
 from metta.rl.vecenv import make_vecenv
-from metta.rl.wandb import (
-    abort_requested,
-    log_model_parameters,
-    setup_wandb_metrics,
-)
-from metta.sim.simulation_config import SimulationConfig
 from metta.utils.batch import calculate_batch_sizes
 
 try:
@@ -70,14 +61,55 @@ torch.set_float32_matmul_precision("high")
 logger = logging.getLogger(__name__)
 
 
-def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:
-    """Helper to update training run status to 'failed' when training encounters an error."""
-    if stats_client and stats_run_id:
-        try:
-            stats_client.update_training_run_status(stats_run_id, "failed")
-            logger.info("Training run status updated to 'failed'")
-        except Exception as e:
-            logger.warning(f"Failed to update training run status to failed: {e}", exc_info=True)
+class TrainingCallbacks(Protocol):
+    """A class defining the interfaces of a bunch things the trainer wants to do, but doesn't need to know how they
+    done.
+
+    Technically these should be just parameters to the train function, but I want to be able to specify parameter names,
+    instead of just Callable[...]
+    """
+
+    def on_start(self, policy: PolicyAgent) -> None:
+        """Called when training starts."""
+
+    def on_end(self, status: str) -> None:
+        """Called when training ends."""
+
+    def evaluate_policy(
+        self,
+        stats_epoch_start: int,
+        stats_epoch_end: int,
+        env_cfg: MettaGridConfig,
+        agent_step: int,
+        remote_uri: str | None,
+    ) -> EvalResults | None:
+        """Called to evaluate the policy."""
+
+    def log_stats(
+        self,
+        agent_step: int,
+        stats: dict[str, Any],
+    ) -> None:
+        """Called after each step of training.
+
+        TODO: stats should really be a class instead of dict[str, Any]
+        """
+
+    def save_checkpoint(
+        self,
+        epoch: int,
+        policy: PolicyAgent,
+        agent_step: int,
+        timer: Stopwatch,
+        eval_scores: EvalRewardSummary,
+        optimizer: torch.optim.Optimizer,
+        upload_remotely: bool,
+    ) -> str | None:
+        """Called to save a checkpoint."""
+
+    def check_for_abort(self, agent_step: int) -> bool:
+        """Called to check for abort."""
+        return False
 
 
 def train(
@@ -87,16 +119,16 @@ def train(
     agent_cfg: AgentConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
-    wandb_run: WandbRun | None,
     checkpoint_manager: CheckpointManager,
-    stats_client: StatsClient | None,
     torch_dist_cfg: TorchDistributedConfig,
+    torch_profiler: TorchProfiler,
+    callbacks: TrainingCallbacks,
 ) -> None:
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
 
     checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir
-    if os.path.exists(checkpoints_dir):
+    if checkpoints_dir and os.path.exists(checkpoints_dir):
         files = sorted(os.listdir(checkpoints_dir))[-3:]
         if files:
             logger.info(f"Recent checkpoints: {', '.join(files)}")
@@ -104,7 +136,6 @@ def train(
     # Create timer, Losses, profiler, curriculum
     timer = Stopwatch(log_level=logger.getEffectiveLevel())
     timer.start()
-    torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = Curriculum(trainer_cfg.curriculum)
 
     # Calculate batch sizes
@@ -160,10 +191,10 @@ def train(
         checkpoint_epoch = get_from_master(checkpoint_epoch)
         trainer_state = get_from_master(trainer_state)
 
-    agent_step = trainer_state["agent_step"] if trainer_state else 0
-    epoch = trainer_state["epoch"] if trainer_state else 0
+    agent_step: int = trainer_state["agent_step"] if trainer_state else 0
+    epoch: int = trainer_state["epoch"] if trainer_state else 0
     latest_saved_epoch = epoch  # Track the epoch of the latest saved checkpoint
-    latest_wandb_uri = None  # Track the last uploaded wandb artifact URI
+    latest_remote_uri = None  # Track the last uploaded policy URI
 
     if trainer_state:
         logger.info(f"Restored from checkpoint at {agent_step} steps")
@@ -185,7 +216,7 @@ def train(
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
-    policy: PolicyAgent = policy_agent
+    policy: PolicyAgent = cast(PolicyAgent, policy_agent)
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
@@ -275,32 +306,10 @@ def train(
     else:
         memory_monitor, system_monitor = None, None
 
-    # Set up wandb metrics (master only)
-    if wandb_run and torch_dist_cfg.is_master:
-        setup_wandb_metrics(wandb_run)
-        log_model_parameters(policy, wandb_run)
+    callbacks.on_start(policy)
 
     # Initialize stats tracking
     stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
-    if stats_client is not None:
-        # Extract wandb attributes with defaults
-        name = url = "unknown"
-        description: str | None = None
-        tags: list[str] | None = None
-        if wandb_run:
-            name = wandb_run.name or name
-            url = wandb_run.url
-            if wandb_run.tags:
-                tags = list(wandb_run.tags)
-            description = wandb_run.notes
-
-        try:
-            stats_tracker.stats_run_id = stats_client.create_training_run(
-                name=name, url=url, description=description, tags=tags
-            ).id
-        except Exception as e:
-            logger.warning(f"Failed to create training run: {e}", exc_info=True)
-
     if torch_dist_cfg.is_master:
         logger.info(f"Training on {device}")
 
@@ -457,14 +466,14 @@ def train(
 
             torch_profiler.on_epoch_end(epoch)
 
-            losses_stats = {}
+            losses_stats: dict[str, Any] = {}
             for _lname in list(all_losses):
                 loss_obj = loss_instances[_lname]
                 losses_stats.update(loss_obj.stats())
 
             with timer("_process_stats"):
-                if wandb_run:
-                    process_stats(
+                if torch_dist_cfg.is_master:
+                    stats = process_stats(
                         agent_cfg=agent_cfg,
                         stats=stats_tracker.rollout_stats,
                         losses_stats=losses_stats,
@@ -476,13 +485,14 @@ def train(
                         trainer_cfg=trainer_cfg,
                         agent_step=agent_step,
                         epoch=epoch,
-                        wandb_run=wandb_run,
                         # We know these exist within master
                         memory_monitor=memory_monitor,  # type: ignore[arg-type]
                         system_monitor=system_monitor,  # type: ignore[arg-type]
                         optimizer=optimizer,
                         latest_saved_epoch=latest_saved_epoch,
                     )
+                    callbacks.log_stats(agent_step, stats)
+
                 # Clear stats after processing
                 stats_tracker.clear_rollout_stats()
                 stats_tracker.clear_grad_stats()
@@ -498,117 +508,32 @@ def train(
                 run_name=run,
             )
             if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
-                # Extract the actual agent from distributed wrapper if needed
-                agent_to_save = policy.module if torch.distributed.is_initialized() else policy
-
-                # Build metadata from evaluation scores
-                metadata = {
-                    "agent_step": agent_step,
-                    "total_time": timer.get_elapsed(),
-                    "total_train_time": timer.get_all_elapsed().get("_rollout", 0)
-                    + timer.get_all_elapsed().get("_train", 0),
-                }
-
-                # Add evaluation scores if available
-                if eval_scores.category_scores or eval_scores.simulation_scores:
-                    metadata.update(
-                        {
-                            "score": eval_scores.avg_simulation_score,
-                            "avg_reward": eval_scores.avg_category_score,
-                            "category_scores": eval_scores.category_scores,
-                            "simulation_scores": {
-                                f"{cat}/{sim}": score for (cat, sim), score in eval_scores.simulation_scores.items()
-                            },
-                        }
-                    )
-
-                # Save agent and trainer state
-                # Only upload to wandb if we're at the right interval
-                should_upload_wandb = wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval)
-                metadata["upload_to_wandb"] = should_upload_wandb
-
-                wandb_uri = checkpoint_manager.save_agent(
-                    agent_to_save, epoch, metadata, wandb_run=wandb_run if should_upload_wandb else None
+                upload_remotely = should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval)
+                remote_uri = callbacks.save_checkpoint(
+                    epoch=epoch,
+                    policy=policy,
+                    agent_step=agent_step,
+                    timer=timer,
+                    eval_scores=eval_scores,
+                    optimizer=optimizer,
+                    upload_remotely=upload_remotely,
                 )
-                checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
                 latest_saved_epoch = epoch
 
-                if wandb_uri:
-                    latest_wandb_uri = wandb_uri
-                    logger.info(f"Saved checkpoint to wandb: {latest_wandb_uri}")
+                if remote_uri:
+                    latest_remote_uri = remote_uri
+                    logger.info(f"Saved checkpoint to wandb: {remote_uri}")
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
-                # Evaluation with CheckpointManager - use current policy directly
-                if stats_client and stats_tracker.stats_run_id:
-                    stats_tracker.stats_epoch_id = stats_client.create_epoch(
-                        run_id=stats_tracker.stats_run_id,
-                        start_training_epoch=stats_tracker.stats_epoch_start,
-                        end_training_epoch=epoch,
-                    ).id
-
-                sims = [
-                    SimulationConfig(
-                        name=f"train_task_{i}",
-                        env=curriculum.get_task().get_env_cfg(),
-                    )
-                    for i in range(trainer_cfg.evaluation.num_training_tasks)
-                ]
-                sims.extend(trainer_cfg.evaluation.simulations)
-
-                evaluate_local = trainer_cfg.evaluation.evaluate_local
-                if latest_wandb_uri:
-                    policy_uri = latest_wandb_uri  # Already a wandb:// URI
-                else:
-                    checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
-                    policy_uri = checkpoint_uris[0] if checkpoint_uris else None
-                if trainer_cfg.evaluation.evaluate_remote:
-                    try:
-                        # Get the most recent checkpoint URI for remote evaluation
-                        # Prefer wandb artifact if available, otherwise use local file
-                        if policy_uri:
-                            logger.info(f"Evaluating policy remotely from {policy_uri}")
-                            evaluate_policy_remote_with_checkpoint_manager(
-                                policy_uri=policy_uri,
-                                simulations=sims,
-                                stats_epoch_id=stats_tracker.stats_epoch_id,
-                                stats_client=stats_client,
-                                wandb_run=wandb_run,
-                                trainer_cfg=trainer_cfg,
-                            )
-                        else:
-                            logger.warning("No checkpoint available for remote evaluation")
-                    except Exception as e:
-                        logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
-                        logger.error("Falling back to local evaluation")
-                        evaluate_local = True
-                if evaluate_local:
-                    if policy_uri:
-                        evaluation_results = evaluate_policy(
-                            checkpoint_uri=policy_uri,
-                            simulations=sims,
-                            device=device,
-                            vectorization=system_cfg.vectorization,
-                            replay_dir=trainer_cfg.evaluation.replay_dir if trainer_cfg.evaluation else None,
-                            stats_epoch_id=stats_tracker.stats_epoch_id,
-                            stats_client=stats_client,
-                        )
-                        logger.info("Simulation complete")
-                        eval_scores = evaluation_results.scores
-                        if wandb_run is not None and evaluation_results.replay_urls:
-                            upload_replay_html(
-                                replay_urls=evaluation_results.replay_urls,
-                                agent_step=agent_step,
-                                epoch=epoch,
-                                wandb_run=wandb_run,
-                                metric_prefix="training_eval",
-                                step_metric_key="metric/epoch",
-                                epoch_metric_key="metric/epoch",
-                            )
-                    else:
-                        logger.warning("No checkpoint available for local evaluation")
-                        evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
-                        eval_scores = evaluation_results.scores
-
+                eval_res = callbacks.evaluate_policy(
+                    stats_epoch_start=stats_tracker.stats_epoch_start,
+                    stats_epoch_end=epoch,
+                    env_cfg=curriculum.get_task().get_env_cfg(),
+                    agent_step=agent_step,
+                    remote_uri=latest_remote_uri,
+                )
+                if eval_res:
+                    eval_scores = eval_res.scores
                 stats_tracker.update_epoch_tracking(epoch + 1)
 
             # Compute gradient stats
@@ -618,19 +543,14 @@ def train(
 
             # Check for abort every 5 epochs
             if should_run(epoch, 5):
-                if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
-                    logger.info("Abort tag detected. Stopping the run.")
-                    trainer_cfg.total_timesteps = int(agent_step)
-                    wandb_run.config.update(
-                        {"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True
-                    )
+                if callbacks.check_for_abort(agent_step):
                     break
 
         # All ranks wait until training is complete before closing vecenv
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
     except:
-        _update_training_status_on_failure(stats_client, stats_tracker.stats_run_id, logger)
+        callbacks.on_end("failed")
         raise
 
     vecenv.close()
@@ -641,50 +561,23 @@ def train(
     logger.info("Training complete!")
 
     # Update training run status to completed
-    if stats_client and stats_tracker.stats_run_id:
-        try:
-            stats_client.update_training_run_status(stats_tracker.stats_run_id, "completed")
-            logger.info("Training run status updated to 'completed'")
-        except Exception as e:
-            logger.warning(f"Failed to update training run status to completed: {e}", exc_info=True)
+    callbacks.on_end("completed")
 
     timing_summary = timer.get_all_summaries()
     for name, summary in timing_summary.items():
         logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
     # Final checkpoint save at end of training
-    agent_to_save = policy.module if torch.distributed.is_initialized() else policy
-
-    final_metadata = {
-        "agent_step": agent_step,
-        "total_time": timer.get_elapsed(),
-        "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
-    }
-
-    # Add final evaluation scores if available
-    if eval_scores.category_scores or eval_scores.simulation_scores:
-        final_metadata.update(
-            {
-                "score": eval_scores.avg_simulation_score,
-                "avg_reward": eval_scores.avg_category_score,
-            }
-        )
-
-    # Mark as final checkpoint and always upload to wandb if wandb is configured
-    final_metadata["is_final"] = True
-    final_metadata["upload_to_wandb"] = bool(wandb_run)  # Always upload final checkpoint
-
-    checkpoint_manager.save_agent(
-        agent_to_save,
-        epoch,
-        final_metadata,
-        wandb_run=wandb_run,  # Upload final checkpoint if wandb is available
+    callbacks.save_checkpoint(
+        epoch=epoch,
+        policy=policy,
+        agent_step=agent_step,
+        timer=timer,
+        eval_scores=eval_scores,
+        optimizer=optimizer,
+        upload_remotely=True,
     )
-    checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
 
     cleanup_monitoring(memory_monitor, system_monitor)
 
-    # Return stats info for exception handling at higher levels
-    if stats_client and stats_tracker and stats_tracker.stats_run_id:
-        return {"stats_run_id": stats_tracker.stats_run_id, "stats_client": stats_client, "logger": logger}
     return None

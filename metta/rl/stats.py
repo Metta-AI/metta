@@ -1,7 +1,6 @@
 """Statistics processing functions for Metta training."""
 
 import logging
-import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
@@ -13,7 +12,6 @@ import wandb
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
 from metta.mettagrid.profiling.stopwatch import Stopwatch
@@ -46,8 +44,6 @@ class StatsTracker:
 
     # Database tracking for stats service
     stats_epoch_start: int = 0
-    stats_epoch_id: uuid.UUID | None = None
-    stats_run_id: uuid.UUID | None = None
 
     def clear_rollout_stats(self) -> None:
         """Clear rollout stats after processing."""
@@ -302,15 +298,12 @@ def process_stats(
     agent_cfg: AgentConfig,
     agent_step: int,
     epoch: int,
-    wandb_run: WandbRun | None,
     memory_monitor: MemoryMonitor,
     system_monitor: SystemMonitor,
     latest_saved_epoch: int,
     optimizer: torch.optim.Optimizer,
-) -> None:
+) -> dict[str, Any]:
     """Process and log training statistics."""
-    if not wandb_run:
-        return
 
     # Process training stats
     processed_stats = process_training_stats(
@@ -360,7 +353,7 @@ def process_stats(
     }
 
     # Build complete stats
-    all_stats = build_wandb_stats(
+    return build_wandb_stats(
         processed_stats=processed_stats,
         timing_info=timing_info,
         weight_stats=weight_stats,
@@ -373,9 +366,6 @@ def process_stats(
         agent_step=agent_step,
         epoch=epoch,
     )
-
-    # Log to wandb
-    wandb_run.log(all_stats, step=agent_step)
 
 
 def process_policy_evaluator_stats(

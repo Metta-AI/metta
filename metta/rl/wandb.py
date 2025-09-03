@@ -13,7 +13,7 @@ import wandb
 from wandb import Artifact
 
 from metta.common.wandb.wandb_context import WandbRun
-from metta.mettagrid.util.file import WandbURI
+from metta.mettagrid.util.file import WandbURI, is_public_uri
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,11 @@ def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     num_params = sum(p.numel() for p in policy.parameters())
     if wandb_run.summary:
         wandb_run.summary["model/total_parameters"] = num_params
+
+
+def log_torch_trace_link(upload_url: str, epoch: int, wandb_run: WandbRun):
+    if is_public_uri(upload_url):
+        wandb_run.log({"torch_traces/link": wandb.Html(f'<a href="{upload_url}">Torch Trace (Epoch {epoch})</a>')})
 
 
 def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
