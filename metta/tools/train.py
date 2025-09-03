@@ -128,7 +128,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
-    checkpoint_manager = CheckpointManager(run_name=cfg.run, run_dir=cfg.run_dir)
+    checkpoint_manager = CheckpointManager(run=cfg.run, run_dir=cfg.run_dir)
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
         cfg = _minimize_config_for_debugging(cfg)

@@ -107,8 +107,46 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     return None
 
 
+def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
+    """Expand short wandb URI formats to full format.
+
+    Handles both short and full wandb URI formats:
+    - "wandb://run/my_run_name" -> "wandb://metta/model/my_run_name:latest"
+    - "wandb://run/my_run_name:v5" -> "wandb://metta/model/my_run_name:v5"
+    - "wandb://sweep/sweep_name" -> "wandb://metta/sweep_model/sweep_name:latest"
+    """
+    if not uri.startswith("wandb://"):
+        return uri
+
+    path = uri[len("wandb://") :]
+
+    if path.startswith("run/"):
+        run_name = path[4:]
+        if ":" in run_name:
+            run_name, version = run_name.rsplit(":", 1)
+        else:
+            version = "latest"
+        return f"wandb://{default_project}/model/{run_name}:{version}"
+
+    elif path.startswith("sweep/"):
+        sweep_name = path[6:]
+        if ":" in sweep_name:
+            sweep_name, version = sweep_name.rsplit(":", 1)
+        else:
+            version = "latest"
+        return f"wandb://{default_project}/sweep_model/{sweep_name}:{version}"
+
+    # Already in full format or unrecognized pattern
+    return uri
+
+
 def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:
-    """Load policy from wandb://entity/project/artifact_name:version format.
+    """Load policy from wandb URI (handles both short and full formats).
+
+    Accepts:
+    - Short format: "wandb://run/my-run"
+    - Full format: "wandb://project/type/artifact:version"
+
     Raises:
         ValueError: If URI is not a wandb:// URI
         FileNotFoundError: If no .pt files found in artifact
@@ -116,27 +154,31 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     if not wandb_uri.startswith("wandb://"):
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
-    logger.info(f"Loading policy from wandb URI: {wandb_uri}")
-    uri = WandbURI.parse(wandb_uri)
+    expanded_uri = expand_wandb_uri(wandb_uri)
+    logger.info(f"Loading policy from wandb URI: {expanded_uri}")
+    uri = WandbURI.parse(expanded_uri)
     qname = uri.qname()
-    logger.debug(f"Calling wandb.Api().artifact() with qname: {qname}")
-    artifact = wandb.Api().artifact(qname)
+
+    # Load artifact
+    try:
+        logger.debug(f"Loading artifact: {qname}")
+        artifact = wandb.Api().artifact(qname)
+    except wandb.errors.CommError as e:
+        raise ValueError(f"Artifact not found: {qname}") from e
 
     with tempfile.TemporaryDirectory() as temp_dir:
         artifact_dir = Path(temp_dir)
         artifact.download(root=str(artifact_dir))
 
-        # Look for model.pt file (our standard name)
+        # Load model.pt
         model_file = artifact_dir / "model.pt"
         if not model_file.exists():
             # Fallback to any .pt file
             policy_files = list(artifact_dir.rglob("*.pt"))
             if not policy_files:
-                raise FileNotFoundError(f"No .pt files found in wandb artifact {wandb_uri}")
+                raise FileNotFoundError(f"No .pt files in artifact {wandb_uri}")
             model_file = policy_files[0]
-            logger.warning(f"model.pt not found, using {model_file.name}")
 
-        # Load the policy
         return torch.load(model_file, map_location=device, weights_only=False)
 
 
@@ -158,15 +200,13 @@ def upload_checkpoint_as_artifact(
         logger.warning("No wandb run active, cannot upload artifact")
         return None
 
-    # Prepare metadata with original filename
+    # Prepare metadata
     artifact_metadata = metadata.copy() if metadata else {}
-    artifact_metadata["original_filename"] = Path(checkpoint_path).name
 
-    # Create artifact with complete metadata
+    # Create artifact (wandb supports dots in names)
     artifact = wandb.Artifact(name=artifact_name, type=artifact_type, metadata=artifact_metadata)
 
-    # Add the main checkpoint file - we use a generic name for consistency
-    # The actual metadata is stored in the artifact's metadata field
+    # Add checkpoint file as model.pt
     artifact.add_file(checkpoint_path, name="model.pt")
 
     # Add any additional files
@@ -183,12 +223,7 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
-    # Always use "latest" for simplicity and reliability
-    # This avoids all timing issues with WandB version assignment
     wandb_uri = f"wandb://{run.project}/{artifact_name}:latest"
-
-    # Log the actual qualified_name for debugging
     logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
-    logger.debug(f"Returning simplified WandB URI: {wandb_uri}")
 
     return wandb_uri
