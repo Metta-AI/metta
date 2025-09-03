@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 import torch
 from tensordict import TensorDict
@@ -80,7 +79,6 @@ def process_minibatch_update(
     trainer_cfg: TrainerConfig,
     indices: Tensor,
     prio_weights: Tensor,
-    kickstarter: Any,
     agent_step: int,
     losses: Losses,
     device: torch.device,
@@ -92,7 +90,6 @@ def process_minibatch_update(
     new_logprob = policy_td["act_log_prob"].reshape(old_act_log_prob.shape)
     entropy = policy_td["entropy"]
     newvalue = policy_td["value"]
-    full_logprobs = policy_td["full_log_probs"]
 
     logratio = new_logprob - old_act_log_prob
     importance_sampling_ratio = logratio.exp()
@@ -115,6 +112,9 @@ def process_minibatch_update(
     adv = normalize_advantage_distributed(adv, trainer_cfg.ppo.norm_adv)
     adv = prio_weights * adv
 
+    # Compute returns for value loss
+    minibatch["returns"] = adv + minibatch["values"]
+
     # Compute losses
     pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
         minibatch,
@@ -126,13 +126,9 @@ def process_minibatch_update(
         trainer_cfg,
     )
 
-    # Kickstarter losses
-    ks_action_loss, ks_value_loss = kickstarter.loss(
-        agent_step,
-        full_logprobs,
-        newvalue,
-        policy_td,
-    )
+    # Kickstarter losses (disabled - to be implemented via composable losses)
+    ks_action_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
+    ks_value_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
 
     # L2 init loss
     l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
