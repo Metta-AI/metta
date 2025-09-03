@@ -11,6 +11,7 @@ You can choose which transformation families to include by passing
 By default we include a single transformation per map (no combos).
 """
 
+import os
 from dataclasses import dataclass
 from itertools import product
 from typing import Callable, Iterable
@@ -132,6 +133,36 @@ def _build_env_from_ascii_path(
     return make_nav_eval_env(env)
 
 
+def _env_from_transformed_content(
+    original_ascii_map: str,
+    transformed_content: str,
+    *,
+    max_steps: int,
+    border_width: int,
+    num_agents: int,
+) -> MettaGridConfig:
+    """Build env from transformed content and clean up temp file.
+
+    We persist the transformed content to a temporary file only long enough
+    for `AsciiMapBuilder.Config.from_uri` to read it. After constructing the
+    env (which copies map data), we remove the temporary file.
+    """
+    tmp_path = _save_transformed_map(transformed_content, original_ascii_map)
+    try:
+        env = _build_env_from_ascii_path(
+            tmp_path,
+            max_steps=max_steps,
+            border_width=border_width,
+            num_agents=num_agents,
+        )
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+    return env
+
+
 def apply_transformations(
     name: str,
     max_steps: int,
@@ -179,12 +210,15 @@ def apply_transformations(
     for fam in selected_families:
         for t in families[fam]:
             transformed = t.apply(original_content)
-            tmp_path = _save_transformed_map(transformed, original_ascii_map)
             sims.append(
                 SimulationConfig(
                     name=f"{name}_{t.suffix}",
-                    env=_build_env_from_ascii_path(
-                        tmp_path, max_steps, border_width, num_agents
+                    env=_env_from_transformed_content(
+                        original_ascii_map,
+                        transformed,
+                        max_steps=max_steps,
+                        border_width=border_width,
+                        num_agents=num_agents,
                     ),
                 )
             )
@@ -210,12 +244,15 @@ def apply_transformations(
                 suffix_parts.append(by_family["stretch"].suffix)
 
             suffix = "_".join(suffix_parts)
-            tmp_path = _save_transformed_map(content, original_ascii_map)
             sims.append(
                 SimulationConfig(
                     name=f"{name}_{suffix}",
-                    env=_build_env_from_ascii_path(
-                        tmp_path, max_steps, border_width, num_agents
+                    env=_env_from_transformed_content(
+                        original_ascii_map,
+                        content,
+                        max_steps=max_steps,
+                        border_width=border_width,
+                        num_agents=num_agents,
                     ),
                 )
             )
