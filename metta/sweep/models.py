@@ -10,11 +10,6 @@ class JobTypes(StrEnum):
     LAUNCH_TRAINING = auto()
     LAUNCH_EVAL = auto()
 
-    # For the future
-    PAUSE_TRAINING = auto()
-    RESUME_TRAINING = auto()
-    CANCEL_JOB = auto()
-
 
 @dataclass
 class JobDefinition:
@@ -104,15 +99,6 @@ class RunInfo:
     # Dispatch info
     # dispatch_id: str | None = None
     # dispatch_type: DispatchType | None = None
-
-
-@dataclass
-class JobResult:
-    job: JobDefinition
-    status: JobStatus
-    metrics: dict[str, float]
-    completed_at: datetime = field(default_factory=datetime.now)
-    error: str | None = None
 
 
 @dataclass

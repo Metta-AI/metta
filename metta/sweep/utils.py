@@ -1,8 +1,6 @@
 """Utility functions for sweep orchestration."""
 
-import functools
 import logging
-import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -71,34 +69,3 @@ def make_monitor_table(
     lines.append(f"{prefix}{'=' * 100}")
 
     return lines
-
-
-def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
-    """Decorator for retrying operations with exponential backoff"""
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            attempt = 1
-            current_delay = delay
-            last_exception = None
-
-            while attempt <= max_attempts:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    last_exception = e
-                    if attempt == max_attempts:
-                        logger.error(f"[Retry] Failed after {max_attempts} attempts: {e}")
-                        raise
-                    logger.warning(f"[Retry] Attempt {attempt} failed, retrying in {current_delay}s: {e}")
-                    time.sleep(current_delay)
-                    current_delay *= backoff
-                    attempt += 1
-
-            assert last_exception is not None
-            raise last_exception
-
-        return wrapper
-
-    return decorator
