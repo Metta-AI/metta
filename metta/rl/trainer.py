@@ -367,14 +367,13 @@ def train(
                             loss_obj.rollout(td, trainer_state)
 
                         # If no composable losses did inference, do it here
+                        # This fallback is needed when losses are disabled by scheduling or no losses do inference
                         if "actions" not in td:
                             with torch.no_grad():
                                 policy(td)
+                            # Store experience since no loss did it
+                            experience.store(data_td=td, env_id=training_env_id)
 
-                        experience.store(
-                            data_td=td,
-                            env_id=training_env_id,
-                        )
                         send_observation(vecenv, td["actions"], dtype_actions, timer)
 
                         if info:
