@@ -9,12 +9,31 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Free disk space in background
+      shell: bash
+      run: |
+        # We are always cutting it close on runners and then uv cache gzip fails
+
+        WILL_CLEAN=""
+        [[ -d "/usr/local/lib/android" ]] && WILL_CLEAN="Android SDK"
+
+        # Start deletions in background
+        if [[ -n "$WILL_CLEAN" ]]; then
+          (
+            sudo rm -rf /usr/local/lib/android ${ANDROID_HOME} ${ANDROID_SDK_ROOT} 2>/dev/null
+          ) &
+          echo "✓ Cleaning in background: $WILL_CLEAN"
+          echo "  ~8GB will be freed up as your job continues"
+        else
+          echo "✓ No Android SDK found to clean"
+        fi
+
     - name: Install uv
       uses: astral-sh/setup-uv@v6
       with:
         version: "0.7.3"
         enable-cache: true
-        prune-cache: false
+        prune-cache: true
         cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
         cache-dependency-glob: |
           **/pyproject.toml
