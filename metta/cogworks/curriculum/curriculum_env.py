@@ -43,6 +43,8 @@ class CurriculumEnv(PufferEnv):
         if terminals.all() or truncations.all():
             mean_reward = self._env.get_episode_rewards().mean()
             self._current_task.complete(mean_reward)
+            # Update the curriculum algorithm with task performance for learning progress
+            self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
             self._current_task = self._curriculum.get_task()
             self._env.set_mg_config(self._current_task.get_env_cfg())
 
