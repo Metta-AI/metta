@@ -186,9 +186,6 @@ class GameConfig(Config):
     track_movement_metrics: bool = Field(
         default=True, description="Enable movement metrics tracking (sequential rotations)"
     )
-    no_agent_interference: bool = Field(
-        default=False, description="Enable agents to move through and not observe each other"
-    )
     recipe_details_obs: bool = Field(
         default=False, description="Converters show their recipe inputs and outputs when observed"
     )

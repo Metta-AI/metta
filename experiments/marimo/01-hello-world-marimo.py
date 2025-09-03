@@ -531,7 +531,6 @@ def _(
     # Global configuration flags from old mettagrid.yaml
     mg_config.desync_episodes = True  # Changes max_steps for first episode only
     mg_config.game.track_movement_metrics = True
-    mg_config.game.no_agent_interference = False
     mg_config.game.recipe_details_obs = False
 
     # Global observation tokens from old config
