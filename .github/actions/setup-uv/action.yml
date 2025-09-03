@@ -15,7 +15,9 @@ runs:
         version: "0.7.3"
         enable-cache: true
         cache-local-path: "${{ github.workspace }}/.uv-cache"
-        prune-cache: false
+        # disabling cache saves 30 sec on testing but costs 40 sec in other modes
+        prune-cache: ${{ inputs.install-mode != 'testing' }}
+        # we hash in the action script in case the install-mode content has changed
         cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
         cache-dependency-glob: |
           **/pyproject.toml
