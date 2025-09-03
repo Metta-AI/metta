@@ -321,6 +321,7 @@ def train(
             shared_loss_mb_data = experience.give_me_empty_md_td()
             policy.on_new_training_run()
             for _loss_name in loss_instances.keys():
+                loss_instances[_loss_name].on_new_training_run(trainer_state)
                 shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
 
             # Initialize main's traditional loss system alongside composable system
