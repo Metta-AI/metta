@@ -1,5 +1,3 @@
-import logging
-
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.worker_managers.base import AbstractWorkerManager
 from metta.app_backend.worker_managers.worker import Worker
@@ -9,12 +7,7 @@ class ContainerWorkerManager(AbstractWorkerManager):
     """Adapter that wraps AbstractContainerManager to implement AbstractWorkerManager interface."""
 
     def __init__(
-        self,
-        container_manager: AbstractContainerManager,
-        backend_url: str,
-        docker_image: str,
-        machine_token: str,
-        logger: logging.Logger | None = None,
+        self, container_manager: AbstractContainerManager, backend_url: str, docker_image: str, machine_token: str
     ):
         self._container_manager = container_manager
         self._backend_url = backend_url

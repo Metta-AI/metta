@@ -142,9 +142,24 @@ class Stopwatch:
 
     _GLOBAL_TIMER_NAME: Final[str] = "global"  # Reserved name for the global timer
 
-    def __init__(self, logger: logging.Logger | None = None, max_laps: int = 4):
-        self.logger = logger or logging.getLogger("Stopwatch")
-        self.logger.addHandler(logging.NullHandler())
+    def __init__(self, log_level: int | None = None, max_laps: int = 4):
+        # Create logger for this instance
+        self.logger = logging.getLogger(f"Stopwatch.{id(self)}")
+
+        # Configure logger based on log_level
+        if log_level is None:
+            self.logger.addHandler(logging.NullHandler())
+        else:
+            if not self.logger.handlers:
+                handler = logging.StreamHandler()
+                handler.setLevel(logging.DEBUG)
+                self.logger.addHandler(handler)
+                self.logger.warning(
+                    "No handlers found on logger - added StreamHandler. This should only happen during testing."
+                )
+
+            self.logger.setLevel(log_level)
+
         self.max_laps = max_laps
         self._timers: dict[str, Timer] = {}
         # Create global timer but don't start it automatically

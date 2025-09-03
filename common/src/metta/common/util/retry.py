@@ -6,6 +6,8 @@ from typing import Any, Callable, Optional, TypeVar
 
 T = TypeVar("T")
 
+logger = logging.getLogger(__name__)
+
 
 def calculate_backoff_delay(
     attempt: int,
@@ -27,7 +29,6 @@ def retry_function(
     backoff_factor: float = 2.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
     error_prefix: str = "Function failed",
-    logger: Optional[logging.Logger] = None,
 ) -> T:
     """Execute a function with retry logic using exponential backoff."""
     last_exception: Optional[Exception] = None
@@ -71,12 +72,7 @@ def retry_function(
 
 
 def retry_on_exception(
-    max_retries: int = 3,
-    initial_delay: float = 1.0,
-    max_delay: float = 60.0,
-    backoff_factor: float = 2.0,
-    exceptions: tuple[type[Exception], ...] = (Exception,),
-    logger: Optional[logging.Logger] = None,
+    max_retries: int = 3, retry_delay: float = 5.0, exceptions: tuple[type[Exception], ...] = (Exception,)
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator to retry a function on exception with exponential backoff."""
 

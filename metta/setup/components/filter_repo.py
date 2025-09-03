@@ -27,7 +27,7 @@ class FilterRepoSetup(SetupModule):
         except Exception:
             return False
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         """Install git-filter-repo."""
         info("Installing git-filter-repo...")
 

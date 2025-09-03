@@ -25,7 +25,7 @@ def setup_monitoring(
     system_monitor = SystemMonitor(
         sampling_interval_sec=1.0,
         history_size=100,
-        logger=logger,
+        log_level=logger.getEffectiveLevel(),
         auto_start=True,
         external_timer=timer,
     )

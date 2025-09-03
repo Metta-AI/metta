@@ -17,36 +17,45 @@ class SystemMonitor:
         self,
         sampling_interval_sec: float = 1.0,
         history_size: int = 100,
-        logger: logging.Logger | None = None,
+        log_level: int | None = None,
         auto_start: bool = True,
         external_timer: Any | None = None,
     ):
-        self.logger = logger or logging.getLogger("SystemMonitor")
-        self.logger.addHandler(logging.NullHandler())
+        # Create logger for this instance
+        self.logger = logging.getLogger(f"SystemMonitor.{id(self)}")
+
+        # Configure logger based on log_level
+        if log_level is None:
+            self.logger.addHandler(logging.NullHandler())
+        else:
+            if not self.logger.handlers:
+                handler = logging.StreamHandler()
+                handler.setLevel(logging.DEBUG)
+                self.logger.addHandler(handler)
+                self.logger.warning(
+                    "No handlers found on logger - added StreamHandler. This should only happen during testing."
+                )
+
+            self.logger.setLevel(log_level)
 
         self.sampling_interval_sec = sampling_interval_sec
         self.history_size = history_size
-
         # Initialize process object for CPU tracking
         self._process = psutil.Process(os.getpid())
         # Call cpu_percent once to initialize the baseline
         self._process.cpu_percent()
-
         # Thread control
         self._thread: Thread | None = None
         self._stop_flag = False
         self._lock = Lock()
         self._start_time: float | None = None  # Track when monitoring started
         self._external_timer = external_timer  # External timer for elapsed time
-
         # Metric storage
         self._metrics: dict[str, deque] = {}
         self._latest: dict[str, Any] = {}
         self._metric_collectors: dict[str, Callable[[], Any]] = {}
-
         # Initialize default metrics
         self._initialize_default_metrics()
-
         if auto_start:
             self.start()
 

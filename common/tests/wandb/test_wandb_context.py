@@ -24,13 +24,43 @@ from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 logger = logging.getLogger("Test")
 
 
-@pytest.fixture
-def mock_socket(monkeypatch):
-    """Mock socket for network connectivity tests."""
-    mock_sock = MagicMock()
-    monkeypatch.setattr(socket, "socket", lambda *args, **kwargs: mock_sock)
-    monkeypatch.setattr(socket, "setdefaulttimeout", lambda timeout: None)
-    return mock_sock
+@pytest.fixture(autouse=True)
+def patch_dependencies(monkeypatch):
+    # Patch wandb.save to no-op
+    monkeypatch.setattr(wandb, "save", lambda *args, **kwargs: None)
+
+    # Dummy socket to bypass real network calls
+    class DummySock:
+        def settimeout(self, timeout):
+            pass
+
+        def connect(self, addr):
+            pass
+
+    monkeypatch.setattr(socket, "socket", lambda *args, **kwargs: DummySock())
+
+    yield
+
+
+@dataclass
+class DummyRun:
+    id: str
+    job_type: str
+    project: str
+    entity: str
+    config: dict
+    group: str
+    allow_val_change: bool
+    monitor_gym: bool
+    save_code: bool
+    resume: bool
+    tags: list[str]
+    notes: str | None
+    settings: wandb.Settings
+
+    def __post_init__(self):
+        # Simulate wandb auto-assigning a name
+        self.name = f"run-{self.id}" if self.id else "auto-generated-name"
 
 
 @pytest.fixture
@@ -98,8 +128,19 @@ def test_context_disabled_no_init(mock_wandb_init):
     ctx = WandbContext(cfg, global_cfg)
     result = ctx.__enter__()
 
-    assert result is None
-    mock_wandb_init[0].assert_not_called()
+    assert run is not None
+    assert isinstance(run, DummyRun)
+
+    # Check fields
+    assert run.id == "id"
+    assert run.job_type == "jt"
+    assert run.project == "proj"
+    assert run.entity == "ent"
+    assert run.config == global_cfg.model_dump()
+    assert run.group == "grp"
+    assert run.resume is True
+    assert run.monitor_gym is True
+    assert run.save_code is True
 
 
 def test_context_no_network_connection(mock_socket, mock_wandb_init):
