@@ -7,7 +7,7 @@ from metta.common.util.fs import get_repo_root
 def test_no_xcxc_debug():
     """
     Some of our developers use 'xcxc' as a special marker (similar to TODO or FIXME)
-    to mark code that should never make it to production.
+    to mark code sections that should never make it to production.
     """
     project_root = get_repo_root()
 
@@ -33,11 +33,10 @@ def test_no_xcxc_debug():
             cmd,
             capture_output=True,
             text=True,
-            timeout=15,  # 15 second timeout
+            timeout=15,
         )
 
         if result.returncode == 0:
-            # Found matches
             lines = result.stdout.strip().split("\n")
 
             # Filter out this test file
@@ -54,23 +53,23 @@ def test_no_xcxc_debug():
                         offenders.append(line)
 
             if offenders:
-                # Format the assertion message nicely
                 message = f"'xcxc' found in {len(offenders)} file(s):\n"
                 message += "\n".join(
                     f"  {line}" for line in offenders[:20]
                 )  # Show up to 20 matches
                 if len(offenders) > 20:
                     message += f"\n  ... and {len(offenders) - 20} more"
-                assert False, message
+                raise AssertionError(message)
 
         elif result.returncode == 2:
-            # grep returns 2 for errors
-            assert False, f"grep command failed: {result.stderr}"
+            raise AssertionError(f"grep command failed: {result.stderr}")
 
-    except subprocess.TimeoutExpired:
-        # If grep times out, fail the test with a clear message
-        assert False, "xcxc search timed out after 15 seconds"
+        # returncode 1 means no matches found, which is what we want
 
-    except FileNotFoundError:
-        # grep not available (e.g., on Windows without Git Bash)
-        assert False, "grep command not found - this test requires grep to be available"
+    except subprocess.TimeoutExpired as e:
+        raise AssertionError("xcxc search timed out after 15 seconds") from e
+
+    except FileNotFoundError as e:
+        raise AssertionError(
+            "grep command not found - this test requires grep to be available"
+        ) from e
