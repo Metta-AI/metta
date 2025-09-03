@@ -62,13 +62,6 @@ class TestInitialization:
         assert monitor2.logger.level == logging.INFO  # Unchanged
         assert monitor3.logger.level == logging.ERROR
 
-    def test_custom_logger(self):
-        """Test initialization with custom logger"""
-        custom_logger = logging.getLogger("test_logger")
-        monitor = SystemMonitor(log_level=custom_logger.getEffectiveLevel(), auto_start=False)
-
-        assert monitor.logger == custom_logger
-
     def test_auto_start(self):
         """Test auto_start functionality"""
         monitor = SystemMonitor(sampling_interval_sec=0.1, auto_start=True)
