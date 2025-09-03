@@ -1,7 +1,7 @@
 """Policy artifact representation for Metta RL framework.
 
 This module provides the PolicyArtifact class which can represent either a MettaAgent
-or weights+metadata, with conversion methods between the two representations.
+or weights+statistics, with conversion methods between the two representations.
 """
 
 import json
@@ -16,7 +16,7 @@ from metta.agent.agent_config import AgentConfig
 
 
 class PolicyArtifact:
-    """Represents a policy artifact that can be either a MettaAgent or weights+metadata.
+    """Represents a policy artifact that can be either a MettaAgent or weights+statistics.
 
     This class provides a unified interface for handling different types of policy representations
     with explicit fields for each case.
@@ -26,14 +26,14 @@ class PolicyArtifact:
         self,
         agent: Optional[Any] = None,
         weights: Optional[dict[str, torch.Tensor]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        statistics: Optional[Dict[str, Any]] = None,
     ):
         """Initialize a PolicyArtifact.
 
         Args:
             agent: The MettaAgent object (if representing an agent)
             weights: Dictionary of weights (if representing weights)
-            metadata: Policy metadata (required if weights are provided)
+            statistics: Policy statistics
         """
         if agent is not None and weights is not None:
             raise ValueError("Cannot specify both agent and weights")
@@ -41,12 +41,12 @@ class PolicyArtifact:
         if agent is None and weights is None:
             raise ValueError("One of weights or agent must be not-None")
 
-        if weights is not None and metadata is None:
+        if weights is not None and statistics is None:
             raise ValueError("Metadata should only exist with weights")
 
         self.agent = agent
         self.weights = weights
-        self.metadata = metadata or {}
+        self.statistics = statistics or {}
 
     @classmethod
     def from_agent(cls, agent: Any) -> "PolicyArtifact":
@@ -61,15 +61,15 @@ class PolicyArtifact:
         return cls(agent=agent)
 
     @classmethod
-    def from_weights(cls, weights: Dict[str, torch.Tensor], metadata: Optional[Dict[str, Any]]) -> "PolicyArtifact":
-        """Create a PolicyArtifact from weights and metadata.
+    def from_weights(cls, weights: Dict[str, torch.Tensor], statistics: Optional[Dict[str, Any]]) -> "PolicyArtifact":
+        """Create a PolicyArtifact from weights and statistics.
 
         Args:
             weights: Dictionary mapping parameter names to tensors
-            metadata: Policy metadata
+            statistics: Policy statistics
 
         Returns:
-            PolicyArtifact with weights and metadata fields set
+            PolicyArtifact with weights and statistics fields set
         """
         if not isinstance(weights, dict):
             raise ValueError("Weights must be a dictionary")
@@ -79,7 +79,7 @@ class PolicyArtifact:
             if not isinstance(value, torch.Tensor):
                 raise ValueError(f"All values must be tensors, got {type(value)} for key {key}")
 
-        return cls(weights=weights, metadata=metadata)
+        return cls(weights=weights, statistics=statistics)
 
     def is_agent(self) -> bool:
         """Check if this artifact contains an agent."""
@@ -89,18 +89,18 @@ class PolicyArtifact:
         """Check if this artifact contains weights."""
         return self.weights is not None
 
-    def get_metadata(self) -> Dict[str, Any]:
-        """Get the metadata if this artifact contains weights.
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get the statistics if this artifact contains weights.
 
         Returns:
-            Policy metadata
+            Policy statistics
 
         Raises:
             ValueError: If this artifact doesn't contain weights
         """
         if not self.is_weights():
             raise ValueError("This artifact contains an agent, not weights")
-        return self.metadata
+        return self.statistics
 
     def to_agent(self, env: "MettaGridEnv", cfg: "AgentConfig") -> Any:
         """Convert to agent representation.
@@ -140,7 +140,7 @@ class PolicyArtifact:
             pt_path = base_path.with_suffix(".pt")
             torch.save(self.agent, pt_path)
         else:
-            # Write weights to .safetensors and metadata to .stats
+            # Write weights to .safetensors and statistics to .stats
             if self.weights is None:
                 raise ValueError("Cannot write weights: weights are None")
 
@@ -156,10 +156,10 @@ class PolicyArtifact:
                 pt_path = base_path.with_suffix(".pt")
                 torch.save(self.weights, pt_path)
 
-            # Write metadata to .stats file
+            # Write statistics to .stats file
             stats_path = base_path.with_suffix(".stats")
             with open(stats_path, "w") as f:
-                json.dump(self.metadata, f, indent=2)
+                json.dump(self.statistics, f, indent=2)
 
     @classmethod
     def read_from_files(cls, base_path: str | Path) -> "PolicyArtifact":
@@ -196,11 +196,11 @@ class PolicyArtifact:
                 # Fallback to torch.load if safetensors not available
                 weights = torch.load(safetensors_path, weights_only=True)
 
-            # Load metadata from .stats
+            # Load statistics from .stats
             with open(stats_path, "r") as f:
-                metadata = json.load(f)
+                statistics = json.load(f)
 
-            return cls.from_weights(weights, metadata)
+            return cls.from_weights(weights, statistics)
 
         # Fallback: check for .pt file with weights only
         if pt_path.exists():
