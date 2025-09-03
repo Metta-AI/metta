@@ -1,4 +1,4 @@
-.PHONY: help build build-prod benchmark test coverage lint tidy clean install pytest
+.PHONY: help build build-prod benchmark test coverage tidy tidy-verbose clean install pytest
 
 # Default target
 help:
@@ -8,8 +8,8 @@ help:
 	@echo "  benchmark      - Build and run benchmarks"
 	@echo "  test           - Run unit tests"
 	@echo "  coverage       - Generate coverage report"
-	@echo "  lint           - Run cpplint"
-	@echo "  tidy           - Run clang-tidy"
+	@echo "  tidy           - Run clang-tidy (fails on errors only)"
+	@echo "  tidy-verbose   - Run clang-tidy with full output"
 	@echo "  pytest         - Run Python tests"
 	@echo "  clean          - Clean all build artifacts"
 	@echo "  install        - Install package in editable mode"
@@ -50,18 +50,16 @@ coverage:
 	@echo "📊 Processing coverage data..."
 	@./generate_coverage.py
 
-# Code quality
-lint:
-	@echo "🔍 Running cpplint..."
-	@bash ./tests/cpplint.sh
+# Alias for clang_tidy that only fails on errors (not warnings)
+tidy:
+	@echo "🔍 Running clang-tidy (errors only)..."
+	@bazel test //lint:clang_tidy --test_output=errors  --nocache_test_results
+	@echo "✅ Clang-tidy check complete (use 'make tidy-verbose' to see all warnings)"
 
-compile_commands: build
-	@echo "📝 Generating compile_commands.json..."
-	@python3 generate_compile_commands.py
-
-tidy: compile_commands
-	@echo "🔍 Running clang-tidy..."
-	@bash clang-tidy.sh
+# Run clang-tidy with full output showing all warnings
+tidy-verbose:
+	@echo "🔍 Running clang-tidy with full output..."
+	@bazel test //lint:clang_tidy --test_output=all --nocache_test_results
 
 # Python
 install:

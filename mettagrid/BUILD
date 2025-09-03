@@ -143,3 +143,6 @@ test_suite(
         ":test_observations",
     ],
 )
+
+# Export the .clang-tidy config file for use by the linter
+exports_files([".clang-tidy"])
