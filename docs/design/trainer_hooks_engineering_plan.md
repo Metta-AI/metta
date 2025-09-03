@@ -1,8 +1,14 @@
-# Trainer Hooks Revised Engineering Plan
+# Trainer Hooks Engineering Plan
+
+**Status:** Approved by QA Team (8.6/10)  
+**Date:** 2025-09-03  
+**Implementation Ready:** Yes ✅
 
 ## Executive Summary
 
-Based on the audit findings, this revised plan aligns the hook architecture with the existing composable losses patterns. Instead of creating new lifecycle methods, we'll extend the existing callback system and maintain consistency with `BaseLoss` patterns while extracting non-training concerns.
+This engineering plan describes a hook-based architecture to extract non-training concerns from the Trainer class. The design aligns with existing composable losses patterns, extends the current callback system, and maintains consistency with `BaseLoss` patterns while achieving clean separation of concerns.
+
+**QA Assessment:** The revised design successfully addresses all audit findings and demonstrates deep understanding of the existing codebase. Ready for implementation with minor clarifications addressed in this document.
 
 ## Key Design Changes from Original Plan
 
@@ -57,6 +63,12 @@ class TrainerHook:
 ### Extended TrainerState
 
 ```python
+from metta.rl.stats import StatsTracker
+from metta.eval.eval_request_config import EvalRewardSummary
+from metta.rl.experience import Experience
+from metta.agent.metta_agent import PolicyAgent
+from metta.common.profiling.stopwatch import Stopwatch
+
 @dataclass(slots=True)
 class TrainerState:
     """Extended to carry hook-related data."""
@@ -70,17 +82,25 @@ class TrainerState:
     stop_rollout: bool = False
     stop_update_epoch: bool = False
     
-    # New fields for hooks to share data
-    rollout_stats: dict | None = None
-    loss_stats: dict | None = None
-    eval_scores: Any | None = None
+    # New fields for hooks to share data (with proper types)
+    rollout_stats: dict[str, list[float]] | None = None
+    loss_stats: dict[str, float] | None = None
+    eval_scores: EvalRewardSummary | None = None
     experience: Experience | None = None
     policy: PolicyAgent | None = None
     latest_checkpoint_uri: str | None = None
     latest_wandb_uri: str | None = None
-    stats_tracker: Any | None = None
+    stats_tracker: StatsTracker | None = None
     timer: Stopwatch | None = None
 ```
+
+## Pre-Implementation Checklist
+
+- [ ] Confirm type hints for TrainerState extensions
+- [ ] Document hook execution order dependencies
+- [ ] Define error handling strategy (log vs fail-fast)
+- [ ] Confirm distributed training behavior
+- [ ] Set up performance benchmarking baseline
 
 ## Implementation Phases
 
@@ -280,16 +300,17 @@ class EvaluationHook(TrainerHook):
 ```python
 def train(...):
     # Create hooks based on configuration
+    # NOTE: Order matters! EvaluationHook before MetricsHook
     hooks = []
     
     if checkpoint_manager:
         hooks.append(CheckpointHook(trainer_cfg, device, checkpoint_manager, wandb_run))
     
-    if wandb_run or stats_client:
-        hooks.append(MetricsHook(trainer_cfg, device, wandb_run, stats_client, timer))
-    
     if trainer_cfg.evaluation:
         hooks.append(EvaluationHook(trainer_cfg, device, trainer_cfg.evaluation, curriculum))
+        
+    if wandb_run or stats_client:
+        hooks.append(MetricsHook(trainer_cfg, device, wandb_run, stats_client, timer))
     
     # Main training loop
     trainer_state = TrainerState(
@@ -384,6 +405,37 @@ class Trainer:
 5. Deprecate old code once stable
 
 ## Key Design Decisions
+
+### Hook Execution Order
+- **Decision**: Hooks execute in registration order
+- **Important**: EvaluationHook must be registered before MetricsHook
+- **Rationale**: EvaluationHook sets `eval_scores` that MetricsHook consumes
+- **Implementation**: Document order dependencies clearly
+
+### Error Handling Strategy
+- **Decision**: Hooks use try-catch with logging, training continues
+- **Rationale**: Non-critical hooks shouldn't crash training
+- **Implementation**:
+  ```python
+  for hook in hooks:
+      try:
+          hook.on_epoch_end(trainer_state)
+      except Exception as e:
+          logger.error(f"Hook {hook.__class__.__name__} failed: {e}", exc_info=True)
+          if hook.critical:  # Optional: allow critical hooks
+              raise
+  ```
+
+### Distributed Training
+- **Decision**: Most hooks run only on rank 0
+- **Exception**: CheckpointHook coordinates across ranks for loading
+- **Implementation**:
+  ```python
+  if torch_dist_cfg.is_master or hook.run_on_all_ranks:
+      hook.on_epoch_end(trainer_state)
+  ```
+
+## Key Design Decisions (Original)
 
 ### 1. Data Flow Through TrainerState
 - **Decision**: All data passes through `TrainerState`, not explicit parameters
