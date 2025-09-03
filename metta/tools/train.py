@@ -26,7 +26,7 @@ class TrainTool(Tool):
     wandb: WandbConfig = WandbConfig.Unconfigured()
     policy_architecture: Optional[AgentConfig] = None
     run: Optional[str] = None
-    run_dir: Optional[str] = None
+    exp_dir: Optional[str] = None
     stats_server_uri: Optional[str] = auto_stats_server_uri()
 
     # Policy configuration
@@ -48,17 +48,17 @@ class TrainTool(Tool):
             self.run = auto_run_name(prefix="local")
         group_override = args.get("group")
 
-        # Set run_dir based on run name if not explicitly set
-        if self.run_dir is None:
-            self.run_dir = f"{self.system.data_dir}/{self.run}"
+        # Set exp_dir based on run name if not explicitly set
+        if self.exp_dir is None:
+            self.exp_dir = f"{self.system.data_dir}/{self.run}"
 
         # Set policy_uri if not set
         if not self.policy_uri:
-            self.policy_uri = CheckpointManager.normalize_uri(f"{self.run_dir}/checkpoints")
+            self.policy_uri = CheckpointManager.normalize_uri(f"{self.exp_dir}/checkpoints")
 
         # Set up checkpoint and replay directories
         if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+            self.trainer.checkpoint.checkpoint_dir = f"{self.exp_dir}/checkpoints/"
 
         # Initialize policy_architecture if not provided
         if self.policy_architecture is None:
@@ -71,16 +71,16 @@ class TrainTool(Tool):
         if group_override:
             self.wandb.group = group_override
 
-        os.makedirs(self.run_dir, exist_ok=True)
+        os.makedirs(self.exp_dir, exist_ok=True)
 
         record_heartbeat()
 
-        init_logging(run_dir=self.run_dir)
+        init_logging(exp_dir=self.exp_dir)
 
         torch_dist_cfg = setup_torch_distributed(self.system.device)
 
         if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+            self.trainer.checkpoint.checkpoint_dir = f"{self.exp_dir}/checkpoints/"
 
         logger.info_master(
             f"Training {self.run} on "
@@ -103,9 +103,9 @@ class TrainTool(Tool):
 
 
 def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_run: WandbRun | None) -> None:
-    assert cfg.run_dir is not None
+    assert cfg.exp_dir is not None
     assert cfg.run is not None
-    run_dir = cfg.run_dir
+    exp_dir = cfg.exp_dir
 
     _configure_vecenv_settings(cfg)
 
@@ -123,16 +123,16 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
-    checkpoint_manager = CheckpointManager(run=cfg.run, base_dir=cfg.run_dir)
+    checkpoint_manager = CheckpointManager(run=cfg.run, base_dir=cfg.exp_dir)
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
         cfg = _minimize_config_for_debugging(cfg)
 
     # Save configuration
     if torch_dist_cfg.is_master:
-        with open(os.path.join(run_dir, "config.json"), "w") as f:
+        with open(os.path.join(exp_dir, "config.json"), "w") as f:
             f.write(cfg.model_dump_json(indent=2))
-            logger.info_master(f"Config saved to {os.path.join(run_dir, 'config.json')}")
+            logger.info_master(f"Config saved to {os.path.join(exp_dir, 'config.json')}")
 
     assert cfg.run
     assert cfg.policy_architecture
@@ -140,7 +140,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     # Use the functional train interface directly
     train(
         run=cfg.run,
-        run_dir=run_dir,
+        exp_dir=exp_dir,
         system_cfg=cfg.system,
         agent_cfg=cfg.policy_architecture,
         device=torch.device(cfg.system.device),
