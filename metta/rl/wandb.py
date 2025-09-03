@@ -114,8 +114,6 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     - "wandb://run/my_run_name" -> "wandb://metta/model/my_run_name:latest"
     - "wandb://run/my_run_name:v5" -> "wandb://metta/model/my_run_name:v5"
     - "wandb://sweep/sweep_name" -> "wandb://metta/sweep_model/sweep_name:latest"
-
-    Dots in names are replaced with underscores for wandb compatibility.
     """
     if not uri.startswith("wandb://"):
         return uri
@@ -128,9 +126,7 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
             run_name, version = run_name.rsplit(":", 1)
         else:
             version = "latest"
-        # Dots -> underscores for wandb compatibility
-        sanitized_name = run_name.replace(".", "_")
-        return f"wandb://{default_project}/model/{sanitized_name}:{version}"
+        return f"wandb://{default_project}/model/{run_name}:{version}"
 
     elif path.startswith("sweep/"):
         sweep_name = path[6:]
@@ -138,9 +134,7 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
             sweep_name, version = sweep_name.rsplit(":", 1)
         else:
             version = "latest"
-        # Dots -> underscores for wandb compatibility
-        sanitized_name = sweep_name.replace(".", "_")
-        return f"wandb://{default_project}/sweep_model/{sanitized_name}:{version}"
+        return f"wandb://{default_project}/sweep_model/{sweep_name}:{version}"
 
     # Already in full format or unrecognized pattern
     return uri
@@ -165,23 +159,12 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     uri = WandbURI.parse(expanded_uri)
     qname = uri.qname()
 
-    # Try loading artifact with fallback
+    # Load artifact
     try:
-        logger.debug(f"Attempting to load artifact: {qname}")
+        logger.debug(f"Loading artifact: {qname}")
         artifact = wandb.Api().artifact(qname)
     except wandb.errors.CommError as e:
-        # Fallback: try unsanitized name if dots were replaced
-        if "." in wandb_uri:
-            original_uri = expanded_uri.replace("_", ".")
-            original_qname = WandbURI.parse(original_uri).qname()
-            logger.debug(f"Trying original name: {original_qname}")
-            try:
-                artifact = wandb.Api().artifact(original_qname)
-                logger.info(f"Found using original name: {original_qname}")
-            except wandb.errors.CommError:
-                raise ValueError(f"Artifact not found: {qname} or {original_qname}") from e
-        else:
-            raise ValueError(f"Artifact not found: {qname}") from e
+        raise ValueError(f"Artifact not found: {qname}") from e
 
     with tempfile.TemporaryDirectory() as temp_dir:
         artifact_dir = Path(temp_dir)
@@ -217,14 +200,11 @@ def upload_checkpoint_as_artifact(
         logger.warning("No wandb run active, cannot upload artifact")
         return None
 
-    # Sanitize artifact name - replace dots with underscores for wandb compatibility
-    sanitized_artifact_name = artifact_name.replace(".", "_")
-
     # Prepare metadata
     artifact_metadata = metadata.copy() if metadata else {}
 
-    # Create artifact with sanitized name and metadata
-    artifact = wandb.Artifact(name=sanitized_artifact_name, type=artifact_type, metadata=artifact_metadata)
+    # Create artifact (wandb supports dots in names)
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type, metadata=artifact_metadata)
 
     # Add checkpoint file as model.pt
     artifact.add_file(checkpoint_path, name="model.pt")
@@ -243,7 +223,7 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
-    wandb_uri = f"wandb://{run.project}/{sanitized_artifact_name}:latest"
+    wandb_uri = f"wandb://{run.project}/{artifact_name}:latest"
     logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
 
     return wandb_uri

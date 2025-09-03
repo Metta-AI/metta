@@ -145,9 +145,7 @@ class OptimizingScheduler:
 
         # Create new training job with suggestion
         trial_num = len(self._created_runs) + 1
-        # Use underscores instead of dots for wandb compatibility
-        sanitized_sweep_id = sweep_metadata.sweep_id.replace(".", "_")
-        run_id = f"{sanitized_sweep_id}_trial_{trial_num:04d}"
+        run_id = f"{sweep_metadata.sweep_id}_trial_{trial_num:04d}"
 
         # Check if we've already created this run
         if run_id in self._created_runs:
