@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -214,16 +214,17 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     )
 
 
-def eval() -> SimTool:
+def evaluate(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
         make_icl_resource_chain_eval_suite,
     )
 
+    simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
-        simulations=make_icl_resource_chain_eval_suite(),
-        policy_uris=[
-            "wandb://run/georgedeane.operant_conditioning.in_context_learning.all.0.1_progress_smoothing.08-19:v50"
-        ],
+        simulations=simulations,
+        policy_uris=[policy_uri],
         stats_server_uri="https://api.observatory.softmax-research.net",
     )

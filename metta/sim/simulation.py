@@ -466,6 +466,43 @@ class Simulation:
     def name(self) -> str:
         return self._name
 
+    def get_envs(self):
+        """Returns a list of all envs in the simulation."""
+        return self._vecenv.envs
+
+    def get_env(self):
+        """Make sure this sim has a single env, and return it."""
+        if len(self._vecenv.envs) != 1:
+            raise ValueError("Attempting to get single env, but simulation has multiple envs")
+        return self._vecenv.envs[0]
+
+    def get_replays(self) -> dict:
+        """Get all replays for this simulation."""
+        return self._replay_writer.episodes.values()
+
+    def get_replay(self) -> dict:
+        """Makes sure this sim has a single replay, and return it."""
+        # If no episodes yet, create initial replay data from the environment
+        if len(self._replay_writer.episodes) == 0:
+            env = self.get_env()
+            # Return initial replay structure with action names
+            return {
+                "version": 2,
+                "action_names": env.action_names,
+                "item_names": env.resource_names if hasattr(env, "resource_names") else [],
+                "type_names": env.object_type_names if hasattr(env, "object_type_names") else [],
+                "num_agents": env.num_agents,
+                "max_steps": env.max_steps,
+                "map_size": [env.height, env.width],
+                "file_name": "live_play",
+                "steps": [],
+            }
+        if len(self._replay_writer.episodes) != 1:
+            raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
+        # Get the single episode directly
+        episode_id = next(iter(self._replay_writer.episodes))
+        return self._replay_writer.episodes[episode_id].get_replay_data()
+
 
 @dataclass
 class SimulationResults:
