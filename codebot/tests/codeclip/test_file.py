@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codeclip.file import (
+from codebot.codeclip.file import (
     _find_gitignore,
     _find_parent_readmes,
     _read_gitignore,
