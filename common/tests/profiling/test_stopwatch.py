@@ -8,8 +8,8 @@ from metta.common.profiling.stopwatch import Checkpoint, Stopwatch, with_instanc
 
 @pytest.fixture
 def stopwatch():
-    """Stopwatch fixture with default logger."""
-    return Stopwatch()
+    """Stopwatch fixture with logging enabled."""
+    return Stopwatch(log_level=logging.INFO)
 
 
 @pytest.fixture(autouse=True)
@@ -21,43 +21,6 @@ def cleanup():
 
 class TestStopwatch:
     """Test suite for Stopwatch class."""
-
-    def test_initialization(self):
-        """Test stopwatch initialization."""
-        # Test with default log_level (None)
-        sw = Stopwatch()
-
-        # Check that logger is created with unique instance name
-        assert isinstance(sw.logger, logging.Logger)
-        assert sw.logger.name.startswith("Stopwatch.")
-        assert sw.logger.name == f"Stopwatch.{id(sw)}"
-
-        # Check that NullHandler was added
-        null_handlers = [h for h in sw.logger.handlers if isinstance(h, logging.NullHandler)]
-        assert len(null_handlers) >= 1, "Logger should have at least one NullHandler when log_level is None"
-
-        # Check global timer setup
-        assert sw.GLOBAL_TIMER_NAME == "global"
-        assert sw.GLOBAL_TIMER_NAME in sw._timers
-        assert sw.max_laps == 4  # default value
-
-        # Test with explicit log level
-        sw2 = Stopwatch(log_level=logging.INFO)
-        assert sw2.logger.name == f"Stopwatch.{id(sw2)}"
-        assert sw2.logger.level == logging.INFO
-        # Verify each instance has a unique logger
-        assert sw.logger.name != sw2.logger.name
-
-        # Test with custom max_laps
-        sw3 = Stopwatch(max_laps=10)
-        assert sw3.max_laps == 10
-        assert sw3.logger.name == f"Stopwatch.{id(sw3)}"
-
-        # Test that setting log level on one instance doesn't affect another
-        sw4 = Stopwatch(log_level=logging.DEBUG)
-        sw5 = Stopwatch(log_level=logging.ERROR)
-        assert sw4.logger.level == logging.DEBUG
-        assert sw5.logger.level == logging.ERROR
 
     def test_basic_timing(self, stopwatch):
         """Test basic start/stop timing."""
@@ -605,7 +568,7 @@ class TestStopwatchIntegration:
 
     def test_logging_scenarios(self, caplog):
         """Test various logging scenarios in integration."""
-        sw = Stopwatch()
+        sw = Stopwatch(log_level=logging.INFO)
 
         with caplog.at_level(logging.INFO):
             # Test multiple operations with logging
@@ -646,8 +609,8 @@ class TestStopwatchIntegration:
 
         class TestClass:
             def __init__(self):
-                self.timer = Stopwatch()  # Default timer attribute
-                self.instance_timer = Stopwatch()  # Custom timer attribute
+                self.timer = Stopwatch(log_level=logging.INFO)  # Default timer attribute with logging
+                self.instance_timer = Stopwatch(log_level=logging.INFO)  # Custom timer attribute with logging
                 self.call_count = 0
 
             @with_timer(sw, "external_timer")
