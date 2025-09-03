@@ -102,7 +102,7 @@ class NodejsSetup(SetupModule):
             warning(f"pnpm setup returned non-zero exit code: {e}. Continuing...")
 
         # Set PNPM_HOME for current process if pnpm setup configured it
-        # Use platform-specific default locations
+        # Use platform-specific default locations that match pnpm setup behavior
         if platform.system() == "Darwin":
             pnpm_home = os.path.expanduser("~/Library/pnpm")
         else:
