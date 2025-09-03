@@ -628,7 +628,7 @@ def diff(repo_root: Path, base_ref: str) -> str:
 def post_commit_status(
     commit_sha: str,
     state: str,
-    repo: Optional[str] = None,
+    repo: str,
     context: str = "CI/Skypilot",
     description: Optional[str] = None,
     target_url: Optional[str] = None,
@@ -640,7 +640,7 @@ def post_commit_status(
     Args:
         commit_sha: The SHA of the commit
         state: The state of the status (error, failure, pending, success)
-        repo: Repository in format "owner/repo". If not provided, uses default from constants
+        repo: Repository in format "owner/repo"
         context: A string label to differentiate this status from others
         description: A short description of the status
         target_url: The target URL to associate with this status
@@ -650,12 +650,12 @@ def post_commit_status(
         The created status object
 
     Raises:
-        ValueError: If no token is available
+        ValueError: If no token is available or repo not provided
         httpx.HTTPError: If the API request fails
     """
-    # Use default repo if not provided
-    if repo is None:
-        repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    if not repo:
+        raise ValueError("Repository must be provided in format 'owner/repo'")
 
     # Get token
     github_token = token or os.environ.get("GITHUB_TOKEN")
