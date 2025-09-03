@@ -102,7 +102,7 @@ def train(
             logger.info(f"Recent checkpoints: {', '.join(files)}")
 
     # Create timer, Losses, profiler, curriculum
-    timer = Stopwatch()
+    timer = Stopwatch(log_level=logger.getEffectiveLevel())
     timer.start()
     torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = Curriculum(trainer_cfg.curriculum)
