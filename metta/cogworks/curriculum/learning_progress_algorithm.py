@@ -37,6 +37,9 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Performance optimization settings
     stats_update_frequency: int = Field(default=50, description="Update stats every N task completions")
     debug_log_frequency: int = Field(default=100, description="Log debug info every N operations")
+    max_bucket_axes_for_logging: int = Field(
+        default=1, description="Maximum number of bucket axes to track for logging (reduces overhead)"
+    )
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -58,6 +61,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     Performance optimizations:
     - Stats are cached and only updated every 50 task completions
     - Debug logging is limited to every 100 operations
+    - Only tracks the first N bucket axes (default: 1) to reduce overhead
     - Basic bucket density information is always logged for real-time insight
     - Expensive bucket statistics are cached to reduce computation overhead
     - Lightweight bucket stats focus on summary metrics rather than per-bin details
@@ -96,8 +100,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stats_update_counter = 0
         self._stats_update_frequency = hypers.stats_update_frequency
         self._debug_log_frequency = hypers.debug_log_frequency
+        self._max_bucket_axes = hypers.max_bucket_axes_for_logging
         self._cached_stats = {}
         self._last_stats_update = 0
+
+        # Track which buckets we're actually monitoring
+        self._monitored_buckets: set = set()
 
     def _update_weights(self, child_idx: int, score: float):
         """Update weights - not used in this implementation."""
@@ -220,13 +228,18 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _initialize_bucket_tracking(self, bucket_values: Dict[str, Any]):
         """Initialize bucket tracking for newly discovered bucket parameters."""
-        for bucket_name, value in bucket_values.items():
+        # Only track the first N bucket axes to reduce overhead
+        bucket_names = list(bucket_values.keys())[: self._max_bucket_axes]
+
+        for bucket_name in bucket_names:
             if bucket_name not in self._bucket_tracking:
                 self._bucket_tracking[bucket_name] = {}
                 self._bucket_completion_counts[bucket_name] = {}
                 self._bucket_completion_history[bucket_name] = []
+                self._monitored_buckets.add(bucket_name)
 
                 # Determine if bucket is discrete or continuous
+                value = bucket_values[bucket_name]
                 if isinstance(value, (int, str)) or (isinstance(value, float) and value.is_integer()):
                     self._bucket_is_discrete[bucket_name] = True
                     # For discrete values, create bins for each unique value
@@ -240,9 +253,19 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             else:
                 logger.debug(f"Bucket already exists: {bucket_name}")
 
+        # Log which buckets we're monitoring
+        if bucket_names:
+            logger.info(f"Monitoring {len(bucket_names)} bucket axes for logging: {bucket_names}")
+        else:
+            logger.info("No bucket axes selected for monitoring")
+
     def _update_bucket_tracking(self, task_id: int, bucket_values: Dict[str, Any]):
         """Update bucket tracking with new task values."""
         for bucket_name, value in bucket_values.items():
+            # Only process buckets we're monitoring
+            if bucket_name not in self._monitored_buckets:
+                continue
+
             if bucket_name in self._bucket_tracking:
                 self._bucket_tracking[bucket_name][task_id] = value
 
@@ -295,6 +318,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Update completion density for each bucket
         for bucket_name, value in bucket_values.items():
+            # Only process buckets we're monitoring
+            if bucket_name not in self._monitored_buckets:
+                continue
+
             if bucket_name in self._bucket_tracking:
                 # Find the appropriate bin for this value
                 bin_index = self._get_bin_index(bucket_name, value)
@@ -635,6 +662,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._debug_log_frequency = debug_frequency
         self._stats_update_frequency = stats_frequency
         logger.info(f"Updated logging frequencies: debug={debug_frequency}, stats={stats_frequency}")
+
+    def set_monitored_bucket_axes(self, max_axes: int):
+        """Dynamically change how many bucket axes to monitor for logging."""
+        old_max = self._max_bucket_axes
+        self._max_bucket_axes = max_axes
+
+        # If reducing the number of monitored axes, remove excess buckets
+        if max_axes < old_max:
+            current_buckets = list(self._monitored_buckets)
+            for bucket_name in current_buckets[max_axes:]:
+                self._monitored_buckets.discard(bucket_name)
+                # Note: We keep the data but stop updating it
+                logger.info(f"Stopped monitoring bucket: {bucket_name}")
+
+        logger.info(f"Updated monitored bucket axes: {old_max} -> {max_axes}")
 
     def disable_debug_logging(self):
         """Disable all debug logging for maximum performance."""
