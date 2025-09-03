@@ -7,7 +7,8 @@ import unittest
 from pathlib import Path
 
 from click.testing import CliRunner
-from codeclip.cli import cli
+
+from codebot.codeclip.cli import cli
 
 
 class TestCodeclipSummary(unittest.TestCase):

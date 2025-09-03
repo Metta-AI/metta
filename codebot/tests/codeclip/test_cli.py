@@ -9,7 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from click.testing import CliRunner
-from codeclip.cli import cli
+
+from codebot.codeclip.cli import cli
 
 
 class TestCodeclipCLI(unittest.TestCase):
@@ -156,7 +157,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self.assertIn("README.md", result.output)
         self.assertIn("Parent README", result.output)
 
-    @patch("codeclip.cli.copy_to_clipboard")
+    @patch("codebot.codeclip.cli.copy_to_clipboard")
     def test_clipboard_default(self, mock_copy):
         """Test clipboard integration on macOS (default behavior)."""
         Path("test.py").write_text("print('test')\n")
