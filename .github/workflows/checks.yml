@@ -216,8 +216,6 @@ jobs:
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
-        with:
-          install-mode: "testing"
 
       - name: Cache PufferLib clone
         uses: actions/cache@v4
@@ -380,8 +378,6 @@ jobs:
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
-        with:
-          install-mode: "testing"
 
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
@@ -411,8 +407,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Setup uv
         uses: ./.github/actions/setup-uv
+
       - name: Run Python benchmarks
         env:
           PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks

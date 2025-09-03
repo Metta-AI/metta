@@ -3,7 +3,8 @@ description: "Set up uv and activate the environment"
 inputs:
   install-mode:
     description: "Installation mode: 'testing', 'minimal', or 'linting'"
-    required: true
+    required: false
+    default: "testing"
 
 runs:
   using: "composite"
