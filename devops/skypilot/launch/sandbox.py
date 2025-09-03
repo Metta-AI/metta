@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 import argparse
+import logging
 import os
 import subprocess
 import time
@@ -15,6 +16,9 @@ from devops.skypilot.utils.cost_monitor import get_instance_cost
 from devops.skypilot.utils.job_helpers import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+
+# Suppress botocore credential traceback display
+logging.getLogger("botocore.credentials").setLevel(logging.ERROR)
 
 
 def get_existing_clusters():
