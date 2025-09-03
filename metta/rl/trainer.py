@@ -371,7 +371,7 @@ def train(
                         if "actions" not in td:
                             with torch.no_grad():
                                 policy(td)
-                            # Store experience since no loss did it  
+                            # Store experience since no loss did it
                             experience.store(data_td=td, env_id=training_env_id)
 
                         send_observation(vecenv, td["actions"], dtype_actions, timer)
