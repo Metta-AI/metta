@@ -4,7 +4,6 @@ import logging
 import time
 from dataclasses import dataclass
 
-from cogweb.cogweb_client import CogwebClient
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sweep.models import JobStatus, JobTypes, RunInfo, SweepMetadata, SweepStatus
 from metta.sweep.protein_config import ProteinConfig
