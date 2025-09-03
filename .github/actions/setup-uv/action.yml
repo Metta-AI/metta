@@ -104,7 +104,9 @@ runs:
         elif [ -n "${{ inputs.dependencies-files }}" ]; then
           echo "Installing dependencies from files:"
           echo "${{ inputs.dependencies-files }}" | while read -r dep_file; do
-            if [ -n "$dep_file" ] && [ -f "${{ github.action_path }}/$dep_file" ]; then
+            if [ -n "$dep_file" ]; then
+              safe_file=$(basename "$dep_file")
+              if [ -f "${{ github.action_path }}/$safe_file" ]; then
               echo "Installing from $dep_file:"
               uv pip install -r "${{ github.action_path }}/$dep_file"
             elif [ -n "$dep_file" ]; then
