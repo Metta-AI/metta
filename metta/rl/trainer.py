@@ -321,6 +321,7 @@ def train(
             shared_loss_mb_data = experience.give_me_empty_md_td()
             policy.on_new_training_run()
             for _loss_name in loss_instances.keys():
+                loss_instances[_loss_name].on_new_training_run(trainer_state)
                 shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
 
             # Initialize main's traditional loss system alongside composable system
@@ -415,8 +416,16 @@ def train(
                             total_loss.backward()
 
                             if (mb_idx + 1) % experience.accumulate_minibatches == 0:
-                                torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)  # av fix this
+                                # Get max_grad_norm from first loss config that has it (typically PPO)
+                                max_grad_norm = 0.5  # default fallback
+                                for loss_inst in loss_instances.values():
+                                    if hasattr(loss_inst.loss_cfg, "max_grad_norm"):
+                                        max_grad_norm = loss_inst.loss_cfg.max_grad_norm
+                                        break
+                                torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
                                 optimizer.step()
+
+                                policy.clip_weights()
 
                                 if device.type == "cuda":
                                     torch.cuda.synchronize()

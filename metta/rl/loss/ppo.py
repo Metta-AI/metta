@@ -76,7 +76,7 @@ class PPO(BaseLoss):
         if self.loss_cfg.target_kl is not None and trainer_state.mb_idx > 0:
             average_approx_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
             if average_approx_kl > self.loss_cfg.target_kl:
-                trainer_state.early_stop_update_epoch = True
+                trainer_state.stop_update_epoch = True
 
         # On the first minibatch of the update epoch, compute advantages and sampling params
         if trainer_state.mb_idx == 0:
