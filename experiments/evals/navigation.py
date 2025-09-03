@@ -15,16 +15,12 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     return env
 
 
-def make_nav_ascii_env(
-    name: str, max_steps: int, border_width: int = 1, num_agents=4
-) -> MettaGridConfig:
-    # we re-use nav sequence maps, but replace all objects with altars
+def replace_objects_with_altars(name: str) -> str:
     ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
 
     with open(ascii_map, "r") as f:
         map_content = f.read()
 
-    # for navigation we replace all objects with altars
     map_content = map_content.replace("n", "_", 1).replace("m", "_", 1)
 
     with tempfile.NamedTemporaryFile(suffix=".map", mode="w", delete=False) as tmp:
@@ -32,15 +28,22 @@ def make_nav_ascii_env(
         ascii_map_nav = tmp.name
     atexit.register(lambda p=ascii_map_nav: os.path.exists(p) and os.remove(p))
 
+    return ascii_map_nav
+
+
+def make_nav_ascii_env(
+    name: str, max_steps: int, border_width: int = 1, num_agents=4
+) -> MettaGridConfig:
+    # we re-use nav sequence maps, but replace all objects with altars
+    ascii_map = replace_objects_with_altars(name)
+
     env = make_navigation(num_agents=num_agents)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGen.Config(
         instances=num_agents,
         border_width=6,
         instance_border_width=3,
-        instance_map=MapGen.Config.with_ascii_uri(
-            ascii_map_nav, border_width=border_width
-        ),
+        instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
     )
 
     return make_nav_eval_env(env)
