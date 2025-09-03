@@ -58,10 +58,14 @@ class PPO(BaseLoss):
 
     # BaseLoss calls this method
     def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
+        """PPO handles its own inference and storage during rollout."""
         with torch.no_grad():
             self.policy(td)
 
-        # Don't store here - trainer.py handles storage after rollout
+        # PPO stores the experience data it needs
+        # The td already has rewards, dones, truncateds from trainer
+        # Policy adds actions, act_log_prob, values
+        self.replay.store(data_td=td, env_id=trainer_state.training_env_id)
         return
 
     # BaseLoss calls this method

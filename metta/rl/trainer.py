@@ -356,24 +356,24 @@ def train(
                             ),
                         )
 
-                        # Inference - hybrid approach: run composable losses rollout hooks first
-                        # note that each loss will modify the td, the same one that is passed to other losses.
-                        # We want this because this allows other parts of the network to only run what's needed on
-                        # these obs, efficiently reusing hiddens within the network. Other losses should clear fields
-                        # and/or clone as necessary.
+                        # Inference - composable losses handle their own rollout and storage
+                        # Each loss modifies the shared td, allowing efficient reuse of computations
+                        # Losses should handle their own storage needs
                         for _lname in list(all_losses):
                             loss_obj = loss_instances[_lname]
                             loss_obj.rollout(td, trainer_state)
 
-                        # If no composable losses did inference, do it here
+                        # Fallback: if no loss handled inference, we need to ensure actions are generated
+                        # This shouldn't happen with PPO configured, but kept for safety
                         if "actions" not in td:
                             with torch.no_grad():
                                 policy(td)
+                            # If we had to run inference here, store the basic experience
+                            experience.store(
+                                data_td=td,
+                                env_id=training_env_id,
+                            )
 
-                        experience.store(
-                            data_td=td,
-                            env_id=training_env_id,
-                        )
                         send_observation(vecenv, td["actions"], dtype_actions, timer)
 
                         if info:
