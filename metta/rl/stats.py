@@ -404,9 +404,13 @@ def process_policy_evaluator_stats(
     if epoch is None or agent_step is None or not run_name:
         logger.warning("No epoch or agent_step found in policy record - using defaults")
 
+    # Clean run_name to remove version suffix (e.g., ":latest", ":v7") for wandb run ID
+    # wandb doesn't allow colons in run IDs
+    clean_run_name = run_name.split(":")[0] if run_name else run_name
+
     # TODO: improve this parsing to be more general
     run = wandb.init(
-        id=run_name,
+        id=clean_run_name,
         project=METTA_WANDB_PROJECT,
         entity=METTA_WANDB_ENTITY,
         resume="must",
