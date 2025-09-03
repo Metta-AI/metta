@@ -2,9 +2,9 @@ name: "Setup uv"
 description: "Set up uv and activate the environment"
 inputs:
   install-mode:
-    description: "Installation mode: 'full' (default), 'testing', 'minimal', or 'linting'"
+    description: "Installation mode: 'testing', 'runtime', 'linting', or 'minimal'"
     required: false
-    default: "full"
+    default: "testing"
 
 runs:
   using: "composite"
@@ -14,12 +14,14 @@ runs:
       with:
         version: "0.7.3"
         enable-cache: true
+        # disabling cache saves 30 sec on testing but costs 40 sec in other modes
+        prune-cache: false
+        # we hash in the action script in case the install-mode content has changed
         cache-suffix: "${{ inputs.install-mode }}"
         cache-dependency-glob: |
           uv.lock
-          pyproject.toml
           **/pyproject.toml
-        prune-cache: false
+          .github/actions/setup-uv/action.yml
 
     - name: Debug dependencies and cache
       shell: bash
@@ -35,7 +37,7 @@ runs:
         echo "🔍 Environment info:"
         echo "RUNNER_OS: ${{ runner.os }}"
         echo "Cache suffix: ${{ inputs.install-mode }}"
-        
+
     - name: Create virtual environment with uv
       shell: bash
       run: |
@@ -63,8 +65,9 @@ runs:
             uv pip install ruff cpplint
             ;;
 
-          "full"|*)
-            uv sync
+          # used in the mettascope tests where we run code to generate outputs but do not run tests
+          "runtime")
+            uv sync --no-dev
             ;;
 
         esac

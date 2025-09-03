@@ -52,8 +52,12 @@ def _():
     import time
     import warnings
     import io, contextlib
+    from contextlib import contextmanager
     import os, json, subprocess, tempfile, yaml
     from datetime import datetime
+    import multiprocessing
+    import threading
+    import traceback
 
     import numpy as np  # used later
     import pandas as pd
@@ -75,10 +79,10 @@ def _():
         replay_available = False
         print("⚠️ MettaScope replay viewer not available")
 
-    from metta.agent.policy_store import PolicyStore
+    from metta.rl.checkpoint_manager import CheckpointManager
 
     from metta.common.wandb.wandb_context import WandbConfig
-    from metta.rl.policy_management import initialize_policy_for_environment
+    import wandb
     import torch
 
     from tensordict import TensorDict
@@ -96,6 +100,21 @@ def _():
         SingleTaskGeneratorConfig,
         CurriculumConfig,
     )
+
+    # Additional imports for cells
+    from metta.mettagrid.config.envs import make_arena
+    from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
+    from metta.mettagrid.mettagrid_config import (
+        AgentRewards,
+        StatsRewards,
+    )
+    from metta.common.config import Config
+    from metta.mettagrid.test_support.actions import generate_valid_random_actions
+    from metta.sim.simulation_config import SimulationConfig
+    from metta.agent.utils import obs_to_td
+    import pprint
+    import textwrap
+    import signal
 
     # Define a minimal HTML widget using anywidget so we can drop ipywidgets
     class HTMLWidget(anywidget.AnyWidget):
@@ -129,18 +148,8 @@ def _():
     # Suppress Pydantic deprecation warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
 
-    # Policy implementations (replacing the deprecated tools/renderer.py)
-    from metta.common.config import Config
-    from metta.mettagrid.test_support.actions import generate_valid_random_actions
+    # Policy implementations
     from typing import Protocol, List
-    import numpy as np
-
-    import multiprocessing
-
-    from metta.sim.simulation_config import SimulationConfig
-
-    import os
-    from metta.common.util.fs import get_repo_root
 
     class RendererToolConfig(Config):
         policy_type: str = "random"
@@ -285,23 +294,25 @@ def _():
         else:
             raise Exception("Unknown policy type")
 
-    import signal
-    import sys
-    from contextlib import contextmanager
-    import wandb
-
     @contextmanager
     def cancellable_context():
         """Base context manager for clean cancellation with signal handling"""
-        original_handler = signal.signal(signal.SIGINT, signal.default_int_handler)
+        # Only handle signals if we're in the main thread
+        # Marimo and other interactive environments run code in separate threads
+        is_main_thread = threading.current_thread() is threading.main_thread()
+
+        if is_main_thread:
+            original_handler = signal.signal(signal.SIGINT, signal.default_int_handler)
+
         try:
             yield
         except KeyboardInterrupt:
             print("Operation interrupted by user")
             sys.exit(0)
         finally:
-            # Always restore the original signal handler
-            signal.signal(signal.SIGINT, original_handler)
+            # Always restore the original signal handler if we changed it
+            if is_main_thread:
+                signal.signal(signal.SIGINT, original_handler)
 
     @contextmanager
     def training_context():
@@ -351,13 +362,18 @@ def _():
 
     print("Setup done")
     return (
+        AgentRewards,
+        AsciiMapBuilder,
         CheckpointConfig,
+        Config,
         EvaluationConfig,
         MettaGridEnv,
         OpportunisticPolicy,
         Path,
-        PolicyStore,
+        CheckpointManager,
         RendererToolConfig,
+        SimulationConfig,
+        StatsRewards,
         TensorDict,
         TrainTool,
         TrainerConfig,
@@ -366,19 +382,26 @@ def _():
         datetime,
         display,
         env_curriculum,
+        generate_valid_random_actions,
         get_repo_root,
-        initialize_policy_for_environment,
         io,
         logging,
+        make_arena,
         mo,
         multiprocessing,
         np,
+        obs_to_td,
         os,
+        threading,
         pd,
+        pprint,
         show_replay,
+        signal,
         simulation_context,
+        textwrap,
         time,
         torch,
+        traceback,
         training_context,
         wandb,
         widgets,
@@ -436,20 +459,15 @@ def _(mo):
 
 
 @app.cell
-def _(RendererToolConfig):
-    # Simple approach: use the built-in arena and add a custom map - just like the demos do
-    from metta.mettagrid.config.envs import make_arena
-    from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-
-    from metta.mettagrid.mettagrid_config import (
-        AgentRewards,
-        StatsRewards,
-    )
-    import pprint
-
-    # Define simple hallway map as ASCII string
-    import textwrap
-
+def _(
+    RendererToolConfig,
+    make_arena,
+    AsciiMapBuilder,
+    AgentRewards,
+    StatsRewards,
+    pprint,
+    textwrap,
+):
     hallway_map = textwrap.dedent("""
         ###########
         #@.......m#
@@ -867,7 +885,6 @@ def _(
             return run_name
         except Exception as e:
             print(f"❌ Training failed: {e}")
-            import traceback
 
             traceback.print_exc()
 
@@ -918,14 +935,13 @@ def _(mo):
 def _(
     MettaGridEnv,
     Path,
-    PolicyStore,
+    CheckpointManager,
     WandbConfig,
     contextlib,
     display,
     mg_config,
     eval_trained_button,
     get_repo_root,
-    initialize_policy_for_environment,
     io,
     mo,
     np,
@@ -990,44 +1006,19 @@ def _(
 
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-            # Create policy store (same as tools/sim.py:65-70)
-            policy_store = PolicyStore.create(
-                device="cpu",
-                wandb_config=WandbConfig.Off(),
-                data_dir="train_dir",
-                wandb_run=None,
-            )
+            checkpoint_uri = CheckpointManager.normalize_uri(str(latest_ckpt))
 
-            # Get policy record (same as tools/sim.py:76-82)
-            policy_uri = f"file://{latest_ckpt.parent.absolute()}"
-            print(f"Policy URI: {policy_uri}")
-            policy_records = policy_store.policy_records(
-                uri_or_config=policy_uri,
-                selector_type="latest",
-                n=1,
-                metric="score",
-            )
+            metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+            run_name_from_ckpt = metadata["run_name"]
 
-            if not policy_records:
-                raise Exception("No policy records found")
-
-            policy_record = policy_records[0]
-            print(f"✅ Successfully loaded policy: {policy_record.run_name}")
+            trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
 
             # Create evaluation environment
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
 
-            # Initialize policy for environment (same as simulation.py:133-138)
-            initialize_policy_for_environment(
-                policy_record=policy_record,
-                metta_grid_env=eval_env,
-                device=torch.device("cpu"),
-                restore_feature_mapping=True,
-            )
-
-            # Get the trained policy from the policy record
-            trained_policy = policy_record.policy
+            # Set device to CPU for evaluation
+            trained_policy = trained_policy.to(torch.device("cpu"))
 
             # Run animated evaluation with the trained policy
             trained_scores: list[int] = []
@@ -1055,8 +1046,6 @@ def _(
                     )
                     for _step in range(steps):
                         # Use proper observation processing pipeline that matches training
-                        from metta.agent.utils import obs_to_td
-
                         td = obs_to_td(_obs, torch.device("cpu"))
 
                         # The dimension fix in simulation.py ensures proper tensor shapes automatically
@@ -1223,14 +1212,10 @@ def _(mo, run_name, show_replay):
 
 @app.cell
 def _(mo, wandb):
-    import IPython
-
     def display_by_wandb_path(path: str, *, height: int) -> None:
         """Display a wandb object (usually in an iframe) given its URI.
 
-        Args:
-            path: A path to a run, sweep, project, report, etc.
-            height: Height of the iframe in pixels.
+        Supports runs, sweeps, projects, reports, and other wandb objects.
         """
         api = wandb.Api()
 
@@ -1239,8 +1224,6 @@ def _(mo, wandb):
 
             return mo.md(obj.to_html(height=height))
         except wandb.Error:
-            import traceback
-
             traceback.print_exc()
             return mo.md(
                 f"Path {path!r} does not refer to a W&B object you can access."
@@ -1595,7 +1578,6 @@ def _(
                 print(f"✅ Training completed successfully! Result: {result}")
         except Exception as e:
             print(f"❌ Training failed: {e}")
-            import traceback
 
             traceback.print_exc()
 
@@ -1617,7 +1599,7 @@ def _(
     EVAL_EPISODES,
     MettaGridEnv,
     Path,
-    PolicyStore,
+    CheckpointManager,
     TensorDict,
     WandbConfig,
     contextlib,
@@ -1625,7 +1607,6 @@ def _(
     mg_config,
     mg_config2,
     eval_trained_button2,
-    initialize_policy_for_environment,
     io,
     mo,
     np,
@@ -1679,44 +1660,19 @@ def _(
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-        # Create policy store (same as tools/sim.py:65-70)
-        policy_store = PolicyStore.create(
-            device="cpu",
-            wandb_config=WandbConfig.Off(),
-            data_dir="train_dir",
-            wandb_run=None,
-        )
+        checkpoint_uri = CheckpointManager.normalize_uri(str(latest_ckpt))
 
-        # Get policy record (same as tools/sim.py:76-82)
-        policy_uri = f"file://{latest_ckpt.parent.absolute()}"
-        print(f"Policy URI: {policy_uri}")
-        policy_records = policy_store.policy_records(
-            uri_or_config=policy_uri,
-            selector_type="latest",
-            n=1,
-            metric="score",
-        )
+        metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+        run_name_from_ckpt = metadata["run_name"]
 
-        if not policy_records:
-            raise Exception("No policy records found")
-
-        policy_record = policy_records[0]
-        print(f"✅ Successfully loaded policy: {policy_record.run_name}")
+        trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):
             eval_env = MettaGridEnv(mg_config2, render_mode="human")
 
-        # Initialize policy for environment (same as simulation.py:133-138)
-        initialize_policy_for_environment(
-            policy_record=policy_record,
-            metta_grid_env=eval_env,
-            device=torch.device("cpu"),
-            restore_feature_mapping=True,
-        )
-
-        # Get the trained policy from the policy record
-        trained_policy = policy_record.policy
+        # Set device to CPU for evaluation
+        trained_policy = trained_policy.to(torch.device("cpu"))
 
         # Run animated evaluation with the trained policy
         trained_scores: list[int] = []

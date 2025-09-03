@@ -30,7 +30,7 @@ class GenTool(Tool):
         show_mode = self.show_mode
         if not show_mode and not self.output_uri:
             # if not asked to save, show the map
-            show_mode = "mettascope"
+            show_mode = "ascii_border"
 
         output_uri = self.output_uri
         count = self.count

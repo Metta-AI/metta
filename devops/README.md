@@ -16,13 +16,14 @@ To launch a new sandbox on AWS:
 
 See [skypilot README](./skypilot/README.md).
 
-
 <br></br>
+
 ## Using Remote Machines in Cursor IDE
 
 Follow these steps to connect to remote machines directly through Cursor's interface:
 
 ### Prerequisites
+
 - SkyPilot must be configured and running
 - Remote machines should be accessible via SSH
 
@@ -47,6 +48,7 @@ Follow these steps to connect to remote machines directly through Cursor's inter
    - You can now edit files, run terminals, and debug directly on the remote machine
 
 ### Benefits
+
 - Full IDE experience on remote hardware
 - Seamless file editing and debugging
 - Integrated terminal access
