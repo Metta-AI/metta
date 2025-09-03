@@ -5,7 +5,7 @@ from typing import Optional
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import Span
+from metta.cogworks.curriculum.task_generator import ValueRange
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mapgen.mapgen import MapGen
@@ -78,7 +78,9 @@ def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConf
             maps.append(f"varied_terrain/{terrain}_{size}")
 
     dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(3, 50)])
+    dense_tasks.add_bucket(
+        "game.map_builder.instance_map.objects.altar", [ValueRange.vr(3, 50)]
+    )
 
     sparse_nav_env = nav_env.model_copy()
     sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
@@ -86,9 +88,9 @@ def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConf
         objects={"altar": 10},
     )
     sparse_tasks = cc.bucketed(sparse_nav_env)
-    sparse_tasks.add_bucket("game.map_builder.width", [Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
+    sparse_tasks.add_bucket("game.map_builder.width", [ValueRange.vr(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.height", [ValueRange.vr(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.objects.altar", [ValueRange.vr(1, 10)])
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
