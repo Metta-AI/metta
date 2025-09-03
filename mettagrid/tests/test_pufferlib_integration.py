@@ -76,7 +76,8 @@ def test_puffer_cli_compatibility():
     temp_parent = None
     if "PUFFERLIB_CACHE_DIR" not in os.environ:
         # We're using a temp directory
-        temp_parent = pufferlib_dir.parent
+        temp_dir = tempfile.mkdtemp(prefix="pufferlib_test_")
+        pufferlib_dir = Path(temp_dir) / "PufferLib"
 
     try:
         project_root = Path(__file__).parent.parent.parent
