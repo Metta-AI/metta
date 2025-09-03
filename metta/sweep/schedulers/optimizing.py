@@ -174,7 +174,7 @@ class OptimizingScheduler:
         )
 
         # Log some of the suggested hyperparameters for visibility
-        for key in ["trainer.optimizer.learning_rate", "trainer.ppo.clip_coef", "trainer.ppo.ent_coef"]:
+        for key in ["trainer.optimizer.learning_rate", "trainer.losses.loss_configs.ppo.clip_coef", "trainer.losses.loss_configs.ppo.ent_coef"]:
             if key in suggestion:
                 logger.info(f"[OptimizingScheduler]    {key}: {suggestion[key]}")
 
