@@ -19,7 +19,9 @@ def get_pufferlib_repo():
     Get PufferLib repository path, using cache if available.
 
     Returns:
-        Path to PufferLib repository
+        tuple: (repo_path, temp_dir_to_cleanup)
+            - repo_path: Path to PufferLib repository
+            - temp_dir_to_cleanup: Path to temp directory to clean up (or None if using cache)
     """
     # Check if we have a cache directory from GitHub Actions
     cache_dir = os.environ.get("PUFFERLIB_CACHE_DIR")
@@ -43,13 +45,13 @@ def get_pufferlib_repo():
                 print("Updating cached PufferLib...")
                 subprocess.run(["git", "-C", str(repo_path), "pull", "--ff-only"], capture_output=True, timeout=30)
 
-        return repo_path
+        return repo_path, None
 
     else:
         # No cache available, use temp directory
         print("No cache directory specified, using temporary directory")
-        tmpdir = tempfile.mkdtemp(prefix="pufferlib_test_")
-        repo_path = Path(tmpdir) / "PufferLib"
+        tmpdir = Path(tempfile.mkdtemp(prefix="pufferlib_test_"))
+        repo_path = tmpdir / "PufferLib"
 
         print(f"Cloning PufferLib to temp: {repo_path}")
         clone_cmd = ["git", "clone", "--depth", "1", "https://github.com/PufferAI/PufferLib.git", str(repo_path)]
@@ -58,8 +60,8 @@ def get_pufferlib_repo():
             shutil.rmtree(tmpdir)
             raise RuntimeError(f"Failed to clone PufferLib: {result.stderr}")
 
-        # Return path and cleanup function
-        return repo_path
+        # Return both repo path and temp directory for cleanup
+        return repo_path, tmpdir
 
 
 @pytest.mark.skipif(
@@ -70,14 +72,7 @@ def test_puffer_cli_compatibility():
     """Ensure PufferLib can be installed in isolation and sees Metta."""
 
     # Get PufferLib repo (from cache or fresh clone)
-    pufferlib_dir = get_pufferlib_repo()
-
-    # Track if we created a temp dir that needs cleanup
-    temp_parent = None
-    if "PUFFERLIB_CACHE_DIR" not in os.environ:
-        # We're using a temp directory
-        temp_dir = tempfile.mkdtemp(prefix="pufferlib_test_")
-        pufferlib_dir = Path(temp_dir) / "PufferLib"
+    pufferlib_dir, temp_dir_to_cleanup = get_pufferlib_repo()
 
     try:
         project_root = Path(__file__).parent.parent.parent
@@ -168,5 +163,6 @@ def test_puffer_cli_compatibility():
 
     finally:
         # Clean up temp directory if we created one
-        if temp_parent and temp_parent.exists():
-            shutil.rmtree(temp_parent)
+        if temp_dir_to_cleanup and temp_dir_to_cleanup.exists():
+            print(f"Cleaning up temporary directory: {temp_dir_to_cleanup}")
+            shutil.rmtree(temp_dir_to_cleanup)
