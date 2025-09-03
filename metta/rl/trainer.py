@@ -232,7 +232,6 @@ def train(
         max_minibatch_size=trainer_cfg.minibatch_size,
         experience_spec=Composite(merged_spec_dict),
         device=device,
-        cpu_offload=trainer_cfg.cpu_offload,
     )
 
     for loss_instance in loss_instances.values():
