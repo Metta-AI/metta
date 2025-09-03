@@ -10,7 +10,7 @@ inputs:
     required: false
     default: ""
   dependencies-files:
-    description: "Paths to pip dependencies.txt files relative to calling action directory (newline-separated)"
+    description: "Paths to pip dependencies.txt files relative to repository root (newline-separated)"
     required: false
     default: ""
 
@@ -27,14 +27,14 @@ runs:
         enable-cache: true
         # disabling cache saves 30 sec on testing but costs 40 sec in other modes
         prune-cache: false
-        # we hash in the action script in case the install-mode content has changed
-        cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles(inputs.extra-dependencies) }}-${{ hashFiles(inputs.dependencies-files) }}"
+        cache-suffix: "${{ inputs.install-mode }}-${{ inputs.extra-dependencies }}-${{ inputs.dependencies-files }}"
         cache-dependency-glob: |
           ${{ (inputs.install-mode == 'testing' || inputs.install-mode == 'runtime') && 'uv.lock' || '' }}
           ${{ inputs.install-mode == 'linting' && '.github/actions/setup-uv/dependencies-linting.txt' || '' }}
           ${{ inputs.install-mode == 'testing' && '.github/actions/setup-uv/dependencies-testing.txt' || '' }}
           ${{ (inputs.install-mode == 'testing' || inputs.install-mode == 'runtime') && '**/pyproject.toml' || '' }}
-          ${{ inputs.dependencies-files }}
+          ${{ inputs.dependencies-files || '' }}
+          .github/actions/setup-uv/action.yml
 
     - name: Debug dependencies and cache
       shell: bash
@@ -104,11 +104,11 @@ runs:
         elif [ -n "${{ inputs.dependencies-files }}" ]; then
           echo "Installing dependencies from files:"
           echo "${{ inputs.dependencies-files }}" | while read -r dep_file; do
-            if [ -n "$dep_file" ] && [ -f "${{ github.action_path }}/$dep_file" ]; then
+            if [ -n "$dep_file" ] && [ -f "$dep_file" ]; then
               echo "Installing from $dep_file:"
-              uv pip install -r "${{ github.action_path }}/$safe_file"
+              uv pip install -r "$dep_file"
             elif [ -n "$dep_file" ]; then
-              echo "Dependencies file not found: ${{ github.action_path }}/$dep_file"
+              echo "Dependencies file not found: $dep_file"
             fi
           done
         else
