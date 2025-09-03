@@ -32,12 +32,16 @@ def replace_objects_with_altars(name: str) -> str:
 
 
 def make_nav_ascii_env(
-    name: str, max_steps: int, border_width: int = 1, num_agents=1, num_instances=4,
+    name: str,
+    max_steps: int,
+    border_width: int = 1,
+    num_agents=1,
+    num_instances=4,
 ) -> MettaGridConfig:
     # we re-use nav sequence maps, but replace all objects with altars
     ascii_map = replace_objects_with_altars(name)
 
-    env = make_navigation(num_agents=num_agents*num_instances)
+    env = make_navigation(num_agents=num_agents * num_instances)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGen.Config(
         instances=num_instances,
@@ -185,7 +189,9 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="medium_memory",
-            env=make_nav_ascii_env("medium_sequence", 58, num_agents=2, num_instances=2),
+            env=make_nav_ascii_env(
+                "medium_sequence", 58, num_agents=2, num_instances=2
+            ),
         ),
         SimulationConfig(
             name="hard_memory",

@@ -115,7 +115,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
                 "altar": altar,
                 "wall": building.wall,
             },
-            resource_names = ["heart"],
+            resource_names=["heart"],
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(),

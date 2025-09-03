@@ -47,7 +47,7 @@ def _default_run_name() -> str:
 
 
 def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
-    nav = eb.make_navigation(num_agents=num_agents*num_instances)
+    nav = eb.make_navigation(num_agents=num_agents * num_instances)
 
     nav.game.map_builder = MapGen.Config(
         instances=num_instances,
@@ -134,6 +134,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 def eval() -> SimTool:
     return SimTool(simulations=make_navigation_eval_suite())
+
 
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
