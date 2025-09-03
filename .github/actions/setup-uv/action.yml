@@ -16,7 +16,19 @@ runs:
         enable-cache: true
         cache-suffix: "${{ inputs.install-mode }}"
         prune-cache: false # Keep full cache for better performance
+        cache-dependency-glob: |
+          uv.lock
+          pyproject.toml
+          **/pyproject.toml
 
+    - name: Debug cache status
+      shell: bash
+      run: |
+        echo "🔍 UV cache investigation:"
+        echo "Cache directory: $(uv cache dir)"
+        echo "Cache size: $(du -sh $(uv cache dir) 2>/dev/null || echo 'N/A')"
+        ls -la $(uv cache dir) 2>/dev/null || echo "Cache dir doesn't exist yet"
+        
     - name: Create virtual environment with uv
       shell: bash
       run: |
@@ -24,12 +36,8 @@ runs:
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
 
-        # Get actual cache directory being used by uv
-        echo "🔍 UV cache details:"
-        uv cache dir || echo "  uv cache dir failed"
-
         # Always create fresh venv (using cached packages from uv store)
-        echo "🚀 Creating fresh virtual environment with cached packages..."
+        echo "🚀 Creating fresh virtual environment..."
         uv venv
 
         # Handle different installation modes
