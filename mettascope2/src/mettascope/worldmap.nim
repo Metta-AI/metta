@@ -178,7 +178,7 @@ proc drawTrajectory*() =
         cy1 = loc1.y.int
 
       if cx0 != cx1 or cy0 != cy1:
-        let a = 1.0'f32 - abs(i - step).float32 / 200.0'f32
+        let a = 1.0f - abs(i - step).float32 / 200.0f
         if a > 0:
           var
             tint = color(0, 0, 0, a)
@@ -217,23 +217,23 @@ proc drawTrajectory*() =
             rotation = Pi / 2
           elif dx > 0 and dy > 0:
             rotation = -Pi / 4
-            diagScale = sqrt(2.0'f32)
+            diagScale = sqrt(2.0f)
           elif dx > 0 and dy < 0:
             rotation = Pi / 4
-            diagScale = sqrt(2.0'f32)
+            diagScale = sqrt(2.0f)
           elif dx < 0 and dy > 0:
             rotation = -3 * Pi / 4
-            diagScale = sqrt(2.0'f32)
+            diagScale = sqrt(2.0f)
           elif dx < 0 and dy < 0:
             rotation = 3 * Pi / 4
-            diagScale = sqrt(2.0'f32)
+            diagScale = sqrt(2.0f)
 
           # Draw centered at the tile with rotation. Use a slightly larger scale on diagonals.
           bxy.drawImage(
             image,
             vec2(cx0.float32, cy0.float32),
             angle = rotation,
-            scale = (1.0'f32 / 200.0'f32) * diagScale,
+            scale = (1.0f / 200.0f) * diagScale,
             tint = tint
           )
 
