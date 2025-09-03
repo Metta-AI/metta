@@ -462,6 +462,27 @@ class Simulation:
                     logger.error(f"Failed to record episode {episode_id} remotely: {e}")
                     # Continue with other episodes even if one fails
 
+    def get_env(self):
+        """Get the underlying MettaGridEnv for direct access."""
+        driver_env = self._vecenv.driver_env
+        # Handle both direct env and wrapped env cases
+        return getattr(driver_env, "_env", driver_env)
+
+    def get_replay(self):
+        """Get the current replay data."""
+        # Get the first episode if it exists
+        if self._replay_writer.episodes:
+            episode_id = next(iter(self._replay_writer.episodes.keys()))
+            return self._replay_writer.episodes[episode_id].get_replay_data()
+        return None
+
+    def get_policy_state(self):
+        """Get the policy state for memory manipulation."""
+        # Return the policy state if it has one
+        if hasattr(self._policy, 'state'):
+            return self._policy.state
+        return None
+
     @property
     def name(self) -> str:
         return self._name
