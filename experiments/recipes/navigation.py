@@ -6,7 +6,7 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import Span
-from metta.map.terrain_from_numpy import TerrainFromNumpy
+from metta.mettagrid.map_builder.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mettagrid_config import MettaGridConfig

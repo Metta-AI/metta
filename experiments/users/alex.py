@@ -1,9 +1,9 @@
 from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
-import metta.map.scenes.random
+import metta.mettagrid.mapgen.scenes.random
 import metta.mettagrid.config.envs as eb
-from metta.map.mapgen import MapGen
+from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.config import building
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
