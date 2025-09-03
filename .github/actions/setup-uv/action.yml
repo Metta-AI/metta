@@ -24,24 +24,9 @@ runs:
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
 
-        # Check uv cache status (using default location now)
-        echo "🔍 Checking uv cache status:"
-        echo "  UV_CACHE_DIR env: ${UV_CACHE_DIR:-'not set (using default)'}"
-
         # Get actual cache directory being used by uv
         echo "🔍 UV cache details:"
         uv cache dir || echo "  uv cache dir failed"
-
-        # Check if cache directory exists and has content
-        CACHE_DIR=$(uv cache dir 2>/dev/null || echo "")
-        if [ -n "$CACHE_DIR" ] && [ -d "$CACHE_DIR" ]; then
-          echo "  Cache directory exists: $CACHE_DIR"
-          echo "  Cache size: $(du -sh "$CACHE_DIR" 2>/dev/null || echo 'unknown')"
-          echo "  Cache top-level contents:"
-          ls -la "$CACHE_DIR"/ 2>/dev/null || echo "  cannot list cache dir"
-        else
-          echo "  Cache directory not found or not accessible"
-        fi
 
         # Always create fresh venv (using cached packages from uv store)
         echo "🚀 Creating fresh virtual environment with cached packages..."
@@ -52,27 +37,19 @@ runs:
 
           "minimal")
             # don't install any packages
-            echo "✅ Minimal mode - no packages installed"
             ;;
 
           "testing")
-            echo "📦 Installing testing packages..."
-            echo "🔍 Running uv sync with verbose output to check cache usage..."
             uv sync
             uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
-            echo "✅ Testing packages installed"
             ;;
 
           "linting")
-            echo "📦 Installing linting packages..."
             uv pip install ruff cpplint
-            echo "✅ Linting packages installed"
             ;;
 
           "full"|*)
-            echo "📦 Installing full package set..."
             uv sync
-            echo "✅ Full package set installed"
             ;;
 
         esac
