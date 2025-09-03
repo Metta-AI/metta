@@ -8,7 +8,7 @@ from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.utils import obs_to_td
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.system_config import SystemConfig
+
 
 
 @pytest.fixture
@@ -23,14 +23,12 @@ def create_env_and_agent():
     # Create a single environment (vectorization handled separately if needed)
     env = MettaGridEnv(mg_config, render_mode=None)
 
-    # Create system and agent configs
-    system_cfg = SystemConfig(device="cpu")
+    # Create agent config
     agent_cfg = AgentConfig(name="fast")
 
     # Create the agent
     agent = MettaAgent(
         env=env,
-        system_cfg=system_cfg,
         policy_architecture_cfg=agent_cfg,
     )
 
@@ -210,12 +208,10 @@ def test_multi_agent_environment(create_env_and_agent):
     multi_env = MettaGridEnv(mg_config, render_mode=None)
 
     # Create agent
-    system_cfg = SystemConfig(device="cpu")
     agent_cfg = AgentConfig(name="latent_attn_tiny")  # Use attention model for multi-agent
 
     agent = MettaAgent(
         env=multi_env,
-        system_cfg=system_cfg,
         policy_architecture_cfg=agent_cfg,
     )
 
@@ -244,12 +240,10 @@ def test_different_agent_architectures():
         env = MettaGridEnv(mg_config, render_mode=None)
 
         # Create agent with specific architecture
-        system_cfg = SystemConfig(device="cpu")
         agent_cfg = AgentConfig(name=arch_name)
 
         agent = MettaAgent(
             env=env,
-            system_cfg=system_cfg,
             policy_architecture_cfg=agent_cfg,
         )
 
@@ -274,15 +268,15 @@ def test_pytorch_vs_component_policies():
     mg_config = eb.make_navigation(num_agents=1)
     env = MettaGridEnv(mg_config, render_mode=None)
 
-    system_cfg = SystemConfig(device="cpu")
+
 
     # ComponentPolicy version (latent_attn_tiny)
     component_cfg = AgentConfig(name="latent_attn_tiny")
-    component_agent = MettaAgent(env=env, system_cfg=system_cfg, policy_architecture_cfg=component_cfg)
+    component_agent = MettaAgent(env=env, policy_architecture_cfg=component_cfg)
 
     # PyTorch version (pytorch/latent_attn_tiny)
     pytorch_cfg = AgentConfig(name="pytorch/latent_attn_tiny")
-    pytorch_agent = MettaAgent(env=env, system_cfg=system_cfg, policy_architecture_cfg=pytorch_cfg)
+    pytorch_agent = MettaAgent(env=env, policy_architecture_cfg=pytorch_cfg)
 
     # Initialize both
     features = env.get_observation_features()

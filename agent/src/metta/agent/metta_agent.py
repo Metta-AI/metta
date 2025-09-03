@@ -11,7 +11,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.agent_config import AgentConfig, create_agent
 from metta.rl.experience import Experience
-from metta.rl.system_config import SystemConfig
+from metta.mettagrid import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
 
@@ -48,14 +48,12 @@ class DistributedMettaAgent(DistributedDataParallel):
 class MettaAgent(nn.Module):
     def __init__(
         self,
-        env,
-        system_cfg: SystemConfig,
+        env: MettaGridEnv,
         policy_architecture_cfg: AgentConfig,
         policy: Optional[nn.Module] = None,
     ):
         super().__init__()
         self.cfg = policy_architecture_cfg
-        self.device = system_cfg.device
 
         # Create observation space
         self.obs_space = gym.spaces.Dict(
@@ -83,9 +81,6 @@ class MettaAgent(nn.Module):
             logger.info(f"Using agent: {policy_architecture_cfg.name}")
 
         self.policy = policy
-        if self.policy is not None:
-            self.policy = self.policy.to(self.device)
-            self.policy.device = self.device
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
@@ -144,7 +139,7 @@ class MettaAgent(nn.Module):
         features: dict[str, dict],
         action_names: list[str],
         action_max_params: list[int],
-        device,
+        device: torch.device,
         is_training: bool = None,
     ):
         """Initialize the agent to the current environment.
@@ -152,12 +147,16 @@ class MettaAgent(nn.Module):
         Handles feature remapping to allow agents trained on one environment to work
         on another environment where features may have different IDs but same names.
         """
-        self.device = device
 
         # Auto-detect training context if not explicitly provided
         if is_training is None:
             is_training = self.training
             log_on_master(f"Auto-detected {'training' if is_training else 'simulation'} context")
+
+
+        if self.policy is not None:
+            self.policy = self.policy.to(device)
+            self.policy.device = device
 
         # Build feature mappings
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
@@ -194,7 +193,7 @@ class MettaAgent(nn.Module):
                     f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
                 )
                 # Apply the remapping
-                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
+                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID, device)
 
         # Store action configuration
         self.action_names = action_names
@@ -229,10 +228,10 @@ class MettaAgent(nn.Module):
             f"{list(zip(action_names, action_max_params, strict=False))}"
         )
 
-    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
+    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int, device: torch.device):
         """Apply feature remapping to policy for agent portability across environments."""
         # Build complete remapping tensor
-        remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+        remap_tensor = torch.arange(256, dtype=torch.uint8, device=device)
 
         # Apply explicit remappings
         for new_id, original_id in self.feature_id_remap.items():

@@ -179,7 +179,7 @@ def train(
         else:
             policy_agent = checkpoint_manager.load_agent(epoch=checkpoint_epoch, device=device)
     else:
-        policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+        policy_agent = MettaAgent(metta_grid_env, agent_cfg)
 
     # Ensure all ranks have created/loaded their policy before continuing
     if torch.distributed.is_initialized():

@@ -20,7 +20,7 @@ from metta.agent.utils import obs_to_td
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import WANDB_ENTITY, WandbURI
 from metta.rl.checkpoint_manager import CheckpointManager, expand_wandb_uri, key_and_version
-from metta.rl.system_config import SystemConfig
+
 from metta.rl.wandb import upload_checkpoint_as_artifact
 
 
@@ -48,10 +48,9 @@ def create_env_and_agent():
     env_config.game.map_builder.height = 8
 
     env = MettaGridEnv(env_config, render_mode=None)
-    system_cfg = SystemConfig(device="cpu")
     agent_cfg = AgentConfig(name="fast")
 
-    agent = MettaAgent(env=env, system_cfg=system_cfg, policy_architecture_cfg=agent_cfg)
+    agent = MettaAgent(env=env, policy_architecture_cfg=agent_cfg)
 
     # Initialize agent to environment
     features = env.get_observation_features()
