@@ -11,9 +11,9 @@ from typing import Any, cast
 from omegaconf import OmegaConf
 from typing_extensions import TypeVar
 
-from metta.common.config.config import Config
 from metta.common.config.tool import Tool
-from metta.common.util.module import load_symbol
+from metta.mettagrid.config import Config
+from metta.mettagrid.util.module import load_symbol
 from metta.rl.system_config import seed_everything
 
 logger = logging.getLogger(__name__)

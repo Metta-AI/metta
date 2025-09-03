@@ -102,13 +102,13 @@ def _():
     )
 
     # Additional imports for cells
-    from metta.mettagrid.config.envs import make_arena
+    from metta.mettagrid.builder.envs import make_arena
     from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
     from metta.mettagrid.mettagrid_config import (
         AgentRewards,
         StatsRewards,
     )
-    from metta.common.config import Config
+    from metta.mettagrid.config import Config
     from metta.mettagrid.test_support.actions import generate_valid_random_actions
     from metta.sim.simulation_config import SimulationConfig
     from metta.agent.utils import obs_to_td

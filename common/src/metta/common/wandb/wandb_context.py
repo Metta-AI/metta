@@ -7,7 +7,7 @@ import wandb
 import wandb.errors
 import wandb.sdk.wandb_run
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
