@@ -221,6 +221,7 @@ jobs:
           install-mode: "testing"
 
       - name: Run all package tests in parallel with live output
+        shell: bash
         run: |
           # Create directories
           mkdir -p test-results coverage-reports
