@@ -15,19 +15,26 @@ runs:
         version: "0.7.3"
         enable-cache: true
         cache-suffix: "${{ inputs.install-mode }}"
-        prune-cache: false # Keep full cache for better performance
         cache-dependency-glob: |
           uv.lock
           pyproject.toml
           **/pyproject.toml
+        prune-cache: false
 
-    - name: Debug cache status
+    - name: Debug dependencies and cache
       shell: bash
       run: |
+        echo "🔍 Dependency files found:"
+        find . -name "pyproject.toml" -o -name "uv.lock" | sort | head -20
+        echo ""
         echo "🔍 UV cache investigation:"
         echo "Cache directory: $(uv cache dir)"
         echo "Cache size: $(du -sh $(uv cache dir) 2>/dev/null || echo 'N/A')"
         ls -la $(uv cache dir) 2>/dev/null || echo "Cache dir doesn't exist yet"
+        echo ""
+        echo "🔍 Environment info:"
+        echo "RUNNER_OS: ${{ runner.os }}"
+        echo "Cache suffix: ${{ inputs.install-mode }}"
         
     - name: Create virtual environment with uv
       shell: bash
@@ -61,4 +68,3 @@ runs:
             ;;
 
         esac
-# Test cache hit
