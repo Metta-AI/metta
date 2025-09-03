@@ -237,7 +237,6 @@ jobs:
           # Create directories
           mkdir -p test-results coverage-reports
 
-          # Function to run tests with colored prefix
           run_package_tests() {
             local package=$1
             local color=$2
@@ -250,19 +249,17 @@ jobs:
 
             # Run tests and prefix each line with package name and color
             if [ "$package" == "core" ]; then
-              pytest $PYTEST_BASE_ARGS \
+              (pytest $PYTEST_BASE_ARGS \
                 --cov-report=xml:coverage-reports/coverage-${package}.xml \
-                2>&1 | tee "$raw_output" | while IFS= read -r line; do
+                2>&1; echo $? > test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
                   echo -e "${color}[${package}]\033[0m $line"
                 done
-              echo ${PIPESTATUS[0]} > test-results/${package}.exit
             else
               (cd "$package" && pytest $PYTEST_BASE_ARGS \
-                --cov-report=xml:../coverage-reports/coverage-${package}.xml) \
-                2>&1 | tee "$raw_output" | while IFS= read -r line; do
+                --cov-report=xml:../coverage-reports/coverage-${package}.xml \
+                2>&1; echo $? > ../test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
                   echo -e "${color}[${package}]\033[0m $line"
                 done
-              echo ${PIPESTATUS[0]} > test-results/${package}.exit
             fi
 
             # Extract duration info for later summary
