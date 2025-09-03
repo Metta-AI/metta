@@ -5,6 +5,8 @@ from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")
 
+logger = logging.getLogger(__name__)
+
 
 def retry_function(
     func: Callable[[], T],
@@ -12,7 +14,6 @@ def retry_function(
     retry_delay: float = 1.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
     error_prefix: str = "Function failed",
-    logger: logging.Logger | None = None,
 ) -> T:
     """
     Execute a function with retry logic.
@@ -69,9 +70,7 @@ def retry_function(
 
 
 def retry_on_exception(
-    max_retries: int = 3,
-    retry_delay: float = 5.0,
-    exceptions: tuple[type[Exception], ...] = (Exception,),
+    max_retries: int = 3, retry_delay: float = 5.0, exceptions: tuple[type[Exception], ...] = (Exception,)
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator to retry a function on exception.

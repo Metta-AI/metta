@@ -91,7 +91,7 @@ def evaluate_policy(
 
     eval_stats_db = EvalStatsDB(merged_db.path)
     logger.info("Evaluation complete for checkpoint %s", checkpoint_uri)
-    scores = extract_scores(checkpoint_uri, simulations, eval_stats_db, logger)
+    scores = extract_scores(checkpoint_uri, simulations, eval_stats_db)
 
     if export_stats_db_uri is not None:
         logger.info("Exporting merged stats DB → %s", export_stats_db_uri)
@@ -106,10 +106,7 @@ def evaluate_policy(
 
 
 def extract_scores(
-    checkpoint_uri: str,
-    simulations: list[SimulationConfig],
-    stats_db: EvalStatsDB,
-    logger: logging.Logger,
+    checkpoint_uri: str, simulations: list[SimulationConfig], stats_db: EvalStatsDB
 ) -> EvalRewardSummary:
     categories: set[str] = set()
     for sim_config in simulations:

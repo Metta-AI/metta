@@ -24,13 +24,11 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.hyperparameter_scheduler import step_hyperparameters
-from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
+from metta.rl.losses import get_loss_experience_spec
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -46,6 +44,7 @@ from metta.rl.stats import (
 from metta.rl.system_config import SystemConfig
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_state import TrainerState
 from metta.rl.utils import (
     log_training_progress,
     should_run,
@@ -57,7 +56,7 @@ from metta.rl.wandb import (
     setup_wandb_metrics,
 )
 from metta.sim.simulation_config import SimulationConfig
-from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
+from metta.utils.batch import calculate_batch_sizes
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -103,9 +102,8 @@ def train(
             logger.info(f"Recent checkpoints: {', '.join(files)}")
 
     # Create timer, Losses, profiler, curriculum
-    timer = Stopwatch()
+    timer = Stopwatch(log_level=logger.getEffectiveLevel())
     timer.start()
-    losses = Losses()
     torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = Curriculum(trainer_cfg.curriculum)
 
@@ -208,18 +206,21 @@ def train(
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-    # Create kickstarter (will be disabled if no teacher_uri configured)
-    kickstarter = Kickstarter(
-        cfg=trainer_cfg.kickstart,
-        device=device,
-        checkpoint_manager=checkpoint_manager,
-        metta_grid_env=metta_grid_env,
-    )
+    # Instantiate configured composable losses dynamically
+    loss_instances = trainer_cfg.losses.init_losses(policy, trainer_cfg, vecenv, device, checkpoint_manager)
 
+    # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
     act_space = vecenv.single_action_space
     act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
     loss_spec = get_loss_experience_spec(act_space.nvec, act_dtype)
+
+    # Merge experience specs required by all losses
+    merged_spec_dict: dict = dict(policy_spec.items())
+    for inst in loss_instances.values():
+        spec = inst.get_experience_spec()
+        merged_spec_dict.update(dict(spec.items()))
+    merged_spec_dict.update(dict(loss_spec.items()))
 
     # Create experience buffer
     experience = Experience(
@@ -228,11 +229,12 @@ def train(
         bptt_horizon=trainer_cfg.bptt_horizon,
         minibatch_size=trainer_cfg.minibatch_size,
         max_minibatch_size=trainer_cfg.minibatch_size,
-        experience_spec=Composite({**dict(policy_spec.items()), **dict(loss_spec.items())}),
+        experience_spec=Composite(merged_spec_dict),
         device=device,
-        cpu_offload=trainer_cfg.cpu_offload,
     )
 
+    for loss_instance in loss_instances.values():
+        loss_instance.attach_replay_buffer(experience)
     # Create optimizer
     optimizer_type = trainer_cfg.optimizer.type
     if optimizer_type == "adam":
@@ -303,9 +305,26 @@ def train(
         logger.info(f"Training on {device}")
 
     # Main training loop
+    trainer_state = TrainerState(
+        agent_step=agent_step,
+        epoch=0,
+        update_epoch=0,
+        mb_idx=0,
+        optimizer=optimizer,
+    )
     try:
         while agent_step < trainer_cfg.total_timesteps:
             steps_before = agent_step
+            trainer_state.agent_step = agent_step
+            trainer_state.epoch = epoch
+            all_losses = list(loss_instances.keys())
+            shared_loss_mb_data = experience.give_me_empty_md_td()
+            policy.on_new_training_run()
+            for _loss_name in loss_instances.keys():
+                loss_instances[_loss_name].on_new_training_run(trainer_state)
+                shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
+
+            # Initialize main's traditional loss system alongside composable system
             record_heartbeat()
 
             with torch_profiler:
@@ -313,15 +332,16 @@ def train(
                 with timer("_rollout"):
                     raw_infos = []
                     experience.reset_for_rollout()
-                    total_steps = 0
+                    for _loss_name in list(all_losses):
+                        loss_instances[_loss_name].on_rollout_start(trainer_state)
 
-                    policy.reset_memory()
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+                    buffer_step = buffer_step.select(*policy_spec.keys())
 
-                    while not experience.ready_for_training:
+                    while not experience.ready_for_training and not trainer_state.stop_rollout:
                         o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
-                        total_steps += num_steps
 
+                        trainer_state.training_env_id = training_env_id
                         td = buffer_step[training_env_id].clone()
                         td["env_obs"] = o
                         td["rewards"] = r
@@ -337,87 +357,71 @@ def train(
                             ),
                         )
 
-                        with torch.no_grad():
-                            policy(td)
+                        # Inference - hybrid approach: run composable losses rollout hooks first
+                        # note that each loss will modify the td, the same one that is passed to other losses.
+                        # We want this because this allows other parts of the network to only run what's needed on
+                        # these obs, efficiently reusing hiddens within the network. Other losses should clear fields
+                        # and/or clone as necessary.
+                        for _lname in list(all_losses):
+                            loss_obj = loss_instances[_lname]
+                            loss_obj.rollout(td, trainer_state)
 
-                        experience.store(
-                            data_td=td,
-                            env_id=training_env_id,
-                        )
+                        # If no composable losses did inference, do it here
+                        # This fallback is needed when losses are disabled by scheduling or no losses do inference
+                        if "actions" not in td:
+                            with torch.no_grad():
+                                policy(td)
+                            # Store experience since no loss did it
+                            experience.store(data_td=td, env_id=training_env_id)
 
                         send_observation(vecenv, td["actions"], dtype_actions, timer)
 
                         if info:
                             raw_infos.extend(info)
 
-                    agent_step += total_steps * torch_dist_cfg.world_size
-                accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
+                        agent_step += num_steps * torch_dist_cfg.world_size
+                    accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
                 # Training phase
                 with timer("_train"):
-                    losses.zero()
+                    # Reset loss tracking
+                    shared_loss_mb_data.zero_()
                     experience.reset_importance_sampling_ratios()
 
-                    anneal_beta = calculate_prioritized_sampling_params(
-                        epoch=epoch,
-                        total_timesteps=trainer_cfg.total_timesteps,
-                        batch_size=trainer_cfg.batch_size,
-                        prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                        prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
-                    )
-
-                    advantages = torch.zeros(experience.buffer["values"].shape, device=device)
-                    initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
-
-                    advantages = compute_advantage(
-                        experience.buffer["values"],
-                        experience.buffer["rewards"],
-                        experience.buffer["dones"],
-                        initial_importance_sampling_ratio,
-                        advantages,
-                        trainer_cfg.ppo.gamma,
-                        trainer_cfg.ppo.gae_lambda,
-                        trainer_cfg.vtrace.vtrace_rho_clip,
-                        trainer_cfg.vtrace.vtrace_c_clip,
-                        device,
-                    )
-
-                    minibatch_idx = 0
                     epochs_trained = 0
-                    policy_spec = policy.get_agent_experience_spec()
+                    for _lname in list(all_losses):
+                        loss_obj = loss_instances[_lname]
+                        loss_obj.zero_loss_tracker()
 
                     for _update_epoch in range(trainer_cfg.update_epochs):
-                        for _ in range(experience.num_minibatches):
-                            policy.reset_memory()
-                            minibatch, indices, prio_weights = experience.sample_minibatch(
-                                advantages=advantages,
-                                prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                                prio_beta=anneal_beta,
-                            )
+                        trainer_state.update_epoch = _update_epoch
+                        for mb_idx in range(experience.num_minibatches):
+                            trainer_state.mb_idx = mb_idx
+                            trainer_state.stop_update_epoch = False
 
-                            policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
+                            # Use composable losses system
+                            total_loss = torch.tensor(0.0, dtype=torch.float32, device=device)
+                            for _lname in list(all_losses):
+                                loss_obj = loss_instances[_lname]
+                                loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)
+                                total_loss = total_loss + loss_val
 
-                            loss = process_minibatch_update(
-                                policy=policy,
-                                experience=experience,
-                                minibatch=minibatch,
-                                policy_td=policy_td,
-                                indices=indices,
-                                prio_weights=prio_weights,
-                                trainer_cfg=trainer_cfg,
-                                kickstarter=kickstarter,
-                                agent_step=agent_step,
-                                losses=losses,
-                                device=device,
-                            )
+                            if trainer_state.stop_update_epoch:
+                                break
 
                             optimizer.zero_grad()
 
                             # This also serves as a barrier for all ranks
-                            loss.backward()
+                            total_loss.backward()
 
-                            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
-                                torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
+                            if (mb_idx + 1) % experience.accumulate_minibatches == 0:
+                                # Get max_grad_norm from first loss config that has it (typically PPO)
+                                max_grad_norm = 0.5  # default fallback
+                                for loss_inst in loss_instances.values():
+                                    if hasattr(loss_inst.loss_cfg, "max_grad_norm"):
+                                        max_grad_norm = loss_inst.loss_cfg.max_grad_norm
+                                        break
+                                torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
                                 optimizer.step()
 
                                 policy.clip_weights()
@@ -425,21 +429,19 @@ def train(
                                 if device.type == "cuda":
                                     torch.cuda.synchronize()
 
-                            minibatch_idx += 1
+                            for _lname in list(all_losses):
+                                loss_obj = loss_instances[_lname]
+                                loss_obj.on_mb_end(trainer_state)
+
                         epochs_trained += 1
 
-                        # Early exit if KL divergence is too high
-                        if trainer_cfg.ppo.target_kl is not None:
-                            average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
-                            if average_approx_kl > trainer_cfg.ppo.target_kl:
-                                break
+                    for _lname in list(all_losses):
+                        loss_obj = loss_instances[_lname]
+                        loss_obj.on_train_phase_end(trainer_state)
 
-                    # Calculate explained variance
-                    y_pred = experience.buffer["values"].flatten()
-                    y_true = advantages.flatten() + experience.buffer["values"].flatten()
-                    var_y = y_true.var()
-                    losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
                 epoch += epochs_trained
+                trainer_state.epoch = epoch
+                trainer_state.agent_step = agent_step  # update agent_step count state not in between rollout and train
 
             # Update hyperparameters based on current training step (master only)
             if torch_dist_cfg.is_master:
@@ -455,12 +457,17 @@ def train(
 
             torch_profiler.on_epoch_end(epoch)
 
+            losses_stats = {}
+            for _lname in list(all_losses):
+                loss_obj = loss_instances[_lname]
+                losses_stats.update(loss_obj.stats())
+
             with timer("_process_stats"):
                 if wandb_run:
                     process_stats(
                         agent_cfg=agent_cfg,
                         stats=stats_tracker.rollout_stats,
-                        losses=losses,
+                        losses_stats=losses_stats,
                         evals=eval_scores,
                         grad_stats=stats_tracker.grad_stats,
                         experience=experience,
@@ -474,7 +481,6 @@ def train(
                         memory_monitor=memory_monitor,  # type: ignore[arg-type]
                         system_monitor=system_monitor,  # type: ignore[arg-type]
                         optimizer=optimizer,
-                        kickstarter=kickstarter,
                         latest_saved_epoch=latest_saved_epoch,
                     )
                 # Clear stats after processing
