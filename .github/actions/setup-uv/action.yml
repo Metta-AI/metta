@@ -15,7 +15,7 @@ runs:
         version: "0.7.3"
         enable-cache: true
         cache-suffix: "${{ inputs.install-mode }}"
-        prune-cache: false  # Keep full cache for better performance
+        prune-cache: false # Keep full cache for better performance
 
     - name: Create virtual environment with uv
       shell: bash
@@ -27,11 +27,11 @@ runs:
         # Check uv cache status (using default location now)
         echo "🔍 Checking uv cache status:"
         echo "  UV_CACHE_DIR env: ${UV_CACHE_DIR:-'not set (using default)'}"
-        
+
         # Get actual cache directory being used by uv
         echo "🔍 UV cache details:"
         uv cache dir || echo "  uv cache dir failed"
-        
+
         # Check if cache directory exists and has content
         CACHE_DIR=$(uv cache dir 2>/dev/null || echo "")
         if [ -n "$CACHE_DIR" ] && [ -d "$CACHE_DIR" ]; then
@@ -42,7 +42,7 @@ runs:
         else
           echo "  Cache directory not found or not accessible"
         fi
-        
+
         # Always create fresh venv (using cached packages from uv store)
         echo "🚀 Creating fresh virtual environment with cached packages..."
         uv venv
@@ -58,7 +58,7 @@ runs:
           "testing")
             echo "📦 Installing testing packages..."
             echo "🔍 Running uv sync with verbose output to check cache usage..."
-            uv sync -v
+            uv sync
             uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
             echo "✅ Testing packages installed"
             ;;
