@@ -13,7 +13,8 @@ from metta.cogworks.curriculum import (
 )
 from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
 from metta.mettagrid.mettagrid_config import MettaGridConfig
-from tests.cogworks.curriculum.test_helpers import CurriculumTestHelper
+
+from .test_helpers import CurriculumTestHelper
 
 
 class TestCurriculumEnv:
@@ -113,14 +114,14 @@ class TestCurriculumEnv:
         expected = mock_env.step.return_value
         CurriculumTestHelper.assert_step_result(result, expected)
 
-        # Verify task behavior based on expected behavior
+        # Verify task completion behavior
         if expected_behavior == "same_task":
             assert wrapper._current_task is initial_task
             if termination_type == "no_termination":
                 assert initial_task._num_completions == 0
             else:
-                # Partial termination/truncation should still complete task
-                assert initial_task._num_completions > 0
+                # Partial termination/truncation should NOT complete task since not all agents terminated
+                assert initial_task._num_completions == 0
         else:  # new_task
             assert wrapper._current_task is not initial_task
             assert initial_task._num_completions > 0
