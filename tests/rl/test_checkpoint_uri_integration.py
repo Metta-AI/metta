@@ -496,7 +496,6 @@ class TestWandbArtifactFormatting:
                     checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
                 )
 
-                # Returns the specific version that was uploaded
                 assert result == "wandb://metta/test-artifact:v1"
                 assert result.startswith("wandb://"), "Should start with wandb://"
 
