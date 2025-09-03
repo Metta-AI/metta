@@ -48,6 +48,7 @@ class CommandConfig:
 # Parser setup functions for commands
 def _setup_configure_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("component", nargs="?", help="Specific component to configure. If omitted, runs setup wizard.")
+    parser.add_argument("--non-interactive", action="store_true", help="Non-interactive mode")
     # Profile choices will be added dynamically in _build_parser
 
 
@@ -60,6 +61,7 @@ def _setup_install_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("components", nargs="*", help="Components to install")
     parser.add_argument("--force", action="store_true", help="Force reinstall")
     parser.add_argument("--no-clean", action="store_true", help="Skip cleaning before install")
+    parser.add_argument("--non-interactive", action="store_true", help="Non-interactive mode")
 
 
 def _setup_status_parser(parser: argparse.ArgumentParser) -> None:
@@ -257,7 +259,7 @@ class MettaCLI:
             self._book_commands = BookCommands()
         return self._book_commands
 
-    def setup_wizard(self) -> None:
+    def setup_wizard(self, non_interactive: bool = False) -> None:
         from metta.setup.profiles import UserType
 
         header("Welcome to Metta!\n\n")
@@ -285,10 +287,11 @@ class MettaCLI:
             "Select configuration:",
             choices,
             current=current_user_type,
+            non_interactive=non_interactive,
         )
 
         if result == UserType.CUSTOM:
-            self._custom_setup()
+            self._custom_setup(non_interactive=non_interactive)
         else:
             saved_settings.apply_profile(result)
             success(f"\nConfigured as {result.value} user.")
@@ -297,13 +300,14 @@ class MettaCLI:
         if not self.path_setup.check_installation():
             info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
-    def _custom_setup(self) -> None:
+    def _custom_setup(self, non_interactive: bool = False) -> None:
         from metta.setup.registry import get_all_modules
 
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
             [(ut, ut.get_description()) for ut in UserType if ut != UserType.CUSTOM],
             default=UserType.EXTERNAL,
+            non_interactive=non_interactive,
         )
 
         saved_settings = get_saved_settings()
@@ -322,6 +326,7 @@ class MettaCLI:
                 [(True, "Yes"), (False, "No")],
                 default=current_enabled,
                 current=current_enabled,
+                non_interactive=non_interactive,
             )
 
             # Only save if different from profile default
@@ -352,85 +357,7 @@ class MettaCLI:
                 error(f"Unknown profile: {args.profile}")
                 sys.exit(1)
         else:
-            # Interactive configuration wizard
-            self.configure_wizard()
-
-    def configure_wizard(self) -> None:
-        """Interactive configuration wizard for all components."""
-        from metta.config.components import CONFIGURATION_COMPONENTS
-        from metta.config.schema import get_config
-
-        config = get_config()
-        header("Metta Configuration Wizard")
-        info("This will help you configure Metta for your environment.")
-        info("Configuration will be saved to: ~/.metta/config.yaml\n")
-
-        # Ask about environment variable behavior
-        env_behavior = input("Should environment variables override config file values? (y/n) [y]: ").strip().lower()
-        if env_behavior == "n":
-            config.ignore_env_vars = True
-            info("Environment variables will be ignored - config file is authoritative (dbt-style)")
-        else:
-            config.ignore_env_vars = False
-            info("Environment variables will override config file values (Unix-style)")
-        print()
-
-        # Go through each component
-        for name, component in CONFIGURATION_COMPONENTS.items():
-            response = input(f"\nConfigure {component.description}? (y/n) [n]: ").strip().lower()
-            if response == "y":
-                current = getattr(config, name).__dict__
-                updated = component.interactive_configure(current)
-
-                # Update config object
-                for key, value in updated.items():
-                    setattr(getattr(config, name), key, value)
-
-        # Save configuration
-        config.save()
-        success("\nConfiguration saved!")
-        info("You can modify ~/.metta/config.yaml directly or run 'metta configure' again.")
-
-    def configure_component_unified(self, component_name: str) -> None:
-        """Configure a specific component using the unified system."""
-        from metta.config.components import CONFIGURATION_COMPONENTS
-        from metta.config.schema import get_config
-
-        if component_name not in CONFIGURATION_COMPONENTS:
-            # Fall back to old setup system for non-unified components (like githooks)
-            info(f"Component '{component_name}' not found in unified config system.")
-            info("Falling back to legacy setup system...")
-            return self.configure_component(component_name)
-
-        config = get_config()
-        component = CONFIGURATION_COMPONENTS[component_name]
-
-        header(f"Configuring {component.description}")
-        current = getattr(config, component_name).__dict__
-        updated = component.interactive_configure(current)
-
-        # Update config
-        for key, value in updated.items():
-            setattr(getattr(config, component_name), key, value)
-
-        config.save()
-        success(f"\n{component_name} configuration saved!")
-
-    def cmd_export_env(self, args, unknown_args=None) -> None:
-        """Export configuration as environment variables."""
-        from metta.config.schema import get_config
-
-        config = get_config()
-        env_vars = config.export_env_vars()
-
-        # Output format suitable for shell evaluation
-        for key, value in env_vars.items():
-            print(f"export {key}='{value}'")
-
-    def configure_cloud(self, args, unknown_args) -> None:
-        """Legacy cloud configuration - redirects to unified system."""
-        info("Redirecting to unified configuration system...")
-        self.configure_component_unified("storage")
+            self.setup_wizard(non_interactive=getattr(args, "non_interactive", False))
 
     def configure_component(self, component_name: str) -> None:
         from metta.setup.registry import get_all_modules
@@ -516,7 +443,7 @@ class MettaCLI:
                 continue
 
             try:
-                module.install()
+                module.install(non_interactive=getattr(args, "non_interactive", False))
                 print()
             except Exception as e:
                 error(f"  Error: {e}\n")

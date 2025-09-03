@@ -121,7 +121,8 @@ class BoxConfig(Config):
     """Python box configuration."""
 
     type_id: int = Field(default=0, ge=0, le=255)
-    resources_to_create: dict[str, int] = Field(default_factory=dict)
+    # We don't allow setting of returned_resources -- it should always match
+    # the consumed_resources by place_box.
 
 
 class ConverterConfig(Config):
@@ -143,7 +144,7 @@ class GameConfig(Config):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    inventory_item_names: list[str] = Field(
+    resource_names: list[str] = Field(
         default=[
             "ore_red",
             "ore_blue",

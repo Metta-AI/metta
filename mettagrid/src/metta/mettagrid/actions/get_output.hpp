@@ -48,7 +48,7 @@ protected:
         InventoryDelta taken = actor->update_inventory(item, resources_available);
 
         if (taken > 0) {
-          actor->stats.add(actor->stats.inventory_item_name(item) + ".get", taken);
+          actor->stats.add(actor->stats.resource_name(item) + ".get", taken);
           converter->update_inventory(item, -taken);
           resources_taken = true;
         }
@@ -69,7 +69,7 @@ protected:
           return false;
         }
         // Return required resources to create box to creator inventory
-        for (const auto& [item, amount] : box->resources_to_create) {
+        for (const auto& [item, amount] : box->returned_resources) {
           if (amount > 0) {
             creator->update_inventory(item, amount);
           }

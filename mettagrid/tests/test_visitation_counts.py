@@ -30,7 +30,7 @@ def env_with_visitation():
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
@@ -73,7 +73,7 @@ def env_without_visitation():
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
@@ -116,7 +116,7 @@ def env_default():
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
@@ -243,7 +243,7 @@ def test_visitation_counts_configurable():
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
@@ -263,7 +263,7 @@ def test_visitation_counts_configurable():
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
@@ -283,7 +283,7 @@ def test_visitation_counts_configurable():
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
@@ -317,7 +317,7 @@ def performance_config():
             obs_width=11,
             obs_height=11,
             num_observation_tokens=200,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},

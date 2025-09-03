@@ -56,7 +56,7 @@ class NotebookWidgetsSetup(SetupModule):
                 return False
         return True
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info("Setting up Metta's custom Python notebook widgets...")
         try:
             for widget in self._widgets:

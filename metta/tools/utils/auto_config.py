@@ -101,9 +101,8 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
     cfg = WandbConfig(**config_dict)
 
     if run:
-        cfg.name = run
-        cfg.group = run
         cfg.run_id = run
+        cfg.group = run
         cfg.data_dir = f"./train_dir/{run}"
 
     return cfg

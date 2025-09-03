@@ -5,7 +5,6 @@ import platform
 from urllib.parse import quote
 
 import mettascope.server as server
-from metta.agent.policy_store import PolicyStore
 from metta.common.config.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
@@ -17,45 +16,40 @@ from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
 logger = logging.getLogger(__name__)
 
 
-# TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayTool(Tool):
+    """Tool for generating and viewing replay files in MettaScope.
+    Creates a simulation specifically to generate replay files and automatically
+    opens them in a browser for visualization. This tool focuses on replay viewing
+    and browser integration, unlike SimTool which focuses on policy evaluation."""
+
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    selector_type: str = "latest"
-    replay_dir: str | None = None
+    replay_dir: str = "./train_dir/replays"
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        # Use auto_replay_dir if not specified
-        effective_replay_dir = self.replay_dir if self.replay_dir is not None else auto_replay_dir()
-
-        # Create policy store directly without WandbContext
-        policy_store = PolicyStore.create(
-            device=self.system.device,
-            wandb_config=self.wandb,
-            data_dir=self.system.data_dir,
-            wandb_run=None,
-        )
-
-        # Create simulation using the helper method with explicit parameters
+        # Create simulation using CheckpointManager integration
         sim = Simulation.create(
             sim_config=self.sim,
-            policy_store=policy_store,
             device=self.system.device,
             vectorization=self.system.vectorization,
             stats_dir=self.stats_dir,
-            replay_dir=effective_replay_dir,
+            replay_dir=self.replay_dir,
             policy_uri=self.policy_uri,
-            run_name="replay_run",
         )
 
         result = sim.simulate()
-        key, version = result.stats_db.key_and_version(sim.policy_record)
-        replay_url = result.stats_db.get_replay_urls(key, version)[0]
+        # Get all replay URLs (no filtering needed since we just ran this simulation)
+        replay_urls = result.stats_db.get_replay_urls()
+        if not replay_urls:
+            logger.error("No replay URLs found in simulation results")
+            return 1
+        replay_url = replay_urls[0]
 
         open_browser(replay_url, self)
+        return 0
 
 
 def open_browser(replay_url: str, cfg: ReplayTool) -> None:
@@ -74,7 +68,6 @@ def open_browser(replay_url: str, cfg: ReplayTool) -> None:
                 wandb=cfg.wandb,
                 sim=cfg.sim,
                 policy_uri=cfg.policy_uri,
-                selector_type=cfg.selector_type,
                 replay_dir=cfg.replay_dir,
                 stats_dir=cfg.stats_dir,
                 open_browser_on_start=cfg.open_browser_on_start,

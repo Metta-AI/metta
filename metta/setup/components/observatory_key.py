@@ -35,18 +35,20 @@ class ObservatoryKeySetup(SetupModule):
                 return False
         return True
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info(f"Setting up Observatory authentication for {self.server_url}...")
         login_script = self.repo_root / "devops" / "observatory_login.py"
 
         if login_script.exists():
             try:
-                # In test/CI environments, skip interactive OAuth to avoid opening browsers
-                if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
-                    warning("Skipping Observatory interactive login in test/CI environment.")
+                # In test/CI environments or non-interactive mode, skip interactive OAuth to avoid opening browsers
+                if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
+                    warning("Skipping Observatory interactive login in non-interactive/test/CI environment.")
                 else:
                     # Don't capture output - this is an interactive OAuth flow
-                    self.run_command([str(login_script), self.server_url], capture_output=False)
+                    self.run_command(
+                        [str(login_script), self.server_url], capture_output=False, non_interactive=non_interactive
+                    )
                 success(f"Observatory auth configured for {self.server_url}")
             except subprocess.CalledProcessError:
                 warning("Observatory login failed. You can manually run:")
