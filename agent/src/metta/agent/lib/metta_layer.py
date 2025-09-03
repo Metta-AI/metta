@@ -116,13 +116,16 @@ class LayerBase(nn.Module):
         td[self._name] = self._net(td[self._sources[0]["name"]])
         return td
 
-    def clip_weights(self):
+    def on_new_training_run(self):
         pass
 
-    def has_memory(self):
-        return False
+    def on_rollout_start(self):
+        pass
 
-    def l2_init_loss(self):
+    def on_train_mb_start(self):
+        pass
+
+    def on_eval_start(self):
         pass
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
