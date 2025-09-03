@@ -28,7 +28,8 @@ class SystemMonitor:
         if log_level is None:
             self.logger.addHandler(logging.NullHandler())
         else:
-            if not self.logger.handlers:
+            has_stream_handler = any(isinstance(h, logging.StreamHandler) for h in self.logger.handlers)
+            if not has_stream_handler:
                 handler = logging.StreamHandler()
                 handler.setLevel(logging.DEBUG)
                 self.logger.addHandler(handler)
