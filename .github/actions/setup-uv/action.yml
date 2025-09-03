@@ -40,7 +40,24 @@ runs:
       shell: bash
       run: |
         echo "🔍 Dependency files found:"
-        find . -name "pyproject.toml" -o -name "uv.lock" | sort | head -20
+        dep_files="${{ inputs.dependencies-files }}"
+        find_args="-name pyproject.toml -o -name uv.lock"
+        if [ -n "$dep_files" ]; then
+          for file in $dep_files; do
+            find_args="$find_args -o -name $file"
+          done
+        fi
+        eval "find . $find_args" | sort | head -20
+
+        echo ""
+        echo "🔍 Input dependencies:"
+        echo "  Extra dependencies: ${{ inputs.extra-dependencies }}"
+        dep_files_array=($dep_files)
+        echo "  Dependencies files: n=${#dep_files_array[@]}"
+        for file in $dep_files; do
+          echo "    $file"
+        done
+        echo "  Number of files in dep_files: ${#dep_files_array[@]}"
         echo ""
         echo "🔍 UV cache investigation:"
         echo "Cache directory: $(uv cache dir)"
@@ -96,8 +113,8 @@ runs:
         if [ -n "${{ inputs.extra-dependencies }}" ]; then
           echo "Installing extra dependencies (inline):"
           echo "${{ inputs.extra-dependencies }}" | while read -r dep; do
-            if [ -n "$dep" ]; then
-              echo "  - $dep"
+            if [ -n "$dep" ] && [ ! -z "$dep" ]; then
+              echo "Installing $dep"
               uv pip install "$dep"
             else
               echo "ERROR: No extra inline pip dependencies specified" >&2
