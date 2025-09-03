@@ -1,8 +1,11 @@
+import logging
 import uuid
 
 from bidict import bidict
 
 from metta.app_backend.clients.stats_client import StatsClient
+
+logger = logging.getLogger(__name__)
 
 
 def get_or_create_policy_ids(
@@ -34,6 +37,7 @@ def get_or_create_policy_ids(
         processed_policies.append((uri, name, description))
         uri_to_name[uri] = name
 
+    logger.info(f"Processed policies: {processed_policies}")
     # Get existing policy IDs from stats server (still uses names for now)
     policy_names = [name for (_, name, __) in processed_policies]
     policy_ids_response = stats_client.get_policy_ids(policy_names)
@@ -52,4 +56,5 @@ def get_or_create_policy_ids(
                     name=name, description=description, url=uri, epoch_id=epoch_id
                 )
                 policy_ids[uri] = policy_response.id
+    logger.info(f"Policy IDs: {policy_ids}")
     return policy_ids
