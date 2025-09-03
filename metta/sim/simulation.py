@@ -479,7 +479,7 @@ class Simulation:
     def get_policy_state(self):
         """Get the policy state for memory manipulation."""
         # Return the policy state if it has one
-        if hasattr(self._policy, 'state'):
+        if hasattr(self._policy, "state"):
             return self._policy.state
         return None
 
