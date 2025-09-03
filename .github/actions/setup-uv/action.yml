@@ -50,7 +50,9 @@ runs:
 
         # Always create fresh venv (using cached packages from uv store)
         echo "🚀 Creating fresh virtual environment..."
+        echo "Creating venv"
         uv venv
+        echo "Virtual environment created"
 
         # Handle different installation modes
         case "${{ inputs.install-mode }}" in
@@ -65,7 +67,9 @@ runs:
             ;;
 
           "linting")
+            echo "Installing dependencies for linting"
             uv pip install -r .github/actions/setup-uv/dependencies-linting.txt
+            echo "Installed dependencies for linting"
             ;;
 
           # used in the mettascope tests where we run code to generate outputs but do not run tests
