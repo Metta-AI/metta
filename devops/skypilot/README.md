@@ -242,13 +242,13 @@ Sandboxes provide persistent development environments for experimentation.
 
 ```bash
 # Create sandbox with main branch
-./devops/skypilot/sandbox.py
+./devops/skypilot/launch/sandbox.py
 
 # Create sandbox with specific commit/branch
-./devops/skypilot/sandbox.py --git-ref feature/my-branch
+./devops/skypilot/launch/sandbox.py --git-ref feature/my-branch
 
 # Force create new sandbox (even if one exists)
-./devops/skypilot/sandbox.py --new
+./devops/skypilot/launch/sandbox.py --new
 ```
 
 ### Connecting to Sandbox
@@ -276,7 +276,7 @@ sky down <cluster_name>
 
 ## Configuration
 
-The script uses `./devops/skypilot/config/skypilot_run.yaml` as the base configuration. This file defines:
+The script uses `./devops/skypilot/launch/skypilot_run.yaml` as the base configuration. This file defines:
 
 - Default resource requirements (CPU, GPU, memory)
 - Docker image settings

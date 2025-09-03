@@ -9,7 +9,7 @@ Ensure you've run through installation as described in the primary README.
 To launch a new sandbox on AWS:
 
 ```bash
-./devops/skypilot/sandbox.py
+./devops/skypilot/launch/sandbox.py
 ```
 
 ## Launching Train Jobs

@@ -492,7 +492,7 @@ def main():
         logger.info("Running GPU diagnostics and NCCL tests...")
         try:
             result = subprocess.run(
-                ["uv", "run", "python", "./devops/skypilot/config/test_nccl.py"],
+                ["uv", "run", "python", "./devops/skypilot/utils/nccl_tests.py"],
                 capture_output=True,
                 text=True,
             )

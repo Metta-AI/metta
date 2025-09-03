@@ -200,7 +200,7 @@ def main():
     # Validate the run.py tool configuration early to catch errors before setting up the task
     _validate_run_tool(args.module_path, run_id, filtered_args, args.overrides)
 
-    task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
+    task = sky.Task.from_yaml("./devops/skypilot/launch/skypilot_run.yaml")
 
     # Prepare environment variables including status parameters
     env_updates = dict(
