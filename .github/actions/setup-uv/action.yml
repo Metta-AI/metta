@@ -99,6 +99,9 @@ runs:
             if [ -n "$dep" ]; then
               echo "  - $dep"
               uv pip install "$dep"
+            else
+              echo "ERROR: No extra inline pip dependencies specified" >&2
+              exit 1
             fi
           done
         else
@@ -111,9 +114,10 @@ runs:
               echo "Installing from $dep_file:"
               uv pip install -r "$dep_file"
             elif [ -n "$dep_file" ]; then
-              echo "Dependencies file not found: $dep_file"
+              echo "ERROR: Dependencies file not found: $dep_file" >&2
+              exit 1
             fi
           done
         else
-          echo "No extra pip dependencies files specified
+          echo "No extra pip dependencies files specified"
         fi
