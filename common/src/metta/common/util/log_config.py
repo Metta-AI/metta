@@ -214,6 +214,5 @@ def init_logging(run_dir: str | None = None) -> None:
     if run_dir:
         _add_file_logging(run_dir)
 
-    root_logger = logging.getLogger()
-    run_dir_msg = f"run_dir={run_dir}" if run_dir else ""
-    root_logger.info(f"called init_logging({run_dir_msg})")
+    # Do not log anything from here as it will interfere with scripts that return data on cli
+    # e.g. calling constants.py will print a log statement and we won't be able to parse the expected value
