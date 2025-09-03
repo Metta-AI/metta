@@ -70,32 +70,36 @@ cc_binary(
 # Python test wrappers
 py_test(
     name = "test_stats_tracker",
-    srcs = ["test_stats_tracker_runner.py"],
-    main = "test_stats_tracker_runner.py",
+    srcs = ["run_test.py"],
+    main = "run_test.py",
+    args = ["--bin=test_stats_tracker_bin"],
     data = [":test_stats_tracker_bin"],
     size = "small",
 )
 
 py_test(
     name = "test_grid_object",
-    srcs = ["test_grid_object_runner.py"],
-    main = "test_grid_object_runner.py",
+    srcs = ["run_test.py"],
+    main = "run_test.py",
+    args = ["--bin=test_grid_object_bin"],
     data = [":test_grid_object_bin"],
     size = "small",
 )
 
 py_test(
     name = "test_mettagrid",
-    srcs = ["test_mettagrid_runner.py"],
-    main = "test_mettagrid_runner.py",
+    srcs = ["run_test.py"],
+    main = "run_test.py",
+    args = ["--bin=test_mettagrid_bin"],
     data = [":test_mettagrid_bin"],
     size = "small",
 )
 
 py_test(
     name = "test_observations",
-    srcs = ["test_observations_runner.py"],
-    main = "test_observations_runner.py",
+    srcs = ["run_test.py"],
+    main = "run_test.py",
+    args = ["--bin=test_observations_bin"],
     data = [":test_observations_bin"],
     size = "small",
 )

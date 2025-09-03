@@ -55,8 +55,8 @@ pythonpath = ["src"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
-# Exclude test runner scripts that execute C++ binaries
-addopts = "--ignore=tests/test_grid_object_runner.py --ignore=tests/test_mettagrid_runner.py --ignore=tests/test_observations_runner.py --ignore=tests/test_stats_tracker_runner.py"
+# Exclude the generic Bazel C++ test runner script (not a pytest test)
+addopts = "--ignore=tests/run_test.py"
 
 [tool.uv]
 cache-keys = [
