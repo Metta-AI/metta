@@ -6,9 +6,7 @@
 from metta.common.util.log_config import init_logging
 
 if __name__ == "__main__":
-    init_logging()  # Basic console logging. This is optional if you are working within the `metta` project and running your code with python-module-style imports, because metta/__init__.py will call it for you.
-    # OR
-    init_logging(run_dir="./experiments/run_001")  # Console + file logging
+    init_logging(run_dir="./experiments/run_001")  # Optional; only if you want file logging
 ```
 
 ## Features
