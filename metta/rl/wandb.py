@@ -208,10 +208,10 @@ def upload_checkpoint_as_artifact(
         logger.warning("No wandb run active, cannot upload artifact")
         return None
 
-    # Sanitize artifact name - replace dots with __DOT__ for wandb compatibility
+    # Sanitize artifact name - replace dots with underscores for wandb compatibility
     # Store original name in metadata for reference
     original_artifact_name = artifact_name
-    sanitized_artifact_name = artifact_name.replace(".", "__DOT__")
+    sanitized_artifact_name = artifact_name.replace(".", "_")
 
     # Prepare metadata with original filename and original artifact name
     artifact_metadata = metadata.copy() if metadata else {}
