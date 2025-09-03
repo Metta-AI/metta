@@ -11,11 +11,102 @@ Available transformations:
   * Special objects (agents, converters) appear once in their stretched cell
 """
 
-from typing import Literal, Optional
+from dataclasses import dataclass
+from typing import Callable, Iterable, List, Literal, Optional
 
 import numpy as np
 
 from metta.mettagrid.mapgen.utils.ascii_grid import char_grid_to_lines
+
+
+@dataclass(frozen=True)
+class Transform:
+    """Describes a single map transformation and its naming suffix."""
+
+    name: str
+    suffix: str
+    apply: Callable[[str], str]  # takes map content, returns transformed content
+
+
+# Families of single transformations (clockwise rotations, flips, and 2x stretch)
+# Comment out transformations you don't want to use
+ROTATIONS: list[Transform] = [
+    Transform(name="rotate", suffix="90", apply=lambda s: rotate_ascii_map(s, 90)),
+    Transform(name="rotate", suffix="180", apply=lambda s: rotate_ascii_map(s, 180)),
+    Transform(name="rotate", suffix="270", apply=lambda s: rotate_ascii_map(s, 270)),
+]
+
+MIRRORS: list[Transform] = [
+    Transform(name="mirror", suffix="hflip", apply=lambda s: mirror_ascii_map(s, "horizontal")),
+    Transform(name="mirror", suffix="vflip", apply=lambda s: mirror_ascii_map(s, "vertical")),
+]
+
+STRETCHES: list[Transform] = [
+    Transform(
+        name="stretch",
+        suffix="sx2",
+        apply=lambda s: stretch_ascii_map(s, scale_x=2, scale_y=1),
+    ),
+    Transform(
+        name="stretch",
+        suffix="sy2",
+        apply=lambda s: stretch_ascii_map(s, scale_x=1, scale_y=2),
+    ),
+    Transform(
+        name="stretch",
+        suffix="sxy2",
+        apply=lambda s: stretch_ascii_map(s, scale_x=2, scale_y=2),
+    ),
+]
+
+
+def _load_map_content(ascii_map_path: str) -> str:
+    with open(ascii_map_path, "r", encoding="utf-8") as f:
+        return f.read().strip()
+
+
+def apply_transformations(
+    directory: str,
+    name: str,
+    transform_set: Iterable[str] | str = "all",
+) -> List[str]:
+    """Generate a list of SimulationConfigs for one map with selected transforms.
+
+    - transform_set: "all" | Iterable of families ("rotation", "mirror", "stretch")
+    - transform_combo: if True, also include pairwise combinations of families (off by default)
+    - include_original: include the unmodified base map
+    """
+    original_ascii_map = f"{directory}/{name}.map"
+    original_content = _load_map_content(original_ascii_map)
+
+    families: dict[str, list[Transform]] = {
+        "rotation": ROTATIONS,
+        "mirror": MIRRORS,
+        "stretch": STRETCHES,
+    }
+
+    sims = []
+
+    # Single-family transforms
+    for fam, transforms in families.items():
+        if transform_set != "all" and fam not in transform_set:
+            continue
+        for t in transforms:
+            print(f"Transforming {name} {fam} {t.suffix}")
+            t_suffix = t.suffix
+            # transform the original map
+            transformed = t.apply(original_content)
+
+            transformed_name = f"{name}_{fam}_{t_suffix}"
+
+            with open(f"{directory}/{transformed_name}.map", "w") as f:
+                f.write(transformed)
+
+            print(f"transformed name is {transformed_name}")
+
+            sims.append(transformed_name)
+
+    return sims
 
 
 def rotate_ascii_map(ascii_data: str, degrees: int) -> str:
