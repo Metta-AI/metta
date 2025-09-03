@@ -4,6 +4,7 @@ import os
 import subprocess
 import time
 
+import botocore.exceptions
 import sky
 import sky.exceptions
 import yaml
@@ -64,7 +65,6 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
         return None, region, None
 
     # Map GPU configurations to typical AWS instance types
-    # These are common mappings for L4 GPUs on AWS
     gpu_instance_map = {
         ("L4", 1): "g6.xlarge",
         ("L4", 2): "g6.2xlarge",
@@ -75,19 +75,29 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     # Get the instance type based on GPU configuration
     instance_type = gpu_instance_map.get((gpu_type, num_gpus))
     if not instance_type:
-        # Fallback to a reasonable default or raise an error
         print(f"Warning: No instance mapping for {num_gpus} {gpu_type} GPU(s), using g6.xlarge as estimate")
         instance_type = "g6.xlarge"
-        estimated_multiplier = num_gpus  # Rough estimate
+        estimated_multiplier = num_gpus
     else:
         estimated_multiplier = 1
 
-    # Calculate cost for on-demand instances, since sandboxes don't use spot.
-    with spinner(f"Calculating cost for {instance_type}", style=cyan):
-        hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
+    # Try to calculate cost, but handle AWS authentication errors gracefully
+    hourly_cost = None
+    try:
+        with spinner(f"Calculating cost for {instance_type}", style=cyan):
+            hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
 
-    if hourly_cost is not None:
-        hourly_cost *= estimated_multiplier
+        if hourly_cost is not None:
+            hourly_cost *= estimated_multiplier
+
+    except botocore.exceptions.TokenRetrievalError:
+        print(f"\n{yellow('⚠️  AWS authentication expired')} - Cost calculation unavailable")
+        print(f"   Run {green('aws sso login')} to refresh your credentials")
+        print("   Continuing without cost information...\n")
+    except Exception as e:
+        # Handle other AWS-related errors
+        print(f"\n{yellow('⚠️  Unable to calculate cost:')} {str(e)}")
+        print("   Continuing without cost information...\n")
 
     return instance_type, region, hourly_cost
 
@@ -187,11 +197,21 @@ Common management commands:
     # Get instance type and calculate cost
     instance_type, region, hourly_cost = get_gpu_instance_info(args.gpus, gpu_type, region, cloud)
 
-    if hourly_cost is not None:
+    if instance_type:
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+
+    if hourly_cost is not None:
         print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
     else:
-        print("Unable to determine exact cost, but typical L4 on-demand instances cost ~$0.70-$2.00/hour per GPU")
+        # Provide a rough estimate when we can't calculate exact cost
+        gpu_cost_estimates = {
+            1: "~$0.70-0.90/hour",
+            2: "~$1.40-1.80/hour",
+            4: "~$2.80-3.60/hour",
+            8: "~$5.60-7.20/hour",
+        }
+        estimate = gpu_cost_estimates.get(args.gpus, f"~${0.70 * args.gpus:.2f}-{0.90 * args.gpus:.2f}/hour")
+        print(f"Approximate cost: {yellow(estimate)} (estimated for {args.gpus} L4 GPU{'s' if args.gpus > 1 else ''})")
 
     autostop_hours = 48
 
