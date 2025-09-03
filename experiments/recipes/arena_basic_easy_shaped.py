@@ -3,15 +3,9 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import (
-    MettaGridConfig,
-)
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import (
-    CheckpointConfig,
-    EvaluationConfig,
-    TrainerConfig,
-)
+from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -85,11 +79,6 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
-        total_timesteps=10_000_000_000,  # 10B instead of default 50B
-        checkpoint=CheckpointConfig(
-            checkpoint_interval=50,  # 50 instead of default 5
-            wandb_checkpoint_interval=50,  # 50 instead of default 5
-        ),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(
@@ -165,51 +154,3 @@ def evaluate(
         simulations=simulations,
         policy_uris=[policy_uri],
     )
-
-
-if __name__ == "__main__":
-    """Allow running this recipe directly for play testing.
-
-    Usage:
-        uv run experiments/recipes/arena_basic_easy_shaped.py [port] [num_agents_or_policy] [policy]
-
-    Examples:
-        uv run experiments/recipes/arena_basic_easy_shaped.py              # Default: port 8001, 24 agents
-        uv run experiments/recipes/arena_basic_easy_shaped.py 8002 6        # Port 8002, 6 agents
-        uv run experiments/recipes/arena_basic_easy_shaped.py 8003 wandb://run/my-run
-    """
-    import os
-    import sys
-
-    # Parse arguments
-    port = 8001
-    num_agents = 24
-    policy_uri = None
-
-    if len(sys.argv) > 1:
-        try:
-            port = int(sys.argv[1])
-        except ValueError:
-            print(f"Invalid port: {sys.argv[1]}, using default {port}")
-
-    if len(sys.argv) > 2:
-        arg = sys.argv[2]
-        if arg.startswith("wandb://") or arg.startswith("file://") or "/" in arg:
-            policy_uri = arg
-        else:
-            try:
-                num_agents = int(arg)
-                if num_agents % 6 != 0:
-                    num_agents = (num_agents // 6) * 6
-            except ValueError:
-                policy_uri = arg
-
-    if len(sys.argv) > 3 and not policy_uri:
-        policy_uri = sys.argv[3]
-
-    # Set server port
-    os.environ["METTASCOPE_PORT"] = str(port)
-
-    # Run play
-    play_tool = play(num_agents=num_agents, policy_uri=policy_uri)
-    play_tool.invoke({}, [])
