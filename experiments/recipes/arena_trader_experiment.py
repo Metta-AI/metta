@@ -11,7 +11,12 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import AgentConfig, EnvConfig, GroupConfig
+from metta.mettagrid.mettagrid_config import (
+    AgentConfig,
+    EnvConfig,
+    GroupConfig,
+    TransferActionConfig,
+)
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -25,8 +30,8 @@ from experiments.recipes.arena_basic_easy_shaped import (
 
 
 def make_env(
-    num_agents: int = 5,
-    num_traders: int = 3,
+    num_agents: int = 6,
+    num_traders: int = 1,
     map_width: int = 15,
     map_height: int = 15,
     num_generators: int = 3,
@@ -38,6 +43,15 @@ def make_env(
         num_traders: Number of trader NPCs
     """
     arena_env = eb.make_arena(num_agents=num_agents)
+
+    # Add transfer action to the actions configuration
+    arena_env.game.actions.transfer = TransferActionConfig(
+        enabled=True,
+        input_resources={"ore_red": 4},  # Cost: 4 ore
+        output_resources={"battery_red": 1},  # Receive: 1 battery
+        trader_only=True,
+        trader_group_id=99,  # Special group for traders
+    )
 
     # Configure rewards (same as arena_basic_easy_shaped)
     arena_env.game.agent.rewards.inventory = {
@@ -60,14 +74,9 @@ def make_env(
     # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
     arena_env.game.objects["altar"].input_resources = {"battery_red": 1}
 
-    # Enable transfer action for trading
-    arena_env.game.actions.transfer.enabled = True
-    arena_env.game.actions.transfer.input_resources = {"ore_red": 4}  # Cost: 4 ore
-    arena_env.game.actions.transfer.output_resources = {
-        "battery_red": 1
-    }  # Receive: 1 battery
-    arena_env.game.actions.transfer.trader_only = True
-    arena_env.game.actions.transfer.trader_group_id = 99  # Special group for traders
+    # Generator recipe: 3 ore_red -> 1 battery_red (more time-efficient alternative to trading)
+    if "generator_red" in arena_env.game.objects:
+        arena_env.game.objects["generator_red"].input_resources = {"ore_red": 3}
 
     # Configure trader NPCs as a special group
     if "trader" not in arena_env.game.groups:
@@ -76,6 +85,8 @@ def make_env(
         # Traders shouldn't earn rewards from inventory
         trader_agent_config.rewards.inventory = {}
         trader_agent_config.rewards.inventory_max = {}
+        # Give traders infinite batteries to trade (they're NPCs)
+        trader_agent_config.initial_inventory = {"battery_red": 100}
 
         arena_env.game.groups["trader"] = GroupConfig(
             id=99,
@@ -85,8 +96,8 @@ def make_env(
         )
 
     # Small-map defaults (single small map with few agents)
-    # - 5 agents total
-    # - 3 traders (wander by default)
+    # - 6 agents total
+    # - 1 trader (wanders by default)
     # - map size 15x15
     # - 3 generators (static by default)
 
@@ -156,21 +167,33 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
     expensive_trader_env = basic_env.model_copy()
     expensive_trader_env.game.actions.transfer.input_resources = {"ore_red": 5}
 
+    # Note: If you want NPCs (e.g., wandering trader), pass npc_policy_uri
+    # and set policy_agents_pct on SimulationConfig where appropriate.
+
+    # Optional: enable a simple wandering trader via mock random NPC
+    # By setting npc_policy_uri to "mock://random" and policy_agents_pct to the
+    # fraction of learning-controlled agents, we can keep the trader as NPC.
+    npc_uri = "mock://random"
+    policy_pct = 5 / 6  # 5 learning agents, 1 NPC trader by default
+
     return [
         SimulationConfig(
             name="trader/basic",
             env=basic_env,
-            npc_policy_uri="local://metta.sim.trader_npc_policy:create_trader_npc_policy",
+            npc_policy_uri=npc_uri,
+            policy_agents_pct=policy_pct,
         ),
         SimulationConfig(
             name="trader/combat",
             env=combat_env,
-            npc_policy_uri="local://metta.sim.trader_npc_policy:create_trader_npc_policy",
+            npc_policy_uri=npc_uri,
+            policy_agents_pct=policy_pct,
         ),
         SimulationConfig(
             name="trader/expensive",
             env=expensive_trader_env,
-            npc_policy_uri="local://metta.sim.trader_npc_policy:create_trader_npc_policy",
+            npc_policy_uri=npc_uri,
+            policy_agents_pct=policy_pct,
         ),
     ]
 
@@ -192,13 +215,16 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
 
 def play(env: Optional[EnvConfig] = None) -> PlayTool:
-    """Play with trader NPCs."""
+    """Play with trader NPCs - for now, you control all agents including the trader."""
     eval_env = env or make_env()
+    # For testing: control all 6 agents (5 regular + 1 trader)
+    # Agent 5 (trader) has group 99 and can be traded with
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
             name="trader_arena",
-            npc_policy_uri="local://metta.sim.trader_npc_policy:create_trader_npc_policy",
+            # No NPC policy - you control all agents for testing
+            # Agent 5 is still the trader (group 99) that others can trade with
         )
     )
 
@@ -210,7 +236,7 @@ def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
         sim=SimulationConfig(
             env=eval_env,
             name="trader_arena",
-            npc_policy_uri="local://metta.sim.trader_npc_policy:create_trader_npc_policy",
+            # No NPC policy for now - all agents controlled by policy
         )
     )
 

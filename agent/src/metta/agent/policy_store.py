@@ -426,7 +426,13 @@ class PolicyStore:
         run_name: str = "mock_run",
     ) -> PolicyRecord:
         """Get a policy record or create a mock if no URI provided."""
-        if policy_uri is not None:
+        # Handle mock:// URIs specially
+        if isinstance(policy_uri, str) and policy_uri.startswith("mock://"):
+            # Import here to avoid circular dependency
+            from metta.agent.mocks import MockPolicyRecord
+
+            return MockPolicyRecord(run_name=run_name, uri=policy_uri)
+        elif policy_uri is not None:
             return self.policy_record(policy_uri)
         else:
             # Import here to avoid circular dependency

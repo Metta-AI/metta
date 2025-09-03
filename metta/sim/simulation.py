@@ -120,7 +120,9 @@ class Simulation:
         # ---------------- policies ------------------------------------- #
         self._policy_pr = policy_pr
         self._policy_store = policy_store
-        self._npc_pr = policy_store.policy_record(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
+        self._npc_pr = (
+            policy_store.policy_record_or_mock(cfg.npc_policy_uri, run_name=name) if cfg.npc_policy_uri else None
+        )
         self._policy_agents_pct = cfg.policy_agents_pct if self._npc_pr is not None else 1.0
 
         self._stats_client: StatsClient | None = stats_client

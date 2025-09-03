@@ -7,6 +7,7 @@ from metta.agent.policy_store import PolicyStore
 
 from .mock_agent import MockAgent
 from .mock_policy import MockPolicy
+from .random_agent import RandomAgent
 
 MockPolicyMetadata = PolicyMetadata()
 MockPolicyStore = PolicyStore()
@@ -65,12 +66,20 @@ class MockPolicyRecord(PolicyRecord):
     @override
     def policy(self) -> nn.Module:
         """Override policy property for mock behavior."""
-        # Your custom implementation here
-        # For example, return a mock policy directly:
+        # Allow special mock URIs:
+        # - None: do-nothing MockAgent
+        # - mock://random: RandomAgent that samples valid actions
+        # - other mock://*: MockPolicy placeholder
         if self.uri is None:
-            # return a fake agent that always outputs no action
             if not hasattr(self, "_mock_agent"):
                 self._mock_agent = MockAgent()
             return self._mock_agent
-        else:
-            return MockPolicy()
+        if isinstance(self.uri, str) and self.uri.startswith("mock://"):
+            if self.uri == "mock://random":
+                if not hasattr(self, "_random_agent"):
+                    self._random_agent = RandomAgent()
+                return self._random_agent
+            else:
+                return MockPolicy()
+        # Fallback
+        return MockPolicy()
