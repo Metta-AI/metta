@@ -24,7 +24,7 @@ def help_configs() -> None:
     info('policy = CheckpointManager.load_from_uri("file://./train_dir/my_run/checkpoints")')
     info('policy = CheckpointManager.load_from_uri("wandb://project/artifact:version")')
     success("# Create checkpoint manager:")
-    info('cm = CheckpointManager(run="my_run", base_dir="./train_dir")')
+    info('cm = CheckpointManager(run="my_run", run_dir="./train_dir")')
 
 
 # Create a new IPython config object

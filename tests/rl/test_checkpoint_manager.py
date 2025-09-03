@@ -18,17 +18,17 @@ def temp_run_dir():
 
 @pytest.fixture
 def checkpoint_manager(temp_run_dir):
-    return CheckpointManager(run_dir=temp_run_dir, run_name="test_run")
+    return CheckpointManager(run="test_run", run_dir=temp_run_dir)
 
 
 @pytest.fixture
 def cached_checkpoint_manager(temp_run_dir):
-    return CheckpointManager(run_dir=temp_run_dir, run_name="test_run", cache_size=3)
+    return CheckpointManager(run="test_run", run_dir=temp_run_dir, cache_size=3)
 
 
 @pytest.fixture
 def no_cache_checkpoint_manager(temp_run_dir):
-    return CheckpointManager(run_dir=temp_run_dir, run_name="test_run", cache_size=0)
+    return CheckpointManager(run="test_run", run_dir=temp_run_dir, cache_size=0)
 
 
 @pytest.fixture
@@ -267,7 +267,7 @@ class TestErrorHandling:
 
         for invalid_name in invalid_names:
             with pytest.raises(ValueError):
-                CheckpointManager(run_dir=temp_run_dir, run_name=invalid_name)
+                CheckpointManager(run=invalid_name, run_dir=temp_run_dir)
 
 
 if __name__ == "__main__":

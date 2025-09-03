@@ -129,7 +129,7 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
 class CheckpointManager:
     """Checkpoint manager with filename-embedded metadata and LRU cache."""
 
-    def __init__(self, run: str = "default", base_dir: str = "./train_dir", cache_size: int = 3):
+    def __init__(self, run: str = "default", run_dir: str = "./train_dir", cache_size: int = 3):
         # Validate run name
         if not run or not run.strip():
             raise ValueError("Run name cannot be empty")
@@ -139,9 +139,9 @@ class CheckpointManager:
             raise ValueError(f"Run name cannot contain '__' as it's used as a delimiter in checkpoint filenames: {run}")
 
         self.run = run
-        self.run_name = run  # Keep for backward compatibility
-        self.base_dir = Path(base_dir)
-        self.checkpoint_dir = self.base_dir / self.run / "checkpoints"
+        self.run_name = run
+        self.run_dir = Path(run_dir)
+        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
 
