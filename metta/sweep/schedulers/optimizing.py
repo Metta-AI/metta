@@ -9,7 +9,6 @@ from typing import Any
 
 from metta.sweep.models import JobDefinition, JobStatus, JobTypes, RunInfo, SweepMetadata
 from metta.sweep.protocols import Optimizer
-from metta.sweep.utils import make_monitor_table
 
 logger = logging.getLogger(__name__)
 
@@ -41,103 +40,56 @@ class OptimizingScheduler:
     def schedule(self, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]) -> list[JobDefinition]:
         """Schedule next jobs based on current state."""
 
-        # Debug: Log run statuses to identify race condition
-        for run in all_runs:
-            logger.debug(f"[OptimizingScheduler] Run {run.run_id}: status={run.status}, has_started_eval={run.has_started_eval}, has_been_evaluated={run.has_been_evaluated}")
-
-        # First, check for completed training runs that need evaluation
+        # Check for completed training runs that need evaluation
         runs_needing_eval = [run for run in all_runs if run.status == JobStatus.TRAINING_DONE_NO_EVAL]
 
         if runs_needing_eval:
-            train_run = runs_needing_eval[0]
-            logger.info(f"[OptimizingScheduler] Found run needing eval: {train_run.run_id} (has_started_eval={train_run.has_started_eval}, has_been_evaluated={train_run.has_been_evaluated})")
+            return self._schedule_evaluation(runs_needing_eval[0], sweep_metadata, all_runs)
 
-            # Merge eval_overrides with required defaults
-            eval_overrides = self.config.eval_overrides.copy() if self.config.eval_overrides else {}
-            eval_overrides["push_metrics_to_wandb"] = "True"  # Always push metrics to WandB for sweeps
-
-            # Add WandB overrides for evaluation
-            eval_overrides["wandb.name"] = train_run.run_id
-            eval_overrides["wandb.run_id"] = train_run.run_id
-            eval_overrides["wandb.group"] = sweep_metadata.sweep_id
-
-            # Add stats_server_uri if configured to enable remote evaluation
-            if self.config.stats_server_uri:
-                eval_overrides["stats_server_uri"] = self.config.stats_server_uri
-
-            eval_job = JobDefinition(
-                run_id=train_run.run_id,  # Use same run_id for eval
-                cmd=f"{self.config.recipe_module}.{self.config.eval_entrypoint}",
-                type=JobTypes.LAUNCH_EVAL,
-                args=self.config.eval_args or [],
-                overrides=eval_overrides,
-                metadata={
-                    "policy_uri": f"wandb://metta/{train_run.run_id}",  # Pass policy URI as metadata
-                },
-            )
-            # Extract just the trial portion for cleaner display
-            display_id = train_run.run_id.split("_trial_")[-1] if "_trial_" in train_run.run_id else train_run.run_id
-            display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
-            logger.info(f"[OptimizingScheduler] Scheduling evaluation for {display_id}")
-            return [eval_job]
-
-        # Check if we've hit the trial limit based on total runs created
-        # Use both fetched runs and our internal tracking (in case fetch fails)
+        # Check if we've hit the trial limit
         total_runs = max(len(all_runs), len(self._created_runs))
         if total_runs >= self.config.max_trials:
-            # Show status table when max trials reached
-            table_lines = make_monitor_table(
-                runs=all_runs,
-                title=f"Run Status Table (Max trials {self.config.max_trials} reached)",
-                logger_prefix="[OptimizingScheduler]",
-                include_score=True,
-                truncate_run_id=True,
-            )
-            for line in table_lines:
-                logger.info(line)
+            return self._handle_max_trials_reached(all_runs)
 
-            # Check if all runs are complete (either COMPLETED or FAILED)
-            all_complete = all(run.status in (JobStatus.COMPLETED, JobStatus.FAILED) for run in all_runs)
-            if all_complete:
-                self._is_complete = True
-                logger.info(f"[OptimizingScheduler] All {self.config.max_trials} trials finished!")
-            else:
-                incomplete_count = sum(
-                    1 for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED)
-                )
-                logger.info(f"[OptimizingScheduler] Waiting for {incomplete_count} remaining job(s) to complete")
-            return []
-
-        # For sequential scheduler, wait for ALL runs to complete before starting new ones
-        # Treat both COMPLETED and FAILED as finished
+        # Wait for incomplete jobs to finish before scheduling new ones
         incomplete_jobs = [run for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED)]
 
         if incomplete_jobs:
-            # Build a status table for better visibility
-            table_lines = make_monitor_table(
-                runs=all_runs,
-                title="Run Status Table",
-                logger_prefix="[OptimizingScheduler]",
-                include_score=True,
-                truncate_run_id=True,
-            )
-            for line in table_lines:
-                logger.info(line)
             logger.info(
                 f"[OptimizingScheduler] Waiting for {len(incomplete_jobs)} incomplete job(s) "
                 "to finish before scheduling next"
             )
             return []
 
-        # Get observations for completed runs
-        observations = []
-        for run in all_runs:
-            if run.observation:
-                observations.append(run.observation)
-                logger.debug(
-                    f"[OptimizingScheduler] Found observation: "
-                    f"score={run.observation.score:.3f}, cost={run.observation.cost:.1f}"
-                )
+        # Schedule new training job with optimizer suggestion
+        return self._schedule_training(sweep_metadata, all_runs)
+
+    def _schedule_evaluation(
+        self, train_run: RunInfo, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]
+    ) -> list[JobDefinition]:
+        """Schedule evaluation job for a completed training run."""
+        # Build evaluation overrides
+        eval_overrides = self._build_eval_overrides(train_run.run_id, sweep_metadata.sweep_id)
+
+        # Create evaluation job
+        eval_job = JobDefinition(
+            run_id=train_run.run_id,
+            cmd=f"{self.config.recipe_module}.{self.config.eval_entrypoint}",
+            type=JobTypes.LAUNCH_EVAL,
+            args=self.config.eval_args or [],
+            overrides=eval_overrides,
+            metadata={"policy_uri": f"wandb://metta/{train_run.run_id}"},
+        )
+
+        # Log scheduling with clean display ID
+        display_id = self._get_display_id(train_run.run_id)
+        logger.info(f"[OptimizingScheduler] Scheduling evaluation for {display_id}")
+        return [eval_job]
+
+    def _schedule_training(self, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]) -> list[JobDefinition]:
+        """Schedule new training job with optimizer suggestion."""
+        # Collect observations from completed runs
+        observations = [run.observation for run in all_runs if run.observation]
 
         # Get suggestion from optimizer
         suggestions = self.optimizer.suggest(observations, n_suggestions=1)
@@ -145,50 +97,78 @@ class OptimizingScheduler:
             logger.warning("[OptimizingScheduler] No suggestions from optimizer")
             return []
 
-        suggestion = suggestions[0]
-
-        # Create new training job with suggestion
+        # Create new training job
         trial_num = len(self._created_runs) + 1
         run_id = f"{sweep_metadata.sweep_id}_trial_{trial_num:04d}"
 
-        # Check if we've already created this run
+        # Avoid duplicates
         if run_id in self._created_runs:
             logger.warning(f"[OptimizingScheduler] Run {run_id} already created, skipping")
             return []
 
         self._created_runs.add(run_id)
 
-        # Merge train_overrides with optimizer suggestions
-        overrides = self.config.train_overrides.copy() if self.config.train_overrides else {}
-
-        # Add stats_server_uri if configured for remote evaluation during training
-        if self.config.stats_server_uri:
-            overrides["stats_server_uri"] = self.config.stats_server_uri
-            # Also set evaluation flags for remote-only evaluation during training
-            overrides["trainer.evaluation.evaluate_remote"] = "True"
-            overrides["trainer.evaluation.evaluate_local"] = "False"
+        # Build training job
+        overrides = self._build_train_overrides()
 
         job = JobDefinition(
             run_id=run_id,
             cmd=f"{self.config.recipe_module}.{self.config.train_entrypoint}",
             type=JobTypes.LAUNCH_TRAINING,
-            config=suggestion,  # Pass optimizer suggestion as config
-            overrides=overrides,  # Pass any additional overrides
-            metadata={
-                "group": sweep_metadata.sweep_id,  # Pass group as metadata
-            },
+            config=suggestions[0],
+            overrides=overrides,
+            metadata={"group": sweep_metadata.sweep_id},
         )
 
         logger.info(
             f"[OptimizingScheduler] 🚀 Scheduling trial {trial_num}/{self.config.max_trials}: trial_{trial_num:04d}"
         )
-
-        # Log some of the suggested hyperparameters for visibility
-        for key in ["trainer.optimizer.learning_rate", "trainer.ppo.clip_coef", "trainer.ppo.ent_coef"]:
-            if key in suggestion:
-                logger.info(f"[OptimizingScheduler]    {key}: {suggestion[key]}")
-
         return [job]
+
+    def _handle_max_trials_reached(self, all_runs: list[RunInfo]) -> list[JobDefinition]:
+        """Handle case when maximum trials have been reached."""
+        # Check if all runs are complete
+        all_complete = all(run.status in (JobStatus.COMPLETED, JobStatus.FAILED) for run in all_runs)
+
+        if all_complete:
+            self._is_complete = True
+            logger.info(f"[OptimizingScheduler] All {self.config.max_trials} trials finished!")
+        else:
+            incomplete_count = sum(1 for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED))
+            logger.info(f"[OptimizingScheduler] Waiting for {incomplete_count} remaining job(s) to complete")
+
+        return []
+
+    def _build_eval_overrides(self, run_id: str, sweep_id: str) -> dict[str, Any]:
+        """Build evaluation override parameters."""
+        eval_overrides = self.config.eval_overrides.copy() if self.config.eval_overrides else {}
+        eval_overrides["push_metrics_to_wandb"] = "True"
+        eval_overrides["wandb.name"] = run_id
+        eval_overrides["wandb.run_id"] = run_id
+        eval_overrides["wandb.group"] = sweep_id
+
+        if self.config.stats_server_uri:
+            eval_overrides["stats_server_uri"] = self.config.stats_server_uri
+
+        return eval_overrides
+
+    def _build_train_overrides(self) -> dict[str, Any]:
+        """Build training override parameters."""
+        overrides = self.config.train_overrides.copy() if self.config.train_overrides else {}
+
+        if self.config.stats_server_uri:
+            overrides["stats_server_uri"] = self.config.stats_server_uri
+            overrides["trainer.evaluation.evaluate_remote"] = "True"
+            overrides["trainer.evaluation.evaluate_local"] = "False"
+
+        return overrides
+
+    def _get_display_id(self, run_id: str) -> str:
+        """Extract clean display ID from run ID."""
+        if "_trial_" in run_id:
+            display_id = run_id.split("_trial_")[-1]
+            return f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
+        return run_id
 
     @property
     def is_complete(self) -> bool:
