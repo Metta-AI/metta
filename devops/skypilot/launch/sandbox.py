@@ -287,12 +287,13 @@ def handle_check_mode(clusters):
     # Summary
     print(f"\n{bold('Summary:')}")
     if status_counts["UP"] > 0:
-        print(f"  {green(f'{status_counts["UP"]} running')}")
+        print(f"  {green(str(status_counts['UP']) + ' running')}")
     if status_counts["STOPPED"] > 0:
-        print(f"  {red(f'{status_counts["STOPPED"]} stopped')}")
+        print(f"  {red(str(status_counts['STOPPED']) + ' stopped')}")
     if status_counts["INIT"] > 0:
-        print(f"  {cyan(f'{status_counts["INIT"]} launching')}")
+        print(f"  {cyan(str(status_counts['INIT']) + ' launching')}")
 
+    print_management_commands(user_sandboxes)
     return 0
 
 
