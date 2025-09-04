@@ -36,6 +36,7 @@ run_test() {
 # Run the test suites
 run_test "tests/test_core_systems.nim" "Core Systems"
 run_test "tests/test_ai_behavior.nim" "AI Behavior"
+run_test "tests/test_diagonal_movement_fix.nim" "Diagonal Movement Fix"
 
 # Summary
 echo "================================"

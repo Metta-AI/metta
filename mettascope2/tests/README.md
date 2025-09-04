@@ -4,39 +4,47 @@ This directory contains test files for the MettaScope 2 game visualization.
 
 ## Test Files
 
-### Consolidated Test Suites
-These are the main test files that group related tests together using the unittest framework:
+### Main Test Suites
+The test suite has been consolidated into three focused test files:
 
-- `test_villages_consolidated.nim` - Village structures, terrain generation, and placement
-- `test_combat_consolidated.nim` - Combat mechanics and agent interactions (legacy)
-- `test_resources_consolidated.nim` - Resource gathering and conversion system
-- `test_clippies_consolidated.nim` - Clippy AI behavior and movement patterns
-- `test_mettascope_integration.nim` - Integration tests for the full environment
-- `test_full_simulation.nim` - Full simulation step tests
+- `test_core_systems.nim` - Core gameplay mechanics
+  - Directional movement (N/S/E/W)
+  - Resource collection from mines
+  - Ore to battery conversion at converters  
+  - Altar deposits (batteries → hearts)
+  - Map generation consistency
 
-### Individual Test Files
-Additional focused test files:
+- `test_ai_behavior.nim` - AI and agent behaviors
+  - Agent controller decision making
+  - Clippy wandering patterns (concentric circles)
+  - Village agent grouping
+  - Full simulation with resource flow
 
-- `test_nim_config.nim` - Basic configuration and environment setup test
-- `test_utils.nim` - Utility functions for testing
-- `test_clippy_simple.nim` - Simple Clippy behavior tests
-- `test_clippy_wandering.nim` - Clippy wandering pattern visualization
-
-### Legacy Test Files (from original implementation)
-These files test older features that may be deprecated:
-- Various combat and resource gathering tests from the original implementation
+- `test_diagonal_movement_fix.nim` - Specific edge case test
+  - Ensures agents move to cardinal positions before using objects
+  - Tests the diagonal adjacency fix for mines/converters
 
 ## Running Tests
 
 ### Run all tests:
 ```bash
-./run_all_tests.sh
+./run_tests.sh
 ```
 
 ### Run individual test:
 ```bash
-nim c -r test_nim_config.nim
+nim c -r tests/test_core_systems.nim
+nim c -r tests/test_ai_behavior.nim
+nim c -r tests/test_diagonal_movement_fix.nim
 ```
+
+## Test Output
+
+Tests provide detailed output showing:
+- Test name and description
+- Step-by-step progress
+- Success/failure indicators (✓/✗)
+- Summary statistics
 
 ## Writing New Tests
 
@@ -45,3 +53,4 @@ When creating new tests:
 2. Import modules using relative paths: `import ../src/mettascope/module`
 3. Add a description comment at the top of the file
 4. Keep tests focused on specific functionality
+5. Consider adding to existing consolidated tests when appropriate
