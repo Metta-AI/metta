@@ -60,12 +60,29 @@ class ActionConfig(Config):
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: dict[str, int] = Field(default_factory=dict)
     consumed_resources: dict[str, int] = Field(default_factory=dict)
+    priority: int = Field(default=0, ge=0, le=255)
+    auto_execute: bool = Field(default=False)
 
 
 class AttackActionConfig(ActionConfig):
     """Python attack action configuration."""
 
     defense_resources: dict[str, int] = Field(default_factory=dict)
+    priority: int = Field(default=3, ge=0, le=255)  # Attack priority = 3
+
+
+class PutItemsActionConfig(ActionConfig):
+    """Put items action configuration."""
+
+    facing_required: bool = Field(default=True)
+    priority: int = Field(default=1, ge=0, le=255)  # Put priority = 1
+
+
+class GetItemsActionConfig(ActionConfig):
+    """Get items action configuration."""
+
+    facing_required: bool = Field(default=True)
+    priority: int = Field(default=2, ge=0, le=255)  # Get priority = 2
 
 
 class ChangeGlyphActionConfig(ActionConfig):
@@ -84,9 +101,9 @@ class ActionsConfig(Config):
     noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    put_items: PutItemsActionConfig = Field(default_factory=lambda: PutItemsActionConfig(enabled=False))
     place_box: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
+    get_items: GetItemsActionConfig = Field(default_factory=lambda: GetItemsActionConfig(enabled=True))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))

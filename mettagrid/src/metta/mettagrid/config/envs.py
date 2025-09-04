@@ -11,8 +11,10 @@ from metta.mettagrid.mettagrid_config import (
     AgentRewards,
     AttackActionConfig,
     GameConfig,
+    GetItemsActionConfig,
     GroupConfig,
     MettaGridConfig,
+    PutItemsActionConfig,
 )
 
 
@@ -34,8 +36,8 @@ def make_arena(
         noop=ActionConfig(),
         move=ActionConfig(),
         rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
-        put_items=ActionConfig(),
-        get_items=ActionConfig(),
+        put_items=PutItemsActionConfig(),
+        get_items=GetItemsActionConfig(),
         attack=AttackActionConfig(
             consumed_resources={
                 "laser": 1,
@@ -116,7 +118,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
-                get_items=ActionConfig(),
+                get_items=GetItemsActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
@@ -150,8 +152,8 @@ def make_icl_resource_chain(
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
+                get_items=GetItemsActionConfig(),
+                put_items=PutItemsActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(

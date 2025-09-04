@@ -85,11 +85,13 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   for (const auto& [action_name, action_config] : game_config.actions) {
     if (action_name == "put_items") {
-      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
+      auto put_items_config = std::static_pointer_cast<const PutItemsActionConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*put_items_config));
     } else if (action_name == "place_box") {
       _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config));
     } else if (action_name == "get_items") {
-      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
+      auto get_items_config = std::static_pointer_cast<const GetItemsActionConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<GetOutput>(*get_items_config));
     } else if (action_name == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name == "move") {
@@ -501,6 +503,35 @@ void MettaGrid::_step(Actions actions) {
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       // note that handle_action will assign a penalty for attempting invalid actions as a side effect
       _action_success[agent_idx] = handler->handle_action(agent->id, arg);
+    }
+  }
+
+  // Process auto_execute actions (highest to lowest priority)
+  for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
+    unsigned char current_priority = _max_action_priority - offset;
+
+    for (const auto& agent_idx : agent_indices) {
+      // Skip if agent already executed a successful action
+      if (_action_success[agent_idx]) {
+        continue;
+      }
+
+      for (size_t action_idx = 0; action_idx < _num_action_handlers; action_idx++) {
+        auto& handler = _action_handlers[action_idx];
+
+        // Only process auto_execute actions at current priority level
+        if (handler->priority != current_priority || !handler->auto_execute()) {
+          continue;
+        }
+
+        auto& agent = _agents[agent_idx];
+        // Try to auto-execute this action with argument 0
+        bool success = handler->handle_action(agent->id, 0);
+        if (success) {
+          _action_success[agent_idx] = true;
+          break; // Only execute one auto action per agent per step
+        }
+      }
     }
   }
 
@@ -974,6 +1005,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
+  bind_put_items_action_config(m);
+  bind_get_items_action_config(m);
   bind_global_obs_config(m);
   bind_game_config(m);
 

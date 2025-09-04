@@ -18,10 +18,15 @@
 struct ActionConfig {
   std::map<InventoryItem, InventoryQuantity> required_resources;
   std::map<InventoryItem, InventoryQuantity> consumed_resources;
+  unsigned char priority;
+  bool auto_execute;
 
   ActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources = {},
-               const std::map<InventoryItem, InventoryQuantity>& consumed_resources = {})
-      : required_resources(required_resources), consumed_resources(consumed_resources) {}
+               const std::map<InventoryItem, InventoryQuantity>& consumed_resources = {},
+               unsigned char priority = 0,
+               bool auto_execute = false)
+      : required_resources(required_resources), consumed_resources(consumed_resources),
+        priority(priority), auto_execute(auto_execute) {}
 
   virtual ~ActionConfig() {}
 };
@@ -32,10 +37,11 @@ public:
   Grid* _grid{};
 
   ActionHandler(const ActionConfig& cfg, const std::string& action_name)
-      : priority(0),
+      : priority(cfg.priority),
         _action_name(action_name),
         _required_resources(cfg.required_resources),
-        _consumed_resources(cfg.consumed_resources) {
+        _consumed_resources(cfg.consumed_resources),
+        _auto_execute(cfg.auto_execute) {
     for (const auto& [item, amount] : _required_resources) {
       if (amount < _consumed_resources[item]) {
         throw std::runtime_error("Required resources must be greater than or equal to consumed resources");
@@ -114,12 +120,17 @@ public:
     return _action_name;
   }
 
+  bool auto_execute() const {
+    return _auto_execute;
+  }
+
 protected:
   virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
 
   std::string _action_name;
   std::map<InventoryItem, InventoryQuantity> _required_resources;
   std::map<InventoryItem, InventoryQuantity> _consumed_resources;
+  bool _auto_execute;
 };
 
 namespace py = pybind11;
@@ -127,11 +138,17 @@ namespace py = pybind11;
 inline void bind_action_config(py::module& m) {
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
       .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, InventoryQuantity>&>(),
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    unsigned char,
+                    bool>(),
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>())
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("priority") = 0,
+           py::arg("auto_execute") = false)
       .def_readwrite("required_resources", &ActionConfig::required_resources)
-      .def_readwrite("consumed_resources", &ActionConfig::consumed_resources);
+      .def_readwrite("consumed_resources", &ActionConfig::consumed_resources)
+      .def_readwrite("priority", &ActionConfig::priority)
+      .def_readwrite("auto_execute", &ActionConfig::auto_execute);
 }
 
 #endif  // ACTION_HANDLER_HPP_

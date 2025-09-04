@@ -1,6 +1,9 @@
 #ifndef ACTIONS_GET_OUTPUT_HPP_
 #define ACTIONS_GET_OUTPUT_HPP_
 
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
 #include <string>
 
 #include "action_handler.hpp"
@@ -10,9 +13,22 @@
 #include "objects/converter.hpp"
 #include "types.hpp"
 
+struct GetItemsActionConfig : public ActionConfig {
+  bool facing_required;
+
+  GetItemsActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources = {},
+                       const std::map<InventoryItem, InventoryQuantity>& consumed_resources = {},
+                       unsigned char priority = 2,
+                       bool auto_execute = false,
+                       bool facing_required = true)
+      : ActionConfig(required_resources, consumed_resources, priority, auto_execute),
+        facing_required(facing_required) {}
+};
+
 class GetOutput : public ActionHandler {
 public:
-  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_items") {}
+  explicit GetOutput(const GetItemsActionConfig& cfg)
+      : ActionHandler(cfg, "get_items"), _facing_required(cfg.facing_required) {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -20,13 +36,33 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
-    GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
-    target_loc.layer = GridLayer::ObjectLayer;
-    // get_output only works on Converters, since only Converters have an output.
-    // Once we generalize this to `get`, we should be able to get from any HasInventory object, which
-    // should include agents. That's (e.g.) why we're checking inventory_is_accessible.
-    Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
-    Box* box = dynamic_cast<Box*>(_grid->object_at(target_loc));
+    Converter* converter = nullptr;
+    Box* box = nullptr;
+
+    if (_facing_required) {
+      // Original behavior: must be facing the converter/box
+      GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
+      target_loc.layer = GridLayer::ObjectLayer;
+      converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
+      box = dynamic_cast<Box*>(_grid->object_at(target_loc));
+    } else {
+      // New behavior: can be next to the converter/box in any direction
+      for (int dr = -1; dr <= 1; dr++) {
+        for (int dc = -1; dc <= 1; dc++) {
+          if (dr == 0 && dc == 0) continue;  // Skip the agent's own position
+          GridLocation neighbor_loc = {actor->location.r + dr, actor->location.c + dc, GridLayer::ObjectLayer};
+          if (!converter) {
+            converter = dynamic_cast<Converter*>(_grid->object_at(neighbor_loc));
+          }
+          if (!box) {
+            box = dynamic_cast<Box*>(_grid->object_at(neighbor_loc));
+          }
+          if (converter || box) break;
+        }
+        if (converter || box) break;
+      }
+    }
+
     if (!converter && !box) {
       return false;
     }
@@ -83,6 +119,26 @@ protected:
     }
     return false;
   }
+
+private:
+  bool _facing_required;
 };
+
+namespace py = pybind11;
+
+inline void bind_get_items_action_config(py::module& m) {
+  py::class_<GetItemsActionConfig, ActionConfig, std::shared_ptr<GetItemsActionConfig>>(m, "GetItemsActionConfig")
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    unsigned char,
+                    bool,
+                    bool>(),
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("priority") = 2,
+           py::arg("auto_execute") = false,
+           py::arg("facing_required") = true)
+      .def_readwrite("facing_required", &GetItemsActionConfig::facing_required);
+}
 
 #endif  // ACTIONS_GET_OUTPUT_HPP_
