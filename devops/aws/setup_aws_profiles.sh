@@ -69,22 +69,32 @@ check_sso_token() {
 initialize_aws_config() {
   echo "Initializing AWS configuration..."
 
-  # Set up profiles via aws CLI in all environments (including test/CI)
-  # Set up root profile
-  aws configure set profile.softmax-root.region us-east-1
-  aws configure set profile.softmax-root.output json
+  # Create AWS config directory if it doesn't exist
+  mkdir -p ~/.aws
 
-  # Set up softmax profile
-  aws configure set profile.softmax.sso_session softmax-sso
-  aws configure set profile.softmax.sso_account_id 751442549699
-  aws configure set profile.softmax.sso_role_name PowerUserAccess
-  aws configure set profile.softmax.region us-east-1
+  # Write the complete AWS config file manually for better control
+  cat > ~/.aws/config << 'EOF'
+[profile softmax-root]
+region = us-east-1
+output = json
 
-  # Set up softmax-admin profile
-  aws configure set profile.softmax-admin.sso_session softmax-sso
-  aws configure set profile.softmax-admin.sso_account_id 751442549699
-  aws configure set profile.softmax-admin.sso_role_name AdministratorAccess
-  aws configure set profile.softmax-admin.region us-east-1
+[sso-session softmax-sso]
+sso_start_url = https://softmaxx.awsapps.com/start/
+sso_region = us-east-1
+sso_registration_scopes = sso:account:access
+
+[profile softmax]
+sso_session = softmax-sso
+sso_account_id = 751442549699
+sso_role_name = PowerUserAccess
+region = us-east-1
+
+[profile softmax-admin]
+sso_session = softmax-sso
+sso_account_id = 751442549699
+sso_role_name = AdministratorAccess
+region = us-east-1
+EOF
 
   echo "AWS profiles have been configured successfully."
 
@@ -117,6 +127,10 @@ initialize_aws_config() {
     touch "$bashrc_path"
   fi
   grep -q '^export AWS_PROFILE=' "$bashrc_path" 2> /dev/null || echo -e '\nexport AWS_PROFILE=softmax' >> "$bashrc_path"
+
+  # Set AWS_PROFILE for current session
+  export AWS_PROFILE=softmax
+  echo "AWS_PROFILE set to: $AWS_PROFILE"
 }
 
 # Check if we're in CI, Docker, or test environment
