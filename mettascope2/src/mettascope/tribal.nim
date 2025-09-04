@@ -22,11 +22,11 @@ const
   MapRoomWidth* = 80  # Doubled from 40
   MapRoomHeight* = 40
   MapRoomBorder* = 0
-  MapRoomObjectsAgents* = 10
-  MapRoomObjectsHouses* = 3  # 2-3 houses to spawn
-  MapRoomObjectsConverters* = 10
-  MapRoomObjectsGenerators* = 10
-  MapRoomObjectsWalls* = 20  # Reduced since houses will add walls
+  MapRoomObjectsAgents* = 15  # Increased for larger map
+  MapRoomObjectsHouses* = 5  # More houses for larger map
+  MapRoomObjectsConverters* = 15  # Increased for larger map
+  MapRoomObjectsGenerators* = 15  # Increased for larger map
+  MapRoomObjectsWalls* = 30  # Increased for larger map
 
   MapObjectAgentInitialEnergy* = 250
   MapObjectAgentMaxEnergy* = 250
