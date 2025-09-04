@@ -42,7 +42,7 @@ class LatentAttnMed(PyTorchAgentMixin, LSTMWrapper):
                 hidden_size=hidden_size,
             )
         # Use enhanced LSTMWrapper with num_layers support
-        super().__init__(env_config["single_observation_space"].shape, policy, input_size, hidden_size, num_layers=num_layers)
+        super().__init__(env_config.single_observation_space.shape, policy, input_size, hidden_size, num_layers=num_layers)
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
@@ -105,7 +105,7 @@ class Policy(nn.Module):
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.is_continuous = False
-        self.action_space = env_config["single_action_space"]
+        self.action_space = env_config.single_action_space
 
         self.out_width = 11
         self.out_height = 11

@@ -102,6 +102,7 @@ class SimTool(Tool):
                 device=device,
                 vectorization=self.system.vectorization,
                 export_stats_db_uri=self.stats_db_uri,
+                eval_task_id=eval_task_id,
                 stats_client=stats_client
             )
             if self.push_metrics_to_wandb:

@@ -60,13 +60,13 @@ class PyTorchAgentMixin:
         # Note: action_index_tensor and cum_action_max_params are set by
         # MettaAgent.initialize_to_environment() directly on the policy object
 
-    def create_action_heads(self, env, input_size: int = 512 + 16):
+    def create_action_heads(self, env_config, input_size: int = 512 + 16):
         """Create action heads based on the environment's action configuration.
 
         For multi-discrete action spaces, we create a single head with the total
         flattened action space (sum of all action parameter ranges)."""
         # Calculate total flattened action space from environment
-        total_actions = sum(max_arg + 1 for max_arg in env.max_action_args)
+        total_actions = sum(max_arg + 1 for max_arg in env_config.max_action_args)
 
         # Create a single head for the flattened action space
         return nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(input_size, total_actions), std=0.01)])

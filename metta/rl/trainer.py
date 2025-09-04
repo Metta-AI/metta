@@ -593,7 +593,7 @@ def train(
                             vectorization=system_cfg.vectorization,
                             replay_dir=trainer_cfg.evaluation.replay_dir if trainer_cfg.evaluation else None,
                             stats_epoch_id=stats_tracker.stats_epoch_id,
-                            stats_client=stats_client
+                            stats_client=stats_client,
                         )
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores

@@ -40,7 +40,7 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
                 hidden_size=hidden_size,
             )
         # Use enhanced LSTMWrapper with num_layers support
-        super().__init__(env_config["single_observation_space"].shape, policy, input_size, hidden_size, num_layers=num_layers)
+        super().__init__(env_config.single_observation_space.shape, policy, input_size, hidden_size, num_layers=num_layers)
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
@@ -193,8 +193,3 @@ class Policy(nn.Module):
         logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1)  # (B, sum(A_i))
 
         return logits, value
-
-
-
-
-
