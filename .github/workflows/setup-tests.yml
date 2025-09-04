@@ -72,8 +72,8 @@ jobs:
     name: "Setup Tests"
     needs: [setup-checks]
     if: needs.setup-checks.outputs.run_test == 'true'
-    runs-on: ubuntu-4core  # Use 4-core runners for parallel installation and test execution
-    timeout-minutes: 15  # Reduced timeout due to parallel execution improvements
+    runs-on: ubuntu-4core # Use 4-core runners for parallel installation and test execution
+    timeout-minutes: 15 # Reduced timeout due to parallel execution improvements
     strategy:
       fail-fast: false
       matrix:
