@@ -59,16 +59,16 @@ def make_env(num_agents: int = 6) -> EnvConfig:
     # Configure rewards to incentivize finding and trading with the wandering NPC
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
-        "ore_red": 0.05,  # Low ore value encourages conversion
-        "battery_red": 1.0,  # High battery value rewards successful trades
+        "ore_red": 0.3,  # Moderate value - encourages collection but still motivates conversion
+        "battery_red": 1.0,  # High value rewards successful trades
         "laser": 0.5,
         "armor": 0.5,
         "blueprint": 0.5,
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 1,  # Standard max ore reward
-        "battery_red": 2,  # Increased max battery reward
+        "ore_red": 2,  # Allow some reward accumulation
+        "battery_red": 3,  # Higher max for battery rewards
         "laser": 1,
         "armor": 1,
         "blueprint": 1,
@@ -85,10 +85,10 @@ def make_env(num_agents: int = 6) -> EnvConfig:
 
     # PRODUCT CHAIN: Ore (collect) -> Battery (generator or trader) -> Hearts (altar)
 
-    # Learning agents start with NOTHING - must figure out the product chain
+    # Learning agents start with minimal resources to bootstrap learning
     arena_env.game.agent.initial_inventory = {
-        "battery_red": 0,  # No batteries
-        "ore_red": 0,  # Must collect ore first
+        "battery_red": 0,  # No batteries - must craft or trade
+        "ore_red": 1,  # Small amount to discover the product chain
         "laser": 1,  # For combat scenarios
         "armor": 0,
     }
@@ -125,16 +125,16 @@ def make_env(num_agents: int = 6) -> EnvConfig:
 
     # CRITICAL: Ensure sufficient resources for the experiment
     arena_env.game.map_builder.root.params.objects["mine_red"] = (
-        15  # Plenty of mines for ore collection
+        20  # Plenty of mines for ore collection
     )
     arena_env.game.map_builder.root.params.objects["generator_red"] = (
-        8  # More generators to reduce competition
+        10  # More generators to reduce competition
     )
     arena_env.game.map_builder.root.params.objects["altar"] = (
-        6  # Sufficient altars for heart conversion
+        8  # Sufficient altars for heart conversion
     )
     arena_env.game.map_builder.root.params.objects["battery_red"] = (
-        0  # No free batteries - must use generator or trader!
+        2  # Small amount of free batteries to help bootstrap learning
     )
 
     # Agent assignment: 5 learning agents, 1 trader
@@ -150,9 +150,19 @@ def make_curriculum(env: Optional[EnvConfig] = None) -> CurriculumConfig:
 
     arena_tasks = cc.bucketed(env)
 
-    # Test different reward structures for trading behavior
-    arena_tasks.add_bucket("game.agent.rewards.inventory.battery_red", [0.5, 1.0, 2.0])
-    arena_tasks.add_bucket("game.agent.rewards.inventory.ore_red", [0.01, 0.05, 0.1])
+    # Use arena_basic_easy_shaped style rewards - wider range for learning
+    arena_tasks.add_bucket(
+        "game.agent.rewards.inventory.battery_red", [0.5, 0.9, 1.0, 1.5, 2.0]
+    )
+    arena_tasks.add_bucket(
+        "game.agent.rewards.inventory.ore_red", [0.1, 0.3, 0.5, 0.7, 0.9]
+    )
+    arena_tasks.add_bucket("game.agent.rewards.inventory_max.battery_red", [2, 3, 5])
+    arena_tasks.add_bucket("game.agent.rewards.inventory_max.ore_red", [1, 2])
+
+    # Sometimes add initial resources to buildings (critical for bootstrapping!)
+    for obj in ["mine_red", "generator_red", "altar"]:
+        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1, 2])
 
     # Vary trading cost to study price sensitivity
     arena_tasks.add_bucket(
@@ -210,6 +220,7 @@ def train(
         evaluation=EvaluationConfig(
             simulations=make_evals(),
             skip_git_check=True,
+            evaluate_interval=10,  # Run evaluations every 10 updates for more frequent metrics
         ),
     )
 
