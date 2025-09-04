@@ -13,7 +13,7 @@ from metta.sweep import (
     SweepMetadata,
 )
 from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.sweep.protein_config import ProteinConfig
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
 from metta.sweep.stores.wandb import WandbStore
 
@@ -163,8 +163,16 @@ class TestProtocolCompliance:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
-            parameters={"test_param": {"min": 0, "max": 1}},
+            method="bayes",
+            parameters={
+                "test_param": ParameterConfig(
+                    min=0,
+                    max=1,
+                    distribution="uniform",
+                    mean=0.5,
+                    scale="auto",
+                )
+            },
         )
 
         optimizer = ProteinOptimizer(protein_config)

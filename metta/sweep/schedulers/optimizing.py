@@ -1,3 +1,4 @@
+from platform import node
 """Optimizing Scheduler for Sweep Orchestration.
 
 This scheduler integrates with an Optimizer (e.g., Protein) to get hyperparameter suggestions
@@ -127,18 +128,12 @@ class OptimizingScheduler:
         # Create training job
         job = create_training_job(
             run_id=run_id,
-<<<<<<< HEAD
-            cmd=f"{self.config.recipe_module}.{self.config.train_entrypoint}",
-            type=JobTypes.LAUNCH_TRAINING,
-            gpus=self.config.gpus,
-            nodes=self.config.nodes,
-=======
             sweep_id=sweep_metadata.sweep_id,
             recipe_module=self.config.recipe_module,
             train_entrypoint=self.config.train_entrypoint,
->>>>>>> 7c90a8714 (refactor: simplify controller and fix scheduler architecture)
             config=suggestions[0],
-            gpus_per_job=self.config.gpus_per_job,
+            gpus=self.config.gpus,
+            nodes=self.config.nodes,
             stats_server_uri=self.config.stats_server_uri,
             train_overrides=self.config.train_overrides,
         )

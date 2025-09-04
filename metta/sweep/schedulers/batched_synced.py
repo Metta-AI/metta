@@ -9,8 +9,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from torch import batch_norm_gather_stats
-
 from metta.sweep.models import JobDefinition, JobStatus, RunInfo, SweepMetadata
 from metta.sweep.protocols import Optimizer
 from metta.sweep.utils import (
@@ -35,7 +33,8 @@ class BatchedSyncedSchedulerConfig:
     eval_args: list[str] | None = None  # Additional args for evaluation
     eval_overrides: dict[str, Any] | None = None  # Additional overrides for evaluation
     stats_server_uri: str | None = None  # Stats server for remote evaluations
-    gpus_per_job: int = 1  # Number of GPUs per training job
+    gpus: int = 1  # Number of GPUs per training job
+    nodes: int = 1  # Number of nodes per training job
     batch_size: int = 4
 
 
@@ -175,7 +174,7 @@ class BatchedSyncedOptimizingScheduler:
                 recipe_module=self.config.recipe_module,
                 train_entrypoint=self.config.train_entrypoint,
                 config=suggestion,
-                gpus_per_job=self.config.gpus_per_job,
+                gpus=self.config.gpus,
                 stats_server_uri=self.config.stats_server_uri,
                 train_overrides=self.config.train_overrides,
             )

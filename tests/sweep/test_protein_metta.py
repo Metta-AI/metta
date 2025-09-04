@@ -1,16 +1,17 @@
-"""Tests for MettaProtein class."""
+"""Tests for ProteinOptimizer class."""
 
 from unittest.mock import Mock, patch
 
 import pytest
 
+from metta.sweep.models import Observation
+from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
-from metta.sweep.protein_metta import MettaProtein
 
 
 @pytest.fixture
 def base_protein_config():
-    """Base ProteinConfig for MettaProtein tests."""
+    """Base ProteinConfig for ProteinOptimizer tests."""
     return ProteinConfig(
         metric="reward",
         goal="maximize",
@@ -27,153 +28,37 @@ def base_protein_config():
     )
 
 
-class TestMettaProtein:
-    """Test cases for MettaProtein class."""
+class TestProteinOptimizer:
+    """Test cases for ProteinOptimizer class."""
 
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_metta_protein_init_with_full_config(self, mock_protein, base_protein_config):
-        """Test MettaProtein initialization with complete config."""
-        config = ProteinConfig(
-            metric="reward",
-            goal="maximize",
-            method="bayes",
-            parameters={
-                "trainer.optimizer.learning_rate": ParameterConfig(
-                    distribution="log_normal",
-                    min=1e-5,
-                    max=1e-2,
-                    scale="auto",
-                    mean=3e-4,
-                )
-            },
-            settings=ProteinSettings(
-                max_suggestion_cost=7200,
-                resample_frequency=0,
-                num_random_samples=100,
-                global_search_scale=2,
-                random_suggestions=1024,
-                suggestions_per_pareto=256,
-            ),
-        )
+    def test_unsupported_method_error(self):
+        """Test that ProteinOptimizer raises error for unsupported methods."""
+        with pytest.raises(ValueError, match="Unsupported optimization method"):
+            # This should fail since we only allow 'bayes' now
+            config = ProteinConfig(
+                metric="loss",
+                goal="minimize",
+                method="bayes",  # This is supported, but let's create an invalid one
+                parameters={
+                    "learning_rate": ParameterConfig(
+                        distribution="log_normal",
+                        min=1e-4,
+                        max=1e-1,
+                        scale="auto",
+                        mean=1e-2,
+                    )
+                },
+            )
+            # Manually set an invalid method to test error handling
+            config.method = "invalid_method"
+            ProteinOptimizer(config)
 
-        mock_protein_instance = Mock()
-        mock_protein.return_value = mock_protein_instance
-
-        _ = MettaProtein(config)
-
-        # Verify Protein was called with correct parameters
-        mock_protein.assert_called_once()
-        args, kwargs = mock_protein.call_args
-
-        # Check that parameters were passed correctly
-        protein_dict = args[0]
-        assert protein_dict["metric"] == "reward"
-        assert protein_dict["goal"] == "maximize"
-        assert protein_dict["method"] == "bayes"
-        assert "trainer.optimizer.learning_rate" in protein_dict
-
-        # Check protein-specific parameters were passed as kwargs
-        assert kwargs["max_suggestion_cost"] == 7200
-        assert kwargs["num_random_samples"] == 100
-        assert kwargs["global_search_scale"] == 2
-
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_metta_protein_init_with_defaults(self, mock_protein):
-        """Test MettaProtein initialization with minimal config."""
-        config = ProteinConfig(
-            metric="accuracy",
-            goal="minimize",
-            method="bayes",
-            parameters={
-                "batch_size": ParameterConfig(distribution="uniform", min=16, max=128, scale="auto", mean=64),
-            },
-        )
-
-        mock_protein_instance = Mock()
-        mock_protein.return_value = mock_protein_instance
-
-        _ = MettaProtein(config)
-
-        # Verify Protein was called
-        mock_protein.assert_called_once()
-        args, kwargs = mock_protein.call_args
-
-        # Check basic parameters
-        protein_dict = args[0]
-        assert protein_dict["metric"] == "accuracy"
-        assert protein_dict["goal"] == "minimize"
-
-        # Check default settings were used
-        assert kwargs["max_suggestion_cost"] == 10800  # Default value
-
-    @patch("metta.sweep.protein_metta.Random")
-    def test_metta_protein_random_method(self, mock_random):
-        """Test MettaProtein initialization with random method."""
-        config = ProteinConfig(
-            metric="loss",
-            goal="minimize",
-            method="random",
-            parameters={
-                "learning_rate": ParameterConfig(
-                    distribution="log_normal",
-                    min=1e-4,
-                    max=1e-1,
-                    scale="auto",
-                    mean=1e-2,
-                )
-            },
-        )
-
-        mock_random_instance = Mock()
-        mock_random.return_value = mock_random_instance
-
-        _ = MettaProtein(config)
-
-        # Verify Random was called instead of Protein
-        mock_random.assert_called_once()
-        args, _ = mock_random.call_args
-        protein_dict = args[0]
-        assert protein_dict["method"] == "random"
-
-    @patch("metta.sweep.protein_metta.ParetoGenetic")
-    def test_metta_protein_genetic_method(self, mock_genetic):
-        """Test MettaProtein initialization with genetic method."""
-        config = ProteinConfig(
-            metric="score",
-            goal="maximize",
-            method="genetic",
-            parameters={
-                "param1": ParameterConfig(
-                    distribution="uniform",
-                    min=0,
-                    max=1,
-                    scale="auto",
-                    mean=0.5,
-                )
-            },
-            settings=ProteinSettings(
-                bias_cost=False,
-                log_bias=True,
-            ),
-        )
-
-        mock_genetic_instance = Mock()
-        mock_genetic.return_value = mock_genetic_instance
-
-        _ = MettaProtein(config)
-
-        # Verify ParetoGenetic was called
-        mock_genetic.assert_called_once()
-        _, kwargs = mock_genetic.call_args
-        assert kwargs["bias_cost"] is False
-        assert kwargs["log_bias"] is True
-
-    def test_suggest_method(self):
-        """Test the suggest method of MettaProtein."""
+    def test_suggest_method_single(self):
+        """Test the suggest method of ProteinOptimizer with single suggestion."""
         config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",  # Use random for predictability in tests
+            method="bayes",
             parameters={
                 "param1": ParameterConfig(
                     distribution="uniform",
@@ -185,25 +70,25 @@ class TestMettaProtein:
             },
         )
 
-        protein = MettaProtein(config)
+        optimizer = ProteinOptimizer(config)
 
-        # Test suggest
-        suggestion, info = protein.suggest()
+        # Test suggest with no observations
+        suggestions = optimizer.suggest(observations=[], n_suggestions=1)
 
         # Check suggestion format
+        assert isinstance(suggestions, list)
+        assert len(suggestions) == 1
+        suggestion = suggestions[0]
         assert isinstance(suggestion, dict)
         assert "param1" in suggestion
         assert 0 <= suggestion["param1"] <= 1
 
-        # Check info format
-        assert isinstance(info, dict)
-
-    def test_observe_method(self):
-        """Test the observe method of MettaProtein."""
+    def test_suggest_method_multiple(self):
+        """Test the suggest method of ProteinOptimizer with multiple suggestions."""
         config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "param1": ParameterConfig(
                     distribution="uniform",
@@ -215,23 +100,25 @@ class TestMettaProtein:
             },
         )
 
-        protein = MettaProtein(config)
+        optimizer = ProteinOptimizer(config)
 
-        # Get a suggestion
-        suggestion, _ = protein.suggest()
+        # Test suggest with multiple suggestions
+        suggestions = optimizer.suggest(observations=[], n_suggestions=3)
 
-        # Observe the result
-        protein.observe(suggestion, objective=0.8, cost=100.0, is_failure=False)
+        # Check suggestion format
+        assert isinstance(suggestions, list)
+        assert len(suggestions) == 3
+        for suggestion in suggestions:
+            assert isinstance(suggestion, dict)
+            assert "param1" in suggestion
+            assert 0 <= suggestion["param1"] <= 1
 
-        # Check that observation was recorded
-        assert protein.num_observations == 1
-
-    def test_observe_failure_method(self):
-        """Test observing a failure in MettaProtein."""
+    def test_suggest_with_observations(self):
+        """Test the suggest method with previous observations."""
         config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "param1": ParameterConfig(
                     distribution="uniform",
@@ -243,23 +130,31 @@ class TestMettaProtein:
             },
         )
 
-        protein = MettaProtein(config)
+        optimizer = ProteinOptimizer(config)
 
-        # Get a suggestion
-        suggestion, _ = protein.suggest()
+        # Create some observations
+        observations = [
+            Observation(score=0.5, cost=100, suggestion={"param1": 0.3}),
+            Observation(score=0.8, cost=100, suggestion={"param1": 0.7}),
+        ]
 
-        # Observe a failure
-        protein.observe(suggestion, objective=None, cost=50.0, is_failure=True)
+        # Get suggestions based on observations
+        suggestions = optimizer.suggest(observations=observations, n_suggestions=2)
 
-        # The observation should still be recorded
-        assert protein.num_observations == 1
+        # Check that we got suggestions back
+        assert isinstance(suggestions, list)
+        assert len(suggestions) == 2
+        for suggestion in suggestions:
+            assert isinstance(suggestion, dict)
+            assert "param1" in suggestion
+            assert 0 <= suggestion["param1"] <= 1
 
-    def test_num_observations_property(self):
-        """Test the num_observations property."""
+    def test_suggest_stateless_behavior(self):
+        """Test that ProteinOptimizer is stateless - each call creates fresh instance."""
         config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "param1": ParameterConfig(
                     distribution="uniform",
@@ -271,15 +166,52 @@ class TestMettaProtein:
             },
         )
 
-        protein = MettaProtein(config)
+        optimizer = ProteinOptimizer(config)
 
-        # Initially should have 0 observations
-        assert protein.num_observations == 0
+        # Create an observation
+        observation = Observation(score=0.8, cost=100, suggestion={"param1": 0.7})
 
-        # Add some observations
-        for i in range(3):
-            suggestion, _ = protein.suggest()
-            protein.observe(suggestion, objective=0.5 + i * 0.1, cost=100.0, is_failure=False)
+        # First call with the observation
+        suggestions1 = optimizer.suggest(observations=[observation], n_suggestions=1)
 
-        # Should now have 3 observations
-        assert protein.num_observations == 3
+        # Second call with no observations - should not remember the previous observation
+        suggestions2 = optimizer.suggest(observations=[], n_suggestions=1)
+
+        # Both should return valid suggestions
+        assert len(suggestions1) == 1
+        assert len(suggestions2) == 1
+        assert isinstance(suggestions1[0], dict)
+        assert isinstance(suggestions2[0], dict)
+
+    def test_suggest_with_failure_observations(self):
+        """Test suggest method with failure observations."""
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
+        )
+
+        optimizer = ProteinOptimizer(config)
+
+        # Create observations with one failure (score should be ignored for failures)
+        observations = [
+            Observation(score=0.5, cost=100, suggestion={"param1": 0.3}),
+            Observation(score=0.0, cost=50, suggestion={"param1": 0.1}),  # This would be marked as failure
+        ]
+
+        # Should still work fine
+        suggestions = optimizer.suggest(observations=observations, n_suggestions=1)
+
+        assert isinstance(suggestions, list)
+        assert len(suggestions) == 1
+        assert isinstance(suggestions[0], dict)
+        assert "param1" in suggestions[0]

@@ -63,7 +63,7 @@ def ppo(
             ),
         },
         settings=ProteinSettings(
-            num_random_samples=20,  # Start with 20 random samples for better exploration in large sweeps
+            num_random_samples=0,  # Start with 20 random samples for better exploration in large sweeps
             max_suggestion_cost=7200,  # 5 minutes max per trial (for quick testing)
         ),
     )

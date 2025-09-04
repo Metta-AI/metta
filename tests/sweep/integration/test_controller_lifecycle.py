@@ -100,7 +100,7 @@ class TestControllerLifecycle:
         protein_config = ProteinConfig(
             metric="score",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -157,7 +157,7 @@ class TestControllerLifecycle:
         protein_config = ProteinConfig(
             metric="score",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -221,7 +221,7 @@ class TestControllerLifecycle:
         protein_config = ProteinConfig(
             metric="score",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -284,7 +284,7 @@ class TestControllerLifecycle:
         protein_config = ProteinConfig(
             metric="score",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -340,7 +340,7 @@ class TestControllerLifecycle:
         protein_config = ProteinConfig(
             metric="score",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
