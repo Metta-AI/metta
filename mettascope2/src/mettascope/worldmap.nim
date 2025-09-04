@@ -260,6 +260,42 @@ proc drawObjects*() =
             angle = 0,
             scale = 1/200
           )
+        of Armory:
+          # Draw armory building (use converter sprite as placeholder)
+          bxy.drawImage(
+            "objects/converter",
+            ivec2(x, y).vec2,
+            angle = 0,
+            scale = 1/200,
+            tint = color(0.8, 0.8, 0.8, 1)  # Gray tint for armory
+          )
+        of Forge:
+          # Draw forge building (use converter sprite as placeholder)
+          bxy.drawImage(
+            "objects/converter",
+            ivec2(x, y).vec2,
+            angle = 0,
+            scale = 1/200,
+            tint = color(1, 0.5, 0.3, 1)  # Orange tint for forge
+          )
+        of ClayOven:
+          # Draw clay oven building (use converter sprite as placeholder)
+          bxy.drawImage(
+            "objects/converter",
+            ivec2(x, y).vec2,
+            angle = 0,
+            scale = 1/200,
+            tint = color(0.7, 0.5, 0.3, 1)  # Brown tint for clay oven
+          )
+        of WeavingLoom:
+          # Draw weaving loom building (use converter sprite as placeholder)
+          bxy.drawImage(
+            "objects/converter",
+            ivec2(x, y).vec2,
+            angle = 0,
+            scale = 1/200,
+            tint = color(0.6, 0.3, 0.8, 1)  # Purple tint for loom
+          )
       else:
         discard
 
@@ -432,6 +468,30 @@ spawn ready: {selection.cooldown == 0}
 Clippy
 home: ({selection.homeTemple.x}, {selection.homeTemple.y})
 wander radius: {selection.wanderRadius}
+      """
+    of Armory:
+      info = &"""
+Armory
+pos: ({selection.pos.x}, {selection.pos.y})
+cooldown: {selection.cooldown}
+      """
+    of Forge:
+      info = &"""
+Forge
+pos: ({selection.pos.x}, {selection.pos.y})
+cooldown: {selection.cooldown}
+      """
+    of ClayOven:
+      info = &"""
+Clay Oven
+pos: ({selection.pos.x}, {selection.pos.y})
+cooldown: {selection.cooldown}
+      """
+    of WeavingLoom:
+      info = &"""
+Weaving Loom
+pos: ({selection.pos.x}, {selection.pos.y})
+cooldown: {selection.cooldown}
       """
   else:
     info = &"""
