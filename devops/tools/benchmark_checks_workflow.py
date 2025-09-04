@@ -18,7 +18,6 @@ RUN_BENCHMARK = "true"
 
 
 def trigger_workflow(branch: str) -> str:
-    print(f"\n🚀 Triggering workflow on branch: {branch}")
     result = subprocess.run(
         [
             "gh",
@@ -37,14 +36,11 @@ def trigger_workflow(branch: str) -> str:
         capture_output=True,
         text=True,
     )
-
     if result.returncode != 0:
         raise RuntimeError(f"Failed to trigger workflow: {result.stderr}")
 
-    # Wait a moment to allow the run to be registered
-    time.sleep(3)
+    time.sleep(2)  # allow GitHub to register the workflow run
 
-    # Fetch the latest run for the workflow and branch
     result = subprocess.run(
         [
             "gh",
@@ -62,31 +58,28 @@ def trigger_workflow(branch: str) -> str:
         capture_output=True,
         text=True,
     )
-
     if result.returncode != 0:
         raise RuntimeError(f"Failed to fetch run list: {result.stderr}")
-
     runs = json.loads(result.stdout)
     if not runs:
         raise RuntimeError("No runs found after triggering workflow")
-
-    run_id = str(runs[0]["databaseId"])
-    return run_id
+    return str(runs[0]["databaseId"])
 
 
 def wait_for_run_completion(run_id: str) -> dict:
-    print(f"⏳ Waiting for run {run_id} to complete...")
     while True:
         result = subprocess.run(
             ["gh", "run", "view", run_id, "--json", "status,conclusion,startedAt,updatedAt"],
             capture_output=True,
             text=True,
         )
+        if result.returncode != 0:
+            time.sleep(5)
+            continue  # try again
         data = json.loads(result.stdout)
         if data["status"] == "completed":
-            break
+            return data
         time.sleep(10)
-    return data
 
 
 def duration_seconds(start: str, end: str) -> float:
@@ -95,16 +88,34 @@ def duration_seconds(start: str, end: str) -> float:
     return (end_time - start_time).total_seconds()
 
 
-def benchmark_branch(branch: str, repeats: int) -> List[float]:
-    durations = []
-    for i in range(repeats):
-        print(f"\n▶️  Run {i + 1}/{repeats} for branch `{branch}`")
-        run_id = trigger_workflow(branch)
-        run_info = wait_for_run_completion(run_id)
-        dur = duration_seconds(run_info["startedAt"], run_info["updatedAt"])
-        durations.append(dur)
-        print(f"✅ Completed in {dur:.1f} seconds")
-    return durations
+def trigger_all_runs(branches: List[str], repeats: int) -> dict[str, List[str]]:
+    print("\n🚀 Triggering all workflow runs...")
+    run_ids_by_branch = {branch: [] for branch in branches}
+    for branch in branches:
+        for i in range(repeats):
+            print(f"▶️  Trigger {i + 1}/{repeats} for `{branch}`")
+            try:
+                run_id = trigger_workflow(branch)
+                run_ids_by_branch[branch].append(run_id)
+            except Exception as e:
+                print(f"❌ Failed to trigger workflow on `{branch}`: {e}")
+    return run_ids_by_branch
+
+
+def wait_for_all_runs(run_ids_by_branch: dict[str, List[str]]) -> dict[str, List[float]]:
+    print("\n⏳ Waiting for all workflow runs to complete...")
+    durations_by_branch = {branch: [] for branch in run_ids_by_branch}
+    for branch, run_ids in run_ids_by_branch.items():
+        for run_id in run_ids:
+            print(f"🔍 Waiting on {branch} → run {run_id}")
+            try:
+                run = wait_for_run_completion(run_id)
+                dur = duration_seconds(run["startedAt"], run["updatedAt"])
+                durations_by_branch[branch].append(dur)
+                print(f"✅ {branch} → {dur:.1f}s")
+            except Exception as e:
+                print(f"❌ Failed to get result for {branch} run {run_id}: {e}")
+    return durations_by_branch
 
 
 def summarize(durations_by_branch: dict):
@@ -112,7 +123,10 @@ def summarize(durations_by_branch: dict):
     print(f"{'Branch':<20} {'Min':>8} {'Mean':>8} {'Max':>8} {'Runs':>5}")
     print("-" * 50)
     for branch, times in durations_by_branch.items():
-        print(f"{branch:<20} {min(times):8.1f} {statistics.mean(times):8.1f} {max(times):8.1f} {len(times):>5}")
+        if times:
+            print(f"{branch:<20} {min(times):8.1f} {statistics.mean(times):8.1f} {max(times):8.1f} {len(times):>5}")
+        else:
+            print(f"{branch:<20} {'N/A':>8} {'N/A':>8} {'N/A':>8} {0:>5}")
 
 
 if __name__ == "__main__":
@@ -123,12 +137,6 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--repeats", type=int, default=10, help="Number of runs per branch")
     args = parser.parse_args()
 
-    durations_by_branch = {}
-
-    for branch in args.branches:
-        try:
-            durations_by_branch[branch] = benchmark_branch(branch, args.repeats)
-        except Exception as e:
-            print(f"❌ Error benchmarking {branch}: {e}")
-
-    summarize(durations_by_branch)
+    triggered = trigger_all_runs(args.branches, args.repeats)
+    durations = wait_for_all_runs(triggered)
+    summarize(durations)
