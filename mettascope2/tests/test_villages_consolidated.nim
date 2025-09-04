@@ -1,5 +1,5 @@
 ## Consolidated village and terrain tests
-import std/tables
+import std/[tables, strutils]
 import test_utils
 
 echo "============================"
@@ -93,13 +93,13 @@ proc testResourcePlacement() =
   for thing in env.things:
     case thing.kind:
     of Mine: mines += 1
-    of Generator: generators += 1
+    of Converter: generators += 1
     of Temple: temples += 1
     else: discard
   
   echo fmt"Resources spawned:"
   echo fmt"  Mines: {mines}/{MapRoomObjectsMines}"
-  echo fmt"  Generators: {generators}/{MapRoomObjectsGenerators}"
+  echo fmt"  Converters: {generators}/{MapRoomObjectsConverters}"
   echo fmt"  Temples: {temples}/{MapRoomObjectsHouses}"
   echo ""
 
@@ -111,7 +111,7 @@ proc testVisualMap() =
   
   echo "Map legend:"
   echo "  A=Agent, a=Altar, t=Temple, C=Clippy"
-  echo "  #=Wall, m=Mine, g=Generator"
+  echo "  #=Wall, m=Mine, g=Converter"
   echo "  T=Tree, .=Wheat, ~=Water"
   echo ""
   echo "First 20 rows of map:"
