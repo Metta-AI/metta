@@ -1,7 +1,7 @@
 ## Reward system for reinforcement learning
 ## Defines reward values and reward application logic
 
-import vmath
+import std/tables, vmath
 import environment_core
 
 # Shaped reward constants
