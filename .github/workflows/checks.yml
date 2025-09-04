@@ -284,6 +284,12 @@ jobs:
           # Upload coverage for all packages since pytest-testmon might run tests from any package
           SUBPACKAGES="agent,common,app_backend,mettagrid,codebot,core" .github/scripts/upload_codecov.py
 
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
   unit-tests-summary:
     name: "Tests"
     needs: [unit-tests]
