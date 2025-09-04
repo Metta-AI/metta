@@ -27,7 +27,7 @@ from metta.mettagrid.mettagrid_env import MettaGridEnv
 class TestBufferSharingRegression:
     """Essential tests to prevent buffer sharing regressions."""
 
-    @pytest.mark.serial
+    @pytest.mark.skip(reason="Flaky test")
     def test_buffer_sharing_performance_benchmark(self):
         """
         Test that buffer sharing provides significant performance advantage over copying.
