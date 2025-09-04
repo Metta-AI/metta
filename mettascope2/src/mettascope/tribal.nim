@@ -47,7 +47,7 @@ const
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
 
-  ObservationLayers* = 16  # Reduced after removing combat/energy systems
+  ObservationLayers* = 17  # Includes spear inventory layer
   ObservationWidth* = 11
   ObservationHeight* = 11
 
@@ -70,15 +70,16 @@ type
     AgentInventoryWaterLayer = 4
     AgentInventoryWheatLayer = 5
     AgentInventoryWoodLayer = 6
-    WallLayer = 7
-    MineLayer = 8
-    MineResourceLayer = 9
-    MineReadyLayer = 10
-    ConverterLayer = 11  # Renamed from Converter
-    ConverterReadyLayer = 12
-    AltarLayer = 13
-    AltarHeartsLayer = 14  # Hearts for respawning
-    AltarReadyLayer = 15
+    AgentInventorySpearLayer = 7
+    WallLayer = 8
+    MineLayer = 9
+    MineResourceLayer = 10
+    MineReadyLayer = 11
+    ConverterLayer = 12  # Renamed from Converter
+    ConverterReadyLayer = 13
+    AltarLayer = 14
+    AltarHeartsLayer = 15  # Hearts for respawning
+    AltarReadyLayer = 16
 
   Orientation* = enum
     N # Up, Key W
@@ -118,6 +119,7 @@ type
     inventoryWater*: int    # Water from water tiles
     inventoryWheat*: int    # Wheat from wheat tiles
     inventoryWood*: int     # Wood from tree tiles
+    inventorySpear*: int    # Spears crafted from forge
     reward*: float32
     homeAltar*: IVec2      # Position of agent's home altar for respawning
     
@@ -216,6 +218,7 @@ proc renderObservations*(env: Environment): string =
     "agent:inv:water",
     "agent:inv:wheat",
     "agent:inv:wood",
+    "agent:inv:spear",
     "wall",
     "mine",
     "mine:resources",
@@ -286,38 +289,40 @@ proc updateObservations(env: Environment, agentId: int) =
         obs[5][x][y] = thing.inventoryWheat.uint8
         # Layer 6: AgentInventoryWoodLayer
         obs[6][x][y] = thing.inventoryWood.uint8
+        # Layer 7: AgentInventorySpearLayer
+        obs[7][x][y] = thing.inventorySpear.uint8
 
       of Wall:
-        # Layer 7: WallLayer
-        obs[7][x][y] = 1
+        # Layer 8: WallLayer
+        obs[8][x][y] = 1
 
       of Mine:
-        # Layer 8: MineLayer
-        obs[8][x][y] = 1
-        # Layer 9: MineResourceLayer
-        obs[9][x][y] = thing.resources.uint8
-        # Layer 10: MineReadyLayer
-        obs[10][x][y] = (thing.cooldown == 0).uint8
+        # Layer 9: MineLayer
+        obs[9][x][y] = 1
+        # Layer 10: MineResourceLayer
+        obs[10][x][y] = thing.resources.uint8
+        # Layer 11: MineReadyLayer
+        obs[11][x][y] = (thing.cooldown == 0).uint8
 
       of Converter:
-        # Layer 11: ConverterLayer
-        obs[11][x][y] = 1
-        # Layer 12: ConverterReadyLayer
-        obs[12][x][y] = (thing.cooldown == 0).uint8
+        # Layer 12: ConverterLayer
+        obs[12][x][y] = 1
+        # Layer 13: ConverterReadyLayer
+        obs[13][x][y] = (thing.cooldown == 0).uint8
 
       of Altar:
-        # Layer 13: AltarLayer
-        obs[13][x][y] = 1
-        # Layer 14: AltarHeartsLayer
-        obs[14][x][y] = thing.hearts.uint8
-        # Layer 15: AltarReadyLayer
-        obs[15][x][y] = (thing.cooldown == 0).uint8
+        # Layer 14: AltarLayer
+        obs[14][x][y] = 1
+        # Layer 15: AltarHeartsLayer
+        obs[15][x][y] = thing.hearts.uint8
+        # Layer 16: AltarReadyLayer
+        obs[16][x][y] = (thing.cooldown == 0).uint8
       
       of Temple:
         # Temple acts similar to altar for observations
-        obs[13][x][y] = 1
-        obs[14][x][y] = thing.hearts.uint8
-        obs[15][x][y] = (thing.cooldown == 0).uint8
+        obs[14][x][y] = 1
+        obs[15][x][y] = thing.hearts.uint8
+        obs[16][x][y] = (thing.cooldown == 0).uint8
       
       of Clippy:
         # Clippy acts similar to agent for observations
@@ -331,7 +336,7 @@ proc updateObservations(env: Environment, agentId: int) =
       
       of Armory, Forge, ClayOven, WeavingLoom:
         # Corner buildings act like walls for observations
-        obs[7][x][y] = 1  # Use the wall layer for now
+        obs[8][x][y] = 1  # Use the wall layer for now
 
 proc updateObservations(
   env: Environment,
@@ -516,8 +521,21 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(ConverterReadyLayer, thing.pos, 1)  # Always ready
       inc env.stats[id].actionUseConverter
       inc env.stats[id].actionUse
-  of Temple, Clippy, Armory, Forge, ClayOven, WeavingLoom:
-    # Can't use temples, Clippys, or corner buildings (for now)
+  of Forge:
+    # Use forge to craft a spear from wood
+    if thing.cooldown == 0 and agent.inventoryWood > 0 and agent.inventorySpear == 0:
+      # Craft spear
+      agent.inventoryWood -= 1
+      agent.inventorySpear = 1
+      thing.cooldown = 5  # Forge cooldown
+      env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
+      env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
+      agent.reward += 0.5  # Small reward for crafting
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  of Temple, Clippy, Armory, ClayOven, WeavingLoom:
+    # Can't use temples, Clippys, or other corner buildings (for now)
     inc env.stats[id].actionInvalid
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
@@ -832,6 +850,7 @@ proc init(env: Environment) =
             inventoryWater: 0,
             inventoryWheat: 0,
             inventoryWood: 0,
+            inventorySpear: 0,
             frozen: 0,
           ))
           
@@ -862,6 +881,7 @@ proc init(env: Environment) =
       inventoryWater: 0,
       inventoryWheat: 0,
       inventoryWood: 0,
+      inventorySpear: 0,
       frozen: 0,
     ))
     
@@ -954,6 +974,7 @@ proc loadMap*(env: Environment, map: string) =
         pos: ivec2(parts[3].parseInt, parts[4].parseInt),
         inventoryOre: 0,
         inventoryBattery: 0,
+        inventorySpear: 0,
         frozen: 0,
       ))
     of Wall:

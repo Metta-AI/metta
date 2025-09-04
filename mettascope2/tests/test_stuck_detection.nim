@@ -1,4 +1,4 @@
-import std/[strformat, sequtils, random, times]
+import std/[strformat, sequtils, random, times, tables, strutils]
 import ../src/mettascope/controller
 import ../src/mettascope/tribal
 import vmath
@@ -38,7 +38,7 @@ proc testStuckDetection() =
         positionHistory[i].add(env.agents[i].pos)
         
         # Check if stuck detection triggered
-        if i in controller.agentStates:
+        if controller.agentStates.hasKey(i):
           let state = controller.agentStates[i]
           if state.stuckCounter >= 5:
             stuckDetected = true
@@ -120,7 +120,8 @@ proc visualizeBottleneck() =
   # Display
   echo "   0123456789012345678901234567890"
   for y, row in grid:
-    echo fmt"{y:2} {row.join(\"\")}"
+    let rowStr = row.join("")
+    echo fmt"{y:2} {rowStr}"
   
   echo "\nLegend:"
   echo "  # = Wall"

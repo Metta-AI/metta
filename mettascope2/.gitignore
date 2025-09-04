@@ -5,8 +5,6 @@ debug_*
 !debug_*.nim
 simple_test
 *.out
-src/mettascope/tribal
-src/mettascope
 
 # Nim cache
 nimcache/
