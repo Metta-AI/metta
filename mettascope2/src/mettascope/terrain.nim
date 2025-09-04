@@ -15,30 +15,14 @@ type
   TerrainGrid* = array[84, array[48, TerrainType]]  # Width doubled to 84 (80 + 4 border)
 
 proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate a river that starts at one edge, flows through the map, and forks
+  ## Generate a river that flows from left to right across the map
   const riverWidth = 4
   
-  # Choose random starting edge (0=top, 1=right, 2=bottom, 3=left)
-  let startEdge = r.rand(0..3)
   var riverPath: seq[IVec2] = @[]
   
-  # Set starting position based on edge
-  var currentPos: IVec2
-  var primaryDirection: IVec2
-  
-  case startEdge:
-  of 0: # Top edge
-    currentPos = toIVec2(r.rand(mapBorder + riverWidth .. mapWidth - mapBorder - riverWidth), mapBorder)
-    primaryDirection = toIVec2(0, 1) # Flow down
-  of 1: # Right edge
-    currentPos = toIVec2(mapWidth - mapBorder - 1, r.rand(mapBorder + riverWidth .. mapHeight - mapBorder - riverWidth))
-    primaryDirection = toIVec2(-1, 0) # Flow left
-  of 2: # Bottom edge
-    currentPos = toIVec2(r.rand(mapBorder + riverWidth .. mapWidth - mapBorder - riverWidth), mapHeight - mapBorder - 1)
-    primaryDirection = toIVec2(0, -1) # Flow up
-  else: # Left edge
-    currentPos = toIVec2(mapBorder, r.rand(mapBorder + riverWidth .. mapHeight - mapBorder - riverWidth))
-    primaryDirection = toIVec2(1, 0) # Flow right
+  # Always start on the left edge, randomly positioned vertically
+  var currentPos = toIVec2(mapBorder, r.rand(mapBorder + riverWidth .. mapHeight - mapBorder - riverWidth))
+  var primaryDirection = toIVec2(1, 0) # Always flow right
   
   # Generate main river path
   var hasFork = false
@@ -50,25 +34,20 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
     riverPath.add(currentPos)
     
     # Decide if we should fork (only once, after traveling some distance)
-    if not hasFork and riverPath.len > 15 and r.rand(1.0) < 0.3:
+    if not hasFork and riverPath.len > 20 and r.rand(1.0) < 0.4:
       hasFork = true
       forkPoint = currentPos
       
-      # Create secondary branch
-      var secondaryDirection = if primaryDirection.x != 0:
-        toIVec2(primaryDirection.x, r.sample(@[-1, 1]))  # Fork up or down if flowing horizontally
-      else:
-        toIVec2(r.sample(@[-1, 1]), primaryDirection.y)  # Fork left or right if flowing vertically
+      # Create secondary branch that also flows right but diverges up or down
+      var secondaryDirection = toIVec2(1, r.sample(@[-1, 1]))  # Flow right and either up or down
       
       var secondaryPos = forkPoint
-      for i in 0 ..< 20:
-        secondaryPos += secondaryDirection
+      for i in 0 ..< 30:  # Longer secondary branch for wider map
+        secondaryPos.x += 1  # Always move right
+        secondaryPos.y += secondaryDirection.y  # Move in chosen vertical direction
         # Add some randomness to secondary path
-        if r.rand(1.0) < 0.3:
-          if secondaryDirection.x != 0:
-            secondaryPos.y += r.sample(@[-1, 0, 1]).int32
-          else:
-            secondaryPos.x += r.sample(@[-1, 0, 1]).int32
+        if r.rand(1.0) < 0.2:
+          secondaryPos.y += r.sample(@[-1, 0, 1]).int32
         
         if secondaryPos.x >= mapBorder and secondaryPos.x < mapWidth - mapBorder and
            secondaryPos.y >= mapBorder and secondaryPos.y < mapHeight - mapBorder:
@@ -76,14 +55,11 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
         else:
           break
     
-    # Move in primary direction with some randomness
-    currentPos += primaryDirection
-    if r.rand(1.0) < 0.4:
-      # Add lateral movement for more natural look
-      if primaryDirection.x != 0:
-        currentPos.y += r.sample(@[-1, 0, 1]).int32
-      else:
-        currentPos.x += r.sample(@[-1, 0, 1]).int32
+    # Move primarily right with some vertical meandering
+    currentPos.x += 1  # Always move right
+    if r.rand(1.0) < 0.3:
+      # Add vertical movement for more natural meandering
+      currentPos.y += r.sample(@[-1, 0, 0, 1]).int32  # Bias towards staying straight
   
   # Place water tiles for main river
   for pos in riverPath:

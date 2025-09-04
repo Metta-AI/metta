@@ -30,17 +30,17 @@ proc drawFloor*() =
   # Draw the floor tiles and terrain features.
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
-      # Check terrain type and draw appropriate tile with color tinting
+      # Check terrain type and draw appropriate tile
       case env.terrain[x][y]
       of Water:
-        # Draw floor with blue tint for water
+        # Draw floor with blue tint for water (no water sprite available)
         bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(0.3, 0.5, 0.8, 1.0))
       of Wheat:
-        # Draw floor with yellow/golden tint for wheat fields
-        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(0.9, 0.8, 0.4, 1.0))
+        # Draw wheat field sprite
+        bxy.drawImage("objects/wheat_field", ivec2(x, y).vec2, angle = 0, scale = 1/200)
       of Tree:
-        # Draw floor with green tint for trees/forest
-        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(0.3, 0.7, 0.3, 1.0))
+        # Draw palm tree sprite
+        bxy.drawImage("objects/palm_tree", ivec2(x, y).vec2, angle = 0, scale = 1/200)
       of Empty:
         # Draw normal floor
         bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200)
