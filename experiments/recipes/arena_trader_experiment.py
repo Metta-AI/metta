@@ -210,10 +210,23 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     total_timesteps: int = 200_000,
+    batch_size: Optional[int] = None,
 ) -> TrainTool:
     """Configure training with trader NPCs."""
+    # For distributed training with many nodes, we need a larger batch size
+    # Default is 524288, but with 8 nodes we need ~2M
+    if batch_size is None:
+        import os
+        world_size = int(os.environ.get("WORLD_SIZE", 1))
+        if world_size > 4:
+            # Scale batch size for large distributed runs
+            batch_size = 2097152  # 2M for 8+ nodes
+        else:
+            batch_size = 524288  # Default
+    
     trainer_cfg = TrainerConfig(
         total_timesteps=total_timesteps,
+        batch_size=batch_size,
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
             simulations=make_evals(),
