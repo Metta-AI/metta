@@ -15,6 +15,8 @@ import re
 import sys
 from typing import Final
 
+import wandb
+
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
 
@@ -55,8 +57,6 @@ if __name__ == "__main__":
     script_start_time = datetime.datetime.now(_EPOCH).isoformat()
     task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
 
-    ensure_wandb_run()
-
     metrics = {
         "skypilot/latency_script_ran": True,
         "skypilot/latency_script_time": script_start_time,
@@ -64,15 +64,18 @@ if __name__ == "__main__":
     }
 
     exit_code = 0
+
     try:
         latency_sec = calculate_queue_latency()
         logger.info(f"SkyPilot queue latency: {latency_sec:.1f} s (task: {task_id})")
+
         metrics.update(
             {
                 "skypilot/queue_latency_s": latency_sec,
                 "skypilot/latency_calculated": True,
             }
         )
+
     except Exception as e:
         logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})")
         metrics.update(
@@ -82,6 +85,13 @@ if __name__ == "__main__":
             }
         )
         exit_code = 1
+
     finally:
-        log_to_wandb(metrics, also_summary=True)
-        sys.exit(exit_code)
+        try:
+            ensure_wandb_run()
+            log_to_wandb(metrics, also_summary=True)
+        except Exception as wandb_err:
+            logger.warning(f"W&B logging failed: {wandb_err}")
+        finally:
+            wandb.finish()
+            sys.exit(exit_code)
