@@ -150,6 +150,10 @@ class Stopwatch:
         if log_level is None:
             self.logger.disabled = True
         else:
+            # Add a StreamHandler when log_level is explicitly set
+            handler = logging.StreamHandler()
+            handler.setLevel(log_level)
+            self.logger.addHandler(handler)
             self.logger.setLevel(log_level)
 
         self.max_laps = max_laps

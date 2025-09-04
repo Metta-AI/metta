@@ -4,7 +4,7 @@ FROM homebrew/brew:latest
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Minimal system deps
-RUN brew install cmake ninja
+RUN brew install bazelisk
 
 # Install kubectl for EKS/Kind testing
 RUN brew install kubectl
