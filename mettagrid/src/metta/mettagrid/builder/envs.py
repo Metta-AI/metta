@@ -137,16 +137,21 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
 
 
 def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
-    altar = empty_converters.altar.model_copy()
-    altar.cooldown = 1
-    altar.output_resources = {"heart": 1}
-    altar.initial_resource_count = 1
+    altar = building.altar.model_copy()
+    altar.input_resources = {"battery_red": 1}
+    altar.cooldown = 15
+    mine = building.mine_red.model_copy()
+    mine.cooldown = 15
+    generator = building.generator_red.model_copy()
+    generator.cooldown = 15
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
             objects={
                 "altar": altar,
                 "wall": building.wall,
+                "mine_red": mine,
+                "generator_red": generator,
             },
             actions=ActionsConfig(
                 move=ActionConfig(),
@@ -157,6 +162,8 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
                 rewards=AgentRewards(
                     inventory={
                         "heart": 1,
+                        "ore_red": 0.001,
+                        "battery_red": 0.01,
                     },
                 ),
                 default_resource_limit=1,
