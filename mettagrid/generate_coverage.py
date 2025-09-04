@@ -81,14 +81,16 @@ def main():
         files_processed = 0
 
         for cov_file in coverage_files:
-            if cov_file.stat().st_size > 0:
-                print(f"  Adding: {cov_file.relative_to('.')}")
-                with open(cov_file, "r") as f:
-                    content = f.read()
-                    if content.strip():  # Only add non-empty content
-                        combined_lines.append(content)
-                        files_processed += 1
-
+            try:
+                if cov_file.stat().st_size > 0:
+                    print(f"  Adding: {cov_file.relative_to('.')}")
+                    with open(cov_file, "r") as f:
+                        content = f.read()
+                        if content.strip():  # Only add non-empty content
+                            combined_lines.append(content)
+                            files_processed += 1
+            except (FileNotFoundError, PermissionError) as e:
+                print(f"  Warning: Could not process {cov_file}: {e}")
         if not combined_lines:
             print(red("✗ All coverage files are empty!"))
             return 1
