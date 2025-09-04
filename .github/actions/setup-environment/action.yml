@@ -21,7 +21,7 @@ runs:
       with:
         version: "0.7.3"
         enable-cache: true
-        prune-cache: true
+        prune-cache: false
         cache-suffix: "${{ inputs.install-mode }}${{ inputs.extra-dependencies != '' && format('-{0}', inputs.extra-dependencies) || '' }}"
         cache-dependency-glob: |
           uv.lock
