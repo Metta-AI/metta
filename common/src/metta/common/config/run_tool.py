@@ -12,6 +12,7 @@ from omegaconf import OmegaConf
 from typing_extensions import TypeVar
 
 from metta.common.config.tool import Tool
+from metta.common.util.log_config import init_logging
 from metta.mettagrid.config import Config
 from metta.mettagrid.util.module import load_symbol
 from metta.rl.system_config import seed_everything
@@ -47,6 +48,8 @@ def main():
     parser.add_argument("--overrides", nargs="*", default=[])
     parser.add_argument("--dry-run", action="store_true", default=False)
     args = parser.parse_args()
+
+    init_logging()
 
     init_mettagrid_system_environment()
 
