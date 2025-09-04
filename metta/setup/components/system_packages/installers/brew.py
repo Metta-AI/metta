@@ -35,14 +35,18 @@ class BrewInstaller(PackageInstaller[BrewPackageConfig]):
         tapped = self._get_list_cmd(["brew", "tap"])
         return installed, pinned, tapped
 
-    def _get_changes_to_apply(self, packages: list[BrewPackageConfig]) -> tuple[list[str], list[str], list[str]]:
+    def _get_changes_to_apply(
+        self, packages: list[BrewPackageConfig]
+    ) -> tuple[list[BrewPackageConfig], list[BrewPackageConfig], list[BrewPackageConfig]]:
         installed, pinned, tapped = self._get_installed_state()
-        to_install = []
-        for package in packages:
-            if not any(p in installed for p in filter(None, [package.name, package.installed_name])):
-                to_install.append(package)
-        to_pin = list(set(pinned) - set([p.fully_specified_name for p in packages if p.pin]))
-        to_tap = list(set(tapped) - set([p.tap for p in packages if p.tap]))
+        to_install: list[BrewPackageConfig] = []
+
+        def _package_in_output_list(p: BrewPackageConfig, output_list: list[str]) -> bool:
+            return any(p in output_list for p in filter(None, [p.name, p.installed_name]))
+
+        to_install = [p for p in packages if not _package_in_output_list(p, installed)]
+        to_pin = [p for p in packages if p.pin and not _package_in_output_list(p, pinned)]
+        to_tap = [p for p in packages if p.tap and not _package_in_output_list(p, tapped)]
         return to_install, to_pin, to_tap
 
     def check_installed(self, packages: list[BrewPackageConfig]) -> bool:
@@ -51,14 +55,16 @@ class BrewInstaller(PackageInstaller[BrewPackageConfig]):
     def install(self, packages: list[BrewPackageConfig]) -> None:
         to_install, to_pin, to_tap = self._get_changes_to_apply(packages)
         if to_tap:
-            info(f"Adding taps: {', '.join(to_tap)}")
-            self._install_cmd(["brew", "tap", *to_tap])
+            tap_names = [t.name for t in to_tap]
+            info(f"Adding taps: {', '.join(tap_names)}")
+            self._install_cmd(["brew", "tap", *tap_names])
 
         if to_install:
-            full_install_names = [p.fully_specified_name for p in packages if p.name in to_install]
+            full_install_names = [p.fully_specified_name for p in packages]
             info(f"Installing {full_install_names}...")
             self._install_cmd(["brew", "install", *full_install_names])
 
         if to_pin:
-            info(f"Pinning {to_pin}...")
-            self._install_cmd(["brew", "pin", *to_pin])
+            pin_names = [p.name for p in to_pin]
+            info(f"Pinning {pin_names}...")
+            self._install_cmd(["brew", "pin", *pin_names])
