@@ -2,7 +2,6 @@ from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
 from .curriculum_env import CurriculumEnv
-from .task import Task
 from .task_generator import (
     AnyTaskGeneratorConfig,
     BucketedTaskGenerator,
@@ -19,7 +18,6 @@ __all__ = [
     "Curriculum",
     "CurriculumConfig",
     "CurriculumTask",
-    "Task",
     "TaskGenerator",
     "TaskGeneratorConfig",
     "AnyTaskGeneratorConfig",
@@ -32,7 +30,8 @@ __all__ = [
     "bucketed",
     "multi_task",
     "single_task",
-    "curriculum",
+    "merge",
+    "env_curriculum",
     "CurriculumEnv",
 ]
 

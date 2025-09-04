@@ -5,9 +5,8 @@ from __future__ import annotations
 import abc
 import random
 from abc import ABC
-from typing import Any, ClassVar, Dict, Optional, Union
+from typing import Any, ClassVar, Dict, List, Optional, Union
 
-import numpy as np
 from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
@@ -81,32 +80,38 @@ class CurriculumAlgorithmConfig(Config, ABC):
 class CurriculumAlgorithm(ABC):
     """
     Curriculum algorithms are responsible for:
-    1. Maintaining weights for each child task (optional)
-    2. Updating weights based on task completion feedback (optional)
-    3. Providing normalized probabilities for sampling
+    1. Scoring tasks based on their learning progress or other metrics
+    2. Recommending which tasks to evict when the pool is full
+    3. Tracking task performance for algorithm-specific purposes
+    4. Providing feedback to Curriculum for task selection
 
-    The Curriculum will use these algorithms to decide which child to sample next.
+    The Curriculum maintains the task pool and lifecycle, while algorithms provide guidance.
     """
 
     num_tasks: int
-    weights: Optional[np.ndarray] = None
-    probabilities: Optional[np.ndarray] = None
     hypers: CurriculumAlgorithmConfig
 
-    # API that Curriculum uses
+    # Core API for task scoring and recommendations
 
-    def update(self, child_idx: int, score: float) -> None:
-        """Update weights in-place based on task completion."""
-        self._update_weights(child_idx, score)
-        if self.weights is not None:
-            self._update_probabilities()
+    @abc.abstractmethod
+    def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
+        """Score tasks for selection purposes. Higher scores = more likely to be selected."""
+        pass
 
-    def sample_idx(self) -> int:
-        """Sample a child index based on current probabilities."""
-        if self.probabilities is not None:
-            return np.random.choice(len(self.probabilities), p=self.probabilities)
-        else:
-            return np.random.choice(self.num_tasks)
+    @abc.abstractmethod
+    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
+        """Recommend which task to evict. Return None for random selection."""
+        pass
+
+    @abc.abstractmethod
+    def on_task_evicted(self, task_id: int) -> None:
+        """Notification that a task has been evicted from the pool."""
+        pass
+
+    @abc.abstractmethod
+    def update_task_performance(self, task_id: int, score: float):
+        """Update task performance. Override in subclasses that track performance."""
+        pass
 
     def __init__(
         self, num_tasks: int, hypers: Optional[CurriculumAlgorithmConfig] = None, initialize_weights: bool = True
@@ -119,27 +124,9 @@ class CurriculumAlgorithm(ABC):
             hypers = DiscreteRandomConfig()
         self.hypers = hypers
 
-        # Initialize weights only if requested and algorithm uses them
-        if initialize_weights:
-            if hypers.initial_weights is None:
-                self.weights = np.ones(num_tasks, dtype=np.float32)
-            else:
-                self.weights = np.array(hypers.initial_weights, dtype=np.float32)
-                if len(self.weights) != num_tasks:
-                    raise ValueError(
-                        f"Initial weights must have length {num_tasks}. "
-                        f"weights {self.weights} length: {len(self.weights)}"
-                    )
-            self._update_probabilities()
-
     def stats(self, prefix: str = "") -> dict[str, float]:
         """Return statistics for logging purposes. Add `prefix` to all keys."""
         return {}
-
-    @abc.abstractmethod
-    def _update_weights(self, child_idx: int, score: float) -> None:
-        """Update weights based on task completion. Override in subclasses that use weights."""
-        pass
 
     def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
         """Get a task from the pool. Default implementation creates a simple task."""
@@ -147,23 +134,6 @@ class CurriculumAlgorithm(ABC):
         task_id = rng.randint(0, 1000000)
         env_cfg = task_generator.get_task(task_id)
         return CurriculumTask(task_id, env_cfg)
-
-    @abc.abstractmethod
-    def update_task_performance(self, task_id: int, score: float):
-        """Update task performance. Override in subclasses that track performance."""
-        pass
-
-    def _update_probabilities(self):
-        """Update the probability distribution based on current weights."""
-        if self.weights is None:
-            return
-
-        assert len(self.weights) == self.num_tasks, (
-            f"Weights must have length {self.num_tasks}. weights {self.weights} length: {len(self.weights)}"
-        )
-        assert self.weights.sum() > 0, f"Weights must be non-zero-sum. weights {self.weights} sum: {self.weights.sum()}"
-        assert np.all(self.weights >= 0), f"Weights must be non-negative. weights {self.weights}"
-        self.probabilities = self.weights / self.weights.sum()
 
 
 class DiscreteRandomConfig(CurriculumAlgorithmConfig):
@@ -182,7 +152,16 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
     task performance.
     """
 
-    def _update_weights(self, child_idx: int, score: float) -> None:
+    def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
+        """All tasks have equal score for random selection."""
+        return {task_id: 1.0 for task_id in task_ids}
+
+    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
+        """No preference for eviction - let Curriculum choose randomly."""
+        return None
+
+    def on_task_evicted(self, task_id: int) -> None:
+        """No action needed for random curriculum."""
         pass
 
     def update_task_performance(self, task_id: int, score: float):
@@ -255,25 +234,34 @@ class Curriculum:
 
     def get_task(self) -> CurriculumTask:
         """Sample a task from the population."""
-        if self._algorithm is not None:
-            # Use algorithm's unified pool management
-            return self._algorithm.get_task_from_pool(self._task_generator, self._rng)
+        # Curriculum always manages the task pool - no delegation
+        if len(self._tasks) < self._config.num_active_tasks:
+            task = self._create_task()
         else:
-            # Fallback to simple random selection
-            if len(self._tasks) < self._config.num_active_tasks:
+            task = self._choose_task()
+            if self._rng.random() < self._config.new_task_rate:
+                self._evict_task()
                 task = self._create_task()
-            else:
-                task = self._choose_task()
-                if self._rng.random() < self._config.new_task_rate:
-                    self._evict_task()
-                    task = self._create_task()
 
-            task._num_scheduled += 1
-            return task
+        task._num_scheduled += 1
+        return task
 
     def _choose_task(self) -> CurriculumTask:
-        """Choose a task from the population."""
-        # Fallback to random selection when no algorithm
+        """Choose a task from the population using algorithm guidance."""
+        if self._algorithm is not None:
+            # Get algorithm's task selection preferences
+            task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
+            if task_scores:
+                # Convert scores to probabilities for sampling
+                task_ids = list(task_scores.keys())
+                scores = list(task_scores.values())
+                total_score = sum(scores)
+                if total_score > 0:
+                    probabilities = [score / total_score for score in scores]
+                    selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
+                    return self._tasks[selected_id]
+
+        # Fallback to random selection
         return self._tasks[self._rng.choice(list(self._tasks.keys()))]
 
     def _create_task(self) -> CurriculumTask:
@@ -288,12 +276,30 @@ class Curriculum:
         self._tasks[task_id] = task
         self._num_created += 1
 
+        # Notify algorithm of new task
+        if self._algorithm is not None and hasattr(self._algorithm, "on_task_created"):
+            self._algorithm.on_task_created(task)
+
         return task
 
     def _evict_task(self):
-        """Evict a task from the population."""
-        # Fall back to random eviction when no algorithm
-        task_id = self._rng.choice(list(self._task_ids))
+        """Evict a task from the population using algorithm guidance."""
+        if self._algorithm is not None:
+            # Get algorithm's eviction recommendation
+            eviction_candidate = self._algorithm.recommend_eviction(list(self._tasks.keys()))
+            if eviction_candidate is not None and eviction_candidate in self._tasks:
+                task_id = eviction_candidate
+            else:
+                # Fallback if algorithm doesn't provide valid recommendation
+                task_id = self._rng.choice(list(self._task_ids))
+        else:
+            # Random eviction when no algorithm
+            task_id = self._rng.choice(list(self._task_ids))
+
+        # Notify algorithm of eviction
+        if self._algorithm is not None:
+            self._algorithm.on_task_evicted(task_id)
+
         self._task_ids.remove(task_id)
         self._tasks.pop(task_id)
         self._num_evicted += 1

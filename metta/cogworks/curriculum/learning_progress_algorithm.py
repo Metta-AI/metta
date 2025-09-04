@@ -147,36 +147,109 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Set reference to base curriculum for stats updates."""
         self._curriculum = curriculum
 
-    # Core task management methods
-    def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
-        """Get a task from the unified pool, creating or evicting as needed."""
-        # Create new task if pool not full
-        if len(self._task_memory) < self.hypers.pool_size:
-            return self._create_task(task_generator, rng)
+    # Implementation of CurriculumAlgorithm interface
+    def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
+        """Score tasks based on learning progress for selection."""
+        scores = {}
 
-        # Pool is full - we need to evict a task and create a new one
-        # Force eviction to make room
-        self._evict_task()
+        # Update learning progress tracker
+        self._lp_tracker._update()
+        raw_lp_scores = self._lp_tracker._learning_progress()
 
-        # Create new task
-        return self._create_task(task_generator, rng)
+        for task_id in task_ids:
+            if task_id in self._task_id_to_index:
+                task_index = self._task_id_to_index[task_id]
+                if task_index < len(raw_lp_scores):
+                    lp_score = float(raw_lp_scores[task_index])
+                    # Add exploration bonus
+                    scores[task_id] = lp_score + self.hypers.exploration_bonus
+                else:
+                    scores[task_id] = self.hypers.exploration_bonus
+            else:
+                # New task - high score to encourage exploration
+                scores[task_id] = 1.0 + self.hypers.exploration_bonus
 
-    def _create_task(self, task_generator, rng) -> CurriculumTask:
-        """Create a new task and add it to the pool."""
-        if len(self._task_memory) >= self.hypers.pool_size:
-            self._evict_task()
+        return scores
 
-        # Generate a unique task ID
-        task_id = self._generate_task_id(rng)
-        env_cfg = task_generator.get_task(task_id)
-        task = CurriculumTask(task_id, env_cfg)
+    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
+        """Recommend task for eviction based on learning progress and sample count."""
+        if not task_ids:
+            return None
 
-        # Get an available index from the pool (recycle indices) - O(1) operation
+        worst_task_id = None
+        worst_score = float("inf")
+
+        for task_id in task_ids:
+            if task_id in self._task_memory:
+                _, _, sample_count, _, _, lp_score = self._task_memory[task_id]
+
+                # Evict tasks with low LP score and enough samples
+                if sample_count >= self.hypers.max_samples:
+                    if lp_score < worst_score:
+                        worst_score = lp_score
+                        worst_task_id = task_id
+
+        # If no task meets criteria, evict the one with lowest LP score
+        if worst_task_id is None and task_ids:
+            for task_id in task_ids:
+                if task_id in self._task_memory:
+                    lp_score = self._task_memory[task_id][5]  # Index 5 is lp_score
+                    if lp_score < worst_score:
+                        worst_score = lp_score
+                        worst_task_id = task_id
+
+        return worst_task_id
+
+    def on_task_evicted(self, task_id: int) -> None:
+        """Clean up when a task is evicted by Curriculum."""
+        if task_id not in self._task_memory:
+            return
+
+        # Get the index to recycle
+        task_index = self._task_id_to_index.get(task_id)
+
+        # Remove from task memory
+        if task_id in self._task_memory:
+            del self._task_memory[task_id]
+            del self._task_id_to_index[task_id]
+
+            # Recycle the index back to available pool
+            if task_index is not None:
+                self._used_indices.discard(task_index)
+                self._available_indices.append(task_index)
+                self._active_task_indices.discard(task_index)
+
+                # Clear learning progress data
+                if task_index < len(self._lp_tracker._outcomes):
+                    self._lp_tracker._outcomes[task_index].clear()
+                if task_index < len(self._lp_tracker._task_success_rate):
+                    self._lp_tracker._task_success_rate[task_index] = 0.0
+
+            # Remove bucket tracking
+            for bucket_name in list(self._bucket_tracking.keys()):
+                if task_id in self._bucket_tracking[bucket_name]:
+                    del self._bucket_tracking[bucket_name][task_id]
+
+            # Remove from creation order tracking
+            self._task_creation_order = deque([(t, tid) for t, tid in self._task_creation_order if tid != task_id])
+
+    def on_task_created(self, task: "CurriculumTask") -> None:
+        """Track a new task created by Curriculum."""
+        task_id = task._task_id
+
+        # Skip if already tracking this task
+        if task_id in self._task_memory:
+            return
+
+        # Get an available index from the pool
         if not self._available_indices:
-            # This should never happen if we're properly evicting tasks
-            raise RuntimeError("No available indices in search space - pool management error")
+            # Force cleanup to make room
+            self._cleanup_old_tasks()
+            if not self._available_indices:
+                logger.warning("No available indices for new task - algorithm pool is full")
+                return
 
-        task_index = self._available_indices.popleft()  # O(1) with deque
+        task_index = self._available_indices.popleft()
         self._used_indices.add(task_index)
         self._task_id_to_index[task_id] = task_index
         self._active_task_indices.add(task_index)
@@ -188,25 +261,22 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._task_memory[task_id] = (task_id, "default", 0, 0.0, 0.0, 0.0)
         self._task_creation_order.append((current_time, task_id))
 
-        # Check if we need memory cleanup
-        if len(self._task_memory) > self._max_memory_tasks:
-            self._cleanup_old_tasks()
-
-        # Add to base curriculum's task storage for unified tracking
-        if self._curriculum is not None:
-            self._curriculum._tasks[task_id] = task
-            self._curriculum._task_ids.add(task_id)
-            self._curriculum._num_created += 1
-
         # Extract and track bucket values for this task
         bucket_values = self._extract_bucket_values(task)
         self._initialize_bucket_tracking(bucket_values)
         self._update_bucket_tracking(task_id, bucket_values)
 
-        # Store the bucket values in the task for later use
-        if hasattr(task, "_bucket_values"):
-            task._bucket_values = bucket_values
-            logger.debug(f"Stored bucket values for task {task_id}: {bucket_values}")
+        # Check if we need memory cleanup
+        if len(self._task_memory) > self._max_memory_tasks:
+            self._cleanup_old_tasks()
+
+    def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
+        """Override to properly track tasks in algorithm's internal memory."""
+        # Create task using parent implementation
+        task = super().get_task_from_pool(task_generator, rng)
+
+        # Now properly track it in our algorithm
+        self.on_task_created(task)
 
         return task
 
@@ -1025,11 +1095,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     summary[bucket_name]["value_range"] = (min(values), max(values))
 
         return summary
-
-    # Legacy methods (kept for compatibility)
-    def _update_weights(self, child_idx: int, score: float):
-        """Update weights - not used in this implementation."""
-        pass
 
 
 class BidirectionalLearningProgress:
