@@ -87,11 +87,6 @@ class MettaCLI:
             success(f"\nConfigured as {result.value} user.")
         info("\nRun 'metta install' to set up your environment.")
 
-        from metta.setup.symlink_setup import check_installation
-
-        if not check_installation():
-            info("You may want to run 'metta symlink-setup setup' to make the metta command globally available.")
-
     def _custom_setup(self, non_interactive: bool = False):
         from metta.setup.registry import get_all_modules
 
