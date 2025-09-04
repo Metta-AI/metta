@@ -1,5 +1,5 @@
 import std/[random],
-  common, village, windy
+  common, tribal, windy
 
 var
   actionsArray*: array[MapAgents, array[2, uint8]]
