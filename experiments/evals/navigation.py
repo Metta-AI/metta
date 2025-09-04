@@ -21,14 +21,7 @@ def replace_objects_with_altars(name: str) -> str:
     with open(ascii_map, "r") as f:
         map_content = f.read()
 
-    map_content = map_content.replace("n", "_").replace("m", "_")
-
-    with tempfile.NamedTemporaryFile(suffix=".map", mode="w", delete=False) as tmp:
-        tmp.write(map_content)
-        ascii_map_nav = tmp.name
-    atexit.register(lambda p=ascii_map_nav: os.path.exists(p) and os.remove(p))
-
-    return ascii_map_nav
+    return map_content.replace("n", "_").replace("m", "_")
 
 
 def make_nav_ascii_env(
@@ -47,7 +40,7 @@ def make_nav_ascii_env(
         instances=num_instances,
         border_width=6,
         instance_border_width=3,
-        instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
+        instance_map=MapGen.Config.with_ascii_map(ascii_map, border_width=border_width),
     )
 
     return make_nav_eval_env(env)
