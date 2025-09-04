@@ -1,13 +1,16 @@
 """Helper for distributed training operations."""
 
 import logging
-from typing import Any, List
+from typing import TYPE_CHECKING, Any, List
 
 import torch
 import torch.distributed
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.core.distributed import TorchDistributedConfig
+
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,34 @@ class DistributedHelper:
         """Initialize distributed training if needed."""
         if self._is_distributed:
             logger.info(f"Setting up distributed training for rank {self._rank}")
+
+    def scale_batch_config(self, trainer_cfg: "TrainerConfig") -> None:
+        """Scale batch sizes for distributed training if configured.
+
+        When scale_batches_by_world_size is True, this divides batch sizes
+        by the world size to maintain consistent global batch size across
+        different numbers of GPUs.
+
+        Args:
+            trainer_cfg: Trainer configuration to modify in-place
+        """
+        if not self._is_distributed:
+            return
+
+        if not trainer_cfg.scale_batches_by_world_size:
+            return
+
+        # Scale batch sizes by world size
+        trainer_cfg.forward_pass_minibatch_target_size = (
+            trainer_cfg.forward_pass_minibatch_target_size // self._world_size
+        )
+        trainer_cfg.batch_size = trainer_cfg.batch_size // self._world_size
+
+        logger.info(
+            f"Scaled batch config for {self._world_size} processes: "
+            f"batch_size={trainer_cfg.batch_size}, "
+            f"forward_pass_minibatch_target_size={trainer_cfg.forward_pass_minibatch_target_size}"
+        )
 
     def wrap_policy(self, policy: PolicyAgent, device: torch.device) -> PolicyAgent:
         """Wrap policy for distributed training if needed.

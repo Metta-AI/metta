@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from metta.common.util.heartbeat import record_heartbeat
-from metta.rl.training.components import ComponentConfig, MasterComponent
+from metta.rl.training.component import ComponentConfig, MasterComponent
 
 if TYPE_CHECKING:
     from metta.rl.trainer_v2 import Trainer
@@ -30,7 +30,7 @@ class HeartbeatWriter(MasterComponent):
         """
         super().__init__(config)
 
-    def on_epoch_end(self, trainer: "Trainer") -> None:
+    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
         """Called at the end of each epoch.
 
         Args:

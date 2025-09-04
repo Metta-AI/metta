@@ -11,17 +11,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ComponentConfig(Config):
+class TrainerComponentConfig(Config):
     """Base configuration for training components."""
 
     interval: int = 1
     """How often to trigger component callbacks (in epochs)"""
 
 
-class TrainingComponent:
+class TrainerComponent:
     """Base class for training components."""
 
-    def __init__(self, config: ComponentConfig):
+    def __init__(self, config: TrainerComponentConfig):
         """Initialize component.
 
         Args:
@@ -47,11 +47,12 @@ class TrainingComponent:
         """
         pass
 
-    def on_epoch_end(self, trainer: "Trainer") -> None:
+    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
         """Called at the end of an epoch.
 
         Args:
             trainer: The trainer instance
+            epoch: The current epoch number
         """
         pass
 
@@ -72,7 +73,12 @@ class TrainingComponent:
         pass
 
 
-class MasterComponent(TrainingComponent):
+# Backward compatibility aliases
+ComponentConfig = TrainerComponentConfig
+TrainingComponent = TrainerComponent
+
+
+class MasterComponent(TrainerComponent):
     """Base class for training components that should only run on the master process.
 
     These components automatically check if they're on the master process before

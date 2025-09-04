@@ -1,12 +1,37 @@
 """Vectorized environment creation for training."""
 
+import os
 from typing import Any, Tuple
+
+import torch
 
 from metta.cogworks.curriculum import Curriculum
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
+
+
+def configure_rollout_workers(system_cfg: SystemConfig, trainer_cfg: TrainerConfig) -> None:
+    """Calculate and set default number of workers based on hardware.
+
+    This function modifies trainer_cfg in-place to set appropriate
+    rollout workers and async factor based on the system configuration
+    and available hardware.
+
+    Args:
+        system_cfg: System configuration with vectorization settings
+        trainer_cfg: Trainer configuration to modify in-place
+    """
+    if system_cfg.vectorization == "serial":
+        trainer_cfg.rollout_workers = 1
+        trainer_cfg.async_factor = 1
+        return
+
+    num_gpus = torch.cuda.device_count() or 1  # fallback to 1 to avoid division by zero
+    cpu_count = os.cpu_count() or 1  # fallback to 1 to avoid division by None
+    ideal_workers = (cpu_count // 2) // num_gpus
+    trainer_cfg.rollout_workers = max(1, ideal_workers)
 
 
 def create(

@@ -8,7 +8,7 @@ import torch
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
 from metta.mettagrid import MettaGridEnv
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.components import ComponentConfig, MasterComponent
+from metta.rl.training.component import ComponentConfig, MasterComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
@@ -148,9 +148,8 @@ class PolicyCheckpointer(MasterComponent):
         checkpoint_uris = self.checkpoint_manager.select_checkpoints("latest", count=1)
         return checkpoint_uris[0] if checkpoint_uris else None
 
-    def on_epoch_end(self, trainer: Any) -> None:
+    def on_epoch_end(self, trainer: Any, epoch: int) -> None:
         """Save policy checkpoint at epoch end if due."""
-        epoch = trainer.trainer_state.epoch
 
         # Build metadata
         metadata = {

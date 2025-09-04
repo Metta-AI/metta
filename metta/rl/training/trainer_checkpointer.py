@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.components import ComponentConfig, TrainingComponent
+from metta.rl.training.component import ComponentConfig, TrainingComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
@@ -148,9 +148,8 @@ class TrainerCheckpointer(TrainingComponent):
 
         return checkpoint_epoch, trainer_state
 
-    def on_epoch_end(self, trainer: Any) -> None:
+    def on_epoch_end(self, trainer: Any, epoch: int) -> None:
         """Save trainer state checkpoint at epoch end if due."""
-        epoch = trainer.trainer_state.epoch
 
         # Get timer state if available
         timer_state = None

@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from metta.rl.optimization import compute_gradient_stats
-from metta.rl.training.components import ComponentConfig, MasterComponent
+from metta.rl.training.component import ComponentConfig, MasterComponent
 
 if TYPE_CHECKING:
     from metta.rl.trainer_v2 import Trainer
@@ -30,7 +30,7 @@ class GradientStatsComponent(MasterComponent):
         """
         super().__init__(config)
 
-    def on_epoch_end(self, trainer: "Trainer") -> None:
+    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
         """Compute gradient statistics.
 
         Args:

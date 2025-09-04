@@ -1,7 +1,7 @@
 """Training components for Metta RL."""
 
 from metta.rl.training import vecenv
-from metta.rl.training.components import ComponentConfig, MasterComponent, TrainingComponent
+from metta.rl.training.component import ComponentConfig, MasterComponent, TrainingComponent
 from metta.rl.training.core import CoreTrainingLoop, RolloutResult
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.evaluator import EvaluationConfig, Evaluator, NoOpEvaluator

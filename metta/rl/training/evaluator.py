@@ -7,15 +7,18 @@ from uuid import UUID
 import torch
 from pydantic import Field
 
+import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
-from metta.rl.training.components import ComponentConfig, MasterComponent
+from metta.rl.training.component import ComponentConfig, MasterComponent
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.utils.auto_config import auto_replay_dir
 
 if TYPE_CHECKING:
     from metta.rl.trainer_v2 import Trainer
@@ -50,7 +53,7 @@ class NoOpEvaluator(MasterComponent):
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
 
-    def on_epoch_end(self, trainer: "Trainer") -> None:
+    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
         pass
 
 
@@ -66,7 +69,7 @@ class Evaluator(MasterComponent):
         trainer_cfg: Optional[Any] = None,
         stats_client: Optional[StatsClient] = None,
         stats_reporter: Optional["StatsReporter"] = None,
-    ) -> "Evaluator":
+    ):
         """Create an Evaluator from optional config, returning no-op if None.
 
         Args:
@@ -82,6 +85,11 @@ class Evaluator(MasterComponent):
         """
         if config is None:
             return NoOpEvaluator()
+
+        # Configure evaluation settings
+        if trainer_cfg and trainer_cfg.evaluation:
+            cls._configure_evaluation_settings(trainer_cfg.evaluation, stats_client)
+
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         return cls(
@@ -92,6 +100,37 @@ class Evaluator(MasterComponent):
             stats_client=stats_client,
             stats_reporter=stats_reporter,
         )
+
+    @staticmethod
+    def _configure_evaluation_settings(eval_cfg: Any, stats_client: Optional[StatsClient]) -> None:
+        """Configure evaluation settings.
+
+        Args:
+            eval_cfg: Evaluation configuration from trainer config
+            stats_client: Optional stats client
+        """
+        if eval_cfg.replay_dir is None:
+            eval_cfg.replay_dir = auto_replay_dir()
+            logger.info(f"Setting replay_dir to {eval_cfg.replay_dir}")
+
+        # Determine git hash for remote simulations
+        if eval_cfg.evaluate_remote:
+            if not stats_client:
+                eval_cfg.evaluate_remote = False
+                logger.info("Not connected to stats server, disabling remote evaluations")
+            elif not eval_cfg.evaluate_interval:
+                eval_cfg.evaluate_remote = False
+                logger.info("Evaluate interval set to 0, disabling remote evaluations")
+            elif not eval_cfg.git_hash:
+                eval_cfg.git_hash = git.get_git_hash_for_remote_task(
+                    target_repo=REPO_SLUG,
+                    skip_git_check=eval_cfg.skip_git_check,
+                    skip_cmd="trainer.evaluation.skip_git_check=true",
+                )
+                if eval_cfg.git_hash:
+                    logger.info(f"Git hash for remote evaluations: {eval_cfg.git_hash}")
+                else:
+                    logger.info("No git hash available for remote evaluations")
 
     def __init__(
         self,
@@ -140,7 +179,7 @@ class Evaluator(MasterComponent):
         Returns:
             True if evaluation should run
         """
-        return epoch % self._config.evaluate_interval == 0
+        return epoch % self._config.interval == 0
 
     def evaluate(
         self,
@@ -297,22 +336,34 @@ class Evaluator(MasterComponent):
         """
         return self._latest_scores
 
-    def on_epoch_end(self, trainer: "Trainer") -> None:
+    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
         """Run evaluation at epoch end if due.
 
         Args:
             trainer: The trainer instance
+            epoch: Current epoch number
         """
-        # Run evaluation
-        policy = trainer.policy_checkpointer.save_policy_to_buffer(trainer.policy)
+        # Get the latest policy checkpoint URI
+        policy_uri = trainer.get_latest_policy_uri()
 
-        epoch = trainer.trainer_state.epoch
+        # Get curriculum from training environment
+        from metta.rl.training.training_environment import TrainingEnvironment
+
+        curriculum = None
+        if isinstance(trainer.training_environment, TrainingEnvironment):
+            curriculum = trainer.training_environment.curriculum
+
+        # Run evaluation
         scores = self.evaluate(
-            policy=policy,
+            policy_uri=policy_uri,
+            curriculum=curriculum,
             epoch=epoch,
-            curriculum_tasks=trainer.curriculum.available_tasks,
+            agent_step=trainer.trainer_state.agent_step,
+            stats_epoch_id=trainer.trainer_state.stats_epoch_id
+            if hasattr(trainer.trainer_state, "stats_epoch_id")
+            else None,
         )
 
         # Update stats reporter if available
-        if trainer.stats_reporter:
-            trainer.stats_reporter.update_eval_scores(scores)
+        if self._stats_reporter:
+            self._stats_reporter.update_eval_scores(scores)
