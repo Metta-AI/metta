@@ -7,7 +7,6 @@ from metta.tools.sweep import SweepTool
 
 
 def ppo(
-    sweep_name: Optional[str] = None,
     recipe: str = "experiments.recipes.arena",
     train: str = "train_shaped",
     eval: str = "evaluate",
@@ -72,7 +71,6 @@ def ppo(
 
     # Create and return the orchestrator tool
     return SweepTool(
-        sweep_name=sweep_name,
         protein_config=protein_config,
         max_trials=max_trials,
         recipe_module=recipe,
