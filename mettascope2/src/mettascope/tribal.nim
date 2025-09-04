@@ -46,9 +46,10 @@ const
   MapObjectAgentAttackDamage* = 10
   MapObjectAgentAttackCost* = 5
 
-  MapObjectAltarHp* = 30
+  MapObjectAltarInitialHearts* = 5  # Altars start with 5 hearts
   MapObjectAltarCooldown* = 10
   MapObjectAltarUseCost* = 1  # Simplified: 1 battery = 1 heart
+  MapObjectAltarRespawnCost* = 1  # Cost 1 heart to respawn an agent
 
   MapObjectGeneratorHp* = 30
   MapObjectGeneratorCooldown* = 2
@@ -140,6 +141,7 @@ type
     inventoryWheat*: int   # Slot 3: Wheat (from wheat tiles)
     inventoryWood*: int    # Slot 4: Wood (from tree tiles)
     reward*: float32
+    homeAltar*: IVec2      # Position of agent's home altar for respawning
 
   Stats* = ref object
     # Agent Stats:
@@ -501,10 +503,13 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
   of Agent:
     inc env.stats[id].actionInvalid
   of Altar:
-    if thing.cooldown == 0 and agent.energy >= MapObjectAltarUseCost and thing.hp > 0:
+    if thing.cooldown == 0 and agent.energy >= MapObjectAltarUseCost and thing.hp < MapObjectAltarInitialHearts * 2:
+      # Agent deposits energy as a heart into the altar (max capacity is 2x initial hearts)
       agent.reward += 1
       agent.energy -= MapObjectAltarUseCost
+      thing.hp += 1  # Add one heart to altar
       env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
+      env.updateObservations(AltarHpLayer, thing.pos, thing.hp)
       thing.cooldown = MapObjectAltarCooldown
       env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
       inc env.stats[id].actionUseAltar
@@ -799,11 +804,11 @@ proc init(env: Environment) =
       # Spawn agents around this house
       let agentsForThisHouse = min(MapAgentsPerHouse, MapRoomObjectsAgents - totalAgentsSpawned)
       
-      # Add the altar with HP equal to the number of agents for this team
+      # Add the altar with initial hearts
       env.add(Thing(
         kind: Altar,
         pos: elements.center,
-        hp: agentsForThisHouse,  # Altar HP matches team size
+        hp: MapObjectAltarInitialHearts,  # Altar starts with default hearts (not HP, but heart count)
       ))
       altarColors[elements.center] = villageColor  # Associate altar position with village color
       
@@ -844,6 +849,7 @@ proc init(env: Environment) =
             hp: MapObjectAgentHp,
             energy: MapObjectAgentInitialEnergy,
             orientation: Orientation(r.rand(0..3)),
+            homeAltar: elements.center,  # Link agent to their home altar
           ))
           
           totalAgentsSpawned += 1
@@ -869,6 +875,7 @@ proc init(env: Environment) =
       hp: MapObjectAgentHp,
       energy: MapObjectAgentInitialEnergy,
       orientation: Orientation(r.rand(0..3)),
+      homeAltar: ivec2(-1, -1),  # No home altar for unaffiliated agents
     ))
     
     totalAgentsSpawned += 1
@@ -987,7 +994,7 @@ proc loadMap*(env: Environment, map: string) =
         kind: kind,
         id: id,
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-        hp: MapObjectAltarHp,
+        hp: MapObjectAltarInitialHearts,
       ))
     of Temple:
       env.add(Thing(
@@ -1178,13 +1185,17 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           clippysToRemove.add(clippy)
           env.grid[clippy.pos.x][clippy.pos.y] = nil
         
-        # 50% chance agent is permanently frozen (dies)
+        # 50% chance agent dies and needs respawning
         if combatRoll < 0.5:
-          # Agent "dies" - permanently frozen and loses all energy
-          adjacentThing.frozen = 999999  # Effectively permanent
+          # Agent dies - mark for respawn at altar
+          adjacentThing.frozen = 999999  # Mark as dead (will be respawned)
           adjacentThing.energy = 0
           adjacentThing.hp = 0
           env.terminated[adjacentThing.agentId] = 1.0
+          
+          # Clear the agent from its current position
+          env.grid[adjacentThing.pos.x][adjacentThing.pos.y] = nil
+          
           env.updateObservations(AgentFrozenLayer, adjacentThing.pos, adjacentThing.frozen)
           env.updateObservations(AgentEnergyLayer, adjacentThing.pos, adjacentThing.energy)
           env.updateObservations(AgentHpLayer, adjacentThing.pos, adjacentThing.hp)
@@ -1197,6 +1208,48 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     let idx = env.things.find(clippy)
     if idx >= 0:
       env.things.del(idx)
+
+  # Respawn dead agents at their altars
+  for agentId in 0 ..< MapAgents:
+    let agent = env.agents[agentId]
+    
+    # Check if agent is dead and has a home altar
+    if env.terminated[agentId] == 1.0 and agent.homeAltar.x >= 0:
+      # Find the altar
+      var altar: Thing = nil
+      for thing in env.things:
+        if thing.kind == Altar and thing.pos == agent.homeAltar:
+          altar = thing
+          break
+      
+      # Respawn if altar exists and has hearts
+      if not isNil(altar) and altar.hp > 0:
+        # Deduct a heart from the altar
+        altar.hp -= MapObjectAltarRespawnCost
+        env.updateObservations(AltarHpLayer, altar.pos, altar.hp)
+        
+        # Find an empty position around the altar
+        let emptyPositions = env.findEmptyPositionsAround(altar.pos, 2)
+        if emptyPositions.len > 0:
+          # Respawn the agent
+          agent.pos = emptyPositions[0]
+          agent.hp = MapObjectAgentHp
+          agent.energy = MapObjectAgentInitialEnergy
+          agent.frozen = 0
+          agent.shield = false
+          env.terminated[agentId] = 0.0
+          
+          # Update grid
+          env.grid[agent.pos.x][agent.pos.y] = agent
+          
+          # Update observations
+          env.updateObservations(AgentLayer, agent.pos, 1)
+          env.updateObservations(AgentHpLayer, agent.pos, agent.hp)
+          env.updateObservations(AgentFrozenLayer, agent.pos, agent.frozen)
+          env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
+          env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
+          env.updateObservations(AgentShieldLayer, agent.pos, agent.shield.int)
+          env.updateObservations(agentId)
 
   # for agentId in 0 ..< MapAgents:
   #   env.updateObservations(agentId)
