@@ -112,18 +112,18 @@ class NPCFilterWrapper:
         # Validate indices are within bounds
         actual_size = len(o)
         self._last_actual_size = actual_size  # Save for send()
-        
+
         if actual_size != len(self.policy_idxs_np) + len(self.npc_idxs_np):
             # Recalculate indices based on actual size
             num_envs_actual = actual_size // self.num_agents
             idx_matrix = torch.arange(actual_size).reshape(num_envs_actual, self.num_agents)
             policy_idxs_np = idx_matrix[:, : self.policy_agents_per_env].reshape(-1).numpy()
-            
+
             # Ensure indices are within bounds
             policy_idxs_np = policy_idxs_np[policy_idxs_np < actual_size]
         else:
             policy_idxs_np = self.policy_idxs_np
-            
+
         # Filter observations - only policy agents
         o_filtered = o[policy_idxs_np]
 
@@ -167,7 +167,7 @@ class NPCFilterWrapper:
         """
         # Actions come in for policy agents only
         # We need to expand to include dummy actions for NPCs
-        
+
         # Use the actual size from last recv if available
         if hasattr(self, "_last_actual_size"):
             total_agents = self._last_actual_size
@@ -181,7 +181,7 @@ class NPCFilterWrapper:
         if isinstance(actions, np.ndarray):
             # Create full action array
             full_actions = np.zeros((total_agents, *actions.shape[1:]), dtype=actions.dtype)
-            
+
             # Recalculate indices if size changed
             if total_agents != len(self.policy_idxs_np) + len(self.npc_idxs_np):
                 num_envs_actual = total_agents // self.num_agents
@@ -190,7 +190,7 @@ class NPCFilterWrapper:
                 policy_idxs_np = policy_idxs_np[policy_idxs_np < total_agents]
             else:
                 policy_idxs_np = self.policy_idxs_np
-            
+
             # Fill in policy agent actions
             full_actions[policy_idxs_np] = actions
             actions_to_send = full_actions
