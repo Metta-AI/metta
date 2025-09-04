@@ -1,7 +1,7 @@
 import
   std/[strformat],
   boxy, vmath, windy,
-  common, panels, sim, actions, utils
+  common, panels, village, actions, utils
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent.
@@ -171,7 +171,8 @@ proc drawVisualRanges*(alpha = 0.2) =
     for i in 0 ..< ObservationWidth:
       for j in 0 ..< ObservationHeight:
         let
-          gridPos = (agent.pos + ivec2(i - ObservationWidth div 2, j - ObservationHeight div 2))
+          gridPos = (agent.pos + ivec2(i - ObservationWidth div 2, j -
+              ObservationHeight div 2))
 
         if gridPos.x >= 0 and gridPos.x < MapWidth and
            gridPos.y >= 0 and gridPos.y < MapHeight:
@@ -191,7 +192,7 @@ proc drawFogOfWar*() =
 
 proc drawActions*() =
   ## Draw the actions of the selected agent.
-   # # Draw all possible attacks:
+    # # Draw all possible attacks:
   # for agent in env.agents:
   #   for i in 1 .. 9:
   #     let
@@ -232,7 +233,8 @@ proc drawObservations*() =
   if settings.showObservations > -1 and selection != nil and selection.kind == Agent:
     bxy.drawText(
       "observationTitle",
-      translate((selection.pos - ivec2(ObservationWidth div 2, ObservationHeight div 2)).vec2 * 64 + vec2(-32, -64)),
+      translate((selection.pos - ivec2(ObservationWidth div 2,
+          ObservationHeight div 2)).vec2 * 64 + vec2(-32, -64)),
       typeface,
       $ObservationName(settings.showObservations),
       20,
@@ -241,8 +243,10 @@ proc drawObservations*() =
     for x in 0 ..< ObservationWidth:
       for y in 0 ..< ObservationHeight:
         let
-          gridPos = (selection.pos + ivec2(x - ObservationWidth div 2, y - ObservationHeight div 2))
-          value = env.observations[selection.agentId][settings.showObservations][x][y]
+          gridPos = (selection.pos + ivec2(x - ObservationWidth div 2, y -
+              ObservationHeight div 2))
+          value = env.observations[selection.agentId][
+              settings.showObservations][x][y]
 
         bxy.drawText(
           "observation" & $x & $y,

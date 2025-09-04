@@ -1,5 +1,5 @@
 import std/[times],
-  sim, boxy, windy, vmath
+  village, boxy, windy, vmath
 
 type
   IRect* = object
