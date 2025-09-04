@@ -1,9 +1,24 @@
-"""Bucket analysis component for curriculum systems."""
+"""
+Bucket analysis component for curriculum systems.
+
+Handles bucket value extraction, completion density tracking, and bucket statistics
+without mixing in task management or learning progress calculations.
+"""
 
 from collections import defaultdict, deque
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+
+
+def _make_default_dict_int():
+    """Factory function for creating defaultdict(int) - needed for pickling."""
+    return defaultdict(int)
+
+
+def _make_deque_maxlen_100():
+    """Factory function for creating deque(maxlen=100) - needed for pickling."""
+    return deque(maxlen=100)
 
 
 class BucketAnalyzer:
@@ -17,7 +32,7 @@ class BucketAnalyzer:
         self._bucket_tracking: Dict[str, Dict[int, Any]] = defaultdict(dict)
 
         # Completion counts per bucket bin: bucket_name -> bin_index -> count
-        self._bucket_completion_counts: Dict[str, Dict[int, int]] = defaultdict(lambda: defaultdict(int))
+        self._bucket_completion_counts: Dict[str, Dict[int, int]] = defaultdict(_make_default_dict_int)
 
         # Bucket binning configuration: bucket_name -> bin_edges
         self._bucket_bins: Dict[str, List[float]] = {}
@@ -26,7 +41,7 @@ class BucketAnalyzer:
         self._bucket_is_discrete: Dict[str, bool] = {}
 
         # Recent completion history for density analysis
-        self._bucket_completion_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=100))
+        self._bucket_completion_history: Dict[str, deque] = defaultdict(_make_deque_maxlen_100)
 
         # Monitored buckets (limited by max_bucket_axes)
         self._monitored_buckets: set = set()
