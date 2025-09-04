@@ -1,4 +1,5 @@
 ## Consolidated village and terrain tests
+import std/tables
 import test_utils
 
 echo "============================"

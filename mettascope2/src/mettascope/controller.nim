@@ -175,7 +175,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     
   elif state.hasOre:
     # Priority 2: If we have ore, find a converter
-    if state.targetType != Generator:
+    if state.targetType != Converter:
       var nearestConverter: Thing = nil
       var minDist = 999999.0
       
@@ -192,10 +192,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       
       if nearestConverter != nil:
         state.currentTarget = nearestConverter.pos
-        state.targetType = Generator
+        state.targetType = Converter
     
     # Check if we're adjacent to a converter
-    if state.targetType == Generator and isAdjacent(agent.pos, state.currentTarget):
+    if state.targetType == Converter and isAdjacent(agent.pos, state.currentTarget):
       # Use the converter to convert ore to battery
       let dir = state.currentTarget - agent.pos
       

@@ -33,24 +33,15 @@ const
   MapRoomObjectsMines* = 20  # Mines to extract ore (2x generators)
   MapRoomObjectsWalls* = 30  # Increased for larger map
 
-  MapObjectAgentHp* = 10  # Agent health
-  MapObjectAgentInitialEnergy* = 5  # Starting energy
-  MapObjectAgentMaxEnergy* = 20  # Maximum energy an agent can hold
   MapObjectAgentMaxInventory* = 5
-  MapObjectAgentFreezeDuration* = 10
-  MapObjectAgentMortal* = false
-  MapObjectAgentUpkeepTime* = 0
-  MapObjectAgentUseCost* = 0
-  MapObjectAgentAttackDamage* = 2  # Damage dealt by agent attacks
-  MapObjectAgentAttackCost* = 1  # Energy cost to attack
+  MapObjectAgentFreezeDuration* = 10  # Temporary freeze when caught by clippy
 
   MapObjectAltarInitialHearts* = 5  # Altars start with 5 hearts
   MapObjectAltarCooldown* = 10
   MapObjectAltarRespawnCost* = 1  # Cost 1 heart to respawn an agent
-  MapObjectAltarUseCost* = 10  # Cost in energy to deposit at altar
+  # Altar uses batteries directly now, no energy cost
 
   MapObjectConverterCooldown* = 0  # No cooldown for instant conversion
-  MapObjectConverterEnergyOutput* = 10  # Energy given when converting ore to battery
 
   MapObjectMineCooldown* = 5
   MapObjectMineInitialResources* = 30
@@ -112,12 +103,8 @@ type
     hearts*: int  # For altars only - used for respawning agents
     resources*: int  # For mines - remaining ore
     cooldown*: int
-    hp*: int  # Health points
-    frozen*: int  # Frozen duration
-    energy*: int  # Energy level
-    shield*: bool  # Shield status
-    inventory*: int  # Generic inventory (ore)
-    inputResource*: int  # For converters/mines
+    frozen*: int  # Frozen duration (for agents caught by clippys)
+    inventory*: int  # Generic inventory (ore) - deprecated, use specific inventories
 
     # Agent:
     agentId*: int
@@ -501,7 +488,7 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       inc env.stats[id].actionUseMine
       inc env.stats[id].actionUse
   of Converter:
-    if thing.cooldown == 0 and agent.inventoryOre > 0 and agent.inventoryBattery < MapObjectAgentMaxEnergy:
+    if thing.cooldown == 0 and agent.inventoryOre > 0 and agent.inventoryBattery < MapObjectAgentMaxInventory:
       # Convert 1 ore to 1 battery
       agent.inventoryOre -= 1
       agent.inventoryBattery += 1
@@ -1032,8 +1019,6 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             let newClippy = Thing(
               kind: Clippy,
               pos: spawnPos,
-              hp: ClippyHp,
-              energy: ClippyInitialEnergy,
               orientation: Orientation(r.rand(0..3)),
               homeTemple: thing.pos,  # Remember home temple position
               wanderRadius: 2,  # Start with small radius

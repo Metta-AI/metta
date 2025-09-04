@@ -4,34 +4,27 @@ This directory contains test files for the MettaScope 2 game visualization.
 
 ## Test Files
 
-### Environment & Configuration
+### Consolidated Test Suites
+These are the main test files that group related tests together using the unittest framework:
+
+- `test_villages_consolidated.nim` - Village structures, terrain generation, and placement
+- `test_combat_consolidated.nim` - Combat mechanics and agent interactions (legacy)
+- `test_resources_consolidated.nim` - Resource gathering and conversion system
+- `test_clippies_consolidated.nim` - Clippy AI behavior and movement patterns
+- `test_mettascope_integration.nim` - Integration tests for the full environment
+- `test_full_simulation.nim` - Full simulation step tests
+
+### Individual Test Files
+Additional focused test files:
+
 - `test_nim_config.nim` - Basic configuration and environment setup test
-- `simple_test.nim` - Simple environment test
-- `test_simple_step.nim` - Basic step execution test
+- `test_utils.nim` - Utility functions for testing
+- `test_clippy_simple.nim` - Simple Clippy behavior tests
+- `test_clippy_wandering.nim` - Clippy wandering pattern visualization
 
-### Terrain & Map Generation
-- `test_terrain_clusters.nim` - Tests terrain generation (rivers, wheat, trees)
-- `test_water_spawn.nim` - Tests that structures avoid spawning on water
-- `test_clearing.nim` - Tests terrain clearing functionality
-- `test_clearings_visual.nim` - Visual test for terrain clearing around structures
-
-### Structures & Spawning
-- `test_village_spawn.nim` - Tests village/house spawning logic
-- `test_village_details.nim` - Detailed village structure tests
-- `test_corner_placement.nim` - Tests agent placement at house corners
-- `test_temples.nim` - Tests temple spawning and Clippy generation
-
-### Gameplay & Combat
-- `test_combat.nim` - Tests combat mechanics between agents
-- `test_combat_simple.nim` - Simple combat scenario tests
-- `test_combat_forced.nim` - Forced combat interaction tests
-- `test_respawn.nim` - Tests agent respawn mechanics at altars
-- `test_resource_gathering.nim` - Tests resource gathering mechanics
-
-### Debugging & Visualization
-- `test_visual.nim` - Visual debugging and display tests
-- `debug_map.nim` - Map debugging utilities
-- `debug_positions.nim` - Position debugging utilities
+### Legacy Test Files (from original implementation)
+These files test older features that may be deprecated:
+- Various combat and resource gathering tests from the original implementation
 
 ## Running Tests
 
