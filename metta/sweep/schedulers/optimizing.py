@@ -7,8 +7,14 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from metta.sweep.models import JobDefinition, JobStatus, JobTypes, RunInfo, SweepMetadata
+from metta.sweep.models import JobDefinition, JobStatus, RunInfo, SweepMetadata
 from metta.sweep.protocols import Optimizer
+from metta.sweep.utils import (
+    create_eval_job,
+    create_training_job,
+    generate_run_id,
+    get_display_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +41,6 @@ class OptimizingScheduler:
     def __init__(self, config: OptimizingSchedulerConfig, optimizer: Optimizer):
         self.config = config
         self.optimizer = optimizer
-        self._is_complete = False  # Track if sweep is complete
         logger.info(f"[OptimizingScheduler] Initialized with max_trials={config.max_trials}")
 
     def schedule(
@@ -80,21 +85,19 @@ class OptimizingScheduler:
             logger.debug(f"[OptimizingScheduler] Evaluation already dispatched for {train_run.run_id}, skipping")
             return []
 
-        # Build evaluation overrides
-        eval_overrides = self._build_eval_overrides(train_run.run_id, sweep_metadata.sweep_id)
-
         # Create evaluation job
-        eval_job = JobDefinition(
+        eval_job = create_eval_job(
             run_id=train_run.run_id,
-            cmd=f"{self.config.recipe_module}.{self.config.eval_entrypoint}",
-            type=JobTypes.LAUNCH_EVAL,
-            args=self.config.eval_args or [],
-            overrides=eval_overrides,
-            metadata={"policy_uri": f"wandb://metta/{train_run.run_id}"},
+            sweep_id=sweep_metadata.sweep_id,
+            recipe_module=self.config.recipe_module,
+            eval_entrypoint=self.config.eval_entrypoint,
+            stats_server_uri=self.config.stats_server_uri,
+            eval_args=self.config.eval_args,
+            eval_overrides=self.config.eval_overrides,
         )
 
         # Log scheduling with clean display ID
-        display_id = self._get_display_id(train_run.run_id)
+        display_id = get_display_id(train_run.run_id)
         logger.info(f"[OptimizingScheduler] Scheduling evaluation for run {display_id}")
 
         return [eval_job]
@@ -114,25 +117,30 @@ class OptimizingScheduler:
 
         # Create new training job
         trial_num = len(dispatched_trainings) + 1
-        run_id = f"{sweep_metadata.sweep_id}_trial_{trial_num:04d}"
+        run_id = generate_run_id(sweep_metadata.sweep_id, trial_num)
 
         # Avoid duplicates
         if run_id in dispatched_trainings:
             logger.warning(f"[OptimizingScheduler] Run {run_id} already created, skipping")
             return []
 
-        # Build training job
-        overrides = self._build_train_overrides()
-
-        job = JobDefinition(
+        # Create training job
+        job = create_training_job(
             run_id=run_id,
+<<<<<<< HEAD
             cmd=f"{self.config.recipe_module}.{self.config.train_entrypoint}",
             type=JobTypes.LAUNCH_TRAINING,
             gpus=self.config.gpus,
             nodes=self.config.nodes,
+=======
+            sweep_id=sweep_metadata.sweep_id,
+            recipe_module=self.config.recipe_module,
+            train_entrypoint=self.config.train_entrypoint,
+>>>>>>> 7c90a8714 (refactor: simplify controller and fix scheduler architecture)
             config=suggestions[0],
-            overrides=overrides,
-            metadata={"group": sweep_metadata.sweep_id},
+            gpus_per_job=self.config.gpus_per_job,
+            stats_server_uri=self.config.stats_server_uri,
+            train_overrides=self.config.train_overrides,
         )
 
         logger.info(
@@ -146,47 +154,9 @@ class OptimizingScheduler:
         all_complete = all(run.status in (JobStatus.COMPLETED, JobStatus.FAILED) for run in all_runs)
 
         if all_complete:
-            self._is_complete = True
             logger.info(f"[OptimizingScheduler] All {self.config.max_trials} trials finished!")
         else:
             incomplete_count = sum(1 for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED))
             logger.info(f"[OptimizingScheduler] Waiting for {incomplete_count} remaining job(s) to complete")
 
         return []
-
-    def _build_eval_overrides(self, run_id: str, sweep_id: str) -> dict[str, Any]:
-        """Build evaluation override parameters."""
-        eval_overrides = self.config.eval_overrides.copy() if self.config.eval_overrides else {}
-        eval_overrides["push_metrics_to_wandb"] = "True"
-        eval_overrides["wandb.name"] = run_id
-        eval_overrides["wandb.run_id"] = run_id
-        eval_overrides["wandb.group"] = sweep_id
-
-        if self.config.stats_server_uri:
-            eval_overrides["stats_server_uri"] = self.config.stats_server_uri
-
-        return eval_overrides
-
-    def _build_train_overrides(self) -> dict[str, Any]:
-        """Build training override parameters."""
-        overrides = self.config.train_overrides.copy() if self.config.train_overrides else {}
-
-        if self.config.stats_server_uri:
-            overrides["stats_server_uri"] = self.config.stats_server_uri
-            overrides["trainer.evaluation.evaluate_remote"] = "True"
-            overrides["trainer.evaluation.evaluate_local"] = "False"
-            overrides["trainer.evaluation.skip_git_check"] = "True"
-
-        return overrides
-
-    def _get_display_id(self, run_id: str) -> str:
-        """Extract clean display ID from run ID."""
-        if "_trial_" in run_id:
-            display_id = run_id.split("_trial_")[-1]
-            return f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
-        return run_id
-
-    @property
-    def is_complete(self) -> bool:
-        """Check if sweep is complete."""
-        return self._is_complete
