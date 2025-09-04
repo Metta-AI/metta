@@ -219,11 +219,11 @@ def train(
 
     # Create experience buffer
     # For NPCFilterWrapper, num_agents is per-env policy agents, need total
-    if hasattr(vecenv, 'num_envs'):
+    if hasattr(vecenv, "num_envs"):
         total_filtered_agents = vecenv.num_agents * vecenv.num_envs
     else:
         total_filtered_agents = vecenv.num_agents
-    
+
     experience = Experience(
         total_agents=total_filtered_agents,
         batch_size=trainer_cfg.batch_size,
