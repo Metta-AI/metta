@@ -1,4 +1,4 @@
-import vmath, std/random
+import vmath, std/random, terrain
 
 type
   HouseStructure* = object
@@ -26,7 +26,8 @@ proc createHouse*(): HouseStructure =
     @['#', '#', '.', '#', '#']   # Bottom row with south entrance
   ]
 
-proc canPlaceHouse*(grid: ptr array[48, array[48, pointer]], pos: IVec2, house: HouseStructure, 
+proc canPlaceHouse*(grid: ptr array[84, array[48, pointer]], terrain: ptr TerrainGrid, 
+                    pos: IVec2, house: HouseStructure, 
                     mapWidth, mapHeight: int): bool =
   ## Check if a house can be placed at the given position
   ## pos is the top-left corner of the house
@@ -37,7 +38,7 @@ proc canPlaceHouse*(grid: ptr array[48, array[48, pointer]], pos: IVec2, house: 
   if pos.x + house.width > mapWidth or pos.y + house.height > mapHeight:
     return false
   
-  # Check if all positions are empty (nil in grid)
+  # Check if all positions are empty (nil in grid) and not on water
   for y in 0 ..< house.height:
     for x in 0 ..< house.width:
       let gridX = pos.x + x
@@ -45,10 +46,14 @@ proc canPlaceHouse*(grid: ptr array[48, array[48, pointer]], pos: IVec2, house: 
       # Check if there's already something at this position
       if not isNil(grid[gridX][gridY]):
         return false
+      # Check if this position is water
+      if terrain[gridX][gridY] == Water:
+        return false
   
   return true
 
-proc findHouseLocation*(grid: ptr array[48, array[48, pointer]], house: HouseStructure,
+proc findHouseLocation*(grid: ptr array[84, array[48, pointer]], terrain: ptr TerrainGrid,
+                        house: HouseStructure,
                         mapWidth, mapHeight, mapBorder: int, r: var Rand): IVec2 =
   ## Find a suitable location for a house
   ## Returns ivec2(-1, -1) if no location found
@@ -59,14 +64,14 @@ proc findHouseLocation*(grid: ptr array[48, array[48, pointer]], house: HouseStr
     let y = r.rand(mapBorder ..< mapHeight - mapBorder - house.height)
     let pos = ivec2(x.int32, y.int32)
     
-    if canPlaceHouse(grid, pos, house, mapWidth, mapHeight):
+    if canPlaceHouse(grid, terrain, pos, house, mapWidth, mapHeight):
       return pos
   
   # If random attempts fail, do a systematic search
   for y in mapBorder ..< mapHeight - mapBorder - house.height:
     for x in mapBorder ..< mapWidth - mapBorder - house.width:
       let pos = ivec2(x.int32, y.int32)
-      if canPlaceHouse(grid, pos, house, mapWidth, mapHeight):
+      if canPlaceHouse(grid, terrain, pos, house, mapWidth, mapHeight):
         return pos
   
   return ivec2(-1, -1)  # No valid location found

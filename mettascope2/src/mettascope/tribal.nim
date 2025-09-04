@@ -1,5 +1,5 @@
 import std/[strformat, random, strutils], vmath, jsony
-import terrain, house
+import terrain, village
 export terrain
 
 const
@@ -19,7 +19,7 @@ const
   MapLayoutRoomsX* = 1
   MapLayoutRoomsY* = 1
   MapBorder* = 4
-  MapRoomWidth* = 40
+  MapRoomWidth* = 80  # Doubled from 40
   MapRoomHeight* = 40
   MapRoomBorder* = 0
   MapRoomObjectsAgents* = 10
@@ -648,8 +648,9 @@ proc init(env: Environment) =
   for i in 0 ..< numHouses:
     let houseStruct = createHouse()
     # Cast the grid to the type expected by house module
-    var gridPtr = cast[ptr array[48, array[48, pointer]]](env.grid.addr)
-    let housePos = findHouseLocation(gridPtr, houseStruct, MapWidth, MapHeight, MapBorder, r)
+    var gridPtr = cast[ptr array[84, array[48, pointer]]](env.grid.addr)
+    var terrainPtr = env.terrain.addr
+    let housePos = findHouseLocation(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r)
     
     if housePos.x >= 0 and housePos.y >= 0:  # Valid location found
       let elements = getHouseElements(houseStruct, housePos)

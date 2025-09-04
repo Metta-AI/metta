@@ -12,7 +12,7 @@ type
     Wheat
     Tree
 
-  TerrainGrid* = array[48, array[48, TerrainType]]  # Using fixed size for now
+  TerrainGrid* = array[84, array[48, TerrainType]]  # Width doubled to 84 (80 + 4 border)
 
 proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
   ## Generate a river that starts at one edge, flows through the map, and forks
@@ -110,7 +110,7 @@ proc createWheatField*(terrain: var TerrainGrid, centerX, centerY: int, size: in
     for dy in -radius .. radius:
       let x = centerX + dx
       let y = centerY + dy
-      if x >= 0 and x < 48 and y >= 0 and y < 48:
+      if x >= 0 and x < 84 and y >= 0 and y < 48:
         if terrain[x][y] == Empty:
           # Use distance from center to create more organic shape
           let dist = sqrt((dx * dx + dy * dy).float)
@@ -126,7 +126,7 @@ proc createTreeGrove*(terrain: var TerrainGrid, centerX, centerY: int, size: int
     for dy in -radius .. radius:
       let x = centerX + dx
       let y = centerY + dy
-      if x >= 0 and x < 48 and y >= 0 and y < 48:
+      if x >= 0 and x < 84 and y >= 0 and y < 48:
         if terrain[x][y] == Empty:
           # Use distance from center to create more organic shape
           let dist = sqrt((dx * dx + dy * dy).float)
