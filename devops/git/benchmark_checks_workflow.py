@@ -6,7 +6,7 @@ import subprocess
 import time
 import uuid
 from datetime import datetime
-from typing import List
+from typing import Dict, List, Tuple
 
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 
@@ -16,6 +16,17 @@ WORKFLOW_NAME = "Test and Benchmark"
 RUN_LINT = "true"
 RUN_TEST = "true"
 RUN_BENCHMARK = "true"
+
+# Configuration constants
+MAX_RETRIES = 10
+RETRY_DELAY = 5  # seconds
+POLL_INTERVAL = 10  # seconds
+
+
+class WorkflowRunError(Exception):
+    """Custom exception for workflow run errors"""
+
+    pass
 
 
 def trigger_workflow(branch: str) -> str:
@@ -71,20 +82,38 @@ def trigger_workflow(branch: str) -> str:
     return str(runs[0]["databaseId"])
 
 
-def wait_for_run_completion(run_id: str) -> dict:
+def wait_for_run_completion(run_id: str) -> Tuple[dict, str]:
+    retries = 0
     while True:
         result = subprocess.run(
             ["gh", "run", "view", run_id, "--json", "status,conclusion,startedAt,updatedAt"],
             capture_output=True,
             text=True,
         )
+
         if result.returncode != 0:
-            time.sleep(5)
-            continue  # try again
-        data = json.loads(result.stdout)
+            retries += 1
+            if retries > MAX_RETRIES:
+                raise WorkflowRunError(f"Failed to get run status after {MAX_RETRIES} retries: {result.stderr}")
+            print(f"⚠️  Failed to get run status (attempt {retries}/{MAX_RETRIES}): {result.stderr}")
+            time.sleep(RETRY_DELAY)
+            continue
+
+        # Reset retry counter on successful API call
+        retries = 0
+
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            raise WorkflowRunError(f"Failed to parse run status JSON: {e}")
+
         if data["status"] == "completed":
-            return data
-        time.sleep(10)
+            conclusion = data.get("conclusion", "unknown")
+            if conclusion != "success":
+                raise WorkflowRunError(f"Workflow run completed with conclusion: {conclusion}")
+            return data, conclusion
+
+        time.sleep(POLL_INTERVAL)
 
 
 def duration_seconds(start: str, end: str) -> float:
@@ -93,7 +122,7 @@ def duration_seconds(start: str, end: str) -> float:
     return (end_time - start_time).total_seconds()
 
 
-def trigger_all_runs(branches: List[str], repeats: int) -> dict[str, List[str]]:
+def trigger_all_runs(branches: List[str], repeats: int) -> Dict[str, List[str]]:
     print("\n🚀 Triggering all workflow runs...")
     run_ids_by_branch = {branch: [] for branch in branches}
     for branch in branches:
@@ -107,31 +136,53 @@ def trigger_all_runs(branches: List[str], repeats: int) -> dict[str, List[str]]:
     return run_ids_by_branch
 
 
-def wait_for_all_runs(run_ids_by_branch: dict[str, List[str]]) -> dict[str, List[float]]:
+def wait_for_all_runs(run_ids_by_branch: Dict[str, List[str]]) -> Dict[str, Dict[str, List[float]]]:
     print("\n⏳ Waiting for all workflow runs to complete...")
-    durations_by_branch = {branch: [] for branch in run_ids_by_branch}
+    results_by_branch = {branch: {"successful": [], "failed": []} for branch in run_ids_by_branch}
+
     for branch, run_ids in run_ids_by_branch.items():
         for run_id in run_ids:
             print(f"🔍 Waiting on {branch} → run {run_id}")
             try:
-                run = wait_for_run_completion(run_id)
+                run, conclusion = wait_for_run_completion(run_id)
                 dur = duration_seconds(run["startedAt"], run["updatedAt"])
-                durations_by_branch[branch].append(dur)
-                print(f"✅ {branch} → {dur:.1f}s")
+                results_by_branch[branch]["successful"].append(dur)
+                print(f"✅ {branch} → {dur:.1f}s (conclusion: {conclusion})")
+            except WorkflowRunError as e:
+                print(f"❌ {branch} run {run_id} failed: {e}")
+                results_by_branch[branch]["failed"].append(run_id)
             except Exception as e:
-                print(f"❌ Failed to get result for {branch} run {run_id}: {e}")
-    return durations_by_branch
+                print(f"❌ Unexpected error for {branch} run {run_id}: {e}")
+                results_by_branch[branch]["failed"].append(run_id)
+
+    return results_by_branch
 
 
-def summarize(durations_by_branch: dict):
+def summarize(results_by_branch: Dict[str, Dict[str, List]]):
     print("\n📊 Benchmark Summary (seconds):")
-    print(f"{'Branch':<20} {'Min':>8} {'Mean':>8} {'Max':>8} {'Runs':>5}")
-    print("-" * 50)
-    for branch, times in durations_by_branch.items():
-        if times:
-            print(f"{branch:<20} {min(times):8.1f} {statistics.mean(times):8.1f} {max(times):8.1f} {len(times):>5}")
+    print(f"{'Branch':<20} {'Min':>8} {'Mean':>8} {'Max':>8} {'Success':>8} {'Failed':>7}")
+    print("-" * 60)
+
+    for branch, results in results_by_branch.items():
+        successful_times = results["successful"]
+        failed_count = len(results["failed"])
+
+        if successful_times:
+            min_time = min(successful_times)
+            mean_time = statistics.mean(successful_times)
+            max_time = max(successful_times)
+            success_count = len(successful_times)
+            print(f"{branch:<20} {min_time:8.1f} {mean_time:8.1f} {max_time:8.1f} {success_count:>8} {failed_count:>7}")
         else:
-            print(f"{branch:<20} {'N/A':>8} {'N/A':>8} {'N/A':>8} {0:>5}")
+            print(f"{branch:<20} {'N/A':>8} {'N/A':>8} {'N/A':>8} {0:>8} {failed_count:>7}")
+
+    # Print failed run details if any
+    total_failed = sum(len(results["failed"]) for results in results_by_branch.values())
+    if total_failed > 0:
+        print(f"\n⚠️  Total failed runs: {total_failed}")
+        for branch, results in results_by_branch.items():
+            if results["failed"]:
+                print(f"  {branch}: {', '.join(results['failed'])}")
 
 
 if __name__ == "__main__":
@@ -143,5 +194,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     triggered = trigger_all_runs(args.branches, args.repeats)
-    durations = wait_for_all_runs(triggered)
-    summarize(durations)
+    results = wait_for_all_runs(triggered)
+    summarize(results)
