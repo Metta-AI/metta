@@ -25,6 +25,7 @@ class OptimizingSchedulerConfig:
     eval_args: list[str] | None = None  # Additional args for evaluation
     eval_overrides: dict[str, Any] | None = None  # Additional overrides for evaluation
     stats_server_uri: str | None = None  # Stats server for remote evaluations
+    gpus_per_job: int = 1  # Number of GPUs per training job
 
 
 class OptimizingScheduler:
@@ -115,6 +116,7 @@ class OptimizingScheduler:
             run_id=run_id,
             cmd=f"{self.config.recipe_module}.{self.config.train_entrypoint}",
             type=JobTypes.LAUNCH_TRAINING,
+            gpus=self.config.gpus_per_job,
             config=suggestions[0],
             overrides=overrides,
             metadata={"group": sweep_metadata.sweep_id},

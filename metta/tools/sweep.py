@@ -102,6 +102,7 @@ class SweepTool(Tool):
     max_parallel_jobs: int = 1
     monitoring_interval: int = 5
     sweep_server_uri: str = "https://api.observatory.softmax-research.net"
+    gpus_per_job: int = 1  # Number of GPUs per training job
 
     # Override configurations
     train_overrides: dict[str, Any] = {}  # Overrides to apply to all training jobs
@@ -216,6 +217,7 @@ class SweepTool(Tool):
             eval_entrypoint=self.eval_entrypoint,
             train_overrides=self.train_overrides,  # Pass train overrides to scheduler
             stats_server_uri=self.stats_server_uri,  # Pass stats server for remote evals
+            gpus_per_job=self.gpus_per_job,  # Pass GPU configuration
         )
         scheduler = OptimizingScheduler(scheduler_config, optimizer)
 
