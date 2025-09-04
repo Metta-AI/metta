@@ -1,4 +1,5 @@
 import argparse
+from datetime import timedelta
 
 import wandb
 from wandb.errors import CommError
@@ -18,7 +19,7 @@ def apply_ttl_to_artifacts(artifact_project: str, version_start: int, version_en
             artifact_name = f"{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/{artifact_project}:v{version}"
             artifact = run.use_artifact(artifact_name)
             print(f"Applying TTL to artifact: {artifact_name}")
-            artifact.ttl = ttl_days
+            artifact.ttl = timedelta(days=ttl_days)
             artifact.save()
             version += 1
         except CommError:
