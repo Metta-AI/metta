@@ -1,4 +1,4 @@
-from metta.mettagrid.config.envs import make_navigation_sequence
+from metta.mettagrid.builder.envs import make_navigation_sequence
 from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
