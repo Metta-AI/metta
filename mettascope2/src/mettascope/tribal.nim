@@ -1,6 +1,9 @@
-import std/[strformat, random, strutils], vmath, jsony
+import std/[strformat, random, strutils], vmath, jsony, chroma
 import terrain, village, clippy
 export terrain
+
+# Global variable for storing agent village colors
+var agentVillageColors*: seq[Color] = @[]
 
 const
   # From config
@@ -337,6 +340,21 @@ proc updateObservations(env: Environment, agentId: int) =
         obs[22][x][y] = thing.hp.uint8
         # altar:ready
         obs[23][x][y] = (thing.cooldown == 0).uint8
+      
+      of Temple:
+        # Temple acts similar to altar for observations
+        obs[21][x][y] = 1
+        obs[22][x][y] = thing.hp.uint8
+        obs[23][x][y] = (thing.cooldown == 0).uint8
+      
+      of Clippy:
+        # Clippy acts similar to agent for observations
+        obs[0][x][y] = 1
+        obs[1][x][y] = thing.hp.uint8
+        obs[2][x][y] = 0  # Clippys don't freeze
+        obs[3][x][y] = thing.energy.uint8
+        obs[4][x][y] = 0  # Clippy orientation
+        obs[5][x][y] = 0  # No shield
 
 proc updateObservations(
   env: Environment,
@@ -504,6 +522,9 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(GeneratorReadyLayer, thing.pos, thing.cooldown)
       inc env.stats[id].actionUseGenerator
       inc env.stats[id].actionUse
+  of Temple, Clippy:
+    # Can't use temples or Clippys
+    inc env.stats[id].actionInvalid
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
   ## Attack
@@ -653,18 +674,15 @@ proc init(env: Environment) =
     let pos = r.randomEmptyPos(env)
     env.add(Thing(kind: Wall, pos: pos, hp: 10))
 
-  for i in 0 ..< MapRoomObjectsAgents:
-    let pos = r.randomEmptyPos(env)
-    env.add(Thing(
-      kind: Agent,
-      agentId: i,
-      pos: pos,
-      hp: MapObjectAgentHp,
-      energy: MapObjectAgentInitialEnergy,
-    ))
-
-  # Spawn houses with their altars and walls
-  let numHouses = r.rand(2..3)  # Random between 2 and 3 houses
+  # Agents will now spawn with their villages/houses below
+  
+  # Clear and prepare village colors array
+  agentVillageColors.setLen(MapRoomObjectsAgents)  # Allocate space for all agents
+  
+  # Spawn houses with their altars, walls, and associated agents (tribes)
+  let numHouses = MapRoomObjectsHouses
+  var totalAgentsSpawned = 0
+  
   for i in 0 ..< numHouses:
     let houseStruct = createHouse()
     # Cast the grid to the type expected by house module
@@ -690,7 +708,70 @@ proc init(env: Environment) =
           hp: MapObjectWallHp,
         ))
       
+      # Generate a unique color for this village
+      let villageColor = color(
+        (i.float32 * 137.5 / 360.0) mod 1.0,  # Hue using golden angle
+        0.7 + (i.float32 * 0.13).mod(0.3),    # Saturation
+        0.5 + (i.float32 * 0.17).mod(0.2),    # Lightness
+        1.0
+      )
+      
+      # Spawn agents around this house
+      let agentsForThisHouse = min(MapAgentsPerHouse, MapRoomObjectsAgents - totalAgentsSpawned)
+      if agentsForThisHouse > 0:
+        # Find empty positions around the altar (center of the house)
+        let emptyPositions = env.findEmptyPositionsAround(elements.altar, 3)
+        
+        for j in 0 ..< agentsForThisHouse:
+          var agentPos: IVec2
+          if j < emptyPositions.len:
+            # Use empty position near house
+            agentPos = emptyPositions[j]
+          else:
+            # Fall back to random position if not enough space around house
+            agentPos = r.randomEmptyPos(env)
+          
+          let agentId = totalAgentsSpawned
+          
+          # Store the village color for this agent
+          agentVillageColors[agentId] = villageColor
+          
+          # Create the agent
+          env.add(Thing(
+            kind: Agent,
+            agentId: agentId,
+            pos: agentPos,
+            hp: MapObjectAgentHp,
+            energy: MapObjectAgentInitialEnergy,
+            orientation: Orientation(r.rand(0..3)),
+          ))
+          
+          totalAgentsSpawned += 1
+          if totalAgentsSpawned >= MapRoomObjectsAgents:
+            break
+      
       # Note: Entrances are left empty (no walls placed there)
+  
+  # If there are still agents to spawn (e.g., if not enough houses), spawn them randomly
+  # They will get a neutral color
+  let neutralColor = color(0.5, 0.5, 0.5, 1.0)  # Gray for unaffiliated agents
+  while totalAgentsSpawned < MapRoomObjectsAgents:
+    let agentPos = r.randomEmptyPos(env)
+    let agentId = totalAgentsSpawned
+    
+    # Store neutral color for agents without a village
+    agentVillageColors[agentId] = neutralColor
+    
+    env.add(Thing(
+      kind: Agent,
+      agentId: agentId,
+      pos: agentPos,
+      hp: MapObjectAgentHp,
+      energy: MapObjectAgentInitialEnergy,
+      orientation: Orientation(r.rand(0..3)),
+    ))
+    
+    totalAgentsSpawned += 1
 
   # Spawn temples with Clippys (same count as houses)
   for i in 0 ..< numHouses:

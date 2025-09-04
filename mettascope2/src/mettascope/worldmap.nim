@@ -3,13 +3,11 @@ import
   boxy, vmath, windy, chroma,
   common, panels, tribal, actions, utils
 
-var villageColors*: seq[Color] = @[]
-
 proc agentColor*(id: int): Color =
   ## Get the color for an agent based on their village
-  # Agents now get colors from their village assignment
-  if id >= 0 and id < villageColors.len:
-    return villageColors[id]
+  # Agents now get colors from their village assignment stored in tribal module
+  if id >= 0 and id < agentVillageColors.len:
+    return agentVillageColors[id]
   # Fallback for agents without village assignment
   let f = id.float32
   color(
