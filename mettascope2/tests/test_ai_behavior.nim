@@ -1,6 +1,6 @@
 ## AI Behavior Test Suite
 ## Tests controller AI for agents and clippy movement patterns
-import std/[strformat, strutils, sets, math]
+import std/[strformat, strutils, sets, math, tables]
 import vmath
 import ../src/mettascope/tribal
 import ../src/mettascope/controller

@@ -7,6 +7,8 @@ type
     ## State for each agent's controller
     wanderRadius*: int
     wanderAngle*: float
+    wanderStartAngle*: float  # Track where we started this circle
+    wanderPointsVisited*: int # Count points visited in current circle
     basePosition*: IVec2
     hasOre*: bool
     hasBattery*: bool
@@ -38,8 +40,10 @@ proc newController*(seed: int = 2024): Controller =
 proc initAgentState(controller: Controller, agentId: int, basePos: IVec2, startingEnergy: int) =
   ## Initialize state for a new agent
   controller.agentStates[agentId] = ControllerState(
-    wanderRadius: 3,  # Start with small radius
+    wanderRadius: 5,  # Start with radius 5
     wanderAngle: 0.0,
+    wanderStartAngle: 0.0,
+    wanderPointsVisited: 0,
     basePosition: basePos,
     hasOre: false,
     hasBattery: false,
@@ -58,12 +62,31 @@ proc distanceEuclidean(a, b: IVec2): float =
   let dy = (a.y - b.y).float
   result = sqrt(dx * dx + dy * dy)
 
+proc resetWanderState(state: ControllerState) =
+  ## Reset wander state when breaking out to pursue a resource
+  state.wanderPointsVisited = 0
+  state.wanderStartAngle = state.wanderAngle
+  # Keep the current radius so we continue from where we left off
+
 proc getNextWanderPoint(controller: Controller, state: ControllerState): IVec2 =
-  ## Get next point in expanding spiral pattern
+  ## Get next point in expanding circle pattern with proper tracking
+  const pointsPerCircle = 8  # 8 points for a complete circle (45 degree increments)
+  
+  # Move to next point
   state.wanderAngle += PI / 4  # 45 degree increments for 8 directions
+  state.wanderPointsVisited += 1
+  
+  # Check if we've completed a full circle
+  if state.wanderPointsVisited >= pointsPerCircle:
+    # We've completed a circle, expand radius
+    state.wanderRadius += 1
+    state.wanderPointsVisited = 0
+    state.wanderStartAngle = state.wanderAngle  # Reset start angle
+    # No max limit on radius - it can grow as needed
+  
+  # Keep angle in 0-2PI range
   if state.wanderAngle >= 2 * PI:
     state.wanderAngle -= 2 * PI
-    state.wanderRadius = min(state.wanderRadius + 2, 20)  # Expand radius, max 20
   
   let x = state.basePosition.x + int(cos(state.wanderAngle) * state.wanderRadius.float)
   let y = state.basePosition.y + int(sin(state.wanderAngle) * state.wanderRadius.float)
@@ -243,6 +266,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       if nearestConverter != nil:
         state.currentTarget = nearestConverter.pos
         state.targetType = Converter
+        resetWanderState(state)  # Reset wander when we find a converter
       else:
         # No converter found, wander away from current position to explore
         state.currentTarget = controller.getNextWanderPoint(state)
@@ -314,6 +338,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       if nearestMine != nil:
         state.currentTarget = nearestMine.pos
         state.targetType = Mine
+        resetWanderState(state)  # Reset wander when we find a mine
       else:
         # No active mine visible, wander in expanding circles to find one
         state.currentTarget = controller.getNextWanderPoint(state)

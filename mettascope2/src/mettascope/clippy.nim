@@ -168,7 +168,7 @@ proc getConcentricWanderPoint*(clippy: pointer, r: var Rand): IVec2 =
   # Complete circle, expand radius
   if clippyThing.wanderAngle >= 6.28:  # 2*PI
     clippyThing.wanderAngle = 0.0
-    clippyThing.wanderRadius = min(clippyThing.wanderRadius + 1, 15)  # Max radius 15
+    clippyThing.wanderRadius = min(clippyThing.wanderRadius + 2, 30)  # Max radius 30, increment by 2 for faster expansion
   
   # Calculate target position in the circle
   let x = clippyThing.homeTemple.x + int32(cos(clippyThing.wanderAngle) * clippyThing.wanderRadius.float)

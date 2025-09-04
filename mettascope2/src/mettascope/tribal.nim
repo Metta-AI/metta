@@ -465,8 +465,8 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
   of Agent:
     inc env.stats[id].actionInvalid
   of Altar:
-    if thing.cooldown == 0 and agent.inventoryBattery >= 1 and thing.hearts < MapObjectAltarInitialHearts * 2:
-      # Agent deposits a battery as a heart into the altar (max capacity is 2x initial hearts)
+    if thing.cooldown == 0 and agent.inventoryBattery >= 1:
+      # Agent deposits a battery as a heart into the altar (no max capacity)
       agent.reward += 1
       agent.inventoryBattery -= 1
       thing.hearts += 1  # Add one heart to altar

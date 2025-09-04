@@ -72,14 +72,14 @@ proc testResourceSystem() =
     
     # Test converter
     agent.inventoryOre = 1
-    var converter: Thing = nil
+    var conv: Thing = nil
     for thing in env.things:
       if thing.kind == Converter:
-        converter = thing
+        conv = thing
         break
     
-    if converter != nil:
-      agent.pos = ivec2(converter.pos.x + 1, converter.pos.y)
+    if conv != nil:
+      agent.pos = ivec2(conv.pos.x + 1, conv.pos.y)
       env.grid[agent.pos.x][agent.pos.y] = agent
       
       actions[0] = [3'u8, 3'u8]  # Use converter
