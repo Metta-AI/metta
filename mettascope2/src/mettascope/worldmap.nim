@@ -295,7 +295,7 @@ proc drawObservations*() =
         )
 
 proc drawAgentDecorations*() =
-  # Draw energy bars, shield and frozen status.
+  # Draw agent status indicators (frozen, etc.)
   for agent in env.agents:
     # if agent.shield:
     #   bxy.drawImage(

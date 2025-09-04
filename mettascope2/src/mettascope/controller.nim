@@ -36,7 +36,7 @@ proc newController*(seed: int = 2024): Controller =
     stepCount: 0
   )
 
-proc initAgentState(controller: Controller, agentId: int, basePos: IVec2, startingEnergy: int) =
+proc initAgentState(controller: Controller, agentId: int, basePos: IVec2) =
   ## Initialize state for a new agent
   controller.agentStates[agentId] = ControllerState(
     wanderRadius: 3,  # Start with smaller radius for tighter initial search
@@ -47,8 +47,7 @@ proc initAgentState(controller: Controller, agentId: int, basePos: IVec2, starti
     hasOre: false,
     hasBattery: false,
     currentTarget: basePos,
-    targetType: NoTarget,
-    startingEnergy: startingEnergy
+    targetType: NoTarget
   )
 
 proc distance(a, b: IVec2): float =
@@ -183,7 +182,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   if agentId notin controller.agentStates:
     # Use home altar as base, or current position if no home
     let basePos = if agent.homeAltar.x >= 0: agent.homeAltar else: agent.pos
-    controller.initAgentState(agentId, basePos, 0)  # energy no longer used
+    controller.initAgentState(agentId, basePos)
   
   var state = controller.agentStates[agentId]
   
