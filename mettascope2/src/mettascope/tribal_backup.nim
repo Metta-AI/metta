@@ -16,7 +16,7 @@ const
   # MapRoomBorder* = 0
   # MapRoomObjectsAgents* = 70
   # MapRoomObjectsAltars* = 50
-  # MapRoomObjectsConverters* = 100
+  # MapRoomObjectsGenerators* = 100
   # MapRoomObjectsMines* = 100
   # MapRoomObjectsWalls* = 400
 
@@ -29,34 +29,27 @@ const
   MapRoomObjectsAgents* = 15  # Total agents to spawn (will be distributed across villages)
   MapRoomObjectsHouses* = 3  # Number of villages/houses to spawn
   MapAgentsPerHouse* = 5  # Agents to spawn per house/village
-  MapRoomObjectsConverters* = 10  # Converters to process ore into batteries
+  MapRoomObjectsGenerators* = 10  # Generators to process ore into batteries
   MapRoomObjectsMines* = 20  # Mines to extract ore (2x generators)
   MapRoomObjectsWalls* = 30  # Increased for larger map
 
-  MapObjectAgentHp* = 10  # Agent health
-  MapObjectAgentInitialEnergy* = 5  # Starting energy
-  MapObjectAgentMaxEnergy* = 20  # Maximum energy an agent can hold
   MapObjectAgentMaxInventory* = 5
   MapObjectAgentFreezeDuration* = 10
   MapObjectAgentMortal* = false
   MapObjectAgentUpkeepTime* = 0
   MapObjectAgentUseCost* = 0
-  MapObjectAgentAttackDamage* = 2  # Damage dealt by agent attacks
-  MapObjectAgentAttackCost* = 1  # Energy cost to attack
 
   MapObjectAltarInitialHearts* = 5  # Altars start with 5 hearts
   MapObjectAltarCooldown* = 10
   MapObjectAltarRespawnCost* = 1  # Cost 1 heart to respawn an agent
-  MapObjectAltarUseCost* = 10  # Cost in energy to deposit at altar
 
-  MapObjectConverterCooldown* = 0  # No cooldown for instant conversion
-  MapObjectConverterEnergyOutput* = 10  # Energy given when converting ore to battery
+  MapObjectGeneratorCooldown* = 0  # No cooldown for instant conversion
 
   MapObjectMineCooldown* = 5
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
 
-  ObservationLayers* = 16  # Reduced after removing combat/energy systems
+  ObservationLayers* = 24
   ObservationWidth* = 11
   ObservationHeight* = 11
 
@@ -73,21 +66,29 @@ proc ivec2*(x, y: int): IVec2 =
 type
   ObservationName* = enum
     AgentLayer = 0
-    AgentOrientationLayer = 1
-    AgentInventoryOreLayer = 2
-    AgentInventoryBatteryLayer = 3
-    AgentInventoryWaterLayer = 4
-    AgentInventoryWheatLayer = 5
-    AgentInventoryWoodLayer = 6
-    WallLayer = 7
-    MineLayer = 8
-    MineResourceLayer = 9
-    MineReadyLayer = 10
-    ConverterLayer = 11  # Renamed from Converter
-    ConverterReadyLayer = 12
-    AltarLayer = 13
-    AltarHeartsLayer = 14  # Hearts for respawning
-    AltarReadyLayer = 15
+    AgentHpLayer = 1
+    AgentFrozenLayer = 2
+    AgentEnergyLayer = 3
+    AgentOrientationLayer = 4
+    AgentShieldLayer = 5
+    AgentInventory1Layer = 6
+    AgentInventory2Layer = 7
+    AgentInventory3Layer = 8
+    WallLayer = 9
+    WallHpLayer = 10
+    MineLayer = 11
+    MineHpLayer = 12
+    MineResourceLayer = 13
+    MineReadyLayer = 14
+    GeneratorLayer = 15
+    GeneratorHpLayer = 16
+    GeneratorInputResourceLayer = 17
+    GeneratorOutputResourceLayer = 18
+    GeneratorOutputEnergyLayer = 19
+    GeneratorReadyLayer = 20
+    AltarLayer = 21
+    AltarHpLayer = 22
+    AltarReadyLayer = 23
 
   Orientation* = enum
     N # Up, Key W
@@ -99,7 +100,7 @@ type
     Agent
     Wall
     Mine
-    Converter  # Converts ore to batteries
+    Generator
     Altar
     Temple
     Clippy
@@ -109,43 +110,43 @@ type
     pos*: IVec2
     id*: int
     layer*: int
-    hearts*: int  # For altars only - used for respawning agents
-    resources*: int  # For mines - remaining ore
+    hp*: int
+
+    inputResource*: int
+    outputResource*: int
+    outputEnergy*: int
     cooldown*: int
-    hp*: int  # Health points
-    frozen*: int  # Frozen duration
-    energy*: int  # Energy level
-    shield*: bool  # Shield status
-    inventory*: int  # Generic inventory (ore)
-    inputResource*: int  # For converters/mines
 
     # Agent:
     agentId*: int
     orientation*: Orientation
-    inventoryOre*: int      # Ore from mines
-    inventoryBattery*: int  # Batteries from converters
-    inventoryWater*: int    # Water from water tiles
-    inventoryWheat*: int    # Wheat from wheat tiles
-    inventoryWood*: int     # Wood from tree tiles
+    energy*: int
+    frozen*: int
+    shield*: bool
+    inventory*: int        # Slot 1: Ore (from mines)
+    inventoryWater*: int   # Slot 2: Water (from water tiles)
+    inventoryWheat*: int   # Slot 3: Wheat (from wheat tiles)
+    inventoryWood*: int    # Slot 4: Wood (from tree tiles)
     reward*: float32
     homeAltar*: IVec2      # Position of agent's home altar for respawning
-    
-    # Clippy:
-    homeTemple*: IVec2     # Position of clippy's home temple
-    wanderRadius*: int     # Current radius for concentric circle wandering
-    wanderAngle*: float    # Current angle in the circle pattern
-    targetPos*: IVec2      # Current target (agent or altar)
 
   Stats* = ref object
     # Agent Stats:
     actionInvalid*: int
+    actionAttack*: int
+    actionAttackAgent*: int
+    actionAttackAltar*: int
+    actionAttackGenerator*: int
+    actionAttackMine*: int
+    actionAttackWall*: int
     actionMove*: int
     actionNoop*: int
     actionRotate*: int
+    actionShield*: int
     actionSwap*: int
     actionUse*: int
     actionUseMine*: int
-    actionUseConverter*: int
+    actionUseGenerator*: int
     actionUseAltar*: int
     actionGet*: int
     actionGetWater*: int
@@ -194,7 +195,7 @@ proc render*(env: Environment): string =
             cell = "#"
           of Mine:
             cell = "m"
-          of Converter:
+          of Generator:
             cell = "g"
           of Altar:
             cell = "a"
@@ -210,20 +211,28 @@ proc renderObservations*(env: Environment): string =
   ## Render the observations as a string
   const featureNames = [
     "agent",
+    "agent:hp",
+    "agent:frozen",
+    "agent:energy",
     "agent:orientation",
-    "agent:inv:ore",
-    "agent:inv:battery",
-    "agent:inv:water",
-    "agent:inv:wheat",
-    "agent:inv:wood",
+    "agent:shield",
+    "agent:inv:r1",
+    "agent:inv:r2",
+    "agent:inv:r3",
     "wall",
-    "mine",
-    "mine:resources",
-    "mine:ready",
-    "converter",
-    "converter:ready",
+    "wall:hp",
+    "generator",
+    "generator:hp",
+    "generator:r1",
+    "generator:ready",
+    "generator",
+    "generator:hp",
+    "generator:input_resource",
+    "generator:output_resource",
+    "generator:output_energy",
+    "generator:ready",
     "altar",
-    "altar:hearts",
+    "altar:hp",
     "altar:ready",
   ]
   for id, obs in env.observations:
@@ -272,62 +281,77 @@ proc updateObservations(env: Environment, agentId: int) =
 
       case thing.kind
       of Agent:
-        # Layer 0: AgentLayer
+        # agent
         obs[0][x][y] = 1
-        # Layer 1: AgentOrientationLayer
-        obs[1][x][y] = thing.orientation.uint8
-        # Layer 2: AgentInventoryOreLayer
-        obs[2][x][y] = thing.inventoryOre.uint8
-        # Layer 3: AgentInventoryBatteryLayer
-        obs[3][x][y] = thing.inventoryBattery.uint8
-        # Layer 4: AgentInventoryWaterLayer
-        obs[4][x][y] = thing.inventoryWater.uint8
-        # Layer 5: AgentInventoryWheatLayer
-        obs[5][x][y] = thing.inventoryWheat.uint8
-        # Layer 6: AgentInventoryWoodLayer
-        obs[6][x][y] = thing.inventoryWood.uint8
+        # agent:hp
+        obs[1][x][y] = thing.hp.uint8
+        # agent:frozen
+        obs[2][x][y] = thing.frozen.uint8
+        # agent:energy
+        obs[3][x][y] = thing.energy.uint8
+        # agent:orientation
+        obs[4][x][y] = thing.orientation.uint8
+        # agent:shield
+        obs[5][x][y] = 0 #thing.shield.uint8
+        # agent:inv:r1 (ore)
+        obs[6][x][y] = thing.inventory.uint8
+        # agent:inv:r2 (water)
+        obs[7][x][y] = thing.inventoryWater.uint8
+        # agent:inv:r3 (wheat + wood combined for simplicity)
+        obs[8][x][y] = (thing.inventoryWheat + thing.inventoryWood).uint8
 
       of Wall:
-        # Layer 7: WallLayer
-        obs[7][x][y] = 1
+        # wall
+        obs[9][x][y] = 1
+        # wall:hp
+        obs[10][x][y] = thing.hp.uint8
 
       of Mine:
-        # Layer 8: MineLayer
-        obs[8][x][y] = 1
-        # Layer 9: MineResourceLayer
-        obs[9][x][y] = thing.resources.uint8
-        # Layer 10: MineReadyLayer
-        obs[10][x][y] = (thing.cooldown == 0).uint8
-
-      of Converter:
-        # Layer 11: ConverterLayer
+        # mine
         obs[11][x][y] = 1
-        # Layer 12: ConverterReadyLayer
-        obs[12][x][y] = (thing.cooldown == 0).uint8
+        # generator:hp
+        obs[12][x][y] = thing.hp.uint8
+        # generator:r1
+        obs[13][x][y] = thing.inputResource.uint8
+        # generator:ready
+        obs[14][x][y] = (thing.cooldown == 0).uint8
+
+      of Generator:
+        # generator
+        obs[15][x][y] = 1
+        # generator:hp
+        obs[16][x][y] = thing.hp.uint8
+        # generator:input_resource
+        obs[17][x][y] = thing.inputResource.uint8
+        # generator:output_resource
+        obs[18][x][y] = 1.uint8 #thing.outputResource.uint8
+        # generator:output_energy
+        obs[19][x][y] = 100.uint8 #thing.outputEnergy.uint8
+        # generator:ready
+        obs[20][x][y] = (thing.cooldown == 0).uint8
 
       of Altar:
-        # Layer 13: AltarLayer
-        obs[13][x][y] = 1
-        # Layer 14: AltarHeartsLayer
-        obs[14][x][y] = thing.hearts.uint8
-        # Layer 15: AltarReadyLayer
-        obs[15][x][y] = (thing.cooldown == 0).uint8
+        # altar
+        obs[21][x][y] = 1
+        # altar:hp
+        obs[22][x][y] = thing.hp.uint8
+        # altar:ready
+        obs[23][x][y] = (thing.cooldown == 0).uint8
       
       of Temple:
         # Temple acts similar to altar for observations
-        obs[13][x][y] = 1
-        obs[14][x][y] = thing.hearts.uint8
-        obs[15][x][y] = (thing.cooldown == 0).uint8
+        obs[21][x][y] = 1
+        obs[22][x][y] = thing.hp.uint8
+        obs[23][x][y] = (thing.cooldown == 0).uint8
       
       of Clippy:
         # Clippy acts similar to agent for observations
         obs[0][x][y] = 1
-        obs[1][x][y] = 0  # Clippy orientation
-        obs[2][x][y] = 0  # Clippys don't carry ore
-        obs[3][x][y] = 0  # Clippys don't carry batteries
-        obs[4][x][y] = 0  # No water
-        obs[5][x][y] = 0  # No wheat
-        obs[6][x][y] = 0  # No wood
+        obs[1][x][y] = thing.hp.uint8
+        obs[2][x][y] = 0  # Clippys don't freeze
+        obs[3][x][y] = thing.energy.uint8
+        obs[4][x][y] = 0  # Clippy orientation
+        obs[5][x][y] = 0  # No shield
 
 proc updateObservations(
   env: Environment,
@@ -382,48 +406,39 @@ proc noopAction(env: Environment, id: int, agent: Thing) =
   inc env.stats[id].actionNoop
 
 proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Move the agent in a cardinal direction and auto-rotate to face that direction
+  ## Move the agent
   var newPos = agent.pos
-  var newOrientation = agent.orientation
-  
-  case argument:
-  of 0:  # Move North
-    newPos.y -= 1
-    newOrientation = N
-  of 1:  # Move South
-    newPos.y += 1
-    newOrientation = S
-  of 2:  # Move East
-    newPos.x += 1
-    newOrientation = E
-  of 3:  # Move West
-    newPos.x -= 1
-    newOrientation = W
+  if argument == 0:
+    newPos -= orientationToVec(agent.orientation)
+  elif argument == 1:
+    newPos += orientationToVec(agent.orientation)
   else:
     inc env.stats[id].actionInvalid
     return
-    
   if env.isEmpty(newPos):
     env.grid[agent.pos.x][agent.pos.y] = nil
     env.updateObservations(AgentLayer, agent.pos, 0)
+    env.updateObservations(AgentHpLayer, agent.pos, 0)
+    env.updateObservations(AgentFrozenLayer, agent.pos, 0)
+    env.updateObservations(AgentEnergyLayer, agent.pos, 0)
     env.updateObservations(AgentOrientationLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryOreLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryBatteryLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryWaterLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryWheatLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryWoodLayer, agent.pos, 0)
+    env.updateObservations(AgentShieldLayer, agent.pos, 0)
+    env.updateObservations(AgentInventory1Layer, agent.pos, 0)
+    #env.updateObservations(AgentInventory2Layer, agent.pos, 0)
+    #env.updateObservations(AgentInventory3Layer, agent.pos, 0)
 
     agent.pos = newPos
-    agent.orientation = newOrientation  # Update orientation when moving
 
     env.grid[agent.pos.x][agent.pos.y] = agent
     env.updateObservations(AgentLayer, agent.pos, 1)
+    env.updateObservations(AgentHpLayer, agent.pos, agent.hp)
+    env.updateObservations(AgentFrozenLayer, agent.pos, agent.frozen)
+    env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
     env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
-    env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
-    env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
-    env.updateObservations(AgentInventoryWaterLayer, agent.pos, agent.inventoryWater)
-    env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-    env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
+    env.updateObservations(AgentShieldLayer, agent.pos, agent.shield.int)
+    env.updateObservations(AgentInventory1Layer, agent.pos, agent.inventory)
+    #env.updateObservations(AgentInventory2Layer, agent.pos, agent.inventory)
+    #env.updateObservations(AgentInventory3Layer, agent.pos, agent.inventory)
 
     env.updateObservations(id)
 
@@ -444,30 +459,27 @@ proc jumpAction(env: Environment, id: int, agent: Thing) =
   ## Jump the agent
   discard
 
+proc shieldAction(env: Environment, id: int, agent: Thing, argument: int) =
+  ## Shield the agent
+  if argument > 1:
+    inc env.stats[id].actionInvalid
+    return
+  if agent.shield == true:
+    agent.shield = false
+  elif agent.energy >= MapObjectAgentUpkeepShield:
+    agent.shield = true
+  inc env.stats[id].actionShield
+
 proc transferAction(env: Environment, id: int, agent: Thing) =
   ## Transfer resources
   discard
 
 proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Use resources - argument specifies direction (0=N, 1=S, 2=E, 3=W)
-  if argument > 3:
+  ## Use resources
+  if argument > 1:
     inc env.stats[id].actionInvalid
     return
-  
-  # Calculate target position based on direction argument
-  var usePos = agent.pos
-  case argument:
-  of 0:  # North
-    usePos.y -= 1
-  of 1:  # South  
-    usePos.y += 1
-  of 2:  # East
-    usePos.x += 1
-  of 3:  # West
-    usePos.x -= 1
-  else:
-    inc env.stats[id].actionInvalid
-    return
+  let usePos = agent.pos + orientationToVec(agent.orientation)
   var thing = env.getThing(usePos)
   if thing == nil:
     inc env.stats[id].actionInvalid
@@ -478,13 +490,13 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
   of Agent:
     inc env.stats[id].actionInvalid
   of Altar:
-    if thing.cooldown == 0 and agent.inventoryBattery >= 1 and thing.hearts < MapObjectAltarInitialHearts * 2:
-      # Agent deposits a battery as a heart into the altar (max capacity is 2x initial hearts)
+    if thing.cooldown == 0 and agent.energy >= MapObjectAltarUseCost and thing.hp < MapObjectAltarInitialHearts * 2:
+      # Agent deposits energy as a heart into the altar (max capacity is 2x initial hearts)
       agent.reward += 1
-      agent.inventoryBattery -= 1
-      thing.hearts += 1  # Add one heart to altar
-      env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
-      env.updateObservations(AltarHeartsLayer, thing.pos, thing.hearts)
+      agent.energy -= MapObjectAltarUseCost
+      thing.hp += 1  # Add one heart to altar
+      env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
+      env.updateObservations(AltarHpLayer, thing.pos, thing.hp)
       thing.cooldown = MapObjectAltarCooldown
       env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
       inc env.stats[id].actionUseAltar
@@ -492,54 +504,98 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
     else:
       inc env.stats[id].actionInvalid
   of Mine:
-    if thing.cooldown == 0 and agent.inventoryOre < MapObjectAgentMaxInventory:
-      # Mine gives 1 ore
-      agent.inventoryOre += 1
-      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+    if thing.cooldown == 0 and agent.inventory < MapObjectAgentMaxInventory:
+      # Mine gives 1 ore (inventory)
+      agent.inventory += 1
+      env.updateObservations(AgentInventory1Layer, agent.pos, agent.inventory)
       thing.cooldown = MapObjectMineCooldown
       env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
       inc env.stats[id].actionUseMine
       inc env.stats[id].actionUse
-  of Converter:
-    if thing.cooldown == 0 and agent.inventoryOre > 0 and agent.inventoryBattery < MapObjectAgentMaxEnergy:
-      # Convert 1 ore to 1 battery
-      agent.inventoryOre -= 1
-      agent.inventoryBattery += 1
-      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
-      env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
+  of Generator:
+    if thing.cooldown == 0 and agent.inventory > 0:
+      agent.inventory -= 1
+      env.updateObservations(AgentInventory1Layer, agent.pos, agent.inventory)
+      agent.energy += MapObjectGeneratorEnergyOutput
+      env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
+      agent.energy = clamp(agent.energy, 0, MapObjectAgentMaxEnergy)
+      env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
       # No cooldown for instant conversion
       thing.cooldown = 0
-      env.updateObservations(ConverterReadyLayer, thing.pos, 1)  # Always ready
-      inc env.stats[id].actionUseConverter
+      env.updateObservations(GeneratorReadyLayer, thing.pos, 1)  # Always ready
+      inc env.stats[id].actionUseGenerator
       inc env.stats[id].actionUse
   of Temple, Clippy:
     # Can't use temples or Clippys
     inc env.stats[id].actionInvalid
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Attack action removed - no longer used
-  inc env.stats[id].actionInvalid
+  ## Attack
+  if argument > 9:
+    inc env.stats[id].actionInvalid
+    return
+  if agent.energy < MapObjectAgentAttackCost:
+    # Can't attack not enough energy.
+    inc env.stats[id].actionInvalid
+    return
+  else:
+    agent.energy -= MapObjectAgentAttackCost
+    env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
+  let
+    # Calculate relative offsets using modulo and division
+    distance = 1 + (argument - 1) div 3
+    offset = -((argument - 1) mod 3 - 1)
+    targetPos = agent.pos + relativeLocation(agent.orientation, distance, offset)
+  var target = env.getThing(targetPos)
+  if target == nil:
+    return
+
+  if target.kind == Clippy:
+    # Agent attacks clippy - clippy dies immediately
+    env.things.del(env.things.find(target))
+    env.grid[target.pos.x][target.pos.y] = nil
+    inc env.stats[id].actionAttack
+  elif target.kind != Agent:
+    target.hp -= 1
+    if target.hp <= 0:
+      env.things.del(env.things.find(target))
+      env.grid[target.pos.x][target.pos.y] = nil
+    if target.kind == Altar:
+      inc env.stats[id].actionAttackAltar
+    elif target.kind == Generator:
+      inc env.stats[id].actionAttackGenerator
+    elif target.kind == Mine:
+      inc env.stats[id].actionAttackMine
+    elif target.kind == Wall:
+      inc env.stats[id].actionAttackWall
+    inc env.stats[id].actionAttack
+  elif target.kind == Agent:
+    inc env.stats[id].actionAttackAgent
+    inc env.stats[id].actionAttack
+    if target.shield and target.energy >= MapObjectAgentAttackDamage:
+      # Blocked by shield.
+      target.energy -= MapObjectAgentAttackDamage
+      env.updateObservations(AgentEnergyLayer, target.pos, target.energy)
+    else:
+      target.shield = false
+      # env.updateObservations(AgentShieldLayer, target.pos, target.shield)
+      target.frozen = MapObjectAgentFreezeDuration
+      target.energy = 0
+      env.updateObservations(AgentEnergyLayer, target.pos, target.energy)
+      # Steal inventory
+      if target.inventory > 0:
+        target.inventory -= 1
+        env.updateObservations(AgentInventory1Layer, target.pos, target.inventory)
+        agent.inventory += 1
+        env.updateObservations(AgentInventory1Layer, agent.pos, agent.inventory)
 
 proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Get resources from terrain (water, wheat, wood) - argument specifies direction (0=N, 1=S, 2=E, 3=W)
-  if argument > 3:
+  ## Get resources from terrain (water, wheat, wood)
+  if argument > 1:
     inc env.stats[id].actionInvalid
     return
   
-  # Calculate target position based on direction argument
-  var targetPos = agent.pos
-  case argument:
-  of 0:  # North
-    targetPos.y -= 1
-  of 1:  # South
-    targetPos.y += 1
-  of 2:  # East
-    targetPos.x += 1
-  of 3:  # West
-    targetPos.x -= 1
-  else:
-    inc env.stats[id].actionInvalid
-    return
+  let targetPos = agent.pos + orientationToVec(agent.orientation)
   
   # Check bounds
   if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
@@ -553,7 +609,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
     if agent.inventoryWater < 5:
       agent.inventoryWater += 1
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove water tile
-      env.updateObservations(AgentInventoryWaterLayer, agent.pos, agent.inventoryWater)
+      env.updateObservations(AgentInventory2Layer, agent.pos, agent.inventoryWater)
       inc env.stats[id].actionGetWater
       inc env.stats[id].actionGet
     else:
@@ -564,8 +620,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
     if agent.inventoryWheat < 5:
       agent.inventoryWheat += 1
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove wheat tile
-      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-      env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
+      env.updateObservations(AgentInventory3Layer, agent.pos, agent.inventoryWheat + agent.inventoryWood)
       inc env.stats[id].actionGetWheat
       inc env.stats[id].actionGet
     else:
@@ -576,8 +631,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
     if agent.inventoryWood < 5:
       agent.inventoryWood += 1
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove tree tile
-      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-      env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
+      env.updateObservations(AgentInventory3Layer, agent.pos, agent.inventoryWheat + agent.inventoryWood)
       inc env.stats[id].actionGetWood
       inc env.stats[id].actionGet
     else:
@@ -585,10 +639,6 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
   
   of Empty:
     inc env.stats[id].actionInvalid  # Nothing to get
-
-proc shieldAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Shield action removed - no longer used
-  inc env.stats[id].actionInvalid
 
 proc giftAction(env: Environment, id: int, agent: Thing) =
   ## Gift
@@ -690,16 +740,16 @@ proc init(env: Environment) =
   if MapBorder > 0:
     for x in 0 ..< MapWidth:
       for j in 0 ..< MapBorder:
-        env.add(Thing(kind: Wall, pos: ivec2(x, j)))
-        env.add(Thing(kind: Wall, pos: ivec2(x, MapHeight - j - 1)))
+        env.add(Thing(kind: Wall, pos: ivec2(x, j), hp: MapObjectWallHp))
+        env.add(Thing(kind: Wall, pos: ivec2(x, MapHeight - j - 1), hp: MapObjectWallHp))
     for y in 0 ..< MapHeight:
       for j in 0 ..< MapBorder:
-        env.add(Thing(kind: Wall, pos: ivec2(j, y)))
-        env.add(Thing(kind: Wall, pos: ivec2(MapWidth - j - 1, y)))
+        env.add(Thing(kind: Wall, pos: ivec2(j, y), hp: MapObjectWallHp))
+        env.add(Thing(kind: Wall, pos: ivec2(MapWidth - j - 1, y), hp: MapObjectWallHp))
 
   for i in 0 ..< MapRoomObjectsWalls:
     let pos = r.randomEmptyPos(env)
-    env.add(Thing(kind: Wall, pos: pos))
+    env.add(Thing(kind: Wall, pos: pos, hp: 10))
 
   # Agents will now spawn with their villages/houses below
   
@@ -746,7 +796,7 @@ proc init(env: Environment) =
       env.add(Thing(
         kind: Altar,
         pos: elements.center,
-        hearts: MapObjectAltarInitialHearts,  # Altar starts with default hearts
+        hp: MapObjectAltarInitialHearts,  # Altar starts with default hearts (not HP, but heart count)
       ))
       altarColors[elements.center] = villageColor  # Associate altar position with village color
       
@@ -755,6 +805,7 @@ proc init(env: Environment) =
         env.add(Thing(
           kind: Wall,
           pos: wallPos,
+          hp: MapObjectWallHp,
         ))
       if agentsForThisHouse > 0:
         # Get corner positions first, then nearby positions
@@ -783,14 +834,10 @@ proc init(env: Environment) =
             kind: Agent,
             agentId: agentId,
             pos: agentPos,
+            hp: MapObjectAgentHp,
+            energy: MapObjectAgentInitialEnergy,
             orientation: Orientation(r.rand(0..3)),
             homeAltar: elements.center,  # Link agent to their home altar
-            inventoryOre: 0,
-            inventoryBattery: 0,
-            inventoryWater: 0,
-            inventoryWheat: 0,
-            inventoryWood: 0,
-            frozen: 0,
           ))
           
           totalAgentsSpawned += 1
@@ -813,14 +860,10 @@ proc init(env: Environment) =
       kind: Agent,
       agentId: agentId,
       pos: agentPos,
+      hp: MapObjectAgentHp,
+      energy: MapObjectAgentInitialEnergy,
       orientation: Orientation(r.rand(0..3)),
       homeAltar: ivec2(-1, -1),  # No home altar for unaffiliated agents
-      inventoryOre: 0,
-      inventoryBattery: 0,
-      inventoryWater: 0,
-      inventoryWheat: 0,
-      inventoryWood: 0,
-      frozen: 0,
     ))
     
     totalAgentsSpawned += 1
@@ -850,6 +893,7 @@ proc init(env: Environment) =
       env.add(Thing(
         kind: Temple,
         pos: templeCenter,
+        hp: TempleHp,
         cooldown: 0,
       ))
       
@@ -860,18 +904,17 @@ proc init(env: Environment) =
         env.add(Thing(
           kind: Clippy,
           pos: nearbyPositions[0],  # Pick first available position near temple
+          hp: ClippyHp,
+          energy: ClippyInitialEnergy,
           orientation: Orientation(r.rand(0..3)),
-          homeTemple: templeCenter,  # Remember home temple
-          wanderRadius: 2,  # Start with small radius
-          wanderAngle: 0.0,
-          targetPos: ivec2(-1, -1),  # No target initially
         ))
 
-  for i in 0 ..< MapRoomObjectsConverters:
+  for i in 0 ..< MapRoomObjectsGenerators:
     let pos = r.randomEmptyPos(env)
     env.add(Thing(
-      kind: Converter,
+      kind: Generator,
       pos: pos,
+      hp: MapObjectGeneratorHp,
     ))
 
   for i in 0 ..< MapRoomObjectsMines:
@@ -879,7 +922,7 @@ proc init(env: Environment) =
     env.add(Thing(
       kind: Mine,
       pos: pos,
-      resources: MapObjectMineInitialResources,
+      hp: MapObjectMineHp,
     ))
 
   for agentId in 0 ..< MapAgents:
@@ -909,41 +952,44 @@ proc loadMap*(env: Environment, map: string) =
         id: id,
         agentId: parts[2].parseInt,
         pos: ivec2(parts[3].parseInt, parts[4].parseInt),
-        inventoryOre: 0,
-        inventoryBattery: 0,
-        frozen: 0,
+        hp: MapObjectAgentHp,
+        energy: MapObjectAgentInitialEnergy,
       ))
     of Wall:
       env.add(Thing(
         kind: kind,
         id: id,
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
+        hp: MapObjectWallHp,
       ))
     of Mine:
       env.add(Thing(
         kind: kind,
         id: id,
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-        resources: MapObjectMineInitialResources,
+        hp: MapObjectMineHp,
+        inputResource: 30
       ))
-    of Converter:
+    of Generator:
       env.add(Thing(
         kind: kind,
         id: id,
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
+        hp: MapObjectGeneratorHp,
       ))
     of Altar:
       env.add(Thing(
         kind: kind,
         id: id,
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-        hearts: MapObjectAltarInitialHearts,
+        hp: MapObjectAltarInitialHearts,
       ))
     of Temple:
       env.add(Thing(
         kind: kind,
         id: id,
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
+        hp: TempleHp,
       ))
     of Clippy:
       env.add(Thing(
@@ -951,6 +997,8 @@ proc loadMap*(env: Environment, map: string) =
         id: id,
         agentId: parts[2].parseInt,
         pos: ivec2(parts[3].parseInt, parts[4].parseInt),
+        hp: ClippyHp,
+        energy: ClippyInitialEnergy,
       ))
 
   for agentId in 0 ..< MapAgents:
@@ -999,10 +1047,10 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       if thing.cooldown > 0:
         thing.cooldown -= 1
         env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
-    elif thing.kind == Converter:
+    elif thing.kind == Generator:
       if thing.cooldown > 0:
         thing.cooldown -= 1
-        env.updateObservations(ConverterReadyLayer, thing.pos, thing.cooldown)
+        env.updateObservations(GeneratorReadyLayer, thing.pos, thing.cooldown)
     elif thing.kind == Mine:
       if thing.cooldown > 0:
         thing.cooldown -= 1
@@ -1035,10 +1083,6 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
               hp: ClippyHp,
               energy: ClippyInitialEnergy,
               orientation: Orientation(r.rand(0..3)),
-              homeTemple: thing.pos,  # Remember home temple position
-              wanderRadius: 2,  # Start with small radius
-              wanderAngle: 0.0,
-              targetPos: ivec2(-1, -1),  # No target initially
             )
             # Don't add immediately - collect for later
             newClippysToSpawn.add(newClippy)
@@ -1048,7 +1092,15 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     elif thing.kind == Agent:
       if thing.frozen > 0:
         thing.frozen -= 1
-        # Note: frozen status is visible in observations through updateObservations(id)
+        env.updateObservations(AgentFrozenLayer, thing.pos, thing.frozen)
+      if thing.shield:
+        if thing.energy <= 0:
+          thing.energy = 0
+          thing.shield = false
+        else:
+          thing.energy -= MapObjectAgentUpkeepShield
+        env.updateObservations(AgentEnergyLayer, thing.pos, thing.energy)
+        env.updateObservations(AgentShieldLayer, thing.pos, thing.shield.int)
 
   # Add newly spawned clippys from temples
   for newClippy in newClippysToSpawn:
@@ -1085,9 +1137,9 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       let target = env.getThing(newPos)
       if not isNil(target) and target.kind == Altar:
         # Clippy reached an altar - damage it and disappear
-        if target.hearts > 0:
-          target.hearts = max(0, target.hearts - 1)  # Decrement altar's hearts but don't go below 0
-          env.updateObservations(AltarHeartsLayer, target.pos, target.hearts)
+        if target.hp > 0:
+          target.hp = max(0, target.hp - 1)  # Decrement altar's HP (hearts) but don't go below 0
+          env.updateObservations(AltarHpLayer, target.pos, target.hp)
         clippysToRemove.add(clippy)
         env.grid[clippy.pos.x][clippy.pos.y] = nil
   
@@ -1132,9 +1184,9 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           # Clear the agent from its current position
           env.grid[adjacentThing.pos.x][adjacentThing.pos.y] = nil
           
-          # AgentFrozenLayer removed\n          # env.updateObservations(AgentFrozenLayer, adjacentThing.pos, adjacentThing.frozen)
-          env.updateObservations(AgentInventoryBatteryLayer, adjacentThing.pos, adjacentThing.energy)
-          # AgentHpLayer removed - no longer tracking HP
+          env.updateObservations(AgentFrozenLayer, adjacentThing.pos, adjacentThing.frozen)
+          env.updateObservations(AgentEnergyLayer, adjacentThing.pos, adjacentThing.energy)
+          env.updateObservations(AgentHpLayer, adjacentThing.pos, adjacentThing.hp)
         
         # Break after first combat (clippy is already dead)
         break
@@ -1159,22 +1211,20 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           break
       
       # Respawn if altar exists and has hearts
-      if not isNil(altar) and altar.hearts > 0:
+      if not isNil(altar) and altar.hp > 0:
         # Deduct a heart from the altar
-        altar.hearts -= MapObjectAltarRespawnCost
-        env.updateObservations(AltarHeartsLayer, altar.pos, altar.hearts)
+        altar.hp -= MapObjectAltarRespawnCost
+        env.updateObservations(AltarHpLayer, altar.pos, altar.hp)
         
         # Find an empty position around the altar
         let emptyPositions = env.findEmptyPositionsAround(altar.pos, 2)
         if emptyPositions.len > 0:
           # Respawn the agent
           agent.pos = emptyPositions[0]
-          agent.inventoryOre = 0
-          agent.inventoryBattery = 0
-          agent.inventoryWater = 0
-          agent.inventoryWheat = 0
-          agent.inventoryWood = 0
+          agent.hp = MapObjectAgentHp
+          agent.energy = MapObjectAgentInitialEnergy
           agent.frozen = 0
+          agent.shield = false
           env.terminated[agentId] = 0.0
           
           # Update grid
@@ -1182,13 +1232,11 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           
           # Update observations
           env.updateObservations(AgentLayer, agent.pos, 1)
-          env.updateObservations(AgentInventoryOreLayer, agent.pos, 0)
-          env.updateObservations(AgentInventoryBatteryLayer, agent.pos, 0)
-          env.updateObservations(AgentInventoryWaterLayer, agent.pos, 0)
-          env.updateObservations(AgentInventoryWheatLayer, agent.pos, 0)
-          env.updateObservations(AgentInventoryWoodLayer, agent.pos, 0)
+          env.updateObservations(AgentHpLayer, agent.pos, agent.hp)
+          env.updateObservations(AgentFrozenLayer, agent.pos, agent.frozen)
+          env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
           env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
-          # Shield layer removed\n        # env.updateObservations(AgentShieldLayer, agent.pos, agent.shield.int)
+          env.updateObservations(AgentShieldLayer, agent.pos, agent.shield.int)
           env.updateObservations(agentId)
 
   # for agentId in 0 ..< MapAgents:
@@ -1235,13 +1283,20 @@ proc getEpisodeStats*(env: Environment): string =
 
   result = "                      Stat     Total    Average      Min      Max\n"
   display "action.invalid", actionInvalid
+  display "action.attack", actionAttack
+  display "action.attack.agent", actionAttackAgent
+  display "action.attack.altar", actionAttackAltar
+  display "action.attack.generator", actionAttackGenerator
+  display "action.attack.mine", actionAttackMine
+  display "action.attack.wall", actionAttackWall
   display "action.move", actionMove
   display "action.noop", actionNoop
   display "action.rotate", actionRotate
+  display "action.shield", actionShield
   display "action.swap", actionSwap
   display "action.use", actionUse
   display "action.use.altar", actionUseAltar
-  display "action.use.converter", actionUseConverter
+  display "action.use.generator", actionUseGenerator
   display "action.use.mine", actionUseMine
   display "action.get", actionGet
   display "action.get.water", actionGetWater

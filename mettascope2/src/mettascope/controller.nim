@@ -17,7 +17,7 @@ type
   TargetType* = enum
     NoTarget
     Mine
-    Generator
+    Converter
     Altar
     Wander
     
@@ -128,14 +128,13 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   if agentId notin controller.agentStates:
     # Use home altar as base, or current position if no home
     let basePos = if agent.homeAltar.x >= 0: agent.homeAltar else: agent.pos
-    controller.initAgentState(agentId, basePos, agent.energy)
+    controller.initAgentState(agentId, basePos, 0)  # energy no longer used
   
   var state = controller.agentStates[agentId]
   
   # Update inventory state from agent
-  state.hasOre = agent.inventory > 0
-  # Consider having a battery only if energy is above starting amount (i.e., gained from converter)
-  state.hasBattery = agent.energy > state.startingEnergy
+  state.hasOre = agent.inventoryOre > 0
+  state.hasBattery = agent.inventoryBattery > 0
   
   # Find visible things
   let visibleThings = env.findVisibleThings(agent, viewRadius = 5)
@@ -175,29 +174,29 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       return [3'u8, useArg]  # Use action with direction
     
   elif state.hasOre:
-    # Priority 2: If we have ore, find a generator/converter
+    # Priority 2: If we have ore, find a converter
     if state.targetType != Generator:
-      var nearestGenerator: Thing = nil
+      var nearestConverter: Thing = nil
       var minDist = 999999.0
       
       for thing in visibleThings:
-        if thing.kind == Generator and thing.cooldown == 0:
+        if thing.kind == Converter and thing.cooldown == 0:
           let dist = distance(agent.pos, thing.pos)
           if dist < minDist:
             minDist = dist
-            nearestGenerator = thing
+            nearestConverter = thing
       
-      # If no visible generator, search wider
-      if nearestGenerator == nil:
-        nearestGenerator = env.findNearestThing(agent.pos, Generator, maxDist = 15.0)
+      # If no visible converter, search wider
+      if nearestConverter == nil:
+        nearestConverter = env.findNearestThing(agent.pos, Converter, maxDist = 15.0)
       
-      if nearestGenerator != nil:
-        state.currentTarget = nearestGenerator.pos
+      if nearestConverter != nil:
+        state.currentTarget = nearestConverter.pos
         state.targetType = Generator
     
-    # Check if we're adjacent to a generator
+    # Check if we're adjacent to a converter
     if state.targetType == Generator and isAdjacent(agent.pos, state.currentTarget):
-      # Use the generator to convert ore to battery
+      # Use the converter to convert ore to battery
       let dir = state.currentTarget - agent.pos
       
       # Determine direction argument for use action
@@ -211,7 +210,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:  # dir.y < 0
         useArg = 0  # North
       
-      # Use the generator
+      # Use the converter
       return [3'u8, useArg]  # Use action with direction
     
   else:

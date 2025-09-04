@@ -38,6 +38,7 @@ run_test() {
 run_test "test_villages_consolidated.nim" "Village & Terrain Tests"
 run_test "test_combat_consolidated.nim" "Combat System Tests"
 run_test "test_resources_consolidated.nim" "Resource System Tests"
+run_test "test_clippies_consolidated.nim" "Clippy Behavior Tests"
 
 # Optional: Run config test if needed
 if [ -f "test_nim_config.nim" ]; then

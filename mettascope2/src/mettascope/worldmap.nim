@@ -183,7 +183,7 @@ proc drawObjects*() =
             scale = 1/200,
             tint = altarColor(ivec2(x, y))
           )
-        of Generator:
+        of Converter:
           bxy.drawImage(
             "objects/converter",
             ivec2(x, y).vec2,
@@ -377,7 +377,7 @@ Altar
 hp: {selection.hp}
 cooldown: {selection.cooldown}
       """
-    of Generator:
+    of Converter:
       info = &"""
 Converter
 hp: {selection.hp}

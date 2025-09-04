@@ -1,4 +1,4 @@
-import vmath, std/random, terrain
+import vmath, std/[random, math], terrain
 
 type
   TempleStructure* = object
@@ -171,9 +171,8 @@ proc getConcentricWanderPoint*(clippy: pointer, r: var Rand): IVec2 =
     clippyThing.wanderRadius = min(clippyThing.wanderRadius + 1, 15)  # Max radius 15
   
   # Calculate target position in the circle
-  import math
-  let x = clippyThing.homeTemple.x + int(cos(clippyThing.wanderAngle) * clippyThing.wanderRadius.float)
-  let y = clippyThing.homeTemple.y + int(sin(clippyThing.wanderAngle) * clippyThing.wanderRadius.float)
+  let x = clippyThing.homeTemple.x + int32(cos(clippyThing.wanderAngle) * clippyThing.wanderRadius.float)
+  let y = clippyThing.homeTemple.y + int32(sin(clippyThing.wanderAngle) * clippyThing.wanderRadius.float)
   
   return ivec2(x, y)
 
