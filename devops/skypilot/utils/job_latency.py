@@ -9,9 +9,13 @@ Expected format: sky-YYYY-MM-DD-HH-MM-SS-ffffff_<cluster>_<n>
 """
 
 import datetime
+import logging
 import os
 import re
+import sys
 from typing import Final
+
+from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
 
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
@@ -41,3 +45,41 @@ def calculate_queue_latency() -> float:
 
     submitted = parse_submission_timestamp(task_id)
     return (datetime.datetime.now(_EPOCH) - submitted).total_seconds()
+
+
+if __name__ == "__main__":
+    logger = logging.getLogger("metta_agent")
+
+    script_start_time = datetime.datetime.now(_EPOCH).isoformat()
+    task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
+
+    ensure_wandb_run()
+
+    metrics = {
+        "skypilot/latency_script_ran": True,
+        "skypilot/latency_script_time": script_start_time,
+        "skypilot/task_id": task_id,
+    }
+
+    exit_code = 0
+    try:
+        latency_sec = calculate_queue_latency()
+        logger.info(f"SkyPilot queue latency: {latency_sec:.1f} s (task: {task_id})")
+        metrics.update(
+            {
+                "skypilot/queue_latency_s": latency_sec,
+                "skypilot/latency_calculated": True,
+            }
+        )
+    except Exception as e:
+        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})")
+        metrics.update(
+            {
+                "skypilot/latency_calculated": False,
+                "skypilot/latency_error": str(e),
+            }
+        )
+        exit_code = 1
+    finally:
+        log_to_wandb(metrics, also_summary=True)
+        sys.exit(exit_code)
