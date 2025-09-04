@@ -2,7 +2,7 @@ import logging
 
 from pydantic import Field
 
-from metta.common.config.tool import Tool
+from metta.common.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig

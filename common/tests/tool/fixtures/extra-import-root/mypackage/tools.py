@@ -1,4 +1,4 @@
-from metta.common.config.tool import Tool
+from metta.common.tool import Tool
 
 
 class TestTool(Tool):
