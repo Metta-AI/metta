@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-import metta.mettagrid.config.envs as eb
+import metta.mettagrid.builder.envs as eb
 from metta.mettagrid import dtype_observations
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.sim.simulation_config import SimulationConfig

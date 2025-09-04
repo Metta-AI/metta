@@ -16,8 +16,8 @@ import numpy as np
 from pydantic import validate_call
 from typing_extensions import override
 
-from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.puffer_base import MettaGridPufferBase
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter

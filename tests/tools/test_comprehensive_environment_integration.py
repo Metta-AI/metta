@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-import metta.mettagrid.config.envs as eb
+import metta.mettagrid.builder.envs as eb
 from metta.common.util.fs import get_repo_root
-from metta.mettagrid.config import building
+from metta.mettagrid.builder import building
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,

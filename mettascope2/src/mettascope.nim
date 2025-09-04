@@ -34,7 +34,9 @@ bottomArea.panels.add(agentTracesPanel)
 bottomArea.panels.add(mgConfigPanel)
 
 proc display() =
-  let now = epochTime()
+  if window.buttonReleased[MouseLeft]:
+    mouseCaptured = false
+    mouseCapturedPanel = nil
 
   bxy.beginFrame(window.size)
   const RibbonHeight = 64
@@ -99,7 +101,7 @@ when defined(emscripten):
   window.run(main)
 
 else:
-  import cligen, puppy
+  import cligen
   proc cmd(replay: string = "") =
     if replay != "":
       if replay.startsWith("http"):

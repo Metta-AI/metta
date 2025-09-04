@@ -1,9 +1,9 @@
 import logging
 from typing import Any, Tuple
 
-from metta.common.profiling.memory_monitor import MemoryMonitor
-from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.profiling.system_monitor import SystemMonitor
+from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
+from metta.mettagrid.profiling.stopwatch import Stopwatch
+from metta.mettagrid.profiling.system_monitor import SystemMonitor
 from metta.rl.experience import Experience
 
 logger = logging.getLogger(__name__)

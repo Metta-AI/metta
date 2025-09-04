@@ -13,7 +13,6 @@ from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
-from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
 from metta.core.distributed import TorchDistributedConfig
@@ -24,6 +23,7 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
+from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
 from metta.rl.experience import Experience

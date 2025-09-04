@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 import pytest
 
+from metta.mettagrid.builder.envs import make_arena
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
-from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.renderer.nethack import NethackRenderer

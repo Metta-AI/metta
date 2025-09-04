@@ -7,7 +7,7 @@ import wandb
 import wandb.errors
 import wandb.sdk.wandb_run
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -104,10 +104,11 @@ class WandbContext:
                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
             )
 
-            # Save config and set up file syncing only if wandb init succeeded
-            wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
-            wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
-            wandb.save(os.path.join(self.cfg.data_dir, "*.json"), base_path=self.cfg.data_dir, policy="live")
+            # Save config and set up file syncing only if wandb init succeeded and data_dir is set
+            if self.cfg.data_dir:
+                wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
+                wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
+                wandb.save(os.path.join(self.cfg.data_dir, "*.json"), base_path=self.cfg.data_dir, policy="live")
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
             # --- File-based IPC: Write to the same directory as HEARTBEAT_FILE ---

@@ -148,20 +148,12 @@ class Stopwatch:
 
         # Configure logger based on log_level
         if log_level is None:
-            # Explicitly silence this logger
-            self.logger.addHandler(logging.NullHandler())
+            self.logger.disabled = True
         else:
-            # Just set the log level and rely on parent logger's handlers
-            # Only add a handler if we're in a test environment with no logging setup
-            if not self.logger.hasHandlers() and not logging.getLogger().hasHandlers():
-                # Only in true isolation (like unit tests) should we add a handler
-                handler = logging.StreamHandler()
-                handler.setLevel(logging.DEBUG)
-                self.logger.addHandler(handler)
-                self.logger.warning(
-                    "No handlers found on logger - added StreamHandler. This should only happen during testing."
-                )
-
+            # Add a StreamHandler when log_level is explicitly set
+            handler = logging.StreamHandler()
+            handler.setLevel(log_level)
+            self.logger.addHandler(handler)
             self.logger.setLevel(log_level)
 
         self.max_laps = max_laps

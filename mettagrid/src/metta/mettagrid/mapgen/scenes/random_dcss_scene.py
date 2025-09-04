@@ -5,7 +5,7 @@ from glob import glob
 
 from pydantic import model_validator
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import ChildrenAction, Scene
 from metta.mettagrid.mapgen.scenes.random_yaml_scene import RandomYamlScene, RandomYamlSceneCandidate
 

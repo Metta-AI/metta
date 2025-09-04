@@ -59,7 +59,7 @@ echo "Welcome to Metta!"
 ensure_uv_setup
 
 uv sync || err "Failed to install Python dependencies"
-uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
+uv run python -m metta.setup.metta_cli symlink-setup setup || err "Failed to set up metta command in ~/.local/bin"
 if [ -n "$PROFILE" ]; then
   uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" $NON_INTERACTIVE || err "Failed to run configuration"
 else

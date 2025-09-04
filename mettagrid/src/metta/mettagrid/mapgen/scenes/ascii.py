@@ -1,4 +1,4 @@
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import ChildrenAction, Scene
 from metta.mettagrid.mapgen.scenes.inline_ascii import InlineAscii
 from metta.mettagrid.mapgen.utils.ascii_grid import char_grid_to_lines

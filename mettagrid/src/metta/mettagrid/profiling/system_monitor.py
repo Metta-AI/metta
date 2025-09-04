@@ -26,16 +26,8 @@ class SystemMonitor:
 
         # Configure logger based on log_level
         if log_level is None:
-            self.logger.addHandler(logging.NullHandler())
+            self.logger.disabled = True
         else:
-            if not self.logger.handlers:
-                handler = logging.StreamHandler()
-                handler.setLevel(logging.DEBUG)
-                self.logger.addHandler(handler)
-                self.logger.warning(
-                    "No handlers found on logger - added StreamHandler. This should only happen during testing."
-                )
-
             self.logger.setLevel(log_level)
 
         self.sampling_interval_sec = sampling_interval_sec
