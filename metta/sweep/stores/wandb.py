@@ -99,11 +99,23 @@ class WandbStore:
             # Deep clean the update to ensure it's JSON serializable
             clean_update = deep_clean(summary_update)
 
+            # Debug log what we're updating
+            logger.debug(f"[WandbStore] Updating run {run_id} summary with: {clean_update}")
+
             # Update the summary
             for key, value in clean_update.items():
                 run.summary[key] = value
+                logger.debug(f"[WandbStore] Set {key}={value} for run {run_id}")
 
             run.summary.update()  # Force sync with WandB
+
+            # Verify the update took effect
+            refreshed_run = api.run(f"{self.entity}/{self.project}/{run_id}")
+            logger.debug(
+                f"[WandbStore] After update, run {run_id} "
+                f"has_started_eval={refreshed_run.summary.get('has_started_eval')}"
+            )
+
             return True
         except Exception as e:
             logger.error(f"[WandbStore] Error updating run summary for run {run_id}: {e}")
@@ -113,6 +125,18 @@ class WandbStore:
         """Convert WandB run to RunInfo."""
         summary = deep_clean(run.summary)
         # assert isinstance(summary, dict)
+
+        # Debug log the summary to see what's available
+        logger.debug(
+            f"[WandbStore] Run {run.id} summary keys: "
+            f"{list(summary.keys()) if isinstance(summary, dict) else 'not a dict'}"
+        )
+        logger.debug(
+            f"[WandbStore] Run {run.id} has_started_eval in summary: "
+            f"{'has_started_eval' in summary if isinstance(summary, dict) else 'N/A'}"
+        )
+        if isinstance(summary, dict) and "has_started_eval" in summary:
+            logger.debug(f"[WandbStore] Run {run.id} has_started_eval value: {summary.get('has_started_eval')}")
 
         # Determine training/eval status from run state and summary
         has_started_training = False
@@ -139,6 +163,12 @@ class WandbStore:
             # Check evaluation status
             if "has_started_eval" in summary and summary["has_started_eval"] is True:  # type: ignore
                 has_started_eval = True
+                logger.debug(f"[WandbStore] Run {run.id} has_started_eval flag found and set to True")
+            else:
+                eval_value = summary.get("has_started_eval") if "has_started_eval" in summary else "missing"
+                logger.debug(
+                    f"[WandbStore] Run {run.id} has_started_eval flag not found or not True. Value: {eval_value}"
+                )
 
             # Check for evaluator metrics (ONLY keys starting with "evaluator/")
             # This avoids confusion with in-training eval metrics
