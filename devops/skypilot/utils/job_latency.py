@@ -15,6 +15,7 @@ import re
 import sys
 from typing import Final
 
+from metta.common.util.log_config import init_logging
 from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
 
 _EPOCH: Final = datetime.timezone.utc
@@ -48,6 +49,7 @@ def calculate_queue_latency() -> float:
 
 
 if __name__ == "__main__":
+    init_logging()
     logger = logging.getLogger("metta_agent")
 
     script_start_time = datetime.datetime.now(_EPOCH).isoformat()
