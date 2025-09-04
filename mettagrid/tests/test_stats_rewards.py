@@ -45,27 +45,19 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "move": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
         },
-        "groups": {
-            "red": {
-                "id": 0,
-                "props": {
-                    "rewards": {
-                        "inventory": {},  # No inventory rewards
-                        "stats": {
-                            "action.move.success": 0.1,  # 0.1 reward per successful move
-                            "action.attack.success": 1.0,  # 1.0 reward per successful attack
-                            "action.attack.success_max": 5.0,  # Max 5.0 total reward from attacks
-                        },
-                    }
+        "agent": {
+            "default_resource_limit": 10,
+            "rewards": {
+                "inventory": {},  # No inventory rewards
+                "stats": {
+                    "action.move.success": 0.1,  # 0.1 reward per successful move
+                    "action.attack.success": 1.0,  # 1.0 reward per successful attack
+                    "action.attack.success_max": 5.0,  # Max 5.0 total reward from attacks
                 },
-            },
-            "blue": {"id": 1, "props": {}},
+            }
         },
         "objects": {
             "wall": {"type_id": 1},
-        },
-        "agent": {
-            "default_resource_limit": 10,
         },
         "allow_diagonals": True,
     }

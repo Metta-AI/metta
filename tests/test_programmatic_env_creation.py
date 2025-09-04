@@ -14,7 +14,6 @@ from metta.mettagrid.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     GameConfig,
-    GroupConfig,
     MettaGridConfig,
 )
 from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -139,10 +138,33 @@ class TestProgrammaticEnvironments:
         assert limits["ore_red"] == 10
         assert limits["battery_red"] == 5
 
-    def test_environment_with_groups(self):
-        """Test creating an environment with agent groups."""
+    def test_environment_with_teams(self):
+        """Test creating an environment with agent teams."""
+        # Create agents with different team configurations
+        agents = []
+        # Team 0: 3 agents with higher heart reward
+        for _ in range(3):
+            agents.append(AgentConfig(
+                team_id=0,
+                rewards=AgentRewards(
+                    inventory={
+                        "heart": 2,
+                    },
+                ),
+            ))
+        # Team 1: 3 agents with lower heart reward
+        for _ in range(3):
+            agents.append(AgentConfig(
+                team_id=1,
+                rewards=AgentRewards(
+                    inventory={
+                        "heart": 1,
+                    },
+                ),
+            ))
+        
         config = MettaGridConfig(
-            label="groups_test",
+            label="teams_test",
             game=GameConfig(
                 num_agents=6,
                 objects={
@@ -152,30 +174,7 @@ class TestProgrammaticEnvironments:
                     move=ActionConfig(),
                 ),
                 agent=AgentConfig(),
-                groups={
-                    "team_a": GroupConfig(
-                        id=0,
-                        sprite=0,
-                        props=AgentConfig(
-                            rewards=AgentRewards(
-                                inventory={
-                                    "heart": 2,
-                                },
-                            ),
-                        ),
-                    ),
-                    "team_b": GroupConfig(
-                        id=1,
-                        sprite=1,
-                        props=AgentConfig(
-                            rewards=AgentRewards(
-                                inventory={
-                                    "heart": 1,
-                                },
-                            ),
-                        ),
-                    ),
-                },
+                agents=agents,
                 map_builder=RandomMapBuilder.Config(
                     agents=6,
                     width=20,
@@ -186,11 +185,17 @@ class TestProgrammaticEnvironments:
             ),
         )
 
-        assert len(config.game.groups) == 2
-        assert "team_a" in config.game.groups
-        assert "team_b" in config.game.groups
-        assert config.game.groups["team_a"].id == 0
-        assert config.game.groups["team_b"].id == 1
+        assert len(config.game.agents) == 6
+        # Check that we have 3 agents in each team
+        team_0_count = sum(1 for a in config.game.agents if a.team_id == 0)
+        team_1_count = sum(1 for a in config.game.agents if a.team_id == 1)
+        assert team_0_count == 3
+        assert team_1_count == 3
+        # Check rewards are set correctly
+        for agent in config.game.agents[:3]:
+            assert agent.rewards.inventory["heart"] == 2
+        for agent in config.game.agents[3:]:
+            assert agent.rewards.inventory["heart"] == 1
 
         # This would be a good addition to the test, but we don't currently expose cpp_config.objects.
         # cpp_config = convert_to_cpp_game_config(config.game)

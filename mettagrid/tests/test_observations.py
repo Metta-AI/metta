@@ -12,7 +12,6 @@ from metta.mettagrid.mettagrid_config import (
     ConverterConfig,
     GameConfig,
     GlobalObsConfig,
-    GroupConfig,
     MettaGridConfig,
     WallConfig,
 )
@@ -252,7 +251,7 @@ class TestObservations:
                     get_items=ActionConfig(),
                 ),
                 objects=objects,
-                groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
+                
                 resource_names=["laser", "resource1", "resource2"],  # include laser to allow attack
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
@@ -495,9 +494,6 @@ class TestGlobalTokens:
                     change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=8),
                 ),
                 objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-                groups={
-                    "agent": GroupConfig(id=0),  # "@" maps to "agent.agent" for both agents
-                },
                 resource_names=["laser", "armor"],
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
@@ -634,7 +630,7 @@ class TestEdgeObservations:
                         color=42,  # Distinctive color
                     ),
                 },
-                groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
+                
                 resource_names=["laser", "resource1", "resource2"],  # laser required for attack action
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )

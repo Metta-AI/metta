@@ -13,7 +13,6 @@ from metta.mettagrid.mettagrid_config import (
     ActionsConfig,
     GameConfig,
     GlobalObsConfig,
-    GroupConfig,
     MettaGridConfig,
     WallConfig,
 )
@@ -37,7 +36,6 @@ def env_with_visitation():
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -80,7 +78,7 @@ def env_without_visitation():
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
+            
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -123,7 +121,7 @@ def env_default():
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
+            
             # No explicit visitation_counts setting - uses default (False)
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
@@ -246,7 +244,7 @@ def test_visitation_counts_configurable():
             resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
+            
             global_obs=GlobalObsConfig(visitation_counts=True),
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
@@ -266,7 +264,7 @@ def test_visitation_counts_configurable():
             resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
+            
             global_obs=GlobalObsConfig(visitation_counts=False),
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
@@ -286,7 +284,7 @@ def test_visitation_counts_configurable():
             resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
+            
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )
@@ -320,7 +318,7 @@ def performance_config():
             resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
+            
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )

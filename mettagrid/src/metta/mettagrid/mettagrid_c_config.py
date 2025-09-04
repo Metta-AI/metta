@@ -9,7 +9,7 @@ from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
-from metta.mettagrid.mettagrid_config import BoxConfig, ConverterConfig, GameConfig, WallConfig
+from metta.mettagrid.mettagrid_config import AgentConfig, BoxConfig, ConverterConfig, GameConfig, WallConfig
 
 
 def recursive_update(d, u):
@@ -23,14 +23,15 @@ def recursive_update(d, u):
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     """Convert a GameConfig to a CppGameConfig."""
-
     if isinstance(mettagrid_config, GameConfig):
         # If it's already a GameConfig instance, convert to dict
         game_config = mettagrid_config
     else:
-        # If it's a dict, create a GameConfig instance
+        # If it's a dict, instantiate a GameConfig from it
+        # mettagrid_config needs special handling for map_builder
         game_config = GameConfig(**mettagrid_config)
 
+    # Set up resource mappings
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
@@ -40,15 +41,31 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     default_agent_config_dict = game_config.agent.model_dump()
     default_resource_limit = default_agent_config_dict["default_resource_limit"]
 
-    # Group information is more specific than the defaults, so it should override
-    for group_name, group_config in game_config.groups.items():
-        agent_group_props = copy.deepcopy(default_agent_config_dict)
+    # If no agents specified, create default agents with appropriate team IDs
+    if not game_config.agents:
+        # Create default agents that inherit from game_config.agent
+        base_agent_dict = game_config.agent.model_dump()
+        game_config.agents = []
+        for _ in range(game_config.num_agents):
+            agent_dict = base_agent_dict.copy()
+            agent_dict['team_id'] = 0  # All default agents are on team 0
+            game_config.agents.append(AgentConfig(**agent_dict))
 
-        # Update, but in a nested way
-        if group_config.props:
-            recursive_update(agent_group_props, group_config.props.model_dump(exclude_unset=True))
+    # Group agents by team_id to create groups
+    team_groups = {}
+    for agent_idx, agent_config in enumerate(game_config.agents):
+        team_id = agent_config.team_id
+        if team_id not in team_groups:
+            team_groups[team_id] = []
+        team_groups[team_id].append((agent_idx, agent_config))
 
-        rewards_config = agent_group_props.get("rewards", {})
+    # Create a group for each team
+    for team_id, team_agents in team_groups.items():
+        # Use the first agent in the team as the template for the group
+        _, first_agent = team_agents[0]
+        agent_props = first_agent.model_dump()
+
+        rewards_config = agent_props.get("rewards", {})
         inventory_rewards = {
             resource_name_to_id[k]: v
             for k, v in rewards_config.get("inventory", {}).items()
@@ -74,29 +91,40 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         # Process potential initial inventory
         initial_inventory = {}
-        for k, v in agent_group_props["initial_inventory"].items():
+        for k, v in agent_props["initial_inventory"].items():
             initial_inventory[resource_name_to_id[k]] = v
 
+        # Map team IDs to conventional group names
+        team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
+        group_name = team_names.get(team_id, f"team_{team_id}")
         agent_cpp_params = {
-            "freeze_duration": agent_group_props["freeze_duration"],
-            "group_id": group_config.id,
+            "freeze_duration": agent_props["freeze_duration"],
+            "group_id": team_id,
             "group_name": group_name,
-            "action_failure_penalty": agent_group_props["action_failure_penalty"],
+            "action_failure_penalty": agent_props["action_failure_penalty"],
             "resource_limits": {
-                resource_id: agent_group_props["resource_limits"].get(resource_name, default_resource_limit)
+                resource_id: agent_props["resource_limits"].get(resource_name, default_resource_limit)
                 for resource_id, resource_name in enumerate(resource_names)
             },
             "resource_rewards": inventory_rewards,
             "resource_reward_max": inventory_reward_max,
             "stat_rewards": stat_rewards,
             "stat_reward_max": stat_reward_max,
-            "group_reward_pct": group_config.group_reward_pct,
+            "group_reward_pct": 0.0,  # Default to 0 for direct agents
             "type_id": 0,
             "type_name": "agent",
             "initial_inventory": initial_inventory,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
+
+        # Also register team_X naming convention for maps that use it
+        objects_cpp_params[f"agent.team_{team_id}"] = CppAgentConfig(**agent_cpp_params)
+
+        # Also register aliases for team 0 for backward compatibility
+        if team_id == 0:
+            objects_cpp_params["agent.default"] = CppAgentConfig(**agent_cpp_params)
+            objects_cpp_params["agent.agent"] = CppAgentConfig(**agent_cpp_params)
 
     # Convert other objects
     for object_type, object_config in game_config.objects.items():
@@ -145,7 +173,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     game_cpp_params = game_config.model_dump(exclude_none=True)
     del game_cpp_params["agent"]
-    del game_cpp_params["groups"]
+    if "agents" in game_cpp_params:
+        del game_cpp_params["agents"]
     if "params" in game_cpp_params:
         del game_cpp_params["params"]
     if "map_builder" in game_cpp_params:
