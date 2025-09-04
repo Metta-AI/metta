@@ -27,7 +27,7 @@ def replace_objects_with_altars(name: str) -> str:
 def make_nav_ascii_env(
     name: str,
     max_steps: int,
-    border_width: int = 1,
+    border_width: int = 6,
     num_agents=1,
     num_instances=4,
 ) -> MettaGridConfig:
