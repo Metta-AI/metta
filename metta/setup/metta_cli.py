@@ -434,8 +434,15 @@ class MettaCLI:
         # Add missing dependencies to install set
         missing_deps = set()
 
-        def collect_dependencies(module_names):
+        def collect_dependencies(module_names, visited=None):
+            if visited is None:
+                visited = set()
+            
             for name in module_names:
+                if name in visited:
+                    continue
+                visited.add(name)
+                    
                 if name in module_map:
                     module = module_map[name]
                 else:
@@ -443,7 +450,7 @@ class MettaCLI:
                 for dep_name in module.dependencies():
                     if dep_name not in module_map and dep_name in all_modules_dict:
                         missing_deps.add(dep_name)
-                        collect_dependencies([dep_name])
+                        collect_dependencies([dep_name], visited)
 
         collect_dependencies(list(module_map.keys()))
 
