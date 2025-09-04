@@ -184,24 +184,39 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         state.currentTarget = altar.pos
         state.targetType = Altar
     
-    # Check if we're cardinally adjacent to the altar (required for use action)
-    if state.targetType == Altar and isCardinallyAdjacent(agent.pos, state.currentTarget):
-      # Use the altar to deposit battery
-      let dir = state.currentTarget - agent.pos
-      
-      # Determine direction argument for use action
-      var useArg: uint8
-      if dir.x > 0:
-        useArg = 2  # East
-      elif dir.x < 0:
-        useArg = 3  # West
-      elif dir.y > 0:
-        useArg = 1  # South
-      else:  # dir.y < 0
-        useArg = 0  # North
-      
-      # Use the altar
-      return [3'u8, useArg]  # Use action with direction
+    # Check if we're near the altar
+    if state.targetType == Altar:
+      if isCardinallyAdjacent(agent.pos, state.currentTarget):
+        # We can use the altar!
+        let dir = state.currentTarget - agent.pos
+        
+        # Determine direction argument for use action
+        var useArg: uint8
+        if dir.x > 0:
+          useArg = 2  # East
+        elif dir.x < 0:
+          useArg = 3  # West
+        elif dir.y > 0:
+          useArg = 1  # South
+        else:  # dir.y < 0
+          useArg = 0  # North
+        
+        # Use the altar
+        return [3'u8, useArg]  # Use action with direction
+      elif isAdjacent(agent.pos, state.currentTarget):
+        # We're diagonally adjacent - move to cardinal position
+        let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
+        if moveDir.x != 0 or moveDir.y != 0:
+          var moveArg: uint8
+          if moveDir.x > 0:
+            moveArg = 2  # Move East
+          elif moveDir.x < 0:
+            moveArg = 3  # Move West
+          elif moveDir.y > 0:
+            moveArg = 1  # Move South
+          else:  # moveDir.y < 0
+            moveArg = 0  # Move North
+          return [1'u8, moveArg]  # Move to cardinal position
     
   elif state.hasOre:
     # Priority 2: If we have ore, find a converter
@@ -233,24 +248,39 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         state.currentTarget = controller.getNextWanderPoint(state)
         state.targetType = Wander
     
-    # Check if we're cardinally adjacent to a converter (required for use action)
-    if state.targetType == Converter and isCardinallyAdjacent(agent.pos, state.currentTarget):
-      # Use the converter to convert ore to battery
-      let dir = state.currentTarget - agent.pos
-      
-      # Determine direction argument for use action
-      var useArg: uint8
-      if dir.x > 0:
-        useArg = 2  # East
-      elif dir.x < 0:
-        useArg = 3  # West
-      elif dir.y > 0:
-        useArg = 1  # South
-      else:  # dir.y < 0
-        useArg = 0  # North
-      
-      # Use the converter
-      return [3'u8, useArg]  # Use action with direction
+    # Check if we're near the converter
+    if state.targetType == Converter:
+      if isCardinallyAdjacent(agent.pos, state.currentTarget):
+        # We can use the converter!
+        let dir = state.currentTarget - agent.pos
+        
+        # Determine direction argument for use action
+        var useArg: uint8
+        if dir.x > 0:
+          useArg = 2  # East
+        elif dir.x < 0:
+          useArg = 3  # West
+        elif dir.y > 0:
+          useArg = 1  # South
+        else:  # dir.y < 0
+          useArg = 0  # North
+        
+        # Use the converter
+        return [3'u8, useArg]  # Use action with direction
+      elif isAdjacent(agent.pos, state.currentTarget):
+        # We're diagonally adjacent - move to cardinal position
+        let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
+        if moveDir.x != 0 or moveDir.y != 0:
+          var moveArg: uint8
+          if moveDir.x > 0:
+            moveArg = 2  # Move East
+          elif moveDir.x < 0:
+            moveArg = 3  # Move West
+          elif moveDir.y > 0:
+            moveArg = 1  # Move South
+          else:  # moveDir.y < 0
+            moveArg = 0  # Move North
+          return [1'u8, moveArg]  # Move to cardinal position
     
   else:
     # Priority 3: No inventory, look for mines
@@ -289,24 +319,39 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         state.currentTarget = controller.getNextWanderPoint(state)
         state.targetType = Wander
     
-    # Check if we're cardinally adjacent to a mine (required for use action)
-    if state.targetType == Mine and isCardinallyAdjacent(agent.pos, state.currentTarget):
-      # Use the mine to get ore
-      let dir = state.currentTarget - agent.pos
-      
-      # Determine direction argument for use action
-      var useArg: uint8
-      if dir.x > 0:
-        useArg = 2  # East
-      elif dir.x < 0:
-        useArg = 3  # West
-      elif dir.y > 0:
-        useArg = 1  # South
-      else:  # dir.y < 0
-        useArg = 0  # North
-      
-      # Use the mine
-      return [3'u8, useArg]  # Use action with direction
+    # Check if we're near the mine
+    if state.targetType == Mine:
+      if isCardinallyAdjacent(agent.pos, state.currentTarget):
+        # We can use the mine!
+        let dir = state.currentTarget - agent.pos
+        
+        # Determine direction argument for use action
+        var useArg: uint8
+        if dir.x > 0:
+          useArg = 2  # East
+        elif dir.x < 0:
+          useArg = 3  # West
+        elif dir.y > 0:
+          useArg = 1  # South
+        else:  # dir.y < 0
+          useArg = 0  # North
+        
+        # Use the mine
+        return [3'u8, useArg]  # Use action with direction
+      elif isAdjacent(agent.pos, state.currentTarget):
+        # We're diagonally adjacent - move to cardinal position
+        let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
+        if moveDir.x != 0 or moveDir.y != 0:
+          var moveArg: uint8
+          if moveDir.x > 0:
+            moveArg = 2  # Move East
+          elif moveDir.x < 0:
+            moveArg = 3  # Move West
+          elif moveDir.y > 0:
+            moveArg = 1  # Move South
+          else:  # moveDir.y < 0
+            moveArg = 0  # Move North
+          return [1'u8, moveArg]  # Move to cardinal position
   
   # Movement logic: Move towards current target using new directional movement
   if state.currentTarget != agent.pos:
