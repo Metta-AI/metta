@@ -1,6 +1,6 @@
 from numpy import random
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import ChildrenAction, Scene
 from metta.mettagrid.mapgen.scenes.random import Random
 from metta.mettagrid.mapgen.scenes.room_grid import RoomGrid

@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from metta.common.profiling.stopwatch import Checkpoint, Stopwatch, with_instance_timer, with_timer
+from metta.mettagrid.profiling.stopwatch import Checkpoint, Stopwatch, with_instance_timer, with_timer
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ This module tests the MettaGridPettingZooEnv with PettingZoo's ParallelEnv inter
 import numpy as np
 from pettingzoo.test import parallel_api_test
 
-from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.builder.envs import make_arena
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,

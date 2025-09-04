@@ -1,6 +1,6 @@
 from typing import Literal
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
 
 
