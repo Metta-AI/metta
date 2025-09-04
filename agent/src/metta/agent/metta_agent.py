@@ -10,6 +10,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.agent_config import AgentConfig, create_agent
+from metta.agent.agent_env_config import AgentEnvConfig
 from metta.rl.experience import Experience
 from metta.mettagrid import MettaGridEnv
 
@@ -47,28 +48,38 @@ class DistributedMettaAgent(DistributedDataParallel):
 
 class MettaAgent(nn.Module):
     policy: nn.Module
+    env_config: AgentEnvConfig
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        env: MettaGridEnv | AgentEnvConfig,
         policy_architecture_cfg: AgentConfig,
         policy: Optional[nn.Module] = None,  # ?? Note that policy param is only used in test code. can this be removed?
     ):
+
         super().__init__()
         self.cfg = policy_architecture_cfg
+
+        if isinstance(env, MettaGridEnv):
+            self.env_config = AgentEnvConfig.create(env, policy_architecture_cfg)
+        else:
+            self.env_config = env
+
 
         # Create observation space
         self.obs_space = gym.spaces.Dict(
             {
-                "grid_obs": env.single_observation_space,
+                "grid_obs": self.env_config.single_observation_space,
                 "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(0,), dtype=np.int32),
             }
         )
 
-        self.obs_width = env.obs_width
-        self.obs_height = env.obs_height
-        self.action_space = env.single_action_space
-        self.feature_normalizations = env.feature_normalizations
+        self.obs_width = self.env_config.obs_width
+        self.obs_height = self.env_config.obs_height
+        self.action_space = self.env_config.single_action_space
+        self.feature_normalizations = self.env_config.feature_normalizations
+
+
 
         # Create policy if not provided
         if policy is None:
@@ -78,7 +89,7 @@ class MettaAgent(nn.Module):
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
                 feature_normalizations=self.feature_normalizations,
-                env=env,
+                env_config=self.env_config,
             )
             logger.info(f"Using agent: {policy_architecture_cfg.name}")
         else:
@@ -96,6 +107,7 @@ class MettaAgent(nn.Module):
 
     def get_cfg(self) -> AgentConfig:
         return self.cfg
+
 
     @classmethod
     def from_weights(
@@ -117,8 +129,20 @@ class MettaAgent(nn.Module):
         # Create agent instance
         agent = cls(env=env, policy_architecture_cfg=cfg)
 
+        agent.initialize_to_environment(
+            features=env.get_observation_features(),
+            action_names=env.action_names,
+            action_max_params=env.max_action_args,
+            device=torch.device("cpu"), # ??
+            is_training=True, # ??
+        )
+
         # Load the weights into the policy
-        agent.policy.load_state_dict(weights)
+        try:
+            agent.policy.load_state_dict(weights)
+        except Exception as e:
+            state_dict = {k.replace('policy.', ''): v for k, v in weights.items()}
+            agent.policy.load_state_dict(state_dict, strict=False)
 
         return agent
 
@@ -317,6 +341,7 @@ class MettaAgent(nn.Module):
         if hasattr(self.policy, "_convert_logit_index_to_action"):
             return self.policy._convert_logit_index_to_action(logit_indices)
         return self.action_index_tensor[logit_indices]
+
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent

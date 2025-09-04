@@ -13,6 +13,8 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.mettagrid import MettaGridEnv
+from metta.agent.agent_config import AgentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,8 @@ def evaluate_policy(
 
     # Load the policy from URI directly to the correct device
     policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
+
+
 
     sims = [
         Simulation(

@@ -6,19 +6,24 @@ import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
+from typing import TypedDict, Dict, Any
 
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 from metta.agent.pytorch.base import LSTMWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+from metta.agent.agent_env_config import AgentEnvConfig
+
 
 logger = logging.getLogger(__name__)
+
+
 
 
 class LatentAttnMed(PyTorchAgentMixin, LSTMWrapper):
     def __init__(
         self,
-        env,
+        env_config: "AgentEnvConfig",
         policy=None,
         cnn_channels=128,
         input_size=128,  # Same as tiny per original YAML
@@ -32,12 +37,12 @@ class LatentAttnMed(PyTorchAgentMixin, LSTMWrapper):
 
         if policy is None:
             policy = Policy(
-                env,
+                env_config,
                 input_size=input_size,
                 hidden_size=hidden_size,
             )
         # Use enhanced LSTMWrapper with num_layers support
-        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
+        super().__init__(env_config["single_observation_space"].shape, policy, input_size, hidden_size, num_layers=num_layers)
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
@@ -93,13 +98,14 @@ class LatentAttnMed(PyTorchAgentMixin, LSTMWrapper):
         return td
 
 
+
 class Policy(nn.Module):
-    def __init__(self, env, input_size=128, hidden_size=128):  # Same as tiny per original YAML
+    def __init__(self, env_config: "AgentEnvConfig", input_size=128, hidden_size=128):  # Same as tiny per original YAML
         super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.is_continuous = False
-        self.action_space = env.single_action_space
+        self.action_space = env_config["single_action_space"]
 
         self.out_width = 11
         self.out_height = 11
@@ -146,7 +152,7 @@ class Policy(nn.Module):
 
         # Create action heads using mixin pattern
         self.actor_heads = PyTorchAgentMixin.create_action_heads(
-            self, env, input_size=self.actor_hidden_dim + self.action_embed_dim
+            self, env_config, input_size=self.actor_hidden_dim + self.action_embed_dim
         )
 
     def network_forward(self, x):
@@ -190,3 +196,6 @@ class Policy(nn.Module):
         logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1)  # (B, sum(A_i))
 
         return logits, value
+
+
+

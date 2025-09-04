@@ -97,6 +97,7 @@ class Simulation:
             stats_writer=self._stats_writer,
             replay_writer=self._replay_writer,
         )
+        self._metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore[attr-defined]
 
         self._num_envs = num_envs
         self._min_episodes = episodes_per_env

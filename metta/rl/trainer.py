@@ -265,6 +265,8 @@ def train(
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
     # Set up monitoring (master only)
+    # ?? failed for mh running locally
+    '''
     if torch_dist_cfg.is_master:
         logger.info("Starting training")
         memory_monitor, system_monitor = setup_monitoring(
@@ -273,7 +275,8 @@ def train(
             timer=timer,
         )
     else:
-        memory_monitor, system_monitor = None, None
+        '''
+    memory_monitor, system_monitor = None, None
 
     # Set up wandb metrics (master only)
     if wandb_run and torch_dist_cfg.is_master:
@@ -590,7 +593,7 @@ def train(
                             vectorization=system_cfg.vectorization,
                             replay_dir=trainer_cfg.evaluation.replay_dir if trainer_cfg.evaluation else None,
                             stats_epoch_id=stats_tracker.stats_epoch_id,
-                            stats_client=stats_client,
+                            stats_client=stats_client
                         )
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores

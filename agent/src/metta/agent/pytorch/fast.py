@@ -12,24 +12,31 @@ from torch import nn
 
 from metta.agent.pytorch.base import LSTMWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+from metta.agent.agent_env_config import AgentEnvConfig
 
 logger = logging.getLogger(__name__)
+
+
 
 
 class Fast(PyTorchAgentMixin, LSTMWrapper):
     """Fast CNN-based policy with LSTM using PyTorchAgentMixin for shared functionality."""
 
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2, **kwargs):
+    # single_observation_space_shape
+    def __init__(self, env_config: "AgentEnvConfig", policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2, **kwargs):
         """Initialize Fast CNN-based policy with LSTM and mixin support."""
         mixin_params = self.extract_mixin_params(kwargs)  # Extract mixin parameters before passing to parent
 
         if policy is None:
             policy = Policy(
-                env,
+                env_config.obs_width,
+                env_config.obs_height,
+                env_config.feature_normalizations,
+                env_config.single_action_space,
                 input_size=input_size,
                 hidden_size=hidden_size,
             )
-        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)  # Pass num_layers=2 to match YAML
+        super().__init__(env_config.single_action_space.shape, policy, input_size, hidden_size, num_layers=num_layers)  # Pass num_layers=2 to match YAML
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
@@ -86,19 +93,19 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, input_size=128, hidden_size=128):
+    def __init__(self, obs_width, obs_height, feature_normalizations, action_space, input_size=128, hidden_size=128):
         super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.is_continuous = False
-        self.action_space = env.single_action_space
+        self.action_space = action_space
 
-        self.out_width = env.obs_width
-        self.out_height = env.obs_height
+        self.out_width = obs_width
+        self.out_height = obs_height
 
         # Dynamically determine num_layers from environment features
         # This matches what ComponentPolicy does via ObsTokenToBoxShaper
-        self.num_layers = max(env.feature_normalizations.keys()) + 1
+        self.num_layers = max(feature_normalizations.keys()) + 1
 
         # Define layer dimensions that are used multiple times
         self.cnn_channels = 64  # Used in cnn1 and cnn2
@@ -151,7 +158,7 @@ class Policy(nn.Module):
         # Build normalization vector dynamically from environment
         # This matches what ObservationNormalizer does in ComponentPolicy
         max_values = [1.0] * self.num_layers  # Default to 1.0
-        for feature_id, norm_value in env.feature_normalizations.items():
+        for feature_id, norm_value in feature_normalizations.items():
             if feature_id < self.num_layers:
                 max_values[feature_id] = norm_value if norm_value > 0 else 1.0
         max_vec = torch.tensor(max_values, dtype=torch.float32)[None, :, None, None]
@@ -303,3 +310,9 @@ class Policy(nn.Module):
         logits = biased_scores.reshape(batch_size, num_actions)
 
         return logits, value
+
+
+
+
+
+

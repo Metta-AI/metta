@@ -99,7 +99,7 @@ def auto_replay_dir() -> str:
 
 
 def auto_run_name(prefix: str | None = None) -> str:
-    return ".".join(
+    return "_".join(
         remove_falsey(
             [
                 prefix,

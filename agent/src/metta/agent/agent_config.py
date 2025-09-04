@@ -18,6 +18,8 @@ from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLate
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
 from metta.common.config import Config
 from torch import nn
+from typing import TypedDict, Dict, Any
+
 
 
 class AgentConfig(Config):
@@ -59,7 +61,7 @@ def create_agent(
     obs_width=None,
     obs_height=None,
     feature_normalizations=None,
-    env=None,
+    env_config =None,
 ) -> nn.Module:
     """Create an agent instance from configuration."""
     if config.name not in AGENT_REGISTRY:
@@ -67,10 +69,10 @@ def create_agent(
 
     AgentClass = AGENT_REGISTRY[config.name]
 
-    # PyTorch models use env, ComponentPolicies use structured parameters
+
     if config.name.startswith("pytorch/"):
         return AgentClass(
-            env=env,
+            env_config=env_config,
             clip_range=config.clip_range,
             analyze_weights_interval=config.analyze_weights_interval,
         )
@@ -85,3 +87,5 @@ def create_agent(
                 "analyze_weights_interval": config.analyze_weights_interval,
             },
         )
+
+
