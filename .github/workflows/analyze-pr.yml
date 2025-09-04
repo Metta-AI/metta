@@ -47,8 +47,8 @@ jobs:
           restore-keys: |
             pr-cache-${{ github.repository }}-
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: minimal
 

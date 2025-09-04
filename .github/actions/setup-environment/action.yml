@@ -1,5 +1,5 @@
-name: "Setup uv"
-description: "Set up uv and activate the environment"
+name: "Setup Environment"
+description: "Set up the environment for CI"
 inputs:
   install-mode:
     description: "Installation mode: 'testing', 'runtime', 'linting', or 'minimal'"

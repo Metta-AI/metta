@@ -24,8 +24,8 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup uv
-      uses: ./.github/actions/setup-uv
+    - name: Setup Environment
+      uses: ./.github/actions/setup-environment
       with:
         install-mode: minimal
         extra-dependencies: PyGithub>=2.1.1

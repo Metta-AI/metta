@@ -83,7 +83,7 @@ jobs:
             pr-summaries-${{ github.repository }}-
 
       - name: Install uv
-        uses: ./.github/actions/setup-uv
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: minimal
 
