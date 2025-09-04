@@ -135,7 +135,10 @@ type
     energy*: int
     frozen*: int
     shield*: bool
-    inventory*: int
+    inventory*: int        # Slot 1: Ore (from mines)
+    inventoryWater*: int   # Slot 2: Water (from water tiles)
+    inventoryWheat*: int   # Slot 3: Wheat (from wheat tiles)
+    inventoryWood*: int    # Slot 4: Wood (from tree tiles)
     reward*: float32
 
   Stats* = ref object
@@ -156,6 +159,10 @@ type
     actionUseMine*: int
     actionUseGenerator*: int
     actionUseAltar*: int
+    actionGet*: int
+    actionGetWater*: int
+    actionGetWheat*: int
+    actionGetWood*: int
 
   Environment* = ref object
     currentStep*: int
@@ -297,12 +304,12 @@ proc updateObservations(env: Environment, agentId: int) =
         obs[4][x][y] = thing.orientation.uint8
         # agent:shield
         obs[5][x][y] = 0 #thing.shield.uint8
-        # agent:inv:r1
+        # agent:inv:r1 (ore)
         obs[6][x][y] = thing.inventory.uint8
-        # agent:inv:r2
-        # obs[7][x][y] = 0
-        # agent:inv:r3
-        # obs[8][x][y] = 0
+        # agent:inv:r2 (water)
+        obs[7][x][y] = thing.inventoryWater.uint8
+        # agent:inv:r3 (wheat + wood combined for simplicity)
+        obs[8][x][y] = (thing.inventoryWheat + thing.inventoryWood).uint8
 
       of Wall:
         # wall
@@ -550,7 +557,12 @@ proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
   if target == nil:
     return
 
-  if target.kind != Agent:
+  if target.kind == Clippy:
+    # Agent attacks clippy - clippy dies immediately
+    env.things.del(env.things.find(target))
+    env.grid[target.pos.x][target.pos.y] = nil
+    inc env.stats[id].actionAttack
+  elif target.kind != Agent:
     target.hp -= 1
     if target.hp <= 0:
       env.things.del(env.things.find(target))
@@ -564,7 +576,6 @@ proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
     elif target.kind == Wall:
       inc env.stats[id].actionAttackWall
     inc env.stats[id].actionAttack
-
   elif target.kind == Agent:
     inc env.stats[id].actionAttackAgent
     inc env.stats[id].actionAttack
@@ -584,6 +595,57 @@ proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
         env.updateObservations(AgentInventory1Layer, target.pos, target.inventory)
         agent.inventory += 1
         env.updateObservations(AgentInventory1Layer, agent.pos, agent.inventory)
+
+proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
+  ## Get resources from terrain (water, wheat, wood)
+  if argument > 1:
+    inc env.stats[id].actionInvalid
+    return
+  
+  let targetPos = agent.pos + orientationToVec(agent.orientation)
+  
+  # Check bounds
+  if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Check what terrain is at target position
+  case env.terrain[targetPos.x][targetPos.y]:
+  of Water:
+    # Get water (max 5 water inventory)
+    if agent.inventoryWater < 5:
+      agent.inventoryWater += 1
+      env.terrain[targetPos.x][targetPos.y] = Empty  # Remove water tile
+      env.updateObservations(AgentInventory2Layer, agent.pos, agent.inventoryWater)
+      inc env.stats[id].actionGetWater
+      inc env.stats[id].actionGet
+    else:
+      inc env.stats[id].actionInvalid  # Inventory full
+  
+  of Wheat:
+    # Get wheat (max 5 wheat inventory)
+    if agent.inventoryWheat < 5:
+      agent.inventoryWheat += 1
+      env.terrain[targetPos.x][targetPos.y] = Empty  # Remove wheat tile
+      env.updateObservations(AgentInventory3Layer, agent.pos, agent.inventoryWheat + agent.inventoryWood)
+      inc env.stats[id].actionGetWheat
+      inc env.stats[id].actionGet
+    else:
+      inc env.stats[id].actionInvalid  # Inventory full
+  
+  of Tree:
+    # Get wood (max 5 wood inventory)
+    if agent.inventoryWood < 5:
+      agent.inventoryWood += 1
+      env.terrain[targetPos.x][targetPos.y] = Empty  # Remove tree tile
+      env.updateObservations(AgentInventory3Layer, agent.pos, agent.inventoryWheat + agent.inventoryWood)
+      inc env.stats[id].actionGetWood
+      inc env.stats[id].actionGet
+    else:
+      inc env.stats[id].actionInvalid  # Inventory full
+  
+  of Empty:
+    inc env.stats[id].actionInvalid  # Nothing to get
 
 proc giftAction(env: Environment, id: int, agent: Thing) =
   ## Gift
@@ -734,11 +796,14 @@ proc init(env: Environment) =
         1.0
       )
       
-      # Add the altar and store its color
+      # Spawn agents around this house
+      let agentsForThisHouse = min(MapAgentsPerHouse, MapRoomObjectsAgents - totalAgentsSpawned)
+      
+      # Add the altar with HP equal to the number of agents for this team
       env.add(Thing(
         kind: Altar,
         pos: elements.center,
-        hp: MapObjectAltarHp,
+        hp: agentsForThisHouse,  # Altar HP matches team size
       ))
       altarColors[elements.center] = villageColor  # Associate altar position with village color
       
@@ -749,9 +814,6 @@ proc init(env: Environment) =
           pos: wallPos,
           hp: MapObjectWallHp,
         ))
-      
-      # Spawn agents around this house
-      let agentsForThisHouse = min(MapAgentsPerHouse, MapRoomObjectsAgents - totalAgentsSpawned)
       if agentsForThisHouse > 0:
         # Get corner positions first, then nearby positions
         let corners = env.getHouseCorners(placementResult.position, houseStruct.width)
@@ -974,6 +1036,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     of 2: env.rotateAction(id, agent, action[1].int)
     of 3: env.useAction(id, agent, action[1].int)
     of 4: env.attackAction(id, agent, action[1].int)
+    of 5: env.getAction(id, agent, action[1].int)  # New get action
     of 6: env.shieldAction(id, agent, action[1].int)
     of 7: env.giftAction(id, agent)
     of 8: env.swapAction(id, agent, action[1].int)
@@ -981,7 +1044,9 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     #of: env.transferAction(id, agent)
     else: inc env.stats[id].actionInvalid
 
-  # Update objects
+  # Update objects and collect new clippys to spawn
+  var newClippysToSpawn: seq[Thing] = @[]
+  
   for thing in env.things:
     if thing.kind == Altar:
       if thing.cooldown > 0:
@@ -1024,7 +1089,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
               energy: ClippyInitialEnergy,
               orientation: Orientation(r.rand(0..3)),
             )
-            env.add(newClippy)
+            # Don't add immediately - collect for later
+            newClippysToSpawn.add(newClippy)
             
             # Reset temple cooldown
             thing.cooldown = TempleCooldown
@@ -1041,6 +1107,10 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         env.updateObservations(AgentEnergyLayer, thing.pos, thing.energy)
         env.updateObservations(AgentShieldLayer, thing.pos, thing.shield.int)
 
+  # Add newly spawned clippys from temples
+  for newClippy in newClippysToSpawn:
+    env.add(newClippy)
+  
   # Update Clippys - they move and interact
   # First collect all clippys to process (to avoid modifying collection while iterating)
   var clippysToProcess: seq[Thing] = @[]
@@ -1078,7 +1148,51 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         clippysToRemove.add(clippy)
         env.grid[clippy.pos.x][clippy.pos.y] = nil
   
-  # Remove clippys that touched altars
+  # Check for clippy vs agent combat
+  # Process combat between clippys and adjacent agents
+  for clippy in clippysToProcess:
+    # Skip if clippy is already marked for removal
+    if clippy in clippysToRemove:
+      continue
+    
+    # Check all 4 adjacent positions for agents
+    let adjacentPositions = @[
+      clippy.pos + ivec2(0, -1),  # North
+      clippy.pos + ivec2(0, 1),   # South
+      clippy.pos + ivec2(-1, 0),  # West
+      clippy.pos + ivec2(1, 0)    # East
+    ]
+    
+    for adjPos in adjacentPositions:
+      # Skip if position is out of bounds
+      if adjPos.x < 0 or adjPos.x >= MapWidth or adjPos.y < 0 or adjPos.y >= MapHeight:
+        continue
+      
+      let adjacentThing = env.getThing(adjPos)
+      if not isNil(adjacentThing) and adjacentThing.kind == Agent:
+        # Combat occurs! 50% chance agent dies, 100% chance clippy dies
+        let combatRoll = r.rand(0.0 .. 1.0)
+        
+        # Clippy always dies in combat
+        if clippy notin clippysToRemove:
+          clippysToRemove.add(clippy)
+          env.grid[clippy.pos.x][clippy.pos.y] = nil
+        
+        # 50% chance agent is permanently frozen (dies)
+        if combatRoll < 0.5:
+          # Agent "dies" - permanently frozen and loses all energy
+          adjacentThing.frozen = 999999  # Effectively permanent
+          adjacentThing.energy = 0
+          adjacentThing.hp = 0
+          env.terminated[adjacentThing.agentId] = 1.0
+          env.updateObservations(AgentFrozenLayer, adjacentThing.pos, adjacentThing.frozen)
+          env.updateObservations(AgentEnergyLayer, adjacentThing.pos, adjacentThing.energy)
+          env.updateObservations(AgentHpLayer, adjacentThing.pos, adjacentThing.hp)
+        
+        # Break after first combat (clippy is already dead)
+        break
+  
+  # Remove clippys that died in combat or touched altars
   for clippy in clippysToRemove:
     let idx = env.things.find(clippy)
     if idx >= 0:
@@ -1143,5 +1257,9 @@ proc getEpisodeStats*(env: Environment): string =
   display "action.use.altar", actionUseAltar
   display "action.use.generator", actionUseGenerator
   display "action.use.mine", actionUseMine
+  display "action.get", actionGet
+  display "action.get.water", actionGetWater
+  display "action.get.wheat", actionGetWheat
+  display "action.get.wood", actionGetWood
 
   return result
