@@ -157,6 +157,12 @@ class TrainerConfig(Config):
     # Fixed batch size across GPUs for consistent hyperparameters
     scale_batches_by_world_size: bool = False
 
+    # NPC configuration (for environments with NPCs)
+    npc_policy_agents_pct: Optional[float] = Field(
+        default=None, description="Percentage of agents that are policy agents (vs NPCs) during training"
+    )
+    npc_group_id: Optional[int] = Field(default=None, description="Group ID for NPC agents (for group-based filtering)")
+
     # Performance configuration
     # CPU offload disabled: Keep tensors on GPU for speed
     cpu_offload: bool = False

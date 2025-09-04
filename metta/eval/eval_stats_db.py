@@ -85,6 +85,7 @@ class EvalStatsDB(SimulationStatsDB):
         policy_key: str,
         policy_version: int,
         filter_condition: str | None = None,
+        exclude_npc_group_id: Optional[int] = None,
     ) -> int:
         """Internal helper: number of agent‑episode pairs (possible samples)."""
         # Only count episodes that actually have metrics recorded
@@ -103,6 +104,17 @@ class EvalStatsDB(SimulationStatsDB):
         """
         if filter_condition:
             q += f" AND {filter_condition}"
+
+        # Exclude NPC agents by group_id if specified
+        if exclude_npc_group_id is not None:
+            q += f"""
+                AND ps.agent_id NOT IN (
+                    SELECT DISTINCT ag.agent_id
+                    FROM agent_groups ag
+                    WHERE ag.group_id = {exclude_npc_group_id}
+                )
+            """
+
         res = self.query(q)
         return int(res["cnt"].iloc[0]) if not res.empty else 0
 
@@ -112,8 +124,9 @@ class EvalStatsDB(SimulationStatsDB):
         policy_key: str,
         policy_version: int,
         filter_condition: str | None = None,
+        exclude_npc_group_id: Optional[int] = None,
     ) -> int:
-        return self._count_agent_samples(policy_key, policy_version, filter_condition)
+        return self._count_agent_samples(policy_key, policy_version, filter_condition, exclude_npc_group_id)
 
     def count_metric_agents(
         self,
@@ -142,9 +155,12 @@ class EvalStatsDB(SimulationStatsDB):
         metric: str,
         agg: str,  # "SUM", "AVG", or "STD"
         filter_condition: str | None = None,
+        exclude_npc_group_id: Optional[int] = None,
     ) -> Optional[float]:
         """Return SUM/AVG/STD after zero‑filling missing samples."""
-        potential = self.potential_samples_for_metric(policy_key, policy_version, filter_condition)
+        potential = self.potential_samples_for_metric(
+            policy_key, policy_version, filter_condition, exclude_npc_group_id
+        )
         if potential == 0:
             return None
 
@@ -162,6 +178,36 @@ class EvalStatsDB(SimulationStatsDB):
         """
         if filter_condition:
             q += f" AND {filter_condition}"
+
+        # Exclude NPC agents by group_id if specified
+        # Note: We need to join back to get agent_id since policy_simulation_agent_metrics doesn't include it
+        if exclude_npc_group_id is not None:
+            q = f"""
+            SELECT
+                SUM(value)       AS s1,
+                SUM(value*value) AS s2,
+                COUNT(*)         AS k,
+                AVG(value)       AS r_avg
+              FROM agent_metrics am
+              JOIN agent_policies ap
+                    ON ap.episode_id = am.episode_id
+                   AND ap.agent_id   = am.agent_id
+              JOIN episodes   e ON e.id = am.episode_id
+              JOIN simulations s ON s.id = e.simulation_id
+             WHERE ap.policy_key     = '{policy_key}'
+               AND ap.policy_version = {policy_version}
+               AND am.metric         = '{metric}'
+               AND am.agent_id NOT IN (
+                   SELECT DISTINCT ag.agent_id
+                   FROM agent_groups ag
+                   WHERE ag.group_id = {exclude_npc_group_id}
+               )
+            """
+            if filter_condition:
+                # Need to translate filter_condition to work with the joined tables
+                # Replace sim_name and sim_env references
+                filter_translated = filter_condition.replace("sim_name", "s.name").replace("sim_env", "s.env")
+                q += f" AND ({filter_translated})"
         r = self.query(q)
         if r.empty:
             return 0.0 if agg in {"SUM", "AVG"} else 0.0
@@ -186,27 +232,30 @@ class EvalStatsDB(SimulationStatsDB):
         metric: str,
         policy_record: PolicyRecord,
         filter_condition: str | None = None,
+        exclude_npc_group_id: Optional[int] = 99,  # Default to excluding trader NPCs
     ) -> Optional[float]:
         pk, pv = self.key_and_version(policy_record)
-        return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
+        return self._normalized_value(pk, pv, metric, "AVG", filter_condition, exclude_npc_group_id)
 
     def get_sum_metric_by_filter(
         self,
         metric: str,
         policy_record: PolicyRecord,
         filter_condition: str | None = None,
+        exclude_npc_group_id: Optional[int] = 99,  # Default to excluding trader NPCs
     ) -> Optional[float]:
         pk, pv = self.key_and_version(policy_record)
-        return self._normalized_value(pk, pv, metric, "SUM", filter_condition)
+        return self._normalized_value(pk, pv, metric, "SUM", filter_condition, exclude_npc_group_id)
 
     def get_std_metric_by_filter(
         self,
         metric: str,
         policy_record: PolicyRecord,
         filter_condition: str | None = None,
+        exclude_npc_group_id: Optional[int] = 99,  # Default to excluding trader NPCs
     ) -> Optional[float]:
         pk, pv = self.key_and_version(policy_record)
-        return self._normalized_value(pk, pv, metric, "STD", filter_condition)
+        return self._normalized_value(pk, pv, metric, "STD", filter_condition, exclude_npc_group_id)
 
     def sample_count(
         self,
@@ -225,7 +274,9 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
 
-    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str], float]:
+    def simulation_scores(
+        self, policy_record: PolicyRecord, metric: str, exclude_npc_group_id: Optional[int] = 99
+    ) -> Dict[tuple[str, str], float]:
         """Return { (name,env) : normalized mean(metric) }."""
         pk, pv = self.key_and_version(policy_record)
         sim_rows = self.query(f"""
@@ -237,7 +288,7 @@ class EvalStatsDB(SimulationStatsDB):
         scores: Dict[tuple[str, str], float] = {}
         for _, row in sim_rows.iterrows():
             cond = f"sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
-            val = self._normalized_value(pk, pv, metric, "AVG", cond)
+            val = self._normalized_value(pk, pv, metric, "AVG", cond, exclude_npc_group_id)
             if val is not None:
                 scores[(row.sim_name, row.sim_env)] = val
         return scores

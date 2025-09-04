@@ -135,6 +135,8 @@ def train(
         num_workers=trainer_cfg.rollout_workers,
         zero_copy=trainer_cfg.zero_copy,
         is_training=True,
+        npc_policy_agents_pct=trainer_cfg.npc_policy_agents_pct,
+        npc_group_id=trainer_cfg.npc_group_id,
     )
 
     vecenv.async_reset(system_cfg.seed + torch_dist_cfg.rank)

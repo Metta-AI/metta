@@ -11,6 +11,7 @@ from metta.common.util.logging_helpers import init_logging
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.npc_filter_wrapper import NPCFilterWrapper
 
 logger = logging.getLogger("vecenv")
 
@@ -56,6 +57,8 @@ def make_vecenv(
     replay_writer: ReplayWriter | None = None,
     is_training: bool = False,
     run_dir: str | None = None,
+    npc_policy_agents_pct: Optional[float] = None,  # % of agents that are policy (vs NPC)
+    npc_group_id: Optional[int] = None,  # Group ID for NPCs
     **kwargs,
 ) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
@@ -93,5 +96,20 @@ def make_vecenv(
         batch_size=batch_size or num_envs,
         **kwargs,
     )
+
+    # Apply NPC filtering wrapper if training with NPCs
+    if is_training and npc_policy_agents_pct is not None and npc_policy_agents_pct < 1.0:
+        # Get number of agents from the environment configuration
+        env_cfg = curriculum.get_task().get_env_cfg()
+        num_agents = env_cfg.game.num_agents
+
+        logger.info(f"Applying NPC filter wrapper: {num_agents} agents, {npc_policy_agents_pct:.1%} are policy agents")
+
+        vecenv = NPCFilterWrapper(
+            vecenv=vecenv,
+            num_agents=num_agents,
+            policy_agents_pct=npc_policy_agents_pct,
+            npc_group_id=npc_group_id,
+        )
 
     return vecenv

@@ -202,9 +202,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Get agent groups
         grid_objects = self.grid_objects
-        agent_groups: Dict[int, int] = {
-            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
-        }
+        agent_groups: Dict[int, int] = {v["agent_id"]: v["group_id"] for v in grid_objects.values() if v["type"] == 0}
 
         # Record episode
         self._stats_writer.record_episode(

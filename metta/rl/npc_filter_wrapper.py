@@ -1,0 +1,189 @@
+"""
+Wrapper for filtering NPC agents from training rewards and observations.
+
+This wrapper ensures that NPC agents don't contribute to training gradients
+or metrics, while still being present in the environment for interaction.
+"""
+
+import logging
+from typing import Any, Optional, Tuple
+
+import numpy as np
+import torch
+
+logger = logging.getLogger(__name__)
+
+
+class NPCFilterWrapper:
+    """
+    Wraps a vectorized environment to filter out NPC agents from training.
+
+    NPCs remain in the environment for interaction but their rewards and
+    observations are excluded from training updates.
+    """
+
+    def __init__(
+        self,
+        vecenv: Any,
+        num_agents: int,
+        policy_agents_pct: float = 1.0,
+        npc_group_id: Optional[int] = None,
+    ):
+        """
+        Initialize the NPC filter wrapper.
+
+        Args:
+            vecenv: The vectorized environment to wrap
+            num_agents: Total number of agents per environment
+            policy_agents_pct: Percentage of agents that are policy agents (vs NPCs)
+            npc_group_id: Optional group ID for NPCs (for group-based filtering)
+        """
+        self.vecenv = vecenv
+        self.num_agents = num_agents
+        self.policy_agents_pct = policy_agents_pct
+        self.npc_group_id = npc_group_id
+
+        # Calculate agent counts
+        # Get actual number of environments from vecenv
+        self.num_envs = getattr(vecenv, "num_envs", 1)
+        if hasattr(vecenv, "envs") and vecenv.envs:
+            self.num_envs = len(vecenv.envs)
+
+        self.policy_agents_per_env = max(1, int(num_agents * policy_agents_pct))
+        self.npc_agents_per_env = num_agents - self.policy_agents_per_env
+
+        # Create indices for policy vs NPC agents
+        self._setup_agent_indices()
+
+        logger.info(
+            f"NPCFilterWrapper initialized: {self.num_envs} envs, "
+            f"{self.policy_agents_per_env} policy agents, "
+            f"{self.npc_agents_per_env} NPC agents per env"
+        )
+
+    def _setup_agent_indices(self):
+        """Setup indices to identify policy vs NPC agents."""
+        total_agents = self.num_agents * self.num_envs
+
+        # For now, use simple index-based assignment
+        # Later can be updated to use group IDs after reset
+        idx_matrix = torch.arange(total_agents).reshape(self.num_envs, self.num_agents)
+
+        # Policy agents are the first N agents in each env
+        self.policy_idxs = idx_matrix[:, : self.policy_agents_per_env].reshape(-1)
+        self.npc_idxs = idx_matrix[:, self.policy_agents_per_env :].reshape(-1)
+
+        # Convert to numpy for indexing
+        self.policy_idxs_np = self.policy_idxs.numpy()
+        self.npc_idxs_np = self.npc_idxs.numpy()
+
+        # Create mask for filtering
+        self.policy_mask = torch.zeros(total_agents, dtype=torch.bool)
+        self.policy_mask[self.policy_idxs] = True
+        self.policy_mask_np = self.policy_mask.numpy()
+
+    def reset(self, seed: Optional[int] = None):
+        """Reset the environment and setup filtering."""
+        result = self.vecenv.reset(seed)
+
+        # After reset, we could update indices based on group IDs if available
+        # For now, keeping the simple index-based approach
+
+        # Filter observations to only include policy agents
+        if isinstance(result, tuple):
+            obs, info = result
+            filtered_obs = self._filter_observations(obs)
+            return filtered_obs, info
+        else:
+            # Handle different return formats
+            return self._filter_observations(result)
+
+    def async_reset(self, seed: Optional[int] = None):
+        """Async reset for the environment."""
+        return self.vecenv.async_reset(seed)
+
+    def recv(self) -> Tuple[Any, ...]:
+        """
+        Receive observations and rewards from the environment.
+        Filters to only include policy agents.
+        """
+        o, r, d, t, info, env_id, mask = self.vecenv.recv()
+
+        # Filter observations - only policy agents
+        o_filtered = o[self.policy_idxs_np]
+
+        # Filter rewards - only policy agents get rewards for training
+        r_filtered = r[self.policy_idxs_np]
+
+        # Filter dones and truncations
+        d_filtered = d[self.policy_idxs_np]
+        t_filtered = t[self.policy_idxs_np]
+
+        # Adjust env_id to account for filtered agents
+        # This is tricky - we need to map the original env_ids to filtered space
+        env_id_start = env_id[0] // self.num_agents * self.policy_agents_per_env
+        env_id_end = ((env_id[-1] // self.num_agents) + 1) * self.policy_agents_per_env - 1
+        env_id_filtered = list(range(env_id_start, env_id_end + 1))
+
+        # Filter mask
+        mask_filtered = mask[self.policy_idxs_np] if len(mask) > 1 else mask
+
+        # Log filtering stats periodically for debugging
+        if hasattr(self, "_recv_count"):
+            self._recv_count += 1
+        else:
+            self._recv_count = 1
+
+        if self._recv_count % 1000 == 0:
+            # Log average rewards to verify filtering
+            policy_avg = np.mean(r_filtered) if len(r_filtered) > 0 else 0
+            npc_avg = np.mean(r[self.npc_idxs_np]) if len(self.npc_idxs_np) > 0 else 0
+            logger.debug(
+                f"Recv {self._recv_count}: Policy avg reward={policy_avg:.4f}, "
+                f"NPC avg reward={npc_avg:.4f} (filtered out)"
+            )
+
+        return o_filtered, r_filtered, d_filtered, t_filtered, info, env_id_filtered, mask_filtered
+
+    def send(self, actions: Any):
+        """
+        Send actions to the environment.
+        Need to expand actions to include NPC actions (even though they're random).
+        """
+        # Actions come in for policy agents only
+        # We need to expand to include dummy actions for NPCs
+        total_agents = self.num_agents * self.num_envs
+
+        if isinstance(actions, torch.Tensor):
+            # Convert to numpy for pufferlib
+            actions = actions.numpy()
+
+        if isinstance(actions, np.ndarray):
+            # Create full action array
+            full_actions = np.zeros((total_agents, *actions.shape[1:]), dtype=actions.dtype)
+            # Fill in policy agent actions
+            full_actions[self.policy_idxs_np] = actions
+            actions_to_send = full_actions
+        else:
+            # Fallback - just send as is
+            actions_to_send = actions
+
+        return self.vecenv.send(actions_to_send)
+
+    def _filter_observations(self, obs: Any) -> Any:
+        """Filter observations to only include policy agents."""
+        if isinstance(obs, torch.Tensor):
+            return obs[self.policy_idxs]
+        elif isinstance(obs, np.ndarray):
+            return obs[self.policy_idxs_np]
+        else:
+            # If not tensor/array, return as is
+            return obs
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward all other attributes to the wrapped environment."""
+        return getattr(self.vecenv, name)
+
+    def __len__(self) -> int:
+        """Return the number of policy agents (for training)."""
+        return len(self.policy_idxs)

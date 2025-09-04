@@ -17,7 +17,6 @@ from typing import Any, Dict
 
 import numpy as np
 import torch
-from einops import rearrange
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
@@ -153,16 +152,106 @@ class Simulation:
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
-        self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
-        self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
 
-        self._policy_idxs = idx_matrix[:, : self._policy_agents_per_env].reshape(-1)
-        self._npc_idxs = (
-            idx_matrix[:, self._policy_agents_per_env :].reshape(-1)
-            if self._npc_agents_per_env
-            else torch.tensor([], device=self._device, dtype=torch.long)
-        )
+        # Store npc_group_id for use after reset when grid_objects is populated
+        self._npc_group_id = cfg.npc_group_id if hasattr(cfg, "npc_group_id") else None
+
+        # Initially use default index-based assignment
+        # This will be overridden after reset if npc_group_id is set
+        if self._npc_pr is not None and self._npc_group_id is not None:
+            # Build a mask of agent indices that belong to the npc_group_id for each env.
+            # We need per-env group ids. Use metta_grid_env.grid_objects mapping.
+            # grid_objects contains agent objects with fields including 'agent_id' and 'group_id'.
+            grid_objects = metta_grid_env.grid_objects
+            # Create per-env tensors of policy/npc indices
+            policy_indices: list[torch.Tensor] = []
+            npc_indices: list[torch.Tensor] = []
+
+            # For vecenv, agent ids are laid out per env consecutively.
+            for env_idx in range(self._num_envs):
+                base = env_idx * self._agents_per_env
+                env_policy: list[int] = []
+                env_npc: list[int] = []
+                # Iterate all agents for this env and route by group id.
+                for local_id in range(self._agents_per_env):
+                    global_id = base + local_id
+                    obj = grid_objects.get(global_id)
+                    # Fallback: if mapping missing, default to policy
+                    if not obj or obj.get("type") != 0:
+                        env_policy.append(global_id)
+                        continue
+                    group = int(obj.get("group_id", -1))
+                    if group == self._npc_group_id:
+                        env_npc.append(global_id)
+                    else:
+                        env_policy.append(global_id)
+
+                # If no NPCs found for this env, fall back to pct split for that env
+                if not env_npc:
+                    cutoff = max(1, int(self._agents_per_env * self._policy_agents_pct))
+                    env_policy = list(range(base, base + cutoff))
+                    env_npc = list(range(base + cutoff, base + self._agents_per_env))
+
+                policy_indices.append(torch.tensor(env_policy, device=self._device, dtype=torch.long))
+                npc_indices.append(torch.tensor(env_npc, device=self._device, dtype=torch.long))
+
+            self._policy_idxs = (
+                torch.cat(policy_indices) if policy_indices else torch.tensor([], device=self._device, dtype=torch.long)
+            )
+            self._npc_idxs = (
+                torch.cat(npc_indices) if npc_indices else torch.tensor([], device=self._device, dtype=torch.long)
+            )
+
+            # Derive counts for logging
+            self._policy_agents_per_env = int(self._policy_idxs.numel() // max(1, self._num_envs))
+            self._npc_agents_per_env = int(self._npc_idxs.numel() // max(1, self._num_envs))
+        else:
+            self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
+            self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
+
+            self._policy_idxs = idx_matrix[:, : self._policy_agents_per_env].reshape(-1)
+            self._npc_idxs = (
+                idx_matrix[:, self._policy_agents_per_env :].reshape(-1)
+                if self._npc_agents_per_env
+                else torch.tensor([], device=self._device, dtype=torch.long)
+            )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
+
+    def _reassign_agents_by_group(self) -> None:
+        """Reassign policy/NPC indices based on agent groups after reset."""
+        # Get the driver env to access grid_objects
+        driver_env = self._vecenv.driver_env  # type: ignore
+        metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
+        grid_objects = metta_grid_env.grid_objects
+
+        policy_indices: list[int] = []
+        npc_indices: list[int] = []
+
+        # grid_objects is a dict where keys are object_ids (not agent_ids)
+        # We need to iterate through all objects and find agents
+        for obj in grid_objects.values():
+            # Check if this is an agent (type 0) and has an agent_id
+            if obj.get("type") == 0 and "agent_id" in obj:
+                agent_id = obj["agent_id"]
+                group = obj.get("group_id", -1)
+                if group == self._npc_group_id:
+                    npc_indices.append(agent_id)
+                else:
+                    policy_indices.append(agent_id)
+
+        if npc_indices:
+            # Successfully found NPCs by group
+            self._policy_idxs = torch.tensor(policy_indices, device=self._device, dtype=torch.long)
+            self._npc_idxs = torch.tensor(npc_indices, device=self._device, dtype=torch.long)
+            self._policy_agents_per_env = len(policy_indices) // max(1, self._num_envs)
+            self._npc_agents_per_env = len(npc_indices) // max(1, self._num_envs)
+            logger.info(
+                f"Assigned {len(npc_indices)} agents to NPC (group {self._npc_group_id}), "
+                f"{len(policy_indices)} to policy"
+            )
+        else:
+            # No agents found with the specified group, keep default assignment
+            logger.warning(f"No agents found with group_id={self._npc_group_id}, using default index-based assignment")
 
     @classmethod
     def create(
@@ -211,6 +300,10 @@ class Simulation:
         self._obs, _ = self._vecenv.reset()
         self._env_done_flags = [False] * self._num_envs
 
+        # Now that reset has happened, reassign agents by group if needed
+        if self._npc_pr is not None and self._npc_group_id is not None:
+            self._reassign_agents_by_group()
+
         self._t0 = time.time()
 
     def _get_actions_for_agents(self, agent_indices: torch.Tensor, policy) -> torch.Tensor:
@@ -228,37 +321,13 @@ class Simulation:
         Generate actions for the simulation.
         """
         if __debug__:
-            # Debug assertion: verify indices are correctly ordered
-            # Policy indices should be 0 to N-1
-            # NPC indices should be N to M-1
+            # Debug assertion: verify no overlap between policy and NPC indices
             num_policy = len(self._policy_idxs)
             num_npc = len(self._npc_idxs)
 
-            if num_policy > 0:
-                assert self._policy_idxs[0] == 0, f"Policy indices should start at 0, got {self._policy_idxs[0]}"
-                assert self._policy_idxs[-1] == num_policy - 1, (
-                    f"Policy indices should be continuous 0 to {num_policy - 1}, last index is {self._policy_idxs[-1]}"
-                )
-                assert list(self._policy_idxs) == list(range(num_policy)), (
-                    "Policy indices should be continuous sequence starting from 0"
-                )
-
-            if self._npc_pr is not None and num_npc > 0:
-                expected_npc_start = num_policy
-                assert self._npc_idxs[0] == expected_npc_start, (
-                    f"NPC indices should start at {expected_npc_start}, got {self._npc_idxs[0]}"
-                )
-                assert self._npc_idxs[-1] == expected_npc_start + num_npc - 1, (
-                    f"NPC indices should end at {expected_npc_start + num_npc - 1}, got {self._npc_idxs[-1]}"
-                )
-                assert list(self._npc_idxs) == list(range(expected_npc_start, expected_npc_start + num_npc)), (
-                    f"NPC indices should be continuous sequence from {expected_npc_start}"
-                )
-
-            # Verify no overlap between policy and NPC indices
             if num_policy > 0 and num_npc > 0:
-                policy_set = set(self._policy_idxs)
-                npc_set = set(self._npc_idxs)
+                policy_set = set(self._policy_idxs.tolist())
+                npc_set = set(self._npc_idxs.tolist())
                 assert policy_set.isdisjoint(npc_set), (
                     f"Policy and NPC indices should not overlap. Overlap: {policy_set.intersection(npc_set)}"
                 )
@@ -280,25 +349,22 @@ class Simulation:
                     ) from e
 
         # ---------------- action stitching ----------------------- #
-        actions = policy_actions
         if self._npc_agents_per_env:
-            # Reshape policy and npc actions to (num_envs, agents_per_env, action_dim)
-            policy_actions = rearrange(
-                policy_actions,
-                "(envs policy_agents) act -> envs policy_agents act",
-                envs=self._num_envs,
-                policy_agents=self._policy_agents_per_env,
-            )
-            npc_actions = rearrange(
-                npc_actions,
-                "(envs npc_agents) act -> envs npc_agents act",
-                envs=self._num_envs,
-                npc_agents=self._npc_agents_per_env,
-            )
-            # Concatenate along agents dimension
-            actions = torch.cat([policy_actions, npc_actions], dim=1)
-            # Flatten back to (total_agents, action_dim)
-            actions = rearrange(actions, "envs agents act -> (envs agents) act")
+            # When using group-based assignment, indices may not be contiguous
+            # Create full action tensor and fill in the right positions
+            total_agents = self._agents_per_env * self._num_envs
+            action_dim = policy_actions.shape[-1]
+            actions = torch.zeros(total_agents, action_dim, dtype=policy_actions.dtype, device=policy_actions.device)
+
+            # Fill in policy actions
+            actions[self._policy_idxs] = policy_actions
+
+            # Fill in NPC actions
+            if npc_actions is not None:
+                npc_actions = npc_actions.to(dtype=policy_actions.dtype, device=policy_actions.device)
+                actions[self._npc_idxs] = npc_actions
+        else:
+            actions = policy_actions
 
         actions_np = actions.cpu().numpy().astype(dtype_actions)
         return actions_np

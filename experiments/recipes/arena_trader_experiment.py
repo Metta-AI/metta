@@ -1,9 +1,26 @@
 """
-Arena experiment with trader NPCs that offer instant trades at higher prices.
+Arena experiment with a wandering trader NPC - Product Chain Discovery.
 
-This experiment tests whether agents prefer:
-- Generator: 3 ore -> 1 battery with cooldown (cheaper but slower)
-- Trader NPC: 4 ore -> 1 battery instantly (more expensive but no wait)
+Setup:
+- 6 agents: 5 learning agents + 1 wandering trader NPC
+- Learning agents start with ZERO inventory (must figure out product chain)
+- Trader NPC: Wanders randomly with 100 batteries, CANNOT collect resources (inventory limits)
+- Product chain: Collect Ore -> Convert to Battery -> Convert to Hearts
+
+Two paths to get batteries:
+1. GENERATOR: 3 ore -> 1 battery (cheaper but 10-tick cooldown)
+2. WANDERING TRADER: 4 ore -> 1 battery (more expensive but instant when you find them)
+
+Key Mechanics:
+- Trader has 0 capacity for ore (can't collect from mines)
+- Trader only carries batteries for trading
+- Learning agents must find the wandering trader to trade
+
+Research Questions:
+- Which option do agents prefer in peaceful vs combat scenarios?
+- Do agents learn to find and follow the wandering trader?
+- How does the instant vs cooldown trade-off affect agent strategies?
+- In combat, do agents prefer the instant trader to quickly get resources?
 """
 
 from typing import List, Optional, Sequence
@@ -11,12 +28,7 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import (
-    AgentConfig,
-    EnvConfig,
-    GroupConfig,
-    TransferActionConfig,
-)
+from metta.mettagrid.mettagrid_config import AgentConfig, EnvConfig, GroupConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -24,189 +36,179 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
-from experiments.recipes.arena_basic_easy_shaped import (
-    make_evals as make_standard_evals,
-)
 
-
-def make_env(
-    num_agents: int = 6,
-    num_traders: int = 1,
-    map_width: int = 15,
-    map_height: int = 15,
-    num_generators: int = 3,
-) -> EnvConfig:
-    """Create environment with trader NPCs.
-
-    Args:
-        num_agents: Total number of agents (including traders)
-        num_traders: Number of trader NPCs
-    """
+def make_env(num_agents: int = 6) -> EnvConfig:
+    """Create environment with a single wandering trader NPC."""
     arena_env = eb.make_arena(num_agents=num_agents)
 
-    # Add transfer action to the actions configuration
-    arena_env.game.actions.transfer = TransferActionConfig(
-        enabled=True,
-        input_resources={"ore_red": 4},  # Cost: 4 ore
-        output_resources={"battery_red": 1},  # Receive: 1 battery
-        trader_only=True,
-        trader_group_id=99,  # Special group for traders
+    # Transfer action - enables ore-for-battery trading with the wandering trader
+    arena_env.game.actions.transfer.enabled = True
+    arena_env.game.actions.transfer.input_resources = {
+        "ore_red": 4
+    }  # Learning agents pay 4 ore to trade
+    arena_env.game.actions.transfer.output_resources = {
+        "battery_red": 1
+    }  # Get 1 battery from trader
+    arena_env.game.actions.transfer.trader_only = (
+        True  # Restrict trades to the trader NPC
+    )
+    arena_env.game.actions.transfer.trader_group_id = (
+        99  # Trader group id (see GroupConfig below)
     )
 
-    # Configure rewards (same as arena_basic_easy_shaped)
+    # Configure rewards to incentivize finding and trading with the wandering NPC
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
-        "ore_red": 0.1,
-        "battery_red": 0.8,
+        "ore_red": 0.05,  # Low ore value encourages conversion
+        "battery_red": 1.0,  # High battery value rewards successful trades
         "laser": 0.5,
         "armor": 0.5,
         "blueprint": 0.5,
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 1,
-        "battery_red": 1,
+        "ore_red": 1,  # Standard max ore reward
+        "battery_red": 2,  # Increased max battery reward
         "laser": 1,
         "armor": 1,
         "blueprint": 1,
     }
 
-    # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
+    # Easy converter: 1 battery to 1 heart
     arena_env.game.objects["altar"].input_resources = {"battery_red": 1}
 
-    # Generator recipe: 3 ore_red -> 1 battery_red (more time-efficient alternative to trading)
-    if "generator_red" in arena_env.game.objects:
-        arena_env.game.objects["generator_red"].input_resources = {"ore_red": 3}
+    # Generator: 3 ore -> 1 battery (cheaper than trader but has cooldown)
+    arena_env.game.objects["generator_red"].input_resources = {"ore_red": 3}
+    arena_env.game.objects[
+        "generator_red"
+    ].cooldown = 10  # Add cooldown to make trader more attractive
 
-    # Configure trader NPCs as a special group
-    if "trader" not in arena_env.game.groups:
-        # Create proper GroupConfig for traders
-        trader_agent_config = AgentConfig()
-        # Traders shouldn't earn rewards from inventory
-        trader_agent_config.rewards.inventory = {}
-        trader_agent_config.rewards.inventory_max = {}
-        # Give traders infinite batteries to trade (they're NPCs)
-        trader_agent_config.initial_inventory = {"battery_red": 100}
+    # PRODUCT CHAIN: Ore (collect) -> Battery (generator or trader) -> Hearts (altar)
 
-        arena_env.game.groups["trader"] = GroupConfig(
-            id=99,
-            sprite=15,  # Different visual for traders
-            group_reward_pct=0.0,  # Traders don't share rewards
-            props=trader_agent_config,
-        )
+    # Learning agents start with NOTHING - must figure out the product chain
+    arena_env.game.agent.initial_inventory = {
+        "battery_red": 0,  # No batteries
+        "ore_red": 0,  # Must collect ore first
+        "laser": 1,  # For combat scenarios
+        "armor": 0,
+    }
 
-    # Small-map defaults (single small map with few agents)
-    # - 6 agents total
-    # - 1 trader (wanders by default)
-    # - map size 15x15
-    # - 3 generators (static by default)
+    # Configure the wandering trader NPC (different starting inventory and capabilities)
+    trader_config = AgentConfig()
+    trader_config.initial_inventory = {
+        "battery_red": 100,  # Trader has batteries to sell
+        "ore_red": 0,  # Trader doesn't need ore
+        "laser": 0,  # Trader is peaceful
+        "armor": 1,
+    }
+    trader_config.rewards = arena_env.game.agent.rewards.model_copy()
+    trader_config.rewards.inventory = {}  # Trader gets no rewards
 
-    # Apply map size
-    try:
-        arena_env.game.map_builder.width = map_width
-        arena_env.game.map_builder.height = map_height
-    except Exception:
-        pass
+    # Trader needs ore capacity to receive ore during trades
+    # Accept that trader will collect some ore while wandering (unavoidable with random policy)
+    trader_config.default_resource_limit = 50  # Standard capacity
+    trader_config.resource_limits = {
+        "battery_red": 100,  # Has batteries to trade
+        "ore_red": 20,  # Limited ore capacity (needed for trades to work)
+        "heart": 10,  # Small heart capacity
+        "laser": 0,  # Can't pick up weapons
+        "armor": 1,  # Keep minimal armor
+    }
 
-    # Place both regular agents and trader agents on the map
-    try:
-        root_cfg = arena_env.game.map_builder.root
-        if hasattr(root_cfg, "params") and hasattr(root_cfg.params, "agents"):
-            # Distribute agents by group for map generation
-            non_traders = max(0, num_agents - num_traders)
-            root_cfg.params.agents = {"agent": non_traders, "trader": num_traders}
+    # Create trader group
+    arena_env.game.groups["trader"] = GroupConfig(
+        id=99,
+        sprite=15,  # Different visual appearance
+        group_reward_pct=0.0,  # No rewards for trader
+        props=trader_config,
+    )
 
-        # Adjust generator count keeping other objects as defaults
-        if hasattr(root_cfg, "params") and hasattr(root_cfg.params, "objects"):
-            root_cfg.params.objects["generator_red"] = num_generators
-    except Exception:
-        # If map builder isn't MapGen.Random, skip adjusting agent placement
-        pass
+    # CRITICAL: Ensure sufficient resources for the experiment
+    arena_env.game.map_builder.root.params.objects["mine_red"] = (
+        15  # Plenty of mines for ore collection
+    )
+    arena_env.game.map_builder.root.params.objects["generator_red"] = (
+        8  # More generators to reduce competition
+    )
+    arena_env.game.map_builder.root.params.objects["altar"] = (
+        6  # Sufficient altars for heart conversion
+    )
+    arena_env.game.map_builder.root.params.objects["battery_red"] = (
+        0  # No free batteries - must use generator or trader!
+    )
+
+    # Agent assignment: 5 learning agents, 1 trader
+    # NOTE: The last agent (index 5) will be the NPC with random movement
+    arena_env.game.map_builder.root.params.agents = {"agent": 5, "trader": 1}
 
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
-    """Create curriculum with trading scenarios."""
-    arena_env = arena_env or make_env()
+def make_curriculum(env: Optional[EnvConfig] = None) -> CurriculumConfig:
+    """Create curriculum for wandering trader experiment."""
+    env = env or make_env()
 
-    # Make a set of training tasks for the arena
-    arena_tasks = cc.bucketed(arena_env)
+    arena_tasks = cc.bucketed(env)
 
-    for item in ["ore_red", "battery_red", "laser", "armor"]:
-        arena_tasks.add_bucket(
-            f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
-        )
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+    # Test different reward structures for trading behavior
+    arena_tasks.add_bucket("game.agent.rewards.inventory.battery_red", [0.5, 1.0, 2.0])
+    arena_tasks.add_bucket("game.agent.rewards.inventory.ore_red", [0.01, 0.05, 0.1])
 
-    # Enable or disable attacks
+    # Vary trading cost to study price sensitivity
+    arena_tasks.add_bucket(
+        "game.actions.transfer.input_resources.ore_red", [3, 4, 5, 6]
+    )
+
+    # Vary generator cooldown to test trade-offs
+    arena_tasks.add_bucket("game.objects.generator_red.cooldown", [5, 10, 20])
+
+    # Combat on/off to see effect on trader interactions
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
-
-    # Vary trader exchange rates to test sensitivity
-    arena_tasks.add_bucket("game.actions.transfer.input_resources.ore_red", [3, 4, 5])
-
-    # Sometimes add initial items to buildings
-    for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
-        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
-
-    # Vary generator cooldown to test time pressure effects
-    arena_tasks.add_bucket("game.objects.generator_red.cooldown", [10, 20, 30])
 
     return CurriculumConfig(task_generator=arena_tasks)
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
-    """Create evaluation scenarios with and without combat."""
+    """Create evaluation scenarios to test trader vs generator preferences."""
     basic_env = env or make_env()
-    basic_env.game.actions.attack.consumed_resources["laser"] = 100  # No combat
 
+    # Peaceful scenario - no combat pressure
+    peaceful_env = basic_env.model_copy()
+    peaceful_env.game.actions.attack.consumed_resources["laser"] = (
+        100  # Combat disabled
+    )
+
+    # Combat scenario - agents need resources quickly
     combat_env = basic_env.model_copy()
     combat_env.game.actions.attack.consumed_resources["laser"] = 1  # Combat enabled
 
-    # Scenario with expensive traders (5 ore for 1 battery)
-    expensive_trader_env = basic_env.model_copy()
-    expensive_trader_env.game.actions.transfer.input_resources = {"ore_red": 5}
-
-    # Note: If you want NPCs (e.g., wandering trader), pass npc_policy_uri
-    # and set policy_agents_pct on SimulationConfig where appropriate.
-
-    # Optional: enable a simple wandering trader via mock random NPC
-    # By setting npc_policy_uri to "mock://random" and policy_agents_pct to the
-    # fraction of learning-controlled agents, we can keep the trader as NPC.
-    npc_uri = "mock://random"
-    policy_pct = 5 / 6  # 5 learning agents, 1 NPC trader by default
+    # Common config: trader group agent is the wandering NPC
+    npc_config = {
+        "npc_policy_uri": "mock://random",  # Trader wanders randomly
+        "policy_agents_pct": 5 / 6,  # 5 learning agents, 1 wandering trader NPC
+        "npc_group_id": 99,  # Assign group 99 (trader) to NPC policy
+    }
 
     return [
         SimulationConfig(
-            name="trader/basic",
-            env=basic_env,
-            npc_policy_uri=npc_uri,
-            policy_agents_pct=policy_pct,
+            name="trader_vs_generator/peaceful", env=peaceful_env, **npc_config
         ),
         SimulationConfig(
-            name="trader/combat",
-            env=combat_env,
-            npc_policy_uri=npc_uri,
-            policy_agents_pct=policy_pct,
-        ),
-        SimulationConfig(
-            name="trader/expensive",
-            env=expensive_trader_env,
-            npc_policy_uri=npc_uri,
-            policy_agents_pct=policy_pct,
+            name="trader_vs_generator/combat", env=combat_env, **npc_config
         ),
     ]
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    curriculum: Optional[CurriculumConfig] = None,
+    total_timesteps: int = 200_000,
+) -> TrainTool:
     """Configure training with trader NPCs."""
-    # Combine standard arena evals with trader-specific evals
-    eval_sims = make_standard_evals() + make_evals()
-
     trainer_cfg = TrainerConfig(
+        total_timesteps=total_timesteps,
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
-            simulations=eval_sims,
+            simulations=make_evals(),
             skip_git_check=True,
         ),
     )
@@ -215,28 +217,30 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
 
 def play(env: Optional[EnvConfig] = None) -> PlayTool:
-    """Play with trader NPCs - for now, you control all agents including the trader."""
+    """Play as one of the learning agents with a wandering trader NPC."""
     eval_env = env or make_env()
-    # For testing: control all 6 agents (5 regular + 1 trader)
-    # Agent 5 (trader) has group 99 and can be traded with
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="trader_arena",
-            # No NPC policy - you control all agents for testing
-            # Agent 5 is still the trader (group 99) that others can trade with
+            name="wandering_trader",
+            npc_policy_uri="mock://random",  # The wandering trader moves randomly
+            policy_agents_pct=5
+            / 6,  # You control 1 of 5 learning agents; 1 is NPC trader
+            npc_group_id=99,  # Assign group 99 (trader) to NPC policy
         )
     )
 
 
 def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
-    """Replay with trader NPCs."""
+    """Replay episodes to observe agent-trader interactions."""
     eval_env = env or make_env()
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="trader_arena",
-            # No NPC policy for now - all agents controlled by policy
+            name="wandering_trader",
+            npc_policy_uri="mock://random",  # The wandering trader moves randomly
+            policy_agents_pct=5 / 6,  # 5 learning agents, 1 NPC trader
+            npc_group_id=99,  # Assign group 99 (trader) to NPC policy
         )
     )
 
@@ -245,9 +249,7 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     """Evaluate a policy with trader NPCs."""
-    # Combine standard arena evals with trader-specific evals, unless explicitly provided
-    simulations = simulations or (make_standard_evals() + make_evals())
-
+    simulations = simulations or make_evals()
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],

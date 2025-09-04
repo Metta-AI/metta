@@ -20,5 +20,8 @@ class SimulationConfig(Config):
 
     npc_policy_uri: Optional[str] = Field(default=None, description="URI of the policy to use for NPC agents")
     policy_agents_pct: float = Field(default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1)
+    # If set, NPC agents are selected by group id instead of by index slice.
+    # This allows pinning a specific group (e.g., 'trader') to the NPC policy.
+    npc_group_id: Optional[int] = Field(default=None, description="Optional agent group id to assign to NPC policy")
 
     episode_tags: Optional[list[str]] = Field(default=None, description="Tags to add to each episode")
