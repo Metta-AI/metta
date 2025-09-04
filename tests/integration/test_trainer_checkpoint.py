@@ -19,7 +19,7 @@ import torch
 from metta.agent.agent_config import AgentConfig
 from metta.cogworks.curriculum import env_curriculum
 from metta.core.distributed import TorchDistributedConfig
-from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.builder.envs import make_arena
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer import train
