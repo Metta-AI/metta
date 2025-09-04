@@ -109,15 +109,30 @@ class NPCFilterWrapper:
         """
         o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
+        # Validate indices are within bounds
+        actual_size = len(o)
+        self._last_actual_size = actual_size  # Save for send()
+        
+        if actual_size != len(self.policy_idxs_np) + len(self.npc_idxs_np):
+            # Recalculate indices based on actual size
+            num_envs_actual = actual_size // self.num_agents
+            idx_matrix = torch.arange(actual_size).reshape(num_envs_actual, self.num_agents)
+            policy_idxs_np = idx_matrix[:, : self.policy_agents_per_env].reshape(-1).numpy()
+            
+            # Ensure indices are within bounds
+            policy_idxs_np = policy_idxs_np[policy_idxs_np < actual_size]
+        else:
+            policy_idxs_np = self.policy_idxs_np
+            
         # Filter observations - only policy agents
-        o_filtered = o[self.policy_idxs_np]
+        o_filtered = o[policy_idxs_np]
 
         # Filter rewards - only policy agents get rewards for training
-        r_filtered = r[self.policy_idxs_np]
+        r_filtered = r[policy_idxs_np]
 
         # Filter dones and truncations
-        d_filtered = d[self.policy_idxs_np]
-        t_filtered = t[self.policy_idxs_np]
+        d_filtered = d[policy_idxs_np]
+        t_filtered = t[policy_idxs_np]
 
         # Adjust env_id to account for filtered agents
         # This is tricky - we need to map the original env_ids to filtered space
@@ -126,7 +141,7 @@ class NPCFilterWrapper:
         env_id_filtered = list(range(env_id_start, env_id_end + 1))
 
         # Filter mask
-        mask_filtered = mask[self.policy_idxs_np] if len(mask) > 1 else mask
+        mask_filtered = mask[policy_idxs_np] if len(mask) > 1 else mask
 
         # Log filtering stats periodically for debugging
         if hasattr(self, "_recv_count"):
@@ -152,7 +167,12 @@ class NPCFilterWrapper:
         """
         # Actions come in for policy agents only
         # We need to expand to include dummy actions for NPCs
-        total_agents = self.num_agents * self.num_envs
+        
+        # Use the actual size from last recv if available
+        if hasattr(self, "_last_actual_size"):
+            total_agents = self._last_actual_size
+        else:
+            total_agents = self.num_agents * self.num_envs
 
         if isinstance(actions, torch.Tensor):
             # Convert to numpy for pufferlib
@@ -161,8 +181,18 @@ class NPCFilterWrapper:
         if isinstance(actions, np.ndarray):
             # Create full action array
             full_actions = np.zeros((total_agents, *actions.shape[1:]), dtype=actions.dtype)
+            
+            # Recalculate indices if size changed
+            if total_agents != len(self.policy_idxs_np) + len(self.npc_idxs_np):
+                num_envs_actual = total_agents // self.num_agents
+                idx_matrix = torch.arange(total_agents).reshape(num_envs_actual, self.num_agents)
+                policy_idxs_np = idx_matrix[:, : self.policy_agents_per_env].reshape(-1).numpy()
+                policy_idxs_np = policy_idxs_np[policy_idxs_np < total_agents]
+            else:
+                policy_idxs_np = self.policy_idxs_np
+            
             # Fill in policy agent actions
-            full_actions[self.policy_idxs_np] = actions
+            full_actions[policy_idxs_np] = actions
             actions_to_send = full_actions
         else:
             # Fallback - just send as is
