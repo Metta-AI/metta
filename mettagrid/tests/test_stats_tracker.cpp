@@ -1,12 +1,21 @@
 #include <gtest/gtest.h>
 
-#include "../mettagrid/stats_tracker.hpp"
+#include "mettagrid/stats_tracker.hpp"
 
 // Mock MettaGrid for testing
 class MockMettaGrid {
 public:
   unsigned int current_step = 0;
 };
+
+// Provide implementation for get_current_step() for testing
+unsigned int StatsTracker::get_current_step() const {
+  // For testing, return 0 if no environment is set
+  if (!_env) return 0;
+  // In real implementation, this would return _env->current_step
+  // For testing we use a static value
+  return 0;
+}
 
 // Test fixture for StatsTracker
 class StatsTrackerTest : public ::testing::Test {
