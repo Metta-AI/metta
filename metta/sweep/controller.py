@@ -125,6 +125,8 @@ class SweepController:
                                     "skipping dispatch"
                                 )
                                 raise RuntimeError(f"Failed to update run summary for eval job {job.run_id}")
+                            # Small delay to allow W&B API to propagate the flag update
+                            time.sleep(1)
                             logger.info(f"[SweepController] Launching eval for job {job.run_id}")
 
                         # Only dispatch if store operations succeeded
