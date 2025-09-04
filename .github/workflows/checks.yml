@@ -149,8 +149,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: "linting"
 
@@ -214,8 +214,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
 
       - name: Cache PufferLib clone
         uses: actions/cache@v4
@@ -325,8 +325,9 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           SUBPACKAGES: "agent common app_backend mettagrid codebot core"
         run: |
+          # We want to set flags per file so the codecov action is not convenient
+          # If we change to a matrix of runners we should delete the script
           chmod +x .github/scripts/upload_codecov.py
-          # Upload all coverage files
           .github/scripts/upload_codecov.py
 
   unit-tests-summary:
@@ -360,8 +361,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
@@ -392,8 +395,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
       - name: Run Python benchmarks
         env:
@@ -426,8 +431,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
       - name: Build C++ benchmarks
         id: benchmark_build_check
