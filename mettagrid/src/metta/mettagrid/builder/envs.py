@@ -107,6 +107,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
     altar = empty_converters.altar.model_copy()
     altar.cooldown = 255  # Maximum cooldown
     altar.initial_resource_count = 1
+    altar.max_conversions = 0
     altar.input_resources = {}
     altar.output_resources = {"heart": 1}
     cfg = MettaGridConfig(
@@ -155,7 +156,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             },
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                rotate=ActionConfig(),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
