@@ -227,10 +227,10 @@ jobs:
           path: |
             .testmondata
             */..testmondata
-          key: testmon-${{ runner.os }}-${{ github.ref }}
+          key: unit-tests-testmon-v2-${{ runner.os }}-${{ github.ref }}
           restore-keys: |
-            testmon-${{ runner.os }}-refs/heads/main
-            testmon-${{ runner.os }}-
+            unit-tests-testmon-v2-${{ runner.os }}-refs/heads/main
+            unit-tests-testmon-v2-${{ runner.os }}-
 
       - name: Cache PufferLib clone
         uses: actions/cache@v4
