@@ -8,6 +8,7 @@ import time
 import sky
 import sky.exceptions
 import yaml
+from retry import retry_function
 
 import gitta as git
 from devops.skypilot.utils.cost_monitor import get_instance_cost
@@ -40,13 +41,21 @@ credentials_logger.propagate = False
 
 
 def get_existing_clusters():
+    """Get existing clusters."""
     with spinner("Fetching existing clusters", style=cyan):
         request_id = sky.status()
         cluster_records = sky.get(request_id)
     return cluster_records
 
 
-def get_next_name(cluster_records):
+def get_user_sandboxes(clusters):
+    """Filter clusters to only show user's sandboxes."""
+    username = os.environ.get("USER", "unknown")
+    return [c for c in clusters if c["name"].startswith(f"{username}-sandbox-")]
+
+
+def get_next_sandbox_name(cluster_records):
+    """Get the next available sandbox name for the current user."""
     names = [record["name"] for record in cluster_records]
     username = os.environ["USER"]
     for i in range(1, 100):
@@ -68,6 +77,61 @@ def get_current_git_ref():
         return git.get_current_branch()
     except (git.GitError, ValueError):
         return "main"  # Fallback to main
+
+
+def format_cluster_info(cluster):
+    """Format cluster information for display."""
+    status = cluster["status"].name
+
+    # Status formatting
+    status_map = {
+        "UP": (green, "running"),
+        "STOPPED": (red, "stopped"),
+        "INIT": (cyan, "launching"),
+    }
+    color_func, status_msg = status_map.get(status, (yellow, status.lower()))
+
+    # GPU info
+    gpu_info = ""
+    if "handle" in cluster and cluster["handle"]:
+        resources = cluster["handle"].launched_resources
+        if resources and resources.accelerators:
+            gpu_info = f" [{resources.accelerators}]"
+
+    return color_func, status_msg, gpu_info
+
+
+def print_cluster_status(clusters, title=None):
+    """Print cluster status in a consistent format."""
+    if title:
+        print(title)
+
+    for cluster in clusters:
+        color_func, status_msg, gpu_info = format_cluster_info(cluster)
+        print(f"  {color_func(cluster['name'])} ({status_msg}){gpu_info}")
+
+        # Additional guidance for INIT state clusters
+        if cluster["status"].name == "INIT":
+            cluster_name = cluster["name"]
+            print(f"    💡 If stuck in INIT for >10min, try: {green(f'sky launch -c {cluster_name} --no-setup')}")
+            print(f"    📊 Check logs: {green(f'sky logs {cluster_name}')}")
+
+
+def print_management_commands(clusters):
+    """Print helpful management commands."""
+    if not clusters:
+        return
+
+    first_cluster_name = clusters[0]["name"]
+    first_stopped_cluster = next((c["name"] for c in clusters if c["status"].name == "STOPPED"), None)
+
+    print("\n📦 Manage sandboxes:")
+    print(f"  Launch new:     {green('./devops/skypilot/sandbox.py --new')}")
+    print(f"  Connect:        {green(f'ssh {first_cluster_name}')}")
+    if first_stopped_cluster:
+        print(f"  Restart:        {green(f'sky start {first_stopped_cluster}')}")
+    print(f"  Stop:           {green(f'sky stop {first_cluster_name}')}")
+    print(f"  Delete:         {red(f'sky down {first_cluster_name}')}")
 
 
 def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us-east-1", cloud: str = "aws"):
@@ -120,6 +184,118 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     return instance_type, region, hourly_cost
 
 
+def print_cost_info(hourly_cost, num_gpus):
+    """Print cost information in a consistent format."""
+    if hourly_cost is not None:
+        print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
+    else:
+        # Provide a rough estimate when we can't calculate exact cost
+        gpu_cost_estimates = {
+            1: "~$0.70-0.90/hour",
+            2: "~$1.40-1.80/hour",
+            4: "~$2.80-3.60/hour",
+            8: "~$5.60-7.20/hour",
+        }
+        estimate = gpu_cost_estimates.get(num_gpus, f"~${0.70 * num_gpus:.2f}-{0.90 * num_gpus:.2f}/hour")
+        print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
+
+
+def check_cluster_status(cluster_name: str) -> str:
+    """Check the status of a specific cluster.
+
+    Returns:
+        The status name (e.g., "UP", "INIT", "STOPPED") or None if not found.
+    """
+    request_id = sky.status()
+    cluster_records = sky.get(request_id)
+
+    for cluster in cluster_records:
+        if cluster["name"] == cluster_name:
+            return cluster["status"].name
+
+    return None
+
+
+def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> bool:
+    """Wait for cluster to reach UP state using retry utility.
+
+    Returns:
+        True if cluster reached UP state, False if timeout or error.
+    """
+    print("⏳ Waiting for cluster to be fully ready...")
+    start_time = time.time()
+
+    def check_and_validate_status():
+        elapsed = time.time() - start_time
+        remaining = timeout_seconds - elapsed
+
+        if remaining <= 0:
+            raise TimeoutError(f"Cluster did not reach UP state within {timeout_seconds} seconds")
+
+        with spinner(f"Checking cluster status (remaining: {int(remaining)}s)", style=cyan):
+            status = check_cluster_status(cluster_name)
+
+        if status == "UP":
+            return True
+        elif status == "INIT":
+            print(f"{yellow('⏳')} Cluster still initializing...")
+            raise Exception("Cluster still in INIT state")  # Will trigger retry
+        elif status is None:
+            raise Exception("Cluster not found in status output")
+        else:
+            raise Exception(f"Cluster in unexpected state: {status}")
+
+    try:
+        retry_function(
+            check_and_validate_status,
+            max_retries=timeout_seconds // 10,  # Check every ~10 seconds
+            initial_delay=5.0,
+            max_delay=10.0,
+            backoff_factor=1.0,  # Linear backoff for status checks
+            exceptions=(Exception,),
+            error_prefix="Cluster status check",
+        )
+        print(f"{green('✓')} Cluster is now UP and ready")
+        return True
+    except Exception as e:
+        print(f"\n{red('✗')} {str(e)}")
+        return False
+
+
+def handle_check_mode(clusters):
+    """Handle --check mode to display user's sandboxes."""
+    username = os.environ.get("USER", "unknown")
+    user_sandboxes = get_user_sandboxes(clusters)
+
+    if not user_sandboxes:
+        print(f"{green('✓')} No active sandboxes found for user {bold(username)}")
+        return 0
+
+    print(f"{bold(f'Found {len(user_sandboxes)} sandbox(es) for user {username}:')}")
+
+    # Count by status
+    status_counts = {"UP": 0, "STOPPED": 0, "INIT": 0}
+
+    for cluster in user_sandboxes:
+        color_func, status_msg, gpu_info = format_cluster_info(cluster)
+        status = cluster["status"].name
+        if status in status_counts:
+            status_counts[status] += 1
+
+        print(f"  • {color_func(cluster['name'])} ({status_msg}){gpu_info}")
+
+    # Summary
+    print(f"\n{bold('Summary:')}")
+    if status_counts["UP"] > 0:
+        print(f"  {green(f'{status_counts["UP"]} running')}")
+    if status_counts["STOPPED"] > 0:
+        print(f"  {red(f'{status_counts["STOPPED"]} stopped')}")
+    if status_counts["INIT"] > 0:
+        print(f"  {cyan(f'{status_counts["INIT"]} launching')}")
+
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sandbox.py",
@@ -170,112 +346,29 @@ Common management commands:
     # Get git ref - use current branch/commit if not specified
     git_ref = args.git_ref or get_current_git_ref()
 
-    existing_clusters = get_existing_clusters()
+    try:
+        existing_clusters = get_existing_clusters()
+    except Exception as e:
+        print(f"{red('✗')} Failed to fetch existing clusters: {str(e)}")
+        return 1
 
     # Handle --check mode
     if args.check:
-        username = os.environ.get("USER", "unknown")
-        user_sandboxes = [c for c in existing_clusters if c["name"].startswith(f"{username}-sandbox-")]
+        return handle_check_mode(existing_clusters)
 
-        if not user_sandboxes:
-            print(f"{green('✓')} No active sandboxes found for user {bold(username)}")
-            return 0
-
-        print(f"{bold(f'Found {len(user_sandboxes)} sandbox(es) for user {username}:')}")
-
-        active_count = 0
-        stopped_count = 0
-        init_count = 0
-
-        for cluster in user_sandboxes:
-            status = cluster["status"].name
-            if status == "UP":
-                active_count += 1
-                color_func = green
-                status_msg = "running"
-            elif status == "STOPPED":
-                stopped_count += 1
-                color_func = red
-                status_msg = "stopped"
-            elif status == "INIT":
-                init_count += 1
-                color_func = cyan
-                status_msg = "launching"
-            else:
-                color_func = yellow
-                status_msg = status.lower()
-
-            gpu_info = ""
-            if "handle" in cluster and cluster["handle"]:
-                resources = cluster["handle"].launched_resources
-                if resources and resources.accelerators:
-                    gpu_info = f" [{resources.accelerators}]"
-
-            print(f"  • {color_func(cluster['name'])} ({status_msg}){gpu_info}")
-
-        # Summary
-        print(f"\n{bold('Summary:')}")
-        if active_count > 0:
-            print(f"  {green(f'{active_count} running')}")
-        if stopped_count > 0:
-            print(f"  {red(f'{stopped_count} stopped')}")
-        if init_count > 0:
-            print(f"  {cyan(f'{init_count} launching')}")
-
-        # Return exit code: 0 if any sandboxes exist, 1 if none
-        return 0
-
+    # Show existing clusters if not launching new
     if existing_clusters and not args.new:
         print(f"You already have {len(existing_clusters)} sandbox(es) running:")
-        for cluster in existing_clusters:
-            message = ""
-            color_func = yellow  # default color
-            if cluster["status"].name == "INIT":
-                message = " (launching - may take several minutes)"
-                color_func = cyan
-            elif cluster["status"].name == "STOPPED":
-                message = " (stopped)"
-                color_func = red
-            elif cluster["status"].name == "UP":
-                message = " (running)"
-                color_func = green
-
-            gpu_info = ""
-            if "handle" in cluster and cluster["handle"]:
-                resources = cluster["handle"].launched_resources
-                if resources and resources.accelerators:
-                    gpu_info = f" [{resources.accelerators}]"
-
-            print(f"  {color_func(cluster['name'])}{message}{gpu_info}")
-
-            # Additional guidance for INIT state clusters
-            if cluster["status"].name == "INIT":
-                cluster_name_ref = cluster["name"]
-                print(
-                    f"    💡 If stuck in INIT for >10min, try: {green(f'sky launch -c {cluster_name_ref} --no-setup')}"
-                )
-                print(f"    📊 Check logs: {green(f'sky logs {cluster_name_ref}')}")
-
-        first_cluster_name = existing_clusters[0]["name"]
-        first_stopped_cluster_name = next(
-            (cluster["name"] for cluster in existing_clusters if cluster["status"].name == "STOPPED"), None
-        )
-
-        print("\n📦 Manage sandboxes:")
-        print(f"  Launch new:     {green('./devops/skypilot/sandbox.py --new')}")
-        print(f"  Connect:        {green(f'ssh {first_cluster_name}')}")
-        if first_stopped_cluster_name:
-            print(f"  Restart:        {green(f'sky start {first_stopped_cluster_name}')}")
-        print(f"  Stop:           {green(f'sky stop {first_cluster_name}')}")
-        print(f"  Delete:         {red(f'sky down {first_cluster_name}')}")
-
+        print_cluster_status(existing_clusters)
+        print_management_commands(existing_clusters)
         return 0
 
-    cluster_name = get_next_name(existing_clusters)
+    # Launch new sandbox
+    cluster_name = get_next_sandbox_name(existing_clusters)
     print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
     print(f"🔌 Git ref: {cyan(git_ref)}")
 
-    # Load the sandbox configuration
+    # Load configuration
     config_path = "./devops/skypilot/launch/sandbox.yaml"
     config = load_sandbox_config(config_path)
 
@@ -294,33 +387,21 @@ Common management commands:
     if instance_type:
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
 
-    if hourly_cost is not None:
-        print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
-    else:
-        # Provide a rough estimate when we can't calculate exact cost
-        gpu_cost_estimates = {
-            1: "~$0.70-0.90/hour",
-            2: "~$1.40-1.80/hour",
-            4: "~$2.80-3.60/hour",
-            8: "~$5.60-7.20/hour",
-        }
-        estimate = gpu_cost_estimates.get(args.gpus, f"~${0.70 * args.gpus:.2f}-{0.90 * args.gpus:.2f}/hour")
-        print(f"Approximate cost: {yellow(estimate)} (estimated for {args.gpus} L4 GPU{'s' if args.gpus > 1 else ''})")
+    print_cost_info(hourly_cost, args.gpus)
 
     autostop_hours = 48
 
+    # Prepare task
     with spinner("Preparing task configuration", style=cyan):
         task = sky.Task.from_yaml(config_path)
         set_task_secrets(task)
         task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
-
-        # Set the git ref in the environment variables
         task.update_envs({"METTA_GIT_REF": git_ref})
-
         time.sleep(1)
 
     print("\n⏳ This will take a few minutes...")
 
+    # Check authentication
     try:
         sky_info = sky.api_info()
         if sky_info["status"] == "healthy" and sky_info["user"] is None:
@@ -329,6 +410,7 @@ Common management commands:
             print("to authenticate before launching a sandbox.")
             return 1
 
+        # Launch cluster
         request_id = sky.launch(
             task,
             cluster_name=cluster_name,
@@ -336,7 +418,7 @@ Common management commands:
             retry_until_up=args.retry_until_up,
         )
 
-        # Stream the launch logs (no spinner here - let SkyPilot control the output)
+        # Stream the launch logs
         _result = sky.stream_and_get(request_id)
 
     except sky.exceptions.ResourcesUnavailableError as e:
@@ -352,55 +434,16 @@ Common management commands:
         print(f"\n{red('✗ Launch failed:')} {str(e)}")
         return 1
 
-    # Wait for cluster to be fully ready before attempting SSH setup
-    print("⏳ Waiting for cluster to be fully ready...")
-    max_wait_seconds = args.wait_timeout
-    wait_interval = 10  # Check every 10 seconds
-    max_wait_attempts = max_wait_seconds // wait_interval
-
-    for wait_attempt in range(max_wait_attempts):
-        # Wait between checks, but not on the first attempt
-        if wait_attempt > 0:
-            time.sleep(wait_interval)
-
-        try:
-            with spinner(f"Checking cluster status (attempt {wait_attempt + 1}/{max_wait_attempts})", style=cyan):
-                request_id = sky.status()
-                cluster_records = sky.get(request_id)
-
-            # Find our cluster in the status
-            cluster_status = None
-            for cluster in cluster_records:
-                if cluster["name"] == cluster_name:
-                    cluster_status = cluster["status"].name
-                    break
-
-            if cluster_status == "UP":
-                print(f"{green('✓')} Cluster is now UP and ready")
-                break
-            elif cluster_status == "INIT":
-                print(f"{yellow('⏳')} Cluster still initializing... (attempt {wait_attempt + 1}/{max_wait_attempts})")
-            elif cluster_status is None:
-                print(f"{red('✗')} Cluster not found in status output")
-                return 1
-            else:
-                print(f"{red('✗')} Cluster in unexpected state: {cluster_status}")
-                return 1
-
-        except Exception as e:
-            print(f"{yellow('⚠')} Error checking cluster status: {str(e)}, retrying...")
-
-    else:
-        # This else clause runs if the for loop completed without breaking (timeout)
-        print(f"\n{red('✗')} Cluster did not reach UP state within {max_wait_seconds} seconds")
+    # Wait for cluster to be ready using retry utility
+    if not wait_for_cluster_ready(cluster_name, args.wait_timeout):
         print("Current status might still be INIT. You can:")
         print(f"  • Check status manually: {green(f'sky status {cluster_name}')}")
         print(f"  • Try connecting anyway: {green(f'ssh {cluster_name}')}")
         print(f"  • Re-run launch to retry: {green(f'sky launch -c {cluster_name} --no-setup')}")
-        print(f"  • Increase timeout: {green(f'--wait-timeout {max_wait_seconds + 300}')}")
+        print(f"  • Increase timeout: {green(f'--wait-timeout {args.wait_timeout + 300}')}")
         return 1
 
-    # Don't use spinner during log tailing - it interferes with output
+    # Run setup job
     print("⚙️ Running setup job...")
     try:
         setup_result = sky.tail_logs(cluster_name, job_id=1, follow=True)
@@ -413,7 +456,7 @@ Common management commands:
         print(f"You can check logs manually with: {green(f'sky logs {cluster_name}')}")
         return 1
 
-    # Configure SSH access after cluster is fully ready
+    # Configure SSH access
     with spinner("Configuring SSH access", style=cyan):
         try:
             subprocess.run(["sky", "status", cluster_name], check=True, capture_output=True)
@@ -423,6 +466,7 @@ Common management commands:
             print(f"  • Update SSH config: {green(f'sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
 
+    # Success!
     print(f"\n{green('✓')} Sandbox is ready!")
     print("\nConnect to your sandbox:")
     print(f"  {green(f'ssh {cluster_name}')}")
