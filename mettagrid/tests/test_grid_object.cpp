@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "../mettagrid/grid_object.hpp"
+#include "mettagrid/grid_object.hpp"
 
 // Test fixture for GridLocation class
 class GridLocationTest : public ::testing::Test {

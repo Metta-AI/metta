@@ -22,6 +22,18 @@ runs:
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
 
+    - name: Install Bazel
+      shell: bash
+      run: |
+        curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o bazel
+        chmod +x bazel
+        if command -v sudo &> /dev/null; then
+          sudo mv bazel /usr/local/bin/bazel
+        else
+          mv bazel /usr/local/bin/bazel
+        fi
+        bazel --version
+
     - name: Create virtual environment with uv
       shell: bash
       env:

@@ -169,7 +169,3 @@ class TestAWSProfileExternal(AWSAssertionsMixin, BaseMettaSetupTest):
         assert not self._check_shell_config_contains(bashrc_path, "export AWS_PROFILE=softmax"), (
             f"External profile should not add AWS_PROFILE to {bashrc_path}"
         )
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
