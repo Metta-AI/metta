@@ -16,23 +16,23 @@ proc testMineUsage() =
   for thing in env.things:
     if thing.kind == Mine:
       echo fmt"Mine at ({thing.pos.x}, {thing.pos.y})"
-      echo fmt"  Resources: {thing.inputResource}"
+      echo fmt"  Resources: {thing.resources}"
       echo fmt"  Cooldown: {MapObjectMineCooldown} steps"
       echo "  Agent can mine with action 3 (use) to get ore"
       break
   echo ""
 
-# Test 2: Generator usage
-proc testGeneratorUsage() =
+# Test 2: Converter usage
+proc testConverterUsage() =
   echo "Test 2: Generator System"
   echo "------------------------"
   var env = newEnvironment()
   
   for thing in env.things:
-    if thing.kind == Generator:
-      echo fmt"Generator at ({thing.pos.x}, {thing.pos.y})"
-      echo fmt"  Converts: 1 ore → {MapObjectGeneratorEnergyOutput} energy"
-      echo fmt"  Cooldown: {MapObjectGeneratorCooldown} steps"
+    if thing.kind == Converter:
+      echo fmt"Converter at ({thing.pos.x}, {thing.pos.y})"
+      echo fmt"  Converts: 1 ore → 1 battery"
+      echo fmt"  Cooldown: {MapObjectConverterCooldown} steps"
       echo "  Agent uses with action 3 while carrying ore"
       break
   echo ""
@@ -46,8 +46,8 @@ proc testAltarHearts() =
   for thing in env.things:
     if thing.kind == Altar:
       echo fmt"Altar at ({thing.pos.x}, {thing.pos.y})"
-      echo fmt"  Current hearts: {thing.hp}/{MapObjectAltarInitialHearts * 2} (max)"
-      echo fmt"  Deposit cost: {MapObjectAltarUseCost} energy → 1 heart"
+      echo fmt"  Current hearts: {thing.hearts}/{MapObjectAltarInitialHearts * 2} (max)"
+      echo fmt"  Deposit cost: 1 battery → 1 heart"
       echo fmt"  Respawn cost: {MapObjectAltarRespawnCost} heart"
       echo "  Clippys remove 1 heart when they reach altar"
       break
@@ -87,9 +87,9 @@ proc testResourceCycle() =
   for thing in env.things:
     case thing.kind:
     of Mine:
-      if thing.inputResource < MapObjectMineInitialResources:
+      if thing.resources < MapObjectMineInitialResources:
         minesUsed = true
-    of Generator:
+    of Converter:
       if thing.cooldown > 0:
         generatorsUsed = true
     else: discard
@@ -97,7 +97,7 @@ proc testResourceCycle() =
   if minesUsed:
     echo "✓ Mines have been used"
   if generatorsUsed:
-    echo "✓ Generators have been used"
+    echo "✓ Converters have been used"
   
   let hearts = env.getTotalAltarHearts()
   if hearts != MapObjectAltarInitialHearts * 3:  # 3 villages
@@ -117,13 +117,12 @@ proc testInventoryManagement() =
   echo fmt"  Slot 4: Wood (from terrain, max 5)"
   echo ""
   echo "Agents start with:"
-  echo fmt"  Energy: {MapObjectAgentInitialEnergy}/{MapObjectAgentMaxEnergy}"
-  echo fmt"  All inventory slots: 0"
+  echo "  All inventory slots: 0"
   echo ""
 
 # Run all tests
 testMineUsage()
-testGeneratorUsage()
+testConverterUsage()
 testAltarHearts()
 testTerrainResources()
 testResourceCycle()

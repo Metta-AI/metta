@@ -1110,16 +1110,13 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         if combatRoll < 0.5:
           # Agent dies - mark for respawn at altar
           adjacentThing.frozen = 999999  # Mark as dead (will be respawned)
-          adjacentThing.energy = 0
-          adjacentThing.hp = 0
           env.terminated[adjacentThing.agentId] = 1.0
           
           # Clear the agent from its current position
           env.grid[adjacentThing.pos.x][adjacentThing.pos.y] = nil
           
-          # AgentFrozenLayer removed\n          # env.updateObservations(AgentFrozenLayer, adjacentThing.pos, adjacentThing.frozen)
-          env.updateObservations(AgentInventoryBatteryLayer, adjacentThing.pos, adjacentThing.energy)
-          # AgentHpLayer removed - no longer tracking HP
+          # Clear inventory when agent dies
+          env.updateObservations(AgentInventoryBatteryLayer, adjacentThing.pos, 0)
         
         # Break after first combat (clippy is already dead)
         break

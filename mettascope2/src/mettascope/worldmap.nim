@@ -260,26 +260,10 @@ proc drawActions*() =
   #       tint = color(1, 0, 0, 1)
   #     )
 
-  # Draw attack actions
-  for agentId, action in actionsArray:
-    if action[0] == 4:
-      let
-        distance = 1 + (action[1].int - 1) div 3
-        offset = -((action[1].int - 1) mod 3 - 1)
-        agent = env.agents[agentId]
-        targetPos = agent.pos + relativeLocation(agent.orientation, distance, offset)
-      if agent.energy > MapObjectAgentAttackCost:
-        discard
-        # bxy.drawImage(
-        #   "fire",
-        #   targetPos.vec2 * 64,
-        #   angle = 0
-        # )
-        # bxy.drawBubbleLine(
-        #   agent.pos.vec2 * 64,
-        #   targetPos.vec2 * 64,
-        #   color(1, 0, 0, 0.5)
-        # )
+  # Attack actions removed - no longer rendering attack effects
+  # for agentId, action in actionsArray:
+  #   if action[0] == 4:
+  #     # Attack effects would be rendered here
 
 proc drawObservations*() =
   # Draw observations

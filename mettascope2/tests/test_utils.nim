@@ -35,7 +35,7 @@ proc getTotalAltarHearts*(env: Environment): int =
   ## Get sum of all altar hearts
   for thing in env.things:
     if thing.kind == Altar:
-      result += thing.hp
+      result += thing.hearts
 
 proc printEntityCounts*(env: Environment, label: string = "") =
   ## Print current entity counts
