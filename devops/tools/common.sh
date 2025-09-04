@@ -23,10 +23,6 @@ _find_project_root() {
 
 PROJECT_ROOT="$(_find_project_root)"
 
-# Setup UV project environment
-setup_uv_project_env() {
-  export UV_PROJECT_ENVIRONMENT="$(cd "${PROJECT_ROOT}/.venv" && pwd)"
-}
 
 # Setup UV environment paths
 setup_uv_paths() {
@@ -52,7 +48,7 @@ setup_uv_paths() {
 }
 
 # Ensure uv is in PATH, installed, and uv project environment associated with this repo
-ensure_uv_setup() {
+ensure_uv_exists() {
   if ! check_cmd uv; then
     echo "uv is not installed. Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -63,5 +59,4 @@ ensure_uv_setup() {
       err "Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
     fi
   fi
-  setup_uv_project_env
 }

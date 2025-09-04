@@ -21,7 +21,7 @@ fi
 # Source common functions
 source "$REPO_ROOT/devops/tools/common.sh"
 
-ensure_uv_setup
+ensure_uv_exists
 
 
 if ! uv run --active metta run githooks pre-commit; then
