@@ -60,6 +60,7 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        glyph(0),
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
