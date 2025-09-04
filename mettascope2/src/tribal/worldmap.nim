@@ -1,7 +1,7 @@
 import
   std/[strformat, tables],
   boxy, vmath, windy, chroma,
-  tribal
+  tribal_game
 
 # Import necessary globals from tribalgrid
 var
