@@ -9,7 +9,7 @@ from metta.agent.metta_agent import PolicyAgent
 from metta.mettagrid import dtype_actions
 from metta.mettagrid.config import Config
 from metta.rl.experience import Experience
-from metta.rl.losses import BaseLoss
+from metta.rl.loss.loss import Loss
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.trainer_state import TrainerState
 from metta.rl.vecenv import VectorEnv
@@ -31,7 +31,7 @@ class CoreTrainingLoop:
         self,
         policy: PolicyAgent,
         experience: Experience,
-        losses: Dict[str, BaseLoss],
+        losses: Dict[str, Loss],
         optimizer: torch.optim.Optimizer,
         device: torch.device,
         accumulate_minibatches: int = 1,

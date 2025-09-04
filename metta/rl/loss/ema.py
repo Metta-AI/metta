@@ -1,20 +1,50 @@
+"""Exponential Moving Average loss implementation."""
+
 import copy
 from typing import Any
 
 import torch
+from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 from torch.nn import functional as F
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.loss.base_loss import BaseLoss
-
-# from metta.rl.trainer_config import TrainerConfig
+from metta.mettagrid.config import Config
+from metta.rl.loss.loss import Loss
 from metta.rl.trainer_state import TrainerState
 
+# Config class
 
-class EMA(BaseLoss):
+
+class EMAConfig(Config):
+    decay: float = Field(default=0.995, ge=0, le=1.0)
+    loss_coef: float = Field(default=1.0, ge=0, le=1.0)
+
+    def create(
+        self,
+        policy: PolicyAgent,
+        trainer_cfg: Any,
+        vec_env: Any,
+        device: torch.device,
+        instance_name: str,
+        loss_config: Any,
+    ):
+        """Create EMA loss instance."""
+        return EMA(
+            policy,
+            trainer_cfg,
+            vec_env,
+            device,
+            instance_name=instance_name,
+            loss_config=loss_config,
+        )
+
+
+# Loss class
+
+
+class EMA(Loss):
     __slots__ = (
         "target_model",
         "ema_decay",
@@ -27,11 +57,10 @@ class EMA(BaseLoss):
         trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
-        checkpoint_manager: CheckpointManager,
         instance_name: str,
         loss_config: Any,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, checkpoint_manager, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
 
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():

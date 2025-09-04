@@ -41,7 +41,6 @@ from metta.rl.training import (
     TrainerCheckpointerConfig,
 )
 from metta.rl.training.training_environment import TrainingEnvironment, TrainingEnvironmentConfig
-from metta.rl.training.vecenv import configure_rollout_workers
 from metta.tools.utils.auto_config import auto_run_name, auto_stats_server_uri, auto_wandb_config
 
 logger = getRankAwareLogger(__name__)
@@ -131,7 +130,17 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     run_dir = cfg.run_dir
 
     # Configure rollout workers based on hardware
-    configure_rollout_workers(cfg.system, cfg.trainer)
+    # Configure rollout workers based on hardware
+    import os
+
+    if cfg.system.vectorization == "serial":
+        cfg.trainer.rollout_workers = 1
+        cfg.trainer.async_factor = 1
+    else:
+        num_gpus = torch.cuda.device_count() or 1
+        cpu_count = os.cpu_count() or 1
+        ideal_workers = (cpu_count // 2) // num_gpus
+        cfg.trainer.rollout_workers = max(1, ideal_workers)
 
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:
@@ -152,15 +161,12 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             zero_copy=cfg.trainer.zero_copy,
             vectorization=cfg.system.vectorization,
             seed=cfg.system.seed,
+            curriculum=cfg.trainer.curriculum,
         )
 
     # Create the training environment
-    from metta.cogworks.curriculum import Curriculum
-
-    curriculum = Curriculum(cfg.trainer.curriculum)
-    training_environment = TrainingEnvironment(
+    training_env = TrainingEnvironment(
         config=cfg.training_env,
-        curriculum=curriculum,
         rank=distributed_helper.get_rank(),
     )
 
@@ -267,7 +273,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     components.append(evaluator)
 
     # Set up the training environment to get the env for policy creation
-    metta_grid_env, _, _, _ = training_environment.setup()
+    metta_grid_env, _, _, _ = training_env.setup()
 
     # Load or create policy
     policy = policy_checkpointer.load_or_create_agent(
@@ -282,7 +288,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     trainer = Trainer(
         run_dir=run_dir,
         run_name=cfg.run,
-        training_environment=training_environment,
+        training_env=training_env,
         policy=policy,
         system_cfg=cfg.system,
         trainer_cfg=cfg.trainer,
@@ -291,15 +297,21 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         components=components,
     )
 
-    # Add torch profiler component and configure wandb if needed
+    # Add torch profiler component if needed
+    from metta.rl.torch_profiler import TorchProfiler
+
+    torch_profiler = TorchProfiler(
+        master=distributed_helper.is_master(),
+        profiler_config=cfg.trainer.profiler,
+        wandb_run=wandb_run,
+        run_dir=run_dir,
+    )
+
     torch_profiler_component = TorchProfilerComponent(
         config=TorchProfilerConfig(interval=1),
-        torch_profiler=trainer.torch_profiler,
+        torch_profiler=torch_profiler,
     )
     torch_profiler_component.register(trainer)
-
-    if wandb_run:
-        trainer.torch_profiler._wandb_run = wandb_run
 
     # Alternative: Components can also self-register after trainer creation
     # For example, you could create and register components dynamically:
@@ -307,6 +319,13 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     # custom_component.register(trainer)
 
     trainer.setup()
+
+    # Restore trainer state from checkpoint if available
+    for component in components:
+        if isinstance(component, TrainerCheckpointer):
+            component.restore(trainer)
+            break
+
     trainer.train()
 
 
