@@ -108,12 +108,12 @@ jobs:
           # Use different coverage based on event type
           # Production quality gate: full branch coverage for main branch merges and merge queue
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.event_name }}" == "merge_group" ]]; then
-            PYTEST_ARGS="tests/setup --cov --cov-branch -v --durations=10"
+            PYTEST_ARGS="tests/setup --cov --cov-branch -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
             echo "Running setup tests with full branch coverage for production merge"
           else
             # Fast testmon for PRs and development (fast feedback)
-            PYTEST_ARGS="tests/setup --testmon --cov -v --durations=10"
-            echo "Running setup tests with coverage (full branch coverage on merge queue)"
+            PYTEST_ARGS="tests/setup --testmon --cov -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
+            echo "Running setup tests with testmon for fast development feedback"
           fi
 
           # If no .testmondata exists, do a full run first to build the database
@@ -137,3 +137,9 @@ jobs:
           flags: setup-tests
           name: setup-tests
           fail_ci_if_error: false
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

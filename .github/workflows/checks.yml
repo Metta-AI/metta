@@ -253,11 +253,11 @@ jobs:
           # Use different coverage based on event type
           # Production quality gate: full branch coverage for main branch merges and merge queue
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.event_name }}" == "merge_group" ]]; then
-            PYTEST_ARGS="--cov --cov-branch --benchmark-skip -n auto --disable-warnings -v --durations=10"
+            PYTEST_ARGS="--cov --cov-branch --benchmark-skip -n auto --disable-warnings -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
             echo "Running with full branch coverage for production merge"
           else
             # Fast testmon for PRs and development (fast feedback)
-            PYTEST_ARGS="--testmon --cov --benchmark-skip -n auto --disable-warnings -v --durations=10"
+            PYTEST_ARGS="--testmon --cov --benchmark-skip -n auto --disable-warnings -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
             echo "Running with testmon for fast development feedback"
           fi
 
