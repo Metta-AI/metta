@@ -197,7 +197,7 @@ source ./devops/skypilot/setup_shell.sh
 
 To add them permanently, add the source command to your shell profile:
 
-````bash
+```bash
 # For bash users:
 echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.bashrc
 
@@ -206,7 +206,7 @@ echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.zshrc
 
 # For fish users:
 echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/fish/config.fish
-
+```
 
 ### Available Aliases
 
@@ -232,47 +232,132 @@ echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/
 - `lt run=<NAME>` - Quick launch training jobs
   ```bash
   lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
-````
+  ```
 
 ## Sandboxes
 
-Sandboxes provide persistent development environments for experimentation.
+Sandboxes provide persistent GPU development environments for experimentation and debugging. Unlike training jobs that
+terminate after completion, sandboxes remain running until you stop them.
+
+### Quick Start
+
+```bash
+# Check if you have any existing sandboxes
+./devops/skypilot/sandbox.py --check
+
+# Launch a new sandbox (if none exists)
+./devops/skypilot/sandbox.py --new
+
+# Connect to your sandbox
+ssh <sandbox-name>
+```
 
 ### Creating a Sandbox
 
 ```bash
-# Create sandbox with main branch
+# Show existing sandboxes and management commands
 ./devops/skypilot/sandbox.py
 
-# Create sandbox with specific commit/branch
-./devops/skypilot/sandbox.py --git-ref feature/my-branch
-
-# Force create new sandbox (even if one exists)
+# Launch a new sandbox with 1 GPU (default)
 ./devops/skypilot/sandbox.py --new
+
+# Launch with multiple GPUs
+./devops/skypilot/sandbox.py --new --gpus 4
+
+# Launch with specific git branch
+./devops/skypilot/sandbox.py --new --git-ref feature/my-branch
+
+# Increase wait timeout for cluster initialization
+./devops/skypilot/sandbox.py --new --wait-timeout 600
 ```
 
-### Connecting to Sandbox
+### Checking Sandbox Status
+
+The `--check` mode provides a quick overview of your sandboxes:
 
 ```bash
-# SSH into sandbox (cluster name shown after creation)
-ssh <cluster_name>
+./devops/skypilot/sandbox.py --check
+```
+
+Example output:
+
+```
+Found 2 sandbox(es) for user alice:
+  • alice-sandbox-1 (running) [L4:1]
+  • alice-sandbox-2 (stopped) [L4:4]
+
+Summary:
+  1 running
+  1 stopped
+
+📦 Manage sandboxes:
+  Launch new:     ./devops/skypilot/sandbox.py --new
+  Connect:        ssh alice-sandbox-1
+  Restart:        sky start alice-sandbox-2
+  Stop:           sky stop alice-sandbox-1
+  Delete:         sky down alice-sandbox-1
 ```
 
 ### Managing Sandboxes
 
 ```bash
-# List all clusters (including sandboxes)
-sky status
+# Connect to a running sandbox
+ssh <sandbox-name>
 
-# Stop sandbox (keeps data, saves costs)
-sky stop <cluster_name>
+# Stop sandbox (preserves data, saves costs)
+sky stop <sandbox-name>
 
-# Restart stopped sandbox
-sky start <cluster_name>
+# Restart a stopped sandbox
+sky start <sandbox-name>
 
 # Delete sandbox completely
-sky down <cluster_name>
+sky down <sandbox-name>
+
+# Check logs if sandbox is stuck in INIT
+sky logs <sandbox-name>
+
+# Retry launch for stuck clusters
+sky launch -c <sandbox-name> --no-setup
 ```
+
+### Cost Management
+
+- Sandboxes automatically stop after **48 hours** to prevent runaway costs
+- L4 GPU instances cost approximately:
+  - 1 GPU: ~$0.70-0.90/hour
+  - 2 GPUs: ~$1.40-1.80/hour
+  - 4 GPUs: ~$2.80-3.60/hour
+  - 8 GPUs: ~$5.60-7.20/hour
+
+To disable auto-stop:
+
+```bash
+sky autostop --cancel <sandbox-name>
+```
+
+### Sandbox Features
+
+- **Persistent environment**: Your code, data, and installed packages persist across SSH sessions
+- **Full GPU access**: Direct access to NVIDIA GPUs for development and debugging
+- **Git integration**: Automatically clones your repository at the specified branch/commit
+- **Cost visibility**: Shows estimated hourly costs before launching
+- **Auto-naming**: Sandboxes are automatically named as `<username>-sandbox-<number>`
+
+### Common Use Cases
+
+1. **Interactive development**: Test code changes with GPU access
+2. **Debugging training issues**: Run experiments with interactive debugging
+3. **Data exploration**: Analyze datasets with full computational resources
+4. **Dependency testing**: Install and test new packages before adding to requirements
+
+### Troubleshooting
+
+If a sandbox gets stuck in `INIT` state:
+
+1. Wait 10+ minutes (initial setup can be slow)
+2. Check logs: `sky logs <sandbox-name>`
+3. Try relaunching: `sky launch -c <sandbox-name> --no-setup`
+4. If still stuck, delete and recreate: `sky down <sandbox-name>` then `./devops/skypilot/sandbox.py --new`
 
 ## Configuration
 
@@ -322,6 +407,8 @@ sky jobs queue -a
 4. **Monitor actively**: Check job status regularly, especially for long-running jobs
 
 5. **Clean up resources**: Cancel failed jobs and shut down unused sandboxes
+
+6. **Use sandboxes wisely**: Stop sandboxes when not in use to save costs, and delete old sandboxes you no longer need
 
 ## Additional Resources
 
