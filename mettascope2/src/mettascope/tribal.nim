@@ -94,6 +94,10 @@ type
     Altar
     Temple
     Clippy
+    Armory
+    Forge
+    ClayOven
+    WeavingLoom
 
   Thing* = ref object
     kind*: ThingKind
@@ -190,6 +194,14 @@ proc render*(env: Environment): string =
             cell = "t"
           of Clippy:
             cell = "C"
+          of Armory:
+            cell = "A"
+          of Forge:
+            cell = "F"
+          of ClayOven:
+            cell = "O"
+          of WeavingLoom:
+            cell = "W"
           break
       result.add(cell)
     result.add("\n")

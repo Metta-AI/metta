@@ -150,8 +150,8 @@ proc findNearestAgent*(clippyPos: IVec2, things: seq[pointer], visionRange: int)
   
   return nearestPos
 
-proc getOutwardExpansionPoint*(clippy: pointer, things: seq[pointer], r: var Rand): IVec2 =
-  ## Get next point for plague-wave expansion - always moving away from origin and other clippys
+proc getOutwardExpansionDirection*(clippy: pointer, things: seq[pointer], r: var Rand): IVec2 =
+  ## Get movement direction for plague-wave expansion - returns a unit direction vector
   let clippyThing = cast[ptr tuple[
     kind: int, pos: IVec2, id: int, layer: int, hearts: int, 
     resources: int, cooldown: int, frozen: int, inventory: int,
@@ -162,27 +162,32 @@ proc getOutwardExpansionPoint*(clippy: pointer, things: seq[pointer], r: var Ran
     wanderAngle: float, targetPos: IVec2, wanderStepsRemaining: int
   ]](clippy)
   
-  # Calculate primary expansion direction - away from home temple
   let currentPos = clippyThing.pos
   let homeTemple = clippyThing.homeTemple
   
-  # Vector away from home temple (the plague source)
-  var awayFromHome = ivec2(0, 0)
+  # Primary force: Move away from home temple
+  var outwardForce = vec2(0.0, 0.0)
   if homeTemple.x >= 0 and homeTemple.y >= 0:
-    let dx = currentPos.x - homeTemple.x
-    let dy = currentPos.y - homeTemple.y
-    let distFromHome = sqrt((dx * dx + dy * dy).float)
+    let dx = (currentPos.x - homeTemple.x).float
+    let dy = (currentPos.y - homeTemple.y).float
+    let distFromHome = sqrt(dx * dx + dy * dy)
     
-    # Normalize and scale the "away" vector with stronger bias at close range
-    if distFromHome > 0:
-      # Stronger push when closer to home, weaker when far
-      let pushStrength = max(5.0, 20.0 - distFromHome * 0.3)
-      awayFromHome.x = int32((dx.float / distFromHome) * pushStrength)
-      awayFromHome.y = int32((dy.float / distFromHome) * pushStrength)
+    if distFromHome > 0.1:
+      # Strong outward push, especially when close
+      let pushStrength = if distFromHome < 10: 0.8
+                        elif distFromHome < 30: 0.6
+                        else: 0.4
+      outwardForce.x = (dx / distFromHome) * pushStrength
+      outwardForce.y = (dy / distFromHome) * pushStrength
+    else:
+      # At origin, pick random direction
+      let angle = r.rand(0.0 .. 2*PI)
+      outwardForce.x = cos(angle) * 0.8
+      outwardForce.y = sin(angle) * 0.8
   
-  # Calculate avoidance vector from nearby clippys (creates spreading effect)
-  var avoidanceVector = ivec2(0, 0)
-  var nearbyClippyCount = 0
+  # Secondary force: Avoid nearby clippys
+  var avoidanceForce = vec2(0.0, 0.0)
+  var nearbyCount = 0
   
   for thingPtr in things:
     if isNil(thingPtr):
@@ -190,60 +195,40 @@ proc getOutwardExpansionPoint*(clippy: pointer, things: seq[pointer], r: var Ran
     let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
     if thing.kind == 6 and thing.pos != currentPos:  # Other clippy
       let dist = manhattanDistance(currentPos, thing.pos)
-      if dist <= 8:  # Avoid other clippys within 8 tiles
-        # Calculate repulsion force (stronger when closer)
-        let repulsionStrength = (9 - dist).float / 8.0
-        let dx = currentPos.x - thing.pos.x
-        let dy = currentPos.y - thing.pos.y
-        avoidanceVector.x += int32(dx.float * repulsionStrength)
-        avoidanceVector.y += int32(dy.float * repulsionStrength)
-        nearbyClippyCount += 1
+      if dist <= 6:  # Repel from nearby clippys
+        let dx = (currentPos.x - thing.pos.x).float
+        let dy = (currentPos.y - thing.pos.y).float
+        let strength = (7 - dist).float / 6.0 * 0.3  # Weaker than outward force
+        if abs(dx) + abs(dy) > 0:
+          avoidanceForce.x += dx * strength
+          avoidanceForce.y += dy * strength
+          nearbyCount += 1
   
-  # Normalize avoidance vector if there are nearby clippys
-  if nearbyClippyCount > 0:
-    avoidanceVector.x = avoidanceVector.x div int32(nearbyClippyCount)
-    avoidanceVector.y = avoidanceVector.y div int32(nearbyClippyCount)
+  if nearbyCount > 0:
+    avoidanceForce.x = avoidanceForce.x / nearbyCount.float
+    avoidanceForce.y = avoidanceForce.y / nearbyCount.float
   
-  # Add exploration randomness for frontier discovery
-  let explorationAngle = r.rand(0.0 .. 2*PI)
-  let explorationX = int32(cos(explorationAngle) * 2.0)
-  let explorationY = int32(sin(explorationAngle) * 2.0)
+  # Tertiary force: Random exploration
+  let exploreAngle = r.rand(0.0 .. 2*PI)
+  let exploreForce = vec2(cos(exploreAngle) * 0.2, sin(exploreAngle) * 0.2)
   
-  # Combine all vectors with weights
-  var targetOffset = ivec2(
-    awayFromHome.x * 2 + avoidanceVector.x + explorationX,  # Strong outward bias
-    awayFromHome.y * 2 + avoidanceVector.y + explorationY
+  # Combine all forces
+  let totalForce = vec2(
+    outwardForce.x + avoidanceForce.x + exploreForce.x,
+    outwardForce.y + avoidanceForce.y + exploreForce.y
   )
   
-  # Ensure we're always moving outward (minimum distance from home)
-  let minDistFromHome = clippyThing.wanderRadius
-  if minDistFromHome < 100:  # Keep expanding up to 100 tiles
-    clippyThing.wanderRadius += 2  # Gradually increase minimum exploration distance
-  
-  # If the combined vector is too small, use a random outward direction
-  if abs(targetOffset.x) + abs(targetOffset.y) < 2:
-    let angle = r.rand(0.0 .. 2*PI)
-    targetOffset = ivec2(
-      int32(cos(angle) * 5.0),
-      int32(sin(angle) * 5.0)
-    )
-  
-  # Convert to next step position (not far-away target)
-  # We want single-step movement in the desired direction
-  var nextStep = currentPos
-  
-  # Move one step in the strongest direction component
-  if abs(targetOffset.x) > abs(targetOffset.y):
-    nextStep.x += if targetOffset.x > 0: 1 else: -1
-  elif abs(targetOffset.y) > 0:
-    nextStep.y += if targetOffset.y > 0: 1 else: -1
+  # Convert to unit direction
+  if abs(totalForce.x) > abs(totalForce.y):
+    return ivec2(if totalForce.x > 0: 1 else: -1, 0)
+  elif abs(totalForce.y) > 0.1:
+    return ivec2(0, if totalForce.y > 0: 1 else: -1)
   else:
-    # If both are zero, pick a random outward direction
-    let angle = r.rand(0.0 .. 2*PI)
-    nextStep.x += int32(cos(angle))
-    nextStep.y += int32(sin(angle))
-  
-  return nextStep
+    # Fallback: move away from home
+    if abs(currentPos.x - homeTemple.x) > abs(currentPos.y - homeTemple.y):
+      return ivec2(if currentPos.x > homeTemple.x: 1 else: -1, 0)
+    else:
+      return ivec2(0, if currentPos.y > homeTemple.y: 1 else: -1)
 
 proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
   ## Determine which direction a Clippy should move
@@ -305,9 +290,8 @@ proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand
   # Priority 3: No targets - expand outward like a plague wave
   # Move away from home and other clippys to explore new territory
   if clippyThing.homeTemple.x >= 0 and clippyThing.homeTemple.y >= 0:
-    let wanderTarget = getOutwardExpansionPoint(clippyPtr, things, r)
-    clippyThing.targetPos = wanderTarget
-    return getDirectionToward(clippyPos, wanderTarget)
+    # Get direct movement direction for plague expansion
+    return getOutwardExpansionDirection(clippyPtr, things, r)
   
   # Fallback: Random walk if no home temple
   let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]

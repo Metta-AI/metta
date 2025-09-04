@@ -31,9 +31,9 @@ type
 const
   DefaultHouseLayout* = @[
     @['#', '#', '.', '#', '#'],  # Top row with north entrance
-    @['#', ' ', ' ', ' ', '#'],  # Second row  
+    @['#', 'A', ' ', 'F', '#'],  # Second row with Armory (A) and Forge (F)
     @['.', ' ', 'a', ' ', '.'],  # Middle row with altar and E/W entrances
-    @['#', ' ', ' ', ' ', '#'],  # Fourth row
+    @['#', 'C', ' ', 'W', '#'],  # Fourth row with Clay Oven (C) and Weaving Loom (W)
     @['#', '#', '.', '#', '#']   # Bottom row with south entrance
   ]
 
