@@ -269,6 +269,8 @@ def handle_check_mode(clusters):
 
     if not user_sandboxes:
         print(f"{green('✓')} No active sandboxes found for user {bold(username)}")
+        print("\nLaunch your first sandbox:")
+        print(f"  {green('./devops/skypilot/sandbox.py --new')}")
         return 0
 
     print(f"{bold(f'Found {len(user_sandboxes)} sandbox(es) for user {username}:')}")

@@ -14,7 +14,7 @@ import os
 
 import pytest
 
-from devops.skypilot import (
+from devops.skypilot.utils.job_latency import (
     calculate_queue_latency,
     parse_submission_timestamp,
 )
