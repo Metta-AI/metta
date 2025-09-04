@@ -63,53 +63,48 @@ ensure_uv_setup
 uv sync || err "Failed to install Python dependencies"
 uv run python -m metta.setup.metta_cli symlink-setup setup || err "Failed to set up metta command in ~/.local/bin"
 
-# Only run configuration if no config exists
-if [ ! -f "$REPO_ROOT/.metta/config.yaml" ] && [ ! -f "$HOME/.metta/config.yaml" ]; then
-  echo "No configuration found, running setup wizard..."
-  if [ -n "$PROFILE" ]; then
-    # Use provided profile directly
-    uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" $NON_INTERACTIVE || err "Failed to run configuration"
-  else
-    if [ "$NON_INTERACTIVE" = "--non-interactive" ]; then
-      # In non-interactive mode, use external profile as default
-      echo "Non-interactive mode: using 'external' profile defaults"
-      uv run python -m metta.setup.metta_cli configure --profile="external" $NON_INTERACTIVE || err "Failed to run configuration"
-    else
-      # Interactive mode: ask user what they want to do
-      echo ""
-      echo "Configuration options:"
-      echo "  1) Quick setup with defaults for external users"
-      echo "  2) Quick setup with defaults for Softmax employees"  
-      echo "  3) Full configuration wizard (customize everything)"
-      echo ""
-      printf "Choose an option [1-3]: "
-      read -r choice
-      
-      case "$choice" in
-        1)
-          echo "Using external user defaults..."
-          uv run python -m metta.setup.metta_cli configure --profile="external" $NON_INTERACTIVE || err "Failed to run configuration"
-          ;;
-        2)
-          echo "Using Softmax employee defaults..."
-          uv run python -m metta.setup.metta_cli configure --profile="softmax" $NON_INTERACTIVE || err "Failed to run configuration"
-          ;;
-        3)
-          echo "Starting full configuration wizard..."
-          uv run python -m metta.setup.metta_cli configure $NON_INTERACTIVE || err "Failed to run configuration"
-          ;;
-        *)
-          echo "Invalid choice. Using external user defaults..."
-          uv run python -m metta.setup.metta_cli configure --profile="external" $NON_INTERACTIVE || err "Failed to run configuration"
-          ;;
-      esac
-    fi
-  fi
+# Always ask for profile configuration during setup
+echo "Setting up Metta configuration..."
+if [ -n "$PROFILE" ]; then
+  # Use provided profile directly by setting it as active profile
+  echo "Setting active profile to: $PROFILE"
+  uv run python -m metta.setup.metta_cli profile "$PROFILE" || err "Failed to set profile"
 else
-  if [ -f "$REPO_ROOT/.metta/config.yaml" ]; then
-    echo "Configuration already exists at $REPO_ROOT/.metta/config.yaml"
+  if [ "$NON_INTERACTIVE" = "--non-interactive" ]; then
+    # In non-interactive mode, use external profile as default (already the default in config.yaml)
+    echo "Non-interactive mode: using 'external' profile (default)"
   else
-    echo "Configuration already exists at ~/.metta/config.yaml"
+    # Interactive mode: ask user to choose their profile
+    echo ""
+    echo "Which profile describes you?"
+    echo "  1) External contributor/researcher (open source)"
+    echo "  2) Softmax team member (internal)"  
+    echo "  3) Custom setup (full configuration wizard)"
+    echo ""
+    printf "Choose an option [1-3]: "
+    read -r choice
+    
+    case "$choice" in
+      1)
+        echo "Setting up external contributor profile..."
+        uv run python -m metta.setup.metta_cli profile "external" || err "Failed to set profile"
+        echo "✓ Configured for external contributors (W&B enabled, local storage)"
+        ;;
+      2)
+        echo "Setting up Softmax team member profile..."
+        uv run python -m metta.setup.metta_cli profile "softmax" || err "Failed to set profile"
+        echo "✓ Configured for Softmax team (W&B: softmax-ai/metta-internal, S3 storage)"
+        ;;
+      3)
+        echo "Starting custom configuration wizard..."
+        uv run python -m metta.setup.metta_cli configure || err "Failed to run configuration wizard"
+        ;;
+      *)
+        echo "Invalid choice. Defaulting to external contributor profile..."
+        uv run python -m metta.setup.metta_cli profile "external" || err "Failed to set profile"
+        echo "✓ Configured for external contributors (W&B enabled, local storage)"
+        ;;
+    esac
   fi
 fi
 

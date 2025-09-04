@@ -18,7 +18,6 @@ Priority order (when ignore_env_vars=True in config file):
 
 import os
 from datetime import datetime
-from pathlib import Path
 
 from metta.common.util.collections import remove_falsey
 from metta.common.wandb.wandb_context import WandbConfig
@@ -28,34 +27,26 @@ from metta.setup.profiles import UserType
 
 def auto_wandb_config(run: str | None = None) -> WandbConfig:
     """Get W&B configuration with proper priority chain."""
+    # Check if config system exists
+    from metta.config.schema import _get_config_path
     from metta.setup.saved_settings import get_saved_settings
 
-    # Check if new config system exists
-    config_path = Path.home() / ".metta" / "config.yaml"
+    config_path = _get_config_path()
     if config_path.exists():
-        # Use new unified config system
+        # Use new unified config system with active profile
         from metta.config.schema import get_config
 
         config = get_config()
+        profile_config = config.get_active_profile()
 
-        # Build config dict with proper priority
-        config_dict = {}
-
-        # Start with config file values
+        # Build config dict using active profile
         config_dict = {
-            "enabled": config.wandb.enabled,
-            "entity": config.wandb.entity or "",
-            "project": config.wandb.project or "",
+            "enabled": profile_config.wandb.enabled,
+            "entity": profile_config.wandb.entity or "",
+            "project": profile_config.wandb.project or "",
         }
 
-        # Override with environment variables (if not ignored)
-        if not config.ignore_env_vars:
-            if os.environ.get("WANDB_ENABLED") is not None:
-                config_dict["enabled"] = os.environ.get("WANDB_ENABLED", "").lower() == "true"
-            if os.environ.get("WANDB_ENTITY"):
-                config_dict["entity"] = os.environ["WANDB_ENTITY"]
-            if os.environ.get("WANDB_PROJECT"):
-                config_dict["project"] = os.environ["WANDB_PROJECT"]
+        # Profile-based system takes precedence over environment variables
     else:
         # Fall back to old system for backward compatibility
         from pydantic import Field
@@ -81,7 +72,6 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
 
         wandb_setup_module = WandbSetup()
         saved_settings = get_saved_settings()
-        env_overrides = SupportedWandbEnvOverrides()
 
         # Start with profile defaults
         config_dict = wandb_setup_module.to_config_settings()
@@ -95,9 +85,6 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
                 if "wandb_project" in cloud_config:
                     config_dict["project"] = cloud_config["wandb_project"]
 
-        # Apply environment variable overrides (highest priority)
-        config_dict.update(env_overrides.to_config_settings())
-
     cfg = WandbConfig(**config_dict)
 
     if run:
@@ -110,24 +97,22 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
 
 def auto_stats_server_uri() -> str | None:
     """Get stats server URI with proper priority chain."""
-    # Check if new config system exists
-    config_path = Path.home() / ".metta" / "config.yaml"
+    # Check if config system exists
+    from metta.config.schema import _get_config_path
+
+    config_path = _get_config_path()
     if config_path.exists():
         from metta.config.schema import get_config
 
         config = get_config()
+        profile_config = config.get_active_profile()
 
-        # Start with config file values
+        # Use active profile configuration
         result = None
-        if config.observatory.enabled and config.observatory.stats_server_uri:
-            result = config.observatory.stats_server_uri
+        if profile_config.observatory.enabled and profile_config.observatory.stats_server_uri:
+            result = profile_config.observatory.stats_server_uri
 
-        # Override with environment variables (if not ignored)
-        if not config.ignore_env_vars:
-            if os.environ.get("STATS_SERVER_ENABLED") == "false":
-                return None
-            if os.environ.get("STATS_SERVER_URI"):
-                return os.environ["STATS_SERVER_URI"]
+        # Profile-based system takes precedence over environment variables
 
         return result
     else:
@@ -141,20 +126,23 @@ def auto_stats_server_uri() -> str | None:
 
 def auto_replay_dir() -> str:
     """Get replay directory with proper priority chain."""
+    # Check if config system exists
+    from metta.config.schema import _get_config_path
     from metta.setup.saved_settings import get_saved_settings
 
-    # Check if new config system exists
-    config_path = Path.home() / ".metta" / "config.yaml"
+    config_path = _get_config_path()
     if config_path.exists():
         from metta.config.schema import get_config
 
         config = get_config()
+        profile_config = config.get_active_profile()
 
-        # Start with config file values
-        result = config.storage.replay_dir
+        # Use active profile configuration
+        result = profile_config.storage.replay_dir
 
-        # Override with environment variables (if not ignored)
-        if not config.ignore_env_vars and os.environ.get("REPLAY_DIR"):
+        # Profile-based system takes precedence over environment variables
+        # Environment variables can still be used if no config value is set
+        if not result and os.environ.get("REPLAY_DIR"):
             result = os.environ["REPLAY_DIR"]
 
         if result:
@@ -182,20 +170,22 @@ def auto_replay_dir() -> str:
 
 def auto_torch_profile_dir() -> str:
     """Get torch profiler directory with proper priority chain."""
+    # Check if config system exists
+    from metta.config.schema import _get_config_path
     from metta.setup.saved_settings import get_saved_settings
 
-    # Check if new config system exists
-    config_path = Path.home() / ".metta" / "config.yaml"
+    config_path = _get_config_path()
     if config_path.exists():
         from metta.config.schema import get_config
 
         config = get_config()
+        profile_config = config.get_active_profile()
 
-        # Start with config file values
-        result = config.storage.torch_profile_dir
+        # Use active profile configuration
+        result = profile_config.storage.torch_profile_dir
 
-        # Override with environment variables (if not ignored)
-        if not config.ignore_env_vars and os.environ.get("TORCH_PROFILE_DIR"):
+        # Environment variables can still be used if no config value is set
+        if not result and os.environ.get("TORCH_PROFILE_DIR"):
             result = os.environ["TORCH_PROFILE_DIR"]
 
         if result:
@@ -219,18 +209,21 @@ def auto_torch_profile_dir() -> str:
 
 def auto_checkpoint_dir() -> str:
     """Get checkpoint directory with proper priority chain."""
-    # Check if new config system exists
-    config_path = Path.home() / ".metta" / "config.yaml"
+    # Check if config system exists
+    from metta.config.schema import _get_config_path
+
+    config_path = _get_config_path()
     if config_path.exists():
         from metta.config.schema import get_config
 
         config = get_config()
+        profile_config = config.get_active_profile()
 
-        # Start with config file values
-        result = config.storage.checkpoint_dir
+        # Use active profile configuration
+        result = profile_config.storage.checkpoint_dir
 
-        # Override with environment variables (if not ignored)
-        if not config.ignore_env_vars and os.environ.get("CHECKPOINT_DIR"):
+        # Environment variables can still be used if no config value is set
+        if not result and os.environ.get("CHECKPOINT_DIR"):
             result = os.environ["CHECKPOINT_DIR"]
 
         if result:

@@ -1,0 +1,46 @@
+# Metta Configuration
+# This file defines configuration profiles for different types of users.
+# During setup (./install.sh), users choose their profile which determines
+# default settings for training, storage, and monitoring.
+
+# Default active profile - can be overridden with METTA_PROFILE env var
+profile: external
+
+profiles:
+  # External Contributors/Researchers Profile
+  # - Basic W&B tracking enabled for experiment logging
+  # - Local storage for replays and checkpoints
+  # - No cloud services or monitoring
+  external:
+    wandb:
+      enabled: true
+      # entity and project can be configured during setup or via 'metta configure wandb'
+    observatory:
+      enabled: false
+    datadog:
+      enabled: false
+
+  # Softmax Team Internal Profile  
+  # - Configured for internal team workflows
+  # - Uses team W&B workspace and S3 storage
+  # - Datadog monitoring enabled for production runs
+  softmax:
+    wandb:
+      enabled: true
+      entity: softmax-ai
+      project: metta-internal
+    observatory:
+      enabled: false
+    storage:
+      s3_bucket: metta-softmax-storage
+      aws_profile: softmax
+      replay_dir: s3://metta-softmax-storage/replays/
+      torch_profile_dir: s3://softmax-public/torch_traces/
+    datadog:
+      enabled: true
+
+# Profile Selection:
+# - Run './install.sh' to interactively choose your profile
+# - Use 'metta profile <name>' to switch between profiles
+# - Use 'metta configure' for custom profile setup
+# - Use 'metta export-env' to get environment variables for shell integration

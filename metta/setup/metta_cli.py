@@ -124,40 +124,118 @@ class MettaCLI:
         info("\nRun 'metta install' to set up your environment.")
 
     def configure_wizard(self) -> None:
-        """Interactive configuration wizard for individual components."""
-        from metta.setup.registry import get_all_modules
-        from metta.setup.utils import info
+        """Interactive configuration wizard for setting up user profiles."""
+        from metta.config.schema import (
+            ProfileConfig,
+            get_config,
+            reload_config,
+        )
+        from metta.setup.utils import error, info, success
 
-        self._init_all()
-        modules = get_all_modules()
+        info("Welcome to the Metta Configuration Wizard!")
+        info("This wizard will help you set up your profile with the services you need.\n")
 
-        if not modules:
-            info("No configurable modules found.")
-            return
+        config = get_config()
 
-        # Show available modules
-        info("\nAvailable components to configure:")
-        for i, module in enumerate(modules, 1):
-            info(f"  {i}. {module.name} - {module.description}")
+        # Ask which profile to configure
+        available_profiles = config.list_profiles()
+        info("Available profiles:")
+        for i, profile_name in enumerate(available_profiles, 1):
+            marker = " (active)" if profile_name == config.profile else ""
+            info(f"  {i}. {profile_name}{marker}")
+        info(f"  {len(available_profiles) + 1}. Create new profile")
 
         while True:
             try:
-                choice = input(f"\nEnter component number to configure (1-{len(modules)}, or 'q' to quit): ").strip()
-                if choice.lower() == "q":
-                    break
-
+                choice = input(f"\nSelect profile to configure (1-{len(available_profiles) + 1}): ").strip()
                 idx = int(choice) - 1
-                if 0 <= idx < len(modules):
-                    module = modules[idx]
-                    self.configure_component_unified(module.name)
+
+                if 0 <= idx < len(available_profiles):
+                    profile_name = available_profiles[idx]
+                    break
+                elif idx == len(available_profiles):
+                    # Create new profile
+                    profile_name = input("Enter name for new profile: ").strip()
+                    if not profile_name:
+                        error("Profile name cannot be empty.")
+                        continue
+                    if profile_name in available_profiles:
+                        error(f"Profile '{profile_name}' already exists.")
+                        continue
+                    break
                 else:
                     print("Invalid choice. Please try again.")
             except (ValueError, KeyboardInterrupt):
                 print("Invalid input or interrupted. Please try again.")
 
-    def configure_component_unified(self, component_name: str) -> None:
+        info(f"\nConfiguring profile: {profile_name}")
+
+        # Get current profile config or create new one
+        if profile_name in config.profiles:
+            profile_config = config.profiles[profile_name]
+        else:
+            profile_config = ProfileConfig()
+            config.add_profile(profile_name, profile_config)
+
+        # Configure W&B
+        info("\n--- Weights & Biases Configuration ---")
+        wandb_enabled = (
+            input(f"Enable W&B tracking? (y/n) [{'y' if profile_config.wandb.enabled else 'n'}]: ").strip().lower()
+        )
+        profile_config.wandb.enabled = wandb_enabled != "n" if wandb_enabled else profile_config.wandb.enabled
+
+        if profile_config.wandb.enabled:
+            entity = input(f"W&B Entity [current: {profile_config.wandb.entity or 'none'}]: ").strip()
+            if entity:
+                profile_config.wandb.entity = entity
+
+            project = input(f"W&B Project [current: {profile_config.wandb.project or 'none'}]: ").strip()
+            if project:
+                profile_config.wandb.project = project
+
+        # Configure Storage
+        info("\n--- Storage Configuration ---")
+        s3_bucket = input(f"S3 Bucket [current: {profile_config.storage.s3_bucket or 'none'}]: ").strip()
+        if s3_bucket:
+            profile_config.storage.s3_bucket = s3_bucket
+
+        aws_profile = input(f"AWS Profile [current: {profile_config.storage.aws_profile or 'none'}]: ").strip()
+        if aws_profile:
+            profile_config.storage.aws_profile = aws_profile
+
+        # Configure Datadog
+        info("\n--- Datadog Configuration ---")
+        datadog_enabled = (
+            input(f"Enable Datadog monitoring? (y/n) [{'y' if profile_config.datadog.enabled else 'n'}]: ")
+            .strip()
+            .lower()
+        )
+        profile_config.datadog.enabled = datadog_enabled == "y" if datadog_enabled else profile_config.datadog.enabled
+
+        # Save the configuration
+        config.save()
+        reload_config()
+
+        success(f"\n✓ Profile '{profile_name}' configured successfully!")
+
+        # Ask if they want to make this the active profile
+        if profile_name != config.profile:
+            make_active = input(f"\nMake '{profile_name}' the active profile? (y/n): ").strip().lower()
+            if make_active == "y":
+                config.set_active_profile(profile_name)
+                config.save()
+                reload_config()
+                success(f"✓ '{profile_name}' is now the active profile!")
+
+        info("\nConfiguration complete! You can:")
+        info(f"- Switch profiles: METTA_PROFILE={profile_name} <command>")
+        info(f"- Export env vars: metta export-env --profile={profile_name}")
+        info("- View all profiles: metta profiles")
+        info(f"- Set active profile: metta profile {profile_name}")
+
+    def configure_component(self, component_name: str) -> None:
         """Configure a specific component using unified configuration system."""
-        from metta.setup.config_manager import get_config_manager
+        from metta.config.schema import get_config, reload_config
         from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info, success
 
@@ -175,9 +253,22 @@ class MettaCLI:
             info(f"Component '{component_name}' does not support interactive configuration.")
             return
 
-        # Get current config
-        config_manager = get_config_manager()
-        current_config = config_manager.get_component_config(component_name)
+        # Get current config from unified system
+        config = get_config()
+        profile_config = config.get_active_profile()
+
+        # Get current component config
+        if component_name == "wandb":
+            current_config = {
+                "enabled": profile_config.wandb.enabled,
+                "entity": profile_config.wandb.entity,
+                "project": profile_config.wandb.project,
+            }
+        else:
+            # Expand unified config support for other components as needed
+            error(f"Component '{component_name}' not yet supported in unified config system.")
+            info("Please use the profile-based configuration wizard: metta configure")
+            return
 
         info(f"\nConfiguring {component_name}...")
         info("Current settings:")
@@ -190,11 +281,19 @@ class MettaCLI:
             info("Configuration cancelled or no changes made.")
             return
 
-        # Update config
-        for key, value in updated.items():
-            setattr(getattr(config_manager.config, component_name), key, value)
+        # Update unified config
+        if component_name == "wandb":
+            for key, value in updated.items():
+                if key == "enabled":
+                    profile_config.wandb.enabled = value
+                elif key == "entity":
+                    profile_config.wandb.entity = value
+                elif key == "project":
+                    profile_config.wandb.project = value
 
-        config_manager.save()
+        # Save the unified config
+        config.save()
+        reload_config()
         success(f"\n{component_name} configuration saved!")
 
     def _truncate(self, text: str, max_len: int) -> str:
@@ -224,7 +323,7 @@ def cmd_configure(
     """Configure Metta settings."""
     cli._init_all()
     if component:
-        configure_component(component)
+        cli.configure_component(component)
     elif profile:
         selected_user_type = UserType(profile)
         if selected_user_type in PROFILE_DEFINITIONS:
@@ -243,16 +342,63 @@ def cmd_configure(
 def cmd_export_env(
     format: Annotated[str, typer.Option("--format", help="Output format: shell, json, dotenv")] = "shell",
     output: Annotated[Optional[str], typer.Option("--output", "-o", help="Output file path")] = None,
+    profile: Annotated[
+        Optional[str], typer.Option("--profile", help="Profile to use (overrides METTA_PROFILE)")
+    ] = None,
 ):
     """Export configuration as environment variables."""
     import json
     from pathlib import Path
-    
+
     from metta.config.schema import get_config
     from metta.setup.utils import error, success
 
+    # Get profile-specific config and use it for export
     config = get_config()
-    env_vars = config.export_env_vars()
+    profile_config = config.get_active_profile(profile_override=profile)
+
+    # Create a temporary ConfigManager-compatible structure for backward compatibility
+    env_vars = {}
+
+    # Wandb
+    if profile_config.wandb.enabled:
+        env_vars["WANDB_ENABLED"] = "true"
+        if profile_config.wandb.entity:
+            env_vars["WANDB_ENTITY"] = profile_config.wandb.entity
+        if profile_config.wandb.project:
+            env_vars["WANDB_PROJECT"] = profile_config.wandb.project
+    else:
+        env_vars["WANDB_ENABLED"] = "false"
+
+    # Observatory/Stats server
+    if profile_config.observatory.enabled:
+        env_vars["STATS_SERVER_ENABLED"] = "true"
+        if profile_config.observatory.stats_server_uri:
+            env_vars["STATS_SERVER_URI"] = profile_config.observatory.stats_server_uri
+    else:
+        env_vars["STATS_SERVER_ENABLED"] = "false"
+
+    # Storage/AWS
+    if profile_config.storage.aws_profile:
+        env_vars["AWS_PROFILE"] = profile_config.storage.aws_profile
+    if profile_config.storage.s3_bucket:
+        env_vars["S3_BUCKET"] = profile_config.storage.s3_bucket
+    if profile_config.storage.replay_dir:
+        env_vars["REPLAY_DIR"] = profile_config.storage.replay_dir
+    if profile_config.storage.torch_profile_dir:
+        env_vars["TORCH_PROFILE_DIR"] = profile_config.storage.torch_profile_dir
+    if profile_config.storage.checkpoint_dir:
+        env_vars["CHECKPOINT_DIR"] = profile_config.storage.checkpoint_dir
+
+    # Datadog
+    if profile_config.datadog.enabled:
+        env_vars["DD_ENABLED"] = "true"
+
+    # Include active profile name
+    import os
+
+    active_profile_name = profile or os.environ.get("METTA_PROFILE") or config.profile or "external"
+    env_vars["METTA_PROFILE"] = active_profile_name
 
     # Generate output based on format
     if format == "shell":
@@ -277,23 +423,66 @@ def cmd_export_env(
         print(content)
 
 
-def configure_component(component_name: str):
-    from metta.setup.registry import get_all_modules
-    from metta.setup.utils import error, info
+@app.command(name="profiles", help="List available profiles and show active profile")
+def cmd_profiles():
+    """List available profiles and show the active profile."""
+    import os
 
-    modules = get_all_modules()
-    module_map = {m.name: m for m in modules}
+    from metta.config.schema import get_config
+    from metta.setup.utils import info, success
 
-    if not (module := module_map.get(component_name)):
-        error(f"Unknown component: {component_name}")
-        info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+    config = get_config()
+    available_profiles = config.list_profiles()
+    active_profile = config.profile
+
+    # Determine the active profile (considering environment variable)
+    active_profile = os.environ.get("METTA_PROFILE") or active_profile
+
+    info("Available profiles:")
+    for profile_name in available_profiles:
+        if profile_name == active_profile:
+            success(f"  ✓ {profile_name} (active)")
+        elif profile_name == active_profile and active_profile != active_profile:
+            info(f"    {profile_name} (target)")
+        else:
+            info(f"    {profile_name}")
+
+    # Show active profile source
+    if os.environ.get("METTA_PROFILE"):
+        info(f"\nActive profile: {active_profile} (from METTA_PROFILE env var)")
+        info(f"Default profile: {config.profile} (from config)")
+    else:
+        info(f"\nActive profile: {active_profile} (default in config)")
+    info("Use --profile flag or METTA_PROFILE env var to override")
+
+
+@app.command(name="profile", help="Set or show the active profile")
+def cmd_profile(
+    profile_name: Annotated[Optional[str], typer.Argument(help="Profile name to set as active")] = None,
+):
+    """Set or show the active profile."""
+    from metta.config.schema import get_config, reload_config
+    from metta.setup.utils import error, info, success
+
+    config = get_config()
+
+    if profile_name is None:
+        # Show current target
+        info(f"Current active profile: {config.profile}")
+        return
+
+    # Validate profile exists
+    available_profiles = config.list_profiles()
+    if profile_name not in available_profiles:
+        error(f"Profile '{profile_name}' not found")
+        info(f"Available profiles: {', '.join(available_profiles)}")
         raise typer.Exit(1)
 
-    options = module.get_configuration_options()
-    if not options:
-        info(f"Component '{component_name}' has no configuration options.")
-        return
-    module.configure()
+    # Set new target
+    config.set_active_profile(profile_name)
+    config.save()
+    reload_config()  # Refresh global config
+    success(f"Active profile set to: {profile_name}")
 
 
 # Install command

@@ -111,13 +111,14 @@ class TestMettaConfig:
 class TestAutoConfigPriorityChain:
     """Test that auto_config functions respect the new priority chain."""
 
-    def test_env_var_overrides_config_file(self):
-        """Test environment variables override config file."""
+    def test_config_takes_precedence_over_env_vars(self):
+        """Test that config file takes precedence over environment variables."""
         from metta.tools.utils.auto_config import auto_wandb_config
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            config_path = Path(temp_dir) / ".metta" / "config.yaml"
-            config_path.parent.mkdir(parents=True)
+            config_path = Path(temp_dir) / "config.yaml"
+            # Make temp dir look like a project root
+            (Path(temp_dir) / "pyproject.toml").touch()
 
             # Create config file with specific values
             config = MettaConfig()
@@ -126,8 +127,7 @@ class TestAutoConfigPriorityChain:
             config.wandb.project = "config-project"
             config.save(config_path)
 
-            # Mock home directory to use our temp config
-            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
+            with patch("pathlib.Path.cwd", return_value=Path(temp_dir)):
                 # Clear global config singleton to prevent test interference
                 import metta.config.schema as schema_module
 
@@ -137,53 +137,53 @@ class TestAutoConfigPriorityChain:
                 assert wandb_config.entity == "config-entity"
                 assert wandb_config.project == "config-project"
 
-                # Test with env vars - should override config file
+                # Test with env vars - config should still take precedence (new behavior)
                 with patch.dict(os.environ, {"WANDB_ENTITY": "env-entity", "WANDB_PROJECT": "env-project"}):
                     wandb_config = auto_wandb_config()
-                    assert wandb_config.entity == "env-entity"
-                    assert wandb_config.project == "env-project"
+                    assert wandb_config.entity == "config-entity"  # Config wins over env
+                    assert wandb_config.project == "config-project"  # Config wins over env
 
-    def test_fallback_to_old_system(self):
-        """Test fallback to old system when config file doesn't exist."""
+    def test_config_when_no_file_exists(self):
+        """Test behavior when no config file exists."""
         from metta.tools.utils.auto_config import auto_wandb_config
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Mock home directory to non-existent config path
-            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
+            # Mock project directory with no config.yaml
+            with patch("pathlib.Path.cwd", return_value=Path(temp_dir)):
                 # Clear global config singleton to prevent test interference
                 import metta.config.schema as schema_module
 
                 schema_module._config = None
-                # Should fall back to old system
+                # Should fallback to old system when no config exists
                 wandb_config = auto_wandb_config()
-                # Old system should still work (returns defaults for external users)
-                assert wandb_config.enabled is False  # External users default to disabled in old system
+                # Fallback system defaults to disabled for external users
+                assert wandb_config.enabled is False  # Fallback default
                 assert wandb_config.entity == ""
                 assert wandb_config.project == ""
 
-    def test_ignore_env_vars_functionality(self):
-        """Test ignore_env_vars option works correctly."""
+    def test_config_always_takes_precedence(self):
+        """Test that config always takes precedence over env vars."""
         from metta.tools.utils.auto_config import auto_wandb_config
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            config_path = Path(temp_dir) / ".metta" / "config.yaml"
-            config_path.parent.mkdir(parents=True)
+            config_path = Path(temp_dir) / "config.yaml"
+            # Make temp dir look like a project root
+            (Path(temp_dir) / "pyproject.toml").touch()
 
-            # Create config with ignore_env_vars = True
+            # Create config - env vars always ignored in our new system
             config = MettaConfig()
             config.wandb.enabled = True
             config.wandb.entity = "config-entity"
             config.wandb.project = "config-project"
-            config.ignore_env_vars = True
             config.save(config_path)
 
-            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
+            with patch("pathlib.Path.cwd", return_value=Path(temp_dir)):
                 # Clear global config singleton to prevent test interference
                 import metta.config.schema as schema_module
 
                 schema_module._config = None
 
-                # Test with env vars - should NOT override config file when ignore_env_vars=True
+                # Test with env vars - config should always take precedence
                 with patch.dict(os.environ, {"WANDB_ENTITY": "env-entity", "WANDB_PROJECT": "env-project"}):
                     wandb_config = auto_wandb_config()
                     assert wandb_config.entity == "config-entity"  # Config file wins
@@ -257,15 +257,16 @@ class TestGlobalConfigInstance:
     def test_reload_config(self):
         """Test config reloading."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            config_path = Path(temp_dir) / ".metta" / "config.yaml"
-            config_path.parent.mkdir(parents=True)
+            config_path = Path(temp_dir) / "config.yaml"
+            # Make temp dir look like a project root
+            (Path(temp_dir) / "pyproject.toml").touch()
 
             # Create initial config
             config = MettaConfig()
             config.wandb.entity = "initial-entity"
             config.save(config_path)
 
-            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
+            with patch("pathlib.Path.cwd", return_value=Path(temp_dir)):
                 # Clear global config singleton to prevent test interference
                 import metta.config.schema as schema_module
 
