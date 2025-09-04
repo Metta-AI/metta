@@ -43,7 +43,7 @@ jobs:
         id: check_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "**/*.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
+          patterns: "metta/setup/**/*.py,tests/setup/**/*.py,**/pyproject.toml,**/pytest.ini,.github/workflows/setup-tests.yml,.github/actions/setup-uv/**"
           specific_files: "uv.lock"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -108,11 +108,11 @@ jobs:
           # Use different coverage based on event type
           # Production quality gate: full branch coverage for main branch merges and merge queue
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.event_name }}" == "merge_group" ]]; then
-            PYTEST_ARGS="tests/setup --cov --cov-branch -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
+            PYTEST_ARGS="tests/setup --cov --cov-branch --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
             echo "Running setup tests with full branch coverage for production merge"
           else
             # Fast testmon for PRs and development (fast feedback)
-            PYTEST_ARGS="tests/setup --testmon --cov -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
+            PYTEST_ARGS="tests/setup --testmon --cov --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
             echo "Running setup tests with testmon for fast development feedback"
           fi
 
