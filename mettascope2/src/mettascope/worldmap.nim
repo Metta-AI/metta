@@ -27,26 +27,28 @@ proc useSelections*() =
         selection = thing
 
 proc drawFloor*() =
-  # Draw the floor tiles and terrain features.
+  # Draw the floor tiles everywhere first as the base layer
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
-      # Check terrain type and draw appropriate tile
-      case env.terrain[x][y]
-      of Water:
-        # Draw floor with blue tint for water (no water sprite available)
+      # First draw floor everywhere (water gets a blue tint)
+      if env.terrain[x][y] == Water:
         bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(0.3, 0.5, 0.8, 1.0))
+      else:
+        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200)
+
+proc drawTerrain*() =
+  # Draw terrain features on top of the floor
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      case env.terrain[x][y]
       of Wheat:
-        # Draw wheat field sprite
+        # Draw wheat field sprite on top of floor
         bxy.drawImage("objects/wheat_field", ivec2(x, y).vec2, angle = 0, scale = 1/200)
       of Tree:
-        # Draw palm tree sprite
+        # Draw palm tree sprite on top of floor
         bxy.drawImage("objects/palm_tree", ivec2(x, y).vec2, angle = 0, scale = 1/200)
-      of Empty:
-        # Draw normal floor
-        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200)
       else:
-        # Default to normal floor
-        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200)
+        discard  # Water and Empty don't need additional sprites
 
 const wallSprites = @[
   "objects/wall",

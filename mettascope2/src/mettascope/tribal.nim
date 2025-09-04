@@ -589,16 +589,16 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
 #     env.grid[thing.pos.x][thing.pos.y] = thing
 
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
-  ## Find an empty position in the environment (water is now allowed)
+  ## Find an empty position in the environment (not on water)
   for i in 0 ..< 100:
     let pos = ivec2(r.rand(MapBorder ..< MapWidth - MapBorder), r.rand(MapBorder ..< MapHeight - MapBorder))
-    if env.isEmpty(pos):
+    if env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
       result = pos
       return
   # Try harder with more attempts
   for i in 0 ..< 1000:
     let pos = ivec2(r.rand(MapBorder ..< MapWidth - MapBorder), r.rand(MapBorder ..< MapHeight - MapBorder))
-    if env.isEmpty(pos):
+    if env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
       result = pos
       return
   quit("Failed to find an empty position, map too full!")

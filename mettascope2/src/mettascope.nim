@@ -73,6 +73,7 @@ proc display() =
   agentControls()
 
   drawFloor()
+  drawTerrain()
   drawWalls()
   drawObjects()
   drawActions()
