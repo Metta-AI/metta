@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import wandb
 from wandb import Artifact
+from wandb.errors import CommError
 
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import WandbURI
@@ -163,7 +164,7 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     try:
         logger.debug(f"Loading artifact: {qname}")
         artifact = wandb.Api().artifact(qname)
-    except wandb.errors.CommError as e:
+    except CommError as e:
         raise ValueError(f"Artifact not found: {qname}") from e
 
     with tempfile.TemporaryDirectory() as temp_dir:
