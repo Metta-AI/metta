@@ -34,10 +34,11 @@ proc drawFooter*(panel: Panel) =
   x += 32 + 5
 
   if drawIconButton(
-    "ui/play",
+    if play: "ui/pause" else: "ui/play",
     pos = vec2(x, 16)
   ):
-    echo "Play"
+    play = not play
+    echo if play: "Playing" else: "Paused"
   x += 32 + 5
 
   # if drawIconButton(
@@ -52,6 +53,7 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16)
   ):
     echo "Step forward"
+    simStep()  # Step the simulation once
   x += 32 + 5
 
   if drawIconButton(
@@ -68,7 +70,9 @@ proc drawFooter*(panel: Panel) =
     "ui/turtle",
     pos = vec2(x, 16)
   ):
-    echo "Speed 0"
+    playSpeed = 0.5
+    play = true
+    echo "Speed: Slow (0.5x)"
   x += 32 + 3
 
   if drawIconButton(
@@ -76,7 +80,9 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     size = vec2(20, 32)
   ):
-    echo "Speed 1"
+    playSpeed = 0.25
+    play = true
+    echo "Speed: 1x"
   x += 20
 
   if drawIconButton(
@@ -84,7 +90,9 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     size = vec2(20, 32)
   ):
-    echo "Speed 2"
+    playSpeed = 0.125
+    play = true
+    echo "Speed: 2x"
   x += 20
 
   if drawIconButton(
@@ -92,7 +100,9 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     size = vec2(20, 32)
   ):
-    echo "Speed 3"
+    playSpeed = 0.0625
+    play = true
+    echo "Speed: 4x"
   x += 20
 
   if drawIconButton(
@@ -100,14 +110,18 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     size = vec2(20, 32)
   ):
-    echo "Speed 4"
+    playSpeed = 0.03125
+    play = true
+    echo "Speed: 8x"
   x += 20
 
   if drawIconButton(
     "ui/rabbit",
     pos = vec2(x, 16)
   ):
-    echo "Speed 5"
+    playSpeed = 0.015625
+    play = true
+    echo "Speed: Fast (16x)"
 
 
   # Draw the right side buttons.
