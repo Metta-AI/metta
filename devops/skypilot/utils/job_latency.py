@@ -12,6 +12,7 @@ import datetime
 import logging
 import os
 import re
+import sys
 from typing import Final
 
 from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
@@ -60,10 +61,10 @@ if __name__ == "__main__":
         "skypilot/task_id": task_id,
     }
 
+    exit_code = 0
     try:
         latency_sec = calculate_queue_latency()
         logger.info(f"SkyPilot queue latency: {latency_sec:.1f} s (task: {task_id})")
-
         metrics.update(
             {
                 "skypilot/queue_latency_s": latency_sec,
@@ -78,5 +79,7 @@ if __name__ == "__main__":
                 "skypilot/latency_error": str(e),
             }
         )
-
-    log_to_wandb(metrics, also_summary=True)
+        exit_code = 1
+    finally:
+        log_to_wandb(metrics, also_summary=True)
+        sys.exit(exit_code)
