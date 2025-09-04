@@ -132,7 +132,7 @@ jobs:
           echo "Running setup integration tests with pytest-testmon..."
 
           # Common pytest arguments
-          PYTEST_ARGS="tests/setup --testmon --cov --cov-branch -v --durations=10"
+          PYTEST_ARGS="tests/setup --testmon --cov -v --durations=10"
 
           # If no .testmondata exists, do a full run first to build the database
           if [ ! -f ".testmondata" ]; then

@@ -251,7 +251,7 @@ jobs:
           echo "::group::Running pytest-testmon selective tests"
           
           # Common pytest arguments
-          PYTEST_ARGS="--testmon --cov --cov-branch --benchmark-skip -n auto --disable-warnings -v --durations=10"
+          PYTEST_ARGS="--testmon --cov --benchmark-skip -n auto --disable-warnings -v --durations=10"
           
           # If no .testmondata exists, do a full run first to build the database
           if [ ! -f ".testmondata" ]; then
