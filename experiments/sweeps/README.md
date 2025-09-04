@@ -23,7 +23,7 @@ uv run ./tools/run.py experiments.sweeps.standard.quick_test \
     --args \
     sweep_name=test_arena_basic \
     recipe_module=experiments.recipes.arena_basic_easy_shaped \
-    train_entrypoint=train_shaped \
+    train_entrypoint=train\
     eval_entrypoint=evaluate \
     max_trials=5
 ```
@@ -183,7 +183,7 @@ After all trials complete:
 ### Understanding the Command Flow
 
 1. **User Command** → Calls `experiments.sweeps.standard.ppo` function
-2. **Sweep Tool** → Creates `SweepOrchestratorTool` with PPO parameter search space
+2. **Sweep Tool** → Creates `SweepTool` with PPO parameter search space
 3. **Orchestrator** → Manages the overall sweep process
 4. **Scheduler** → Uses Protein optimizer to suggest hyperparameters
 5. **Dispatcher** → Routes jobs:
@@ -281,14 +281,14 @@ uv run ./tools/run.py experiments.sweeps.standard.quick_test \
 
 ```python
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
-from metta.tools.sweep import SweepOrchestratorTool
+from metta.tools.sweep import SweepTool
 
 def my_custom_sweep(
     sweep_name: str = None,
     max_trials: int = 20,
-) -> SweepOrchestratorTool:
+) -> SweepTool:
     """Create a custom hyperparameter sweep."""
-    
+
     # Define parameters to sweep (using new configuration structure)
     protein_config = ProteinConfig(
         metric="evaluator/eval_arena/score",  # Metric to optimize
@@ -324,8 +324,8 @@ def my_custom_sweep(
             max_suggestion_cost=300,  # Max seconds per trial
         ),
     )
-    
-    return SweepOrchestratorTool(
+
+    return SweepTool(
         sweep_name=sweep_name,
         protein_config=protein_config,
         max_trials=max_trials,
@@ -348,7 +348,7 @@ def my_custom_sweep(
 
 Each `ParameterConfig` requires:
 - `min`: Minimum value
-- `max`: Maximum value  
+- `max`: Maximum value
 - `distribution`: Distribution type
 - `mean`: Mean value (geometric mean for log_normal)
 - `scale`: Scale parameter (use "auto" for automatic scaling)
@@ -387,7 +387,7 @@ https://wandb.ai/YOUR_ENTITY/YOUR_PROJECT/groups/SWEEP_NAME
 ### Parallel Execution
 
 ```python
-SweepOrchestratorTool(
+SweepTool(
     max_parallel_jobs=4,  # Run 4 jobs in parallel
     monitoring_interval=10,  # Check job status every 10 seconds
 )
@@ -396,7 +396,7 @@ SweepOrchestratorTool(
 ### Custom Training Overrides
 
 ```python
-SweepOrchestratorTool(
+SweepTool(
     train_overrides={
         "trainer.total_timesteps": "100000",  # Limit training steps
         "trainer.batch_size": "65536",  # Custom batch size

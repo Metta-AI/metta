@@ -1,4 +1,4 @@
-"""SweepOrchestratorTool for hyperparameter optimization using the new orchestrator."""
+"""SweepTool for hyperparameter optimization using the new orchestrator."""
 
 import logging
 import os
@@ -69,7 +69,7 @@ class DispatcherType(StrEnum):
     HYBRID_REMOTE_TRAIN = "hybrid_remote_train"  # Train on Skypilot, evaluate locally
 
 
-class SweepOrchestratorTool(Tool):
+class SweepTool(Tool):
     """Tool for running hyperparameter sweeps."""
 
     # Sweep identity - optional, will be generated if not provided
@@ -169,7 +169,7 @@ class SweepOrchestratorTool(Tool):
         logger.info("[SweepOrchestrator] " + "=" * 60)
 
         # Build the orchestrator config
-        orchestrator_config = SweepControllerConfig(
+        sweep_controller_config = SweepControllerConfig(
             sweep_name=self.sweep_name,
             sweep_server_uri=self.sweep_server_uri,
             wandb=self.wandb,
@@ -230,7 +230,7 @@ class SweepOrchestratorTool(Tool):
 
             # Use the orchestrate_sweep entry point
             orchestrate_sweep(
-                config=orchestrator_config,
+                config=sweep_controller_config,
                 scheduler=scheduler,
                 optimizer=optimizer,
                 dispatcher=dispatcher,
