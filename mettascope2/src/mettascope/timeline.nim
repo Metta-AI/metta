@@ -75,16 +75,10 @@ proc drawTimeline*(panel: Panel) =
   )
 
   # Clicking on the timeline will set it.
-  let box = Rect(
-    x: 16,
-    y: 32,
-    w: panel.rect.w.float32 - 32,
-    h: 16
-  )
-  if window.boxyMouse.vec2.overlaps(box):
-    if window.buttonDown[MouseLeft]:
-      let progress = (window.boxyMouse.vec2.x - 16) / (panel.rect.w.float32 - 32)
-      step = int(progress * replay.maxSteps.float32)
-      step = clamp(step, 0, replay.maxSteps - 1)
-      stepFloat = step.float32
-      echo "step: ", step
+  panel.updateMouse()
+  if panel.hasMouse and window.buttonDown[MouseLeft]:
+    let progress = (window.boxyMouse.vec2.x - 16) / (panel.rect.w.float32 - 32)
+    step = int(progress * replay.maxSteps.float32)
+    step = clamp(step, 0, replay.maxSteps - 1)
+    stepFloat = step.float32
+    echo "step: ", step

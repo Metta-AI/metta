@@ -2526,8 +2526,3 @@ class TestPolicyScorecardRoutes:
         search_request = {"offset": -1}
         response = test_client.post("/scorecard/policies/search", json=search_request)
         assert response.status_code == 422  # Validation error
-
-
-if __name__ == "__main__":
-    # Simple test runner for debugging
-    pytest.main([__file__, "-v", "-s"])

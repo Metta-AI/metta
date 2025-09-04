@@ -268,7 +268,3 @@ class TestErrorHandling:
         for invalid_name in invalid_names:
             with pytest.raises(ValueError):
                 CheckpointManager(run=invalid_name, run_dir=temp_run_dir)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

@@ -2,7 +2,7 @@
 
 from pydantic import Field
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.sweep.protein_config import ProteinConfig
 
 

@@ -454,6 +454,13 @@ class Simulation:
                     logger.error(f"Failed to record episode {episode_id} remotely: {e}")
                     # Continue with other episodes even if one fails
 
+    def get_policy_state(self):
+        """Get the policy state for memory manipulation."""
+        # Return the policy state if it has one
+        if hasattr(self._policy, "state"):
+            return self._policy.state
+        return None
+
     @property
     def name(self) -> str:
         return self._name

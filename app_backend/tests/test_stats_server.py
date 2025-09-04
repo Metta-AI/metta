@@ -1,8 +1,6 @@
 import uuid
 from typing import List
 
-import pytest
-
 from metta.app_backend.clients.stats_client import StatsClient
 
 
@@ -103,8 +101,3 @@ class TestStatsServerSimple:
         """Test policy ID lookup for non-existent policies."""
         policy_ids = stats_client.get_policy_ids(["nonexistent_policy"])
         assert policy_ids.policy_ids == {}
-
-
-if __name__ == "__main__":
-    # Simple test runner for debugging
-    pytest.main([__file__, "-v", "-s"])

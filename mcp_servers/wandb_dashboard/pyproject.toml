@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "black", "ruff", "mypy"]
+dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
 
 [project.scripts]
 wandb-mcp-server = "wandb_dashboard.server:cli_main"

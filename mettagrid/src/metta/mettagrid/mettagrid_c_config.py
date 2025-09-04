@@ -219,7 +219,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Set feature flags
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
-    game_cpp_params["no_agent_interference"] = game_config.no_agent_interference
     game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
     game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
 

@@ -12,7 +12,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-import metta.mettagrid.config.envs as eb
+import metta.mettagrid.builder.envs as eb
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
@@ -503,7 +503,3 @@ class TestWandbArtifactFormatting:
                 # Verify the artifact upload happened
                 mock_run.log_artifact.assert_called_once_with(mock_artifact)
                 mock_artifact.wait.assert_called_once()
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
