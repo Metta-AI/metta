@@ -2,7 +2,7 @@
 
 import random
 
-import metta.mettagrid.config.envs as eb
+import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import (
     LearningProgressAlgorithm,
