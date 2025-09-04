@@ -4,6 +4,7 @@ import os
 import subprocess
 from unittest.mock import MagicMock, Mock, patch
 
+import httpx
 import pytest
 
 from gitta import (
@@ -31,8 +32,9 @@ class TestGitHubCLI:
     @patch("subprocess.run")
     def test_run_gh_failure(self, mock_run):
         """Test gh command failure."""
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=["gh", "pr", "create"], returncode=1, stdout="", stderr="error: authentication required"
+        # Simulate CalledProcessError which run_gh catches and converts to GitError
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=1, cmd=["gh", "pr", "create"], stderr="error: authentication required"
         )
 
         with pytest.raises(GitError) as exc_info:
@@ -82,10 +84,11 @@ class TestGitHubAPI:
         """Test PR matching with 404 error (commit not found)."""
         mock_response = MagicMock()
         mock_response.status_code = 404
-        mock_response.raise_for_status.side_effect = Mock(
-            side_effect=lambda: (_ for _ in ()).throw(
-                type("HTTPStatusError", (Exception,), {"response": mock_response})()
-            )
+        mock_response.text = "Not found"
+
+        # Use real httpx.HTTPStatusError
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            message="Not found", request=Mock(), response=mock_response
         )
         mock_get.return_value = mock_response
 
@@ -186,11 +189,9 @@ class TestGitHubAPI:
         """Test create_pr with API error."""
         mock_response = Mock()
         mock_response.text = "Bad request: invalid base branch"
-        mock_response.raise_for_status.side_effect = Mock(
-            side_effect=lambda: (_ for _ in ()).throw(
-                type("HTTPError", (Exception,), {"response": mock_response})("HTTP Error")
-            )
-        )
+
+        # Use real httpx.HTTPError
+        mock_response.raise_for_status.side_effect = httpx.HTTPError("Bad request: invalid base branch")
         mock_post.return_value = mock_response
 
         with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}):

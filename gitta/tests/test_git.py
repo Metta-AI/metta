@@ -105,7 +105,7 @@ def test_remote_operations():
     remotes = get_all_remotes()
     assert len(remotes) == 2
     assert remotes["origin"] == "git@github.com:test/repo.git"
-    assert remotes["upstream"] == "https://github.com:upstream/repo.git"
+    assert remotes["upstream"] == "https://github.com/upstream/repo.git"
 
 
 def test_find_git_root():
@@ -118,7 +118,7 @@ def test_find_git_root():
 
     # Should find root from any subdirectory
     root = find_root(nested_dir)
-    assert root.resolve() == repo_path.resolve()
+    assert root and root.resolve() == repo_path.resolve()
 
     # Should return None outside a repo
     with tempfile.TemporaryDirectory() as tmpdir:
