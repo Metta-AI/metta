@@ -1,8 +1,4 @@
 #!/usr/bin/env -S uv run --active
-# /// script
-# requires-python = ">=3.11"
-# dependencies = ["gcovr>=6.0", "colorama"]
-# ///
 """
 generate_coverage.py - Generate C++ coverage report
 
@@ -15,11 +11,6 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import List, Optional
-
-# Add common package to path
-script_path = Path(__file__).resolve()
-repo_root = script_path.parents[1]
-sys.path.insert(0, str(repo_root / "common" / "src"))
 
 from metta.mettagrid.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
 
