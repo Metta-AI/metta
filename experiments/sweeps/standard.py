@@ -13,6 +13,7 @@ def ppo(
     eval: str = "evaluate",
     max_trials: int = 10,
     max_parallel_jobs: int = 1,
+    gpus_per_job: int = 1,
 ) -> SweepTool:
     """Create PPO hyperparameter sweep."""
 
@@ -64,8 +65,8 @@ def ppo(
             ),
         },
         settings=ProteinSettings(
-            num_random_samples=5,  # Start with 5 random samples before Bayesian optimization
-            max_suggestion_cost=300,  # 5 minutes max per trial (for quick testing)
+            num_random_samples=20,  # Start with 20 random samples for better exploration in large sweeps
+            max_suggestion_cost=7200,  # 5 minutes max per trial (for quick testing)
         ),
     )
 
@@ -78,6 +79,10 @@ def ppo(
         train_entrypoint=train,
         eval_entrypoint=eval,
         max_parallel_jobs=max_parallel_jobs,
+        gpus_per_job=gpus_per_job,
+        train_overrides={
+            "trainer.total_timesteps": "1000000000",  # 1B timesteps default for PPO sweep
+        },
     )
 
 
@@ -149,8 +154,8 @@ def quick_test(
             ),
         },
         settings=ProteinSettings(
-            num_random_samples=2,  # Start with 2 random samples before Bayesian optimization
-            max_suggestion_cost=60,  # 1 minute max per trial for quick testing
+            num_random_samples=20,  # Start with 20 random samples for better exploration in large sweeps
+            max_suggestion_cost=300,  # 5 minutes max per trial (for quick testing)
         ),
     )
 
