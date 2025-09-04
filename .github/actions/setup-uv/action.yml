@@ -113,12 +113,9 @@ runs:
         if [ -n "${{ inputs.extra-dependencies }}" ]; then
           echo "Installing extra dependencies (inline):"
           echo "${{ inputs.extra-dependencies }}" | while read -r dep; do
-            if [ -n "$dep" ] && [ ! -z "$dep" ]; then
+            if [ -n "$dep" ]; then
               echo "Installing $dep"
               uv pip install "$dep"
-            else
-              echo "ERROR: No extra inline pip dependencies specified" >&2
-              exit 1
             fi
           done
         else
