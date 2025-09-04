@@ -36,7 +36,6 @@ const
   
   # Hunger mechanics
   MaxHungerSteps* = 50     # Agent dies after 50 steps without eating
-  HungerWarningThreshold* = 40  # Warning when hunger reaches this level
   MaxFoodInventory* = 3    # Max food items agent can carry
   
   # Food properties
@@ -174,26 +173,23 @@ proc eatFood*(hunger: var HungerState, preferredFood: FoodItem = NoFood): tuple[
   return (ate: false, foodConsumed: NoFood, hungerRestored: 0)
 
 proc updateHunger*(hunger: var HungerState): tuple[
-  shouldEat: bool,
   isDying: bool
 ] =
   ## Update hunger state each step
-  ## Returns whether agent should eat and whether they're dying of starvation
+  ## Returns whether they're dying of starvation
   hunger.currentHunger += 1
   
   # Check if agent is starving
   if hunger.currentHunger >= hunger.maxHunger:
     hunger.isStarving = true
-    return (shouldEat: true, isDying: true)
+    return (isDying: true)
   
-  # Check if agent should eat (getting hungry)
-  let shouldEat = hunger.currentHunger >= HungerWarningThreshold
-  
-  return (shouldEat: shouldEat, isDying: false)
+  return (isDying: false)
 
 proc shouldAgentEatAutomatically*(hunger: HungerState): bool =
-  ## Determine if agent should automatically eat (when very hungry)
-  return hunger.currentHunger >= HungerWarningThreshold and hunger.foodInventory.len > 0
+  ## Determine if agent should automatically eat (when close to starving)
+  # Auto-eat when 80% hungry
+  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10) and hunger.foodInventory.len > 0
 
 proc handleStarvation*(hunger: var HungerState, agentPos: var IVec2, homeAltar: IVec2): tuple[
   died: bool,
@@ -249,7 +245,8 @@ proc getHungerStatus*(hunger: HungerState): string =
 
 proc shouldShowHungerWarning*(hunger: HungerState): bool =
   ## Check if we should display a hunger warning to the player
-  return hunger.currentHunger >= HungerWarningThreshold
+  # Show warning when 80% hungry
+  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10)
 
 # Integration helpers for main game loop
 proc processAgentHunger*(hunger: var HungerState, agentPos: var IVec2, 
@@ -261,10 +258,10 @@ proc processAgentHunger*(hunger: var HungerState, agentPos: var IVec2,
   ## Main hunger processing for each game step
   ## Updates hunger, handles auto-eating, and manages starvation/respawn
   
-  let (shouldEat, isDying) = hunger.updateHunger()
+  let isDying = hunger.updateHunger()
   
   # Auto-eat if very hungry and has food
-  if shouldEat and hunger.hasFoodItem():
+  if hunger.shouldAgentEatAutomatically():
     let eatResult = hunger.eatFood()
     if eatResult.ate:
       return (died: false, respawned: false, autoAte: true)

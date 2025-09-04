@@ -98,6 +98,33 @@ type WallTile = enum
   WallSE = 2 or 1,
   WallNW = 8 or 4,
 
+proc getAltarRadiance*(pos: IVec2): float32 =
+  ## Calculate brightness based on distance to nearby altars and their hearts
+  ## Returns a value between 0.0 (dark) and 1.0 (bright)
+  var maxRadiance = 0.0'f32
+  
+  # Check all altars in the environment
+  for thing in env.things:
+    if thing.kind == Altar:
+      let altarPos = thing.pos
+      let hearts = thing.hearts.float32
+      
+      # Calculate distance from this position to the altar
+      let dx = abs(pos.x - altarPos.x).float32
+      let dy = abs(pos.y - altarPos.y).float32
+      let distance = max(dx, dy)  # Use Chebyshev distance for square radiance
+      
+      if distance <= 10:  # Maximum radiance radius
+        # Calculate radiance: more hearts = brighter, closer = brighter
+        # Hearts scale: 0-10 hearts is typical, can go higher
+        let heartIntensity = min(hearts / 5.0, 2.0)  # Cap at 2.0 for very rich altars
+        let distanceFalloff = 1.0 - (distance / 10.0)
+        let radiance = heartIntensity * distanceFalloff * 0.8  # Max 80% brightness boost
+        
+        maxRadiance = max(maxRadiance, radiance)
+  
+  return maxRadiance
+
 proc drawWalls*() =
   ## Draw the walls on the map.
   template hasWall(x: int, y: int): bool =
@@ -125,10 +152,22 @@ proc drawWalls*() =
               hasWall(x - 1, y + 1) and
               hasWall(x + 1, y - 1):
             continue
-        bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), angle = 0, scale = 1/200)
+        
+        # Calculate brightness based on nearby altars
+        let radiance = getAltarRadiance(ivec2(x.int32, y.int32))
+        let brightness = 0.2 + radiance  # Base darkness of 0.2, can go up to 1.0
+        let wallTint = color(brightness, brightness, brightness, 1.0)
+        
+        bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), 
+                     angle = 0, scale = 1/200, tint = wallTint)
 
   for fillPos in wallFills:
-    bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), angle = 0, scale = 1/200)
+    # Apply the same radiance to wall fills
+    let radiance = getAltarRadiance(fillPos)
+    let brightness = 0.2 + radiance
+    let fillTint = color(brightness, brightness, brightness, 1.0)
+    bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), 
+                  angle = 0, scale = 1/200, tint = fillTint)
 
 proc drawObjects*() =
   ## Draw the objects on the map.
@@ -147,6 +186,10 @@ proc drawObjects*() =
             of S: "agents/agent.s"
             of E: "agents/agent.e"
             of W: "agents/agent.w"
+            of NW: "agents/agent.w"  # Use west sprite for NW
+            of NE: "agents/agent.e"  # Use east sprite for NE
+            of SW: "agents/agent.w"  # Use west sprite for SW
+            of SE: "agents/agent.e"  # Use east sprite for SE
           bxy.drawImage(
             agentImage,
             ivec2(x, y).vec2,
@@ -160,6 +203,10 @@ proc drawObjects*() =
           #   of S: ivec2(0, 1)
           #   of E: ivec2(1, 0)
           #   of W: ivec2(-1, 0)
+          #   of NW: ivec2(-1, -1)
+          #   of NE: ivec2(1, -1)
+          #   of SW: ivec2(-1, 1)
+          #   of SE: ivec2(1, 1)
           # bxy.drawImage(
           #   "bubble",
           #   (agent.pos + face).vec2 * 64,

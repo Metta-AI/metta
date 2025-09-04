@@ -1,4 +1,4 @@
-import src/mettascope/tribal, vmath
+import ../src/mettascope/tribal, vmath
 
 # Test that the corner buildings are created properly
 proc testCornerBuildings() =

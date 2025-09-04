@@ -1,4 +1,4 @@
-import std/[strformat, sequtils, tables, strutils]
+import std/[strformat, sequtils, tables, strutils, random]
 import ../src/mettascope/controller
 import ../src/mettascope/tribal
 import vmath
@@ -10,30 +10,39 @@ proc testDiagonalMovement() =
   # Test orientation deltas
   echo "Orientation deltas:"
   for i, orient in [N, S, W, E, NW, NE, SW, SE]:
-    let delta = getOrientationDelta(orient)
+    let delta = OrientationDeltas[ord(orient)]
     echo fmt"  {$orient:2}: ({delta.x:2}, {delta.y:2})"
   
   # Test diagonal check
   echo "\nDiagonal orientations:"
   for orient in [N, S, W, E, NW, NE, SW, SE]:
-    echo fmt"  {$orient:2} is diagonal: {isDiagonal(orient)}"
+    let isDiag = ord(orient) > 3  # Orientations 4-7 are diagonal
+    echo fmt"  {$orient:2} is diagonal: {isDiag}"
   
-  # Test opposite orientations
-  echo "\nOpposite orientations:"
-  for orient in [N, S, W, E, NW, NE, SW, SE]:
-    echo fmt"  Opposite of {$orient:2}: {$getOpposite(orient):2}"
+  # Test getting orientation from delta
+  echo "\nDelta to Orientation:"
+  let testDeltas = @[
+    ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0),
+    ivec2(-1, -1), ivec2(1, -1), ivec2(-1, 1), ivec2(1, 1)
+  ]
+  for delta in testDeltas:
+    let orient = getOrientation(delta)
+    echo fmt"  Delta ({delta.x:2}, {delta.y:2}) -> {$Orientation(orient):2}"
   
   # Create an environment and test movement
-  var env = newEnvironment()
-  var controller = newController(seed = 42)
+  var env = initEnvironment()
+  env.rng = initRand(42)
   
   echo "\n=== Movement Simulation ==="
   echo "Testing agent movement in all 8 directions:\n"
   
-  # Get the first agent
-  if env.agents.len > 0:
-    let agent = env.agents[0]
-    let startPos = agent.pos
+  # Create an agent at center
+  let startPos = ivec2(MapWidth div 2, MapHeight div 2)
+  let agentId = env.addAgent(startPos, 0)
+  
+  # Get the agent we just created
+  let agent = env.grid[startPos.x][startPos.y]
+  if agent != nil:
     echo fmt"Starting position: ({startPos.x}, {startPos.y})"
     
     # Try to move in all 8 directions
@@ -41,15 +50,17 @@ proc testDiagonalMovement() =
     var successfulMoves = 0
     
     for orient in directions:
-      # Generate move action
-      var actions: array[MapAgents, array[2, uint8]]
-      actions[0] = [1'u8, ord(orient).uint8]  # Move action with orientation
+      # Reset agent position to center
+      if env.grid[agent.pos.x][agent.pos.y] == agent:
+        env.grid[agent.pos.x][agent.pos.y] = nil
+      agent.pos = startPos
+      env.grid[startPos.x][startPos.y] = agent
       
       # Store old position
       let oldPos = agent.pos
       
-      # Execute the move
-      env.step(addr actions)
+      # Execute the move using the orientation as the argument
+      env.moveAction(agentId, agent, ord(orient))
       
       # Check if moved
       if agent.pos != oldPos:
@@ -64,7 +75,9 @@ proc testDiagonalMovement() =
     if successfulMoves >= 4:
       echo "✓ Diagonal movement is working!"
     else:
-      echo "⚠ Some movements were blocked (likely by walls or other agents)"
+      echo "⚠ Some movements were blocked (likely by terrain or edges)"
+  else:
+    echo "Failed to create agent!"
 
 proc visualizeDiagonalPaths() =
   echo "\n=== Diagonal Path Visualization ==="

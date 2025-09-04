@@ -350,19 +350,22 @@ proc orientationToVec*(orientation: Orientation): IVec2 =
   of S: result = ivec2(0, 1)
   of E: result = ivec2(1, 0)
   of W: result = ivec2(-1, 0)
+  of NW: result = ivec2(-1, -1)
+  of NE: result = ivec2(1, -1)
+  of SW: result = ivec2(-1, 1)
+  of SE: result = ivec2(1, 1)
 
 proc relativeLocation*(orientation: Orientation, distance, offset: int): IVec2 =
   ## Calculate a relative location based on orientation.
-  if orientation == N:
-    ivec2(-offset, -distance)
-  elif orientation == S:
-    ivec2(offset, distance)
-  elif orientation == E:
-    ivec2(distance, -offset)
-  elif orientation == W:
-    ivec2(-distance, offset)
-  else:
-    ivec2(0, 0)
+  case orientation
+  of N: ivec2(-offset, -distance)
+  of S: ivec2(offset, distance)
+  of E: ivec2(distance, -offset)
+  of W: ivec2(-distance, offset)
+  of NW: ivec2(-distance - offset, -distance + offset)
+  of NE: ivec2(distance - offset, -distance - offset)
+  of SW: ivec2(-distance + offset, distance + offset)
+  of SE: ivec2(distance + offset, distance - offset)
 
 proc noopAction(env: Environment, id: int, agent: Thing) =
   ## Do nothing

@@ -32,6 +32,23 @@ const
   MapRoomObjectsConverters* = 10  # Converters to process ore into batteries
   MapRoomObjectsMines* = 20  # Mines to extract ore (2x generators)
   MapRoomObjectsWalls* = 30  # Increased for larger map
+  
+  # Shaped Rewards - kept small since altar hearts are primary objective
+  # Resource gathering (very small)
+  RewardGetWater* = 0.001
+  RewardGetWheat* = 0.001
+  RewardGetWood* = 0.002  # Slightly higher as it leads to spears
+  RewardMineOre* = 0.003  # Slightly higher as it leads to batteries
+  
+  # Crafting (small)
+  RewardConvertOreToBattery* = 0.01  # Converting ore to battery
+  RewardCraftSpear* = 0.01  # Crafting spear at forge
+  
+  # Combat (moderate - helps protect altar)
+  RewardDestroyClippy* = 0.1  # Destroying a clippy
+  
+  # Altar contribution (already has 1.0 in code)
+  # RewardDepositBattery* = 1.0  # Already implemented
 
   MapObjectAgentMaxInventory* = 5
   MapObjectAgentFreezeDuration* = 10  # Temporary freeze when caught by clippy
@@ -410,19 +427,22 @@ proc orientationToVec*(orientation: Orientation): IVec2 =
   of S: result = ivec2(0, 1)
   of E: result = ivec2(1, 0)
   of W: result = ivec2(-1, 0)
+  of NW: result = ivec2(-1, -1)
+  of NE: result = ivec2(1, -1)
+  of SW: result = ivec2(-1, 1)
+  of SE: result = ivec2(1, 1)
 
 proc relativeLocation*(orientation: Orientation, distance, offset: int): IVec2 =
   ## Calculate a relative location based on orientation.
-  if orientation == N:
-    ivec2(-offset, -distance)
-  elif orientation == S:
-    ivec2(offset, distance)
-  elif orientation == E:
-    ivec2(distance, -offset)
-  elif orientation == W:
-    ivec2(-distance, offset)
-  else:
-    ivec2(0, 0)
+  case orientation
+  of N: ivec2(-offset, -distance)
+  of S: ivec2(offset, distance)
+  of E: ivec2(distance, -offset)
+  of W: ivec2(-distance, offset)
+  of NW: ivec2(-distance - offset, -distance + offset)
+  of NE: ivec2(distance - offset, -distance - offset)
+  of SW: ivec2(-distance + offset, distance + offset)
+  of SE: ivec2(distance + offset, distance - offset)
 
 proc noopAction(env: Environment, id: int, agent: Thing) =
   ## Do nothing
@@ -534,6 +554,7 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
       thing.cooldown = MapObjectMineCooldown
       env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
+      agent.reward += RewardMineOre  # Small shaped reward
       inc env.stats[id].actionUseMine
       inc env.stats[id].actionUse
   of Converter:
@@ -546,6 +567,7 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       # No cooldown for instant conversion
       thing.cooldown = 0
       env.updateObservations(ConverterReadyLayer, thing.pos, 1)  # Always ready
+      agent.reward += RewardConvertOreToBattery  # Small shaped reward
       inc env.stats[id].actionUseConverter
       inc env.stats[id].actionUse
   of Forge:
@@ -557,7 +579,7 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       thing.cooldown = 5  # Forge cooldown
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
-      agent.reward += 0.5  # Small reward for crafting
+      agent.reward += RewardCraftSpear  # Small shaped reward
       inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
@@ -617,7 +639,7 @@ proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
     env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
     
     # Give reward for destroying Clippy
-    agent.reward += 2.0
+    agent.reward += RewardDestroyClippy  # Moderate reward for defense
     
     inc env.stats[id].actionUse
   else:
@@ -650,6 +672,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       agent.inventoryWater += 1
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove water tile
       env.updateObservations(AgentInventoryWaterLayer, agent.pos, agent.inventoryWater)
+      agent.reward += RewardGetWater  # Small shaped reward
       inc env.stats[id].actionGetWater
       inc env.stats[id].actionGet
     else:
@@ -662,6 +685,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove wheat tile
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
+      agent.reward += RewardGetWheat  # Small shaped reward
       inc env.stats[id].actionGetWheat
       inc env.stats[id].actionGet
     else:
@@ -674,6 +698,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove tree tile
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
+      agent.reward += RewardGetWood  # Small shaped reward (slightly higher for spear path)
       inc env.stats[id].actionGetWood
       inc env.stats[id].actionGet
     else:
