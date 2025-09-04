@@ -44,7 +44,8 @@ jobs:
         uses: ./.github/actions/file-changes
         with:
           patterns: "**/*.py,**/pyproject.toml,**/pytest.ini"
-          specific_files: "uv.lock"
+          specific_files: "uv.lock,devops/observatory_login.py"
+          directory_paths: "experiments/notebooks/utils/,mettascope/,devops/git-hooks/,experiments/recipes/scratchpad/,codebot/,devops/aws/,devops/skypilot/,devops/git/,devops/macos/,devops/mettabox/"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine which tasks to run
@@ -71,8 +72,8 @@ jobs:
     name: "Setup Tests"
     needs: [setup-checks]
     if: needs.setup-checks.outputs.run_test == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: ubuntu-4core  # Use 4-core runners for parallel installation and test execution
+    timeout-minutes: 15  # Reduced timeout due to parallel execution improvements
     strategy:
       fail-fast: false
       matrix:
@@ -105,14 +106,15 @@ jobs:
           echo "Running setup integration tests with pytest-testmon..."
 
           # Use different coverage based on event type
+          # Note: -n auto will use all 4 CPU cores available on ubuntu-4core runners
           # Production quality gate: full branch coverage for main branch merges and merge queue
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.event_name }}" == "merge_group" ]]; then
-            PYTEST_ARGS="tests/setup --cov --cov-branch --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
-            echo "Running setup tests with full branch coverage for production merge"
+            PYTEST_ARGS="tests/setup --cov --cov-branch --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy -n auto"
+            echo "Running setup tests with full branch coverage and 4-core parallel execution for production merge"
           else
-            # Fast testmon for PRs and development (fast feedback)
-            PYTEST_ARGS="tests/setup --testmon --cov --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
-            echo "Running setup tests with testmon for fast development feedback"
+            # Fast testmon for PRs and development (fast feedback) with parallel execution
+            PYTEST_ARGS="tests/setup --testmon --cov --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy -n auto"
+            echo "Running setup tests with testmon and 4-core parallel execution for fast development feedback"
           fi
 
           # If no .testmondata exists, do a full run first to build the database

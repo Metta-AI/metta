@@ -385,6 +385,10 @@ class MettaCLI:
         module.run(args.args)
 
     def cmd_install(self, args, unknown_args=None) -> None:
+        import concurrent.futures
+        import threading
+        from collections import defaultdict, deque
+
         from metta.setup.registry import get_all_modules, get_enabled_setup_modules
         from metta.setup.utils import error, info, success, warning
 
@@ -419,28 +423,124 @@ class MettaCLI:
 
             modules = [m for m in modules if m.name in only_names]
 
-            modules.sort(key=lambda m: (m.name not in essential_modules, m.name))
-
         if not modules:
             info("No modules to install.")
             return
 
-        info(f"\nInstalling {len(modules)} components...\n")
-
+        # Build dependency graph
+        module_map = {m.name: m for m in modules}
+        dependencies = {}
         for module in modules:
-            info(f"[{module.name}] {module.description}")
+            deps = module.dependencies()
+            # Only include dependencies that are in our install set
+            filtered_deps = [dep for dep in deps if dep in module_map]
+            dependencies[module.name] = filtered_deps
 
-            if module.install_once and module.check_installed() and not args.force:
-                info("  -> Already installed, skipping (use --force to reinstall)\n")
-                continue
+        # Perform topological sort with parallelization opportunities
+        def topological_sort_parallel(modules_dict, deps):
+            """Sort modules respecting dependencies, grouping independent modules together."""
+            in_degree = defaultdict(int)
+            for module in modules_dict:
+                for _dep in deps.get(module, []):
+                    in_degree[module] += 1
+
+            # Start with modules that have no dependencies
+            ready_queue = deque([m for m in modules_dict if in_degree[m] == 0])
+            sorted_batches = []
+
+            while ready_queue:
+                # All modules in ready_queue can be installed in parallel
+                current_batch = list(ready_queue)
+                sorted_batches.append(current_batch)
+                ready_queue.clear()
+
+                # Remove current batch from graph and update in_degree
+                for module in current_batch:
+                    for other_module, other_deps in deps.items():
+                        if module in other_deps:
+                            in_degree[other_module] -= 1
+                            if in_degree[other_module] == 0:
+                                ready_queue.append(other_module)
+
+            return sorted_batches
+
+        install_batches = topological_sort_parallel(module_map, dependencies)
+
+        if not install_batches:
+            info("No modules to install.")
+            return
+
+        total_modules = sum(len(batch) for batch in install_batches)
+        info(f"\nInstalling {total_modules} components in {len(install_batches)} parallel batches...\n")
+
+        # Thread-safe progress tracking
+        install_lock = threading.Lock()
+        installed_count = 0
+
+        def install_module(module):
+            nonlocal installed_count
+
+            # Quick logging without holding lock during expensive operations
+            with install_lock:
+                info(f"[{module.name}] {module.description}")
+
+            # Do expensive check_installed() in parallel (outside lock)
+            if module.install_once and not args.force:
+                try:
+                    if module.check_installed():
+                        with install_lock:
+                            info("  -> Already installed, skipping (use --force to reinstall)")
+                            installed_count += 1
+                        return True
+                except Exception:
+                    # If check fails, proceed with installation
+                    pass
 
             try:
+                # Do the actual installation in parallel (most expensive part)
                 module.install(non_interactive=getattr(args, "non_interactive", False))
-                print()
+                with install_lock:
+                    info(f"  -> {module.name} installation complete")
+                    installed_count += 1
+                return True
             except Exception as e:
-                error(f"  Error: {e}\n")
+                with install_lock:
+                    error(f"  -> {module.name} failed: {e}")
+                return False
 
-        success("Installation complete!")
+        # Install in batches, parallelizing within each batch
+        failed_modules = []
+        for batch_idx, batch in enumerate(install_batches):
+            if len(batch) == 1:
+                # Single module - install directly to avoid threading overhead
+                module = module_map[batch[0]]
+                if not install_module(module):
+                    failed_modules.append(module.name)
+            else:
+                # Multiple modules - install in parallel
+                info(f"Batch {batch_idx + 1}/{len(install_batches)}: Installing {len(batch)} components in parallel...")
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(batch), 4)) as executor:
+                    batch_modules = [module_map[name] for name in batch]
+                    future_to_module = {executor.submit(install_module, module): module for module in batch_modules}
+
+                    for future in concurrent.futures.as_completed(future_to_module):
+                        module = future_to_module[future]
+                        try:
+                            success_result = future.result()
+                            if not success_result:
+                                failed_modules.append(module.name)
+                        except Exception as e:
+                            failed_modules.append(module.name)
+                            with install_lock:
+                                error(f"  -> {module.name} failed with exception: {e}")
+
+            print()  # Add spacing between batches
+
+        if failed_modules:
+            error(f"Installation completed with {len(failed_modules)} failures: {', '.join(failed_modules)}")
+        else:
+            success("Installation complete!")
 
     def cmd_clean(self, args, unknown_args=None, verbose: bool = False) -> None:
         from metta.setup.utils import info, warning

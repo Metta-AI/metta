@@ -94,6 +94,7 @@ class TestNonInteractiveComponentExclusions(BaseMettaSetupTest):
 class TestNonInteractiveIndividualComponents(BaseMettaSetupTest):
     """Test that each component from profile configurations can be installed individually."""
 
+    @pytest.mark.slow
     def test_external_profile_individual_components(self):
         """Test that each component in external profile can be installed individually."""
         self._create_test_config(UserType.EXTERNAL)
@@ -118,6 +119,7 @@ class TestNonInteractiveIndividualComponents(BaseMettaSetupTest):
 class TestNonInteractiveIndividualComponentsCloud(BaseMettaSetupTest):
     """Test that each component from cloud profile can be installed individually."""
 
+    @pytest.mark.slow
     def test_cloud_profile_individual_components(self):
         """Test that each component in cloud profile can be installed individually."""
         self._create_test_config(UserType.CLOUD)
@@ -142,6 +144,7 @@ class TestNonInteractiveIndividualComponentsCloud(BaseMettaSetupTest):
 class TestNonInteractiveIndividualComponentsSoftmax(BaseMettaSetupTest):
     """Test that each component from softmax profile can be installed individually."""
 
+    @pytest.mark.slow
     def test_softmax_profile_individual_components(self):
         """Test that each component in softmax profile can be installed individually."""
         self._create_test_config(UserType.SOFTMAX)
@@ -166,6 +169,7 @@ class TestNonInteractiveIndividualComponentsSoftmax(BaseMettaSetupTest):
 class TestNonInteractiveIndividualComponentsSoftmaxDocker(BaseMettaSetupTest):
     """Test that each component from softmax-docker profile can be installed individually."""
 
+    @pytest.mark.slow
     def test_softmax_docker_profile_individual_components(self):
         """Test that each component in softmax-docker profile can be installed individually."""
         self._create_test_config(UserType.SOFTMAX_DOCKER)

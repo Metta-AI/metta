@@ -38,6 +38,7 @@ def pytest_configure(config: pytest.Config) -> None:
     """Register custom markers used by the setup tests."""
     config.addinivalue_line("markers", "profile(name): test requires the given profile to be active")
     config.addinivalue_line("markers", "setup: mark a setup test/class to be executed")
+    config.addinivalue_line("markers", "slow: mark test as slow integration test (can be skipped with -m 'not slow')")
 
     # Propagate active profile into BaseMettaSetupTest for convenience
     active_profile = config.getoption("--metta-profile") or os.environ.get("METTA_TEST_PROFILE")

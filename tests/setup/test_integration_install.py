@@ -19,6 +19,7 @@ from tests.setup.test_base import BaseMettaSetupTest
 class TestInstallSoftmax(BaseMettaSetupTest):
     """Integration tests for metta install with softmax profile (condensed)."""
 
+    @pytest.mark.slow
     def test_softmax_end_to_end_flow(self):
         """Run a condensed end-to-end flow for softmax profile in one test."""
         self._create_test_config(UserType.SOFTMAX)
@@ -75,6 +76,7 @@ class TestInstallSoftmax(BaseMettaSetupTest):
 @pytest.mark.setup
 @pytest.mark.profile("external")
 class TestInstallExternal(BaseMettaSetupTest):
+    @pytest.mark.slow
     def test_install_softmax_profile(self):
         self._create_test_config(UserType.EXTERNAL)
         result = self._run_metta_command(["install"])
@@ -84,6 +86,7 @@ class TestInstallExternal(BaseMettaSetupTest):
 @pytest.mark.setup
 @pytest.mark.profile("cloud")
 class TestInstallCloud(BaseMettaSetupTest):
+    @pytest.mark.slow
     def test_install_cloud_profile(self):
         self._create_test_config(UserType.CLOUD)
         result = self._run_metta_command(["install"])
