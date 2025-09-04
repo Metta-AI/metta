@@ -96,7 +96,7 @@ jobs:
           path: |
             .testmondata
             */..testmondata
-          key: setup-testmon-v2-${{ runner.os }}-${{ matrix.profile }}-${{ github.ref }}
+          key: setup-tests-testmon-v2-${{ runner.os }}-${{ matrix.profile }}-${{ github.ref }}
           restore-keys: |
             setup-tests-testmon-v2-${{ runner.os }}-${{ matrix.profile }}-refs/heads/main
             setup-tests-testmon-v2-${{ runner.os }}-${{ matrix.profile }}-
