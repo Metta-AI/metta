@@ -688,7 +688,7 @@ def post_commit_status(
 # ============================================================================
 
 
-def filter_repo(source_path: Path, paths: list[str]) -> Path:
+def filter_repo(source_path: Path, paths: list[str], root_subdir: str | None = None) -> Path:
     """Filter repository to only include specified paths.
 
     Args:
@@ -731,10 +731,14 @@ def filter_repo(source_path: Path, paths: list[str]) -> Path:
 
     # Filter repository
     filter_cmd = ["git", "filter-repo", "--force"]
-    for path in paths:
-        filter_cmd.extend(["--path", path])
-
-    print(f"Filtering to: {', '.join(paths)}")
+    if root_subdir:
+        # Make specified subdirectory become repository root
+        filter_cmd.extend(["--subdirectory-filter", root_subdir])
+        print(f"Filtering to subdirectory root: {root_subdir}")
+    else:
+        for path in paths:
+            filter_cmd.extend(["--path", path])
+        print(f"Filtering to: {', '.join(paths)}")
 
     result = subprocess.run(filter_cmd, cwd=filtered_path, capture_output=True, text=True)
     if result.returncode != 0:
