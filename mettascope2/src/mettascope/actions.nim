@@ -1,9 +1,10 @@
-import std/[random],
+import std/[random, times],
   common, tribal, windy, controller
 
 var
   actionsArray*: array[MapAgents, array[2, uint8]]
-  agentController* = newController(seed = 2024)
+  # Controller will use a random seed each time
+  agentController* = newController(seed = int(epochTime() * 1000))
 
 proc simStep*() =
   # Use controller for agent actions
@@ -49,41 +50,7 @@ proc agentControls*() =
       actionsArray[agent.agentId] = [3, useDir]
       simStep()
 
-    # Shield
-    if window.buttonPressed[KeyO]:
-      actionsArray[agent.agentId] = [6, 0]
-      simStep()
-
-    # Swap
+    # Swap (still valid - swaps positions with frozen agents)
     if window.buttonPressed[KeyP]:
       actionsArray[agent.agentId] = [8, 0]
-      simStep()
-
-    # Attack
-    if window.buttonPressed[Key1]:
-      actionsArray[agent.agentId] = [4, 1]
-      simStep()
-    if window.buttonPressed[Key2]:
-      actionsArray[agent.agentId] = [4, 2]
-      simStep()
-    if window.buttonPressed[Key3]:
-      actionsArray[agent.agentId] = [4, 3]
-      simStep()
-    if window.buttonPressed[Key4]:
-      actionsArray[agent.agentId] = [4, 4]
-      simStep()
-    if window.buttonPressed[Key5]:
-      actionsArray[agent.agentId] = [4, 5]
-      simStep()
-    if window.buttonPressed[Key6]:
-      actionsArray[agent.agentId] = [4, 6]
-      simStep()
-    if window.buttonPressed[Key7]:
-      actionsArray[agent.agentId] = [4, 7]
-      simStep()
-    if window.buttonPressed[Key8]:
-      actionsArray[agent.agentId] = [4, 8]
-      simStep()
-    if window.buttonPressed[Key9]:
-      actionsArray[agent.agentId] = [4, 9]
       simStep()

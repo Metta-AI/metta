@@ -1,4 +1,4 @@
-import std/[strformat, random, strutils, tables], vmath, jsony, chroma
+import std/[strformat, random, strutils, tables, times], vmath, jsony, chroma
 import terrain, placement, clippy, village
 export terrain
 
@@ -669,10 +669,13 @@ proc add(env: Environment, thing: Thing) =
 proc init(env: Environment) =
   ## Initialize or reset the environment.
 
-  var r = initRand(2024)
+  # Use current time for random seed to get different maps each time
+  let seed = int(epochTime() * 1000)
+  var r = initRand(seed)
+  echo "Generating map with seed: ", seed
   
   # Initialize terrain with all features
-  initTerrain(env.terrain, MapWidth, MapHeight, MapBorder, 2024)
+  initTerrain(env.terrain, MapWidth, MapHeight, MapBorder, seed)
 
   if MapBorder > 0:
     for x in 0 ..< MapWidth:

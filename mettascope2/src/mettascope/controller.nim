@@ -116,6 +116,33 @@ proc isAdjacent(pos1, pos2: IVec2): bool =
   let dy = abs(pos1.y - pos2.y)
   result = dx <= 1 and dy <= 1 and (dx + dy) > 0
 
+proc isCardinallyAdjacent(pos1, pos2: IVec2): bool =
+  ## Check if two positions are adjacent in a cardinal direction (N/S/E/W only)
+  let dx = abs(pos1.x - pos2.x)
+  let dy = abs(pos1.y - pos2.y)
+  result = (dx == 1 and dy == 0) or (dx == 0 and dy == 1)
+
+proc getMoveToCardinalPosition(agentPos, targetPos: IVec2, env: Environment): IVec2 =
+  ## If agent is diagonally adjacent to target, return direction to move to cardinal position
+  ## Returns ivec2(0, 0) if already cardinally adjacent or not adjacent at all
+  let dx = targetPos.x - agentPos.x
+  let dy = targetPos.y - agentPos.y
+  
+  # Check if diagonally adjacent
+  if abs(dx) == 1 and abs(dy) == 1:
+    # Try to move to cardinal position - prefer horizontal movement first
+    let horizontalPos = agentPos + ivec2(dx, 0)
+    let verticalPos = agentPos + ivec2(0, dy)
+    
+    # Check which position is empty and return direction to it
+    if env.isEmpty(horizontalPos):
+      return ivec2(dx, 0)
+    elif env.isEmpty(verticalPos):
+      return ivec2(0, dy)
+    # If both are blocked, return no movement
+    
+  return ivec2(0, 0)
+
 proc decideAction*(controller: Controller, env: Environment, agentId: int): array[2, uint8] =
   ## Decide the next action for an agent
   let agent = env.agents[agentId]
@@ -157,8 +184,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         state.currentTarget = altar.pos
         state.targetType = Altar
     
-    # Check if we're adjacent to the altar
-    if state.targetType == Altar and isAdjacent(agent.pos, state.currentTarget):
+    # Check if we're cardinally adjacent to the altar (required for use action)
+    if state.targetType == Altar and isCardinallyAdjacent(agent.pos, state.currentTarget):
       # Use the altar to deposit battery
       let dir = state.currentTarget - agent.pos
       
@@ -206,8 +233,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         state.currentTarget = controller.getNextWanderPoint(state)
         state.targetType = Wander
     
-    # Check if we're adjacent to a converter
-    if state.targetType == Converter and isAdjacent(agent.pos, state.currentTarget):
+    # Check if we're cardinally adjacent to a converter (required for use action)
+    if state.targetType == Converter and isCardinallyAdjacent(agent.pos, state.currentTarget):
       # Use the converter to convert ore to battery
       let dir = state.currentTarget - agent.pos
       
@@ -262,8 +289,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         state.currentTarget = controller.getNextWanderPoint(state)
         state.targetType = Wander
     
-    # Check if we're adjacent to a mine
-    if state.targetType == Mine and isAdjacent(agent.pos, state.currentTarget):
+    # Check if we're cardinally adjacent to a mine (required for use action)
+    if state.targetType == Mine and isCardinallyAdjacent(agent.pos, state.currentTarget):
       # Use the mine to get ore
       let dir = state.currentTarget - agent.pos
       
