@@ -143,6 +143,9 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   if state.hasBattery:
     # Priority 1: If we have a battery, go back to altar to deposit it
     if state.targetType != Altar:
+      # Clear any previous target when switching to altar
+      state.targetType = NoTarget
+      
       # Find our home altar
       var altar: Thing = nil
       for thing in env.things:
@@ -175,6 +178,11 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     
   elif state.hasOre:
     # Priority 2: If we have ore, find a converter
+    # Clear mine target when we get ore to ensure we leave the mine area
+    if state.targetType == Mine or state.targetType == Wander:
+      state.targetType = NoTarget
+      state.currentTarget = agent.pos
+    
     if state.targetType != Converter:
       var nearestConverter: Thing = nil
       var minDist = 999999.0
@@ -186,13 +194,17 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
             minDist = dist
             nearestConverter = thing
       
-      # If no visible converter, search wider
+      # If no visible converter, search wider and wander to find one
       if nearestConverter == nil:
-        nearestConverter = env.findNearestThing(agent.pos, Converter, maxDist = 15.0)
+        nearestConverter = env.findNearestThing(agent.pos, Converter, maxDist = 20.0)
       
       if nearestConverter != nil:
         state.currentTarget = nearestConverter.pos
         state.targetType = Converter
+      else:
+        # No converter found, wander away from current position to explore
+        state.currentTarget = controller.getNextWanderPoint(state)
+        state.targetType = Wander
     
     # Check if we're adjacent to a converter
     if state.targetType == Converter and isAdjacent(agent.pos, state.currentTarget):
@@ -215,12 +227,28 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     
   else:
     # Priority 3: No inventory, look for mines
-    if state.targetType != Mine or distance(agent.pos, state.currentTarget) > 10:
+    # Re-evaluate target if we're at a mine that's on cooldown or exhausted
+    var needNewTarget = false
+    if state.targetType == Mine:
+      # Check if current mine target is still valid
+      var currentMine: Thing = nil
+      for thing in env.things:
+        if thing.kind == Mine and thing.pos == state.currentTarget:
+          currentMine = thing
+          break
+      
+      # Abandon this mine if it's on cooldown or out of resources
+      if currentMine != nil and (currentMine.cooldown > 0 or currentMine.resources == 0):
+        needNewTarget = true
+        state.targetType = NoTarget
+    
+    # Look for a new mine if we don't have a valid target
+    if state.targetType != Mine or distance(agent.pos, state.currentTarget) > 15 or needNewTarget:
       var nearestMine: Thing = nil
       var minDist = 999999.0
       
       for thing in visibleThings:
-        if thing.kind == Mine and thing.cooldown == 0:
+        if thing.kind == Mine and thing.cooldown == 0 and thing.resources > 0:
           let dist = distance(agent.pos, thing.pos)
           if dist < minDist:
             minDist = dist
@@ -230,7 +258,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         state.currentTarget = nearestMine.pos
         state.targetType = Mine
       else:
-        # No mine visible, wander in expanding circles
+        # No active mine visible, wander in expanding circles to find one
         state.currentTarget = controller.getNextWanderPoint(state)
         state.targetType = Wander
     
