@@ -38,9 +38,9 @@ echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
 
 # Master-only: Collect SkyPilot latency
 if [[ "$IS_MASTER" == "true" ]]; then
-  if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
+  if [ -f common/src/metta/common/util/job_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
-    uv run python common/src/metta/common/util/skypilot_latency.py || true
+    uv run python common/src/metta/common/util/job_latency.py || true
   else
     echo "[RUN] Latency script is missing!"
   fi
