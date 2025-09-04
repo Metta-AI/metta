@@ -218,8 +218,14 @@ def train(
     loss_spec = get_loss_experience_spec(act_space.nvec, act_dtype)
 
     # Create experience buffer
+    # For NPCFilterWrapper, num_agents is per-env policy agents, need total
+    if hasattr(vecenv, 'num_envs'):
+        total_filtered_agents = vecenv.num_agents * vecenv.num_envs
+    else:
+        total_filtered_agents = vecenv.num_agents
+    
     experience = Experience(
-        total_agents=vecenv.num_agents,
+        total_agents=total_filtered_agents,
         batch_size=trainer_cfg.batch_size,
         bptt_horizon=trainer_cfg.bptt_horizon,
         minibatch_size=trainer_cfg.minibatch_size,
