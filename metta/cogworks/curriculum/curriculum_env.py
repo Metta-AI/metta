@@ -35,6 +35,9 @@ class CurriculumEnv(PufferEnv):
         self._stats_update_counter = 0
         self._stats_update_frequency = 10  # Update stats every 10 steps
 
+        # Pre-compute string prefix for performance
+        self._CURRICULUM_STAT_PREFIX = "env_curriculum/"
+
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
         """Add curriculum statistics to info dictionary for logging.
 
@@ -45,8 +48,9 @@ class CurriculumEnv(PufferEnv):
         self._stats_update_counter += 1
         if self._stats_update_counter >= self._stats_update_frequency:
             curriculum_stats = self._curriculum.stats()
+            # Use pre-computed prefix for better performance
             for key, value in curriculum_stats.items():
-                info_dict[f"env_curriculum/{key}"] = value
+                info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
             self._stats_update_counter = 0
 
     def reset(self, *args, **kwargs):
@@ -60,7 +64,7 @@ class CurriculumEnv(PufferEnv):
         # Always log curriculum stats on reset for immediate visibility
         curriculum_stats = self._curriculum.stats()
         for key, value in curriculum_stats.items():
-            info[f"env_curriculum/{key}"] = value
+            info[self._CURRICULUM_STAT_PREFIX + key] = value
 
         return obs, info
 

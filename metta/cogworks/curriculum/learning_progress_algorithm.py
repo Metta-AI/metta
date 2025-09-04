@@ -7,6 +7,7 @@ bidirectional learning progress tracking with local task memory pool.
 """
 
 import logging
+from collections import defaultdict, deque
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -40,6 +41,8 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     max_bucket_axes_for_logging: int = Field(
         default=3, description="Maximum number of bucket axes to track for logging (reduces overhead)"
     )
+    max_memory_tasks: int = Field(default=1000, description="Maximum tasks to keep in memory before cleanup")
+    cleanup_batch_size: int = Field(default=100, description="Number of tasks to cleanup in each batch")
 
     # Logging verbosity control
     enable_detailed_bucket_logging: bool = Field(default=False, description="Enable detailed bucket statistics")
@@ -87,33 +90,58 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             ema_timescale=hypers.ema_timescale,
             num_active_tasks=hypers.pool_size,
         )
+        # Pass reference to main algorithm for optimization
+        self._lp_tracker._main_algorithm = self
 
         # Task management - now unified with base curriculum
         self._task_memory: Dict[int, Tuple[int, str, int, float, float, float]] = {}
         self._task_id_to_index: Dict[int, int] = {}
         self._next_index = 0
 
-        # Index recycling - maintain a pool of available indices
-        self._available_indices = set(range(search_space_size))
+        # Performance optimization: Use deque for efficient index management
+        self._available_indices = deque(range(search_space_size))
         self._used_indices = set()
 
-        # Bucket tracking for completion density analysis
-        self._bucket_tracking: Dict[str, Dict[int, Any]] = {}  # bucket_name -> task_id -> value
-        self._bucket_completion_counts: Dict[str, Dict[int, int]] = {}  # bucket_name -> bin_index -> count
+        # Pre-computed constants and cached strings for performance
+        self._STAT_KEY_PREFIX = "env_curriculum/"
+        self._LP_STAT_KEYS = {
+            "num_active_tasks": "lp/num_active_tasks",
+            "mean_sample_prob": "lp/mean_sample_prob",
+            "num_zeros_lp_dist": "lp/num_zeros_lp_dist",
+            "task_1_success_rate": "lp/task_1_success_rate",
+            "task_success_rate": "lp/task_success_rate",
+            "mean_evals_per_task": "lp/mean_evals_per_task",
+            "num_nan_tasks": "lp/num_nan_tasks",
+            "last_task_success_rate": "lp/last_task_success_rate",
+        }
+
+        # Active task indices for O(k) instead of O(n) operations
+        self._active_task_indices = set()
+
+        # Bucket tracking for completion density analysis (with bounded memory)
+        self._bucket_tracking: Dict[str, Dict[int, Any]] = defaultdict(dict)  # bucket_name -> task_id -> value
+        self._bucket_completion_counts: Dict[str, Dict[int, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )  # bucket_name -> bin_index -> count
         self._bucket_bins: Dict[str, List[float]] = {}  # bucket_name -> bin_edges
         self._bucket_is_discrete: Dict[str, bool] = {}  # bucket_name -> is_discrete
-        self._bucket_completion_history: Dict[str, List[float]] = {}  # bucket_name -> completion_density_over_time
+        self._bucket_completion_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=100))  # Bounded history
 
-        # Performance optimization: batch logging
+        # Performance optimization: batch logging and caching
         self._stats_update_counter = 0
         self._stats_update_frequency = hypers.stats_update_frequency
         self._debug_log_frequency = hypers.debug_log_frequency
         self._max_bucket_axes = hypers.max_bucket_axes_for_logging
+        self._max_memory_tasks = hypers.max_memory_tasks
+        self._cleanup_batch_size = hypers.cleanup_batch_size
         self._cached_stats = {}
         self._last_stats_update = 0
 
         # Track which buckets we're actually monitoring
         self._monitored_buckets: set = set()
+
+        # Task creation timestamp tracking for cleanup
+        self._task_creation_order = deque()  # (timestamp, task_id) pairs
 
     def set_curriculum_reference(self, curriculum):
         """Set reference to base curriculum for stats updates."""
@@ -143,17 +171,26 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         env_cfg = task_generator.get_task(task_id)
         task = CurriculumTask(task_id, env_cfg)
 
-        # Get an available index from the pool (recycle indices)
+        # Get an available index from the pool (recycle indices) - O(1) operation
         if not self._available_indices:
             # This should never happen if we're properly evicting tasks
             raise RuntimeError("No available indices in search space - pool management error")
 
-        task_index = self._available_indices.pop()
+        task_index = self._available_indices.popleft()  # O(1) with deque
         self._used_indices.add(task_index)
         self._task_id_to_index[task_id] = task_index
+        self._active_task_indices.add(task_index)
 
         # Add to memory for algorithm tracking
+        import time
+
+        current_time = time.time()
         self._task_memory[task_id] = (task_id, "default", 0, 0.0, 0.0, 0.0)
+        self._task_creation_order.append((current_time, task_id))
+
+        # Check if we need memory cleanup
+        if len(self._task_memory) > self._max_memory_tasks:
+            self._cleanup_old_tasks()
 
         # Add to base curriculum's task storage for unified tracking
         if self._curriculum is not None:
@@ -237,18 +274,24 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     # Recycle the index back to available pool
                     if task_index is not None:
                         self._used_indices.discard(task_index)
-                        self._available_indices.add(task_index)
+                        self._available_indices.append(task_index)  # O(1) with deque
+                        self._active_task_indices.discard(task_index)
 
                         # Clear the learning progress data for this index
                         if task_index < len(self._lp_tracker._outcomes):
-                            self._lp_tracker._outcomes[task_index] = []
+                            self._lp_tracker._outcomes[task_index].clear()
                         if task_index < len(self._lp_tracker._task_success_rate):
                             self._lp_tracker._task_success_rate[task_index] = 0.0
 
-                    # Remove bucket tracking for this task
-                    for bucket_name in self._bucket_tracking:
+                    # Remove bucket tracking for this task (only for monitored buckets)
+                    for bucket_name in list(self._bucket_tracking.keys()):
                         if worst_task_id in self._bucket_tracking[bucket_name]:
                             del self._bucket_tracking[bucket_name][worst_task_id]
+
+                    # Remove from creation order tracking
+                    self._task_creation_order = deque(
+                        [(t, tid) for t, tid in self._task_creation_order if tid != worst_task_id]
+                    )
 
                     # Remove from base curriculum's task storage for unified tracking
                     if self._curriculum is not None:
@@ -278,12 +321,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Safety check: ensure task_index is within bounds of _outcomes
         if task_index >= len(self._lp_tracker._outcomes):
-            # This should never happen with proper index recycling
-            logger.error(f"Task index {task_index} out of bounds for outcomes size {len(self._lp_tracker._outcomes)}")
-            logger.error(f"Available indices: {self._available_indices}, Used indices: {self._used_indices}")
+            # This should never happen with proper index recycling - use debug level to avoid hot path performance hit
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    f"Task index {task_index} out of bounds for outcomes size {len(self._lp_tracker._outcomes)}"
+                )
             return
 
         self._lp_tracker._outcomes[task_index].append(score)
+
+        # Update learning progress tracker immediately for accuracy
         self._lp_tracker._update()
 
         # Update LP score in memory
@@ -292,12 +339,106 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             new_lp_score = float(raw_lp_scores[task_index])
             self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, new_lp_score)
 
-        # Update bucket completion density tracking
-        if self._curriculum and task_id in self._curriculum._tasks:
+        # Update bucket completion density tracking (only for monitored buckets)
+        if self._curriculum and task_id in self._curriculum._tasks and len(self._monitored_buckets) > 0:
             self._update_bucket_completion_density(task_id, score)
 
         # Increment stats counter for batching
         self._stats_update_counter += 1
+
+        # Clear cached stats to force recalculation
+        self._cached_stats = {}
+
+    def batch_update_task_performance(self, updates: List[Tuple[int, float]]):
+        """Batch update multiple task performances for better efficiency."""
+        if not updates:
+            return
+
+        # Process all updates without intermediate LP calculations
+        for task_id, score in updates:
+            if task_id not in self._task_memory:
+                continue
+
+            # Update task memory
+            seed, family, sample_count, current_score, recent_score, lp_score = self._task_memory[task_id]
+            self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, lp_score)
+
+            # Update base curriculum's task completion tracking
+            if self._curriculum is not None and task_id in self._curriculum._tasks:
+                task = self._curriculum._tasks[task_id]
+                task._num_completions += 1
+                task._num_scheduled += 1
+
+            # Add to learning progress tracker
+            task_index = self._task_id_to_index.get(task_id, 0)
+            if task_index < len(self._lp_tracker._outcomes):
+                self._lp_tracker._outcomes[task_index].append(score)
+
+        # Single learning progress update for all tasks
+        self._lp_tracker._update()
+        raw_lp_scores = self._lp_tracker._learning_progress()
+
+        # Update all LP scores in memory
+        for task_id, _ in updates:
+            if task_id in self._task_memory:
+                task_index = self._task_id_to_index.get(task_id, 0)
+                if task_index < len(raw_lp_scores):
+                    seed, family, sample_count, current_score, recent_score, _ = self._task_memory[task_id]
+                    new_lp_score = float(raw_lp_scores[task_index])
+                    self._task_memory[task_id] = (seed, family, sample_count, current_score, recent_score, new_lp_score)
+
+        self._stats_update_counter += len(updates)
+
+        # Clear cached stats
+        self._cached_stats = {}
+
+    def _cleanup_old_tasks(self):
+        """Clean up old tasks to prevent memory growth beyond bounds."""
+        if len(self._task_memory) <= self._max_memory_tasks:
+            return
+
+        # Remove oldest tasks in batches
+        tasks_to_remove = min(
+            self._cleanup_batch_size, len(self._task_memory) - self._max_memory_tasks + self._cleanup_batch_size
+        )
+
+        for _ in range(tasks_to_remove):
+            if not self._task_creation_order:
+                break
+
+            _, old_task_id = self._task_creation_order.popleft()
+            if old_task_id in self._task_memory:
+                # Get the index to recycle
+                task_index = self._task_id_to_index.get(old_task_id)
+
+                # Remove from task memory
+                del self._task_memory[old_task_id]
+                if old_task_id in self._task_id_to_index:
+                    del self._task_id_to_index[old_task_id]
+
+                # Recycle the index
+                if task_index is not None:
+                    self._used_indices.discard(task_index)
+                    self._available_indices.append(task_index)
+                    self._active_task_indices.discard(task_index)
+
+                    # Clear learning progress data
+                    if task_index < len(self._lp_tracker._outcomes):
+                        self._lp_tracker._outcomes[task_index].clear()
+                    if task_index < len(self._lp_tracker._task_success_rate):
+                        self._lp_tracker._task_success_rate[task_index] = 0.0
+
+                # Remove bucket tracking
+                for bucket_name in list(self._bucket_tracking.keys()):
+                    if old_task_id in self._bucket_tracking[bucket_name]:
+                        del self._bucket_tracking[bucket_name][old_task_id]
+
+                # Remove from base curriculum
+                if self._curriculum is not None:
+                    if old_task_id in self._curriculum._tasks:
+                        del self._curriculum._tasks[old_task_id]
+                    if old_task_id in self._curriculum._task_ids:
+                        self._curriculum._task_ids.discard(old_task_id)
 
     # Helper methods for task management
     def _generate_task_id(self, rng) -> int:
@@ -382,20 +523,47 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         return validation
 
     # Statistics and logging methods
+    def _get_cached_bucket_stats(self) -> Dict[str, float]:
+        """Get cached bucket statistics to avoid expensive recalculation."""
+        bucket_stats = {}
+
+        # Only calculate bucket stats if we have monitored buckets and detailed logging is enabled
+        if self.hypers.enable_detailed_bucket_logging and self._monitored_buckets:
+            for bucket_name in list(self._monitored_buckets)[: self._max_bucket_axes]:
+                if bucket_name in self._bucket_completion_counts:
+                    completion_counts = self._bucket_completion_counts[bucket_name]
+                    total_completions = sum(completion_counts.values())
+
+                    if total_completions > 0:
+                        bucket_stats[f"bucket/{bucket_name}/total_completions"] = float(total_completions)
+                        bucket_stats[f"bucket/{bucket_name}/num_bins"] = float(len(completion_counts))
+
+                        if self._bucket_completion_history[bucket_name]:
+                            recent_density = self._bucket_completion_history[bucket_name][-1]
+                            bucket_stats[f"bucket/{bucket_name}/recent_density"] = float(recent_density)
+
+        return bucket_stats
+
     def stats(self) -> dict[str, float]:
         """Return unified statistics for the pool including bucket completion density."""
         stats = {}
 
-        # Add learning progress stats if enabled
+        # Add learning progress stats if enabled (use pre-computed keys)
         if self.hypers.enable_learning_progress_logging:
             base_stats = self._lp_tracker.add_stats()
             stats.update(base_stats)
 
-        # Add index management validation stats
-        validation_stats = self._validate_index_management()
-        for key, value in validation_stats.items():
-            if isinstance(value, (int, float)):
-                stats[f"index_management/{key}"] = float(value)
+        # Add essential memory and performance stats (always included)
+        stats["memory/task_pool_size"] = float(len(self._task_memory))
+        stats["memory/active_indices"] = float(len(self._active_task_indices))
+        stats["memory/available_indices"] = float(len(self._available_indices))
+        stats["performance/stats_update_frequency"] = float(self._stats_update_frequency)
+
+        # Add cached bucket stats if enabled
+        if self.hypers.enable_detailed_bucket_logging:
+            if "bucket_stats" not in self._cached_stats:
+                self._cached_stats["bucket_stats"] = self._get_cached_bucket_stats()
+            stats.update(self._cached_stats["bucket_stats"])
 
         # Add completion density validation stats
         density_validation = self._validate_completion_densities()
@@ -890,9 +1058,10 @@ class BidirectionalLearningProgress:
         self._rand_task_rate = rand_task_rate
         self._sample_threshold = sample_threshold
         self._memory = int(memory)
+        # Use deques with maxlen for bounded memory and better performance
         self._outcomes = {}
         for i in range(max_num_levels):
-            self._outcomes[i] = []
+            self._outcomes[i] = deque(maxlen=self._memory)
         self._p_fast = None
         self._p_slow = None
         self._p_true = None
@@ -941,51 +1110,78 @@ class BidirectionalLearningProgress:
         # Calculate learning progress for each task individually based on their outcome sequences
         task_lp_scores = np.zeros(self._num_tasks)
 
-        for task_id in range(self._num_tasks):
-            outcomes = self._outcomes[task_id]
-            if len(outcomes) < 2:
-                task_lp_scores[task_id] = 0.0
-                continue
+        # Use active task indices instead of scanning all tasks - O(k) instead of O(n)
+        # Get reference to the main algorithm to access active indices
+        main_algorithm = getattr(self, "_main_algorithm", None)
+        if main_algorithm and hasattr(main_algorithm, "_active_task_indices"):
+            # Use only active indices for efficiency
+            for task_index in main_algorithm._active_task_indices:
+                if task_index >= self._num_tasks:
+                    continue
+                outcomes = self._outcomes[task_index]
+                if len(outcomes) < 2:
+                    task_lp_scores[task_index] = 0.0
+                    continue
 
-            # Convert outcomes to numpy array
-            outcomes_array = np.array(outcomes)
+                # Convert outcomes to numpy array
+                outcomes_array = np.array(outcomes)
+                self._update_task_lp_score(task_index, outcomes_array, task_lp_scores)
+        else:
+            # Fallback to original method for compatibility
+            for task_id in range(self._num_tasks):
+                outcomes = self._outcomes[task_id]
+                if len(outcomes) < 2:
+                    task_lp_scores[task_id] = 0.0
+                    continue
 
-            # Calculate fast and slow EMAs for this task's outcome sequence
-            if self._p_fast is None:
-                # Initialize EMAs
-                self._p_fast = np.zeros(self._num_tasks)
-                self._p_slow = np.zeros(self._num_tasks)
-                self._p_true = np.zeros(self._num_tasks)
+                # Convert outcomes to numpy array
+                outcomes_array = np.array(outcomes)
+                self._update_task_lp_score(task_id, outcomes_array, task_lp_scores)
 
-                # Initialize with current outcome
-                self._p_fast[task_id] = outcomes_array[-1]
-                self._p_slow[task_id] = outcomes_array[-1]
-                self._p_true[task_id] = outcomes_array[-1]
-            else:
-                # Update EMAs for this task
-                current_outcome = outcomes_array[-1]
-                self._p_fast[task_id] = (current_outcome * self._ema_timescale) + (
-                    self._p_fast[task_id] * (1.0 - self._ema_timescale)
-                )
-                # Use a slower timescale for the slow EMA (e.g., 10x slower)
-                slow_timescale = self._ema_timescale * 0.1
-                self._p_slow[task_id] = (current_outcome * slow_timescale) + (
-                    self._p_slow[task_id] * (1.0 - slow_timescale)
-                )
-                self._p_true[task_id] = (current_outcome * self._ema_timescale) + (
-                    self._p_true[task_id] * (1.0 - self._ema_timescale)
-                )
+    def _update_task_lp_score(self, task_index: int, outcomes_array: np.ndarray, task_lp_scores: np.ndarray):
+        """Update learning progress score for a single task."""
+        # Calculate fast and slow EMAs for this task's outcome sequence
+        if self._p_fast is None or self._p_slow is None or self._p_true is None:
+            # Initialize EMAs
+            self._p_fast = np.zeros(self._num_tasks, dtype=np.float32)
+            self._p_slow = np.zeros(self._num_tasks, dtype=np.float32)
+            self._p_true = np.zeros(self._num_tasks, dtype=np.float32)
 
-            # Calculate learning progress as the absolute difference between fast and slow EMAs
-            task_lp_scores[task_id] = abs(self._p_fast[task_id] - self._p_slow[task_id])
+            # Initialize with current outcome
+            self._p_fast[task_index] = outcomes_array[-1]
+            self._p_slow[task_index] = outcomes_array[-1]
+            self._p_true[task_index] = outcomes_array[-1]
+        else:
+            # Update EMAs for this task
+            current_outcome = outcomes_array[-1]
+            self._p_fast[task_index] = (current_outcome * self._ema_timescale) + (
+                self._p_fast[task_index] * (1.0 - self._ema_timescale)
+            )
+            # Use a slower timescale for the slow EMA (e.g., 10x slower)
+            slow_timescale = self._ema_timescale * 0.1
+            self._p_slow[task_index] = (current_outcome * slow_timescale) + (
+                self._p_slow[task_index] * (1.0 - slow_timescale)
+            )
+            self._p_true[task_index] = (current_outcome * self._ema_timescale) + (
+                self._p_true[task_index] * (1.0 - self._ema_timescale)
+            )
 
-        # Update task success rates for statistics
-        task_success_rates = np.array(
-            [
-                np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
-                for i in range(self._num_tasks)
-            ]
-        )
+        # Calculate learning progress as the absolute difference between fast and slow EMAs
+        task_lp_scores[task_index] = abs(self._p_fast[task_index] - self._p_slow[task_index])
+
+        # Update task success rates for statistics (optimized version)
+        task_success_rates = np.full(self._num_tasks, DEFAULT_SUCCESS_RATE, dtype=np.float32)
+
+        # Only update success rates for active tasks to improve performance
+        if hasattr(self, "_active_task_indices"):
+            for task_index in self._active_task_indices:
+                if task_index < self._num_tasks and len(self._outcomes[task_index]) > 0:
+                    task_success_rates[task_index] = np.mean(self._outcomes[task_index])
+        else:
+            # Fallback for compatibility
+            for i in range(self._num_tasks):
+                if len(self._outcomes[i]) > 0:
+                    task_success_rates[i] = np.mean(self._outcomes[i])
         task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
 
         # Update statistics
