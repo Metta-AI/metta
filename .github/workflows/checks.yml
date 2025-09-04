@@ -325,8 +325,9 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           SUBPACKAGES: "agent common app_backend mettagrid codebot core"
         run: |
+          # We want to set flags per file so the codecov action is not convenient
+          # If we change to a matrix of runners we should delete the script
           chmod +x .github/scripts/upload_codecov.py
-          # Upload all coverage files
           .github/scripts/upload_codecov.py
 
   unit-tests-summary:
