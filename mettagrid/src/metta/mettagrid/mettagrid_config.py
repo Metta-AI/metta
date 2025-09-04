@@ -157,10 +157,7 @@ class GameConfig(Config):
     obs_height: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
     num_observation_tokens: int = Field(ge=1, default=200)
     agent: AgentConfig = Field(default_factory=AgentConfig)
-    # Direct agent configuration list
-    agents: list[AgentConfig] = Field(
-        default_factory=list, description="Direct agent configuration list."
-    )
+    agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)
