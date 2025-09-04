@@ -49,6 +49,9 @@ def get_value(key: str):
     value = config
 
     for part in parts:
+        if value is None:
+            print(f"Error: Key '{key}' not found (null reference in path)", file=sys.stderr)
+            sys.exit(1)
         if hasattr(value, part):
             value = getattr(value, part)
         else:
