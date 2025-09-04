@@ -4,6 +4,7 @@ import json
 import statistics
 import subprocess
 import time
+import uuid
 from datetime import datetime
 from typing import List
 
@@ -18,6 +19,8 @@ RUN_BENCHMARK = "true"
 
 
 def trigger_workflow(branch: str) -> str:
+    run_id = str(uuid.uuid4())[:8]
+    print(f"🚀 Triggering workflow on branch: {branch} (run_id={run_id})")
     result = subprocess.run(
         [
             "gh",
@@ -32,6 +35,8 @@ def trigger_workflow(branch: str) -> str:
             f"run_test={RUN_TEST}",
             "-f",
             f"run_benchmark={RUN_BENCHMARK}",
+            "-f",
+            f"run_id={run_id}",
         ],
         capture_output=True,
         text=True,
