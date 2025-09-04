@@ -65,10 +65,8 @@ def make_mettagrid(num_agents: int = 4) -> MettaGridConfig:
 def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
     nav_env = nav_env or make_mettagrid()
 
-    # make a set of training tasks for navigation
     nav_tasks = cc.bucketed(nav_env)
 
-    # dense reward tasks
     dense_tasks = cc.bucketed(nav_env)
     dense_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.5, 1.0])
     dense_tasks.add_bucket("game.agent.rewards.inventory.heart_max", [1, 2])
@@ -95,7 +93,6 @@ def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConf
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    # Use the updated to_curriculum method that defaults to learning progress
     return nav_tasks.to_curriculum()
 
 

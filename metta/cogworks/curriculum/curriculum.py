@@ -69,7 +69,6 @@ class CurriculumAlgorithmConfig(Config, ABC):
         Returns:
             Configured curriculum algorithm instance
         """
-        # The default implementation is to use DiscreteRandomCurriculum
         return DiscreteRandomCurriculum(num_tasks, self)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -107,10 +106,7 @@ class CurriculumAlgorithm(ABC):
         if self.probabilities is not None:
             return np.random.choice(len(self.probabilities), p=self.probabilities)
         else:
-            # Fallback to uniform random if no probabilities available
             return np.random.choice(self.num_tasks)
-
-    # Subclass methods to override
 
     def __init__(
         self, num_tasks: int, hypers: Optional[CurriculumAlgorithmConfig] = None, initialize_weights: bool = True
@@ -148,21 +144,14 @@ class CurriculumAlgorithm(ABC):
     def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
         """Get a task from the pool. Default implementation creates a simple task."""
 
-        # Generate a task ID
         task_id = rng.randint(0, 1000000)
-
-        # Get environment configuration
         env_cfg = task_generator.get_task(task_id)
-
-        # Create and return task
         return CurriculumTask(task_id, env_cfg)
 
     @abc.abstractmethod
     def update_task_performance(self, task_id: int, score: float):
         """Update task performance. Override in subclasses that track performance."""
         pass
-
-    # Helper methods
 
     def _update_probabilities(self):
         """Update the probability distribution based on current weights."""
@@ -189,8 +178,7 @@ class DiscreteRandomConfig(CurriculumAlgorithmConfig):
 class DiscreteRandomCurriculum(CurriculumAlgorithm):
     """Curriculum algorithm that samples from a discrete distribution of weights.
 
-    Already implemented by CurriculumAlgorithm base class - this just provides
-    a named class for the simplest case where weights don't change based on
+    A named class for the simplest case where weights don't change based on
     task performance.
     """
 
@@ -210,7 +198,6 @@ class CurriculumConfig(Config):
     num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
     new_task_rate: float = Field(default=0.01, ge=0, le=1.0, description="Rate of new tasks to generate")
 
-    # Algorithm configuration
     algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
         default=None, description="Curriculum algorithm hyperparameters"
     )
@@ -232,7 +219,6 @@ class CurriculumConfig(Config):
         """Validate configuration after initialization."""
         super().model_post_init(__context)
 
-        # Validate that num_active_tasks doesn't exceed max_task_id
         if self.num_active_tasks > self.max_task_id:
             raise ValueError(
                 f"num_active_tasks ({self.num_active_tasks}) cannot exceed max_task_id ({self.max_task_id})"
@@ -260,7 +246,6 @@ class Curriculum:
         self._num_created = 0
         self._num_evicted = 0
 
-        # Initialize curriculum algorithm if provided
         self._algorithm: Optional[CurriculumAlgorithm] = None
         if config.algorithm_config is not None:
             self._algorithm = config.algorithm_config.create(config.num_active_tasks)

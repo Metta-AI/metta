@@ -8,7 +8,6 @@ arena = eb.make_arena(num_agents=24)
 # disable swap
 arena.game.actions.swap.enabled = False
 
-# make a set of training tasks for the arena
 arena_tasks = cc.bucketed(arena)
 
 # arena_tasks.add_bucket("game.level_map.num_agents", [1, 2, 3, 4, 6, 24])

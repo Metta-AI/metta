@@ -121,7 +121,7 @@ class TestNewPolicySystem:
     def test_recipe_system_integration(self):
         """Test that recipes work with the new policy system."""
         try:
-            train_tool = train(run="test_run")
+            train_tool = train()
             assert hasattr(train_tool, "trainer")
 
             # Use a mock policy URI for testing evaluate function

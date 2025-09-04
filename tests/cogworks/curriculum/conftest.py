@@ -65,7 +65,6 @@ def production_navigation_curriculum(navigation_env):
     """Create a production-like navigation curriculum similar to navigation.py."""
     nav_tasks = cc.bucketed(navigation_env)
 
-    # Dense reward tasks
     dense_tasks = cc.bucketed(navigation_env)
     dense_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.5, 1.0])
     dense_tasks.add_bucket("game.agent.rewards.inventory.heart_max", [1, 2])

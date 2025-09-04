@@ -11,7 +11,6 @@ class TestTaskGenerationWorkflows:
 
     def test_arena_task_generation_workflow(self, arena_env):
         """Test the arena task generation workflow."""
-        # Create arena tasks like in production
         arena_tasks = cc.bucketed(arena_env)
 
         # Add various bucket types like in production
@@ -27,22 +26,18 @@ class TestTaskGenerationWorkflows:
         # Convert to curriculum
         curriculum = arena_tasks.to_curriculum()
 
-        # Verify curriculum was created correctly
         assert isinstance(curriculum, CurriculumConfig)
         assert curriculum.task_generator is arena_tasks
 
-        # Test that curriculum can be instantiated
         curriculum_instance = curriculum.make()
         assert curriculum_instance is not None
 
-        # Test that tasks can be generated
         task = curriculum_instance.get_task()
         assert task is not None
         assert task.get_env_cfg() is not None
 
     def test_navigation_task_generation_workflow(self, navigation_env):
         """Test the navigation task generation workflow."""
-        # Create navigation tasks like in production
         navigation_tasks = cc.bucketed(navigation_env)
         navigation_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.5, 1.0])
         navigation_tasks.add_bucket("game.agent.rewards.inventory.heart_max", [1, 2])
@@ -61,22 +56,18 @@ class TestTaskGenerationWorkflows:
         # Convert to curriculum
         curriculum = navigation_tasks.to_curriculum()
 
-        # Verify curriculum was created correctly
         assert isinstance(curriculum, CurriculumConfig)
         assert curriculum.task_generator is navigation_tasks
 
-        # Test that curriculum can be instantiated
         curriculum_instance = curriculum.make()
         assert curriculum_instance is not None
 
-        # Test that tasks can be generated
         task = curriculum_instance.get_task()
         assert task is not None
         assert task.get_env_cfg() is not None
 
     def test_task_merging_workflows(self, arena_env):
         """Test task merging workflows used in production."""
-        # Create multiple task generators
         tasks1 = cc.bucketed(arena_env)
         tasks1.add_bucket("game.map_builder.width", [10, 20])
 
@@ -92,27 +83,22 @@ class TestTaskGenerationWorkflows:
         # Convert to curriculum
         curriculum = merged_tasks.to_curriculum()
 
-        # Verify curriculum was created correctly
         assert isinstance(curriculum, CurriculumConfig)
         assert curriculum.task_generator is merged_tasks
 
-        # Test that curriculum can be instantiated
         curriculum_instance = curriculum.make()
         assert curriculum_instance is not None
 
-        # Test that tasks can be generated
         task = curriculum_instance.get_task()
         assert task is not None
         assert task.get_env_cfg() is not None
 
     def test_custom_algorithm_configuration(self, arena_env):
         """Test custom algorithm configuration in task generation."""
-        # Create bucketed tasks
         arena_tasks = cc.bucketed(arena_env)
         arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30])
         arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30])
 
-        # Create custom learning progress config
         lp_config = LearningProgressConfig(
             ema_timescale=0.01,
             pool_size=20,
@@ -121,23 +107,19 @@ class TestTaskGenerationWorkflows:
             exploration_bonus=0.15,
         )
 
-        # Create curriculum with custom algorithm
         curriculum = CurriculumConfig(
             task_generator=arena_tasks,
             num_active_tasks=10,
             algorithm_config=lp_config,
         )
 
-        # Verify curriculum was created correctly
         assert isinstance(curriculum, CurriculumConfig)
         assert curriculum.algorithm_config is lp_config
 
-        # Test that curriculum can be instantiated
         curriculum_instance = curriculum.make()
         assert curriculum_instance is not None
         assert curriculum_instance._algorithm is not None
 
-        # Test that tasks can be generated
         task = curriculum_instance.get_task()
         assert task is not None
         assert task.get_env_cfg() is not None
@@ -194,7 +176,6 @@ class TestProductionWorkflows:
 
     def test_task_reuse_workflow(self, production_curriculum_config):
         """Test that curriculum properly reuses tasks when at capacity."""
-        # Create curriculum with small capacity
         config = production_curriculum_config.model_copy()
         config.num_active_tasks = 3
         curriculum = config.make()
@@ -259,7 +240,6 @@ class TestTaskGenerationIntegration:
 
     def test_curriculum_config_validation(self, arena_env):
         """Test that curriculum config validation works with task generators."""
-        # Create bucketed tasks
         arena_tasks = cc.bucketed(arena_env)
         arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30])
         arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30])
@@ -267,44 +247,36 @@ class TestTaskGenerationIntegration:
         # Convert to curriculum
         curriculum = arena_tasks.to_curriculum()
 
-        # Verify curriculum was created correctly
         assert isinstance(curriculum, CurriculumConfig)
         assert curriculum.task_generator is arena_tasks
 
-        # Test that curriculum can be instantiated
         curriculum_instance = curriculum.make()
         assert curriculum_instance is not None
 
-        # Test that tasks can be generated
         task = curriculum_instance.get_task()
         assert task is not None
         assert task.get_env_cfg() is not None
 
     def test_curriculum_backward_compatibility(self, arena_env):
         """Test that curriculum maintains backward compatibility."""
-        # Create simple bucketed tasks
         arena_tasks = cc.bucketed(arena_env)
         arena_tasks.add_bucket("game.map_builder.width", [10, 20])
 
         # Convert to curriculum
         curriculum = arena_tasks.to_curriculum()
 
-        # Verify curriculum was created correctly
         assert isinstance(curriculum, CurriculumConfig)
         assert curriculum.task_generator is arena_tasks
 
-        # Test that curriculum can be instantiated
         curriculum_instance = curriculum.make()
         assert curriculum_instance is not None
 
-        # Test that tasks can be generated
         task = curriculum_instance.get_task()
         assert task is not None
         assert task.get_env_cfg() is not None
 
     def test_curriculum_serialization_roundtrip(self, arena_env):
         """Test that curriculum can be serialized and deserialized."""
-        # Create bucketed tasks
         arena_tasks = cc.bucketed(arena_env)
         arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30])
         arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30])
@@ -321,11 +293,9 @@ class TestTaskGenerationIntegration:
         # Verify they're equivalent
         assert deserialized_curriculum.model_dump() == curriculum.model_dump()
 
-        # Test that deserialized curriculum can be instantiated
         curriculum_instance = deserialized_curriculum.make()
         assert curriculum_instance is not None
 
-        # Test that tasks can be generated
         task = curriculum_instance.get_task()
         assert task is not None
         assert task.get_env_cfg() is not None

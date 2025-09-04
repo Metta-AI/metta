@@ -46,7 +46,6 @@ class TestLearningProgressCoreBehavior:
         lp_score_1 = algorithm._get_task_lp_score(task1_id)
         lp_score_2 = algorithm._get_task_lp_score(task2_id)
 
-        # Test that fast learning has higher LP score
         assert lp_score_1 > lp_score_2, (
             f"Fast learning should have higher LP score. Fast: {lp_score_1}, Slow: {lp_score_2}"
         )
@@ -83,7 +82,6 @@ class TestLearningProgressCoreBehavior:
         lp_score_1 = algorithm._get_task_lp_score(task1_id)
         lp_score_2 = algorithm._get_task_lp_score(task2_id)
 
-        # Test that changing performance has higher LP score
         assert lp_score_2 > lp_score_1, (
             f"Changing performance should have higher LP score. Changing: {lp_score_2}, Consistent: {lp_score_1}"
         )
@@ -115,7 +113,6 @@ class TestLearningProgressCoreBehavior:
         # Use helper to setup learning patterns - REDUCED from 20 to 5 iterations
         CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=5)
 
-        # Test that sampling favors higher LP scores
         num_samples = 100
         samples = []
         for _ in range(num_samples):
@@ -152,7 +149,6 @@ class TestLearningProgressCoreBehavior:
             for i in range(5):  # REDUCED from 20 to 5
                 algorithm.update_task_performance(task._task_id, 0.5 + 0.1 * i)
 
-        # Test pool size management
         assert len(algorithm._task_memory) <= config.pool_size, "Pool should not exceed max size"
 
     def test_learning_progress_ema_smoothing(self, random_seed):
@@ -223,7 +219,6 @@ class TestLearningProgressCoreBehavior:
             for i in range(8):  # REDUCED from 20 to 8
                 algorithm.update_task_performance(task._task_id, 0.5 + 0.1 * i)
 
-        # Test that exploration bonus affects sampling
         samples = []
         for _ in range(10):
             sampled_task_id = algorithm._choose_task()
@@ -260,7 +255,6 @@ class TestLearningProgressProductionPatterns:
             performance = 0.3 + 0.1 * episode  # Improving performance
             algorithm.update_task_performance(task._task_id, performance)
 
-        # Test that algorithm maintains reasonable pool size
         assert len(algorithm._task_memory) <= config.pool_size, "Pool should respect max size"
         assert len(algorithm._task_memory) > 0, "Pool should have some tasks"
 
@@ -286,7 +280,6 @@ class TestLearningProgressProductionPatterns:
             performance = 0.4 + 0.05 * episode
             algorithm.update_task_performance(task._task_id, performance)
 
-        # Test pool management
         assert len(algorithm._task_memory) <= config.pool_size, "Pool should respect max size"
 
     def test_learning_progress_algorithm_configuration(self, random_seed):
@@ -311,7 +304,6 @@ class TestLearningProgressProductionPatterns:
             rng = random.Random(random_seed)
             task_generator = MockTaskGenerator()
 
-            # Test basic functionality
             task = algorithm.get_task_from_pool(task_generator, rng)
             algorithm.update_task_performance(task._task_id, 0.5)
 
@@ -332,12 +324,10 @@ class TestLearningProgressProductionPatterns:
         rng = random.Random(random_seed)
         task_generator = MockTaskGenerator()
 
-        # Test with minimal pool
         for _ in range(3):
             task = algorithm.get_task_from_pool(task_generator, rng)
             algorithm.update_task_performance(task._task_id, 0.5)
 
-        # Test pool behavior at capacity
         assert len(algorithm._task_memory) <= config.pool_size, "Pool should respect max size"
 
     def test_learning_progress_performance_tracking(self, random_seed):
@@ -360,7 +350,6 @@ class TestLearningProgressProductionPatterns:
             for i in range(3):
                 algorithm.update_task_performance(task._task_id, 0.3 + 0.1 * i)
 
-        # Test performance tracking
         for task_id in algorithm._task_memory:
             lp_score = algorithm._get_task_lp_score(task_id)
             assert lp_score >= 0, "LP score should be non-negative"
@@ -383,7 +372,6 @@ class TestLearningProgressProductionPatterns:
             task = algorithm.get_task_from_pool(task_generator, rng)
             algorithm.update_task_performance(task._task_id, 0.5)
 
-        # Test sampling distribution
         samples = []
         for _ in range(10):
             sampled_task_id = algorithm._choose_task()
@@ -412,7 +400,6 @@ class TestLearningProgressIntegration:
             algorithm_config=algorithm_config,
         )
 
-        # Test that curriculum can be created
         curriculum = curriculum_config.make()
         assert curriculum._algorithm is not None, "Curriculum should have algorithm"
         assert isinstance(curriculum._algorithm, LearningProgressAlgorithm), "Should be LearningProgressAlgorithm"
@@ -434,26 +421,22 @@ class TestLearningProgressIntegration:
 
         curriculum = curriculum_config.make()
 
-        # Test workflow
         for _ in range(3):
             task = curriculum.get_task()
             # Simulate task completion
             curriculum.update_task_performance(task._task_id, 0.5)
 
-        # Test that algorithm is working
         assert curriculum._algorithm is not None, "Algorithm should be present"
         assert len(curriculum._algorithm._task_memory) > 0, "Algorithm should have tasks in pool"
 
     def test_learning_progress_backward_compatibility(self, random_seed):
         """Test that learning progress algorithm maintains backward compatibility."""
-        # Test with minimal configuration
         config = LearningProgressConfig()
         algorithm = LearningProgressAlgorithm(num_tasks=5, hypers=config)
 
         rng = random.Random(random_seed)
         task_generator = MockTaskGenerator()
 
-        # Test basic functionality
         task = algorithm.get_task_from_pool(task_generator, rng)
         algorithm.update_task_performance(task._task_id, 0.5)
 
@@ -463,7 +446,6 @@ class TestLearningProgressIntegration:
 
     def test_learning_progress_forward_compatibility(self, random_seed):
         """Test that learning progress algorithm supports future configuration options."""
-        # Test with extended configuration
         config = LearningProgressConfig(
             ema_timescale=0.001,
             pool_size=8,
@@ -476,7 +458,6 @@ class TestLearningProgressIntegration:
         rng = random.Random(random_seed)
         task_generator = MockTaskGenerator()
 
-        # Test extended functionality
         task = algorithm.get_task_from_pool(task_generator, rng)
         algorithm.update_task_performance(task._task_id, 0.5)
 
