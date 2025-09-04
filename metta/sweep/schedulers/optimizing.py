@@ -62,7 +62,7 @@ class OptimizingScheduler:
                 args=self.config.eval_args or [],
                 overrides=eval_overrides,
                 metadata={
-                    "policy_uri": f"wandb://run/{train_run.run_id}",  # Pass policy URI as metadata
+                    "policy_uri": f"wandb://metta/{train_run.run_id}",  # Pass policy URI as metadata
                 },
             )
             # Extract just the trial portion for cleaner display
