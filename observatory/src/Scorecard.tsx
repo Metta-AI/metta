@@ -57,7 +57,6 @@ const SUITE_TABS_CSS = `
 }
 `
 
-
 const wandb_url = (policyName: string) => {
   const entity = METTA_WANDB_ENTITY
   const project = METTA_WANDB_PROJECT
@@ -99,7 +98,7 @@ export function Scorecard({
       if (!envNames) {
         throw new Error(`No environment names found for category: ${category}`)
       }
-      
+
       const sortedEnvNames = envNames.sort()
       for (const envName of sortedEnvNames) {
         const fullEvalName = reconstructEvalName(category, envName)
