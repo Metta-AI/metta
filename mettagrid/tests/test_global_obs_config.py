@@ -60,9 +60,10 @@ def test_all_global_tokens_enabled():
     env = create_test_env(global_obs)
     obs, _ = env.reset()
 
-    # Feature IDs from constants.hpp:
-    # EpisodeCompletionPct = 8, LastAction = 9, LastActionArg = 10, LastReward = 11
-    expected_features = {8, 9, 10, 11}
+    expected_features = {
+        env.feature_spec()[feature_name]["id"]
+        for feature_name in ["episode_completion_pct", "last_action", "last_action_arg", "last_reward"]
+    }
     global_token_count = count_global_features(obs, expected_features)
 
     # Each agent should have 4 global tokens
@@ -76,8 +77,9 @@ def test_episode_completion_disabled():
     env = create_test_env(global_obs)
     obs, _ = env.reset()
 
-    # Should have last_action, last_action_arg, last_reward
-    expected_features = {9, 10, 11}
+    expected_features = {
+        env.feature_spec()[feature_name]["id"] for feature_name in ["last_action", "last_action_arg", "last_reward"]
+    }
     global_token_count = count_global_features(obs, expected_features)
 
     # Each agent should have 3 global tokens
@@ -91,8 +93,9 @@ def test_last_action_disabled():
     env = create_test_env(global_obs)
     obs, _ = env.reset()
 
-    # Should have episode_pct and last_reward
-    expected_features = {8, 11}
+    expected_features = {
+        env.feature_spec()[feature_name]["id"] for feature_name in ["episode_completion_pct", "last_reward"]
+    }
     global_token_count = count_global_features(obs, expected_features)
 
     # Each agent should have 2 global tokens
@@ -107,8 +110,11 @@ def test_all_global_tokens_disabled():
     obs, _ = env.reset()
 
     # Should have no global tokens
-    expected_features = {8, 9, 10, 11}
-    global_token_count = count_global_features(obs, expected_features)
+    unexpected_features = {
+        env.feature_spec()[feature_name]["id"]
+        for feature_name in ["episode_completion_pct", "last_action", "last_action_arg", "last_reward"]
+    }
+    global_token_count = count_global_features(obs, unexpected_features)
 
     # No global tokens should be present
     assert global_token_count == 0
@@ -143,7 +149,10 @@ def test_global_obs_default_values():
     obs, _ = env.reset()
 
     # Should have all 4 global tokens by default
-    expected_features = {8, 9, 10, 11}
+    expected_features = {
+        env.feature_spec()[feature_name]["id"]
+        for feature_name in ["episode_completion_pct", "last_action", "last_action_arg", "last_reward"]
+    }
     global_token_count = count_global_features(obs, expected_features)
 
     assert global_token_count == 4
