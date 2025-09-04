@@ -8,7 +8,6 @@ from pathlib import Path
 
 import yaml
 
-from metta.common.config.tool import Tool
 from metta.mettagrid.mapgen.scene import SceneConfig
 from metta.mettagrid.mapgen.utils.make_scene_config import (
     make_convchain_config_from_pattern,
@@ -120,6 +119,5 @@ def generate_scenes_from_dcss_maps():
         pool.map(process_map_entry, maps)
 
 
-class DCSSImportTool(Tool):
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        generate_scenes_from_dcss_maps()
+if __name__ == "__main__":
+    generate_scenes_from_dcss_maps()

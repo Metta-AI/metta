@@ -4,7 +4,7 @@ from typing import Generator
 
 import pytest
 
-from metta.common.profiling.system_monitor import SystemMonitor
+from metta.mettagrid.profiling.system_monitor import SystemMonitor
 
 
 @pytest.fixture

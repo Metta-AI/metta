@@ -12,12 +12,12 @@ import wandb
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
-from metta.common.profiling.memory_monitor import MemoryMonitor
-from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.profiling.system_monitor import SystemMonitor
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
+from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
+from metta.mettagrid.profiling.stopwatch import Stopwatch
+from metta.mettagrid.profiling.system_monitor import SystemMonitor
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html

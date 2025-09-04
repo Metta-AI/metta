@@ -1,7 +1,7 @@
 import numpy as np
 
-from metta.common.config import Config
 from metta.mettagrid.char_encoder import char_to_grid_object
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
 from metta.mettagrid.mapgen.utils.ascii_grid import char_grid_to_lines
 
