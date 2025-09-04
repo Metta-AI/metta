@@ -1,6 +1,5 @@
 #!/usr/bin/env -S uv run
 import os
-import subprocess
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -92,21 +91,6 @@ def setup_path(force: bool = False) -> None:
         info("  source ~/.bashrc")
 
 
-def check_installation() -> bool:
-    existing = _check_existing_metta()
-    if existing != "ours":
-        return False
-    try:
-        result = subprocess.run(["which", "metta"], capture_output=True, text=True)
-        if result.returncode == 0:
-            found_path = Path(result.stdout.strip())
-            return found_path.resolve() == wrapper_script.resolve()
-    except Exception:
-        pass
-
-    return False
-
-
 @app.command(name="setup")
 def cmd_setup(force: Annotated[bool, typer.Option("--force", help="Replace existing metta command")] = False):
     """Create symlink to make metta command globally available."""
@@ -115,11 +99,14 @@ def cmd_setup(force: Annotated[bool, typer.Option("--force", help="Replace exist
 
 @app.command(name="check")
 def cmd_check():
-    """Check if metta command is properly installed."""
-    if check_installation():
+    status = _check_existing_metta()
+    if status == "ours":
         success("metta command is properly installed")
+    elif status == "other":
+        warning("metta command is installed from a different checkout")
+        info("Run 'metta symlink-setup setup --force' to reinstall from this checkout")
     else:
-        warning("metta command is not installed or not pointing to the correct location")
+        warning("metta command is not installed")
         info("Run 'metta symlink-setup setup' to install")
 
 
