@@ -1,5 +1,5 @@
 import
-  std/[strformat],
+  std/[strformat, tables],
   boxy, vmath, windy, chroma,
   common, panels, tribal, actions, utils
 
@@ -16,6 +16,13 @@ proc agentColor*(id: int): Color =
     f * sqrt(2.0) mod 1.0,
     1.0
   )
+
+proc altarColor*(pos: IVec2): Color =
+  ## Get the color for an altar based on its village association
+  if altarColors.hasKey(pos):
+    return altarColors[pos]
+  # Fallback to white if no color assigned
+  return color(1.0, 1.0, 1.0, 1.0)
 
 proc generateVillageColor*(villageId: int): Color =
   ## Generate a distinct color for a village
@@ -173,7 +180,8 @@ proc drawObjects*() =
             "objects/altar",
             ivec2(x, y).vec2,
             angle = 0,
-            scale = 1/200
+            scale = 1/200,
+            tint = altarColor(ivec2(x, y))
           )
         of Generator:
           bxy.drawImage(

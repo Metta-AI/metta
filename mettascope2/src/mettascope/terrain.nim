@@ -137,7 +137,7 @@ proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBord
       
       # Prefer locations near water, but accept any after some attempts
       if nearWater or attempt > 10:
-        let fieldSize = r.rand(5..20)  # Each field has 5-20 wheat tiles
+        let fieldSize = r.rand(3..10)  # Each field has 5-20 wheat tiles
         createWheatField(terrain, x, y, fieldSize, mapWidth, mapHeight, r)
         placed = true
         break
@@ -146,7 +146,7 @@ proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBord
     if not placed:
       let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
       let y = r.rand(mapBorder + 3 .. mapHeight - mapBorder - 3)
-      let fieldSize = r.rand(5..20)
+      let fieldSize = r.rand(3..10)
       createWheatField(terrain, x, y, fieldSize, mapWidth, mapHeight, r)
 
 proc generateTrees*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
@@ -156,7 +156,7 @@ proc generateTrees*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
   for i in 0 ..< numGroves:
     let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
     let y = r.rand(mapBorder + 3 .. mapHeight - mapBorder - 3)
-    let groveSize = r.rand(5..20)  # Each grove has 5-20 trees
+    let groveSize = r.rand(3..10)  # Each grove has 3-10 trees
     createTreeGrove(terrain, x, y, groveSize, mapWidth, mapHeight, r)
 
 proc initTerrain*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, seed: int = 2024) =

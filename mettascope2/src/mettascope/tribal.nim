@@ -1,9 +1,10 @@
-import std/[strformat, random, strutils], vmath, jsony, chroma
-import terrain, village, clippy
+import std/[strformat, random, strutils, tables], vmath, jsony, chroma
+import terrain, placement, clippy, village
 export terrain
 
-# Global variable for storing agent village colors
+# Global variables for storing village colors
 var agentVillageColors*: seq[Color] = @[]
+var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
 
 const
   # From config
@@ -203,7 +204,7 @@ proc render*(env: Environment): string =
           of Altar:
             cell = "a"
           of Temple:
-            cell = "T"
+            cell = "t"
           of Clippy:
             cell = "C"
           break
@@ -493,7 +494,7 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
   of Agent:
     inc env.stats[id].actionInvalid
   of Altar:
-    if thing.cooldown == 0 and agent.energy >= MapObjectAltarUseCost:
+    if thing.cooldown == 0 and agent.energy >= MapObjectAltarUseCost and thing.hp > 0:
       agent.reward += 1
       agent.energy -= MapObjectAltarUseCost
       env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
@@ -501,6 +502,8 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
       inc env.stats[id].actionUseAltar
       inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
   of Mine:
     if thing.cooldown == 0 and agent.inventory < MapObjectAgentMaxInventory:
       # Mine gives 1 ore (inventory)
@@ -629,6 +632,25 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
          env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
         result.add(pos)
 
+proc getHouseCorners(env: Environment, houseTopLeft: IVec2, houseSize: int = 5): seq[IVec2] =
+  ## Get the 4 corners around a house (just outside the structure)
+  result = @[]
+  
+  # Simple: just the 4 corners
+  let corners = @[
+    ivec2(houseTopLeft.x - 1, houseTopLeft.y - 1),                    # Top-left
+    ivec2(houseTopLeft.x + houseSize, houseTopLeft.y - 1),            # Top-right
+    ivec2(houseTopLeft.x - 1, houseTopLeft.y + houseSize),            # Bottom-left
+    ivec2(houseTopLeft.x + houseSize, houseTopLeft.y + houseSize)     # Bottom-right
+  ]
+  
+  # Check each corner is valid and empty
+  for corner in corners:
+    if corner.x >= MapBorder and corner.x < MapWidth - MapBorder and
+       corner.y >= MapBorder and corner.y < MapHeight - MapBorder and
+       env.isEmpty(corner) and env.terrain[corner.x][corner.y] != Water:
+      result.add(corner)
+
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
   ## Find an empty position in the environment (not on water)
   for i in 0 ..< 100:
@@ -676,37 +698,33 @@ proc init(env: Environment) =
 
   # Agents will now spawn with their villages/houses below
   
-  # Clear and prepare village colors array
+  # Clear and prepare village colors arrays
   agentVillageColors.setLen(MapRoomObjectsAgents)  # Allocate space for all agents
+  altarColors.clear()  # Clear altar colors from previous game
   
   # Spawn houses with their altars, walls, and associated agents (tribes)
   let numHouses = MapRoomObjectsHouses
   var totalAgentsSpawned = 0
   
   for i in 0 ..< numHouses:
-    let houseStruct = createHouse()
-    # Cast the grid to the type expected by house module
-    var gridPtr = cast[ptr array[100, array[50, pointer]]](env.grid.addr)
+    # Use the new unified placement system
+    let houseStruct = createHouseStructure()
+    var gridPtr = cast[PlacementGrid](env.grid.addr)
     var terrainPtr = env.terrain.addr
-    let housePos = findHouseLocation(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r)
+    let placementResult = findPlacement(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r)
     
-    if housePos.x >= 0 and housePos.y >= 0:  # Valid location found
-      let elements = getHouseElements(houseStruct, housePos)
+    if placementResult.success:  # Valid location found
+      let elements = getStructureElements(houseStruct, placementResult.position)
       
-      # Add the altar
-      env.add(Thing(
-        kind: Altar,
-        pos: elements.altar,
-        hp: MapObjectAltarHp,
-      ))
-      
-      # Add the walls
-      for wallPos in elements.walls:
-        env.add(Thing(
-          kind: Wall,
-          pos: wallPos,
-          hp: MapObjectWallHp,
-        ))
+      # Clear terrain within the house area to create a clearing
+      for dy in 0 ..< houseStruct.height:
+        for dx in 0 ..< houseStruct.width:
+          let clearX = placementResult.position.x + dx
+          let clearY = placementResult.position.y + dy
+          if clearX >= 0 and clearX < MapWidth and clearY >= 0 and clearY < MapHeight:
+            # Clear any terrain features (wheat, trees) but keep water
+            if env.terrain[clearX][clearY] != Water:
+              env.terrain[clearX][clearY] = Empty
       
       # Generate a unique color for this village
       let villageColor = color(
@@ -716,19 +734,39 @@ proc init(env: Environment) =
         1.0
       )
       
+      # Add the altar and store its color
+      env.add(Thing(
+        kind: Altar,
+        pos: elements.center,
+        hp: MapObjectAltarHp,
+      ))
+      altarColors[elements.center] = villageColor  # Associate altar position with village color
+      
+      # Add the walls
+      for wallPos in elements.walls:
+        env.add(Thing(
+          kind: Wall,
+          pos: wallPos,
+          hp: MapObjectWallHp,
+        ))
+      
       # Spawn agents around this house
       let agentsForThisHouse = min(MapAgentsPerHouse, MapRoomObjectsAgents - totalAgentsSpawned)
       if agentsForThisHouse > 0:
-        # Find empty positions around the altar (center of the house)
-        let emptyPositions = env.findEmptyPositionsAround(elements.altar, 3)
+        # Get corner positions first, then nearby positions
+        let corners = env.getHouseCorners(placementResult.position, houseStruct.width)
+        let nearbyPositions = env.findEmptyPositionsAround(elements.center, 3)
         
         for j in 0 ..< agentsForThisHouse:
           var agentPos: IVec2
-          if j < emptyPositions.len:
-            # Use empty position near house
-            agentPos = emptyPositions[j]
+          if j < corners.len:
+            # Prefer corners
+            agentPos = corners[j]
+          elif j - corners.len < nearbyPositions.len:
+            # Then nearby positions
+            agentPos = nearbyPositions[j - corners.len]
           else:
-            # Fall back to random position if not enough space around house
+            # Fallback to random
             agentPos = r.randomEmptyPos(env)
           
           let agentId = totalAgentsSpawned
@@ -775,13 +813,24 @@ proc init(env: Environment) =
 
   # Spawn temples with Clippys (same count as houses)
   for i in 0 ..< numHouses:
-    let templeStruct = createTemple()
-    var gridPtr = cast[ptr array[100, array[50, pointer]]](env.grid.addr)
+    let templeStruct = createTempleStructure()
+    var gridPtr = cast[PlacementGrid](env.grid.addr)
     var terrainPtr = env.terrain.addr
-    let templePos = findTempleLocation(gridPtr, terrainPtr, templeStruct, MapWidth, MapHeight, MapBorder, r)
+    let placementResult = findPlacement(gridPtr, terrainPtr, templeStruct, MapWidth, MapHeight, MapBorder, r)
     
-    if templePos.x >= 0 and templePos.y >= 0:  # Valid location found
-      let templeCenter = getTempleCenter(templeStruct, templePos)
+    if placementResult.success:  # Valid location found
+      let elements = getStructureElements(templeStruct, placementResult.position)
+      let templeCenter = elements.center
+      
+      # Clear terrain within the temple area to create a clearing
+      for dy in 0 ..< templeStruct.height:
+        for dx in 0 ..< templeStruct.width:
+          let clearX = placementResult.position.x + dx
+          let clearY = placementResult.position.y + dy
+          if clearX >= 0 and clearX < MapWidth and clearY >= 0 and clearY < MapHeight:
+            # Clear any terrain features (wheat, trees) but keep water
+            if env.terrain[clearX][clearY] != Water:
+              env.terrain[clearX][clearY] = Empty
       
       # Add the temple
       env.add(Thing(
@@ -791,14 +840,17 @@ proc init(env: Environment) =
         cooldown: 0,
       ))
       
-      # Spawn initial Clippy at the temple
-      env.add(Thing(
-        kind: Clippy,
-        agentId: MapRoomObjectsAgents + i,  # Give Clippys IDs after regular agents
-        pos: templeCenter,
-        hp: ClippyHp,
-        energy: ClippyInitialEnergy,
-      ))
+      # Spawn initial Clippy near the temple (not on the temple itself)
+      # Find an empty position adjacent to the temple
+      let nearbyPositions = env.findEmptyPositionsAround(templeCenter, 1)
+      if nearbyPositions.len > 0:
+        env.add(Thing(
+          kind: Clippy,
+          pos: nearbyPositions[0],  # Pick first available position near temple
+          hp: ClippyHp,
+          energy: ClippyInitialEnergy,
+          orientation: Orientation(r.rand(0..3)),
+        ))
 
   for i in 0 ..< MapRoomObjectsGenerators:
     let pos = r.randomEmptyPos(env)
@@ -967,7 +1019,6 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             # Create new Clippy
             let newClippy = Thing(
               kind: Clippy,
-              agentId: env.agents.len,  # Assign next available agent ID
               pos: spawnPos,
               hp: ClippyHp,
               energy: ClippyInitialEnergy,
@@ -991,36 +1042,41 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         env.updateObservations(AgentShieldLayer, thing.pos, thing.shield.int)
 
   # Update Clippys - they move and interact
+  # First collect all clippys to process (to avoid modifying collection while iterating)
+  var clippysToProcess: seq[Thing] = @[]
+  for thing in env.things:
+    if thing.kind == Clippy:
+      clippysToProcess.add(thing)
+  
   var clippysToRemove: seq[Thing] = @[]
   var r = initRand(env.currentStep)
   
-  for thing in env.things:
-    if thing.kind == Clippy:
-      # Convert things to seq of pointers for clippy module
-      var thingPtrs: seq[pointer] = @[]
-      for t in env.things:
-        thingPtrs.add(cast[pointer](t))
-      
-      # Get movement direction from clippy AI
-      let moveDir = getClippyMoveDirection(thing.pos, thingPtrs, r)
-      let newPos = thing.pos + moveDir
-      
-      # Check if new position is valid and empty
-      if env.isEmpty(newPos):
-        # Move the clippy
-        env.grid[thing.pos.x][thing.pos.y] = nil
-        thing.pos = newPos
-        env.grid[thing.pos.x][thing.pos.y] = thing
-      else:
-        # Check if we're trying to move onto an altar
-        let target = env.getThing(newPos)
-        if not isNil(target) and target.kind == Altar:
-          # Clippy reached an altar - damage it and disappear
-          if target.hp > 0:
-            target.hp = max(0, target.hp - 1)  # Decrement altar's HP (hearts) but don't go below 0
-            env.updateObservations(AltarHpLayer, target.pos, target.hp)
-          clippysToRemove.add(thing)
-          env.grid[thing.pos.x][thing.pos.y] = nil
+  for clippy in clippysToProcess:
+    # Convert things to seq of pointers for clippy module
+    var thingPtrs: seq[pointer] = @[]
+    for t in env.things:
+      thingPtrs.add(cast[pointer](t))
+    
+    # Get movement direction from clippy AI
+    let moveDir = getClippyMoveDirection(clippy.pos, thingPtrs, r)
+    let newPos = clippy.pos + moveDir
+    
+    # Check if new position is valid and empty
+    if env.isEmpty(newPos):
+      # Move the clippy
+      env.grid[clippy.pos.x][clippy.pos.y] = nil
+      clippy.pos = newPos
+      env.grid[clippy.pos.x][clippy.pos.y] = clippy
+    else:
+      # Check if we're trying to move onto an altar
+      let target = env.getThing(newPos)
+      if not isNil(target) and target.kind == Altar:
+        # Clippy reached an altar - damage it and disappear
+        if target.hp > 0:
+          target.hp = max(0, target.hp - 1)  # Decrement altar's HP (hearts) but don't go below 0
+          env.updateObservations(AltarHpLayer, target.pos, target.hp)
+        clippysToRemove.add(clippy)
+        env.grid[clippy.pos.x][clippy.pos.y] = nil
   
   # Remove clippys that touched altars
   for clippy in clippysToRemove:

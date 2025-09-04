@@ -26,55 +26,9 @@ proc createHouse*(): HouseStructure =
     @['#', '#', '.', '#', '#']   # Bottom row with south entrance
   ]
 
-proc canPlaceHouse*(grid: ptr array[100, array[50, pointer]], terrain: ptr TerrainGrid, 
-                    pos: IVec2, house: HouseStructure, 
-                    mapWidth, mapHeight: int): bool =
-  ## Check if a house can be placed at the given position
-  ## pos is the top-left corner of the house
-  
-  # Check boundaries
-  if pos.x < 0 or pos.y < 0:
-    return false
-  if pos.x + house.width > mapWidth or pos.y + house.height > mapHeight:
-    return false
-  
-  # Check if all positions are empty (nil in grid) and not on water
-  for y in 0 ..< house.height:
-    for x in 0 ..< house.width:
-      let gridX = pos.x + x
-      let gridY = pos.y + y
-      # Check if there's already something at this position
-      if not isNil(grid[gridX][gridY]):
-        return false
-      # Check if this position is water
-      if terrain[gridX][gridY] == Water:
-        return false
-  
-  return true
+# Placement logic moved to placement.nim for unified handling
 
-proc findHouseLocation*(grid: ptr array[100, array[50, pointer]], terrain: ptr TerrainGrid,
-                        house: HouseStructure,
-                        mapWidth, mapHeight, mapBorder: int, r: var Rand): IVec2 =
-  ## Find a suitable location for a house
-  ## Returns ivec2(-1, -1) if no location found
-  
-  # Try random positions
-  for attempt in 0 ..< 100:
-    let x = r.rand(mapBorder ..< mapWidth - mapBorder - house.width)
-    let y = r.rand(mapBorder ..< mapHeight - mapBorder - house.height)
-    let pos = ivec2(x.int32, y.int32)
-    
-    if canPlaceHouse(grid, terrain, pos, house, mapWidth, mapHeight):
-      return pos
-  
-  # If random attempts fail, do a systematic search
-  for y in mapBorder ..< mapHeight - mapBorder - house.height:
-    for x in mapBorder ..< mapWidth - mapBorder - house.width:
-      let pos = ivec2(x.int32, y.int32)
-      if canPlaceHouse(grid, terrain, pos, house, mapWidth, mapHeight):
-        return pos
-  
-  return ivec2(-1, -1)  # No valid location found
+# Location finding moved to placement.nim's findPlacement function
 
 proc getHouseElements*(house: HouseStructure, topLeft: IVec2): tuple[
   altar: IVec2,
