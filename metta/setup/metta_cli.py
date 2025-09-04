@@ -427,14 +427,40 @@ class MettaCLI:
             info("No modules to install.")
             return
 
-        # Build dependency graph
+        # Build dependency graph and ensure all dependencies are included
         module_map = {m.name: m for m in modules}
+        all_modules_dict = {m.name: m for m in get_all_modules()}
+
+        # Add missing dependencies to install set
+        missing_deps = set()
+
+        def collect_dependencies(module_names):
+            for name in module_names:
+                if name in module_map:
+                    module = module_map[name]
+                else:
+                    continue
+                for dep_name in module.dependencies():
+                    if dep_name not in module_map and dep_name in all_modules_dict:
+                        missing_deps.add(dep_name)
+                        collect_dependencies([dep_name])
+
+        collect_dependencies(list(module_map.keys()))
+
+        # Add missing dependencies to modules list
+        if missing_deps:
+            info(f"Adding missing dependencies: {', '.join(sorted(missing_deps))}")
+            for dep_name in missing_deps:
+                if dep_name in all_modules_dict:
+                    modules.append(all_modules_dict[dep_name])
+                    module_map[dep_name] = all_modules_dict[dep_name]
+
+        # Build final dependency graph
         dependencies = {}
         for module in modules:
             deps = module.dependencies()
-            # Only include dependencies that are in our install set
-            filtered_deps = [dep for dep in deps if dep in module_map]
-            dependencies[module.name] = filtered_deps
+            # All dependencies should now be in our install set
+            dependencies[module.name] = deps
 
         # Perform topological sort with parallelization opportunities
         def topological_sort_parallel(modules_dict, deps):
@@ -471,7 +497,15 @@ class MettaCLI:
             return
 
         total_modules = sum(len(batch) for batch in install_batches)
-        info(f"\nInstalling {total_modules} components in {len(install_batches)} parallel batches...\n")
+        info("\nDependency analysis:")
+        for module_name, deps in dependencies.items():
+            if deps:
+                info(f"  {module_name} depends on: {', '.join(deps)}")
+
+        info(f"\nInstalling {total_modules} components in {len(install_batches)} parallel batches:")
+        for i, batch in enumerate(install_batches):
+            info(f"  Batch {i + 1}: {', '.join(batch)}")
+        info("")
 
         # Thread-safe progress tracking
         install_lock = threading.Lock()
@@ -513,6 +547,7 @@ class MettaCLI:
         for batch_idx, batch in enumerate(install_batches):
             if len(batch) == 1:
                 # Single module - install directly to avoid threading overhead
+                info(f"Batch {batch_idx + 1}/{len(install_batches)}: Installing {batch[0]} (single module)")
                 module = module_map[batch[0]]
                 if not install_module(module):
                     failed_modules.append(module.name)
