@@ -87,7 +87,7 @@ runs:
           echo "${{ inputs.extra-dependencies }}" | while read -r dep; do
             if [ -n "$dep" ]; then
               echo "Installing $dep"
-              uv pip install "$dep"
+              uv pip install -- "$dep"
             fi
           done
         else
