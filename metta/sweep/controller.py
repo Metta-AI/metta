@@ -8,6 +8,7 @@ from metta.common.wandb.wandb_context import WandbConfig
 from metta.sweep.models import JobStatus, JobTypes, RunInfo, SweepMetadata, SweepStatus
 from metta.sweep.protein_config import ProteinConfig
 from metta.sweep.protocols import Dispatcher, Optimizer, Scheduler, Store
+from metta.sweep.utils import make_monitor_table
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,18 @@ class SweepController:
 
                 # 2. Update sweep metadata based on ALL runs
                 metadata = self._compute_metadata_from_runs(all_run_infos)
+
+                # Display monitoring table every interval
+                if all_run_infos:
+                    table_lines = make_monitor_table(
+                        runs=all_run_infos,
+                        title="Run Status Table",
+                        logger_prefix="[SweepController]",
+                        include_score=True,
+                        truncate_run_id=True,
+                    )
+                    for line in table_lines:
+                        logger.info(line)
 
                 # 3. Hand everything to scheduler - it decides what to do
                 # Always get jobs from scheduler (including eval jobs)
