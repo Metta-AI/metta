@@ -338,30 +338,6 @@ To disable auto-stop:
 sky autostop --cancel <sandbox-name>
 ```
 
-### Sandbox Features
-
-- **Persistent environment**: Your code, data, and installed packages persist across SSH sessions
-- **Full GPU access**: Direct access to NVIDIA GPUs for development and debugging
-- **Git integration**: Automatically clones your repository at the specified branch/commit
-- **Cost visibility**: Shows estimated hourly costs before launching
-- **Auto-naming**: Sandboxes are automatically named as `<username>-sandbox-<number>`
-
-### Common Use Cases
-
-1. **Interactive development**: Test code changes with GPU access
-2. **Debugging training issues**: Run experiments with interactive debugging
-3. **Data exploration**: Analyze datasets with full computational resources
-4. **Dependency testing**: Install and test new packages before adding to requirements
-
-### Troubleshooting
-
-If a sandbox gets stuck in `INIT` state:
-
-1. Wait 10+ minutes (initial setup can be slow)
-2. Check logs: `sky logs <sandbox-name>`
-3. Try relaunching: `sky launch -c <sandbox-name> --no-setup`
-4. If still stuck, delete and recreate: `sky down <sandbox-name>` then `./devops/skypilot/sandbox.py --new`
-
 ## Configuration
 
 The script uses `./devops/skypilot/config/sk_train.yaml` as the base configuration. This file defines:
