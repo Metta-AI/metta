@@ -1,0 +1,210 @@
+import std/[random, os, times, strformat, strutils]
+import boxy, opengl, windy, chroma, vmath
+import src/tribal/[tribal, worldmap, controller]
+import src/mettascope/environment_core
+
+# Global variables
+type
+  WorldMapPanel = ref object
+    rect*: IRect
+    pos*: Vec2
+    vel*: Vec2
+    zoom*: float32
+    zoomVel*: float32
+
+var
+  window*: Window
+  bxy*: Boxy
+  env*: Environment
+  selection*: GameObject
+  worldMapPanel*: WorldMapPanel
+  typeface*: Typeface
+
+const
+  BgColor = parseHtmlColor("#273646")
+  FootBgColor = parseHtmlColor("#2D343D")
+  HeaderSize = 30
+
+var
+  actionsArray*: array[MapAgents, array[2, uint8]]
+  # Controller will use a random seed each time
+  agentController* = newController(seed = int(epochTime() * 1000))
+
+proc simStep*() =
+  # Use controller for agent actions
+  for j, agent in env.agents:
+    if selection != agent:
+      # Use the controller to decide actions
+      actionsArray[j] = agentController.decideAction(env, j)
+    # else: selected agent uses manual controls
+  
+  # Step the environment (this handles mines, clippys, etc.)
+  env.step(addr actionsArray)
+  
+  # Update controller state
+  agentController.updateController()
+
+proc agentControls*() =
+  ## Controls for the selected agent.
+  if selection != nil and selection.kind == Agent:
+    let agent = selection
+
+    # Direct movement with auto-rotation
+    if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
+      # Move North
+      actionsArray[agent.agentId] = [1, 0]
+      simStep()
+    elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
+      # Move South
+      actionsArray[agent.agentId] = [1, 1]
+      simStep()
+    elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
+      # Move East
+      actionsArray[agent.agentId] = [1, 2]
+      simStep()
+    elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
+      # Move West
+      actionsArray[agent.agentId] = [1, 3]
+      simStep()
+
+    # Use - face current direction of agent
+    if window.buttonPressed[KeyU]:
+      # Use in the direction the agent is facing
+      let useDir = agent.orientation.uint8
+      actionsArray[agent.agentId] = [3, useDir]
+      simStep()
+
+    # Swap (still valid - swaps positions with frozen agents)
+    if window.buttonPressed[KeyP]:
+      actionsArray[agent.agentId] = [8, 0]
+      simStep()
+
+proc drawText*(
+  text: string,
+  pos: Vec2,
+  size: float32,
+  color: Color
+) =
+  ## Draw text on the screen.
+  var font = newFont(typeface)
+  font.size = size
+  font.paint = color
+  let
+    arrangement = typeset(@[newSpan(text, font)], bounds = vec2(1280, 800))
+    transform = translate(pos)
+    globalBounds = arrangement.computeBounds(transform).snapToPixels()
+    textImage = newImage(globalBounds.w.int, globalBounds.h.int)
+    imageSpace = translate(-globalBounds.xy) * transform
+  textImage.fillText(arrangement, imageSpace)
+  
+  let imageKey = &"text_{text}_{size}"
+  bxy.addImage(imageKey, textImage)
+  bxy.drawImage(imageKey, globalBounds.xy)
+
+proc measureText*(
+  text: string,
+  size: float32
+): Vec2 =
+  var font = newFont(typeface)
+  font.size = size
+  let arrangement = typeset(@[newSpan(text, font)], bounds = vec2(1280, 800))
+  let transform = translate(vec2(0, 0))
+  let bounds = arrangement.computeBounds(transform).snapToPixels()
+  return vec2(bounds.w, bounds.h)
+
+proc boxyMouse*(): Vec2 =
+  return inverse(bxy.getTransform()) * window.mousePos.vec2
+
+proc beginPanAndZoom*() =
+  ## Pan and zoom the map.
+  if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
+    worldMapPanel.vel = window.mouseDelta.vec2
+  else:
+    worldMapPanel.vel *= 0.9
+
+  worldMapPanel.pos += worldMapPanel.vel
+
+  if window.scrollDelta.y != 0:
+    worldMapPanel.zoomVel = window.scrollDelta.y * 0.03
+  else:
+    worldMapPanel.zoomVel *= 0.9
+
+  bxy.saveTransform()
+
+  let oldMat = translate(vec2(worldMapPanel.pos.x, worldMapPanel.pos.y)) * scale(vec2(worldMapPanel.zoom*worldMapPanel.zoom, worldMapPanel.zoom*worldMapPanel.zoom))
+  worldMapPanel.zoom += worldMapPanel.zoomVel
+  worldMapPanel.zoom = clamp(worldMapPanel.zoom, 0.3, 100)
+  let newMat = translate(vec2(worldMapPanel.pos.x, worldMapPanel.pos.y)) * scale(vec2(worldMapPanel.zoom*worldMapPanel.zoom, worldMapPanel.zoom*worldMapPanel.zoom))
+  let newAt = newMat.inverse() * window.mousePos.vec2
+  let oldAt = oldMat.inverse() * window.mousePos.vec2
+  worldMapPanel.pos -= (oldAt - newAt).xy * (worldMapPanel.zoom*worldMapPanel.zoom)
+
+  bxy.translate(worldMapPanel.pos)
+  bxy.scale(vec2(worldMapPanel.zoom*worldMapPanel.zoom, worldMapPanel.zoom*worldMapPanel.zoom))
+
+proc endPanAndZoom*() =
+  bxy.restoreTransform()
+
+proc drawStats*() =
+  ## Draw basic stats in the corner
+  let statsText = &"""Frame: {env.frameCount}
+Agents: {env.agents.len}
+Clippys: {env.clippys.len}"""
+  
+  drawText(statsText, vec2(10, 10), 14, color(1, 1, 1, 0.8))
+
+proc main() =
+  # Initialize window
+  window = newWindow("Tribal Grid", ivec2(1280, 800))
+  makeContextCurrent(window)
+  
+  when not defined(emscripten):
+    loadExtensions()
+  
+  # Initialize graphics
+  bxy = newBoxy()
+  typeface = readTypeface("data/fonts/Inter-Regular.ttf")
+  
+  # Initialize game
+  env = newEnvironment()
+  worldMapPanel = WorldMapPanel(
+    rect: IRect(x: 0, y: 0, w: 1280, h: 800),
+    pos: vec2(0, 0),
+    vel: vec2(0, 0),
+    zoom: 10,
+    zoomVel: 0
+  )
+  
+  # Load images
+  bxy.addImage("bubble", readImage("data/images/bubble.png"))
+  
+  # Main loop
+  while not window.closeRequested:
+    # Poll events
+    pollEvents()
+    
+    # Handle controls
+    agentControls()
+    
+    # Auto-step
+    if window.buttonDown[KeySpace]:
+      simStep()
+    
+    # Clear screen
+    bxy.beginFrame(window.size)
+    bxy.drawRect(rect(0, 0, window.size.x.float32, window.size.y.float32), BgColor)
+    
+    # Draw world with pan/zoom
+    beginPanAndZoom()
+    worldmap.draw(bxy, env, selection)
+    endPanAndZoom()
+    
+    # Draw UI overlay
+    drawStats()
+    
+    # End frame
+    bxy.endFrame()
+    window.swapBuffers()
+
+when isMainModule:
+  main()
