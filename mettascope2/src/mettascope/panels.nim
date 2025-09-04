@@ -4,8 +4,6 @@ import
 
 const HeaderSize = 30
 
-
-
 proc updateMouse*(panel: Panel) =
   let box = Rect(
     x: panel.rect.x.float32,
@@ -52,16 +50,10 @@ proc beginPanAndZoom*(panel: Panel) =
     panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
     let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
         panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    let newAt = newMat.inverse() * window.mousePos.vec2
-    let oldAt = oldMat.inverse() * window.mousePos.vec2
+    let localMousePos = window.mousePos.vec2 - panel.rect.xy.vec2
+    let newAt = newMat.inverse() * localMousePos
+    let oldAt = oldMat.inverse() * localMousePos
     panel.pos -= (oldAt - newAt).xy * (panel.zoom*panel.zoom)
-
-    #let area = panel.scrollArea * panel.zoom
-    #let x = panel.rect.x / 2
-    #let y = panel.rect.y / 2
-    #panel.pos = vec2(
-    #  clamp(panel.pos.x, area.x - x, area.x + area.w + x),
-    #  clamp(panel.pos.y, area.y - y, area.y + area.h + y))
 
   bxy.translate(panel.pos)
   bxy.scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
@@ -91,15 +83,11 @@ proc endDraw*(panel: Panel) =
 
 proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
-
-  echo "Updating area sizes: ", area.node.name
-  area.node.position = vec2(0, 0)
+  area.node.position = vec2(area.rect.x.float32, area.rect.y.float32)
   area.node.size = vec2(area.rect.w.float32, area.rect.h.float32)
-  echo " pos: ", area.node.position, " size: ", area.node.size
   area.node.dirty = true
 
   for num, panel in area.panels:
-    echo "Updating panel sizes: ", panel.name
     if num == area.selectedPanelNum:
       panel.rect.x = area.rect.x
       panel.rect.y = area.rect.y + HeaderSize
@@ -111,11 +99,39 @@ proc updatePanelsSizes*(area: Area) =
       panel.rect.w = 0
       panel.rect.h = 0
 
-    panel.node.position = vec2(0, HeaderSize)
+    panel.node.position = vec2(panel.rect.x.float32, panel.rect.y.float32)
     panel.node.size = vec2(panel.rect.w.float32, panel.rect.h.float32)
-    echo " pos: ", panel.node.position, " size: ", panel.node.size
     panel.node.dirty = true
 
-  echo "Updating subarea sizes"
   for subarea in area.areas:
     updatePanelsSizes(subarea)
+
+proc select*(area: Area, name: string) =
+  ## Selects the panel with the given name.
+  for i, panel in area.panels:
+    if panel.name == name:
+      # Hide previous panel.
+      area.panels[area.selectedPanelNum].node.visible = false
+      let prevName = area.panels[area.selectedPanelNum].name
+      area.node.children[area.selectedPanelNum].setVariant("State", "Default")
+
+      # Show new panel.
+      area.selectedPanelNum = i
+      panel.node.visible = true
+      area.node.children[area.selectedPanelNum].setVariant("State", "Selected")
+      break
+
+  for subarea in area.areas:
+    select(subarea, name)
+
+proc add*(area: Area, other: Area) =
+  ## Adds an area to the current area.
+  if area.panels.len > 0:
+    raise newException(Exception, "Area already has panels, can't have both panels and areas")
+  area.areas.add(other)
+
+proc add*(area: Area, panel: Panel) =
+  ## Adds a panel to the current area.
+  if area.areas.len > 0:
+    raise newException(Exception, "Area already has areas, can't have both panels and areas")
+  area.panels.add(panel)
