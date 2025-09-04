@@ -1,6 +1,6 @@
 import
   std/[times],
-  boxy, chroma, windy,
+  boxy, chroma, windy, fidget2/[common, hybridrender],
   common, panels, replays, worldmap
 
 let traceWidth = 0.54 / 2

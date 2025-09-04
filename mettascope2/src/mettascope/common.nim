@@ -1,12 +1,13 @@
 import std/[times],
-  boxy, windy, vmath, replays
+  boxy, windy, vmath, fidget2,
+  replays
 
 type
   IRect* = object
-    x*: int
-    y*: int
-    w*: int
-    h*: int
+    x*: int32
+    y*: int32
+    w*: int32
+    h*: int32
 
   PanelType* = enum
     GlobalHeader
@@ -23,6 +24,7 @@ type
     panelType*: PanelType
     rect*: IRect
     name*: string
+    node*: Node
 
     pos*: Vec2
     vel*: Vec2
@@ -40,6 +42,7 @@ type
   Area* = ref object
     layout*: AreaLayout
     rect*: IRect
+    node*: Node
     areas*: seq[Area]
     selectedPanelNum*: int
     panels*: seq[Panel]
@@ -64,7 +67,7 @@ var
   minimapPanel*: Panel
   agentTablePanel*: Panel
   agentTracesPanel*: Panel
-  mgConfigPanel*: Panel
+  envConfigPanel*: Panel
 
   settings* = Settings()
   selection*: Entity
@@ -89,3 +92,20 @@ proc at*[T](sequence: seq[T], step: int): T =
 proc at*[T](sequence: seq[T]): T =
   # Get the value at the current step.
   sequence.at(step)
+
+proc irect*(x, y, w, h: SomeNumber): IRect =
+  IRect(x: x.int32, y: y.int32, w: w.int32, h: h.int32)
+
+proc rect*(rect: IRect): Rect =
+  Rect(
+    x: rect.x.float32,
+    y: rect.y.float32,
+    w: rect.w.float32,
+    h: rect.h.float32
+  )
+
+proc xy*(rect: IRect): IVec2 =
+  ivec2(rect.x, rect.y)
+
+proc wh*(rect: IRect): IVec2 =
+  ivec2(rect.w, rect.h)

@@ -1,12 +1,10 @@
 import
-  vmath, bumpy, windy, boxy, chroma, fidget2/[hybridrender, common],
+  vmath, bumpy, windy, boxy, chroma, fidget2, fidget2/[hybridrender, common],
   common, utils
 
 const HeaderSize = 30
 
-proc rect*(rect: IRect): Rect =
-  Rect(x: rect.x.float32, y: rect.y.float32, w: rect.w.float32,
-      h: rect.h.float32)
+
 
 proc updateMouse*(panel: Panel) =
   let box = Rect(
@@ -16,7 +14,8 @@ proc updateMouse*(panel: Panel) =
     h: panel.rect.h.float32
   )
 
-  panel.hasMouse = (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
+  panel.hasMouse =
+    (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
     (mouseCaptured and mouseCapturedPanel == panel)
 
 proc beginPanAndZoom*(panel: Panel) =
@@ -92,7 +91,15 @@ proc endDraw*(panel: Panel) =
 
 proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
+
+  echo "Updating area sizes: ", area.node.name
+  area.node.position = vec2(0, 0)
+  area.node.size = vec2(area.rect.w.float32, area.rect.h.float32)
+  echo " pos: ", area.node.position, " size: ", area.node.size
+  area.node.dirty = true
+
   for num, panel in area.panels:
+    echo "Updating panel sizes: ", panel.name
     if num == area.selectedPanelNum:
       panel.rect.x = area.rect.x
       panel.rect.y = area.rect.y + HeaderSize
@@ -104,59 +111,11 @@ proc updatePanelsSizes*(area: Area) =
       panel.rect.w = 0
       panel.rect.h = 0
 
+    panel.node.position = vec2(0, HeaderSize)
+    panel.node.size = vec2(panel.rect.w.float32, panel.rect.h.float32)
+    echo " pos: ", panel.node.position, " size: ", panel.node.size
+    panel.node.dirty = true
+
+  echo "Updating subarea sizes"
   for subarea in area.areas:
     updatePanelsSizes(subarea)
-
-proc drawFrame*(area: Area) =
-  # Draw the frame of the area.
-
-  # Draw the header ribbon background.
-  bxy.saveTransform()
-  bxy.translate(vec2(area.rect.x.float32, area.rect.y.float32))
-  bxy.drawRect(
-    rect = Rect(
-      x: 0,
-      y: 0,
-      w: area.rect.w.float32,
-      h: HeaderSize.float32
-    ),
-    color = color(0, 0, 0, 1)
-  )
-
-  var x = 10.0
-  for num, panel in area.panels:
-    let width = measureText(panel.name, 16).x + 20
-    let panelBox = Rect(
-      x: x.float32,
-      y: 2,
-      w: width,
-      h: HeaderSize.float32 - 4
-    )
-    var color = parseHtmlColor("#282D35")
-    if num == area.selectedPanelNum:
-      color = parseHtmlColor("#43526A")
-
-    if window.boxyMouse.vec2.overlaps(panelBox):
-      color = parseHtmlColor("#FF0000")
-      if window.buttonPressed[MouseLeft]:
-        area.selectedPanelNum = num
-
-    bxy.drawRect(
-      rect = panelBox,
-      color = color
-    )
-    bxy.drawText(
-      panel.name,
-      translate(vec2(x.float32 + 5, 4)),
-      typeface,
-      panel.name,
-      16,
-      color(1, 1, 1, 1)
-    )
-
-    x += width + 10
-
-  bxy.restoreTransform()
-
-  for subarea in area.areas:
-    drawFrame(subarea)
