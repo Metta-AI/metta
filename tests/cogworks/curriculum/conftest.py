@@ -36,7 +36,11 @@ def curriculum_config(arena_env):
 def learning_progress_algorithm():
     """Create a learning progress algorithm configuration."""
     return LearningProgressConfig(
-        ema_timescale=0.001, pool_size=16, sample_size=8, max_samples=10, exploration_bonus=0.1
+        ema_timescale=0.001,
+        exploration_bonus=0.1,
+        max_memory_tasks=1000,
+        max_bucket_axes=3,
+        enable_detailed_bucket_logging=False,
     )
 
 

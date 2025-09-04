@@ -101,10 +101,9 @@ class TestTaskGenerationWorkflows:
 
         lp_config = LearningProgressConfig(
             ema_timescale=0.01,
-            pool_size=20,
-            sample_size=10,
-            max_samples=50,
             exploration_bonus=0.15,
+            max_memory_tasks=1000,
+            max_bucket_axes=3,
         )
 
         curriculum = CurriculumConfig(

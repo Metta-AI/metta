@@ -21,9 +21,9 @@ class TestLearningProgressCoreBehavior:
         # Set up algorithm with tasks
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=10,
-            sample_size=5,
-            max_samples=10,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_bucket_axes=3,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=config)
 
@@ -43,8 +43,8 @@ class TestLearningProgressCoreBehavior:
         CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=5)
 
         # Get LP scores for both tasks
-        lp_score_1 = algorithm._get_task_lp_score(task1_id)
-        lp_score_2 = algorithm._get_task_lp_score(task2_id)
+        lp_score_1 = algorithm.lp_scorer.get_learning_progress_score(task1_id, algorithm.task_tracker)
+        lp_score_2 = algorithm.lp_scorer.get_learning_progress_score(task2_id, algorithm.task_tracker)
 
         assert lp_score_1 > lp_score_2, (
             f"Fast learning should have higher LP score. Fast: {lp_score_1}, Slow: {lp_score_2}"
@@ -55,9 +55,7 @@ class TestLearningProgressCoreBehavior:
         # Set up algorithm with tasks
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=10,
-            sample_size=5,
-            max_samples=10,
+            max_memory_tasks=10,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=config)
 
@@ -79,8 +77,8 @@ class TestLearningProgressCoreBehavior:
         )
 
         # Get LP scores for both tasks
-        lp_score_1 = algorithm._get_task_lp_score(task1_id)
-        lp_score_2 = algorithm._get_task_lp_score(task2_id)
+        lp_score_1 = algorithm.lp_scorer.get_learning_progress_score(task1_id, algorithm.task_tracker)
+        lp_score_2 = algorithm.lp_scorer.get_learning_progress_score(task2_id, algorithm.task_tracker)
 
         assert lp_score_2 > lp_score_1, (
             f"Changing performance should have higher LP score. Changing: {lp_score_2}, Consistent: {lp_score_1}"
@@ -91,9 +89,7 @@ class TestLearningProgressCoreBehavior:
         # Set up algorithm with tasks
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=10,
-            sample_size=5,
-            max_samples=10,
+            max_memory_tasks=10,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
 
@@ -110,13 +106,18 @@ class TestLearningProgressCoreBehavior:
         task2_id = tasks[1]._task_id
         task3_id = tasks[2]._task_id
 
+        # Initialize tasks in the algorithm (required for tracking)
+        for task in tasks:
+            algorithm.on_task_created(task)
+
         # Use helper to setup learning patterns - REDUCED from 20 to 5 iterations
         CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=5)
 
         num_samples = 100
         samples = []
+        all_task_ids = [task1_id, task2_id, task3_id]
         for _ in range(num_samples):
-            sampled_task_id = algorithm._choose_task()
+            sampled_task_id = algorithm._choose_task_from_list(all_task_ids)
             samples.append(sampled_task_id)
 
         # Count samples for each task
@@ -133,9 +134,7 @@ class TestLearningProgressCoreBehavior:
         """Test that the learning progress algorithm properly manages its task pool."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=5,
-            sample_size=3,
-            max_samples=5,
+            max_memory_tasks=5,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
 
@@ -149,15 +148,13 @@ class TestLearningProgressCoreBehavior:
             for i in range(5):  # REDUCED from 20 to 5
                 algorithm.update_task_performance(task._task_id, 0.5 + 0.1 * i)
 
-        assert len(algorithm._task_memory) <= config.pool_size, "Pool should not exceed max size"
+        assert len(algorithm.task_tracker._task_memory) <= config.max_memory_tasks, "Pool should not exceed max size"
 
     def test_learning_progress_ema_smoothing(self, random_seed):
         """Test that EMA smoothing works correctly for learning progress calculation."""
         config = LearningProgressConfig(
             ema_timescale=0.1,  # Slower smoothing for testing
-            pool_size=3,
-            sample_size=2,
-            max_samples=5,
+            max_memory_tasks=3,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=config)
 
@@ -172,16 +169,15 @@ class TestLearningProgressCoreBehavior:
             algorithm.update_task_performance(task_id, 0.5)
 
         # Get LP score
-        lp_score = algorithm._get_task_lp_score(task_id)
+        lp_score = algorithm.lp_scorer.get_learning_progress_score(task_id, algorithm.task_tracker)
         assert lp_score >= 0, "LP score should be non-negative"
 
     def test_learning_progress_eviction_policy(self, random_seed):
         """Test that tasks are properly evicted when they exceed max_samples."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=3,
-            sample_size=2,
-            max_samples=3,  # Low max_samples for testing
+            max_memory_tasks=3,
+            # Low max_samples for testing
         )
         algorithm = LearningProgressAlgorithm(num_tasks=5, hypers=config)
 
@@ -196,15 +192,13 @@ class TestLearningProgressCoreBehavior:
                 algorithm.update_task_performance(task._task_id, 0.5 + 0.1 * i)
 
         # Pool should not grow indefinitely
-        assert len(algorithm._task_memory) <= config.pool_size, "Pool should respect max size"
+        assert len(algorithm.task_tracker._task_memory) <= config.max_memory_tasks, "Pool should respect max size"
 
     def test_learning_progress_exploration_bonus(self, random_seed):
         """Test that exploration bonus encourages sampling of less-explored tasks."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=5,
-            sample_size=3,
-            max_samples=5,
+            max_memory_tasks=5,
             exploration_bonus=0.2,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
@@ -236,9 +230,7 @@ class TestLearningProgressProductionPatterns:
         """Test learning progress algorithm in a training workflow scenario."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=16,
-            sample_size=8,
-            max_samples=10,
+            max_memory_tasks=16,
             exploration_bonus=0.1,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)
@@ -255,16 +247,14 @@ class TestLearningProgressProductionPatterns:
             performance = 0.3 + 0.1 * episode  # Improving performance
             algorithm.update_task_performance(task._task_id, performance)
 
-        assert len(algorithm._task_memory) <= config.pool_size, "Pool should respect max size"
-        assert len(algorithm._task_memory) > 0, "Pool should have some tasks"
+        assert len(algorithm.task_tracker._task_memory) <= config.max_memory_tasks, "Pool should respect max size"
+        assert len(algorithm.task_tracker._task_memory) > 0, "Pool should have some tasks"
 
     def test_learning_progress_task_reuse_workflow(self, random_seed):
         """Test learning progress algorithm with task reuse patterns."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=10,
-            sample_size=5,
-            max_samples=8,
+            max_memory_tasks=10,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=15, hypers=config)
 
@@ -280,22 +270,18 @@ class TestLearningProgressProductionPatterns:
             performance = 0.4 + 0.05 * episode
             algorithm.update_task_performance(task._task_id, performance)
 
-        assert len(algorithm._task_memory) <= config.pool_size, "Pool should respect max size"
+        assert len(algorithm.task_tracker._task_memory) <= config.max_memory_tasks, "Pool should respect max size"
 
     def test_learning_progress_algorithm_configuration(self, random_seed):
         """Test different learning progress algorithm configurations."""
         configs = [
             LearningProgressConfig(
                 ema_timescale=0.001,
-                pool_size=8,
-                sample_size=4,
-                max_samples=6,
+                max_memory_tasks=8,
             ),
             LearningProgressConfig(
                 ema_timescale=0.01,
-                pool_size=12,
-                sample_size=6,
-                max_samples=8,
+                max_memory_tasks=12,
             ),
         ]
 
@@ -309,15 +295,13 @@ class TestLearningProgressProductionPatterns:
 
             # Verify configuration is applied
             assert algorithm.hypers.ema_timescale == config.ema_timescale
-            assert algorithm.hypers.pool_size == config.pool_size
+            assert algorithm.hypers.max_memory_tasks == config.max_memory_tasks
 
     def test_learning_progress_edge_cases(self, random_seed):
         """Test learning progress algorithm edge cases."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=3,
-            sample_size=2,
-            max_samples=3,
+            max_memory_tasks=3,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=5, hypers=config)
 
@@ -328,15 +312,13 @@ class TestLearningProgressProductionPatterns:
             task = algorithm.get_task_from_pool(task_generator, rng)
             algorithm.update_task_performance(task._task_id, 0.5)
 
-        assert len(algorithm._task_memory) <= config.pool_size, "Pool should respect max size"
+        assert len(algorithm.task_tracker._task_memory) <= config.max_memory_tasks, "Pool should respect max size"
 
     def test_learning_progress_performance_tracking(self, random_seed):
         """Test that learning progress algorithm properly tracks task performance."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=5,
-            sample_size=3,
-            max_samples=5,
+            max_memory_tasks=5,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=8, hypers=config)
 
@@ -350,17 +332,15 @@ class TestLearningProgressProductionPatterns:
             for i in range(3):
                 algorithm.update_task_performance(task._task_id, 0.3 + 0.1 * i)
 
-        for task_id in algorithm._task_memory:
-            lp_score = algorithm._get_task_lp_score(task_id)
+        for task_id in algorithm.task_tracker._task_memory:
+            lp_score = algorithm.lp_scorer.get_learning_progress_score(task_id, algorithm.task_tracker)
             assert lp_score >= 0, "LP score should be non-negative"
 
     def test_learning_progress_sampling_distribution(self, random_seed):
         """Test that learning progress sampling produces reasonable distributions."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=6,
-            sample_size=3,
-            max_samples=5,
+            max_memory_tasks=6,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
 
@@ -390,9 +370,7 @@ class TestLearningProgressIntegration:
         # Create curriculum config with learning progress algorithm
         algorithm_config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=8,
-            sample_size=4,
-            max_samples=6,
+            max_memory_tasks=8,
         )
 
         curriculum_config = CurriculumConfig(
@@ -409,9 +387,7 @@ class TestLearningProgressIntegration:
         # Create curriculum with learning progress
         algorithm_config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=6,
-            sample_size=3,
-            max_samples=4,
+            max_memory_tasks=6,
         )
 
         curriculum_config = CurriculumConfig(
@@ -427,7 +403,7 @@ class TestLearningProgressIntegration:
             curriculum.update_task_performance(task._task_id, 0.5)
 
         assert curriculum._algorithm is not None, "Algorithm should be present"
-        assert len(curriculum._algorithm._task_memory) > 0, "Algorithm should have tasks in pool"
+        assert len(curriculum._algorithm.task_tracker._task_memory) > 0, "Algorithm should have tasks in pool"
 
     def test_learning_progress_backward_compatibility(self, random_seed):
         """Test that learning progress algorithm maintains backward compatibility."""
@@ -442,15 +418,13 @@ class TestLearningProgressIntegration:
 
         # Verify default values are applied
         assert algorithm.hypers.ema_timescale == 0.001, "Should use default ema_timescale"
-        assert algorithm.hypers.pool_size == 16, "Should use default pool_size"
+        assert algorithm.hypers.max_memory_tasks == 1000, "Should use default max_memory_tasks"
 
     def test_learning_progress_forward_compatibility(self, random_seed):
         """Test that learning progress algorithm supports future configuration options."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            pool_size=8,
-            sample_size=4,
-            max_samples=6,
+            max_memory_tasks=8,
             exploration_bonus=0.15,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=6, hypers=config)
@@ -463,4 +437,4 @@ class TestLearningProgressIntegration:
 
         # Verify extended options are applied
         assert algorithm.hypers.exploration_bonus == 0.15, "Should apply exploration_bonus"
-        assert algorithm.hypers.pool_size == 8, "Should apply custom pool_size"
+        assert algorithm.hypers.max_memory_tasks == 8, "Should apply custom max_memory_tasks"

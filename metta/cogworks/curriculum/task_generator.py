@@ -78,16 +78,16 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
 
         # Create learning progress algorithm hyperparameters
         lp_config = LearningProgressConfig(
-            pool_size=num_tasks or 16,  # Use provided num_tasks or default to 16
-            sample_size=10,  # K=10 tasks to sample
-            max_samples=20,  # A=20 max samples before eviction
-            exploration_bonus=0.1,  # Balance exploration vs exploitation
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=num_tasks or 1000,
+            max_bucket_axes=3,
         )
 
         # Create curriculum with integrated learning progress algorithm
         cc = CurriculumConfig(
             task_generator=self,
-            num_active_tasks=lp_config.pool_size,  # Use pool_size for compatibility
+            num_active_tasks=num_tasks or 16,
             algorithm_config=lp_config,
         )
 
