@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 
 from devops.skypilot.utils.cost_monitor import get_cost_info
 from devops.skypilot.utils.job_latency import calculate_queue_latency
@@ -18,7 +19,7 @@ from devops.skypilot.utils.notifications import (
 )
 from devops.skypilot.utils.runtime_monitors import HeartbeatMonitor, TimeoutMonitor
 from metta.common.util.log_config import getRankAwareLogger
-from metta.common.wandb.utils import log_to_wandb
+from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
 
 logger = getRankAwareLogger(__name__)
 
@@ -101,9 +102,17 @@ def main() -> int:
         cost_info = get_cost_info()
         total_hourly_cost = cost_info["total_hourly_cost"]
         logger.info_master(f"Total hourly cost: ${total_hourly_cost:.4f}")
-        os.environ["METTA_HOURLY_COST"] = str(total_hourly_cost)
+        os.environ["METTA_HOURLY_COST"] = str(total_hourly_cost)  # used in system monitor
 
-        log_to_wandb({"skypilot/hourly_cost": total_hourly_cost, "skypilot/queue_latency_s": latency_sec})
+        metrics = {
+            "skypilot/latency_collection_time": datetime.now(timezone.utc).isoformat(),
+            "skypilot/task_id": os.environ.get("SKYPILOT_TASK_ID", "unknown"),
+            "skypilot/hourly_cost": total_hourly_cost,
+            "skypilot/queue_latency_s": latency_sec,
+        }
+
+        ensure_wandb_run()
+        log_to_wandb(metrics)
 
     termination_reason = ""
 
