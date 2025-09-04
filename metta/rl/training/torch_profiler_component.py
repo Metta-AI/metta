@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from metta.rl.torch_profiler import TorchProfiler
-from metta.rl.training.components import ComponentConfig, MasterComponent
+from metta.rl.training.component import ComponentConfig, MasterComponent
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +30,8 @@ class TorchProfilerComponent(MasterComponent):
         self.torch_profiler = torch_profiler
         self.config = config
 
-    def on_epoch_end(self, trainer: Any) -> None:
+    def on_epoch_end(self, trainer: Any, epoch: int) -> None:
         """Step the profiler at epoch end."""
-        epoch = trainer.trainer_state.epoch
         self.torch_profiler.on_epoch_end(epoch)
 
     def on_training_complete(self, trainer: Any) -> None:

@@ -16,7 +16,7 @@ from metta.rl.stats import (
     accumulate_rollout_stats,
     process_stats,
 )
-from metta.rl.training.components import ComponentConfig, MasterComponent
+from metta.rl.training.component import ComponentConfig, MasterComponent
 
 if TYPE_CHECKING:
     from metta.rl.trainer_v2 import Trainer
@@ -63,7 +63,7 @@ class NoOpStatsReporter(MasterComponent):
     def on_step(self, trainer: "Trainer", infos: List[Dict[str, Any]]) -> None:
         pass
 
-    def on_epoch_end(self, trainer: "Trainer") -> None:
+    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
         pass
 
     def on_training_complete(self, trainer: "Trainer") -> None:
@@ -295,7 +295,7 @@ class StatsReporter(MasterComponent):
         """
         self.accumulate_infos(infos)
 
-    def on_epoch_end(self, trainer: "Trainer") -> None:
+    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
         """Report stats at epoch end.
 
         Args:

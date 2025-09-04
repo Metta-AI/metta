@@ -9,9 +9,6 @@ import torch.distributed
 from heavyball import ForeachMuon
 from torchrl.data import Composite
 
-from metta.agent.agent_config import AgentConfig
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.core.monitoring import cleanup_monitoring, setup_monitoring
 from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.experience import Experience
@@ -20,7 +17,6 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
-from metta.rl.training import vecenv as training_vecenv
 from metta.rl.training.core import CoreTrainingLoop
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.evaluator import Evaluator
@@ -47,73 +43,79 @@ class Trainer:
         self,
         run_dir: str,
         run_name: str,
+        training_environment: Any,  # TrainingEnvironment or experience_generator
+        policy: Any,  # The policy/agent to train
         system_cfg: SystemConfig,
-        agent_cfg: AgentConfig,
         trainer_cfg: TrainerConfig,
         device: torch.device,
         distributed_helper: DistributedHelper,
-        policy_checkpointer: PolicyCheckpointer,
-        trainer_checkpointer: TrainerCheckpointer,
         components: Optional[List] = None,
-        stats_client: Optional[StatsClient] = None,
-        policy_uri: Optional[str] = None,
     ):
         """Initialize trainer with all components.
 
         Args:
             run_dir: Directory for this run
             run_name: Name of the run
+            training_environment: TrainingEnvironment instance or experience generator
+            policy: The policy/agent to train
             system_cfg: System configuration
-            agent_cfg: Agent configuration
             trainer_cfg: Trainer configuration
             device: Device to train on
             distributed_helper: Helper for distributed training
-            policy_checkpointer: Policy checkpointer for saving/loading policies
-            trainer_checkpointer: Trainer state checkpointer for saving/loading optimizer and training state
             components: Optional list of training components (callbacks)
-            stats_client: Optional stats client
-            policy_uri: Optional URI to load policy from
         """
         self.run_dir = run_dir
         self.run_name = run_name
+        self.training_environment = training_environment
+        self.policy = policy
         self.system_cfg = system_cfg
-        self.agent_cfg = agent_cfg
         self.trainer_cfg = trainer_cfg
         self.device = device
-        self.stats_client = stats_client
-        self.policy_uri = policy_uri
 
-        # Use provided components
+        # Use provided distributed helper
         self.distributed_helper = distributed_helper
         self.distributed_helper.setup()
-        self.policy_checkpointer = policy_checkpointer
-        self.trainer_checkpointer = trainer_checkpointer
+
+        # Initialize components list
+        self._components = components or []
+
+        # Extract key components from the components list
+        self.policy_checkpointer = None
+        self.trainer_checkpointer = None
+        self.evaluator = None
+        self.stats_client = None
+
+        # Find components from the list
+        for component in self._components:
+            if isinstance(component, PolicyCheckpointer):
+                self.policy_checkpointer = component
+            elif isinstance(component, TrainerCheckpointer):
+                self.trainer_checkpointer = component
+            elif isinstance(component, Evaluator):
+                self.evaluator = component
+
+        # Find stats client from stats reporter if available
+        from metta.rl.training.stats_reporter import StatsReporter
+
+        for component in self._components:
+            if isinstance(component, StatsReporter) and hasattr(component, "_stats_client"):
+                self.stats_client = component._stats_client
+                break
 
         # Create timer
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
 
         # Create torch profiler (will be used by TorchProfilerComponent if added)
         self.torch_profiler = TorchProfiler(
-            is_master=self.distributed_helper.is_master(),
-            profiler_cfg=trainer_cfg.profiler,
+            master=self.distributed_helper.is_master(),
+            profiler_config=trainer_cfg.profiler,
             wandb_run=None,
             run_dir=run_dir,
         )
 
-        # Initialize components list
-        self._components = components or []
-
-        # Find evaluator from components list
-        self.evaluator = None
-        for component in self._components:
-            if isinstance(component, Evaluator):
-                self.evaluator = component
-
         # Initialize other components
-        self.curriculum = Curriculum(trainer_cfg.curriculum)
         self.vecenv = None
         self.core_loop = None
-        self.policy = None
         self.optimizer = None
         self.memory_monitor = None
         self.system_monitor = None
@@ -126,12 +128,22 @@ class Trainer:
         Args:
             component: Training component to register
         """
-        from metta.rl.training.components import TrainingComponent
+        from metta.rl.training.component import TrainingComponent
 
         if isinstance(component, TrainingComponent):
             self._components.append(component)
         else:
             logger.warning(f"Component {component} is not a TrainingComponent, skipping registration")
+
+    def get_latest_policy_uri(self) -> Optional[str]:
+        """Get the latest policy checkpoint URI.
+
+        Returns:
+            URI of the latest policy checkpoint, or None if no checkpoints exist
+        """
+        if self.policy_checkpointer:
+            return self.policy_checkpointer.get_latest_policy_uri()
+        return None
 
     def _invoke_step_callbacks(self, infos: Dict[str, Any]) -> None:
         """Invoke all registered callbacks for step.
@@ -151,7 +163,7 @@ class Trainer:
         for component in self._components:
             if epoch % component.interval == 0:
                 try:
-                    component.on_epoch_end(self)
+                    component.on_epoch_end(self, epoch)
                 except Exception as e:
                     logger.error(f"Component {component.__class__.__name__} on_epoch_end failed: {e}", exc_info=True)
 
@@ -175,30 +187,27 @@ class Trainer:
                 logger.error(f"Component {component.__class__.__name__} on_failure failed: {e}", exc_info=True)
 
     def setup(self) -> None:
-        """Setup training environment and policy."""
+        """Setup training environment."""
         self.timer.start()
 
-        # Create and setup vectorized environment
-        self.vecenv, target_batch_size, batch_size, num_envs = training_vecenv.create(
-            curriculum=self.curriculum,
-            system_cfg=self.system_cfg,
-            trainer_cfg=self.trainer_cfg,
-            rank=self.distributed_helper.get_rank(),
-        )
+        # Check if we have a TrainingEnvironment instance
+        from metta.rl.training.training_environment import TrainingEnvironment
 
-        metta_grid_env = self.vecenv.driver_env
-
-        # Load or create policy
-        self.policy = self.policy_checkpointer.load_or_create_agent(
-            env=metta_grid_env,
-            system_cfg=self.system_cfg,
-            agent_cfg=self.agent_cfg,
-            device=self.device,
-            policy_uri=self.policy_uri,
-        )
+        if isinstance(self.training_environment, TrainingEnvironment):
+            # Set up the training environment
+            metta_grid_env, target_batch_size, batch_size, num_envs = self.training_environment.setup()
+            self.vecenv = self.training_environment.get_vecenv()
+        else:
+            # Assume it's an experience generator, will be used directly
+            # This is a simplified path for custom experience generators
+            raise NotImplementedError("Direct experience generator support not yet implemented")
 
         # Load trainer state if available
-        _, trainer_state = self.trainer_checkpointer.get_checkpoint_info()
+        trainer_state = None
+        if self.trainer_checkpointer:
+            _, trainer_state = self.trainer_checkpointer.get_checkpoint_info()
+        else:
+            trainer_state = {}
 
         # Initialize trainer state
         self.trainer_state = TrainerState(
@@ -231,8 +240,9 @@ class Trainer:
         )
 
         # Create losses
+        checkpoint_manager = self.policy_checkpointer.checkpoint_manager if self.policy_checkpointer else None
         losses = self.trainer_cfg.losses.init_losses(
-            self.policy, self.trainer_cfg, self.vecenv, self.device, self.policy_checkpointer.checkpoint_manager
+            self.policy, self.trainer_cfg, self.vecenv, self.device, checkpoint_manager
         )
 
         # Create experience buffer
@@ -429,22 +439,24 @@ class Trainer:
         }
 
         # Add final evaluation scores
-        eval_scores = self.evaluator.get_latest_scores()
-        if eval_scores.category_scores or eval_scores.simulation_scores:
-            metadata.update(
-                {
-                    "score": eval_scores.avg_simulation_score,
-                    "avg_reward": eval_scores.avg_category_score,
-                }
-            )
+        if self.evaluator:
+            eval_scores = self.evaluator.get_latest_scores()
+            if eval_scores.category_scores or eval_scores.simulation_scores:
+                metadata.update(
+                    {
+                        "score": eval_scores.avg_simulation_score,
+                        "avg_reward": eval_scores.avg_category_score,
+                    }
+                )
 
         # Save final policy checkpoint
-        self.policy_checkpointer.save_policy(
-            policy=self.policy,
-            epoch=self.trainer_state.epoch,
-            metadata=metadata,
-            force=True,  # Force save final checkpoint
-        )
+        if self.policy_checkpointer:
+            self.policy_checkpointer.save_policy(
+                policy=self.policy,
+                epoch=self.trainer_state.epoch,
+                metadata=metadata,
+                force=True,  # Force save final checkpoint
+            )
 
         # Save final trainer state is handled by trainer_checkpointer.on_training_complete()
 

@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.components import ComponentConfig, MasterComponent
+from metta.rl.training.component import ComponentConfig, MasterComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
@@ -83,9 +83,8 @@ class PolicyUploader(MasterComponent):
             logger.error(f"Failed to upload to wandb: {e}")
             return None
 
-    def on_epoch_end(self, trainer: Any) -> None:
+    def on_epoch_end(self, trainer: Any, epoch: int) -> None:
         """Check if policy should be uploaded at epoch end."""
-        epoch = trainer.trainer_state.epoch
 
         # Check if we should upload
         if epoch % self.config.interval != 0:
