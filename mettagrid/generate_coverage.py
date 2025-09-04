@@ -1,8 +1,4 @@
-#!/usr/bin/env -S uv run --active
-# /// script
-# requires-python = ">=3.11"
-# dependencies = ["gcovr>=6.0", "colorama"]
-# ///
+#!/usr/bin/env -S uv run
 """
 generate_coverage.py - Generate C++ coverage report
 
@@ -16,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from metta.mettagrid.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
+from metta.mettagrid.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow
 
 # Configuration
 BUILD_DIR = Path("build-debug")
