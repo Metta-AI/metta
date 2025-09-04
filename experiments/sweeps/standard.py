@@ -1,7 +1,5 @@
 """Standard sweep configurations using the new orchestrator pattern."""
 
-from typing import Optional
-
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 from metta.tools.sweep import SweepTool
 
