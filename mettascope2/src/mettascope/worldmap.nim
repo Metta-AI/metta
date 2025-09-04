@@ -175,7 +175,7 @@ proc drawObjects*() =
             angle = 0,
             scale = 1/200
           )
-        of Converter:
+        of Generator:
           bxy.drawImage(
             "objects/converter",
             ivec2(x, y).vec2,
@@ -369,7 +369,7 @@ Altar
 hp: {selection.hp}
 cooldown: {selection.cooldown}
       """
-    of Converter:
+    of Generator:
       info = &"""
 Converter
 hp: {selection.hp}

@@ -875,6 +875,22 @@ proc loadMap*(env: Environment, map: string) =
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
         hp: MapObjectAltarHp,
       ))
+    of Temple:
+      env.add(Thing(
+        kind: kind,
+        id: id,
+        pos: ivec2(parts[2].parseInt, parts[3].parseInt),
+        hp: TempleHp,
+      ))
+    of Clippy:
+      env.add(Thing(
+        kind: kind,
+        id: id,
+        agentId: parts[2].parseInt,
+        pos: ivec2(parts[3].parseInt, parts[4].parseInt),
+        hp: ClippyHp,
+        energy: ClippyInitialEnergy,
+      ))
 
   for agentId in 0 ..< MapAgents:
     env.updateObservations(agentId)
@@ -973,6 +989,44 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           thing.energy -= MapObjectAgentUpkeepShield
         env.updateObservations(AgentEnergyLayer, thing.pos, thing.energy)
         env.updateObservations(AgentShieldLayer, thing.pos, thing.shield.int)
+
+  # Update Clippys - they move and interact
+  var clippysToRemove: seq[Thing] = @[]
+  var r = initRand(env.currentStep)
+  
+  for thing in env.things:
+    if thing.kind == Clippy:
+      # Convert things to seq of pointers for clippy module
+      var thingPtrs: seq[pointer] = @[]
+      for t in env.things:
+        thingPtrs.add(cast[pointer](t))
+      
+      # Get movement direction from clippy AI
+      let moveDir = getClippyMoveDirection(thing.pos, thingPtrs, r)
+      let newPos = thing.pos + moveDir
+      
+      # Check if new position is valid and empty
+      if env.isEmpty(newPos):
+        # Move the clippy
+        env.grid[thing.pos.x][thing.pos.y] = nil
+        thing.pos = newPos
+        env.grid[thing.pos.x][thing.pos.y] = thing
+      else:
+        # Check if we're trying to move onto an altar
+        let target = env.getThing(newPos)
+        if not isNil(target) and target.kind == Altar:
+          # Clippy reached an altar - damage it and disappear
+          if target.hp > 0:
+            target.hp = max(0, target.hp - 1)  # Decrement altar's HP (hearts) but don't go below 0
+            env.updateObservations(AltarHpLayer, target.pos, target.hp)
+          clippysToRemove.add(thing)
+          env.grid[thing.pos.x][thing.pos.y] = nil
+  
+  # Remove clippys that touched altars
+  for clippy in clippysToRemove:
+    let idx = env.things.find(clippy)
+    if idx >= 0:
+      env.things.del(idx)
 
   # for agentId in 0 ..< MapAgents:
   #   env.updateObservations(agentId)
