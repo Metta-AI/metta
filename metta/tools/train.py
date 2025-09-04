@@ -165,7 +165,7 @@ def _configure_vecenv_settings(cfg: TrainTool) -> None:
     cfg.trainer.rollout_workers = max(1, ideal_workers)
 
 
-def configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | None) -> None:
+def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | None) -> None:
     if cfg.trainer.evaluation is None:
         return
 
@@ -173,7 +173,6 @@ def configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | No
         cfg.trainer.evaluation.replay_dir = auto_replay_dir()
         logger.info_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
 
-    # Remove the redundant declaration - just use the parameter directly
     if cfg.stats_server_uri is not None and stats_client is None:
         stats_client = StatsClient.create(cfg.stats_server_uri)
 
