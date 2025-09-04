@@ -205,7 +205,7 @@ jobs:
           pnpm run lint
 
   unit-tests:
-    name: "Unit Tests (pytest-testmon)"
+    name: "Unit Tests
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -246,27 +246,33 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run tests with pytest-testmon
+      - name: Run tests (testmon for PRs, full coverage for main)
         run: |
           echo "::group::Running pytest-testmon selective tests"
-          
-          # Common pytest arguments
-          PYTEST_ARGS="--testmon --cov --benchmark-skip -n auto --disable-warnings -v --durations=10"
-          
+
+          # Use different coverage based on event type
+          # Production quality gate: full branch coverage for main branch merges and merge queue
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.event_name }}" == "merge_group" ]]; then
+            PYTEST_ARGS="--cov --cov-branch --benchmark-skip -n auto --disable-warnings -v --durations=10"
+            echo "Running with full branch coverage for production merge"
+          else
+            # Fast testmon for PRs and development (fast feedback)
+            PYTEST_ARGS="--testmon --cov --benchmark-skip -n auto --disable-warnings -v --durations=10"
+            echo "Running with testmon for fast development feedback"
+          fi
+
           # If no .testmondata exists, do a full run first to build the database
           if [ ! -f ".testmondata" ]; then
-            echo "No testmon database found. Running full test suite to build dependency database..."
-            pytest $PYTEST_ARGS
+            echo "No testmon database found."
           else
             echo "Found testmon database. Running only affected tests..."
             # Show which tests would be selected (dry run)
             echo "Tests that would be selected by testmon:"
             pytest --testmon --collect-only -q || echo "No tests selected or collection failed"
-            
-            # Run the selected tests
-            pytest $PYTEST_ARGS
           fi
-          
+
+          pytest $PYTEST_ARGS
+
           echo "::endgroup::"
 
       - name: Upload python test coverage to Codecov

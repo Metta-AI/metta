@@ -127,12 +127,22 @@ jobs:
             setup-testmon-${{ runner.os }}-${{ matrix.profile }}-refs/heads/main
             setup-testmon-${{ runner.os }}-${{ matrix.profile }}-
 
-      - name: Run metta setup integration tests with pytest-testmon
+      - name: Run setup tests
+        description: "Test the metta install process. Regular coverage for PRs, full branch coverage for main branch merges and merge queue."
         run: |
           echo "Running setup integration tests with pytest-testmon..."
 
-          # Common pytest arguments
-          PYTEST_ARGS="tests/setup --testmon --cov -v --durations=10"
+          # Use different coverage based on event type
+          # Production quality gate: full branch coverage for main branch merges and merge queue
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.event_name }}" == "merge_group" ]]; then
+            # Full branch coverage for main branch and merge queue (production quality gate)
+            PYTEST_ARGS="tests/setup --cov --cov-branch -v --durations=10"
+            echo "Running setup tests with full branch coverage for production merge"
+          else
+            # Fast testmon for PRs and development (fast feedback)
+            PYTEST_ARGS="tests/setup --testmon --cov -v --durations=10"
+            echo "Running setup tests with testmon for fast development feedback"
+          fi
 
           # If no .testmondata exists, do a full run first to build the database
           if [ ! -f ".testmondata" ]; then
