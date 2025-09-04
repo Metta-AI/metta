@@ -19,29 +19,25 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-
-class LocalCommands:
-    def __init__(self):
-        self.repo_root = get_repo_root()
-
-    def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None):
-        cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
-        if build_args:
-            cmd.extend(build_args)
-        cmd.append(str(self.repo_root))
-        subprocess.run(cmd, check=True)
-
-    def build_policy_evaluator_img_internal(
-        self, tag: str = "metta-policy-evaluator-local:latest", build_args: list[str] | None = None
-    ):
-        self._build_img(
-            tag,
-            self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
-            build_args or [],
-        )
+repo_root = get_repo_root()
 
 
-local = LocalCommands()
+def _build_img(tag: str, dockerfile_path: Path, build_args: list[str] | None = None):
+    cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
+    if build_args:
+        cmd.extend(build_args)
+    cmd.append(str(repo_root))
+    subprocess.run(cmd, check=True)
+
+
+def build_policy_evaluator_img_internal(
+    tag: str = "metta-policy-evaluator-local:latest", build_args: list[str] | None = None
+):
+    _build_img(
+        tag,
+        repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
+        build_args or [],
+    )
 
 
 @app.command(name="build-policy-evaluator-img", context_settings={"allow_extra_args": True})
@@ -50,9 +46,9 @@ def build_policy_evaluator_img(
     tag: Annotated[str, typer.Option(help="Docker image tag")] = "metta-policy-evaluator-local:latest",
 ):
     build_args = ctx.args if ctx.args else []
-    local._build_img(
+    _build_img(
         tag,
-        local.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
+        repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
         build_args,
     )
     console.print(f"[green]Built policy evaluator image: {tag}[/green]")
@@ -60,7 +56,7 @@ def build_policy_evaluator_img(
 
 @app.command(name="build-app-backend-img")
 def build_app_backend_img():
-    local._build_img("metta-app-backend:latest", local.repo_root / "app_backend" / "Dockerfile")
+    _build_img("metta-app-backend:latest", repo_root / "app_backend" / "Dockerfile")
     console.print("[green]Built app backend image: metta-app-backend:latest[/green]")
 
 
@@ -70,7 +66,7 @@ def stats_server(ctx: typer.Context):
         "uv",
         "run",
         "python",
-        str(local.repo_root / "app_backend" / "src" / "metta" / "app_backend" / "server.py"),
+        str(repo_root / "app_backend" / "src" / "metta" / "app_backend" / "server.py"),
     ]
     if ctx.args:
         cmd.extend(ctx.args)
@@ -87,7 +83,7 @@ def stats_server(ctx: typer.Context):
 
 @app.command(name="observatory", context_settings={"allow_extra_args": True})
 def observatory(ctx: typer.Context):
-    cmd = [sys.executable, str(local.repo_root / "observatory" / "launch.py")]
+    cmd = [sys.executable, str(repo_root / "observatory" / "launch.py")]
     if ctx.args:
         cmd.extend(ctx.args)
 

@@ -213,9 +213,9 @@ class KindLocal(Kind):
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         self._use_appropriate_context()
 
-        from metta.setup.local_commands import local
+        from metta.setup.local_commands import build_policy_evaluator_img_internal
 
-        self._ensure_docker_img_built("metta-policy-evaluator-local:latest", local.build_policy_evaluator_img_internal)
+        self._ensure_docker_img_built("metta-policy-evaluator-local:latest", build_policy_evaluator_img_internal)
         success("Kind cluster ready")
 
         if not self._check_namespace_exists():
@@ -237,9 +237,9 @@ class EksProd(Kind):
         info("Building AMD64 for EKS...")
 
         local_image_name = "metta-policy-evaluator-local:latest-amd64"
-        from metta.setup.local_commands import local
+        from metta.setup.local_commands import build_policy_evaluator_img_internal
 
-        local.build_policy_evaluator_img_internal(
+        build_policy_evaluator_img_internal(
             tag=local_image_name,
             build_args=["--platform", "linux/amd64"],
         )

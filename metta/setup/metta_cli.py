@@ -15,6 +15,8 @@ from metta.common.util.fs import get_repo_root
 from metta.setup.local_commands import app as local_app
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
 from metta.setup.saved_settings import get_saved_settings
+from metta.setup.symlink_setup import app as symlink_app
+from metta.setup.tools.book import app as book_app
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success
 
 console = Console()
@@ -39,8 +41,6 @@ PYTHON_TEST_FOLDERS = [
 class MettaCLI:
     def __init__(self):
         self.repo_root: Path = get_repo_root()
-        self._path_setup = None
-        self._book_commands = None
         self._components_initialized = False
 
     def _init_all(self):
@@ -49,27 +49,7 @@ class MettaCLI:
             return
 
         import_all_modules_from_subpackage("metta.setup", "components")
-
-        from metta.setup.symlink_setup import PathSetup
-
-        self._path_setup = PathSetup(self.repo_root)
         self._components_initialized = True
-
-    @property
-    def path_setup(self):
-        if self._path_setup is None:
-            from metta.setup.symlink_setup import PathSetup
-
-            self._path_setup = PathSetup(self.repo_root)
-        return self._path_setup
-
-    @property
-    def book_commands(self):
-        if self._book_commands is None:
-            from metta.setup.tools.book import BookCommands
-
-            self._book_commands = BookCommands()
-        return self._book_commands
 
     def setup_wizard(self, non_interactive: bool = False):
         from metta.setup.profiles import UserType
@@ -107,8 +87,10 @@ class MettaCLI:
             success(f"\nConfigured as {result.value} user.")
         info("\nRun 'metta install' to set up your environment.")
 
-        if not self.path_setup.check_installation():
-            info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
+        from metta.setup.symlink_setup import check_installation
+
+        if not check_installation():
+            info("You may want to run 'metta symlink-setup setup' to make the metta command globally available.")
 
     def _custom_setup(self, non_interactive: bool = False):
         from metta.setup.registry import get_all_modules
@@ -571,7 +553,11 @@ def cmd_test(ctx: typer.Context):
 
 
 # Pytest command
-@app.command(name="pytest", help="Run pytest with passed arguments", context_settings={"allow_extra_args": True})
+@app.command(
+    name="pytest",
+    help="Run pytest with passed arguments",
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
+)
 def cmd_pytest(ctx: typer.Context):
     """Run pytest with custom arguments."""
     cmd = [
@@ -656,13 +642,6 @@ def cmd_report_env_details():
         console.print(f"Git Commit: {commit}")
 
 
-# Symlink setup command
-@app.command(name="symlink-setup", help="Create symlink to make metta command globally available")
-def cmd_symlink_setup(force: Annotated[bool, typer.Option("--force", help="Replace existing metta command")] = False):
-    """Setup symlink for global access."""
-    cli.path_setup.setup_path(force=force)
-
-
 # Clip command
 @app.command(name="clip", help="Copy subsets of codebase for LLM contexts", context_settings={"allow_extra_args": True})
 def cmd_clip(ctx: typer.Context):
@@ -678,15 +657,9 @@ def cmd_clip(ctx: typer.Context):
         raise typer.Exit(1) from None
 
 
-# Book command
-@app.command(name="book", help="Interactive marimo notebook commands", context_settings={"allow_extra_args": True})
-def cmd_book(ctx: typer.Context):
-    """Run book commands."""
-    cli._init_all()
-    cli.book_commands.main(ctx.args or [])
-
-
 app.add_typer(local_app, name="local")
+app.add_typer(book_app, name="book")
+app.add_typer(symlink_app, name="symlink-setup")
 
 
 @app.callback()
