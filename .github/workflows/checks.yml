@@ -205,7 +205,7 @@ jobs:
           pnpm run lint
 
   unit-tests:
-    name: "Unit Tests
+    name: "Unit Tests"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
