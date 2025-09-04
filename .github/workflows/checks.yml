@@ -321,13 +321,25 @@ jobs:
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
+        shell: bash
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          SUBPACKAGES: "agent common app_backend mettagrid codebot core"
         run: |
-          chmod +x .github/scripts/upload_codecov.py
-          # Upload all coverage files
-          .github/scripts/upload_codecov.py
+          for pkg in agent common app_backend mettagrid codebot core; do
+            f="coverage-reports/coverage-${pkg}.xml"
+            if [[ -f "$f" ]]; then
+              echo "📤 Uploading $f with flag $pkg"
+              gh run codecov/codecov-action@v4 \
+                --token "${CODECOV_TOKEN}" \
+                --files "$f" \
+                --flags "$pkg" \
+                --name "$pkg" \
+                --fail_ci_if_error=false \
+                --verbose
+            else
+              echo "⚠️  Missing coverage file: $f"
+            fi
+          done
 
   unit-tests-summary:
     name: "Tests"
