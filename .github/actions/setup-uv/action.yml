@@ -29,6 +29,7 @@ runs:
           .github/actions/setup-uv/dependencies-*.txt
 
     - name: Install Bazel
+      if: inputs.install-mode != 'minimal'
       shell: bash
       run: |
         curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o bazel
