@@ -3,7 +3,6 @@ from typing import Optional
 import numpy as np
 
 from metta.mettagrid.mettagrid_c import PackedCoordinate
-from metta.mettagrid.test_support.token_types import TokenTypes
 
 
 class ObservationHelper:
@@ -27,6 +26,17 @@ class ObservationHelper:
         return tokens
 
     @staticmethod
+    def find_token_values(
+        obs: np.ndarray,
+        location: None | tuple[int, int] = None,
+        feature_id: None | int = None,
+        value: None | int = None,
+    ) -> np.ndarray:
+        """Find the values of tokens by location, feature id, and value."""
+        tokens = ObservationHelper.find_tokens(obs, location, feature_id, value)
+        return tokens[:, 2]
+
+    @staticmethod
     def find_token_value_at_location(obs: np.ndarray, x: int, y: int, token_type: int) -> Optional[int]:
         """Get the value of a specific token type at a location.
 
@@ -46,23 +56,3 @@ class ObservationHelper:
                 row, col = coords
                 positions.append((col, row))  # Return as (x, y)
         return positions
-
-    @staticmethod
-    def count_walls(obs: np.ndarray) -> int:
-        """Count the number of wall tokens in an observation."""
-        return len(
-            ObservationHelper.find_tokens(obs, feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID)
-        )
-
-    @staticmethod
-    def has_wall_at(obs: np.ndarray, x: int, y: int) -> bool:
-        """Check if there's a wall at the given location."""
-        wall_tokens = ObservationHelper.find_tokens(
-            obs, location=(x, y), feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID
-        )
-        return len(wall_tokens) > 0
-
-    @staticmethod
-    def count_features_by_type(obs: np.ndarray, feature_type_id: int) -> int:
-        """Count the number of features with a specific type ID."""
-        return len(ObservationHelper.find_tokens(obs, feature_id=TokenTypes.TYPE_ID_FEATURE, value=feature_type_id))

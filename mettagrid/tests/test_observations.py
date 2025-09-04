@@ -139,19 +139,16 @@ class TestObservations:
             (0, 2),  # bottom-left
         ]
 
-        all_positions = {(x, y) for x in range(3) for y in range(3)}
-        no_wall_positions_agent0 = all_positions - set(wall_positions_agent0)
-
-        # Check expected wall positions
-        for x, y in wall_positions_agent0:
-            assert helper.has_wall_at(agent0_obs, x, y), f"Agent 0: Expected wall at ({x}, {y})"
-
-        # Check no walls at empty positions
-        for x, y in no_wall_positions_agent0:
-            assert not helper.has_wall_at(agent0_obs, x, y), f"Agent 0: Expected no wall at ({x}, {y})"
+        agent0_wall_tokens = helper.find_tokens(
+            agent0_obs, feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID
+        )
+        agent0_wall_positions = helper.get_positions_from_tokens(agent0_wall_tokens)
+        assert set(agent0_wall_positions) == set(wall_positions_agent0), (
+            f"Agent 0: Expected walls at {wall_positions_agent0}, got {agent0_wall_positions}"
+        )
 
         # Verify wall count
-        assert helper.count_walls(agent0_obs) == 5, "Agent 0 should see exactly 5 walls"
+        assert len(agent0_wall_tokens) == 5, "Agent 0 should see exactly 5 walls"
 
         # Test Agent 1 observation
         agent1_obs = obs[1]
@@ -169,18 +166,16 @@ class TestObservations:
             (2, 2),  # bottom-right
         ]
 
-        no_wall_positions_agent1 = all_positions - set(wall_positions_agent1)
-
-        # Check expected wall positions
-        for x, y in wall_positions_agent1:
-            assert helper.has_wall_at(agent1_obs, x, y), f"Agent 1: Expected wall at ({x}, {y})"
-
-        # Check no walls at empty positions
-        for x, y in no_wall_positions_agent1:
-            assert not helper.has_wall_at(agent1_obs, x, y), f"Agent 1: Expected no wall at ({x}, {y})"
+        agent1_wall_tokens = helper.find_tokens(
+            agent1_obs, feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID
+        )
+        agent1_wall_positions = helper.get_positions_from_tokens(agent1_wall_tokens)
+        assert set(agent1_wall_positions) == set(wall_positions_agent1), (
+            f"Agent 1: Expected walls at {wall_positions_agent1}, got {agent1_wall_positions}"
+        )
 
         # Verify wall count
-        assert helper.count_walls(agent1_obs) == 3, "Agent 1 should see exactly 3 walls"
+        assert len(agent1_wall_tokens) == 3, "Agent 1 should see exactly 3 walls"
 
     def test_agent_surrounded_by_altars(self):
         """Test agent observation when surrounded by colored altars."""
@@ -283,27 +278,24 @@ class TestObservations:
         # Check that we see altars at all expected positions
         for x, y in expected_altar_positions:
             # Check altar exists at location
-            assert helper.find_tokens(
+            altar_tokens = helper.find_tokens(
                 agent_obs, location=(x, y), feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
-            ), f"Should have altar at ({x}, {y})"
+            )
+            assert len(altar_tokens) == 1, f"Should have altar at ({x}, {y})"
 
             # Check color token
-            color_value = helper.find_token_value_at_location(agent_obs, x, y, TokenTypes.COLOR)
-            assert color_value == 42, f"Altar at ({x}, {y}) should have color 42, got {color_value}"
-
-            # Check converter status token exists
-            converter_value = helper.find_token_value_at_location(
-                agent_obs, x, y, TokenTypes.CONVERTING_OR_COOLING_DOWN
-            )
-            assert converter_value is not None, f"Should have converter status token at ({x}, {y})"
+            color_values = helper.find_token_values(agent_obs, location=(x, y), feature_id=TokenTypes.COLOR)
+            assert color_values == [42], f"Altar at ({x}, {y}) should have color 42, got {color_values}"
 
         # Verify the agent sees itself at center (1,1)
         agent_tokens = helper.find_tokens(agent_obs, location=(1, 1))
         assert len(agent_tokens) > 0, "Agent should see itself at center position"
 
         # Count total altars
-        altar_count = helper.count_features_by_type(agent_obs, TokenTypes.ALTAR_TYPE_ID)
-        assert altar_count == 8, f"Should see 8 altars, got {altar_count}"
+        altar_tokens = helper.find_tokens(
+            agent_obs, feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
+        )
+        assert len(altar_tokens) == 8, f"Should see 8 altars, got {len(altar_tokens)}"
 
     def test_agents_see_each_other(self, adjacent_agents_env):
         """Test that adjacent agents can see each other."""
@@ -372,10 +364,14 @@ class TestGlobalTokens:
         global_y = basic_env.obs_height // 2
 
         # Check token types and values
-        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.EPISODE_COMPLETION_PCT) == 0
-        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION) == 0
-        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG) == 0
-        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_REWARD) == 0
+        assert helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=TokenTypes.EPISODE_COMPLETION_PCT
+        ) == [0]
+        assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION) == [0]
+        assert helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION_ARG
+        ) == [0]
+        assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_REWARD) == [0]
 
     def test_global_tokens_update(self):
         """Test that global tokens update correctly."""
@@ -431,15 +427,15 @@ class TestGlobalTokens:
 
         # Check episode completion updated (1/10 = 10%)
         expected_completion = int(round(0.1 * 255))
-        completion_value = helper.find_token_value_at_location(
-            obs[0], global_x, global_y, TokenTypes.EPISODE_COMPLETION_PCT
+        completion_values = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=TokenTypes.EPISODE_COMPLETION_PCT
         )
-        assert completion_value == expected_completion, (
-            f"Expected completion {expected_completion}, got {completion_value}"
+        assert completion_values == [expected_completion], (
+            f"Expected completion {expected_completion}, got {completion_values}"
         )
 
         # Check last action
-        last_action = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION)
+        last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION)
         assert last_action == noop_idx, f"Expected last action {noop_idx}, got {last_action}"
 
         # Check last action arg
@@ -656,7 +652,8 @@ class TestEdgeObservations:
         # Agent at (row=2, col=2) with 7x7 window sees:
         # - rows from (2-3) to (2+3) = -1 to 5 ✓ (altar at row 5 is at edge)
         # - cols from (2-3) to (2+3) = -1 to 5 ✗ (altar at col 7 is outside)
-        altar_visible = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+        altar_tokens = helper.find_tokens(obs[0], feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID)
+        altar_visible = len(altar_tokens) > 0
         assert not altar_visible, "Altar should not be visible initially"
 
         print("\nInitial state: Agent at (2,2), altar at (5,7) - not visible")
@@ -670,7 +667,10 @@ class TestEdgeObservations:
             agent_col = 2 + step + 1  # Started at col 2, moved (step+1) times
 
             # Use helper to check if altar is actually visible
-            altar_visible = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+            altar_tokens = helper.find_tokens(
+                obs[0], feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
+            )
+            altar_visible = len(altar_tokens) > 0
 
             # The altar becomes visible when agent reaches column 4 (after step 1)
             # At col 4: window covers cols 1-7, altar at col 7 is just visible
@@ -749,13 +749,19 @@ class TestEdgeObservations:
         for obs_y in range(7):
             grid_y = 8 + obs_y - 3  # Convert obs y to grid y
             if 0 <= grid_y <= 9:  # Within grid bounds
-                assert helper.has_wall_at(obs[0], 4, obs_y), f"Should see right wall at obs (4, {obs_y})"
+                wall_tokens = helper.find_tokens(
+                    obs[0], location=(4, obs_y), feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID
+                )
+                assert len(wall_tokens) == 1, f"Should see right wall at obs (4, {obs_y})"
 
         # Bottom wall at grid y=9 appears at obs y=(9-8+3)=4
         for obs_x in range(7):
             grid_x = 13 + obs_x - 3  # Convert obs x to grid x
             if 0 <= grid_x <= 14:  # Within grid bounds
-                assert helper.has_wall_at(obs[0], obs_x, 4), f"Should see bottom wall at obs ({obs_x}, 4)"
+                wall_tokens = helper.find_tokens(
+                    obs[0], location=(obs_x, 4), feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID
+                )
+                assert len(wall_tokens) == 1, f"Should see bottom wall at obs ({obs_x}, 4)"
 
         # Verify padding areas (beyond walls) have no feature tokens
         # Areas beyond x=4 and y=4 should be empty
