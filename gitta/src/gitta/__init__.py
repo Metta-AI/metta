@@ -15,8 +15,6 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 
 import httpx
 
-from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
-
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -653,7 +651,6 @@ def post_commit_status(
         ValueError: If no token is available or repo not provided
         httpx.HTTPError: If the API request fails
     """
-
     if not repo:
         raise ValueError("Repository must be provided in format 'owner/repo'")
 
