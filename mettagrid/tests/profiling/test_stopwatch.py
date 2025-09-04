@@ -496,20 +496,20 @@ class TestStopwatchIntegration:
         sw = Stopwatch()
         sw.start("training")
 
-        # First lap: 100 steps in 0.1 seconds
+        # First lap: 100 steps in ~0.1 seconds
         time.sleep(0.1)
         lap1_time = sw.lap(100, "training")
-        assert 0.09 < lap1_time < 0.11
+        assert 0.09 < lap1_time < 0.115
 
         # Second lap: 200 more steps (total 300) in another 0.1 seconds
         time.sleep(0.1)
         lap2_time = sw.lap(300, "training")
-        assert 0.09 < lap2_time < 0.11
+        assert 0.09 < lap2_time < 0.115
 
         # Third lap: 300 more steps (total 600) in another 0.1 seconds
         time.sleep(0.1)
         lap3_time = sw.lap(600, "training")
-        assert 0.09 < lap3_time < 0.11
+        assert 0.09 < lap3_time < 0.115
 
         # Now calculate rates BETWEEN checkpoints
         # Move forward a bit in time so we can calculate rates

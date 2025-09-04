@@ -150,6 +150,16 @@ class Stopwatch:
         if log_level is None:
             self.logger.disabled = True
         else:
+            root_logger = logging.getLogger()
+            has_stream_handler = any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers)
+            if not has_stream_handler:
+                handler = logging.StreamHandler()
+                handler.setLevel(logging.DEBUG)
+                self.logger.addHandler(handler)
+                self.logger.warning(
+                    "No handlers found on logger - added StreamHandler. This should only happen during testing."
+                )
+
             self.logger.setLevel(log_level)
 
         self.max_laps = max_laps

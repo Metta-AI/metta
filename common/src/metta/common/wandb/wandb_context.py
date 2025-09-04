@@ -1,11 +1,10 @@
-import json
 import logging
 import os
 import socket
 
 import wandb
-import wandb.errors
 import wandb.sdk.wandb_run
+from wandb.errors import CommError
 
 from metta.mettagrid.config import Config
 
@@ -13,8 +12,6 @@ logger = logging.getLogger(__name__)
 
 # Alias type for easier usage (other modules can import this type)
 WandbRun = wandb.sdk.wandb_run.Run
-# Shared IPC filename, co-located with the heartbeat signal file
-WANDB_IPC_FILENAME = "wandb_ipc.json"
 
 
 class WandbConfig(Config):
@@ -111,37 +108,7 @@ class WandbContext:
                 wandb.save(os.path.join(self.cfg.data_dir, "*.json"), base_path=self.cfg.data_dir, policy="live")
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
-            # --- File-based IPC: Write to the same directory as HEARTBEAT_FILE ---
-            heartbeat_file_env_path = os.environ.get("HEARTBEAT_FILE")
-            if heartbeat_file_env_path:
-                try:
-                    # Ensure HEARTBEAT_FILE is an absolute path for reliable dirname
-                    abs_heartbeat_path = os.path.abspath(heartbeat_file_env_path)
-                    ipc_dir = os.path.dirname(abs_heartbeat_path)
-                    self._generated_ipc_file_path = os.path.join(ipc_dir, WANDB_IPC_FILENAME)
-
-                    os.makedirs(ipc_dir, exist_ok=True)  # Ensure directory exists
-
-                    ipc_data = {
-                        "run_id": self.run.id,
-                        "project": self.run.project,
-                        "entity": self.run.entity,
-                        "name": self.run.name,
-                    }
-                    with open(self._generated_ipc_file_path, "w") as f:
-                        json.dump(ipc_data, f)
-                    logger.info(f"W&B IPC data written to: {self._generated_ipc_file_path}")
-                except Exception as e:
-                    logger.error(
-                        f"Failed to write W&B IPC file alongside heartbeat file ({heartbeat_file_env_path}): {e}",
-                        exc_info=True,
-                    )
-                    self._generated_ipc_file_path = None  # Mark as not generated
-            else:
-                logger.info("HEARTBEAT_FILE env var not set. Cannot write W&B IPC file for heartbeat monitor.")
-            # --- End File-based IPC ---
-
-        except (TimeoutError, wandb.errors.CommError) as e:
+        except (TimeoutError, CommError) as e:
             error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
             logger.warning(f"W&B initialization failed due to {error_type} error: {str(e)}")
             logger.info("Continuing without W&B logging")
@@ -164,4 +131,3 @@ class WandbContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cleanup_run(self.run)
-        # No explicit cleanup of the IPC file as per user preference (it's co-located with heartbeat or not written)

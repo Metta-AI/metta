@@ -1,27 +1,32 @@
 #!/usr/bin/env -S uv run
-import argparse
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional
+from typing import Annotated, Optional
+
+import typer
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 
 import gitta
-
-# Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
+from metta.setup.local_commands import app as local_app
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
 from metta.setup.saved_settings import get_saved_settings
+from metta.setup.symlink_setup import app as symlink_app
+from metta.setup.tools.book import app as book_app
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success
 
-# Type hints only
-if TYPE_CHECKING:
-    from metta.setup.local_commands import LocalCommands
-    from metta.setup.symlink_setup import PathSetup
-    from metta.setup.tools.book import BookCommands
+console = Console()
+app = typer.Typer(
+    help="Metta Setup Tool - Configure and install development environment",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 
-# Shared list of test folders for Python tests
 PYTHON_TEST_FOLDERS = [
     "tests",
     "mettascope/tests",
@@ -33,185 +38,9 @@ PYTHON_TEST_FOLDERS = [
 ]
 
 
-@dataclass
-class CommandConfig:
-    """Configuration for a single command."""
-
-    help: str  # Help text shown in 'metta --help'
-    handler: Optional[str] = None  # Method name in MettaCLI
-    needs_config: bool = False
-    needs_components: bool = False
-    pass_unknown_args: bool = False
-    subprocess_cmd: Optional[List[str]] = None  # For simple subprocess commands
-    add_help: bool = True  # Whether subcommand accepts --help
-    parser_setup: Optional[Callable[[argparse.ArgumentParser], None]] = None  # Parser setup function
-
-
-# Parser setup functions for commands
-def _setup_configure_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("component", nargs="?", help="Specific component to configure. If omitted, runs setup wizard.")
-    parser.add_argument("--non-interactive", action="store_true", help="Non-interactive mode")
-    # Profile choices will be added dynamically in _build_parser
-
-
-def _setup_run_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("component", help="Component to run command for")
-    parser.add_argument("args", nargs="*", help="Arguments to pass to the component")
-
-
-def _setup_install_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("components", nargs="*", help="Components to install")
-    parser.add_argument("--force", action="store_true", help="Force reinstall")
-    parser.add_argument("--no-clean", action="store_true", help="Skip cleaning before install")
-    parser.add_argument("--non-interactive", action="store_true", help="Non-interactive mode")
-
-
-def _setup_status_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--components", help="Comma-separated list of components")
-    parser.add_argument("-n", "--non-interactive", action="store_true", help="Non-interactive mode")
-
-
-def _setup_symlink_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--force", action="store_true", help="Replace existing metta command")
-
-
-def _setup_lint_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--fix", action="store_true", help="Apply fixes automatically")
-    parser.add_argument("--staged", action="store_true", help="Only lint staged files")
-
-
-def _setup_tool_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("tool_name", help="Name of the tool to run")
-
-
-# Command registry with all command definitions
-COMMAND_REGISTRY: Dict[str, CommandConfig] = {
-    # Simple subprocess commands
-    "clip": CommandConfig(
-        help="Copy subsets of codebase for LLM contexts",
-        subprocess_cmd=["codeclip"],
-        pass_unknown_args=True,
-        add_help=False,  # codeclip handles its own --help
-    ),
-    "book": CommandConfig(
-        help="Interactive marimo notebook commands",
-        handler="cmd_book",
-        needs_config=True,
-        pass_unknown_args=True,
-        add_help=False,  # Let BookCommands handle its own help
-    ),
-    "pytest": CommandConfig(
-        help="Run pytest with passed arguments",
-        subprocess_cmd=[
-            "uv",
-            "run",
-            "pytest",
-            "--benchmark-disable",
-            "-n",
-            "auto",
-        ],
-        pass_unknown_args=True,
-    ),
-    "test": CommandConfig(
-        help="Run all Python unit tests",
-        subprocess_cmd=[
-            "uv",
-            "run",
-            "pytest",
-            *PYTHON_TEST_FOLDERS,
-            "--benchmark-disable",
-            "-n",
-            "auto",
-        ],
-    ),
-    "ci": CommandConfig(
-        help="Run all Python unit tests and all Mettagrid C++ tests",
-        handler="cmd_ci",
-        needs_config=True,  # Needs repo_root
-    ),
-    "tool": CommandConfig(
-        help="Run a tool from the tools/ directory",
-        handler="cmd_tool",
-        pass_unknown_args=True,
-        parser_setup=_setup_tool_parser,
-    ),
-    "shell": CommandConfig(
-        help="Start an IPython shell with Metta imports",
-        subprocess_cmd=["uv", "run", "--active", "metta/setup/shell.py"],
-        needs_config=True,  # Needs repo_root
-    ),
-    "report-env-details": CommandConfig(
-        help="Report environment details including UV project directory",
-        handler="cmd_report_env_details",
-    ),
-    "lint": CommandConfig(
-        help="Run linting and formatting",
-        handler="cmd_lint",
-        parser_setup=_setup_lint_parser,
-    ),
-    "clean": CommandConfig(
-        help="Clean build artifacts and temporary files",
-        handler="cmd_clean",
-    ),
-    "go": CommandConfig(
-        help="Navigate to a Softmax Home shortcut",
-        handler="cmd_go",
-        pass_unknown_args=True,
-    ),
-    # Commands that need config but not components
-    "local": CommandConfig(
-        help="Local development commands",
-        handler="cmd_local",
-        needs_config=True,
-        pass_unknown_args=True,
-        add_help=False,  # Let LocalCommands handle its own help
-        parser_setup=None,
-    ),
-    "symlink-setup": CommandConfig(
-        help="Create symlink to make metta command globally available",
-        handler="cmd_symlink_setup",
-        needs_config=True,
-        parser_setup=_setup_symlink_parser,
-    ),
-    # Commands that need full setup with components
-    "configure": CommandConfig(
-        help="Configure Metta settings",
-        handler="cmd_configure",
-        needs_config=True,
-        needs_components=True,
-        parser_setup=_setup_configure_parser,
-    ),
-    "install": CommandConfig(
-        help="Install or update components",
-        handler="cmd_install",
-        needs_config=True,
-        needs_components=True,
-        parser_setup=_setup_install_parser,
-    ),
-    "status": CommandConfig(
-        help="Show status of all components",
-        handler="cmd_status",
-        needs_config=True,
-        needs_components=True,
-        parser_setup=_setup_status_parser,
-    ),
-    "run": CommandConfig(
-        help="Run component-specific commands",
-        handler="cmd_run",
-        needs_config=True,
-        needs_components=True,
-        pass_unknown_args=True,
-        parser_setup=_setup_run_parser,
-    ),
-}
-
-
 class MettaCLI:
     def __init__(self):
         self.repo_root: Path = get_repo_root()
-        self._path_setup: Optional[PathSetup] = None
-        self._local_commands: Optional[LocalCommands] = None
-        self._book_commands: Optional[BookCommands] = None
         self._components_initialized = False
 
     def _init_all(self):
@@ -219,43 +48,10 @@ class MettaCLI:
         if self._components_initialized:
             return
 
-        # Import all component modules to register them with the registry
-
         import_all_modules_from_subpackage("metta.setup", "components")
-
-        # Initialize core objects
-        from metta.setup.local_commands import LocalCommands
-        from metta.setup.symlink_setup import PathSetup
-
-        self._path_setup = PathSetup(self.repo_root)
-        self._local_commands = LocalCommands()
         self._components_initialized = True
 
-    @property
-    def path_setup(self):
-        if self._path_setup is None:
-            from metta.setup.symlink_setup import PathSetup
-
-            self._path_setup = PathSetup(self.repo_root)
-        return self._path_setup
-
-    @property
-    def local_commands(self):
-        if self._local_commands is None:
-            from metta.setup.local_commands import LocalCommands
-
-            self._local_commands = LocalCommands()
-        return self._local_commands
-
-    @property
-    def book_commands(self):
-        if self._book_commands is None:
-            from metta.setup.tools.book import BookCommands
-
-            self._book_commands = BookCommands()
-        return self._book_commands
-
-    def setup_wizard(self, non_interactive: bool = False) -> None:
+    def setup_wizard(self, non_interactive: bool = False):
         from metta.setup.profiles import UserType
 
         header("Welcome to Metta!\n\n")
@@ -273,10 +69,8 @@ class MettaCLI:
                     success(f"  + {comp}")
             info("\n")
 
-        # Add "Custom configuration" as an option
         choices = [(ut, ut.get_description()) for ut in UserType]
 
-        # Current configuration
         current_user_type = saved_settings.user_type if saved_settings.exists() else None
 
         result = prompt_choice(
@@ -293,10 +87,7 @@ class MettaCLI:
             success(f"\nConfigured as {result.value} user.")
         info("\nRun 'metta install' to set up your environment.")
 
-        if not self.path_setup.check_installation():
-            info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
-
-    def _custom_setup(self, non_interactive: bool = False) -> None:
+    def _custom_setup(self, non_interactive: bool = False):
         from metta.setup.registry import get_all_modules
 
         user_type = prompt_choice(
@@ -310,13 +101,11 @@ class MettaCLI:
         saved_settings.setup_custom_profile(user_type)
 
         info("\nCustomize components:")
-        # Get all registered components
         all_modules = get_all_modules()
 
         for module in all_modules:
             current_enabled = saved_settings.is_component_enabled(module.name)
 
-            # Use prompt_choice for yes/no
             enabled = prompt_choice(
                 f"Enable {module.name} ({module.description})?",
                 [(True, "Yes"), (False, "No")],
@@ -325,7 +114,6 @@ class MettaCLI:
                 non_interactive=non_interactive,
             )
 
-            # Only save if different from profile default
             profile_default = (
                 PROFILE_DEFINITIONS.get(user_type, {}).get("components", {}).get(module.name, {}).get("enabled", False)
             )
@@ -637,475 +425,542 @@ class MettaCLI:
             return text
         return text[: max_len - 3] + "..."
 
-    def cmd_symlink_setup(self, args, unknown_args=None) -> None:
-        self.path_setup.setup_path(force=args.force)
 
-    def _run_subprocess_command(self, command: str, args, unknown_args=None) -> None:
-        """Run a subprocess command from the registry."""
-        cmd_config = COMMAND_REGISTRY[command]
-        if not cmd_config.subprocess_cmd:
-            raise ValueError(f"Command {command} has no subprocess_cmd")
+# Create a single CLI instance
+cli = MettaCLI()
 
-        cmd = list(cmd_config.subprocess_cmd)  # Copy to avoid mutation
 
-        # For commands that pass unknown args, use sys.argv directly
-        # to preserve exact argument order and avoid argparse interpretation
-        if cmd_config.pass_unknown_args:
-            try:
-                cmd_index = sys.argv.index(command)
-                remaining_args = sys.argv[cmd_index + 1 :] if cmd_index + 1 < len(sys.argv) else []
-                if remaining_args:
-                    cmd.extend(remaining_args)
-            except ValueError:
-                # Fallback to unknown_args
-                if unknown_args:
-                    cmd.extend(unknown_args)
-
-        try:
-            # Use check=False for commands like clip that handle their own exit codes
-            check = command != "clip"
-            subprocess.run(cmd, cwd=self.repo_root, check=check)
-        except subprocess.CalledProcessError as e:
-            sys.exit(e.returncode)
-        except FileNotFoundError:
-            print(f"Error: Command not found: {cmd[0]}", file=sys.stderr)
-            if command == "clip":
-                print("Run: metta install codebot", file=sys.stderr)
-            sys.exit(1)
-
-    def cmd_report_env_details(self, args, unknown_args=None) -> None:
-        print(f"UV Project Directory: {self.repo_root}")
-        print(f"Metta CLI Working Directory: {Path.cwd()}")
-        if branch := gitta.get_current_branch():
-            print(f"Git Branch: {branch}")
-        if commit := gitta.get_current_commit():
-            print(f"Git Commit: {commit}")
-
-    def cmd_local(self, args, unknown_args=None) -> None:
-        self.local_commands.main(unknown_args)
-
-    def cmd_book(self, args, unknown_args=None) -> None:
-        self.book_commands.main(unknown_args)
-
-    def cmd_lint(self, args, unknown_args=None) -> None:
-        files = []
-        if args.staged:
-            result = subprocess.run(
-                ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
-                cwd=self.repo_root,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
-            if not files:
-                return
-
-        check_cmd = ["uv", "run", "--active", "ruff", "check"]
-        format_cmd = ["uv", "run", "--active", "ruff", "format"]
-        cmds = [format_cmd, check_cmd]
-
-        # ruff check: warns
-        # ruff format check: warns
-        # ruff check --fix: auto-fixes
-        # ruff format: auto-fixes
-        if args.fix:
-            check_cmd.append("--fix")
+# Configure command
+@app.command(name="configure", help="Configure Metta settings")
+def cmd_configure(
+    component: Annotated[Optional[str], typer.Argument(help="Specific component to configure")] = None,
+    profile: Annotated[
+        Optional[str],
+        typer.Option(
+            "--profile",
+            help="Set user profile",
+        ),
+    ] = None,
+    non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
+):
+    """Configure Metta settings."""
+    cli._init_all()
+    if component:
+        configure_component(component)
+    elif profile:
+        selected_user_type = UserType(profile)
+        if selected_user_type in PROFILE_DEFINITIONS:
+            saved_settings = get_saved_settings()
+            saved_settings.apply_profile(selected_user_type)
+            success(f"Configured as {selected_user_type.value} user.")
+            info("\nRun 'metta install' to set up your environment.")
         else:
-            format_cmd.append("--check")
+            error(f"Unknown profile: {profile}")
+            raise typer.Exit(1)
+    else:
+        cli.setup_wizard(non_interactive=non_interactive)
 
-        if files:
-            for cmd in cmds:
-                cmd.extend(files)
 
-        for cmd in cmds:
-            try:
-                print(f"Running: {' '.join(cmd)}")
-                subprocess.run(cmd, cwd=self.repo_root, check=True)
-            except subprocess.CalledProcessError as e:
-                sys.exit(e.returncode)
+def configure_component(component_name: str):
+    from metta.setup.registry import get_all_modules
+    from metta.setup.utils import error, info
 
-    def cmd_ci(self, args, unknown_args=None) -> None:
-        """Run all Python and C++ tests for CI."""
-        from metta.setup.utils import error, info, success
+    modules = get_all_modules()
+    module_map = {m.name: m for m in modules}
 
-        # First run Python tests
-        info("Running Python tests...")
-        python_test_cmd = [
-            "uv",
-            "run",
-            "pytest",
-            *PYTHON_TEST_FOLDERS,
-            "--benchmark-disable",
-            "-n",
-            "auto",
-        ]
+    if not (module := module_map.get(component_name)):
+        error(f"Unknown component: {component_name}")
+        info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+        raise typer.Exit(1)
+
+    options = module.get_configuration_options()
+    if not options:
+        info(f"Component '{component_name}' has no configuration options.")
+        return
+    module.configure()
+
+
+# Install command
+@app.command(name="install", help="Install or update components")
+def cmd_install(
+    components: Annotated[Optional[list[str]], typer.Argument(help="Components to install")] = None,
+    force: Annotated[bool, typer.Option("--force", help="Force reinstall")] = False,
+    no_clean: Annotated[bool, typer.Option("--no-clean", help="Skip cleaning before install")] = False,
+    non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
+):
+    """Install or update components."""
+    from metta.setup.registry import get_all_modules, get_enabled_setup_modules
+    from metta.setup.utils import error, info, success, warning
+
+    cli._init_all()
+
+    if not get_saved_settings().exists():
+        warning("No configuration found. Running setup wizard first...")
+        cli.setup_wizard()
+
+    if not no_clean:
+        cmd_clean()
+
+    if components:
+        modules = get_all_modules()
+    else:
+        modules = get_enabled_setup_modules()
+
+    if components:
+        only_names = list(components)
+        original_only = set(only_names)
+
+        essential_modules = {"system", "core"}
+        added_essentials = essential_modules - original_only
+
+        for essential in essential_modules:
+            if essential not in only_names:
+                only_names.append(essential)
+
+        if added_essentials:
+            info(f"Note: Adding essential dependencies: {', '.join(sorted(added_essentials))}\n")
+
+        modules = [m for m in modules if m.name in only_names]
+        modules.sort(key=lambda m: (m.name not in essential_modules, m.name))
+
+    if not modules:
+        info("No modules to install.")
+        return
+
+    info(f"\nInstalling {len(modules)} components...\n")
+
+    for module in modules:
+        info(f"[{module.name}] {module.description}")
+
+        if module.install_once and module.check_installed() and not force:
+            info("  -> Already installed, skipping (use --force to reinstall)\n")
+            continue
 
         try:
-            subprocess.run(python_test_cmd, cwd=self.repo_root, check=True)
-            success("Python tests passed!")
-        except subprocess.CalledProcessError as e:
-            error("Python tests failed!")
-            sys.exit(e.returncode)
+            module.install(non_interactive=non_interactive)
+            print()
+        except Exception as e:
+            error(f"  Error: {e}\n")
 
-        # Then run C++ tests
-        info("\nBuilding and running C++ tests...")
-        mettagrid_dir = self.repo_root / "mettagrid"
+    success("Installation complete!")
 
-        # Configure with cmake preset
-        try:
-            subprocess.run(["cmake", "--preset", "benchmark"], cwd=mettagrid_dir, check=True)
 
-            # Build
-            subprocess.run(["cmake", "--build", "build-release"], cwd=mettagrid_dir, check=True)
+# Status command
+@app.command(name="status", help="Show status of all components")
+def cmd_status(
+    components: Annotated[
+        Optional[str], typer.Option("--components", help="Comma-separated list of components")
+    ] = None,
+    non_interactive: Annotated[bool, typer.Option("-n", "--non-interactive", help="Non-interactive mode")] = False,
+):
+    """Show status of all components."""
+    import concurrent.futures
 
-            # Run tests
-            build_dir = mettagrid_dir / "build-release"
-            subprocess.run(["ctest", "-L", "benchmark", "--output-on-failure"], cwd=build_dir, check=True)
+    from metta.setup.registry import get_all_modules
+    from metta.setup.utils import info, warning
 
-            success("C++ tests passed!")
+    cli._init_all()
 
-        except subprocess.CalledProcessError as e:
-            error("C++ tests failed!")
-            sys.exit(e.returncode)
+    all_modules = get_all_modules()
 
-        success("\nAll CI tests passed!")
-
-    def cmd_tool(self, args, unknown_args=None) -> None:
-        tool_path = self.repo_root / "tools" / f"{args.tool_name}.py"
-        if not tool_path.exists():
-            print(f"Error: Tool '{args.tool_name}' not found at {tool_path}", file=sys.stderr)
-            sys.exit(1)
-
-        cmd = [str(tool_path)] + (unknown_args or [])
-        try:
-            subprocess.run(cmd, cwd=self.repo_root, check=True)
-        except subprocess.CalledProcessError as e:
-            sys.exit(e.returncode)
-
-    def cmd_status(self, args, unknown_args=None) -> None:
-        import concurrent.futures
-
-        from metta.setup.registry import get_all_modules
-        from metta.setup.utils import error, info, spinner, success, warning
-
-        # Get all modules first
-        all_modules = get_all_modules()
-
-        # Filter by requested components if specified
-        if args.components:
-            # Parse comma-separated components
-            requested_components = [c.strip() for c in args.components.split(",")]
-            module_map = {m.name: m for m in all_modules}
-            modules = []
-            for comp in requested_components:
-                if comp in module_map:
-                    modules.append(module_map[comp])
-                else:
-                    warning(f"Unknown component: {comp}")
-                    info(f"Available components: {', '.join(sorted(module_map.keys()))}")
-            if not modules:
-                return
-        else:
-            modules = all_modules
-
+    if components:
+        requested_components = [c.strip() for c in components.split(",")]
+        module_map = {m.name: m for m in all_modules}
+        modules = []
+        for comp in requested_components:
+            if comp in module_map:
+                modules.append(module_map[comp])
+            else:
+                warning(f"Unknown component: {comp}")
+                info(f"Available components: {', '.join(sorted(module_map.keys()))}")
         if not modules:
-            warning("No modules found.")
             return
+    else:
+        modules = all_modules
 
-        # Check if any modules are applicable
-        applicable_modules = [m for m in modules if m.is_enabled()]
-        if not applicable_modules:
-            warning("No applicable modules found.")
-            return
+    if not modules:
+        warning("No modules found.")
+        return
 
-        # Do all substantive checks upfront in parallel
-        module_status = {}
+    applicable_modules = [m for m in modules if m.is_enabled()]
+    if not applicable_modules:
+        warning("No applicable modules found.")
+        return
 
-        with spinner("Checking component status..."):
-            # Parallelize module checks
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                future_to_module = {executor.submit(lambda m: (m.name, m.get_status()), m): m for m in modules}
-                for future in concurrent.futures.as_completed(future_to_module):
-                    name, status = future.result()
-                    if status:
-                        module_status[name] = status
+    module_status = {}
 
-        # Now do all logging/display
-        max_comp_len = max(len(m.name) for m in modules) + 2
-        max_conn_len = 25
-        max_exp_len = 20
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("Checking component status...", total=None)
 
-        # Header
-        cols = [
-            f"{'Component':<{max_comp_len}}",
-            f"{'Installed':<10}",
-            f"{'Connected As':<{max_conn_len}}",
-            f"{'Expected':<{max_exp_len}}",
-            "Status",
-        ]
-        header = " | ".join(cols)
-        separator = "-" * len(header)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_module = {executor.submit(lambda m: (m.name, m.get_status()), m): m for m in modules}
+            for future in concurrent.futures.as_completed(future_to_module):
+                name, status = future.result()
+                if status:
+                    module_status[name] = status
 
-        info(f"\n{header}")
-        info(separator)
+    table = Table(title="Component Status", show_header=True, header_style="bold magenta")
+    table.add_column("Component", style="cyan", no_wrap=True)
+    table.add_column("Installed", justify="center")
+    table.add_column("Connected As")
+    table.add_column("Expected")
+    table.add_column("Status", justify="center")
 
-        # Display each module using cached results
-        for module in modules:
-            if module.name not in module_status:
-                continue
+    for module in modules:
+        if module.name not in module_status:
+            continue
 
-            status_data = module_status[module.name]
-            installed = status_data["installed"]
-            connected_as = status_data["connected_as"]
-            expected = status_data["expected"]
+        status_data = module_status[module.name]
+        installed = status_data["installed"]
+        connected_as = status_data["connected_as"]
+        expected = status_data["expected"]
 
-            installed_str = "Yes" if installed else "No"
-            connected_str = self._truncate(connected_as or "-", max_conn_len)
-            expected_str = self._truncate(expected or "-", max_exp_len)
+        installed_str = "Yes" if installed else "No"
+        connected_str = cli._truncate(connected_as or "-", 25)
+        expected_str = cli._truncate(expected or "-", 20)
 
-            # Determine status
-            if not installed:
-                status = "NOT INSTALLED"
-                status_color = error
-            elif connected_as is None:
-                if expected is None:
-                    # No connection needed
-                    status = "OK"
-                    status_color = success
-                else:
-                    # Should be connected but isn't
-                    status = "NOT CONNECTED"
-                    status_color = error
-            elif expected is None:
-                # Connected but no expectation
-                status = "OK"
-                status_color = success
-            elif expected in connected_as:
-                # Connected to right place
-                status = "OK"
-                status_color = success
+        if not installed:
+            status = "[red]NOT INSTALLED[/red]"
+        elif connected_as is None:
+            if expected is None:
+                status = "[green]OK[/green]"
             else:
-                # Connected to wrong place
-                status = "WRONG ACCOUNT"
-                status_color = warning
+                status = "[red]NOT CONNECTED[/red]"
+        elif expected is None:
+            status = "[green]OK[/green]"
+        elif expected in connected_as:
+            status = "[green]OK[/green]"
+        else:
+            status = "[yellow]WRONG ACCOUNT[/yellow]"
 
-            # Format row
-            row_parts = [
-                f"{module.name:<{max_comp_len}}",
-                f"{installed_str:<10}",
-                f"{connected_str:<{max_conn_len}}",
-                f"{expected_str:<{max_exp_len}}",
-            ]
-            row = " | ".join(row_parts) + " | "
-            info(row, end="")
-            status_color(status)
+        table.add_row(module.name, installed_str, connected_str, expected_str, status)
 
-        info(f"\n{separator}")
+    console.print(table)
 
-        all_installed = all(module_status[name]["installed"] for name in module_status)
-        all_connected = all(
-            (module_status[name]["connected_as"] is not None or module_status[name]["expected"] is None)
-            for name in module_status
-            if module_status[name]["installed"]
+    all_installed = all(module_status[name]["installed"] for name in module_status)
+    all_connected = all(
+        (module_status[name]["connected_as"] is not None or module_status[name]["expected"] is None)
+        for name in module_status
+        if module_status[name]["installed"]
+    )
+
+    if all_installed:
+        if all_connected:
+            console.print("[green]All components are properly configured![/green]")
+        else:
+            console.print("[yellow]Some components need authentication. Run 'metta install' to set them up.[/yellow]")
+    else:
+        console.print("[yellow]Some components are not installed. Run 'metta install' to set them up.[/yellow]")
+
+    not_connected = [
+        name
+        for name, data in module_status.items()
+        if data["installed"] and data["expected"] and data["connected_as"] is None
+    ]
+
+    if not_connected:
+        console.print(f"\n[yellow]Components not connected: {', '.join(not_connected)}[/yellow]")
+        console.print("This could be due to expired credentials, network issues, or broken installations.")
+
+        if non_interactive:
+            console.print(f"\nTo fix: metta install {' '.join(not_connected)} --force")
+        elif sys.stdin.isatty():
+            if typer.confirm("\nReinstall these components to fix connection issues?"):
+                console.print(f"\nRunning: metta install {' '.join(not_connected)} --force")
+                subprocess.run([sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=cli.repo_root)
+
+    not_installed = [name for name, data in module_status.items() if not data["installed"]]
+
+    if not_installed:
+        console.print(f"\n[yellow]Components not installed: {', '.join(not_installed)}[/yellow]")
+
+        if non_interactive:
+            console.print(f"\nTo fix: metta install {' '.join(not_installed)}")
+        elif sys.stdin.isatty():
+            if typer.confirm("\nInstall these components?"):
+                console.print(f"\nRunning: metta install {' '.join(not_installed)}")
+                subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=cli.repo_root)
+
+
+# Run command
+@app.command(name="run", help="Run component-specific commands")
+def cmd_run(
+    component: Annotated[str, typer.Argument(help="Component to run command for")],
+    args: Annotated[Optional[list[str]], typer.Argument(help="Arguments to pass to the component")] = None,
+):
+    """Run component-specific commands."""
+    from metta.setup.registry import get_all_modules
+    from metta.setup.utils import error, info
+
+    cli._init_all()
+
+    modules = get_all_modules()
+    module_map = {m.name: m for m in modules}
+
+    if not (module := module_map.get(component)):
+        error(f"Unknown component: {component}")
+        info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+        raise typer.Exit(1)
+
+    module.run(args or [])
+
+
+# Clean command
+@app.command(name="clean", help="Clean build artifacts and temporary files")
+def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
+    """Clean build artifacts and temporary files."""
+    from metta.setup.utils import info, warning
+
+    build_dir = cli.repo_root / "build"
+    if build_dir.exists():
+        info("  Removing root build directory...")
+        shutil.rmtree(build_dir)
+
+    mettagrid_dir = cli.repo_root / "mettagrid"
+    for build_name in ["build-debug", "build-release"]:
+        build_path = mettagrid_dir / build_name
+        if build_path.exists():
+            info(f"  Removing mettagrid/{build_name}...")
+            shutil.rmtree(build_path)
+
+    cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
+    if cleanup_script.exists():
+        cmd = [str(cleanup_script)]
+        if verbose:
+            cmd.append("--verbose")
+        try:
+            subprocess.run(cmd, cwd=str(cli.repo_root), check=True)
+        except subprocess.CalledProcessError as e:
+            warning(f"  Cleanup script failed: {e}")
+
+
+# Lint command
+@app.command(name="lint", help="Run linting and formatting")
+def cmd_lint(
+    fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
+    staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
+):
+    """Run linting and formatting."""
+    files = []
+    if staged:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+            cwd=cli.repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
         )
-
-        if all_installed:
-            if all_connected:
-                success("\nAll components are properly configured!")
-            else:
-                warning("\nSome components need authentication. Run 'metta install' to set them up.")
-        else:
-            warning("\nSome components are not installed. Run 'metta install' to set them up.")
-
-        not_connected = [
-            name
-            for name, data in module_status.items()
-            if data["installed"] and data["expected"] and data["connected_as"] is None
-        ]
-
-        # Offer to fix connection issues
-        if not_connected:
-            warning(f"\nComponents not connected: {', '.join(not_connected)}")
-            info("This could be due to expired credentials, network issues, or broken installations.")
-
-            if args.non_interactive:
-                info(f"\nTo fix: metta install {' '.join(not_connected)} --force")
-            elif sys.stdin.isatty():
-                response = input("\nReinstall these components to fix connection issues? (y/n): ").strip().lower()
-                if response == "y":
-                    info(f"\nRunning: metta install {' '.join(not_connected)} --force")
-                    subprocess.run(
-                        [sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=self.repo_root
-                    )
-
-        # Check for not installed components using cached results
-        not_installed = [name for name, data in module_status.items() if not data["installed"]]
-
-        if not_installed:
-            warning(f"\nComponents not installed: {', '.join(not_installed)}")
-
-            if args.non_interactive:
-                info(f"\nTo fix: metta install {' '.join(not_installed)}")
-            elif sys.stdin.isatty():
-                response = input("\nInstall these components? (y/n): ").strip().lower()
-                if response == "y":
-                    info(f"\nRunning: metta install {' '.join(not_installed)}")
-                    subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=self.repo_root)
-
-    def _build_parser(self) -> argparse.ArgumentParser:
-        """Build argument parser from command registry."""
-        parser = argparse.ArgumentParser(
-            description="Metta Setup Tool - Configure and install development environment",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="""
-Examples:
-  metta configure                      # Run interactive setup wizard
-  metta configure githooks             # Configure a specific component
-  metta configure --profile=softmax    # Configure for Softmax employee
-  metta install                        # Install all configured components
-  metta install aws wandb              # Install specific components
-  metta status                         # Show status of all components
-  metta status --non-interactive       # Show status without prompts
-  metta clean                          # Clean build artifacts
-  metta symlink-setup                  # Set up symlink to make metta command globally available
-
-  metta run githooks pre-commit        # Run component-specific commands
-
-  metta test ...                       # Run all python unit tests
-  metta pytest [args]                  # An alias "uv run pytest --benchmark-disable -n auto [args]"
-  metta ci ...                         # Run all python unit tests and mettagrid c++ tests
-
-  metta tool train run=test            # Run train.py tool with arguments
-  metta tool sim policy_uri=...        # Run sim.py tool with arguments
-  metta clip -e py metta               # Copy Python files to clipboard
-
-  metta local ...                      # Commands for local development
-  metta book                           # Interactive marimo notebook commands
-            """,
-        )
-
-        subparsers = parser.add_subparsers(dest="command", help="Available commands")
-
-        # Create subparser for each command from registry
-        for cmd_name, cmd_config in COMMAND_REGISTRY.items():
-            cmd_parser = subparsers.add_parser(cmd_name, help=cmd_config.help, add_help=cmd_config.add_help)
-
-            # Apply parser setup if provided
-            if cmd_config.parser_setup:
-                cmd_config.parser_setup(cmd_parser)
-            elif cmd_name == "local":
-                from metta.setup.local_commands import setup_local_parser
-
-                setup_local_parser(cmd_parser)
-
-            # Special handling for configure --profile
-            if cmd_name == "configure":
-                available_preset_profiles = [u.value for u in list(PROFILE_DEFINITIONS.keys())]
-                cmd_parser.add_argument("--profile", choices=available_preset_profiles, help="Set user profile")
-
-        return parser
-
-    def main(self) -> None:
-        # Build parser from registry
-        parser = self._build_parser()
-
-        # Determine which commands support unknown args
-        pass_unknown_cmds = {cmd for cmd, cfg in COMMAND_REGISTRY.items() if cfg.pass_unknown_args}
-
-        # Use parse_known_args for commands that accept unknown args
-        if len(sys.argv) > 1 and sys.argv[1] in pass_unknown_cmds:
-            args, unknown_args = parser.parse_known_args()
-        else:
-            args = parser.parse_args()
-            unknown_args = []
-
-        saved_settings = get_saved_settings()
-        # Handle no command
-        if not args.command:
-            if not saved_settings.exists():
-                print("No configuration found. Running setup wizard...\n")
-                self.setup_wizard()
-                return
-            else:
-                parser.print_help()
-                return
-
-        # Check configuration requirements based on command registry
-        if args.command in COMMAND_REGISTRY:
-            cmd_config = COMMAND_REGISTRY[args.command]
-            if cmd_config.needs_config and args.command not in ["configure", "symlink-setup"]:
-                if not saved_settings.exists():
-                    print("Error: No configuration found. Please run 'metta configure' first.", file=sys.stderr)
-                    sys.exit(1)
-                else:
-                    from metta.setup.saved_settings import CURRENT_SAVED_SETTINGS_VERSION
-
-                    if saved_settings.config_version < CURRENT_SAVED_SETTINGS_VERSION:
-                        print(
-                            f"Warning: Your configuration is from an older version (v{saved_settings.config_version}).",
-                            file=sys.stderr,
-                        )
-                        print("Please run 'metta configure' to update your configuration.", file=sys.stderr)
-                        sys.exit(1)
-
-        # Dispatch to command handler
-        if args.command in COMMAND_REGISTRY:
-            cmd_config = COMMAND_REGISTRY[args.command]
-
-            # Initialize components if needed
-            if cmd_config.needs_components:
-                self._init_all()
-
-            # Handle subprocess commands
-            if cmd_config.subprocess_cmd:
-                self._run_subprocess_command(args.command, args, unknown_args)
-            # Handle method handlers
-            elif cmd_config.handler:
-                handler = getattr(self, cmd_config.handler)
-                # Always pass both args and unknown_args for consistency
-                handler(args, unknown_args)
-            else:
-                print(f"Error: Command {args.command} has no handler or subprocess_cmd", file=sys.stderr)
-                sys.exit(1)
-        else:
-            parser.print_help()
-
-
-def main():
-    # Quick check for commands that can use fast path
-    if len(sys.argv) > 1 and sys.argv[1] in COMMAND_REGISTRY:
-        cmd_config = COMMAND_REGISTRY[sys.argv[1]]
-
-        # Fast path for simple subprocess commands that don't need any setup
-        if cmd_config.subprocess_cmd and not cmd_config.needs_config and not cmd_config.needs_components:
-            # Direct execution without creating CLI instance
-            cmd = list(cmd_config.subprocess_cmd)
-
-            # For commands that pass unknown args, get all args after the command
-            if cmd_config.pass_unknown_args:
-                try:
-                    cmd_index = sys.argv.index(sys.argv[1])
-                    remaining_args = sys.argv[cmd_index + 1 :] if cmd_index + 1 < len(sys.argv) else []
-                    if remaining_args:
-                        cmd.extend(remaining_args)
-                except ValueError:
-                    pass
-
-            try:
-                subprocess.run(cmd, cwd=get_repo_root(), check=True)
-            except subprocess.CalledProcessError as e:
-                sys.exit(e.returncode)
-            except FileNotFoundError:
-                print(f"Command not found: {cmd[0]}", file=sys.stderr)
-                if sys.argv[1] == "clip":
-                    print("Run: metta install codeclip", file=sys.stderr)
-                sys.exit(1)
+        files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
+        if not files:
             return
 
-    # All commands use the same initialization
-    cli = MettaCLI()
-    cli.main()
+    check_cmd = ["uv", "run", "--active", "ruff", "check"]
+    format_cmd = ["uv", "run", "--active", "ruff", "format"]
+    cmds = [format_cmd, check_cmd]
+
+    if fix:
+        check_cmd.append("--fix")
+    else:
+        format_cmd.append("--check")
+
+    if files:
+        for cmd in cmds:
+            cmd.extend(files)
+
+    for cmd in cmds:
+        try:
+            console.print(f"Running: {' '.join(cmd)}")
+            subprocess.run(cmd, cwd=cli.repo_root, check=True)
+        except subprocess.CalledProcessError as e:
+            raise typer.Exit(e.returncode) from e
+
+
+# CI command
+@app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
+def cmd_ci():
+    """Run all Python unit tests and all Mettagrid C++ tests."""
+    from metta.setup.utils import error, info, success
+
+    cli._init_all()
+
+    info("Running Python tests...")
+    python_test_cmd = [
+        "uv",
+        "run",
+        "pytest",
+        *PYTHON_TEST_FOLDERS,
+        "--benchmark-disable",
+        "-n",
+        "auto",
+    ]
+
+    try:
+        subprocess.run(python_test_cmd, cwd=cli.repo_root, check=True)
+        success("Python tests passed!")
+    except subprocess.CalledProcessError as e:
+        error("Python tests failed!")
+        raise typer.Exit(e.returncode) from e
+
+    info("\nBuilding and running C++ tests...")
+    mettagrid_dir = cli.repo_root / "mettagrid"
+
+    try:
+        subprocess.run(["cmake", "--preset", "benchmark"], cwd=mettagrid_dir, check=True)
+        subprocess.run(["cmake", "--build", "build-release"], cwd=mettagrid_dir, check=True)
+        build_dir = mettagrid_dir / "build-release"
+        subprocess.run(["ctest", "-L", "benchmark", "--output-on-failure"], cwd=build_dir, check=True)
+        success("C++ tests passed!")
+    except subprocess.CalledProcessError as e:
+        error("C++ tests failed!")
+        raise typer.Exit(e.returncode) from e
+
+    success("\nAll CI tests passed!")
+
+
+# Test command
+@app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
+def cmd_test(ctx: typer.Context):
+    """Run all Python unit tests."""
+    cmd = [
+        "uv",
+        "run",
+        "pytest",
+        *PYTHON_TEST_FOLDERS,
+        "--benchmark-disable",
+        "-n",
+        "auto",
+    ]
+    if ctx.args:
+        cmd.extend(ctx.args)
+    try:
+        subprocess.run(cmd, cwd=cli.repo_root, check=True)
+    except subprocess.CalledProcessError as e:
+        raise typer.Exit(e.returncode) from e
+
+
+# Pytest command
+@app.command(
+    name="pytest",
+    help="Run pytest with passed arguments",
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
+)
+def cmd_pytest(ctx: typer.Context):
+    """Run pytest with custom arguments."""
+    cmd = [
+        "uv",
+        "run",
+        "pytest",
+        "--benchmark-disable",
+        "-n",
+        "auto",
+    ]
+    if ctx.args:
+        cmd.extend(ctx.args)
+    try:
+        subprocess.run(cmd, cwd=cli.repo_root, check=True)
+    except subprocess.CalledProcessError as e:
+        raise typer.Exit(e.returncode) from e
+
+
+# Tool command
+@app.command(name="tool", help="Run a tool from the tools/ directory", context_settings={"allow_extra_args": True})
+def cmd_tool(
+    tool_name: Annotated[str, typer.Argument(help="Name of the tool to run")],
+    ctx: typer.Context,
+):
+    """Run a tool from the tools/ directory."""
+    tool_path = cli.repo_root / "tools" / f"{tool_name}.py"
+    if not tool_path.exists():
+        console.print(f"[red]Error: Tool '{tool_name}' not found at {tool_path}[/red]")
+        raise typer.Exit(1)
+
+    cmd = [str(tool_path)] + (ctx.args or [])
+    try:
+        subprocess.run(cmd, cwd=cli.repo_root, check=True)
+    except subprocess.CalledProcessError as e:
+        raise typer.Exit(e.returncode) from e
+
+
+# Shell command
+@app.command(name="shell", help="Start an IPython shell with Metta imports")
+def cmd_shell():
+    """Start IPython shell."""
+    cmd = ["uv", "run", "--active", "metta/setup/shell.py"]
+    try:
+        subprocess.run(cmd, cwd=cli.repo_root, check=True)
+    except subprocess.CalledProcessError as e:
+        raise typer.Exit(e.returncode) from e
+
+
+# Go command
+@app.command(name="go", help="Navigate to a Softmax Home shortcut", context_settings={"allow_extra_args": True})
+def cmd_go(ctx: typer.Context):
+    """Navigate to Softmax Home shortcut."""
+    import webbrowser
+
+    from metta.setup.utils import error, info
+
+    if not ctx.args:
+        error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
+        info("\nCommon shortcuts:")
+        info("  g    - GitHub")
+        info("  w    - Weights & Biases")
+        info("  o    - Observatory")
+        info("  d    - Datadog")
+        return
+
+    shortcut = ctx.args[0]
+    url = f"https://home.softmax-research.net/{shortcut}"
+
+    info(f"Opening {url}...")
+    webbrowser.open(url)
+
+
+# Report env details command
+@app.command(name="report-env-details", help="Report environment details including UV project directory")
+def cmd_report_env_details():
+    """Report environment details."""
+    console.print(f"UV Project Directory: {cli.repo_root}")
+    console.print(f"Metta CLI Working Directory: {Path.cwd()}")
+    if branch := gitta.get_current_branch():
+        console.print(f"Git Branch: {branch}")
+    if commit := gitta.get_current_commit():
+        console.print(f"Git Commit: {commit}")
+
+
+# Clip command
+@app.command(name="clip", help="Copy subsets of codebase for LLM contexts", context_settings={"allow_extra_args": True})
+def cmd_clip(ctx: typer.Context):
+    """Run codeclip tool."""
+    cmd = ["codeclip"]
+    if ctx.args:
+        cmd.extend(ctx.args)
+    try:
+        subprocess.run(cmd, cwd=cli.repo_root, check=False)
+    except FileNotFoundError:
+        console.print("[red]Error: Command not found: codeclip[/red]")
+        console.print("Run: metta install codebot")
+        raise typer.Exit(1) from None
+
+
+app.add_typer(local_app, name="local")
+app.add_typer(book_app, name="book")
+app.add_typer(symlink_app, name="symlink-setup")
+
+
+@app.callback()
+def main_callback():
+    """Handle initialization checks."""
+    pass
+
+
+def main() -> None:
+    app()
 
 
 if __name__ == "__main__":

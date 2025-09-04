@@ -39,6 +39,8 @@ class TrainTool(Tool):
     consumed_args: list[str] = ["run", "group"]
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+        init_logging(run_dir=self.run_dir)
+
         # Handle run_id being passed via cmd line
         if "run" in args:
             assert self.run is None, "run cannot be set via args and config"
@@ -74,8 +76,6 @@ class TrainTool(Tool):
         os.makedirs(self.run_dir, exist_ok=True)
 
         record_heartbeat()
-
-        init_logging(run_dir=self.run_dir)
 
         torch_dist_cfg = setup_torch_distributed(self.system.device)
 
@@ -173,8 +173,7 @@ def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | N
         cfg.trainer.evaluation.replay_dir = auto_replay_dir()
         logger.info_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
 
-    stats_client: StatsClient | None = None
-    if cfg.stats_server_uri is not None:
+    if cfg.stats_server_uri is not None and stats_client is None:
         stats_client = StatsClient.create(cfg.stats_server_uri)
 
     # Determine git hash for remote simulations
@@ -195,7 +194,6 @@ def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | N
                 logger.info_master(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}")
             else:
                 logger.info_master("No git hash available for remote evaluations")
-    return stats_client
 
 
 def _minimize_config_for_debugging(cfg: TrainTool) -> TrainTool:
