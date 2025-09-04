@@ -1377,6 +1377,25 @@ proc reset*(env: Environment) =
   env.observations.clear()
   env.init()
 
+proc applyTeamAltarReward*(env: Environment) =
+  ## Give all agents on a team a reward equal to the hearts in their altar
+  ## This is the primary reward signal - altar hearts are what matter most
+  
+  # Find all altars and their heart counts
+  for thing in env.things:
+    if thing.kind == Altar:
+      let altarHearts = thing.hearts.float32
+      
+      # Find all agents with this altar as their home
+      for agent in env.agents:
+        if agent.homeAltar == thing.pos:
+          # Each agent gets reward equal to altar hearts
+          agent.reward += altarHearts
+          
+          # Optional: Extra bonus if altar is well-defended (>5 hearts)
+          if altarHearts > 5:
+            agent.reward += (altarHearts - 5) * 0.5  # Bonus for surplus
+
 proc getEpisodeStats*(env: Environment): string =
   ## Get the episode stats
   if env.stats.len == 0:

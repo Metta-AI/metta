@@ -19,65 +19,87 @@ proc testDiagonalMovement() =
     let isDiag = ord(orient) > 3  # Orientations 4-7 are diagonal
     echo fmt"  {$orient:2} is diagonal: {isDiag}"
   
-  # Test getting orientation from delta
-  echo "\nDelta to Orientation:"
-  let testDeltas = @[
-    ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0),
-    ivec2(-1, -1), ivec2(1, -1), ivec2(-1, 1), ivec2(1, 1)
-  ]
-  for delta in testDeltas:
-    let orient = getOrientation(delta)
-    echo fmt"  Delta ({delta.x:2}, {delta.y:2}) -> {$Orientation(orient):2}"
+  # Test orientation to vector conversion
+  echo "\nOrientation to Vector:"
+  for orient in [N, S, W, E, NW, NE, SW, SE]:
+    let vec = orientationToVec(orient)
+    echo fmt"  {$orient:2} -> ({vec.x:2}, {vec.y:2})"
   
   # Create an environment and test movement
-  var env = initEnvironment()
-  env.rng = initRand(42)
+  var env = newEnvironment()
   
   echo "\n=== Movement Simulation ==="
   echo "Testing agent movement in all 8 directions:\n"
   
   # Create an agent at center
   let startPos = ivec2(MapWidth div 2, MapHeight div 2)
-  let agentId = env.addAgent(startPos, 0)
+  let agentId = 0
   
-  # Get the agent we just created
-  let agent = env.grid[startPos.x][startPos.y]
-  if agent != nil:
-    echo fmt"Starting position: ({startPos.x}, {startPos.y})"
+  # Clear any existing objects at that position first
+  if env.grid[startPos.x][startPos.y] != nil:
+    env.grid[startPos.x][startPos.y] = nil
+  
+  # Create and add the agent manually
+  let agent = Thing(
+    kind: Agent,
+    agentId: agentId,
+    pos: startPos,
+    orientation: N,
+    homeAltar: ivec2(-1, -1),
+    inventoryOre: 0,
+    inventoryBattery: 0,
+    inventoryWater: 0,
+    inventoryWheat: 0,
+    inventoryWood: 0,
+    inventorySpear: 0
+  )
+  # Add to things list
+  env.things.add(agent)
+  # Add to agents list
+  env.agents.add(agent)
+  # Place on grid
+  env.grid[startPos.x][startPos.y] = agent
+  
+  # Test movement in all 8 directions using step function
+  echo fmt"Starting position: ({startPos.x}, {startPos.y})"
+  
+  # Try to move in all 8 directions
+  let directions = [N, NE, E, SE, S, SW, W, NW]
+  var successfulMoves = 0
+  
+  for orient in directions:
+    # Reset agent position to center
+    if env.grid[agent.pos.x][agent.pos.y] == agent:
+      env.grid[agent.pos.x][agent.pos.y] = nil
+    agent.pos = startPos
+    env.grid[startPos.x][startPos.y] = agent
     
-    # Try to move in all 8 directions
-    let directions = [N, NE, E, SE, S, SW, W, NW]
-    var successfulMoves = 0
+    # Store old position
+    let oldPos = agent.pos
     
-    for orient in directions:
-      # Reset agent position to center
-      if env.grid[agent.pos.x][agent.pos.y] == agent:
-        env.grid[agent.pos.x][agent.pos.y] = nil
-      agent.pos = startPos
-      env.grid[startPos.x][startPos.y] = agent
-      
-      # Store old position
-      let oldPos = agent.pos
-      
-      # Execute the move using the orientation as the argument
-      env.moveAction(agentId, agent, ord(orient))
-      
-      # Check if moved
-      if agent.pos != oldPos:
-        let delta = ivec2(agent.pos.x - oldPos.x, agent.pos.y - oldPos.y)
-        echo fmt"  {$orient:2}: Moved from ({oldPos.x:3}, {oldPos.y:3}) to ({agent.pos.x:3}, {agent.pos.y:3}) - delta: ({delta.x:2}, {delta.y:2})"
-        successfulMoves += 1
-      else:
-        echo fmt"  {$orient:2}: Blocked at ({oldPos.x:3}, {oldPos.y:3})"
+    # Create action array - move action (1) with orientation argument
+    var actions: array[MapAgents, array[2, uint8]]
+    for i in 0..<MapAgents:
+      actions[i] = [0'u8, 0'u8]  # Initialize all as noop
+    actions[agentId] = [1'u8, ord(orient).uint8]  # Move in specified direction
     
-    echo fmt"\nSuccessfully moved in {successfulMoves}/8 directions"
+    # Execute the step
+    env.step(addr actions)
     
-    if successfulMoves >= 4:
-      echo "✓ Diagonal movement is working!"
+    # Check if moved
+    if agent.pos != oldPos:
+      let delta = ivec2(agent.pos.x - oldPos.x, agent.pos.y - oldPos.y)
+      echo fmt"  {$orient:2}: Moved from ({oldPos.x:3}, {oldPos.y:3}) to ({agent.pos.x:3}, {agent.pos.y:3}) - delta: ({delta.x:2}, {delta.y:2})"
+      successfulMoves += 1
     else:
-      echo "⚠ Some movements were blocked (likely by terrain or edges)"
+      echo fmt"  {$orient:2}: Blocked at ({oldPos.x:3}, {oldPos.y:3})"
+  
+  echo fmt"\nSuccessfully moved in {successfulMoves}/8 directions"
+  
+  if successfulMoves >= 4:
+    echo "✓ Diagonal movement is working!"
   else:
-    echo "Failed to create agent!"
+    echo "⚠ Some movements were blocked (likely by terrain or map edges)"
 
 proc visualizeDiagonalPaths() =
   echo "\n=== Diagonal Path Visualization ==="
