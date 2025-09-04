@@ -3,8 +3,14 @@ import
   boxy, vmath, windy, chroma,
   common, panels, tribal, actions, utils
 
+var villageColors*: seq[Color] = @[]
+
 proc agentColor*(id: int): Color =
-  ## Get the color for an agent.
+  ## Get the color for an agent based on their village
+  # Agents now get colors from their village assignment
+  if id >= 0 and id < villageColors.len:
+    return villageColors[id]
+  # Fallback for agents without village assignment
   let f = id.float32
   color(
     f * Pi mod 1.0,
@@ -12,6 +18,15 @@ proc agentColor*(id: int): Color =
     f * sqrt(2.0) mod 1.0,
     1.0
   )
+
+proc generateVillageColor*(villageId: int): Color =
+  ## Generate a distinct color for a village
+  # Use HSL to generate distinct colors with good saturation and lightness
+  let hue = (villageId.float32 * 137.5) mod 360.0 / 360.0  # Golden angle for color spacing
+  let saturation = 0.7 + (villageId.float32 * 0.13) mod 0.3
+  let lightness = 0.5 + (villageId.float32 * 0.17) mod 0.2
+  # Convert HSL to RGB (simplified conversion)
+  return color(hue, saturation, lightness, 1.0)
 
 proc useSelections*() =
   ## Reads the mouse position and selects the thing under it.
@@ -174,6 +189,20 @@ proc drawObjects*() =
             tint = color(0.5, 0.5, 1, 1)
           bxy.drawImage(
             "objects/mine",
+            ivec2(x, y).vec2,
+            angle = 0,
+            scale = 1/200
+          )
+        of Temple:
+          bxy.drawImage(
+            "objects/temple",
+            ivec2(x, y).vec2,
+            angle = 0,
+            scale = 1/200
+          )
+        of Clippy:
+          bxy.drawImage(
+            "objects/clippy",
             ivec2(x, y).vec2,
             angle = 0,
             scale = 1/200
@@ -353,6 +382,18 @@ cooldown: {selection.cooldown}
 Mine
 hp: {selection.hp}
 cooldown: {selection.cooldown}
+      """
+    of Temple:
+      info = &"""
+Temple
+hp: {selection.hp}
+cooldown: {selection.cooldown}
+      """
+    of Clippy:
+      info = &"""
+Clippy
+hp: {selection.hp}
+energy: {selection.energy}
       """
   else:
     info = &"""

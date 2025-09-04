@@ -1,5 +1,5 @@
 import std/[strformat, random, strutils], vmath, jsony
-import terrain, village
+import terrain, village, clippy
 export terrain
 
 const
@@ -12,7 +12,7 @@ const
   # MapRoomBorder* = 0
   # MapRoomObjectsAgents* = 70
   # MapRoomObjectsAltars* = 50
-  # MapRoomObjectsConverters* = 100
+  # MapRoomObjectsGenerators* = 100
   # MapRoomObjectsMines* = 100
   # MapRoomObjectsWalls* = 400
 
@@ -22,10 +22,11 @@ const
   MapRoomWidth* = 96  # 100 - 4 border = 96
   MapRoomHeight* = 46  # 50 - 4 border = 46
   MapRoomBorder* = 0
-  MapRoomObjectsAgents* = 15  # Increased for larger map
-  MapRoomObjectsHouses* = 5  # More houses for larger map
-  MapRoomObjectsConverters* = 15  # Converters to process ore into batteries
-  MapRoomObjectsMines* = 15  # Mines to extract ore
+  MapRoomObjectsAgents* = 15  # Total agents to spawn (will be distributed across villages)
+  MapRoomObjectsHouses* = 3  # Number of villages/houses to spawn
+  MapAgentsPerHouse* = 5  # Agents to spawn per house/village
+  MapRoomObjectsGenerators* = 10  # Generators to process ore into batteries
+  MapRoomObjectsMines* = 20  # Mines to extract ore (2x generators)
   MapRoomObjectsWalls* = 30  # Increased for larger map
 
   MapObjectAgentInitialEnergy* = 5  # Start with 5 batteries
@@ -45,9 +46,9 @@ const
   MapObjectAltarCooldown* = 10
   MapObjectAltarUseCost* = 1  # Simplified: 1 battery = 1 heart
 
-  MapObjectConverterHp* = 30
-  MapObjectConverterCooldown* = 2
-  MapObjectConverterEnergyOutput* = 1  # Simplified: 1 ore = 1 battery
+  MapObjectGeneratorHp* = 30
+  MapObjectGeneratorCooldown* = 2
+  MapObjectGeneratorEnergyOutput* = 1  # Simplified: 1 ore = 1 battery
 
   MapObjectMineHp* = 30
   MapObjectMineCooldown* = 5
@@ -87,12 +88,12 @@ type
     MineHpLayer = 12
     MineResourceLayer = 13
     MineReadyLayer = 14
-    ConverterLayer = 15
-    ConverterHpLayer = 16
-    ConverterInputResourceLayer = 17
-    ConverterOutputResourceLayer = 18
-    ConverterOutputEnergyLayer = 19
-    ConverterReadyLayer = 20
+    GeneratorLayer = 15
+    GeneratorHpLayer = 16
+    GeneratorInputResourceLayer = 17
+    GeneratorOutputResourceLayer = 18
+    GeneratorOutputEnergyLayer = 19
+    GeneratorReadyLayer = 20
     AltarLayer = 21
     AltarHpLayer = 22
     AltarReadyLayer = 23
@@ -107,8 +108,10 @@ type
     Agent
     Wall
     Mine
-    Converter
+    Generator
     Altar
+    Temple
+    Clippy
 
   Thing* = ref object
     kind*: ThingKind
@@ -137,7 +140,7 @@ type
     actionAttack*: int
     actionAttackAgent*: int
     actionAttackAltar*: int
-    actionAttackConverter*: int
+    actionAttackGenerator*: int
     actionAttackMine*: int
     actionAttackWall*: int
     actionMove*: int
@@ -147,7 +150,7 @@ type
     actionSwap*: int
     actionUse*: int
     actionUseMine*: int
-    actionUseConverter*: int
+    actionUseGenerator*: int
     actionUseAltar*: int
 
   Environment* = ref object
@@ -192,10 +195,14 @@ proc render*(env: Environment): string =
             cell = "#"
           of Mine:
             cell = "m"
-          of Converter:
-            cell = "c"
+          of Generator:
+            cell = "g"
           of Altar:
             cell = "a"
+          of Temple:
+            cell = "T"
+          of Clippy:
+            cell = "C"
           break
       result.add(cell)
     result.add("\n")
@@ -218,12 +225,12 @@ proc renderObservations*(env: Environment): string =
     "generator:hp",
     "generator:r1",
     "generator:ready",
-    "converter",
-    "converter:hp",
-    "converter:input_resource",
-    "converter:output_resource",
-    "converter:output_energy",
-    "converter:ready",
+    "generator",
+    "generator:hp",
+    "generator:input_resource",
+    "generator:output_resource",
+    "generator:output_energy",
+    "generator:ready",
     "altar",
     "altar:hp",
     "altar:ready",
@@ -309,18 +316,18 @@ proc updateObservations(env: Environment, agentId: int) =
         # generator:ready
         obs[14][x][y] = (thing.cooldown == 0).uint8
 
-      of Converter:
-        # converter
+      of Generator:
+        # generator
         obs[15][x][y] = 1
-        # converter:hp
+        # generator:hp
         obs[16][x][y] = thing.hp.uint8
-        # converter:input_resource
+        # generator:input_resource
         obs[17][x][y] = thing.inputResource.uint8
-        # converter:output_resource
+        # generator:output_resource
         obs[18][x][y] = 1.uint8 #thing.outputResource.uint8
-        # converter:output_energy
+        # generator:output_energy
         obs[19][x][y] = 100.uint8 #thing.outputEnergy.uint8
-        # converter:ready
+        # generator:ready
         obs[20][x][y] = (thing.cooldown == 0).uint8
 
       of Altar:
@@ -485,17 +492,17 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
       inc env.stats[id].actionUseMine
       inc env.stats[id].actionUse
-  of Converter:
+  of Generator:
     if thing.cooldown == 0 and agent.inventory > 0:
       agent.inventory -= 1
       env.updateObservations(AgentInventory1Layer, agent.pos, agent.inventory)
-      agent.energy += MapObjectConverterEnergyOutput
+      agent.energy += MapObjectGeneratorEnergyOutput
       env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
       agent.energy = clamp(agent.energy, 0, MapObjectAgentMaxEnergy)
       env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
-      thing.cooldown = MapObjectConverterCooldown
-      env.updateObservations(ConverterReadyLayer, thing.pos, thing.cooldown)
-      inc env.stats[id].actionUseConverter
+      thing.cooldown = MapObjectGeneratorCooldown
+      env.updateObservations(GeneratorReadyLayer, thing.pos, thing.cooldown)
+      inc env.stats[id].actionUseGenerator
       inc env.stats[id].actionUse
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
@@ -526,8 +533,8 @@ proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
       env.grid[target.pos.x][target.pos.y] = nil
     if target.kind == Altar:
       inc env.stats[id].actionAttackAltar
-    elif target.kind == Converter:
-      inc env.stats[id].actionAttackConverter
+    elif target.kind == Generator:
+      inc env.stats[id].actionAttackGenerator
     elif target.kind == Mine:
       inc env.stats[id].actionAttackMine
     elif target.kind == Wall:
@@ -586,6 +593,20 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
 #       env.grid[x][y] = nil
 #   for thing in env.things:
 #     env.grid[thing.pos.x][thing.pos.y] = thing
+
+proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq[IVec2] =
+  ## Find empty positions around a center point within a given radius
+  result = @[]
+  for dx in -radius .. radius:
+    for dy in -radius .. radius:
+      if dx == 0 and dy == 0:
+        continue  # Skip the center position
+      let pos = ivec2(center.x + dx, center.y + dy)
+      # Check bounds and emptiness
+      if pos.x >= MapBorder and pos.x < MapWidth - MapBorder and
+         pos.y >= MapBorder and pos.y < MapHeight - MapBorder and
+         env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
+        result.add(pos)
 
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
   ## Find an empty position in the environment (not on water)
@@ -671,12 +692,39 @@ proc init(env: Environment) =
       
       # Note: Entrances are left empty (no walls placed there)
 
-  for i in 0 ..< MapRoomObjectsConverters:
+  # Spawn temples with Clippys (same count as houses)
+  for i in 0 ..< numHouses:
+    let templeStruct = createTemple()
+    var gridPtr = cast[ptr array[100, array[50, pointer]]](env.grid.addr)
+    var terrainPtr = env.terrain.addr
+    let templePos = findTempleLocation(gridPtr, terrainPtr, templeStruct, MapWidth, MapHeight, MapBorder, r)
+    
+    if templePos.x >= 0 and templePos.y >= 0:  # Valid location found
+      let templeCenter = getTempleCenter(templeStruct, templePos)
+      
+      # Add the temple
+      env.add(Thing(
+        kind: Temple,
+        pos: templeCenter,
+        hp: TempleHp,
+        cooldown: 0,
+      ))
+      
+      # Spawn initial Clippy at the temple
+      env.add(Thing(
+        kind: Clippy,
+        agentId: MapRoomObjectsAgents + i,  # Give Clippys IDs after regular agents
+        pos: templeCenter,
+        hp: ClippyHp,
+        energy: ClippyInitialEnergy,
+      ))
+
+  for i in 0 ..< MapRoomObjectsGenerators:
     let pos = r.randomEmptyPos(env)
     env.add(Thing(
-      kind: Converter,
+      kind: Generator,
       pos: pos,
-      hp: MapObjectConverterHp,
+      hp: MapObjectGeneratorHp,
     ))
 
   for i in 0 ..< MapRoomObjectsMines:
@@ -732,12 +780,12 @@ proc loadMap*(env: Environment, map: string) =
         hp: MapObjectMineHp,
         inputResource: 30
       ))
-    of Converter:
+    of Generator:
       env.add(Thing(
         kind: kind,
         id: id,
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-        hp: MapObjectConverterHp,
+        hp: MapObjectGeneratorHp,
       ))
     of Altar:
       env.add(Thing(
@@ -790,14 +838,48 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       if thing.cooldown > 0:
         thing.cooldown -= 1
         env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
-    elif thing.kind == Converter:
+    elif thing.kind == Generator:
       if thing.cooldown > 0:
         thing.cooldown -= 1
-        env.updateObservations(ConverterReadyLayer, thing.pos, thing.cooldown)
+        env.updateObservations(GeneratorReadyLayer, thing.pos, thing.cooldown)
     elif thing.kind == Mine:
       if thing.cooldown > 0:
         thing.cooldown -= 1
         env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
+    elif thing.kind == Temple:
+      if thing.cooldown > 0:
+        thing.cooldown -= 1
+      else:
+        # Temple is ready to spawn a Clippy
+        # Count nearby Clippys
+        var nearbyClippyCount = 0
+        for other in env.things:
+          if other.kind == Clippy:
+            let dist = abs(other.pos.x - thing.pos.x) + abs(other.pos.y - thing.pos.y)
+            if dist <= 5:  # Within 5 tiles of temple
+              nearbyClippyCount += 1
+        
+        # Spawn a new Clippy if under the max limit
+        if nearbyClippyCount < TempleMaxClippys:
+          # Find empty positions around temple
+          let emptyPositions = env.findEmptyPositionsAround(thing.pos, 2)
+          if emptyPositions.len > 0:
+            var r = initRand(env.currentStep)
+            let spawnPos = r.sample(emptyPositions)
+            
+            # Create new Clippy
+            let newClippy = Thing(
+              kind: Clippy,
+              agentId: env.agents.len,  # Assign next available agent ID
+              pos: spawnPos,
+              hp: ClippyHp,
+              energy: ClippyInitialEnergy,
+              orientation: Orientation(r.rand(0..3)),
+            )
+            env.add(newClippy)
+            
+            # Reset temple cooldown
+            thing.cooldown = TempleCooldown
     elif thing.kind == Agent:
       if thing.frozen > 0:
         thing.frozen -= 1
@@ -858,7 +940,7 @@ proc getEpisodeStats*(env: Environment): string =
   display "action.attack", actionAttack
   display "action.attack.agent", actionAttackAgent
   display "action.attack.altar", actionAttackAltar
-  display "action.attack.converter", actionAttackConverter
+  display "action.attack.generator", actionAttackGenerator
   display "action.attack.mine", actionAttackMine
   display "action.attack.wall", actionAttackWall
   display "action.move", actionMove
@@ -868,7 +950,7 @@ proc getEpisodeStats*(env: Environment): string =
   display "action.swap", actionSwap
   display "action.use", actionUse
   display "action.use.altar", actionUseAltar
-  display "action.use.converter", actionUseConverter
+  display "action.use.generator", actionUseGenerator
   display "action.use.mine", actionUseMine
 
   return result
