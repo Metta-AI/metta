@@ -3,7 +3,7 @@
 from typing import Optional
 
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
-from metta.tools.sweep import SweepOrchestratorTool
+from metta.tools.sweep import SweepTool
 
 
 def ppo(
@@ -13,7 +13,7 @@ def ppo(
     eval: str = "evaluate",
     max_trials: int = 10,
     max_parallel_jobs: int = 1,
-) -> SweepOrchestratorTool:
+) -> SweepTool:
     """Create PPO hyperparameter sweep."""
 
     # Define the 5 PPO parameters to sweep over
@@ -70,7 +70,7 @@ def ppo(
     )
 
     # Create and return the orchestrator tool
-    return SweepOrchestratorTool(
+    return SweepTool(
         sweep_name=sweep_name,
         protein_config=protein_config,
         max_trials=max_trials,
@@ -84,19 +84,19 @@ def ppo(
 
 def quick_test(
     recipe: str = "experiments.recipes.arena",
-) -> SweepOrchestratorTool:
+) -> SweepTool:
     """Quick test sweep with full PPO config but minimal trials for testing.
-    
+
     This sweep uses the same full PPO parameter configuration as the main ppo()
     function but runs fewer trials with shorter training for quick testing
     that the orchestrator infrastructure is working.
-    
+
     Args:
         recipe: Module path to the recipe (sweep_name comes from args)
-    
+
     Returns:
-        Configured SweepOrchestratorTool for quick testing
-    
+        Configured SweepTool for quick testing
+
     Example:
         uv run ./tools/run.py experiments.sweeps.standard.quick_test \
             --args sweep_name=test_sweep
@@ -155,7 +155,7 @@ def quick_test(
         ),
     )
 
-    tool = SweepOrchestratorTool(
+    tool = SweepTool(
         # sweep_name is not set here - it will come from args
         protein_config=protein_config,
         max_trials=5,  # Only 5 trials for quick testing
