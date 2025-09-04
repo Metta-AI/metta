@@ -76,6 +76,7 @@ def ppo(
         recipe_module=recipe,
         train_entrypoint=train,
         eval_entrypoint=eval,
+        monitoring_interval=60,
         max_parallel_jobs=max_parallel_jobs,
         gpus_per_job=gpus_per_job,
         train_overrides={
