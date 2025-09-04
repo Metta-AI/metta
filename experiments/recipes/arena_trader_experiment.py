@@ -66,7 +66,7 @@ def make_env(num_agents: int = 6) -> EnvConfig:
         "blueprint": 0.5,
     }
     arena_env.game.agent.rewards.inventory_max = {
-        "heart": 100,
+        "heart": 10,  # Reduced from 100 to prevent reward explosion
         "ore_red": 2,  # Allow some reward accumulation
         "battery_red": 3,  # Higher max for battery rewards
         "laser": 1,
@@ -88,7 +88,7 @@ def make_env(num_agents: int = 6) -> EnvConfig:
     # Learning agents start with minimal resources to bootstrap learning
     arena_env.game.agent.initial_inventory = {
         "battery_red": 0,  # No batteries - must craft or trade
-        "ore_red": 1,  # Small amount to discover the product chain
+        "ore_red": 0,  # Start with nothing - buildings will have initial resources
         "laser": 1,  # For combat scenarios
         "armor": 0,
     }
@@ -96,20 +96,21 @@ def make_env(num_agents: int = 6) -> EnvConfig:
     # Configure the wandering trader NPC (different starting inventory and capabilities)
     trader_config = AgentConfig()
     trader_config.initial_inventory = {
-        "battery_red": 100,  # Trader has batteries to sell
+        "battery_red": 50,  # Trader has batteries to sell (below limit to allow trades)
         "ore_red": 0,  # Trader doesn't need ore
         "laser": 0,  # Trader is peaceful
         "armor": 1,
     }
     trader_config.rewards = arena_env.game.agent.rewards.model_copy()
     trader_config.rewards.inventory = {}  # Trader gets no rewards
+    trader_config.rewards.inventory_max = {}  # Ensure no max rewards either
 
     # Trader needs ore capacity to receive ore during trades
     # Accept that trader will collect some ore while wandering (unavoidable with random policy)
     trader_config.default_resource_limit = 50  # Standard capacity
     trader_config.resource_limits = {
         "battery_red": 100,  # Has batteries to trade
-        "ore_red": 20,  # Limited ore capacity (needed for trades to work)
+        "ore_red": 50,  # Increased ore capacity for multiple trades
         "heart": 10,  # Small heart capacity
         "laser": 0,  # Can't pick up weapons
         "armor": 1,  # Keep minimal armor
@@ -219,6 +220,9 @@ def train(
             skip_git_check=True,
             evaluate_interval=10,  # Run evaluations every 10 updates for more frequent metrics
         ),
+        # Filter out NPC rewards during training
+        npc_policy_agents_pct=5 / 6,  # 5 learning agents out of 6 total
+        npc_group_id=99,  # Trader group ID to exclude
     )
 
     return TrainTool(trainer=trainer_cfg)
