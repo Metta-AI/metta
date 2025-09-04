@@ -1,12 +1,9 @@
-import logging
 import random
 import time
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")
-
-logger = logging.getLogger(__name__)
 
 
 def calculate_backoff_delay(
@@ -14,11 +11,11 @@ def calculate_backoff_delay(
     initial_delay: float = 1.0,
     max_delay: float = 60.0,
     backoff_factor: float = 2.0,
+    jitter: bool = True,
 ) -> float:
-    """Calculate delay in seconds with exponential backoff and optional jitter."""
+    """Calculate delay with exponential backoff and optional jitter."""
     delay = min(initial_delay * (backoff_factor**attempt), max_delay)
-    delay = random.uniform(0, delay)
-    return delay
+    return random.uniform(0, delay) if jitter else delay
 
 
 def retry_function(
@@ -28,23 +25,15 @@ def retry_function(
     max_delay: float = 60.0,
     backoff_factor: float = 2.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
-    error_prefix: str = "Function failed",
 ) -> T:
     """Execute a function with retry logic using exponential backoff."""
-    last_exception: Optional[Exception] = None
+    last_exception: Exception | None = None
 
     for attempt in range(max_retries + 1):
         try:
             return func()
         except exceptions as e:
             last_exception = e
-
-            # Log the failure
-            if logger:
-                if attempt == 0:
-                    logger.warning(f"{error_prefix}: {e}")
-                else:
-                    logger.warning(f"{error_prefix} (retry {attempt}/{max_retries}): {e}")
 
             # If not the last attempt, sleep before retrying
             if attempt < max_retries:
@@ -54,21 +43,11 @@ def retry_function(
                     max_delay=max_delay,
                     backoff_factor=backoff_factor,
                 )
-
-                if logger:
-                    logger.info(f"Retrying in {delay:.2f} seconds...")
-
                 time.sleep(delay)
-            else:
-                if logger:
-                    logger.error(f"{error_prefix} after {max_retries} retries")
 
     # If we get here, all retries failed
-    if last_exception is not None:
-        raise last_exception
-    else:
-        # This should never happen, but just in case
-        raise RuntimeError(f"{error_prefix}: All retries failed without exception")
+    assert last_exception is not None  # Should always have an exception here
+    raise last_exception
 
 
 def retry_on_exception(
@@ -83,7 +62,6 @@ def retry_on_exception(
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> T:
-            # Use retry_function internally to avoid code duplication
             return retry_function(
                 lambda: func(*args, **kwargs),
                 max_retries=max_retries,
@@ -91,7 +69,6 @@ def retry_on_exception(
                 max_delay=max_delay,
                 backoff_factor=backoff_factor,
                 exceptions=exceptions,
-                error_prefix=f"{func.__name__} failed",
             )
 
         return wrapper
