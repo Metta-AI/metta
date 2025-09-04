@@ -9,6 +9,8 @@ from rich.logging import RichHandler
 
 from metta.common.util.constants import RANK_ENV_VARS
 
+logger = logging.getLogger(__name__)
+
 
 def get_node_rank() -> str | None:
     for var in RANK_ENV_VARS:
@@ -57,6 +59,7 @@ class RankAwareLogger(logging.Logger):
 
 
 def getRankAwareLogger(name: str | None = None) -> RankAwareLogger:
+    init_logging()
     return logging.getLogger(name)  # type: ignore[return-value]
 
 

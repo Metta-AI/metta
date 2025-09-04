@@ -48,8 +48,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
       _track_movement_metrics(game_config.track_movement_metrics),
-      _resource_loss_prob(game_config.resource_loss_prob),
-      _no_agent_interference(game_config.no_agent_interference) {
+      _resource_loss_prob(game_config.resource_loss_prob) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -195,11 +194,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
-        if (_no_agent_interference) {
-          _grid->ghost_add_object(agent);
-        } else {
-          _grid->add_object(agent);
-        }
+        _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
@@ -385,25 +380,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
       GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c), layer);
       auto obj = _grid->object_at(object_loc);
-      if (_no_agent_interference) {
-        if (layer == GridLayer::ObjectLayer) {
-          if (!obj) {
-            continue;
-          }
-        }
-        if (layer == GridLayer::AgentLayer) {
-          // IN AGENT agent_idx's observation ONLY INCLUDE agent idx's features and not any other agents
-          if (r_offset == 0 && c_offset == 0) {
-            obj = _agents[agent_idx];
-          } else {
-            // Skip all other agent positions when no_agent_interference is enabled
-            continue;
-          }
-        }
-      } else {
-        if (!obj) {
-          continue;
-        }
+      if (!obj) {
+        continue;
       }
 
       // Prepare observation buffer for this object

@@ -388,30 +388,22 @@ class Simulation:
 
             if self._policy_uri:  # Only add if we have a URI
                 policy_details.append((self._policy_uri, None))
-                # Extract policy name for later use
-                metadata = CheckpointManager.get_policy_metadata(self._policy_uri)
-                policy_name = metadata["run_name"]
-            else:
-                policy_name = None
 
             # Add NPC policy if it exists
-            npc_name = None
             if self._npc_policy_uri:
                 policy_details.append((self._npc_policy_uri, "NPC policy"))
-                # Extract NPC name for later use
-                metadata = CheckpointManager.get_policy_metadata(self._npc_policy_uri)
-                npc_name = f"npc_{metadata['run_name']}"
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 
             agent_map: Dict[int, uuid.UUID] = {}
-            if policy_name:
-                for idx in self._policy_idxs:
-                    agent_map[int(idx.item())] = policy_ids[policy_name]
 
-            if npc_name:
+            if self._policy_uri:
+                for idx in self._policy_idxs:
+                    agent_map[int(idx.item())] = policy_ids[self._policy_uri]
+
+            if self._npc_policy_uri:
                 for idx in self._npc_idxs:
-                    agent_map[int(idx.item())] = policy_ids[npc_name]
+                    agent_map[int(idx.item())] = policy_ids[self._npc_policy_uri]
 
             # Get all episodes from the database
             episodes_df = stats_db.query("SELECT * FROM episodes")
@@ -448,7 +440,7 @@ class Simulation:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
-                        primary_policy_id=policy_ids[policy_name],
+                        primary_policy_id=policy_ids[self._policy_uri],
                         stats_epoch=self._stats_epoch_id,
                         sim_name=self._name,
                         env_label=self._config.env.label,
@@ -486,6 +478,43 @@ class Simulation:
     @property
     def name(self) -> str:
         return self._name
+
+    def get_envs(self):
+        """Returns a list of all envs in the simulation."""
+        return self._vecenv.envs
+
+    def get_env(self):
+        """Make sure this sim has a single env, and return it."""
+        if len(self._vecenv.envs) != 1:
+            raise ValueError("Attempting to get single env, but simulation has multiple envs")
+        return self._vecenv.envs[0]
+
+    def get_replays(self) -> dict:
+        """Get all replays for this simulation."""
+        return self._replay_writer.episodes.values()
+
+    def get_replay(self) -> dict:
+        """Makes sure this sim has a single replay, and return it."""
+        # If no episodes yet, create initial replay data from the environment
+        if len(self._replay_writer.episodes) == 0:
+            env = self.get_env()
+            # Return initial replay structure with action names
+            return {
+                "version": 2,
+                "action_names": env.action_names,
+                "item_names": env.resource_names if hasattr(env, "resource_names") else [],
+                "type_names": env.object_type_names if hasattr(env, "object_type_names") else [],
+                "num_agents": env.num_agents,
+                "max_steps": env.max_steps,
+                "map_size": [env.height, env.width],
+                "file_name": "live_play",
+                "steps": [],
+            }
+        if len(self._replay_writer.episodes) != 1:
+            raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
+        # Get the single episode directly
+        episode_id = next(iter(self._replay_writer.episodes))
+        return self._replay_writer.episodes[episode_id].get_replay_data()
 
 
 @dataclass

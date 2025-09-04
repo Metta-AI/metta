@@ -21,7 +21,7 @@ script_path = Path(__file__).resolve()
 repo_root = script_path.parents[1]
 sys.path.insert(0, str(repo_root / "common" / "src"))
 
-from metta.common.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
+from metta.mettagrid.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
 
 # Configuration
 BUILD_DIR = Path("build-debug")

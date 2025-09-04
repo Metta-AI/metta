@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.common.util.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
 
 

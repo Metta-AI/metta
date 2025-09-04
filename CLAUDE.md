@@ -70,6 +70,7 @@ implementation.
 
 1. **Update as you work** - When you discover new information or need to adjust the approach, update the plan file
 2. **Document completed steps** - After completing each major step, append a brief description:
+
    ```markdown
    ### Step 1 Complete: [Date/Time]
 
@@ -77,6 +78,7 @@ implementation.
    - Files affected: [list files]
    - Key decisions: [any important choices made]
    ```
+
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
 5. **CRITICAL: Always format Python code** - After editing any Python file (\*.py), immediately run:
@@ -367,8 +369,10 @@ recipe files:
 - Remove unnecessary comments that just restate what the code does
 - Prefer properties over methods for computed attributes using `@property` decorator
 - Implement proper error handling with clear, actionable error messages
-- **Docstring style**: Use concise docstrings without Args: and Returns: blocks. The function signature and type hints provide parameter information; docstrings should focus on purpose and behavior
-- **Multi-line docstring format**: Start with `"""` followed immediately by text on the same line, end with `"""` on its own line
+- **Docstring style**: Use concise docstrings without Args: and Returns: blocks. The function signature and type hints
+  provide parameter information; docstrings should focus on purpose and behavior
+- **Multi-line docstring format**: Start with `"""` followed immediately by text on the same line, end with `"""` on its
+  own line
 
 ### Class Member Naming Conventions
 

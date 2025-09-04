@@ -10,7 +10,7 @@ import time
 
 import numpy as np
 
-from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.builder.envs import make_arena
 from metta.mettagrid.gym_env import MettaGridGymEnv
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_config import (

@@ -25,6 +25,7 @@ import sys
 from typing import Final
 
 from metta.common.util.constants import METTA_WANDB_PROJECT
+from metta.common.util.log_config import init_logging
 
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
@@ -136,4 +137,5 @@ def main():
 
 
 if __name__ == "__main__":
+    init_logging()
     sys.exit(main())

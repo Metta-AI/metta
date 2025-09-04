@@ -15,9 +15,9 @@ from pydantic import (
 )
 from typing_extensions import Generic
 
-from metta.common.config import Config
-from metta.common.util.module import load_symbol
+from metta.mettagrid.config import Config
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
     pass

@@ -148,8 +148,7 @@ class Stopwatch:
 
         # Configure logger based on log_level
         if log_level is None:
-            # Explicitly silence this logger
-            self.logger.addHandler(logging.NullHandler())
+            self.logger.disabled = True
         else:
             # Add a StreamHandler when log_level is explicitly set
             handler = logging.StreamHandler()

@@ -102,13 +102,13 @@ def _():
     )
 
     # Additional imports for cells
-    from metta.mettagrid.config.envs import make_arena
+    from metta.mettagrid.builder.envs import make_arena
     from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
     from metta.mettagrid.mettagrid_config import (
         AgentRewards,
         StatsRewards,
     )
-    from metta.common.config import Config
+    from metta.mettagrid.config import Config
     from metta.mettagrid.test_support.actions import generate_valid_random_actions
     from metta.sim.simulation_config import SimulationConfig
     from metta.agent.utils import obs_to_td
@@ -531,7 +531,6 @@ def _(
     # Global configuration flags from old mettagrid.yaml
     mg_config.desync_episodes = True  # Changes max_steps for first episode only
     mg_config.game.track_movement_metrics = True
-    mg_config.game.no_agent_interference = False
     mg_config.game.recipe_details_obs = False
 
     # Global observation tokens from old config
