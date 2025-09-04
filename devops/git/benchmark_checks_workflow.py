@@ -105,7 +105,7 @@ def wait_for_run_completion(run_id: str) -> Tuple[dict, str]:
         try:
             data = json.loads(result.stdout)
         except json.JSONDecodeError as e:
-            raise WorkflowRunError(f"Failed to parse run status JSON: {e}")
+            raise WorkflowRunError(f"Failed to parse run status JSON: {e}") from e
 
         if data["status"] == "completed":
             conclusion = data.get("conclusion", "unknown")
