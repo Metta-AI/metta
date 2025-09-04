@@ -35,15 +35,8 @@ run_test() {
 }
 
 # Run each consolidated test
-run_test "test_villages_consolidated.nim" "Village & Terrain Tests"
-run_test "test_combat_consolidated.nim" "Combat System Tests"
-run_test "test_resources_consolidated.nim" "Resource System Tests"
-run_test "test_clippies_consolidated.nim" "Clippy Behavior Tests"
-
-# Optional: Run config test if needed
-if [ -f "test_nim_config.nim" ]; then
-    run_test "test_nim_config.nim" "Configuration Test"
-fi
+run_test "test_core_systems.nim" "Core Systems Tests"
+run_test "test_ai_behavior.nim" "AI Behavior Tests"
 
 # Summary
 echo "================================"

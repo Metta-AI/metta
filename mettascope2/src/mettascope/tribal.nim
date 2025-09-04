@@ -122,6 +122,7 @@ type
     wanderRadius*: int     # Current radius for concentric circle wandering
     wanderAngle*: float    # Current angle in the circle pattern
     targetPos*: IVec2      # Current target (agent or altar)
+    wanderStepsRemaining*: int  # Steps to wander before checking for targets
 
   Stats* = ref object
     # Agent Stats:
@@ -852,9 +853,10 @@ proc init(env: Environment) =
           pos: nearbyPositions[0],  # Pick first available position near temple
           orientation: Orientation(r.rand(0..3)),
           homeTemple: templeCenter,  # Remember home temple
-          wanderRadius: 2,  # Start with small radius
+          wanderRadius: 5,  # Start with medium radius
           wanderAngle: 0.0,
           targetPos: ivec2(-1, -1),  # No target initially
+          wanderStepsRemaining: 0,  # Start ready to look for targets
         ))
 
   for i in 0 ..< MapRoomObjectsConverters:
@@ -1024,9 +1026,10 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
               pos: spawnPos,
               orientation: Orientation(r.rand(0..3)),
               homeTemple: thing.pos,  # Remember home temple position
-              wanderRadius: 2,  # Start with small radius
+              wanderRadius: 5,  # Start with medium radius
               wanderAngle: 0.0,
               targetPos: ivec2(-1, -1),  # No target initially
+              wanderStepsRemaining: 0,  # Start ready to look for targets
             )
             # Don't add immediately - collect for later
             newClippysToSpawn.add(newClippy)

@@ -14,7 +14,6 @@ type
     hasBattery*: bool
     currentTarget*: IVec2
     targetType*: TargetType
-    startingEnergy*: int  # Track agent's starting energy
     
   TargetType* = enum
     NoTarget
@@ -40,7 +39,7 @@ proc newController*(seed: int = 2024): Controller =
 proc initAgentState(controller: Controller, agentId: int, basePos: IVec2, startingEnergy: int) =
   ## Initialize state for a new agent
   controller.agentStates[agentId] = ControllerState(
-    wanderRadius: 5,  # Start with radius 5
+    wanderRadius: 3,  # Start with smaller radius for tighter initial search
     wanderAngle: 0.0,
     wanderStartAngle: 0.0,
     wanderPointsVisited: 0,
@@ -64,12 +63,14 @@ proc distanceEuclidean(a, b: IVec2): float =
 
 proc resetWanderState(state: ControllerState) =
   ## Reset wander state when breaking out to pursue a resource
+  # Don't reset radius - keep it to continue expanding search
+  # Just reset the points visited to start a fresh circle at current radius
   state.wanderPointsVisited = 0
-  state.wanderStartAngle = state.wanderAngle
-  # Keep the current radius so we continue from where we left off
+  state.wanderStartAngle = 0.0
+  state.wanderAngle = 0.0  # Start from angle 0 for consistency
 
 proc getNextWanderPoint(controller: Controller, state: ControllerState): IVec2 =
-  ## Get next point in expanding circle pattern with proper tracking
+  ## Get next point in expanding spiral pattern
   const pointsPerCircle = 8  # 8 points for a complete circle (45 degree increments)
   
   # Move to next point
@@ -78,11 +79,15 @@ proc getNextWanderPoint(controller: Controller, state: ControllerState): IVec2 =
   
   # Check if we've completed a full circle
   if state.wanderPointsVisited >= pointsPerCircle:
-    # We've completed a circle, expand radius
-    state.wanderRadius += 1
+    # We've completed a circle, expand radius for next circle
+    state.wanderRadius += 1  # Increase by 1 for gradual expansion
     state.wanderPointsVisited = 0
-    state.wanderStartAngle = state.wanderAngle  # Reset start angle
-    # No max limit on radius - it can grow as needed
+    # Don't reset angle - continue spiraling outward
+    
+    # Cap the radius to prevent going too far
+    if state.wanderRadius > 25:
+      state.wanderRadius = 3  # Reset to small radius to search nearby again
+      state.wanderAngle = controller.rng.rand(0.0 .. 2*PI)  # Random starting angle for variety
   
   # Keep angle in 0-2PI range
   if state.wanderAngle >= 2 * PI:
