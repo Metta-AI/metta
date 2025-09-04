@@ -212,11 +212,12 @@ def set_github_status(exit_code: int, state: str, description: str):
     logger.info(f"Setting GitHub status: {state} - {desc}")
 
     try:
+        repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
         retry_function(
             lambda: post_commit_status(
                 commit_sha=commit_sha,
                 state=state,
-                repo=None,
+                repo=repo,
                 context=context,
                 description=desc,
                 target_url=target_url,
@@ -229,8 +230,7 @@ def set_github_status(exit_code: int, state: str, description: str):
         )
 
         # Log success
-        display_repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
-        logger.info(f"{display_repo}@{commit_sha[:8]} -> {state} ({context})")
+        logger.info(f"{repo}@{commit_sha[:8]} -> {state} ({context})")
 
     except Exception:
         pass  # Already logged by retry_function
