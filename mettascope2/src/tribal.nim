@@ -1,5 +1,5 @@
 import std/[random, os, times, strformat, strutils]
-import boxy, opengl, windy, chroma, vmath
+import boxy, opengl, windy, chroma, vmath, pixie
 import tribal/[tribal_game, worldmap, controller]
 
 # Global variables
@@ -168,13 +168,20 @@ proc main() =
   
   # Initialize game
   env = newEnvironment()
+  echo "Environment created with ", env.agents.len, " agents"
   worldMapPanel = WorldMapPanel(
     rect: IRect(x: 0, y: 0, w: 1280, h: 800),
-    pos: vec2(0, 0),
+    pos: vec2(640, 400),  # Center the view
     vel: vec2(0, 0),
-    zoom: 10,
+    zoom: 5,  # Start with less zoom
     zoomVel: 0
   )
+  
+  # Load all sprites
+  for path in walkDirRec("data/"):
+    if path.endsWith(".png"):
+      echo "Loading sprite: ", path
+      bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
   
   # Main loop
   while not window.closeRequested:
@@ -194,6 +201,10 @@ proc main() =
     
     # Draw world with pan/zoom
     beginPanAndZoom()
+    
+    # Debug: Draw a test rectangle at origin
+    bxy.drawRect(rect(-5, -5, 10, 10), color(1, 0, 0, 0.5))
+    
     worldmap.draw(bxy, env, selection)
     endPanAndZoom()
     

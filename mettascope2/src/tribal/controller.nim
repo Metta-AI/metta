@@ -1,7 +1,7 @@
 import std/[math, random, tables, sequtils]
 import vmath
-from tribal_game import Environment, Thing, MapAgents, ObservationLayers, Orientation,
-  N, S, W, E, NW, NE, SW, SE, IVec2, MapWidth, MapHeight
+from tribal_game import Environment, Thing, ThingKind, MapAgents, ObservationLayers, Orientation,
+  N, S, W, E, NW, NE, SW, SE, MapWidth, MapHeight, isEmpty
 
 type
   ControllerState* = ref object

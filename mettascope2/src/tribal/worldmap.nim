@@ -57,10 +57,12 @@ proc drawFloor*() =
   # Draw the floor tiles everywhere first as the base layer
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
-      bxy.drawRect(
-        rect = rect(x.float32 - 0.5, y.float32 - 0.5, 1, 1),
-        color = color(0.1, 0.1, 0.1, 1.0)
-      )
+      # Check terrain type for water
+      if env.terrain[x][y] == Water:
+        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, 
+                      tint = color(0.3, 0.5, 0.8, 1.0))
+      else:
+        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200)
 
 proc drawGridLines*() =
   # Draw grid lines
@@ -75,38 +77,46 @@ proc drawGridLines*() =
       color = color(0.2, 0.2, 0.2, 0.5)
     )
 
+proc drawTerrain*() =
+  # Draw terrain features on top of the floor
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      case env.terrain[x][y]
+      of Wheat:
+        # Draw wheat field sprite on top of floor
+        bxy.drawImage("objects/wheat_field", ivec2(x, y).vec2, angle = 0, scale = 1/200)
+      of Tree:
+        # Draw palm tree sprite on top of floor  
+        bxy.drawImage("objects/palm_tree", ivec2(x, y).vec2, angle = 0, scale = 1/200)
+      else:
+        discard  # Water and Empty don't need additional sprites
+
 proc drawAgent*(agent: Thing, isSelected: bool) =
-  let
-    pos = vec2(agent.pos.x.float32, agent.pos.y.float32)
-    agentCol = agentColor(agent.agentId)
+  let agentImage = case agent.orientation:
+    of N: "agents/agent.n"
+    of S: "agents/agent.s"
+    of E: "agents/agent.e"
+    of W: "agents/agent.w"
+    of NW: "agents/agent.w"  # Use west sprite for NW
+    of NE: "agents/agent.e"  # Use east sprite for NE
+    of SW: "agents/agent.w"  # Use west sprite for SW
+    of SE: "agents/agent.e"  # Use east sprite for SE
   
-  # Draw agent body
-  bxy.drawRect(
-    rect = rect(pos.x - 0.3, pos.y - 0.3, 0.6, 0.6),
-    color = agentCol
+  bxy.drawImage(
+    agentImage,
+    agent.pos.vec2,
+    angle = 0,
+    scale = 1/200,
+    tint = agentColor(agent.agentId)
   )
   
-  # Draw orientation indicator
-  let orientationOffset = case agent.orientation
-    of N: vec2(0, -0.2)
-    of S: vec2(0, 0.2)
-    of E: vec2(0.2, 0)
-    of W: vec2(-0.2, 0)
-    of NE: vec2(0.14, -0.14)
-    of NW: vec2(-0.14, -0.14)
-    of SE: vec2(0.14, 0.14)
-    of SW: vec2(-0.14, 0.14)
-  
-  bxy.drawRect(
-    rect = rect(pos.x + orientationOffset.x - 0.05, pos.y + orientationOffset.y - 0.05, 0.1, 0.1),
-    color = color(1, 1, 1, 0.8)
-  )
-  
-  # Draw selection indicator
-  if isSelected:
-    bxy.drawRect(
-      rect = rect(pos.x - 0.4, pos.y - 0.4, 0.8, 0.8),
-      color = color(1, 1, 0, 0.5)
+  # Draw frozen effect if frozen
+  if agent.frozen > 0:
+    bxy.drawImage(
+      "agents/frozen",
+      agent.pos.vec2,
+      angle = 0,
+      scale = 1/200
     )
 
 proc drawClippy*(clippy: Thing) =
