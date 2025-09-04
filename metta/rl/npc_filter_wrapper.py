@@ -39,7 +39,7 @@ class NPCFilterWrapper:
             npc_group_id: Optional group ID for NPCs (for group-based filtering)
         """
         self.vecenv = vecenv
-        self.num_agents = num_agents
+        self.total_agents_per_env = num_agents  # Store original total
         self.policy_agents_pct = policy_agents_pct
         self.npc_group_id = npc_group_id
 
@@ -60,14 +60,39 @@ class NPCFilterWrapper:
             f"{self.policy_agents_per_env} policy agents, "
             f"{self.npc_agents_per_env} NPC agents per env"
         )
+    
+    @property
+    def num_agents(self):
+        """Return the number of policy agents per environment (filtered count)."""
+        return self.policy_agents_per_env
+    
+    @property
+    def driver_env(self):
+        """Proxy to underlying vecenv."""
+        return self.vecenv.driver_env
+    
+    @property
+    def single_action_space(self):
+        """Proxy to underlying vecenv."""
+        return self.vecenv.single_action_space
+    
+    @property
+    def single_observation_space(self):
+        """Proxy to underlying vecenv."""
+        return self.vecenv.single_observation_space
+    
+    @property
+    def envs(self):
+        """Proxy to underlying vecenv."""
+        return self.vecenv.envs
 
     def _setup_agent_indices(self):
         """Setup indices to identify policy vs NPC agents."""
-        total_agents = self.num_agents * self.num_envs
+        total_agents = self.total_agents_per_env * self.num_envs
 
         # For now, use simple index-based assignment
         # Later can be updated to use group IDs after reset
-        idx_matrix = torch.arange(total_agents).reshape(self.num_envs, self.num_agents)
+        idx_matrix = torch.arange(total_agents).reshape(self.num_envs, self.total_agents_per_env)
 
         # Policy agents are the first N agents in each env
         self.policy_idxs = idx_matrix[:, : self.policy_agents_per_env].reshape(-1)
@@ -115,8 +140,8 @@ class NPCFilterWrapper:
 
         if actual_size != len(self.policy_idxs_np) + len(self.npc_idxs_np):
             # Recalculate indices based on actual size
-            num_envs_actual = actual_size // self.num_agents
-            idx_matrix = torch.arange(actual_size).reshape(num_envs_actual, self.num_agents)
+            num_envs_actual = actual_size // self.total_agents_per_env
+            idx_matrix = torch.arange(actual_size).reshape(num_envs_actual, self.total_agents_per_env)
             policy_idxs_np = idx_matrix[:, : self.policy_agents_per_env].reshape(-1).numpy()
 
             # Ensure indices are within bounds
@@ -134,11 +159,9 @@ class NPCFilterWrapper:
         d_filtered = d[policy_idxs_np]
         t_filtered = t[policy_idxs_np]
 
-        # Adjust env_id to account for filtered agents
-        # This is tricky - we need to map the original env_ids to filtered space
-        env_id_start = env_id[0] // self.num_agents * self.policy_agents_per_env
-        env_id_end = ((env_id[-1] // self.num_agents) + 1) * self.policy_agents_per_env - 1
-        env_id_filtered = list(range(env_id_start, env_id_end + 1))
+        # env_id represents environment indices, not agent indices
+        # Keep it unchanged as environments are not filtered, only agents within them
+        env_id_filtered = env_id
 
         # Filter mask
         mask_filtered = mask[policy_idxs_np] if len(mask) > 1 else mask
@@ -172,7 +195,7 @@ class NPCFilterWrapper:
         if hasattr(self, "_last_actual_size"):
             total_agents = self._last_actual_size
         else:
-            total_agents = self.num_agents * self.num_envs
+            total_agents = self.total_agents_per_env * self.num_envs
 
         if isinstance(actions, torch.Tensor):
             # Convert to numpy for pufferlib
@@ -184,8 +207,8 @@ class NPCFilterWrapper:
 
             # Recalculate indices if size changed
             if total_agents != len(self.policy_idxs_np) + len(self.npc_idxs_np):
-                num_envs_actual = total_agents // self.num_agents
-                idx_matrix = torch.arange(total_agents).reshape(num_envs_actual, self.num_agents)
+                num_envs_actual = total_agents // self.total_agents_per_env
+                idx_matrix = torch.arange(total_agents).reshape(num_envs_actual, self.total_agents_per_env)
                 policy_idxs_np = idx_matrix[:, : self.policy_agents_per_env].reshape(-1).numpy()
                 policy_idxs_np = policy_idxs_np[policy_idxs_np < total_agents]
             else:
