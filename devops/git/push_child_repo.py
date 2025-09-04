@@ -17,8 +17,8 @@ from pathlib import Path
 from pydantic import field_validator
 
 import gitta as git
-from metta.common.config import Config
 from metta.common.util.git_repo import GITHUB_ORGANIZATION
+from metta.mettagrid.config import Config
 
 
 class FilterRepoConfig(Config):
@@ -26,7 +26,11 @@ class FilterRepoConfig(Config):
 
     name: str
     paths: list[str]
-    remote: str
+
+    @property
+    def remote(self) -> str:
+        """Construct remote URL from name and organization."""
+        return f"git@github.com:{GITHUB_ORGANIZATION}/{self.name}.git"
 
     @field_validator("paths")
     @classmethod
@@ -34,29 +38,17 @@ class FilterRepoConfig(Config):
         """Ensure paths end with /."""
         return [p.rstrip("/") + "/" for p in v]
 
-    @field_validator("remote")
-    @classmethod
-    def validate_remote(cls, v: str) -> str:
-        """Basic validation of git remote URL."""
-        if not v.startswith(("git@", "https://", "http://")):
-            raise ValueError("Remote must start with git@, https://, or http://")
-        if f"{GITHUB_ORGANIZATION}/" not in v:
-            raise ValueError(f"Remote must be from {GITHUB_ORGANIZATION} organization")
-        return v
 
-
-# Add new child repositories here
 CONFIG_REGISTRY = {
-    "filter_repo_test": FilterRepoConfig(
-        name="filter_repo_test",
-        paths=["mettagrid", "mettascope"],
-        remote=f"git@github.com:{GITHUB_ORGANIZATION}/test_filter_repo.git",
-    ),
-    "mettagrid": FilterRepoConfig(
-        name="mettagrid",
-        paths=["common", "mettagrid", "mettascope"],
-        remote=f"git@github.com:{GITHUB_ORGANIZATION}/mettagrid.git",
-    ),
+    key: FilterRepoConfig(
+        name=key,
+        paths=paths,
+    )
+    for key, paths in {
+        # Add new child repositories here
+        "test_filter_repo": ["tests", "README.md"],
+        "mettagrid": ["mettagrid", "mettascope"],
+    }.items()
 }
 
 

@@ -1,0 +1,14 @@
+esbuild
+node_modules/
+package-lock.json
+yarn.lock
+.git/
+.gitignore
+*.log
+.DS_Store
+dist/
+build/
+*.ts
+*.tsx
+*.jsx
+.env*

@@ -40,7 +40,6 @@ struct GameConfig {
 
   // FEATURE FLAGS
   bool track_movement_metrics = false;
-  bool no_agent_interference = false;
   bool recipe_details_obs = false;
   bool allow_diagonals = false;
 };
@@ -80,7 +79,6 @@ inline void bind_game_config(py::module& m) {
                     // FEATURE FLAGS
                     bool,
                     bool,
-                    bool,
                     bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
@@ -96,7 +94,6 @@ inline void bind_game_config(py::module& m) {
 
            // FEATURE FLAGS
            py::arg("track_movement_metrics"),
-           py::arg("no_agent_interference") = false,
            py::arg("recipe_details_obs") = false,
            py::arg("allow_diagonals") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
@@ -118,7 +115,6 @@ inline void bind_game_config(py::module& m) {
 
       // FEATURE FLAGS
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
-      .def_readwrite("no_agent_interference", &GameConfig::no_agent_interference)
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs)
       .def_readwrite("allow_diagonals", &GameConfig::allow_diagonals);
 }
