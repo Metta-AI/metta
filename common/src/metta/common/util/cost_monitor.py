@@ -13,6 +13,7 @@ import sys
 from typing import Any
 
 from metta.common.util.constants import METTA_ENV_FILE
+from metta.common.util.log_config import init_logging
 
 # Remove the current directory from sys.path to avoid circular import with local colorama.py
 sys.path = [p for p in sys.path if p not in ("", ".", os.path.dirname(__file__))]
@@ -177,4 +178,5 @@ def main():
 
 
 if __name__ == "__main__":
+    init_logging()
     sys.exit(main())

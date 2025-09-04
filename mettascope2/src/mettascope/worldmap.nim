@@ -13,9 +13,9 @@ proc agentColor*(id: int): Color =
     1.0
   )
 
-proc useSelections*() =
+proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
-  if window.buttonPressed[MouseLeft]:
+  if panel.hasMouse and window.buttonPressed[MouseLeft]:
     selection = nil
     let
       mousePos = bxy.getTransform().inverse * window.mousePos.vec2
@@ -369,7 +369,6 @@ World
     color(1, 1, 1, 1)
   )
 
-
 proc drawWorldMini*() =
   let wallTypeId = replay.typeNames.find("wall")
   let agentTypeId = replay.typeNames.find("agent")
@@ -413,6 +412,8 @@ proc drawWorldMini*() =
   elif settings.showFogOfWar:
     drawFogOfWar()
 
+proc centerAt*(panel: Panel, entity: Entity) =
+  discard
 
 proc drawWorldMain*() =
   drawFloor()
@@ -436,8 +437,11 @@ proc drawWorldMain*() =
 
 proc drawWorldMap*(panel: Panel) =
   panel.beginPanAndZoom()
-  useSelections()
+  useSelections(panel)
   agentControls()
+
+  if followSelection:
+    centerAt(panel, selection)
 
   if panel.zoom < 3:
     drawWorldMini()

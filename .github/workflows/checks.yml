@@ -439,9 +439,8 @@ jobs:
         working-directory: ./mettagrid
         run: |
           mkdir -p benchmark_output
-          for f in build-release/*_benchmark; do
-            "$f" --benchmark_format=json > benchmark_output/$(basename $f).json
-          done
+          # Use bazel run to execute the benchmark with proper library paths
+          bazel run //benchmarks:test_mettagrid_env_benchmark -- --benchmark_format=json > benchmark_output/test_mettagrid_env_benchmark.json
 
       - name: Upload C++ benchmark artifacts
         uses: actions/upload-artifact@v4

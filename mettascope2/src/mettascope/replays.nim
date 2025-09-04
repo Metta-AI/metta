@@ -52,6 +52,8 @@ type
     actionNames*: seq[string]
     itemNames*: seq[string]
     groupNames*: seq[string]
+    itemImages*: seq[string]
+    traceImages*: seq[string]
     objects*: seq[Entity]
     rewardSharingMatrix*: seq[seq[float]]
     agents*: seq[Entity]
@@ -75,7 +77,8 @@ proc expand[T](data: any, numSteps: int, defaultValue: T): seq[T] =
       var j = 0
       var v: T = defaultValue
       for i in 0 ..< numSteps:
-        if j < data.len and data[j].kind == JArray and data[j][0].kind == JInt and data[j][0].getInt == i:
+        if j < data.len and data[j].kind == JArray and data[j][0].kind ==
+            JInt and data[j][0].getInt == i:
           v = data[j][1].to(T)
           j += 1
         result.add(v)
@@ -103,6 +106,14 @@ proc loadReplay*(data: string, fileName: string): Replay =
     mapSize: (jsonObj["map_size"][0].getInt, jsonObj["map_size"][1].getInt)
   )
 
+  replay.traceImages = newSeq[string](replay.actionNames.len)
+  for i in 0 ..< replay.actionNames.len:
+    replay.traceImages[i] = "trace/" & replay.actionNames[i]
+
+  replay.itemImages = newSeq[string](replay.itemNames.len)
+  for i in 0 ..< replay.itemNames.len:
+    replay.itemImages[i] = "resources/" & replay.itemNames[i]
+
   if "file_name" in jsonObj:
     replay.fileName = jsonObj["file_name"].getStr
 
@@ -115,7 +126,8 @@ proc loadReplay*(data: string, fileName: string): Replay =
     for i in 0 ..< inventoryRaw.len:
       var itemAmounts: seq[ItemAmount]
       for j in 0 ..< inventoryRaw[i].len:
-        itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0], count: inventoryRaw[i][j][1]))
+        itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0],
+            count: inventoryRaw[i][j][1]))
       inventory.add(itemAmounts)
 
     let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0, 0])
@@ -137,16 +149,20 @@ proc loadReplay*(data: string, fileName: string): Replay =
       color: expand[int](obj["color"], replay.maxSteps, 0),
     )
     if "agent_id" in obj:
+      entity.isAgent = true
       entity.agentId = obj["agent_id"].getInt
       entity.groupId = obj["group_id"].getInt
       entity.isFrozen = expand[bool](obj["is_frozen"], replay.maxSteps, false)
       entity.actionId = expand[int](obj["action_id"], replay.maxSteps, 0)
       entity.actionParameter = expand[int](obj["action_param"], replay.maxSteps, 0)
-      entity.actionSuccess = expand[bool](obj["action_success"], replay.maxSteps, false)
-      entity.currentReward = expand[float](obj["current_reward"], replay.maxSteps, 0)
+      entity.actionSuccess = expand[bool](obj["action_success"],
+          replay.maxSteps, false)
+      entity.currentReward = expand[float](obj["current_reward"],
+          replay.maxSteps, 0)
       entity.totalReward = expand[float](obj["total_reward"], replay.maxSteps, 0)
       if "frozen_progress" in obj:
-        entity.frozenProgress = expand[int](obj["frozen_progress"], replay.maxSteps, 0)
+        entity.frozenProgress = expand[int](obj["frozen_progress"],
+            replay.maxSteps, 0)
       else:
         entity.frozenProgress = @[0]
       if "frozen_time" in obj:
@@ -157,15 +173,18 @@ proc loadReplay*(data: string, fileName: string): Replay =
 
     if "input_resources" in obj:
       for pair in obj["input_resources"]:
-        entity.inputResources.add(ItemAmount(itemId: pair[0].getInt, count: pair[1].getInt))
+        entity.inputResources.add(ItemAmount(itemId: pair[0].getInt,
+            count: pair[1].getInt))
       for pair in obj["output_resources"]:
-        entity.outputResources.add(ItemAmount(itemId: pair[0].getInt, count: pair[1].getInt))
+        entity.outputResources.add(ItemAmount(itemId: pair[0].getInt,
+            count: pair[1].getInt))
       if "recipe_max" in obj:
         entity.recipeMax = obj["recipe_max"].getInt
       else:
         entity.recipeMax = 0
       if "production_progress" in obj:
-        entity.productionProgress = expand[int](obj["production_progress"], replay.maxSteps, 0)
+        entity.productionProgress = expand[int](obj["production_progress"],
+            replay.maxSteps, 0)
       else:
         entity.productionProgress = @[0]
       if "production_time" in obj:
@@ -173,7 +192,8 @@ proc loadReplay*(data: string, fileName: string): Replay =
       else:
         entity.productionTime = 0
       if "cooldown_progress" in obj:
-        entity.cooldownProgress = expand[int](obj["cooldown_progress"], replay.maxSteps, 0)
+        entity.cooldownProgress = expand[int](obj["cooldown_progress"],
+            replay.maxSteps, 0)
       else:
         entity.cooldownProgress = @[0]
       if "cooldown_time" in obj:
@@ -182,6 +202,43 @@ proc loadReplay*(data: string, fileName: string): Replay =
         entity.cooldownTime = 0
 
     replay.objects.add(entity)
+
+    # Populate the agents field for agent entities
+    if "agent_id" in obj:
+      replay.agents.add(entity)
+
+  # Compute gain/loss for agents.
+  var items = [
+    newSeq[int](replay.itemNames.len),
+    newSeq[int](replay.itemNames.len)
+  ]
+  for agent in replay.agents:
+    agent.gainMap = newSeq[seq[ItemAmount]](replay.maxSteps)
+
+    # Gain map for step 0.
+    let inventory = agent.inventory[0]
+    var gainMap = newSeq[ItemAmount]()
+    for i in 0 ..< items[0].len:
+      items[0][i] = 0
+    for item in inventory:
+      gainMap.add(item)
+      items[0][item.itemId] = item.count
+    agent.gainMap[0] = gainMap
+
+    # Gain map for step > 1.
+    for i in 1 ..< replay.maxSteps:
+      let inventory = agent.inventory[i]
+      var gainMap = newSeq[ItemAmount]()
+      let n = i mod 2
+      for j in 0 ..< items[n].len:
+        items[n][j] = 0
+      for item in inventory:
+        items[n][item.itemId] = item.count
+      let m = 1 - n
+      for j in 0..<replay.itemNames.len:
+        if items[n][j] != items[m][j]:
+          gainMap.add(ItemAmount(itemId: j, count: items[n][j] - items[m][j]))
+      agent.gainMap[i] = gainMap
 
   return replay
 

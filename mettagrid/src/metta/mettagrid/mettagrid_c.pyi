@@ -184,7 +184,6 @@ class GameConfig:
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
         track_movement_metrics: bool = False,
-        no_agent_interference: bool = False,
         recipe_details_obs: bool = False,
         allow_diagonals: bool = False,
     ) -> None: ...
@@ -199,7 +198,6 @@ class GameConfig:
     resource_loss_prob: float
     # FEATURE FLAGS
     track_movement_metrics: bool
-    no_agent_interference: bool
     recipe_details_obs: bool
     allow_diagonals: bool
 

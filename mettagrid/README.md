@@ -201,28 +201,26 @@ continue using their preferred frameworks.
 
 For local development, refer to the top-level [README.md](../README.md) in this repository.
 
-### CMake
+### Bazel
 
-By default, `uv sync` will run the CMake build in an isolated environment, so if you need to run C++ tests and
-benchmarks, you'll need to invoke `cmake` directly.
+By default, `uv sync` will run the Bazel build automatically via the custom build backend. If you need to run C++ tests and
+benchmarks directly, you'll need to invoke `bazel` directly.
 
 Build C++ tests and benchmarks in debug mode:
 
 ```sh
-# Generate `./build-debug` dir. Presets are described in `./CMakePresets.json`.
-cmake --preset debug
-# Build `./build-debug` dir
-cmake --build build-debug
+# Build with debug flags
+bazel build --config=dbg //:mettagrid_c
 # Run all tests
-ctest --test-dir build-debug
+bazel test //...
 ```
 
-For benchmarks you might prefer to use the release build:
+For benchmarks you might prefer to use the optimized build:
 
 ```sh
-cmake --preset release
-cmake --build build-release
+# Build with optimizations
+bazel build --config=opt //:mettagrid_c
 
-# Run some benchmark
+# Run benchmarks
 ./build-release/benchmarks/grid_object_benchmark
 ```

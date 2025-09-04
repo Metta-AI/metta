@@ -5,8 +5,8 @@ Demonstrates the new pattern for creating environments as shown in experiments/a
 
 import pytest
 
-import metta.mettagrid.config.envs as eb
-from metta.mettagrid.config import building
+import metta.mettagrid.builder.envs as eb
+from metta.mettagrid.builder import building
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
