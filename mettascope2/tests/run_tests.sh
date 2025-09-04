@@ -37,6 +37,7 @@ run_test() {
 # Run each consolidated test
 run_test "test_core_systems.nim" "Core Systems Tests"
 run_test "test_ai_behavior.nim" "AI Behavior Tests"
+run_test "test_clippy_improved.nim" "Improved Clippy Tests"
 
 # Summary
 echo "================================"

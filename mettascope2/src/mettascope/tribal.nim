@@ -853,8 +853,8 @@ proc init(env: Environment) =
           pos: nearbyPositions[0],  # Pick first available position near temple
           orientation: Orientation(r.rand(0..3)),
           homeTemple: templeCenter,  # Remember home temple
-          wanderRadius: 5,  # Start with medium radius
-          wanderAngle: 0.0,
+          wanderRadius: r.rand(8..12),  # Start with varied radius for diversity
+          wanderAngle: r.rand(0.0 .. 6.28),  # Random starting angle
           targetPos: ivec2(-1, -1),  # No target initially
           wanderStepsRemaining: 0,  # Start ready to look for targets
         ))
@@ -1026,8 +1026,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
               pos: spawnPos,
               orientation: Orientation(r.rand(0..3)),
               homeTemple: thing.pos,  # Remember home temple position
-              wanderRadius: 5,  # Start with medium radius
-              wanderAngle: 0.0,
+              wanderRadius: r.rand(8..12),  # Start with varied radius for diversity
+              wanderAngle: r.rand(0.0 .. 6.28),  # Random starting angle
               targetPos: ivec2(-1, -1),  # No target initially
               wanderStepsRemaining: 0,  # Start ready to look for targets
             )
