@@ -38,9 +38,9 @@ echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
 
 # Master-only: Collect SkyPilot latency
 if [[ "$IS_MASTER" == "true" ]]; then
-  if [ -f common/src/metta/common/util/job_latency.py ]; then
+  if [ -f devops/skypilot/utils/job_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
-    uv run python common/src/metta/common/util/job_latency.py || true
+    uv run python devops/skypilot/utils/job_latency.py || true
   else
     echo "[RUN] Latency script is missing!"
   fi
@@ -50,9 +50,9 @@ METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_F
 
 # Master-only: Collect instance cost
 if [[ "$IS_MASTER" == "true" ]]; then
-  if [ -f common/src/metta/common/util/cost_monitor.py ]; then
+  if [ -f devops/skypilot/utils/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2> /dev/null | tail -1 || true)"
+    METTA_HOURLY_COST="$(uv run python devops/skypilot/utils/cost_monitor.py 2> /dev/null | tail -1 || true)"
     echo "[RUN] METTA_HOURLY_COST set to $METTA_HOURLY_COST in $METTA_ENV_FILE by python."
   else
     echo "[RUN] Cost monitor script is missing!"
