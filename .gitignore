@@ -34,6 +34,12 @@ build-release/
 build-debug/
 build-coverage/
 
+# Bazel build artifacts
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-mettagrid
+
 # Node.js / Frontend
 node_modules/
 .next/

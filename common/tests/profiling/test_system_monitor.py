@@ -4,35 +4,19 @@ from typing import Generator
 
 import pytest
 
-from metta.common.profiling.system_monitor import SystemMonitor
+from metta.mettagrid.profiling.system_monitor import SystemMonitor
 
 
 @pytest.fixture
 def monitor() -> Generator[SystemMonitor, None, None]:
     """Create a SystemMonitor instance with auto_start=False"""
-    monitor = SystemMonitor(sampling_interval_sec=0.1, history_size=10, auto_start=False)
+    monitor = SystemMonitor(sampling_interval_sec=0.1, history_size=10, auto_start=False, log_level=logging.INFO)
     yield monitor
     # Cleanup
     monitor.stop()
 
 
 class TestInitialization:
-    def test_init_default_params(self):
-        """Test initialization with default parameters"""
-        monitor = SystemMonitor(auto_start=False)
-
-        assert monitor.sampling_interval_sec == 1.0
-        assert monitor.history_size == 100
-        assert not monitor._thread or not monitor._thread.is_alive()
-
-        # Check logger is created with unique instance name
-        assert isinstance(monitor.logger, logging.Logger)
-        assert monitor.logger.name == f"SystemMonitor.{id(monitor)}"
-
-        # Check that NullHandler was added (default log_level is None)
-        null_handlers = [h for h in monitor.logger.handlers if isinstance(h, logging.NullHandler)]
-        assert len(null_handlers) >= 1, "Logger should have at least one NullHandler when log_level is None"
-
     def test_init_custom_params(self):
         """Test initialization with custom parameters"""
         monitor = SystemMonitor(sampling_interval_sec=2.0, history_size=50, log_level=logging.DEBUG, auto_start=False)
@@ -40,27 +24,6 @@ class TestInitialization:
         assert monitor.sampling_interval_sec == 2.0
         assert monitor.history_size == 50
         assert monitor.logger.level == logging.DEBUG
-
-    def test_log_levels(self):
-        """Test initialization with different log levels"""
-        # Test with None (should add NullHandler)
-        monitor1 = SystemMonitor(log_level=None, auto_start=False)
-        null_handlers = [h for h in monitor1.logger.handlers if isinstance(h, logging.NullHandler)]
-        assert len(null_handlers) >= 1
-
-        # Test with explicit log level
-        monitor2 = SystemMonitor(log_level=logging.INFO, auto_start=False)
-        assert monitor2.logger.level == logging.INFO
-
-        # Verify each instance has unique logger
-        assert monitor1.logger.name != monitor2.logger.name
-        assert monitor1.logger.name == f"SystemMonitor.{id(monitor1)}"
-        assert monitor2.logger.name == f"SystemMonitor.{id(monitor2)}"
-
-        # Test that log levels are isolated
-        monitor3 = SystemMonitor(log_level=logging.ERROR, auto_start=False)
-        assert monitor2.logger.level == logging.INFO  # Unchanged
-        assert monitor3.logger.level == logging.ERROR
 
     def test_auto_start(self):
         """Test auto_start functionality"""

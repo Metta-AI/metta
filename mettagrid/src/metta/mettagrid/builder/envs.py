@@ -1,5 +1,4 @@
 import metta.mettagrid.mapgen.scenes.random
-from metta.mettagrid.config import building, empty_converters
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
 from metta.mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -14,6 +13,8 @@ from metta.mettagrid.mettagrid_config import (
     GroupConfig,
     MettaGridConfig,
 )
+
+from . import building, empty_converters
 
 
 def make_arena(
@@ -33,7 +34,7 @@ def make_arena(
     actions = ActionsConfig(
         noop=ActionConfig(),
         move=ActionConfig(),
-        rotate=ActionConfig(),
+        rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
         put_items=ActionConfig(),
         get_items=ActionConfig(),
         attack=AttackActionConfig(
@@ -115,7 +116,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
             },
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -149,7 +150,7 @@ def make_icl_resource_chain(
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),

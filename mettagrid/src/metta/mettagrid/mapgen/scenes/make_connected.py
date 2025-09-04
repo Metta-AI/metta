@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
 
 DIRECTIONS = [(-1, 0), (0, 1), (1, 0), (0, -1)]

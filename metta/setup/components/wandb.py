@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
@@ -90,8 +91,6 @@ class WandbSetup(SetupModule):
             # W&B outputs login status to stderr, not stdout
             output = result.stderr if result.stderr else result.stdout
             if result.returncode == 0 and "Currently logged in as:" in output:
-                import re
-
                 match = re.search(r"Currently logged in as: (\S+) \(([^)]+)\)", output)
                 if match:
                     return match.group(2)

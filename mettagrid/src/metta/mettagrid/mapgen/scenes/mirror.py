@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
 from metta.mettagrid.mapgen.types import AreaWhere
 

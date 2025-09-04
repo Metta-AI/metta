@@ -4,7 +4,7 @@ from typing import Any, Dict, Literal
 
 from pydantic import Field
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 
 
 class ParameterConfig(Config):
