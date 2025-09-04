@@ -24,12 +24,31 @@ run_test() {
     echo "Running: $test_name"
     echo "------------------------"
     
-    if nim c -r "$test_file" 2>/dev/null; then
-        echo -e "${GREEN}✓ $test_name passed${NC}"
-        ((PASSED++))
+    # Check if source file exists
+    if [ -f "$test_file" ]; then
+        # Compile and run from source
+        if nim c -r "$test_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ $test_name passed${NC}"
+            ((PASSED++))
+        else
+            echo -e "${RED}✗ $test_name failed${NC}"
+            ((FAILED++))
+        fi
     else
-        echo -e "${RED}✗ $test_name failed${NC}"
-        ((FAILED++))
+        # Try to run pre-compiled executable
+        local exe_name="${test_file%.nim}"
+        if [ -f "$exe_name" ]; then
+            if ./"$exe_name" > /dev/null 2>&1; then
+                echo -e "${GREEN}✓ $test_name passed${NC}"
+                ((PASSED++))
+            else
+                echo -e "${RED}✗ $test_name failed${NC}"
+                ((FAILED++))
+            fi
+        else
+            echo -e "${RED}✗ $test_name - test not found${NC}"
+            ((FAILED++))
+        fi
     fi
     echo ""
 }
@@ -38,6 +57,8 @@ run_test() {
 run_test "test_core_systems.nim" "Core Systems Tests"
 run_test "test_ai_behavior.nim" "AI Behavior Tests"
 run_test "test_clippy_improved.nim" "Improved Clippy Tests"
+run_test "test_clippy_debug.nim" "Clippy Debug Tests"
+run_test "test_clippy_wander.nim" "Clippy Wander Tests"
 
 # Summary
 echo "================================"

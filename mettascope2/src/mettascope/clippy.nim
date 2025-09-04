@@ -16,12 +16,8 @@ const
   # Clippy agent properties
   ClippyAttackDamage* = 2
   ClippySpeed* = 1
-  ClippyVisionRange* = 12  # Increased to see much further
-  ClippyChaseRange* = 15   # Will pursue targets up to this distance
-  ClippyAltarRange* = 10   # Will attack altars within this range
+  ClippyVisionRange* = 8  # Increased from 5 to see further
   ClippyWanderPriority* = 3  # How many wander steps before checking for targets
-  ClippyMaxWanderRadius* = 60  # Can roam much further from temple
-  ClippyMemorySteps* = 20  # Remember last target position for this many steps
   
   # Temple properties
   TempleCooldown* = 20  # Time between Clippy spawns
@@ -153,7 +149,7 @@ proc findNearestAgent*(clippyPos: IVec2, things: seq[pointer], visionRange: int)
   return nearestPos
 
 proc getConcentricWanderPoint*(clippy: pointer, r: var Rand): IVec2 =
-  ## Get next point in expanding spiral pattern around home temple
+  ## Get next point in expanding concentric circle pattern around home temple
   let clippyThing = cast[ptr tuple[
     kind: int, pos: IVec2, id: int, layer: int, hearts: int, 
     resources: int, cooldown: int, frozen: int, inventory: int,
@@ -169,26 +165,32 @@ proc getConcentricWanderPoint*(clippy: pointer, r: var Rand): IVec2 =
   
   # Complete circle, expand radius
   if clippyThing.wanderAngle >= 6.28:  # 2*PI
-    clippyThing.wanderAngle = r.rand(0.0 .. 0.7853)  # Random offset for variety
-    clippyThing.wanderRadius = min(clippyThing.wanderRadius + 5, ClippyMaxWanderRadius)  # Expand by 5, max radius 60
-  
-  # Add some randomness to make movement less predictable
-  let angleOffset = r.rand(-0.2 .. 0.2)  # Small random variation
-  let currentAngle = clippyThing.wanderAngle + angleOffset
+    clippyThing.wanderAngle = 0.0
+    clippyThing.wanderRadius = min(clippyThing.wanderRadius + 3, 40)  # Max radius 40, increment by 3 for much faster expansion
   
   # Calculate target position in the circle
-  let x = clippyThing.homeTemple.x + int32(cos(currentAngle) * clippyThing.wanderRadius.float)
-  let y = clippyThing.homeTemple.y + int32(sin(currentAngle) * clippyThing.wanderRadius.float)
+  let x = clippyThing.homeTemple.x + int32(cos(clippyThing.wanderAngle) * clippyThing.wanderRadius.float)
+  let y = clippyThing.homeTemple.y + int32(sin(clippyThing.wanderAngle) * clippyThing.wanderRadius.float)
   
   return ivec2(x, y)
 
-proc getClippyMoveDirection*(clippyPtr: pointer, things: seq[pointer], r: var Rand): IVec2 =
+proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
   ## Determine which direction a Clippy should move
   ## Priority: 1) Chase agent if seen, 2) Move toward altar if seen, 
   ## 3) Wander in concentric circles around home temple
   
+  # First, find the clippy in the things list to access its state
+  var clippyPtr: pointer = nil
+  for thingPtr in things:
+    if isNil(thingPtr):
+      continue
+    let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
+    if thing.kind == 6 and thing.pos == clippyPos:  # Found our clippy
+      clippyPtr = thingPtr
+      break
+  
   if isNil(clippyPtr):
-    # Fallback to random if invalid clippy
+    # Fallback to random if we can't find ourselves
     let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
     return r.sample(directions)
   
@@ -202,8 +204,6 @@ proc getClippyMoveDirection*(clippyPtr: pointer, things: seq[pointer], r: var Ra
     wanderAngle: float, targetPos: IVec2, wanderStepsRemaining: int
   ]](clippyPtr)
   
-  let clippyPos = clippyThing.pos
-  
   # Check if we should continue wandering despite seeing targets
   if clippyThing.wanderStepsRemaining > 0:
     # Continue wandering, decrement counter
@@ -214,33 +214,22 @@ proc getClippyMoveDirection*(clippyPtr: pointer, things: seq[pointer], r: var Ra
     let nearestAgent = findNearestAgent(clippyPos, things, ClippyVisionRange)
     if nearestAgent.x >= 0:  # Valid agent found
       let dist = abs(nearestAgent.x - clippyPos.x) + abs(nearestAgent.y - clippyPos.y)
-      # Extended chase range for agents
-      if dist <= ClippyChaseRange:
+      # Only chase if close enough (within 6 tiles)
+      if dist <= 6:
         clippyThing.targetPos = nearestAgent
-        clippyThing.wanderStepsRemaining = ClippyMemorySteps  # Remember target
         return getDirectionToward(clippyPos, nearestAgent)
     
     # Priority 2: Look for nearest altar to attack
     let nearestAltar = findNearestAltar(clippyPos, things, ClippyVisionRange)
     if nearestAltar.x >= 0:  # Valid altar found
       let dist = abs(nearestAltar.x - clippyPos.x) + abs(nearestAltar.y - clippyPos.y)
-      # Extended range for altar attacks
-      if dist <= ClippyAltarRange:
+      # Only attack if close enough (within 5 tiles)
+      if dist <= 5:
         clippyThing.targetPos = nearestAltar
-        clippyThing.wanderStepsRemaining = ClippyMemorySteps div 2  # Remember altar briefly
         return getDirectionToward(clippyPos, nearestAltar)
     
-    # Check if we have a remembered target position to investigate
-    if clippyThing.targetPos.x >= 0 and clippyThing.targetPos.y >= 0:
-      let targetDist = abs(clippyThing.targetPos.x - clippyPos.x) + abs(clippyThing.targetPos.y - clippyPos.y)
-      if targetDist > 1:  # Still need to reach the last known position
-        return getDirectionToward(clippyPos, clippyThing.targetPos)
-      else:
-        # Reached last known position, clear target
-        clippyThing.targetPos = ivec2(-1, -1)
-    
-    # If we reach here, no targets - set wander steps
-    clippyThing.wanderStepsRemaining = r.rand(3..8)  # Shorter wander periods for more responsive behavior
+    # If we reach here, no close targets - set wander steps
+    clippyThing.wanderStepsRemaining = r.rand(5..10)  # Wander for 5-10 steps before checking again
   
   # Priority 3: No targets - wander in concentric circles
   # If we have a valid home temple, wander around it

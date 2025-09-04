@@ -853,8 +853,8 @@ proc init(env: Environment) =
           pos: nearbyPositions[0],  # Pick first available position near temple
           orientation: Orientation(r.rand(0..3)),
           homeTemple: templeCenter,  # Remember home temple
-          wanderRadius: r.rand(8..12),  # Start with varied radius for diversity
-          wanderAngle: r.rand(0.0 .. 6.28),  # Random starting angle
+          wanderRadius: 5,  # Start with medium radius
+          wanderAngle: 0.0,
           targetPos: ivec2(-1, -1),  # No target initially
           wanderStepsRemaining: 0,  # Start ready to look for targets
         ))
@@ -1026,8 +1026,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
               pos: spawnPos,
               orientation: Orientation(r.rand(0..3)),
               homeTemple: thing.pos,  # Remember home temple position
-              wanderRadius: r.rand(8..12),  # Start with varied radius for diversity
-              wanderAngle: r.rand(0.0 .. 6.28),  # Random starting angle
+              wanderRadius: 5,  # Start with medium radius
+              wanderAngle: 0.0,
               targetPos: ivec2(-1, -1),  # No target initially
               wanderStepsRemaining: 0,  # Start ready to look for targets
             )
@@ -1062,7 +1062,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       thingPtrs.add(cast[pointer](t))
     
     # Get movement direction from clippy AI
-    let moveDir = getClippyMoveDirection(cast[pointer](clippy), thingPtrs, r)
+    let moveDir = getClippyMoveDirection(clippy.pos, thingPtrs, r)
     let newPos = clippy.pos + moveDir
     
     # Check if new position is valid and empty
