@@ -2,6 +2,9 @@ import std/[math, random, tables, sequtils]
 import vmath
 import tribal
 
+# Import the new orientations
+from tribal import N, S, W, E, NW, NE, SW, SE
+
 type
   ControllerState* = ref object
     ## State for each agent's controller
@@ -178,19 +181,34 @@ proc findVisibleThings(env: Environment, agent: Thing, viewRadius: int = 5): seq
         result.add(thing)
 
 proc getDirectionTo(fromPos, toPos: IVec2): IVec2 =
-  ## Get the unit direction vector from one position to another
+  ## Get the unit direction vector from one position to another (supports 8 directions)
   let dx = toPos.x - fromPos.x
   let dy = toPos.y - fromPos.y
   
-  if abs(dx) > abs(dy):
-    result = ivec2(if dx > 0: 1 else: -1, 0)
-  elif dy != 0:
-    result = ivec2(0, if dy > 0: 1 else: -1)
-  else:
-    result = ivec2(0, 0)
+  # Support diagonal movement
+  var dirX = 0'i32
+  var dirY = 0'i32
+  
+  if dx > 0:
+    dirX = 1
+  elif dx < 0:
+    dirX = -1
+  
+  if dy > 0:
+    dirY = 1
+  elif dy < 0:
+    dirY = -1
+  
+  result = ivec2(dirX, dirY)
 
 proc getOrientation(dir: IVec2): Orientation =
-  ## Convert direction vector to orientation
+  ## Convert direction vector to orientation (8 directions)
+  # Handle diagonal directions first
+  if dir.x > 0 and dir.y < 0: return NE
+  if dir.x > 0 and dir.y > 0: return SE
+  if dir.x < 0 and dir.y < 0: return NW
+  if dir.x < 0 and dir.y > 0: return SW
+  # Handle cardinal directions
   if dir.x > 0: return E
   if dir.x < 0: return W
   if dir.y > 0: return S
@@ -281,33 +299,16 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       # Try to move in escape direction
       let nextPos = agent.pos + state.escapeDirection
       if env.isEmpty(nextPos):
-        # Convert direction to move argument
-        var moveArg: uint8
-        if state.escapeDirection.x > 0:
-          moveArg = 2  # East
-        elif state.escapeDirection.x < 0:
-          moveArg = 3  # West
-        elif state.escapeDirection.y > 0:
-          moveArg = 1  # South
-        else:  # state.escapeDirection.y < 0
-          moveArg = 0  # North
-        
-        return [1'u8, moveArg]  # Move in escape direction
+        # Convert direction to orientation-based move argument
+        let orient = getOrientation(state.escapeDirection)
+        return [1'u8, ord(orient).uint8]  # Move in escape direction
       else:
         # Can't move in escape direction, try perpendicular
         let perpDir = ivec2(-state.escapeDirection.y, state.escapeDirection.x)
         let perpPos = agent.pos + perpDir
         if env.isEmpty(perpPos):
-          var moveArg: uint8
-          if perpDir.x > 0:
-            moveArg = 2
-          elif perpDir.x < 0:
-            moveArg = 3
-          elif perpDir.y > 0:
-            moveArg = 1
-          else:
-            moveArg = 0
-          return [1'u8, moveArg]
+          let orient = getOrientation(perpDir)
+          return [1'u8, ord(orient).uint8]
     else:
       # Escape complete, exit escape mode and reset target
       state.escapeMode = false
@@ -344,16 +345,9 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         # We can use the altar!
         let dir = state.currentTarget - agent.pos
         
-        # Determine direction argument for use action
-        var useArg: uint8
-        if dir.x > 0:
-          useArg = 2  # East
-        elif dir.x < 0:
-          useArg = 3  # West
-        elif dir.y > 0:
-          useArg = 1  # South
-        else:  # dir.y < 0
-          useArg = 0  # North
+        # Determine orientation argument for use action
+        let useOrientation = getOrientation(dir)
+        let useArg = ord(useOrientation).uint8
         
         # Use the altar
         return [3'u8, useArg]  # Use action with direction
@@ -361,16 +355,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         # We're diagonally adjacent - move to cardinal position
         let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
         if moveDir.x != 0 or moveDir.y != 0:
-          var moveArg: uint8
-          if moveDir.x > 0:
-            moveArg = 2  # Move East
-          elif moveDir.x < 0:
-            moveArg = 3  # Move West
-          elif moveDir.y > 0:
-            moveArg = 1  # Move South
-          else:  # moveDir.y < 0
-            moveArg = 0  # Move North
-          return [1'u8, moveArg]  # Move to cardinal position
+          let moveOrientation = getOrientation(moveDir)
+          return [1'u8, ord(moveOrientation).uint8]  # Move to cardinal position
     
   elif state.hasOre:
     # Priority 2: If we have ore, find a converter
@@ -409,16 +395,9 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         # We can use the converter!
         let dir = state.currentTarget - agent.pos
         
-        # Determine direction argument for use action
-        var useArg: uint8
-        if dir.x > 0:
-          useArg = 2  # East
-        elif dir.x < 0:
-          useArg = 3  # West
-        elif dir.y > 0:
-          useArg = 1  # South
-        else:  # dir.y < 0
-          useArg = 0  # North
+        # Determine orientation argument for use action
+        let useOrientation = getOrientation(dir)
+        let useArg = ord(useOrientation).uint8
         
         # Use the converter
         return [3'u8, useArg]  # Use action with direction
@@ -426,16 +405,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         # We're diagonally adjacent - move to cardinal position
         let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
         if moveDir.x != 0 or moveDir.y != 0:
-          var moveArg: uint8
-          if moveDir.x > 0:
-            moveArg = 2  # Move East
-          elif moveDir.x < 0:
-            moveArg = 3  # Move West
-          elif moveDir.y > 0:
-            moveArg = 1  # Move South
-          else:  # moveDir.y < 0
-            moveArg = 0  # Move North
-          return [1'u8, moveArg]  # Move to cardinal position
+          let moveOrientation = getOrientation(moveDir)
+          return [1'u8, ord(moveOrientation).uint8]  # Move to cardinal position
     
   else:
     # Priority 3: No inventory, look for mines
@@ -481,16 +452,9 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         # We can use the mine!
         let dir = state.currentTarget - agent.pos
         
-        # Determine direction argument for use action
-        var useArg: uint8
-        if dir.x > 0:
-          useArg = 2  # East
-        elif dir.x < 0:
-          useArg = 3  # West
-        elif dir.y > 0:
-          useArg = 1  # South
-        else:  # dir.y < 0
-          useArg = 0  # North
+        # Determine orientation argument for use action
+        let useOrientation = getOrientation(dir)
+        let useArg = ord(useOrientation).uint8
         
         # Use the mine
         return [3'u8, useArg]  # Use action with direction
@@ -498,51 +462,55 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         # We're diagonally adjacent - move to cardinal position
         let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
         if moveDir.x != 0 or moveDir.y != 0:
-          var moveArg: uint8
-          if moveDir.x > 0:
-            moveArg = 2  # Move East
-          elif moveDir.x < 0:
-            moveArg = 3  # Move West
-          elif moveDir.y > 0:
-            moveArg = 1  # Move South
-          else:  # moveDir.y < 0
-            moveArg = 0  # Move North
-          return [1'u8, moveArg]  # Move to cardinal position
+          let moveOrientation = getOrientation(moveDir)
+          return [1'u8, ord(moveOrientation).uint8]  # Move to cardinal position
   
-  # Movement logic: Move towards current target using new directional movement
+  # Movement logic: Move towards current target using 8-directional movement
   if state.currentTarget != agent.pos:
     let dir = getDirectionTo(agent.pos, state.currentTarget)
     
     if dir.x != 0 or dir.y != 0:
-      # Determine which direction to move
-      var moveArg: uint8
-      if dir.x > 0:
-        moveArg = 2  # Move East
-      elif dir.x < 0:
-        moveArg = 3  # Move West
-      elif dir.y > 0:
-        moveArg = 1  # Move South
-      else:  # dir.y < 0
-        moveArg = 0  # Move North
+      # Convert direction vector to orientation
+      let moveOrientation = getOrientation(dir)
       
       # Check if we can move in that direction
       let nextPos = agent.pos + dir
       if env.isEmpty(nextPos):
-        return [1'u8, moveArg]  # Move in direction with auto-rotation
+        return [1'u8, ord(moveOrientation).uint8]  # Move in direction with auto-rotation
       else:
-        # Obstacle in the way, try a random direction
-        let randomDir = controller.rng.rand(0..3)
-        # Check if that random direction is free
-        var testPos = agent.pos
-        case randomDir:
-        of 0: testPos.y -= 1  # North
-        of 1: testPos.y += 1  # South
-        of 2: testPos.x += 1  # East
-        of 3: testPos.x -= 1  # West
-        else: discard
+        # Obstacle in the way, try alternative directions
+        # First try cardinal directions if diagonal was blocked
+        if ord(moveOrientation) >= 4:  # Was diagonal
+          # Try component directions
+          if dir.x != 0:
+            let cardinalDir = ivec2(dir.x, 0)
+            let cardinalPos = agent.pos + cardinalDir
+            if env.isEmpty(cardinalPos):
+              let cardinalOrient = getOrientation(cardinalDir)
+              return [1'u8, ord(cardinalOrient).uint8]
+          
+          if dir.y != 0:
+            let cardinalDir = ivec2(0, dir.y)
+            let cardinalPos = agent.pos + cardinalDir
+            if env.isEmpty(cardinalPos):
+              let cardinalOrient = getOrientation(cardinalDir)
+              return [1'u8, ord(cardinalOrient).uint8]
         
+        # Last resort: try a random direction (including diagonals)
+        let randomOrientation = Orientation(controller.rng.rand(0..7))
+        let randomDelta = case randomOrientation
+          of N: ivec2(0, -1)
+          of S: ivec2(0, 1)
+          of W: ivec2(-1, 0)
+          of E: ivec2(1, 0)
+          of NW: ivec2(-1, -1)
+          of NE: ivec2(1, -1)
+          of SW: ivec2(-1, 1)
+          of SE: ivec2(1, 1)
+        
+        let testPos = agent.pos + randomDelta
         if env.isEmpty(testPos):
-          return [1'u8, randomDir.uint8]  # Move in random direction
+          return [1'u8, ord(randomOrientation).uint8]  # Move in random direction
   
   # Default: do nothing
   return [0'u8, 0'u8]  # Noop

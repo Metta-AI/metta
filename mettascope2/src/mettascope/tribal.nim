@@ -62,6 +62,8 @@ proc ivec2*(x, y: int): IVec2 =
   result.y = y.int32
 
 type
+  OrientationDelta* = tuple[x, y: int]
+  
   ObservationName* = enum
     AgentLayer = 0
     AgentOrientationLayer = 1
@@ -82,10 +84,14 @@ type
     AltarReadyLayer = 16
 
   Orientation* = enum
-    N # Up, Key W
-    S # Down, Key S
-    W # Right, Key D
-    E # Left, Key A
+    N = 0  # North (Up)
+    S = 1  # South (Down) 
+    W = 2  # West (Left)
+    E = 3  # East (Right)
+    NW = 4 # Northwest (Up-Left)
+    NE = 5 # Northeast (Up-Right)
+    SW = 6 # Southwest (Down-Left)
+    SE = 7 # Southeast (Down-Right)
 
   ThingKind* = enum
     Agent
@@ -358,6 +364,38 @@ proc getThing(env: Environment, pos: IVec2): Thing =
     return nil
   return env.grid[pos.x][pos.y]
 
+# Orientation deltas for each direction
+const OrientationDeltas*: array[8, OrientationDelta] = [
+  (x: 0, y: -1),   # N (North)
+  (x: 0, y: 1),    # S (South)
+  (x: -1, y: 0),   # W (West)
+  (x: 1, y: 0),    # E (East)
+  (x: -1, y: -1),  # NW (Northwest)
+  (x: 1, y: -1),   # NE (Northeast)
+  (x: -1, y: 1),   # SW (Southwest)
+  (x: 1, y: 1)     # SE (Southeast)
+]
+
+proc getOrientationDelta*(orient: Orientation): OrientationDelta =
+  ## Get the x,y delta for a given orientation
+  OrientationDeltas[ord(orient)]
+
+proc isDiagonal*(orient: Orientation): bool =
+  ## Check if orientation is diagonal
+  ord(orient) >= ord(NW)
+
+proc getOpposite*(orient: Orientation): Orientation =
+  ## Get the opposite orientation
+  case orient
+  of N: S
+  of S: N
+  of W: E
+  of E: W
+  of NW: SE
+  of NE: SW
+  of SW: NE
+  of SE: NW
+
 proc isEmpty*(env: Environment, pos: IVec2): bool =
   ## Check if a position is empty (water is now passable)
   if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
@@ -391,26 +429,23 @@ proc noopAction(env: Environment, id: int, agent: Thing) =
   inc env.stats[id].actionNoop
 
 proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Move the agent in a cardinal direction and auto-rotate to face that direction
-  var newPos = agent.pos
-  var newOrientation = agent.orientation
+  ## Move the agent in any of 8 directions and auto-rotate to face that direction
+  ## argument: 0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE
   
-  case argument:
-  of 0:  # Move North
-    newPos.y -= 1
-    newOrientation = N
-  of 1:  # Move South
-    newPos.y += 1
-    newOrientation = S
-  of 2:  # Move East
-    newPos.x += 1
-    newOrientation = E
-  of 3:  # Move West
-    newPos.x -= 1
-    newOrientation = W
-  else:
+  # Validate orientation argument
+  if argument < 0 or argument > 7:
     inc env.stats[id].actionInvalid
     return
+  
+  let moveOrientation = Orientation(argument)
+  let delta = getOrientationDelta(moveOrientation)
+  
+  var newPos = agent.pos
+  newPos.x += int32(delta.x)
+  newPos.y += int32(delta.y)
+  
+  # Update orientation to face movement direction
+  let newOrientation = moveOrientation
     
   if env.isEmpty(newPos):
     env.grid[agent.pos.x][agent.pos.y] = nil
@@ -441,8 +476,8 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
     inc env.stats[id].actionInvalid
 
 proc rotateAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Rotate the agent
-  if argument < 0 or argument > 3:
+  ## Rotate the agent to face any of 8 directions
+  if argument < 0 or argument > 7:
     inc env.stats[id].actionInvalid
     return
   agent.orientation = Orientation(argument)
@@ -458,25 +493,17 @@ proc transferAction(env: Environment, id: int, agent: Thing) =
   discard
 
 proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Use resources - argument specifies direction (0=N, 1=S, 2=E, 3=W)
-  if argument > 3:
+  ## Use resources - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
+  if argument > 7:
     inc env.stats[id].actionInvalid
     return
   
-  # Calculate target position based on direction argument
+  # Calculate target position based on orientation argument
+  let useOrientation = Orientation(argument)
+  let delta = getOrientationDelta(useOrientation)
   var usePos = agent.pos
-  case argument:
-  of 0:  # North
-    usePos.y -= 1
-  of 1:  # South  
-    usePos.y += 1
-  of 2:  # East
-    usePos.x += 1
-  of 3:  # West
-    usePos.x -= 1
-  else:
-    inc env.stats[id].actionInvalid
-    return
+  usePos.x += int32(delta.x)
+  usePos.y += int32(delta.y)
   var thing = env.getThing(usePos)
   if thing == nil:
     inc env.stats[id].actionInvalid
@@ -539,29 +566,76 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
     inc env.stats[id].actionInvalid
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Attack action removed - no longer used
-  inc env.stats[id].actionInvalid
-
-proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Get resources from terrain (water, wheat, wood) - argument specifies direction (0=N, 1=S, 2=E, 3=W)
-  if argument > 3:
+  ## Attack with a spear if agent has one
+  ## argument: 0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE (direction to attack)
+  
+  # Check if agent has a spear
+  if agent.inventorySpear <= 0:
     inc env.stats[id].actionInvalid
     return
   
-  # Calculate target position based on direction argument
-  var targetPos = agent.pos
-  case argument:
-  of 0:  # North
-    targetPos.y -= 1
-  of 1:  # South
-    targetPos.y += 1
-  of 2:  # East
-    targetPos.x += 1
-  of 3:  # West
-    targetPos.x -= 1
-  else:
+  # Validate orientation argument
+  if argument < 0 or argument > 7:
     inc env.stats[id].actionInvalid
     return
+  
+  # Calculate attack positions (range of 2 tiles in given direction)
+  let attackOrientation = Orientation(argument)
+  let delta = getOrientationDelta(attackOrientation)
+  var attackPositions: seq[IVec2] = @[]
+  
+  # Add positions at range 1 and 2 in the given direction
+  attackPositions.add(agent.pos + ivec2(delta.x, delta.y))
+  attackPositions.add(agent.pos + ivec2(delta.x * 2, delta.y * 2))
+  
+  # Check for Clippys at attack positions
+  var hitClippy = false
+  var clippyToRemove: Thing = nil
+  
+  for attackPos in attackPositions:
+    # Check bounds
+    if attackPos.x < 0 or attackPos.x >= MapWidth or 
+       attackPos.y < 0 or attackPos.y >= MapHeight:
+      continue
+    
+    # Check for Clippy at this position
+    let target = env.getThing(attackPos)
+    if not isNil(target) and target.kind == Clippy:
+      clippyToRemove = target
+      hitClippy = true
+      break
+  
+  if hitClippy and not isNil(clippyToRemove):
+    # Remove the Clippy
+    env.grid[clippyToRemove.pos.x][clippyToRemove.pos.y] = nil
+    let idx = env.things.find(clippyToRemove)
+    if idx >= 0:
+      env.things.del(idx)
+    
+    # Consume the spear
+    agent.inventorySpear = 0
+    env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
+    
+    # Give reward for destroying Clippy
+    agent.reward += 2.0
+    
+    inc env.stats[id].actionUse
+  else:
+    # Attack missed or no valid target
+    inc env.stats[id].actionInvalid
+
+proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
+  ## Get resources from terrain (water, wheat, wood) - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
+  if argument > 7:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Calculate target position based on orientation argument
+  let getOrientation = Orientation(argument)
+  let delta = getOrientationDelta(getOrientation)
+  var targetPos = agent.pos
+  targetPos.x += int32(delta.x)
+  targetPos.y += int32(delta.y)
   
   # Check bounds
   if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
@@ -1077,6 +1151,9 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       if thing.cooldown > 0:
         thing.cooldown -= 1
         env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
+    elif thing.kind == Forge:
+      if thing.cooldown > 0:
+        thing.cooldown -= 1
     elif thing.kind == Temple:
       if thing.cooldown > 0:
         thing.cooldown -= 1
@@ -1240,6 +1317,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           agent.inventoryWater = 0
           agent.inventoryWheat = 0
           agent.inventoryWood = 0
+          agent.inventorySpear = 0
           agent.frozen = 0
           env.terminated[agentId] = 0.0
           
@@ -1253,6 +1331,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           env.updateObservations(AgentInventoryWaterLayer, agent.pos, 0)
           env.updateObservations(AgentInventoryWheatLayer, agent.pos, 0)
           env.updateObservations(AgentInventoryWoodLayer, agent.pos, 0)
+          env.updateObservations(AgentInventorySpearLayer, agent.pos, 0)
           env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
           # Shield layer removed\n        # env.updateObservations(AgentShieldLayer, agent.pos, agent.shield.int)
           env.updateObservations(agentId)
