@@ -234,7 +234,45 @@ echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/
   lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
 ````
 
+## Sandboxes
 
+Sandboxes provide persistent development environments for experimentation.
+
+### Creating a Sandbox
+
+```bash
+# Create sandbox with main branch
+./devops/skypilot/sandbox.py
+
+# Create sandbox with specific commit/branch
+./devops/skypilot/sandbox.py --git-ref feature/my-branch
+
+# Force create new sandbox (even if one exists)
+./devops/skypilot/sandbox.py --new
+```
+
+### Connecting to Sandbox
+
+```bash
+# SSH into sandbox (cluster name shown after creation)
+ssh <cluster_name>
+```
+
+### Managing Sandboxes
+
+```bash
+# List all clusters (including sandboxes)
+sky status
+
+# Stop sandbox (keeps data, saves costs)
+sky stop <cluster_name>
+
+# Restart stopped sandbox
+sky start <cluster_name>
+
+# Delete sandbox completely
+sky down <cluster_name>
+```
 
 ## Configuration
 
@@ -283,7 +321,7 @@ sky jobs queue -a
 
 4. **Monitor actively**: Check job status regularly, especially for long-running jobs
 
-5. **Clean up resources**: Cancel failed jobs and shut down unused clusters
+5. **Clean up resources**: Cancel failed jobs and shut down unused sandboxes
 
 ## Additional Resources
 
