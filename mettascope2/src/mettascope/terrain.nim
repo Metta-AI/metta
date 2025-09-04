@@ -12,7 +12,7 @@ type
     Wheat
     Tree
 
-  TerrainGrid* = array[84, array[48, TerrainType]]  # Width doubled to 84 (80 + 4 border)
+  TerrainGrid* = array[100, array[50, TerrainType]]  # 100x50 map size
 
 proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
   ## Generate a river that flows from left to right across the map
@@ -79,14 +79,14 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
            waterPos.y >= 0 and waterPos.y < mapHeight:
           terrain[waterPos.x][waterPos.y] = Water
 
-proc createWheatField*(terrain: var TerrainGrid, centerX, centerY: int, size: int, r: var Rand) =
+proc createWheatField*(terrain: var TerrainGrid, centerX, centerY: int, size: int, mapWidth, mapHeight: int, r: var Rand) =
   ## Create a wheat field cluster around a center point
   let radius = (size.float / 2.0).int
   for dx in -radius .. radius:
     for dy in -radius .. radius:
       let x = centerX + dx
       let y = centerY + dy
-      if x >= 0 and x < 84 and y >= 0 and y < 48:
+      if x >= 0 and x < mapWidth and y >= 0 and y < mapHeight:
         if terrain[x][y] == Empty:
           # Use distance from center to create more organic shape
           let dist = sqrt((dx * dx + dy * dy).float)
@@ -95,14 +95,14 @@ proc createWheatField*(terrain: var TerrainGrid, centerX, centerY: int, size: in
             if r.rand(1.0) < chance:
               terrain[x][y] = Wheat
 
-proc createTreeGrove*(terrain: var TerrainGrid, centerX, centerY: int, size: int, r: var Rand) =
+proc createTreeGrove*(terrain: var TerrainGrid, centerX, centerY: int, size: int, mapWidth, mapHeight: int, r: var Rand) =
   ## Create a tree grove cluster around a center point
   let radius = (size.float / 2.0).int
   for dx in -radius .. radius:
     for dy in -radius .. radius:
       let x = centerX + dx
       let y = centerY + dy
-      if x >= 0 and x < 84 and y >= 0 and y < 48:
+      if x >= 0 and x < mapWidth and y >= 0 and y < mapHeight:
         if terrain[x][y] == Empty:
           # Use distance from center to create more organic shape
           let dist = sqrt((dx * dx + dy * dy).float)
@@ -112,8 +112,8 @@ proc createTreeGrove*(terrain: var TerrainGrid, centerX, centerY: int, size: int
               terrain[x][y] = Tree
 
 proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate 6-8 clustered wheat fields for wider map
-  let numFields = r.rand(6..8)
+  ## Generate 7-10 clustered wheat fields for 100x50 map
+  let numFields = r.rand(7..10)
   
   for i in 0 ..< numFields:
     # Try to place near water if possible
@@ -138,7 +138,7 @@ proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBord
       # Prefer locations near water, but accept any after some attempts
       if nearWater or attempt > 10:
         let fieldSize = r.rand(5..20)  # Each field has 5-20 wheat tiles
-        createWheatField(terrain, x, y, fieldSize, r)
+        createWheatField(terrain, x, y, fieldSize, mapWidth, mapHeight, r)
         placed = true
         break
     
@@ -147,17 +147,17 @@ proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBord
       let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
       let y = r.rand(mapBorder + 3 .. mapHeight - mapBorder - 3)
       let fieldSize = r.rand(5..20)
-      createWheatField(terrain, x, y, fieldSize, r)
+      createWheatField(terrain, x, y, fieldSize, mapWidth, mapHeight, r)
 
 proc generateTrees*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate 6-8 tree groves for wider map
-  let numGroves = r.rand(6..8)
+  ## Generate 7-10 tree groves for 100x50 map
+  let numGroves = r.rand(7..10)
   
   for i in 0 ..< numGroves:
     let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
     let y = r.rand(mapBorder + 3 .. mapHeight - mapBorder - 3)
     let groveSize = r.rand(5..20)  # Each grove has 5-20 trees
-    createTreeGrove(terrain, x, y, groveSize, r)
+    createTreeGrove(terrain, x, y, groveSize, mapWidth, mapHeight, r)
 
 proc initTerrain*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, seed: int = 2024) =
   ## Initialize terrain with all features

@@ -19,17 +19,17 @@ const
   MapLayoutRoomsX* = 1
   MapLayoutRoomsY* = 1
   MapBorder* = 4
-  MapRoomWidth* = 80  # Doubled from 40
-  MapRoomHeight* = 40
+  MapRoomWidth* = 96  # 100 - 4 border = 96
+  MapRoomHeight* = 46  # 50 - 4 border = 46
   MapRoomBorder* = 0
   MapRoomObjectsAgents* = 15  # Increased for larger map
   MapRoomObjectsHouses* = 5  # More houses for larger map
-  MapRoomObjectsConverters* = 15  # Increased for larger map
-  MapRoomObjectsMines* = 15  # Increased for larger map
+  MapRoomObjectsConverters* = 15  # Converters to process ore into batteries
+  MapRoomObjectsMines* = 15  # Mines to extract ore
   MapRoomObjectsWalls* = 30  # Increased for larger map
 
-  MapObjectAgentInitialEnergy* = 250
-  MapObjectAgentMaxEnergy* = 250
+  MapObjectAgentInitialEnergy* = 5  # Start with 5 batteries
+  MapObjectAgentMaxEnergy* = 10  # Can hold max 10 batteries
   MapObjectAgentMaxInventory* = 5
   MapObjectAgentFreezeDuration* = 10
   MapObjectAgentEnergyReward* = 0f
@@ -43,11 +43,11 @@ const
 
   MapObjectAltarHp* = 30
   MapObjectAltarCooldown* = 10
-  MapObjectAltarUseCost* = 100
+  MapObjectAltarUseCost* = 1  # Simplified: 1 battery = 1 heart
 
   MapObjectConverterHp* = 30
   MapObjectConverterCooldown* = 2
-  MapObjectConverterEnergyOutput* = 100
+  MapObjectConverterEnergyOutput* = 1  # Simplified: 1 ore = 1 battery
 
   MapObjectMineHp* = 30
   MapObjectMineCooldown* = 5
@@ -477,9 +477,8 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       inc env.stats[id].actionUseAltar
       inc env.stats[id].actionUse
   of Mine:
-    if thing.cooldown == 0 and agent.energy >= MapObjectMineUseCost:
-      agent.energy -= MapObjectMineUseCost
-      env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
+    if thing.cooldown == 0 and agent.inventory < MapObjectAgentMaxInventory:
+      # Mine gives 1 ore (inventory)
       agent.inventory += 1
       env.updateObservations(AgentInventory1Layer, agent.pos, agent.inventory)
       thing.cooldown = MapObjectMineCooldown
@@ -648,7 +647,7 @@ proc init(env: Environment) =
   for i in 0 ..< numHouses:
     let houseStruct = createHouse()
     # Cast the grid to the type expected by house module
-    var gridPtr = cast[ptr array[84, array[48, pointer]]](env.grid.addr)
+    var gridPtr = cast[ptr array[100, array[50, pointer]]](env.grid.addr)
     var terrainPtr = env.terrain.addr
     let housePos = findHouseLocation(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r)
     

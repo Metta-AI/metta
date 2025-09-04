@@ -26,7 +26,7 @@ proc createHouse*(): HouseStructure =
     @['#', '#', '.', '#', '#']   # Bottom row with south entrance
   ]
 
-proc canPlaceHouse*(grid: ptr array[84, array[48, pointer]], terrain: ptr TerrainGrid, 
+proc canPlaceHouse*(grid: ptr array[100, array[50, pointer]], terrain: ptr TerrainGrid, 
                     pos: IVec2, house: HouseStructure, 
                     mapWidth, mapHeight: int): bool =
   ## Check if a house can be placed at the given position
@@ -52,7 +52,7 @@ proc canPlaceHouse*(grid: ptr array[84, array[48, pointer]], terrain: ptr Terrai
   
   return true
 
-proc findHouseLocation*(grid: ptr array[84, array[48, pointer]], terrain: ptr TerrainGrid,
+proc findHouseLocation*(grid: ptr array[100, array[50, pointer]], terrain: ptr TerrainGrid,
                         house: HouseStructure,
                         mapWidth, mapHeight, mapBorder: int, r: var Rand): IVec2 =
   ## Find a suitable location for a house
