@@ -93,7 +93,7 @@ jobs:
           echo "run test? ${RUN_TEST}"
 
   setup-tests:
-    name: "Setup Tests (pytest-testmon)"
+    name: "Setup Tests"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
