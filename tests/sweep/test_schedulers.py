@@ -13,7 +13,7 @@ class TestOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "learning_rate": ParameterConfig(
                     min=0.001,
@@ -46,7 +46,7 @@ class TestOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "learning_rate": ParameterConfig(
                     min=0.001,
@@ -84,7 +84,7 @@ class TestOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "learning_rate": ParameterConfig(
                     min=0.001,
@@ -134,7 +134,7 @@ class TestOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "learning_rate": ParameterConfig(
                     min=0.001,
@@ -183,7 +183,7 @@ class TestOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "learning_rate": ParameterConfig(
                     min=0.001,
@@ -260,7 +260,7 @@ class TestOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "learning_rate": ParameterConfig(
                     min=0.001,
@@ -300,7 +300,7 @@ class TestOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "learning_rate": ParameterConfig(
                     min=0.001,
@@ -360,7 +360,7 @@ class TestOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="random",
+            method="bayes",
             parameters={
                 "learning_rate": ParameterConfig(
                     min=0.001,
