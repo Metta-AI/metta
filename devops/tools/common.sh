@@ -31,7 +31,7 @@ setup_uv_project_env() {
 # Setup UV environment paths
 setup_uv_paths() {
   # Common locations where uv might be installed
-  UV_PATHS="$HOME/.local/bin/uv $HOME/.cargo/bin/uv /opt/homebrew/bin/uv /usr/local/bin/uv"
+  UV_PATHS="$HOME/.local/bin/uv $HOME/.cargo/bin/uv /opt/homebrew/bin/uv /usr/local/bin/uv" "/bin/uv"
 
   # Add directories containing uv to PATH (only if not already present)
   for uv_path in $UV_PATHS; do
