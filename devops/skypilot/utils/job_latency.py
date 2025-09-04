@@ -9,9 +9,12 @@ Expected format: sky-YYYY-MM-DD-HH-MM-SS-ffffff_<cluster>_<n>
 """
 
 import datetime
+import logging
 import os
 import re
 from typing import Final
+
+from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
 
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
@@ -44,64 +47,36 @@ def calculate_queue_latency() -> float:
 
 
 if __name__ == "__main__":
-    latency = calculate_queue_latency()
+    logger = logging.getLogger("metta_agent")
 
-    # script_start_time = datetime.datetime.now(_EPOCH).isoformat()
-    # task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
-    # run_id = os.environ.get("METTA_RUN_ID")
+    script_start_time = datetime.datetime.now(_EPOCH).isoformat()
+    task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
 
-    # # First, try to log to wandb that this script ran (regardless of latency calculation)
-    # if run_id:
-    #     api_key = os.environ.get("WANDB_API_KEY")
-    #     project = os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT)
+    ensure_wandb_run()
 
-    #     # If no API key but netrc exists, wandb will use that
-    #     if api_key or os.path.exists(os.path.expanduser("~/.netrc")):
-    #         try:
-    #             import wandb
+    metrics = {
+        "skypilot/latency_script_ran": True,
+        "skypilot/latency_script_time": script_start_time,
+        "skypilot/task_id": task_id,
+    }
 
-    #             # Only login if API key is explicitly provided
-    #             if api_key:
-    #                 wandb.login(key=api_key, relogin=True, anonymous="never")
+    try:
+        latency_sec = calculate_queue_latency()
+        logger.info(f"SkyPilot queue latency: {latency_sec:.1f} s (task: {task_id})")
 
-    #             # Initialize wandb with the same run ID that the trainer will use
-    #             # This creates a placeholder run that the trainer will resume
-    #             run = wandb.init(
-    #                 project=project,
-    #                 name=run_id,
-    #                 id=run_id,  # Use run_id as the unique wandb run ID
-    #                 resume="allow",  # Allow resuming if it exists
-    #             )
+        metrics.update(
+            {
+                "skypilot/queue_latency_s": latency_sec,
+                "skypilot/latency_calculated": True,
+            }
+        )
+    except Exception as e:
+        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})")
+        metrics.update(
+            {
+                "skypilot/latency_calculated": False,
+                "skypilot/latency_error": str(e),
+            }
+        )
 
-    #             # Always log that the script ran
-    #             run.summary["skypilot/latency_script_ran"] = True
-    #             run.summary["skypilot/latency_script_time"] = script_start_time
-
-    #             # Now try to calculate and log the latency
-    #             latency_sec = queue_latency_s()
-
-    #             if latency_sec is not None:
-    #                 print(f"SkyPilot queue latency: {latency_sec:.1f} s (task: {task_id})")
-
-    #                 # Export for other scripts to use via environment
-    #                 os.environ["SKYPILOT_QUEUE_LATENCY_S"] = str(latency_sec)
-
-    #                 # Also add to summary for easy access
-    #                 run.summary["skypilot/queue_latency_s"] = latency_sec
-    #                 run.summary["skypilot/task_id"] = task_id
-    #                 run.summary["skypilot/latency_calculated"] = True
-    #             else:
-    #                 print(f"SkyPilot queue latency: N/A (task_id: {task_id})")
-    #                 run.summary["skypilot/latency_calculated"] = False
-    #                 run.summary["skypilot/task_id"] = task_id
-    #                 run.summary["skypilot/latency_error"] = "Could not parse task ID"
-
-    #             # Don't call wandb.finish() - let the trainer resume this run
-    #             print(f"✅ Logged to wandb run: {run_id}")
-    #             entity = f"{os.environ.get('WANDB_ENTITY', wandb.api.default_entity)}"
-    #             print(f"   View at: https://wandb.ai/{entity}/{project}/runs/{run_id}")
-
-    #         except Exception as e:
-    #             print(f"⚠️  Failed to log to wandb: {e}", file=sys.stderr)
-    #     else:
-    #         print("ℹ️  Skipping wandb logging (no API key or .netrc found)")
+    log_to_wandb(metrics, also_summary=True)
