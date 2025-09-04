@@ -78,8 +78,7 @@ def test_wandb_offline_mode():
         cfg = WandbConfig(enabled=True, project="offline-test", entity="test-entity", data_dir=tmpdir)
 
         try:
-            with WandbContext(cfg, SampleConfig(), timeout=5) as _:
-                # Offline mode might still create a run
+            with WandbContext(cfg, SampleConfig(), timeout=5) as _run:  # Offline mode might still create a run
                 pass
         finally:
             os.environ.pop("WANDB_MODE", None)
