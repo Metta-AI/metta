@@ -251,7 +251,6 @@ class TestObservations:
                     get_items=ActionConfig(),
                 ),
                 objects=objects,
-                
                 resource_names=["laser", "resource1", "resource2"],  # include laser to allow attack
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
@@ -630,7 +629,6 @@ class TestEdgeObservations:
                         color=42,  # Distinctive color
                     ),
                 },
-                
                 resource_names=["laser", "resource1", "resource2"],  # laser required for attack action
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )

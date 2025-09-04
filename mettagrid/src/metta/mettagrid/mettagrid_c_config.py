@@ -1,5 +1,3 @@
-import copy
-
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
@@ -48,7 +46,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         game_config.agents = []
         for _ in range(game_config.num_agents):
             agent_dict = base_agent_dict.copy()
-            agent_dict['team_id'] = 0  # All default agents are on team 0
+            agent_dict["team_id"] = 0  # All default agents are on team 0
             game_config.agents.append(AgentConfig(**agent_dict))
 
     # Group agents by team_id to create groups

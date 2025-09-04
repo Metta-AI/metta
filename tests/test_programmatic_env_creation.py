@@ -144,25 +144,29 @@ class TestProgrammaticEnvironments:
         agents = []
         # Team 0: 3 agents with higher heart reward
         for _ in range(3):
-            agents.append(AgentConfig(
-                team_id=0,
-                rewards=AgentRewards(
-                    inventory={
-                        "heart": 2,
-                    },
-                ),
-            ))
+            agents.append(
+                AgentConfig(
+                    team_id=0,
+                    rewards=AgentRewards(
+                        inventory={
+                            "heart": 2,
+                        },
+                    ),
+                )
+            )
         # Team 1: 3 agents with lower heart reward
         for _ in range(3):
-            agents.append(AgentConfig(
-                team_id=1,
-                rewards=AgentRewards(
-                    inventory={
-                        "heart": 1,
-                    },
-                ),
-            ))
-        
+            agents.append(
+                AgentConfig(
+                    team_id=1,
+                    rewards=AgentRewards(
+                        inventory={
+                            "heart": 1,
+                        },
+                    ),
+                )
+            )
+
         config = MettaGridConfig(
             label="teams_test",
             game=GameConfig(

@@ -30,9 +30,7 @@ def create_basic_config() -> GameConfig:
             resource_limits={"ore": 10, "wood": 10},
         ),
         actions=ActionsConfig(
-            move=ActionConfig(enabled=True), 
-            noop=ActionConfig(enabled=True), 
-            rotate=ActionConfig(enabled=True)
+            move=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), rotate=ActionConfig(enabled=True)
         ),
         objects={"wall": WallConfig(type_id=1, swappable=False)},
         allow_diagonals=True,

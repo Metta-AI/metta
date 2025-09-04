@@ -54,7 +54,7 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
                     "action.attack.success": 1.0,  # 1.0 reward per successful attack
                     "action.attack.success_max": 5.0,  # Max 5.0 total reward from attacks
                 },
-            }
+            },
         },
         "objects": {
             "wall": {"type_id": 1},
