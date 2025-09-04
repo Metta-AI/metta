@@ -5,14 +5,21 @@ backend-path = ["."]
 
 [project]
 name = "metta-mettagrid"
-version = "0.1.6"
+version = "0.2"
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = "==3.11.7"
 license = "MIT"
 readme = "README.md"
-urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
-keywords = ["gridworld", "minigrid", "rl", "reinforcement-learning", "environment", "gym"]
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
+keywords = [
+  "gridworld",
+  "minigrid",
+  "rl",
+  "reinforcement-learning",
+  "environment",
+  "gym",
+]
 dependencies = [
   "gcovr",
   "colorama",
@@ -25,7 +32,6 @@ dependencies = [
   "google-auth-oauthlib>=1.0.0",
   "gymnasium==0.29.1",
   "matplotlib>=3.10.3",
-  "metta-common",
   "numpy>=1.26.4,<2",
   "omegaconf>=2.4.0.dev3",
   "pandas>=2.3.0",
@@ -48,7 +54,7 @@ dev = ["pytest>=8.3.3", "pytest-benchmark>=5.1.0", "pytest-xdist>=3.8.0"]
 # Bazel build configuration
 # Set DEBUG=1 environment variable to build with debug configuration
 # Otherwise builds with optimizations enabled
-build.config = "opt"  # or "dbg" for debug builds
+build.config = "opt" # or "dbg" for debug builds
 
 [tool.pytest.ini_options]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
