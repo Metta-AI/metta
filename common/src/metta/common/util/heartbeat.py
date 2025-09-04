@@ -8,6 +8,8 @@ import time
 
 import wandb
 
+from metta.common.util.log_config import init_logging
+
 logger = logging.getLogger(__name__)
 
 # Shared IPC filename, co-located with the heartbeat signal file (must match wandb_context.py)
@@ -189,4 +191,5 @@ def _main(argv: list[str] | None = None) -> None:
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry
+    init_logging()
     _main()

@@ -14,6 +14,10 @@ from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
+def get_devops_skypilot_dir() -> Path:
+    return Path(__file__).parent.parent
+
+
 def get_jobs_controller_name() -> str:
     job_clusters = sky.get(sky.status(all_users=True, cluster_names=["sky-jobs-controller*"]))
     if len(job_clusters) == 0:
@@ -25,7 +29,7 @@ def print_tip(text: str):
     print(blue(text), file=sys.stderr)
 
 
-def launch_task(task: sky.Task):
+def launch_task(task: sky.Task) -> str:
     request_id = sky.jobs.launch(task)
 
     print(green(f"Submitted sky.jobs.launch request: {request_id}"))
@@ -35,6 +39,8 @@ def launch_task(task: sky.Task):
     print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
     dashboard_url = sky.server.common.get_server_url() + "/dashboard/jobs"
     print(f"- Or, visit: {yellow(dashboard_url)}")
+
+    return short_request_id
 
 
 def check_git_state(commit_hash: str) -> str | None:

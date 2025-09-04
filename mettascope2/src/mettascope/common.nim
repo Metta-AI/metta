@@ -19,7 +19,6 @@ type
     AgentTraces
     EnvConfig
 
-
   Panel* = ref object
     panelType*: PanelType
     rect*: IRect
@@ -29,6 +28,10 @@ type
     vel*: Vec2
     zoom*: float32 = 10
     zoomVel*: float32
+    minZoom*: float32 = 5
+    maxZoom*: float32 = 100
+    scrollArea*: Rect
+    hasMouse*: bool = false
 
   AreaLayout* = enum
     Horizontal
@@ -45,6 +48,7 @@ type
     showFogOfWar* = false
     showVisualRange* = true
     showGrid* = true
+    showResources* = true
     showObservations* = -1
     lockFocus* = false
 
@@ -73,6 +77,10 @@ var
   play*: bool
   playSpeed*: float32 = 0.1
   lastSimTime*: float64 = epochTime()
+
+  followSelection*: bool = false
+  mouseCaptured*: bool = false
+  mouseCapturedPanel*: Panel = nil
 
 proc at*[T](sequence: seq[T], step: int): T =
   # Get the value at the given step.

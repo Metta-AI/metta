@@ -1,6 +1,6 @@
 from pydantic import ConfigDict, Field
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
 from metta.mettagrid.mapgen.types import MapGrid
 

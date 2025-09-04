@@ -2,7 +2,7 @@ import atexit
 import os
 import tempfile
 
-from metta.mettagrid.config.envs import make_navigation
+from metta.mettagrid.builder.envs import make_navigation
 from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
 from metta.mettagrid.mettagrid_config import MettaGridConfig

@@ -3,8 +3,8 @@ from typing import Any, ClassVar, List, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
-from metta.common.config import Config
-from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.builder.envs import make_arena
+from metta.mettagrid.config import Config
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
