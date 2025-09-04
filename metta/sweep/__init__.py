@@ -20,7 +20,6 @@ from .models import (
 from .optimizer.protein import ProteinOptimizer
 from .protein import Protein
 from .protein_config import ParameterConfig, ProteinConfig
-from .protein_metta import MettaProtein
 from .protocols import Dispatcher, Optimizer, Scheduler, Store
 from .schedulers import OptimizingScheduler, OptimizingSchedulerConfig
 from .stores import WandbStore
@@ -31,7 +30,6 @@ from .utils import make_monitor_table
 __all__ = [
     # Core components
     "Protein",
-    "MettaProtein",
     # Protocols
     "Dispatcher",
     "Scheduler",

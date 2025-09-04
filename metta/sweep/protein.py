@@ -223,88 +223,6 @@ def pareto_points_oriented(observations, direction=1, eps=1e-6):
     return pareto, idxs
 
 
-class Random:
-    def __init__(
-        self,
-        sweep_config,
-        global_search_scale=1,
-        random_suggestions=1024,
-        acquisition_fn="naive",  # Added for API consistency
-    ):
-        self.hyperparameters = Hyperparameters(sweep_config)
-        self.global_search_scale = global_search_scale
-        self.random_suggestions = random_suggestions
-        self.acquisition_fn = acquisition_fn  # Ignored but kept for API consistency
-        self.success_observations = []
-
-    def suggest(self, fill=None):
-        suggestions = self.hyperparameters.sample(self.random_suggestions)
-        self.suggestion = random.choice(suggestions)
-        return self.hyperparameters.to_dict(self.suggestion, fill), {}
-
-    def observe(self, hypers, score, cost, is_failure=False):
-        self.success_observations.append(
-            dict(
-                input=hypers,
-                output=score,
-                cost=cost,
-                is_failure=is_failure,
-            )
-        )
-
-
-class ParetoGenetic:
-    def __init__(
-        self,
-        sweep_config,
-        global_search_scale=1,
-        suggestions_per_pareto=1,
-        bias_cost=True,
-        log_bias=False,
-        acquisition_fn="naive",  # Added for API consistency
-    ):
-        self.hyperparameters = Hyperparameters(sweep_config)
-        self.global_search_scale = global_search_scale
-        self.suggestions_per_pareto = suggestions_per_pareto
-        self.bias_cost = bias_cost
-        self.log_bias = log_bias
-        self.acquisition_fn = acquisition_fn  # Ignored but kept for API consistency
-        self.success_observations = []
-
-    def suggest(self, fill=None):
-        if len(self.success_observations) == 0:
-            suggestion = self.hyperparameters.search_centers
-            return self.hyperparameters.to_dict(suggestion, fill), {}
-        candidates, _ = pareto_points_oriented(self.success_observations, self.hyperparameters.optimize_direction)
-        pareto_costs = np.array([e["cost"] for e in candidates])
-        if self.bias_cost:
-            if self.log_bias:
-                cost_dists = np.abs(np.log(pareto_costs[:, None]) - np.log(pareto_costs[None, :]))
-            else:
-                cost_dists = np.abs(pareto_costs[:, None] - pareto_costs[None, :])
-            cost_dists += (np.max(pareto_costs) + 1) * np.eye(len(pareto_costs))  # mask self-distance
-            idx = np.argmax(np.min(cost_dists, axis=1))
-            search_centers = candidates[idx]["input"]
-        else:
-            search_centers = np.stack([e["input"] for e in candidates])
-        suggestions = self.hyperparameters.sample(
-            len(candidates) * self.suggestions_per_pareto, mu=search_centers, scale=self.global_search_scale
-        )
-        suggestion = suggestions[np.random.randint(0, len(suggestions))]
-        return self.hyperparameters.to_dict(suggestion, fill), {}
-
-    def observe(self, hypers, score, cost, is_failure=False):
-        params = self.hyperparameters.from_dict(hypers)
-        self.success_observations.append(
-            dict(
-                input=params,
-                output=score,
-                cost=cost,
-                is_failure=is_failure,
-            )
-        )
-
-
 def create_gp(x_dim, scale_length=1.0):
     X = torch.zeros((1, x_dim))
     y = torch.zeros((1,))
@@ -377,7 +295,7 @@ class Protein:
         suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
         return suggestion_scores
 
-    def suggest(self, fill=None):
+    def suggest(self, n_suggestions=1, fill=None):
         info = {}
         self.suggestion_idx += 1
 
@@ -391,17 +309,69 @@ class Protein:
 
         if len(self.success_observations) == 0 and self.seed_with_search_center:
             best = self.hyperparameters.search_centers
-            return self.hyperparameters.to_dict(best, fill), info
+            best_dict = self.hyperparameters.to_dict(best, fill)
+
+            if n_suggestions == 1:
+                return best_dict, info
+            else:
+                # Generate additional random suggestions
+                results = [(best_dict, info)]
+                additional_suggestions = self.hyperparameters.sample(
+                    n_suggestions - 1, scale=self.global_search_scale
+                )
+                for i in range(n_suggestions - 1):
+                    suggestion_dict = self.hyperparameters.to_dict(additional_suggestions[i], fill)
+                    results.append((suggestion_dict, info.copy()))
+                return results
+
         elif len(self.success_observations) < self.num_random_samples:
-            suggestions = self.hyperparameters.sample(self.random_suggestions, scale=self.global_search_scale)
-            self.suggestion = random.choice(suggestions)
-            return self.hyperparameters.to_dict(self.suggestion, fill), info
+            # Generate enough random suggestions
+            suggestions = self.hyperparameters.sample(
+                max(n_suggestions, self.random_suggestions), scale=self.global_search_scale
+            )
+
+            if n_suggestions == 1:
+                self.suggestion = random.choice(suggestions[:self.random_suggestions])
+                return self.hyperparameters.to_dict(self.suggestion, fill), info
+            else:
+                # Return multiple random suggestions
+                results = []
+                selected_indices = random.sample(
+                    range(len(suggestions)), min(n_suggestions, len(suggestions))
+                )
+                for idx in selected_indices:
+                    suggestion_dict = self.hyperparameters.to_dict(suggestions[idx], fill)
+                    results.append((suggestion_dict, info.copy()))
+                return results
+
         elif self.resample_frequency and self.suggestion_idx % self.resample_frequency == 0:
             candidates, _ = pareto_points_oriented(self.success_observations, self.hyperparameters.optimize_direction)
-            suggestions = np.stack([e["input"] for e in candidates])
-            best_idx = np.random.randint(0, len(candidates))
-            best = suggestions[best_idx]
-            return self.hyperparameters.to_dict(best, fill), info
+            pareto_suggestions = np.stack([e["input"] for e in candidates])
+
+            if n_suggestions == 1:
+                best_idx = np.random.randint(0, len(candidates))
+                best = pareto_suggestions[best_idx]
+                return self.hyperparameters.to_dict(best, fill), info
+            else:
+                # Sample from Pareto points and generate variations
+                results = []
+                for i in range(n_suggestions):
+                    if i < len(pareto_suggestions):
+                        # Use actual Pareto points first
+                        idx = i % len(pareto_suggestions)
+                        suggestion_dict = self.hyperparameters.to_dict(pareto_suggestions[idx], fill)
+                    else:
+                        # Generate variations around Pareto points
+                        center_idx = np.random.randint(0, len(pareto_suggestions))
+                        variation = self.hyperparameters.sample(
+                            1, mu=pareto_suggestions[center_idx], scale=self.global_search_scale
+                        )[0]
+                        suggestion_dict = self.hyperparameters.to_dict(variation, fill)
+                    results.append((suggestion_dict, info.copy()))
+                return results
+
+        # Rest of the method remains the same (GP-based path)...
+
         # === Train score GP on standardized outputs with progressive fallback ===
         params = np.array([e["input"] for e in self.success_observations])
         y = np.array([e["output"] for e in self.success_observations])
@@ -555,24 +525,51 @@ class Protein:
             weight = np.maximum(1 - np.abs(target - gp_log_c_norm), 0.0)
             suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
 
-        best_idx = np.argmax(suggestion_scores)
-        # Map standardized mu/sd back to raw for info (not used in selection)
-        info = dict(
-            cost=float(gp_c[best_idx]),
-            score=float(mu_raw[best_idx]),
-            rating=float(suggestion_scores[best_idx]),
-            acquisition_fn=self.acquisition_fn,
-            randomize_acquisition=self.randomize_acquisition,
-        )
-        if cost_threshold_relaxed:
-            info["cost_threshold_relaxed"] = True
+        # Get top-k suggestions if requested
+        if n_suggestions == 1:
+            best_idx = np.argmax(suggestion_scores)
+            # Map standardized mu/sd back to raw for info (not used in selection)
+            info = dict(
+                cost=float(gp_c[best_idx]),
+                score=float(mu_raw[best_idx]),
+                rating=float(suggestion_scores[best_idx]),
+                acquisition_fn=self.acquisition_fn,
+                randomize_acquisition=self.randomize_acquisition,
+            )
+            if cost_threshold_relaxed:
+                info["cost_threshold_relaxed"] = True
 
-        # Add randomized parameter values to info if randomization was used
-        if self.randomize_acquisition:
-            if self.acquisition_fn == "ucb" and "beta" in locals():
-                info["ucb_beta_used"] = beta
-        best = suggestions_t[best_idx].numpy()
-        return self.hyperparameters.to_dict(best, fill), info
+            # Add randomized parameter values to info if randomization was used
+            if self.randomize_acquisition:
+                if self.acquisition_fn == "ucb" and "beta" in locals():
+                    info["ucb_beta_used"] = beta
+            best = suggestions_t[best_idx].numpy()
+            return self.hyperparameters.to_dict(best, fill), info
+        else:
+            # Return top-k suggestions
+            k = min(n_suggestions, len(suggestion_scores))
+            top_k_indices = np.argpartition(suggestion_scores, -k)[-k:]
+            top_k_indices = top_k_indices[np.argsort(suggestion_scores[top_k_indices])][::-1]  # Sort by score
+
+            results = []
+            for idx in top_k_indices:
+                info = dict(
+                    cost=float(gp_c[idx]),
+                    score=float(mu_raw[idx]),
+                    rating=float(suggestion_scores[idx]),
+                    acquisition_fn=self.acquisition_fn,
+                    randomize_acquisition=self.randomize_acquisition,
+                )
+                if cost_threshold_relaxed:
+                    info["cost_threshold_relaxed"] = True
+                if self.randomize_acquisition:
+                    if self.acquisition_fn == "ucb" and "beta" in locals():
+                        info["ucb_beta_used"] = beta
+
+                suggestion = suggestions_t[idx].numpy()
+                results.append((self.hyperparameters.to_dict(suggestion, fill), info))
+
+            return results
 
     def observe(self, hypers, score, cost, is_failure=False):
         params = self.hyperparameters.from_dict(hypers)
