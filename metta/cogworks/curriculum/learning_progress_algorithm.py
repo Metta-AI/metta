@@ -61,6 +61,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stats_cache = {}
         self._stats_cache_valid = False
 
+        # Curriculum reference for accessing RNG
+        self._curriculum = None
+
+    def set_curriculum_reference(self, curriculum) -> None:
+        """Set reference to curriculum for accessing its RNG."""
+        self._curriculum = curriculum
+
     # CurriculumAlgorithm interface implementation
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
@@ -169,10 +176,20 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         if total_score > 0:
             probabilities = [score / total_score for score in score_values]
-            import numpy as np
+            # Use curriculum's RNG for deterministic behavior
+            if self._curriculum is not None:
+                return self._curriculum._rng.choices(task_ids, weights=probabilities)[0]
+            else:
+                # Fallback to numpy for backwards compatibility
+                import numpy as np
 
-            return np.random.choice(task_ids, p=probabilities)
+                return np.random.choice(task_ids, p=probabilities)
         else:
-            import random
+            # Use curriculum's RNG for deterministic behavior
+            if self._curriculum is not None:
+                return self._curriculum._rng.choice(task_ids)
+            else:
+                # Fallback to random for backwards compatibility
+                import random
 
-            return random.choice(task_ids)
+                return random.choice(task_ids)

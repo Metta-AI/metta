@@ -64,7 +64,8 @@ def make_mettagrid(num_agents: int = 4) -> MettaGridConfig:
 
 
 def make_curriculum(
-    nav_env: Optional[MettaGridConfig] = None, enable_detailed_logging: bool = False
+    nav_env: Optional[MettaGridConfig] = None,
+    enable_detailed_bucket_logging: bool = False,
 ) -> CurriculumConfig:
     nav_env = nav_env or make_mettagrid()
 
@@ -97,7 +98,7 @@ def make_curriculum(
             ema_timescale=0.001,
             exploration_bonus=0.1,
             max_memory_tasks=1000,
-            enable_detailed_bucket_logging=enable_detailed_logging,
+            enable_detailed_bucket_logging=enable_detailed_bucket_logging,
         ),
     )
 
@@ -113,7 +114,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum
-        or make_curriculum(enable_detailed_logging=enable_detailed_logging),
+        or make_curriculum(enable_detailed_bucket_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),
