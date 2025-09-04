@@ -328,6 +328,10 @@ proc updateObservations(env: Environment, agentId: int) =
         obs[4][x][y] = 0  # No water
         obs[5][x][y] = 0  # No wheat
         obs[6][x][y] = 0  # No wood
+      
+      of Armory, Forge, ClayOven, WeavingLoom:
+        # Corner buildings act like walls for observations
+        obs[7][x][y] = 1  # Use the wall layer for now
 
 proc updateObservations(
   env: Environment,
@@ -512,8 +516,8 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(ConverterReadyLayer, thing.pos, 1)  # Always ready
       inc env.stats[id].actionUseConverter
       inc env.stats[id].actionUse
-  of Temple, Clippy:
-    # Can't use temples or Clippys
+  of Temple, Clippy, Armory, Forge, ClayOven, WeavingLoom:
+    # Can't use temples, Clippys, or corner buildings (for now)
     inc env.stats[id].actionInvalid
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
@@ -713,15 +717,20 @@ proc init(env: Environment) =
   # Spawn houses with their altars, walls, and associated agents (tribes)
   let numHouses = MapRoomObjectsHouses
   var totalAgentsSpawned = 0
+  var usedCorners: seq[int] = @[]  # Track which corners have been used
   
   for i in 0 ..< numHouses:
     # Use the new unified placement system
     let houseStruct = createHouseStructure()
     var gridPtr = cast[PlacementGrid](env.grid.addr)
     var terrainPtr = env.terrain.addr
-    let placementResult = findPlacement(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = true)
+    let placementResult = findPlacement(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = true, excludedCorners = usedCorners)
     
     if placementResult.success:  # Valid location found
+      # Track which corner was used (if any)
+      if placementResult.cornerUsed >= 0:
+        usedCorners.add(placementResult.cornerUsed)
+      
       let elements = getStructureElements(houseStruct, placementResult.position)
       
       # Clear terrain within the house area to create a clearing
@@ -759,6 +768,36 @@ proc init(env: Environment) =
           kind: Wall,
           pos: wallPos,
         ))
+      
+      # Add the corner buildings from the house layout
+      # Parse the house structure to find corner buildings
+      for y in 0 ..< houseStruct.height:
+        for x in 0 ..< houseStruct.width:
+          if y < houseStruct.layout.len and x < houseStruct.layout[y].len:
+            let worldPos = placementResult.position + ivec2(x.int32, y.int32)
+            case houseStruct.layout[y][x]:
+            of 'A':  # Armory at top-left
+              env.add(Thing(
+                kind: Armory,
+                pos: worldPos,
+              ))
+            of 'F':  # Forge at top-right  
+              env.add(Thing(
+                kind: Forge,
+                pos: worldPos,
+              ))
+            of 'C':  # Clay Oven at bottom-left
+              env.add(Thing(
+                kind: ClayOven,
+                pos: worldPos,
+              ))
+            of 'W':  # Weaving Loom at bottom-right
+              env.add(Thing(
+                kind: WeavingLoom,
+                pos: worldPos,
+              ))
+            else:
+              discard
       if agentsForThisHouse > 0:
         # Get corner positions first, then nearby positions
         let corners = env.getHouseCorners(placementResult.position, houseStruct.width)
@@ -833,7 +872,7 @@ proc init(env: Environment) =
     let templeStruct = createTempleStructure()
     var gridPtr = cast[PlacementGrid](env.grid.addr)
     var terrainPtr = env.terrain.addr
-    let placementResult = findPlacement(gridPtr, terrainPtr, templeStruct, MapWidth, MapHeight, MapBorder, r)
+    let placementResult = findPlacement(gridPtr, terrainPtr, templeStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = false, excludedCorners = @[])
     
     if placementResult.success:  # Valid location found
       let elements = getStructureElements(templeStruct, placementResult.position)
@@ -955,6 +994,12 @@ proc loadMap*(env: Environment, map: string) =
         id: id,
         agentId: parts[2].parseInt,
         pos: ivec2(parts[3].parseInt, parts[4].parseInt),
+      ))
+    of Armory, Forge, ClayOven, WeavingLoom:
+      env.add(Thing(
+        kind: kind,
+        id: id,
+        pos: ivec2(parts[2].parseInt, parts[3].parseInt),
       ))
 
   for agentId in 0 ..< MapAgents:
