@@ -277,12 +277,13 @@ jobs:
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        run: |
-          chmod +x .github/scripts/upload_codecov.py
-          # Upload coverage for all packages since pytest-testmon might run tests from any package
-          SUBPACKAGES="agent,common,app_backend,mettagrid,codebot,core" .github/scripts/upload_codecov.py
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          flags: unit-tests
+          name: unit-tests
+          fail_ci_if_error: false
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
