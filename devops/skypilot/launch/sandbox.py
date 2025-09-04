@@ -132,6 +132,7 @@ Use --new to launch a new sandbox cluster.
         epilog="""
 Examples:
   %(prog)s              # Show existing sandboxes and management commands
+  %(prog)s --check      # Check for active sandboxes and exit
   %(prog)s --new        # Launch a new sandbox with 1 GPU
   %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
@@ -152,6 +153,7 @@ Common management commands:
         "--git-ref", type=str, default=None, help="Git branch or commit to deploy (default: current branch)"
     )
     parser.add_argument("--new", action="store_true", help="Launch a new sandbox cluster")
+    parser.add_argument("--check", action="store_true", help="Check for existing sandboxes and exit")
     parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use (default: 1)")
     parser.add_argument(
         "--retry-until-up", action="store_true", help="Keep retrying until cluster is successfully launched"
@@ -169,6 +171,59 @@ Common management commands:
     git_ref = args.git_ref or get_current_git_ref()
 
     existing_clusters = get_existing_clusters()
+
+    # Handle --check mode
+    if args.check:
+        username = os.environ.get("USER", "unknown")
+        user_sandboxes = [c for c in existing_clusters if c["name"].startswith(f"{username}-sandbox-")]
+
+        if not user_sandboxes:
+            print(f"{green('✓')} No active sandboxes found for user {bold(username)}")
+            return 0
+
+        print(f"{bold(f'Found {len(user_sandboxes)} sandbox(es) for user {username}:')}")
+
+        active_count = 0
+        stopped_count = 0
+        init_count = 0
+
+        for cluster in user_sandboxes:
+            status = cluster["status"].name
+            if status == "UP":
+                active_count += 1
+                color_func = green
+                status_msg = "running"
+            elif status == "STOPPED":
+                stopped_count += 1
+                color_func = red
+                status_msg = "stopped"
+            elif status == "INIT":
+                init_count += 1
+                color_func = cyan
+                status_msg = "launching"
+            else:
+                color_func = yellow
+                status_msg = status.lower()
+
+            gpu_info = ""
+            if "handle" in cluster and cluster["handle"]:
+                resources = cluster["handle"].launched_resources
+                if resources and resources.accelerators:
+                    gpu_info = f" [{resources.accelerators}]"
+
+            print(f"  • {color_func(cluster['name'])} ({status_msg}){gpu_info}")
+
+        # Summary
+        print(f"\n{bold('Summary:')}")
+        if active_count > 0:
+            print(f"  {green(f'{active_count} running')}")
+        if stopped_count > 0:
+            print(f"  {red(f'{stopped_count} stopped')}")
+        if init_count > 0:
+            print(f"  {cyan(f'{init_count} launching')}")
+
+        # Return exit code: 0 if any sandboxes exist, 1 if none
+        return 0
 
     if existing_clusters and not args.new:
         print(f"You already have {len(existing_clusters)} sandbox(es) running:")
@@ -214,7 +269,7 @@ Common management commands:
         print(f"  Stop:           {green(f'sky stop {first_cluster_name}')}")
         print(f"  Delete:         {red(f'sky down {first_cluster_name}')}")
 
-        return
+        return 0
 
     cluster_name = get_next_name(existing_clusters)
     print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
@@ -272,7 +327,7 @@ Common management commands:
             print(red("✗ You are not authenticated with SkyPilot."))
             print(f"  {green('metta install skypilot')}")
             print("to authenticate before launching a sandbox.")
-            return
+            return 1
 
         request_id = sky.launch(
             task,
@@ -292,10 +347,10 @@ Common management commands:
         print(f"  • Try a different region by modifying {cyan('sandbox.yaml')}")
         print("  • Use a different GPU type or instance size")
         print(f"\nError details: {str(e)}")
-        return
+        return 1
     except Exception as e:
         print(f"\n{red('✗ Launch failed:')} {str(e)}")
-        return
+        return 1
 
     # Wait for cluster to be fully ready before attempting SSH setup
     print("⏳ Waiting for cluster to be fully ready...")
@@ -327,10 +382,10 @@ Common management commands:
                 print(f"{yellow('⏳')} Cluster still initializing... (attempt {wait_attempt + 1}/{max_wait_attempts})")
             elif cluster_status is None:
                 print(f"{red('✗')} Cluster not found in status output")
-                return
+                return 1
             else:
                 print(f"{red('✗')} Cluster in unexpected state: {cluster_status}")
-                return
+                return 1
 
         except Exception as e:
             print(f"{yellow('⚠')} Error checking cluster status: {str(e)}, retrying...")
@@ -343,7 +398,7 @@ Common management commands:
         print(f"  • Try connecting anyway: {green(f'ssh {cluster_name}')}")
         print(f"  • Re-run launch to retry: {green(f'sky launch -c {cluster_name} --no-setup')}")
         print(f"  • Increase timeout: {green(f'--wait-timeout {max_wait_seconds + 300}')}")
-        return
+        return 1
 
     # Don't use spinner during log tailing - it interferes with output
     print("⚙️ Running setup job...")
@@ -352,11 +407,11 @@ Common management commands:
         if setup_result != 0:
             print(f"{red('✗')} Setup job failed with exit code {setup_result}")
             print(f"You can check logs with: {green(f'sky logs {cluster_name}')}")
-            return
+            return 1
     except Exception as e:
         print(f"{red('✗')} Failed to tail setup logs: {str(e)}")
         print(f"You can check logs manually with: {green(f'sky logs {cluster_name}')}")
-        return
+        return 1
 
     # Configure SSH access after cluster is fully ready
     with spinner("Configuring SSH access", style=cyan):
@@ -375,6 +430,10 @@ Common management commands:
     print("To disable autostop:")
     print(f"  {green(f'sky autostop --cancel {cluster_name}')}")
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    sys.exit(main() or 0)
