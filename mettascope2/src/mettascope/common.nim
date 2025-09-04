@@ -30,8 +30,8 @@ type
     vel*: Vec2
     zoom*: float32 = 10
     zoomVel*: float32
-    minZoom*: float32 = 5
-    maxZoom*: float32 = 100
+    minZoom*: float32 = 2
+    maxZoom*: float32 = 1000
     scrollArea*: Rect
     hasMouse*: bool = false
 

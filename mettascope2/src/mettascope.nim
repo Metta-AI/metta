@@ -23,7 +23,6 @@ find "/UI/Main":
     onClick:
       echo "Clicked: AreaHeader: ", thisNode.name
 
-
   find "WorldMapPanel":
     onClick:
       echo "Clicked: WorldMapPanel: ", thisNode.name
@@ -112,6 +111,8 @@ find "/UI/Main":
   onFrame:
     if not loaded:
       return
+
+    playControls()
 
     if window.buttonReleased[MouseLeft]:
       mouseCaptured = false

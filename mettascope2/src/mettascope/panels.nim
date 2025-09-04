@@ -83,9 +83,13 @@ proc endDraw*(panel: Panel) =
 
 proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
-  area.node.position = vec2(area.rect.x.float32, area.rect.y.float32)
-  area.node.size = vec2(area.rect.w.float32, area.rect.h.float32)
-  area.node.dirty = true
+  let newPos = vec2(area.rect.x.float32, area.rect.y.float32)
+  if newPos != area.node.position:
+    echo "Area dirty: ", area.node.name
+    echo "  newPos: ", newPos
+    echo "  oldPos: ", area.node.position
+    area.node.dirty = true
+    area.node.position = newPos
 
   for num, panel in area.panels:
     if num == area.selectedPanelNum:
@@ -99,9 +103,13 @@ proc updatePanelsSizes*(area: Area) =
       panel.rect.w = 0
       panel.rect.h = 0
 
-    panel.node.position = vec2(panel.rect.x.float32, panel.rect.y.float32)
-    panel.node.size = vec2(panel.rect.w.float32, panel.rect.h.float32)
-    panel.node.dirty = true
+    let newPos = vec2(panel.rect.x.float32, panel.rect.y.float32)
+    let newSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
+    if newPos != panel.node.position or newSize != panel.node.size:
+      echo "Panel dirty: ", panel.node.name
+      panel.node.dirty = true
+      panel.node.position = newPos
+      panel.node.size = newSize
 
   for subarea in area.areas:
     updatePanelsSizes(subarea)
