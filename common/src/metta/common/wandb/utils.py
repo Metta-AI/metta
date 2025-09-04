@@ -2,7 +2,6 @@
 W&B utility functions for logging and alerts.
 """
 
-import concurrent.futures
 import logging
 import os
 from datetime import datetime
@@ -17,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def send_wandb_alert(title: str, text: str, run_id: str, project: str, entity: str) -> None:
     """
-    Send a W&B alert with timeout protection.
+    Send a W&B alert.
 
     Args:
         title: Alert title
@@ -30,42 +29,20 @@ def send_wandb_alert(title: str, text: str, run_id: str, project: str, entity: s
     if not all([title, text, run_id, project, entity]):
         raise RuntimeError("All parameters (title, text, run_id, project, entity) are required")
 
-    def send_alert_internal() -> None:
-        log_ctx = f"run {entity}/{project}/{run_id}"
-        initialized = False
-        try:
-            run = wandb.init(
-                id=run_id,
-                project=project,
-                entity=entity,
-                resume="must",
-                settings=wandb.Settings(init_timeout=15, silent=True, x_disable_stats=True, x_disable_meta=True),
-            )
-            initialized = True
-            run.alert(title=title, text=text)
-            logger.info(f"W&B alert '{title}' sent for {log_ctx}")
-        except Exception as e:
-            is_wandb_error = hasattr(wandb, "errors")
-            (logger.warning if is_wandb_error else logger.error)(
-                f"{'W&B ' if is_wandb_error else 'Unexpected '}error in alert for {log_ctx}: {e}",
-                exc_info=not is_wandb_error,
-            )
-        finally:
-            if initialized:
-                try:
-                    wandb.finish()
-                except Exception as finish_exception:
-                    logger.warning(f"Error during wandb.finish() for {log_ctx}: {finish_exception}")
+    log_ctx = f"run {entity}/{project}/{run_id}"
 
-    # Send alert with 30 second timeout
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(send_alert_internal)
-        try:
-            future.result(timeout=30)
-        except concurrent.futures.TimeoutError:
-            logger.warning(f"W&B alert '{title}' sending timed out after 30s")
-        except Exception as e:
-            logger.warning(f"Exception during W&B alert '{title}' execution: {e}")
+    run = wandb.init(
+        id=run_id,
+        project=project,
+        entity=entity,
+        resume="must",
+        settings=wandb.Settings(init_timeout=15, silent=True, x_disable_stats=True, x_disable_meta=True),
+    )
+    try:
+        run.alert(title=title, text=text)
+        logger.info(f"W&B alert '{title}' sent for {log_ctx}")
+    finally:
+        wandb.finish()
 
 
 def ensure_wandb_run() -> wandb.Run:

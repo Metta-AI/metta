@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, TypeVar
 
+from metta.common.util.fs import get_repo_root
 from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import error
 
@@ -12,9 +13,9 @@ T = TypeVar("T")
 
 class SetupModule(ABC):
     install_once: bool = False
+    repo_root: Path = get_repo_root()
 
     def __init__(self):
-        self.repo_root: Path = Path(__file__).parent.parent.parent.parent
         self._non_interactive = False
 
     @property

@@ -62,8 +62,8 @@ jobs:
       - name: Install Node.js dependencies
         run: pnpm install --filter @softmax/mettascope
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: "runtime"
 

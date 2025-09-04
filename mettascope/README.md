@@ -39,7 +39,8 @@ uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/my
 python -m http.server 2000
 ```
 
-Use Chrome with `chrome://flags/#enable-unsafe-webgpu` enabled. Open `http://localhost:2000` and drag/drop replay files or use `?replayUrl=...` parameter.
+Use Chrome with `chrome://flags/#enable-unsafe-webgpu` enabled. Open `http://localhost:2000` and drag/drop replay files
+or use `?replayUrl=...` parameter.
 
 Here are some replays to try out:
 
@@ -80,14 +81,14 @@ uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train
 
 ### Policy URI Formats
 
-- `file://./train_dir/run_name/checkpoints` - Local checkpoints  
+- `file://./train_dir/run_name/checkpoints` - Local checkpoints
 - `wandb://run/project_name/run_id` - Wandb artifacts
 
 ## Running Metta in VSCode/Cursor
 
 1. **Launch** VSCode or Cursor.
 2. **Open the project folder**: `File > Open Folder...` → select `metta/` directory.
-3. **Run Metta**: 
+3. **Run Metta**:
    - Click **"Run and Debug"** in the top right
    - Select **"Play Metta"** from the dropdown
    - Click the **green play arrow** to start MettaScope!

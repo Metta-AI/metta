@@ -4,62 +4,24 @@ Runtime monitors for SkyPilot jobs including heartbeat and timeout monitoring.
 """
 
 import os
-import threading
 import time
-from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 from metta.common.util.log_config import getRankAwareLogger
 
 logger = getRankAwareLogger(__name__)
 
 
-class JobMonitor(ABC):
-    def __init__(
-        self,
-        name: str,
-        shutdown_callback: Callable[[str], None],
-        check_interval_sec: float = 30.0,
-    ):
-        self.name = name
-        self.shutdown_callback = shutdown_callback
-        self.check_interval_sec = check_interval_sec
-
-    @abstractmethod
-    def check_condition(self) -> tuple[bool, Optional[str]]:
-        pass
-
-    def run(self):
-        while True:
-            try:
-                should_terminate, reason = self.check_condition()
-
-                if should_terminate and reason:
-                    logger.error(f"{self.name} monitor triggered: {reason}")
-                    self.shutdown_callback(reason)
-                    break
-
-            except Exception as e:
-                logger.warning(f"{self.name} monitor error: {e}")
-
-            time.sleep(self.check_interval_sec)
-
-
-class HeartbeatMonitor(JobMonitor):
+class HeartbeatMonitor:
     """Monitor for checking heartbeat file updates."""
 
     def __init__(
         self,
         rank: int,
         heartbeat_timeout_sec: int,
-        shutdown_callback: Callable[[str], None],
     ):
-        super().__init__(
-            name="heartbeat",
-            shutdown_callback=shutdown_callback,
-            check_interval_sec=15.0,
-        )
+        self.name = "heartbeat"
         self.heartbeat_timeout = heartbeat_timeout_sec
         self.rank = rank
         self.is_master = rank == 0
@@ -115,25 +77,16 @@ class HeartbeatMonitor(JobMonitor):
             logger.error(f"Unexpected error checking heartbeat: {type(e).__name__}: {e}")
             return True, f"heartbeat_unexpected_error_{type(e).__name__}"
 
-    def run(self):
-        logger.info(f"Heartbeat monitor started on node {self.rank} (timeout: {self.heartbeat_timeout}s)")
-        super().run()
 
-
-class TimeoutMonitor(JobMonitor):
+class TimeoutMonitor:
     """Monitor for checking maximum runtime."""
 
     def __init__(
         self,
         rank: int,
         max_runtime_hours: float,
-        shutdown_callback: Callable[[str], None],
     ):
-        super().__init__(
-            name="timeout",
-            shutdown_callback=shutdown_callback,
-            check_interval_sec=30.0,  # Check every 30 seconds
-        )
+        self.name = "timeout"
         self.max_runtime_hours = max_runtime_hours
         self.max_seconds = max_runtime_hours * 3600 if max_runtime_hours else 0
         self.start_time = time.time()
@@ -203,26 +156,16 @@ class TimeoutMonitor(JobMonitor):
 
         return False, None
 
-    def run(self):
-        remaining = self.max_seconds - self.accumulated_runtime_sec
-        logger.info(f"Timeout monitor started on node {self.rank} (exit in {remaining:.0f}s)")
-        super().run()
 
-
-class ForceRestartTestMonitor(JobMonitor):
+class ForceRestartTestMonitor:
     """Monitor that simulates node failure for testing job recovery."""
 
     def __init__(
         self,
         rank: int,
         restart_time_hours: float,
-        shutdown_callback: Callable[[str], None],
     ):
-        super().__init__(
-            name="force_restart_test",
-            shutdown_callback=shutdown_callback,
-            check_interval_sec=10.0,  # Check every 10 seconds
-        )
+        self.name = "force_restart_test"
         self.start_time = time.time()
         self.failure_delay_sec = int(restart_time_hours * 3600)
         self.rank = rank
@@ -236,60 +179,3 @@ class ForceRestartTestMonitor(JobMonitor):
             return True, "force_restart_test"
 
         return False, None
-
-    def run(self):
-        logger.info(f"Test failure monitor started on node {self.rank} (will fail in {self.failure_delay_sec}s)")
-        super().run()
-
-
-def start_monitors(
-    shutdown_callback: Callable[[str], None],
-) -> None:
-    """
-    Start runtime monitors based on environment configuration.
-
-    Reads configuration from environment variables:
-    - HEARTBEAT_TIMEOUT: Timeout in seconds for heartbeat monitoring
-    - HEARTBEAT_FILE: Path to the heartbeat file (required if HEARTBEAT_TIMEOUT is set)
-    - MAX_RUNTIME_HOURS: Maximum runtime in hours
-    - SKYPILOT_NODE_RANK: Node rank (0 = master)
-    - JOB_METADATA_DIR: Directory for metadata files
-    - RESTART_COUNT: Number of times the job has been restarted
-
-    Args:
-        shutdown_callback: Callback function to trigger shutdown with reason
-    """
-    # Read configuration from environment
-    heartbeat_timeout = int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None
-    max_runtime_hours = float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None
-
-    rank = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
-    is_master = rank == 0
-
-    restart_count = int(os.environ.get("RESTART_COUNT", "0"))
-
-    if heartbeat_timeout:
-        heartbeat_monitor = HeartbeatMonitor(
-            rank,
-            heartbeat_timeout_sec=heartbeat_timeout,
-            shutdown_callback=shutdown_callback,
-        )
-        threading.Thread(target=heartbeat_monitor.run, name="heartbeat_monitor", daemon=True).start()
-
-    if max_runtime_hours:
-        timeout_monitor = TimeoutMonitor(
-            rank,
-            max_runtime_hours=max_runtime_hours,
-            shutdown_callback=shutdown_callback,
-        )
-        threading.Thread(target=timeout_monitor.run, name="timeout_monitor", daemon=True).start()
-
-        if is_master and restart_count == 0:
-            force_restart_test_monitor = ForceRestartTestMonitor(
-                rank,
-                restart_time_hours=max_runtime_hours / 2.0,
-                shutdown_callback=shutdown_callback,
-            )
-            threading.Thread(
-                target=force_restart_test_monitor.run, name="force_restart_test_monitor", daemon=True
-            ).start()

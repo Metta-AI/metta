@@ -1,3 +1,4 @@
+################# Base builder image #################
 FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -10,6 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Bazel for metta-mettagrid build
+RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    && chmod +x /usr/local/bin/bazel
 
 RUN mkdir -p /workspace/metta
 WORKDIR /workspace/metta
@@ -29,8 +34,18 @@ RUN uv sync --no-install-workspace --frozen
 
 COPY . .
 
+# When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
+RUN git config --remove-section http."https://github.com/" || true
+
+# Make sure the remote is configured for anonymous access
+RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
+
+# Doesn't do anything but guarantees that the remote is configured for anonymous access
+RUN git fetch
+
 RUN uv sync --locked
 
+################# Runtime image #################
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
