@@ -5,6 +5,7 @@ from metta.tools.sweep import SweepTool
 
 
 def ppo(
+    run: str | None = None,  # Accept run parameter from dispatcher (unused)
     recipe: str = "experiments.recipes.arena",
     train: str = "train_shaped",
     eval: str = "evaluate",
@@ -84,6 +85,7 @@ def ppo(
 
 
 def quick_test(
+    run: str | None = None,  # Accept run parameter from dispatcher (unused)
     recipe: str = "experiments.recipes.arena",
 ) -> SweepTool:
     """Quick test sweep with full PPO config but minimal trials for testing.
