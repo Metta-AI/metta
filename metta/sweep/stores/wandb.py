@@ -86,8 +86,8 @@ class WandbStore:
             logger.debug(f"[WandbStore] Found {len(run_infos)} runs")
             return run_infos
         except Exception as e:
-            logger.warning(f"[WandbStore] Error fetching runs: {e}. Returning empty list.")
-            return []
+            logger.error(f"[WandbStore] Error fetching runs: {e}")
+            raise
 
     def update_run_summary(self, run_id: str, summary_update: dict) -> bool:
         """Update run summary in WandB."""
