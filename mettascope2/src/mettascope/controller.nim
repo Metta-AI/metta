@@ -14,6 +14,12 @@ type
     spiralStepsInArc*: int  # Steps taken in current arc
     spiralDirection*: int  # Current direction (0=N, 1=E, 2=S, 3=W)
     spiralArcsCompleted*: int  # Number of arcs completed (used to increase arc length)
+    # Stuck detection
+    lastPosition*: IVec2  # Position from previous step
+    stuckCounter*: int  # How many steps we've been in same position
+    escapeMode*: bool  # Currently escaping from stuck situation
+    escapeStepsRemaining*: int  # Steps left in escape mode
+    escapeDirection*: IVec2  # Direction to escape in
     basePosition*: IVec2
     hasOre*: bool
     hasBattery*: bool
@@ -53,6 +59,12 @@ proc initAgentState(controller: Controller, agentId: int, basePos: IVec2) =
     spiralStepsInArc: 0,  # No steps taken yet
     spiralDirection: 0,  # Start going North
     spiralArcsCompleted: 0,  # No arcs completed yet
+    # Stuck detection initialization
+    lastPosition: basePos,
+    stuckCounter: 0,
+    escapeMode: false,
+    escapeStepsRemaining: 0,
+    escapeDirection: ivec2(0, 0),
     basePosition: basePos,
     hasOre: false,
     hasBattery: false,
@@ -233,6 +245,73 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     controller.initAgentState(agentId, basePos)
   
   var state = controller.agentStates[agentId]
+  
+  # Stuck detection: Check if we haven't moved
+  const StuckThreshold = 5  # Consider stuck after 5 steps in same position
+  const EscapeSteps = 5  # Escape for 5 steps when stuck
+  
+  if agent.pos == state.lastPosition:
+    state.stuckCounter += 1
+    if state.stuckCounter >= StuckThreshold and not state.escapeMode:
+      # We're stuck! Enter escape mode
+      state.escapeMode = true
+      state.escapeStepsRemaining = EscapeSteps
+      
+      # Choose escape direction (opposite of where we were trying to go)
+      if state.currentTarget != agent.pos:
+        let targetDir = getDirectionTo(agent.pos, state.currentTarget)
+        # Go opposite direction
+        state.escapeDirection = ivec2(-targetDir.x, -targetDir.y)
+      else:
+        # Random escape direction
+        let dirs = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+        state.escapeDirection = controller.rng.sample(dirs)
+  else:
+    # We moved, reset stuck counter
+    state.stuckCounter = 0
+  
+  # Update last position for next step
+  state.lastPosition = agent.pos
+  
+  # Handle escape mode
+  if state.escapeMode:
+    if state.escapeStepsRemaining > 0:
+      state.escapeStepsRemaining -= 1
+      
+      # Try to move in escape direction
+      let nextPos = agent.pos + state.escapeDirection
+      if env.isEmpty(nextPos):
+        # Convert direction to move argument
+        var moveArg: uint8
+        if state.escapeDirection.x > 0:
+          moveArg = 2  # East
+        elif state.escapeDirection.x < 0:
+          moveArg = 3  # West
+        elif state.escapeDirection.y > 0:
+          moveArg = 1  # South
+        else:  # state.escapeDirection.y < 0
+          moveArg = 0  # North
+        
+        return [1'u8, moveArg]  # Move in escape direction
+      else:
+        # Can't move in escape direction, try perpendicular
+        let perpDir = ivec2(-state.escapeDirection.y, state.escapeDirection.x)
+        let perpPos = agent.pos + perpDir
+        if env.isEmpty(perpPos):
+          var moveArg: uint8
+          if perpDir.x > 0:
+            moveArg = 2
+          elif perpDir.x < 0:
+            moveArg = 3
+          elif perpDir.y > 0:
+            moveArg = 1
+          else:
+            moveArg = 0
+          return [1'u8, moveArg]
+    else:
+      # Escape complete, exit escape mode and reset target
+      state.escapeMode = false
+      state.targetType = NoTarget  # Force re-evaluation of goals
   
   # Update inventory state from agent
   state.hasOre = agent.inventoryOre > 0
