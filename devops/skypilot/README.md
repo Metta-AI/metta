@@ -242,10 +242,13 @@ terminate after completion, sandboxes remain running until you stop them.
 ### Quick Start
 
 ```bash
+# Create sandbox with main branch
+./devops/skypilot/sandbox.py
+
 # Check if you have any existing sandboxes
 ./devops/skypilot/sandbox.py --check
 
-# Launch a new sandbox (if none exists)
+# Force create new sandbox (even if one exists)
 ./devops/skypilot/sandbox.py --new
 
 # Connect to your sandbox
@@ -273,7 +276,7 @@ ssh <sandbox-name>
 
 ### Checking Sandbox Status
 
-The `--check` mode provides a quick overview of your sandboxes:
+The `--check` mode provides a quick overview of your sandboxes without creating a new sandbox if none exist:
 
 ```bash
 ./devops/skypilot/sandbox.py --check
