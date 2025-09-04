@@ -275,7 +275,12 @@ class Curriculum:
         self._task_ids.add(task_id)
         env_cfg = self._task_generator.get_task(task_id)
 
-        task = CurriculumTask(task_id, env_cfg)
+        # Extract bucket values if available
+        bucket_values = {}
+        if hasattr(self._task_generator, "_last_bucket_values"):
+            bucket_values = self._task_generator._last_bucket_values.copy()
+
+        task = CurriculumTask(task_id, env_cfg, bucket_values)
         self._tasks[task_id] = task
         self._num_created += 1
 

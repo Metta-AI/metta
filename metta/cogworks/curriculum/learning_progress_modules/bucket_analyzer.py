@@ -94,7 +94,10 @@ class BucketAnalyzer:
 
         stats = {}
 
-        for bucket_name in self._monitored_buckets:
+        # Get sorted bucket names to ensure consistent ordering for "first three buckets"
+        sorted_bucket_names = sorted(self._monitored_buckets)
+
+        for bucket_name in sorted_bucket_names:
             if bucket_name not in self._bucket_completion_counts:
                 continue
 
@@ -120,7 +123,7 @@ class BucketAnalyzer:
                 density_variance = 0.0
                 underexplored_bins = 0
 
-            stats[bucket_name] = {
+            bucket_stats = {
                 "total_completions": total_completions,
                 "density_coverage": density_coverage,
                 "mean_completions_per_bin": mean_completions_per_bin,
@@ -129,6 +132,32 @@ class BucketAnalyzer:
                 "num_bins_used": num_bins_used,
                 "num_total_bins": num_total_bins,
             }
+
+            # Add individual slice probabilities if detailed logging is enabled and this is one of the first 3 buckets
+            if self.enable_detailed_logging:
+                bucket_index = sorted_bucket_names.index(bucket_name)
+                if bucket_index < 3:  # First three buckets
+                    # Calculate probability for each slice (bin)
+                    if total_completions > 0:
+                        # Get all possible bins (not just used ones)
+                        all_bins = self._bucket_bins.get(bucket_name, [])
+                        for bin_idx in range(min(len(all_bins), 20)):  # Limit to first 20 slices to avoid spam
+                            count = completion_counts.get(bin_idx, 0)
+                            probability = count / total_completions
+                            bucket_stats[f"slice_{bin_idx}_probability"] = probability
+                            bucket_stats[f"slice_{bin_idx}_count"] = count
+
+                            # Add bin value for context (if available)
+                            if bin_idx < len(all_bins):
+                                bin_value = all_bins[bin_idx]
+                                if isinstance(bin_value, (int, float)):
+                                    bucket_stats[f"slice_{bin_idx}_value"] = float(bin_value)
+                                else:
+                                    # For categorical values, we can't log the string directly to wandb
+                                    # So we'll create a hash or index
+                                    bucket_stats[f"slice_{bin_idx}_value_hash"] = hash(str(bin_value)) % 1000000
+
+            stats[bucket_name] = bucket_stats
 
         # Cache the result
         self._density_stats_cache = stats
