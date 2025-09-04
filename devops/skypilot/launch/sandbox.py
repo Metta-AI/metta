@@ -8,12 +8,12 @@ import time
 import sky
 import sky.exceptions
 import yaml
-from retry import retry_function
 
 import gitta as git
 from devops.skypilot.utils.cost_monitor import get_instance_cost
 from devops.skypilot.utils.job_helpers import set_task_secrets
 from metta.common.util.cli import spinner
+from metta.common.util.retry import retry_function
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
