@@ -1,0 +1,156 @@
+"""Helper for distributed training operations."""
+
+import logging
+from typing import Any, List
+
+import torch
+import torch.distributed
+
+from metta.agent.metta_agent import PolicyAgent
+from metta.core.distributed import TorchDistributedConfig
+
+logger = logging.getLogger(__name__)
+
+
+class DistributedHelper:
+    """Helper class for distributed training operations."""
+
+    def __init__(self, config: TorchDistributedConfig):
+        """Initialize distributed helper.
+
+        Args:
+            config: Torch distributed configuration
+        """
+        self._config = config
+        self._is_distributed = config.distributed
+        self._is_master = config.is_master
+        self._rank = config.rank
+        self._world_size = config.world_size
+
+    def setup(self) -> None:
+        """Initialize distributed training if needed."""
+        if self._is_distributed:
+            logger.info(f"Setting up distributed training for rank {self._rank}")
+
+    def wrap_policy(self, policy: PolicyAgent, device: torch.device) -> PolicyAgent:
+        """Wrap policy for distributed training if needed.
+
+        Args:
+            policy: Policy to wrap
+            device: Device to use
+
+        Returns:
+            Wrapped policy if distributed, original otherwise
+        """
+        if self._is_distributed:
+            # Wrap with DDP
+            policy = torch.nn.parallel.DistributedDataParallel(
+                policy,
+                device_ids=[device.index] if device.type == "cuda" else None,
+                broadcast_buffers=False,
+                find_unused_parameters=False,
+            )
+            logger.info(f"Wrapped policy with DDP on rank {self._rank}")
+        return policy
+
+    def synchronize(self) -> None:
+        """Synchronize across processes if distributed."""
+        if self._is_distributed:
+            torch.distributed.barrier()
+
+    def broadcast_from_master(self, obj: Any) -> Any:
+        """Broadcast object from master to all processes.
+
+        Args:
+            obj: Object to broadcast
+
+        Returns:
+            Broadcasted object
+        """
+        if not self._is_distributed:
+            return obj
+
+        # Create a list to hold the object on all ranks
+        objects = [obj if self._is_master else None]
+        torch.distributed.broadcast_object_list(objects, src=0)
+        return objects[0]
+
+    def is_master(self) -> bool:
+        """Check if this is the master process.
+
+        Returns:
+            True if master process
+        """
+        return self._is_master
+
+    def should_log(self) -> bool:
+        """Check if this process should perform logging.
+
+        Returns:
+            True if should log
+        """
+        return self._is_master
+
+    def should_checkpoint(self) -> bool:
+        """Check if this process should save checkpoints.
+
+        Returns:
+            True if should checkpoint
+        """
+        return self._is_master
+
+    def should_evaluate(self) -> bool:
+        """Check if this process should run evaluation.
+
+        Returns:
+            True if should evaluate
+        """
+        return self._is_master
+
+    def get_world_size(self) -> int:
+        """Get the number of processes.
+
+        Returns:
+            World size
+        """
+        return self._world_size
+
+    def get_rank(self) -> int:
+        """Get the rank of this process.
+
+        Returns:
+            Process rank
+        """
+        return self._rank
+
+    def all_gather(self, tensor: torch.Tensor) -> List[torch.Tensor]:
+        """Gather tensors from all processes.
+
+        Args:
+            tensor: Tensor to gather
+
+        Returns:
+            List of tensors from all processes
+        """
+        if not self._is_distributed:
+            return [tensor]
+
+        gathered = [torch.zeros_like(tensor) for _ in range(self._world_size)]
+        torch.distributed.all_gather(gathered, tensor)
+        return gathered
+
+    def all_reduce(
+        self, tensor: torch.Tensor, op: torch.distributed.ReduceOp = torch.distributed.ReduceOp.SUM
+    ) -> torch.Tensor:
+        """Reduce tensor across all processes.
+
+        Args:
+            tensor: Tensor to reduce
+            op: Reduction operation
+
+        Returns:
+            Reduced tensor
+        """
+        if self._is_distributed:
+            torch.distributed.all_reduce(tensor, op=op)
+        return tensor

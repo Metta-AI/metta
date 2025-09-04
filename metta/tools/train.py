@@ -14,8 +14,29 @@ from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_v2 import Trainer
+from metta.rl.training import (
+    DistributedHelper,
+    EvaluationConfig,
+    Evaluator,
+    GradientStatsComponent,
+    GradientStatsConfig,
+    HeartbeatConfig,
+    HeartbeatWriter,
+    HyperparameterComponent,
+    HyperparameterConfig,
+    PolicyCheckpointer,
+    PolicyCheckpointerConfig,
+    PolicyUploader,
+    PolicyUploaderConfig,
+    StatsConfig,
+    StatsReporter,
+    TorchProfilerComponent,
+    TorchProfilerConfig,
+    TrainerCheckpointer,
+    TrainerCheckpointerConfig,
+)
 from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
 
 logger = getRankAwareLogger(__name__)
@@ -137,19 +158,131 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     assert cfg.run
     assert cfg.policy_architecture
 
-    # Use the functional train interface directly
-    train(
-        run=cfg.run,
+    # Create distributed helper
+    distributed_helper = DistributedHelper(torch_dist_cfg)
+
+    # Create checkpointers (they're also components)
+    policy_checkpointer = PolicyCheckpointer(
+        config=PolicyCheckpointerConfig(
+            interval=cfg.trainer.checkpoint.checkpoint_interval,
+        ),
+        checkpoint_manager=checkpoint_manager,
+        distributed_helper=distributed_helper,
+    )
+
+    trainer_checkpointer = TrainerCheckpointer(
+        config=TrainerCheckpointerConfig(
+            interval=50,  # Save trainer state more frequently
+            keep_last_n=5,
+        ),
+        checkpoint_manager=checkpoint_manager,
+        distributed_helper=distributed_helper,
+    )
+
+    # Create components
+    components = []
+
+    # Add checkpointers as components
+    components.append(policy_checkpointer)
+    components.append(trainer_checkpointer)
+
+    # Add policy uploader for wandb
+    if wandb_run:
+        policy_uploader = PolicyUploader(
+            config=PolicyUploaderConfig(
+                interval=cfg.trainer.checkpoint.wandb_checkpoint_interval,
+            ),
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+            wandb_run=wandb_run,
+        )
+        components.append(policy_uploader)
+
+    # Add heartbeat writer
+    heartbeat_writer = HeartbeatWriter(HeartbeatConfig(interval=1))
+    components.append(heartbeat_writer)
+
+    # Add hyperparameter scheduler
+    hyperparameter_component = HyperparameterComponent(HyperparameterConfig(interval=1))
+    components.append(hyperparameter_component)
+
+    # Add gradient stats
+    grad_stats_component = GradientStatsComponent(GradientStatsConfig(interval=cfg.trainer.grad_mean_variance_interval))
+    components.append(grad_stats_component)
+
+    # Create and add stats reporter using from_config
+    stats_config = (
+        StatsConfig(
+            report_to_wandb=bool(wandb_run),
+            report_to_stats_client=bool(stats_client),
+            interval=1,
+        )
+        if (wandb_run or stats_client)
+        else None
+    )
+
+    stats_reporter = StatsReporter.from_config(
+        config=stats_config,
+        stats_client=stats_client,
+        wandb_run=wandb_run,
+    )
+    components.append(stats_reporter)
+
+    # Create and add evaluator using from_config
+    eval_config = None
+    if cfg.trainer.evaluation:
+        eval_config = EvaluationConfig(
+            interval=cfg.trainer.evaluation.evaluate_interval,
+            evaluate_local=cfg.trainer.evaluation.evaluate_local,
+            evaluate_remote=cfg.trainer.evaluation.evaluate_remote,
+            num_training_tasks=cfg.trainer.evaluation.num_training_tasks,
+            simulations=cfg.trainer.evaluation.simulations,
+            replay_dir=cfg.trainer.evaluation.replay_dir,
+        )
+
+    evaluator = Evaluator.from_config(
+        config=eval_config,
+        device=torch.device(cfg.system.device),
+        system_cfg=cfg.system,
+        trainer_cfg=cfg.trainer,
+        stats_client=stats_client,
+        stats_reporter=stats_reporter,
+    )
+    components.append(evaluator)
+
+    # Create and run the trainer
+    trainer = Trainer(
         run_dir=run_dir,
+        run_name=cfg.run,
         system_cfg=cfg.system,
         agent_cfg=cfg.policy_architecture,
-        device=torch.device(cfg.system.device),
         trainer_cfg=cfg.trainer,
-        wandb_run=wandb_run,
-        checkpoint_manager=checkpoint_manager,
+        device=torch.device(cfg.system.device),
+        distributed_helper=distributed_helper,
+        policy_checkpointer=policy_checkpointer,
+        trainer_checkpointer=trainer_checkpointer,
+        components=components,
         stats_client=stats_client,
-        torch_dist_cfg=torch_dist_cfg,
+        policy_uri=cfg.policy_uri,
     )
+
+    # Add torch profiler component and configure wandb if needed
+    torch_profiler_component = TorchProfilerComponent(
+        config=TorchProfilerConfig(interval=1),
+        torch_profiler=trainer.torch_profiler,
+    )
+    torch_profiler_component.register(trainer)
+
+    if wandb_run:
+        trainer.torch_profiler.wandb_run = wandb_run
+
+    # Alternative: Components can also self-register after trainer creation
+    # For example, you could create and register components dynamically:
+    # custom_component = CustomComponent(CustomConfig(interval=10))
+    # custom_component.register(trainer)
+
+    trainer.setup()
+    trainer.train()
 
 
 def _configure_vecenv_settings(cfg: TrainTool) -> None:

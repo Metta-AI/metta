@@ -1,0 +1,227 @@
+"""Core training loop for rollout and training phases."""
+
+import logging
+from typing import Any, Dict, List, Optional
+
+import torch
+
+from metta.agent.metta_agent import PolicyAgent
+from metta.mettagrid import dtype_actions
+from metta.mettagrid.config import Config
+from metta.rl.experience import Experience
+from metta.rl.losses import BaseLoss
+from metta.rl.rollout import get_observation, send_observation
+from metta.rl.trainer_state import TrainerState
+from metta.rl.vecenv import VectorEnv
+
+logger = logging.getLogger(__name__)
+
+
+class RolloutResult(Config):
+    """Results from a rollout phase."""
+
+    raw_infos: List[Dict[str, Any]]
+    agent_steps: int
+
+
+class CoreTrainingLoop:
+    """Handles the core training loop with rollout and training phases."""
+
+    def __init__(
+        self,
+        policy: PolicyAgent,
+        experience: Experience,
+        losses: Dict[str, BaseLoss],
+        optimizer: torch.optim.Optimizer,
+        device: torch.device,
+        accumulate_minibatches: int = 1,
+    ):
+        """Initialize core training loop.
+
+        Args:
+            policy: The policy to train
+            experience: Experience buffer for storing rollouts
+            losses: Dictionary of loss instances to use
+            optimizer: Optimizer for policy updates
+            device: Device to run on
+            accumulate_minibatches: Number of minibatches to accumulate before optimizer step
+        """
+        self.policy = policy
+        self.experience = experience
+        self.losses = losses
+        self.optimizer = optimizer
+        self.device = device
+        self.accumulate_minibatches = accumulate_minibatches
+
+        # Get policy spec for experience buffer
+        self.policy_spec = policy.get_agent_experience_spec()
+
+    def rollout_phase(
+        self,
+        vecenv: VectorEnv,
+        trainer_state: TrainerState,
+        timer: Optional[Any] = None,
+    ) -> RolloutResult:
+        """Perform rollout phase to collect experience.
+
+        Args:
+            vecenv: Vectorized environment to collect from
+            trainer_state: Current trainer state
+            timer: Optional timer for profiling
+
+        Returns:
+            RolloutResult with collected info
+        """
+        raw_infos = []
+        self.experience.reset_for_rollout()
+
+        # Notify losses of rollout start
+        for loss in self.losses.values():
+            loss.on_rollout_start(trainer_state)
+
+        # Get buffer for storing experience
+        buffer_step = self.experience.buffer[self.experience.ep_indices, self.experience.ep_lengths - 1]
+        buffer_step = buffer_step.select(*self.policy_spec.keys())
+
+        total_steps = 0
+        trainer_state.stop_rollout = False
+
+        while not self.experience.ready_for_training and not trainer_state.stop_rollout:
+            # Get observation from environment
+            o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, self.device, timer)
+
+            trainer_state.training_env_id = training_env_id
+
+            # Prepare data for policy
+            td = buffer_step[training_env_id].clone()
+            td["env_obs"] = o
+            td["rewards"] = r
+            td["dones"] = d.float()
+            td["truncateds"] = t.float()
+            td.set(
+                "training_env_id_start",
+                torch.full(
+                    td.batch_size,
+                    training_env_id.start,
+                    device=td.device,
+                    dtype=torch.long,
+                ),
+            )
+
+            # Run rollout hooks for all losses
+            # Each loss can modify td and potentially run inference
+            for loss in self.losses.values():
+                loss.rollout(td, trainer_state)
+
+            # At least one loss should have performed inference
+            assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
+
+            # Send actions to environment
+            send_observation(vecenv, td["actions"], dtype_actions, timer)
+
+            if info:
+                raw_infos.extend(info)
+
+            total_steps += num_steps
+
+        return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps)
+
+    def training_phase(
+        self,
+        trainer_state: TrainerState,
+        update_epochs: int,
+        max_grad_norm: float = 0.5,
+        timer: Optional[Any] = None,
+    ) -> Dict[str, float]:
+        """Perform training phase on collected experience.
+
+        Args:
+            trainer_state: Current trainer state
+            update_epochs: Number of epochs to train for
+            max_grad_norm: Maximum gradient norm for clipping
+            timer: Optional timer for profiling
+
+        Returns:
+            Dictionary of loss statistics
+        """
+        # Initialize shared loss data
+        shared_loss_mb_data = self.experience.give_me_empty_md_td()
+        for loss_name in self.losses.keys():
+            shared_loss_mb_data[loss_name] = self.experience.give_me_empty_md_td()
+
+        # Reset loss tracking
+        shared_loss_mb_data.zero_()
+        self.experience.reset_importance_sampling_ratios()
+
+        for loss in self.losses.values():
+            loss.zero_loss_tracker()
+
+        epochs_trained = 0
+
+        for update_epoch in range(update_epochs):
+            trainer_state.update_epoch = update_epoch
+
+            for mb_idx in range(self.experience.num_minibatches):
+                trainer_state.mb_idx = mb_idx
+                trainer_state.stop_update_epoch = False
+
+                # Compute total loss from all losses
+                total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+
+                for _loss_name, loss_obj in self.losses.items():
+                    loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)
+                    total_loss = total_loss + loss_val
+
+                if trainer_state.stop_update_epoch:
+                    break
+
+                # Backward pass
+                self.optimizer.zero_grad()
+                total_loss.backward()
+
+                # Optimizer step with gradient accumulation
+                if (mb_idx + 1) % self.accumulate_minibatches == 0:
+                    # Get max_grad_norm from first loss that has it
+                    actual_max_grad_norm = max_grad_norm
+                    for loss_obj in self.losses.values():
+                        if hasattr(loss_obj.loss_cfg, "max_grad_norm"):
+                            actual_max_grad_norm = loss_obj.loss_cfg.max_grad_norm
+                            break
+
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
+                    self.optimizer.step()
+
+                    # Apply weight clipping if policy supports it
+                    if hasattr(self.policy, "clip_weights"):
+                        self.policy.clip_weights()
+
+                    if self.device.type == "cuda":
+                        torch.cuda.synchronize()
+
+                # Notify losses of minibatch end
+                for loss_obj in self.losses.values():
+                    loss_obj.on_mb_end(trainer_state)
+
+            epochs_trained += 1
+
+        # Notify losses of training phase end
+        for loss_obj in self.losses.values():
+            loss_obj.on_train_phase_end(trainer_state)
+
+        # Collect statistics from all losses
+        losses_stats = {}
+        for _loss_name, loss_obj in self.losses.items():
+            losses_stats.update(loss_obj.stats())
+
+        return losses_stats
+
+    def on_epoch_start(self, trainer_state: TrainerState) -> None:
+        """Called at the start of each epoch.
+
+        Args:
+            trainer_state: Current trainer state
+        """
+        self.policy.on_new_training_run()
+
+        for loss in self.losses.values():
+            loss.on_new_training_run(trainer_state)
