@@ -133,9 +133,6 @@ def make_env(num_agents: int = 6) -> EnvConfig:
     arena_env.game.map_builder.root.params.objects["altar"] = (
         8  # Sufficient altars for heart conversion
     )
-    arena_env.game.map_builder.root.params.objects["battery_red"] = (
-        2  # Small amount of free batteries to help bootstrap learning
-    )
 
     # Agent assignment: 5 learning agents, 1 trader
     # NOTE: The last agent (index 5) will be the NPC with random movement
