@@ -953,10 +953,9 @@ class BidirectionalLearningProgress:
             # Calculate fast and slow EMAs for this task's outcome sequence
             if self._p_fast is None:
                 # Initialize EMAs
-                if self._p_fast is None:
-                    self._p_fast = np.zeros(self._num_tasks)
-                    self._p_slow = np.zeros(self._num_tasks)
-                    self._p_true = np.zeros(self._num_tasks)
+                self._p_fast = np.zeros(self._num_tasks)
+                self._p_slow = np.zeros(self._num_tasks)
+                self._p_true = np.zeros(self._num_tasks)
 
                 # Initialize with current outcome
                 self._p_fast[task_id] = outcomes_array[-1]

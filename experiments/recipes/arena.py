@@ -64,7 +64,6 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 
 def train(
-    run: str,
     curriculum: Optional[CurriculumConfig] = None,
 ) -> TrainTool:
     trainer_cfg = TrainerConfig(
