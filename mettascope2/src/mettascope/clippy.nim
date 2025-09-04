@@ -16,9 +16,10 @@ const
   # Clippy agent properties
   ClippyAttackDamage* = 2
   ClippySpeed* = 1
-  ClippyVisionRange* = 12  # Increased to see much further for altar discovery
+  ClippyVisionRange* = 15  # Even further vision for plague-wave expansion
   ClippyWanderPriority* = 3  # How many wander steps before checking for targets
-  ClippyAltarSearchRange* = 10  # Extended range specifically for altar searching
+  ClippyAltarSearchRange* = 12  # Extended range for aggressive altar hunting
+  ClippyAgentChaseRange* = 10  # Will chase agents within this range
   
   # Temple properties
   TempleCooldown* = 20  # Time between Clippy spawns
@@ -149,8 +150,8 @@ proc findNearestAgent*(clippyPos: IVec2, things: seq[pointer], visionRange: int)
   
   return nearestPos
 
-proc getConcentricWanderPoint*(clippy: pointer, r: var Rand): IVec2 =
-  ## Get next point in expanding spiral pattern for better exploration coverage
+proc getOutwardExpansionPoint*(clippy: pointer, things: seq[pointer], r: var Rand): IVec2 =
+  ## Get next point for plague-wave expansion - always moving away from origin and other clippys
   let clippyThing = cast[ptr tuple[
     kind: int, pos: IVec2, id: int, layer: int, hearts: int, 
     resources: int, cooldown: int, frozen: int, inventory: int,
@@ -161,27 +162,88 @@ proc getConcentricWanderPoint*(clippy: pointer, r: var Rand): IVec2 =
     wanderAngle: float, targetPos: IVec2, wanderStepsRemaining: int
   ]](clippy)
   
-  # Use clippy ID to create different exploration sectors for different clippys
-  let sectorOffset = (clippyThing.id mod 4).float * 1.5708  # Divide into 4 sectors
+  # Calculate primary expansion direction - away from home temple
+  let currentPos = clippyThing.pos
+  let homeTemple = clippyThing.homeTemple
   
-  # Increment angle to move around the spiral with sector offset
-  clippyThing.wanderAngle += 0.5236  # ~30 degrees for finer exploration pattern
+  # Vector away from home temple (the plague source)
+  var awayFromHome = ivec2(0, 0)
+  if homeTemple.x >= 0 and homeTemple.y >= 0:
+    let dx = currentPos.x - homeTemple.x
+    let dy = currentPos.y - homeTemple.y
+    let distFromHome = sqrt((dx * dx + dy * dy).float)
+    
+    # Normalize and scale the "away" vector with stronger bias at close range
+    if distFromHome > 0:
+      # Stronger push when closer to home, weaker when far
+      let pushStrength = max(5.0, 20.0 - distFromHome * 0.3)
+      awayFromHome.x = int32((dx.float / distFromHome) * pushStrength)
+      awayFromHome.y = int32((dy.float / distFromHome) * pushStrength)
   
-  # Complete rotation, expand radius more aggressively
-  if clippyThing.wanderAngle >= 6.28:  # 2*PI
-    clippyThing.wanderAngle = 0.0
-    clippyThing.wanderRadius = min(clippyThing.wanderRadius + 8, 80)  # Very aggressive expansion to radius 80
+  # Calculate avoidance vector from nearby clippys (creates spreading effect)
+  var avoidanceVector = ivec2(0, 0)
+  var nearbyClippyCount = 0
   
-  # Calculate target position in the spiral with sector offset
-  let adjustedAngle = clippyThing.wanderAngle + sectorOffset
-  let x = clippyThing.homeTemple.x + int32(cos(adjustedAngle) * clippyThing.wanderRadius.float)
-  let y = clippyThing.homeTemple.y + int32(sin(adjustedAngle) * clippyThing.wanderRadius.float)
+  for thingPtr in things:
+    if isNil(thingPtr):
+      continue
+    let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
+    if thing.kind == 6 and thing.pos != currentPos:  # Other clippy
+      let dist = manhattanDistance(currentPos, thing.pos)
+      if dist <= 8:  # Avoid other clippys within 8 tiles
+        # Calculate repulsion force (stronger when closer)
+        let repulsionStrength = (9 - dist).float / 8.0
+        let dx = currentPos.x - thing.pos.x
+        let dy = currentPos.y - thing.pos.y
+        avoidanceVector.x += int32(dx.float * repulsionStrength)
+        avoidanceVector.y += int32(dy.float * repulsionStrength)
+        nearbyClippyCount += 1
   
-  # Add some randomness for less predictable movement
-  let jitterX = int32(r.rand(-1..1))
-  let jitterY = int32(r.rand(-1..1))
+  # Normalize avoidance vector if there are nearby clippys
+  if nearbyClippyCount > 0:
+    avoidanceVector.x = avoidanceVector.x div int32(nearbyClippyCount)
+    avoidanceVector.y = avoidanceVector.y div int32(nearbyClippyCount)
   
-  return ivec2(x + jitterX, y + jitterY)
+  # Add exploration randomness for frontier discovery
+  let explorationAngle = r.rand(0.0 .. 2*PI)
+  let explorationX = int32(cos(explorationAngle) * 2.0)
+  let explorationY = int32(sin(explorationAngle) * 2.0)
+  
+  # Combine all vectors with weights
+  var targetOffset = ivec2(
+    awayFromHome.x * 2 + avoidanceVector.x + explorationX,  # Strong outward bias
+    awayFromHome.y * 2 + avoidanceVector.y + explorationY
+  )
+  
+  # Ensure we're always moving outward (minimum distance from home)
+  let minDistFromHome = clippyThing.wanderRadius
+  if minDistFromHome < 100:  # Keep expanding up to 100 tiles
+    clippyThing.wanderRadius += 2  # Gradually increase minimum exploration distance
+  
+  # If the combined vector is too small, use a random outward direction
+  if abs(targetOffset.x) + abs(targetOffset.y) < 2:
+    let angle = r.rand(0.0 .. 2*PI)
+    targetOffset = ivec2(
+      int32(cos(angle) * 5.0),
+      int32(sin(angle) * 5.0)
+    )
+  
+  # Convert to next step position (not far-away target)
+  # We want single-step movement in the desired direction
+  var nextStep = currentPos
+  
+  # Move one step in the strongest direction component
+  if abs(targetOffset.x) > abs(targetOffset.y):
+    nextStep.x += if targetOffset.x > 0: 1 else: -1
+  elif abs(targetOffset.y) > 0:
+    nextStep.y += if targetOffset.y > 0: 1 else: -1
+  else:
+    # If both are zero, pick a random outward direction
+    let angle = r.rand(0.0 .. 2*PI)
+    nextStep.x += int32(cos(angle))
+    nextStep.y += int32(sin(angle))
+  
+  return nextStep
 
 proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
   ## Determine which direction a Clippy should move
@@ -232,18 +294,18 @@ proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand
     let nearestAgent = findNearestAgent(clippyPos, things, ClippyVisionRange)
     if nearestAgent.x >= 0:  # Valid agent found
       let dist = abs(nearestAgent.x - clippyPos.x) + abs(nearestAgent.y - clippyPos.y)
-      # Only chase if close enough (within 8 tiles)
-      if dist <= 8:
+      # Chase agents aggressively within extended range
+      if dist <= ClippyAgentChaseRange:
         clippyThing.targetPos = nearestAgent
         return getDirectionToward(clippyPos, nearestAgent)
     
     # If we reach here, no close targets - set reduced wander steps for more frequent checks
     clippyThing.wanderStepsRemaining = r.rand(2..5)  # Reduced wander time for more frequent target checking
   
-  # Priority 3: No targets - wander in concentric circles
-  # If we have a valid home temple, wander around it
+  # Priority 3: No targets - expand outward like a plague wave
+  # Move away from home and other clippys to explore new territory
   if clippyThing.homeTemple.x >= 0 and clippyThing.homeTemple.y >= 0:
-    let wanderTarget = getConcentricWanderPoint(clippyPtr, r)
+    let wanderTarget = getOutwardExpansionPoint(clippyPtr, things, r)
     clippyThing.targetPos = wanderTarget
     return getDirectionToward(clippyPos, wanderTarget)
   
