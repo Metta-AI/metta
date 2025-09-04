@@ -4,37 +4,30 @@ SkyPilot run manager that handles process groups and monitoring with integrated 
 """
 
 import os
-import signal
 import subprocess
 import sys
-import threading
 import time
-from datetime import datetime
-from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 from devops.skypilot.utils.cost_monitor import get_cost_info
 from devops.skypilot.utils.job_latency import calculate_queue_latency
-from devops.skypilot.utils.runtime_monitors import start_monitors
-from gitta import post_commit_status
-from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
-from metta.common.util.discord import send_to_discord
+from devops.skypilot.utils.nccl_tests import launch_nccl_tests
+from devops.skypilot.utils.notifications import (
+    log_config,
+    log_final_summary,
+    send_discord_notification,
+    send_wandb_alert_notification,
+    set_github_status,
+)
+from devops.skypilot.utils.runtime_monitors import HeartbeatMonitor, TimeoutMonitor
 from metta.common.util.log_config import getRankAwareLogger
-from metta.common.util.retry import retry_function
-from metta.common.wandb.utils import log_to_wandb, send_wandb_alert
+from metta.common.wandb.utils import log_to_wandb
 
 logger = getRankAwareLogger(__name__)
 
 # Exit code constants
-EXIT_SUCCESS = 0
-EXIT_FAILURE = 1
-EXIT_NCCL_TEST_FAILURE = 42
-
-# Global state - reduced to minimum necessary for signal handling
-main_process: Optional[subprocess.Popen] = None
-shutdown_event = threading.Event()
-termination_reason_lock = threading.Lock()
-_termination_reason = ""
+EXIT_AND_STOP = 0
+EXIT_AND_RESTART = 1
 
 # Configuration
 node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
@@ -44,84 +37,10 @@ max_runtime_hours = float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None
 heartbeat_timeout = int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None
 restart_count = int(os.environ.get("RESTART_COUNT", "0"))
 test_nccl = os.environ.get("TEST_NCCL", "false").lower() == "true"
-discord_webhook_url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
-enable_discord_posts = bool(discord_webhook_url)
-enable_github_status = os.environ.get("ENABLE_GITHUB_STATUS", "false").lower() == "true"
-enable_wandb_alerts = os.environ.get("ENABLE_WANDB_ALERTS", "true").lower() == "true"
 
 
-def log_config():
-    """Log the current configuration."""
-    logger.info("Run Configuration:")
-    logger.info(f"  - METTA_RUN_ID: {os.environ.get('METTA_RUN_ID', '')}")
-    logger.info(f"  - SKYPILOT_TASK_ID: {os.environ.get('SKYPILOT_TASK_ID', '')}")
-
-    logger.info(f"  - NODE_INDEX: {node_index}")
-    logger.info(f"  - IS_MASTER: {is_master}")
-    logger.info(f"  - TOTAL_NODES: {total_nodes}")
-
-    logger.info(f"  - HEARTBEAT_TIMEOUT: {heartbeat_timeout or 'NOT SET'}")
-    heartbeat_file_path = os.environ.get("HEARTBEAT_FILE", "") or None
-    logger.info(f"  - HEARTBEAT_FILE: {heartbeat_file_path or 'NOT SET'}")
-
-    accumulated_runtime_file_path = os.environ.get("ACCUMULATED_RUNTIME_FILE", "") or None
-    logger.info(f"  - ACCUMULATED_RUNTIME_FILE: {accumulated_runtime_file_path or 'NOT SET'}")
-
-    if accumulated_runtime_file_path:
-        accumulated_runtime_file = Path(accumulated_runtime_file_path)
-        if accumulated_runtime_file.exists():
-            try:
-                accumulated_runtime_sec = int(accumulated_runtime_file.read_text())
-                logger.info(f"  - ACCUMULATED_RUNTIME_SEC: {accumulated_runtime_sec}")
-            except (ValueError, IOError) as e:
-                logger.warning(f"Failed to load accumulated runtime: {e}")
-
-    logger.info(f"  - MAX_RUNTIME_HOURS: {max_runtime_hours or 'NOT SET'}")
-    logger.info(f"  - RESTART_COUNT: {restart_count}")
-    logger.info(f"  - TEST_NCCL: {test_nccl}")
-
-    logger.info(
-        f"  - DISCORD_ENABLED: {enable_discord_posts} "
-        f"{'(webhook URL provided)' if enable_discord_posts else '(no webhook URL)'}"
-    )
-    logger.info(f"  - GITHUB_STATUS_ENABLED: {enable_github_status}")
-    logger.info(f"  - WANDB_ALERTS_ENABLED: {enable_wandb_alerts}")
-
-
-def setup_signal_handlers():
-    """Setup signal handlers for graceful shutdown."""
-
-    def signal_handler(signal_number, frame):
-        logger.info(f"Received signal {signal_number}, initiating shutdown...")
-        shutdown_event.set()
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGHUP, signal_handler)
-
-
-def trigger_shutdown(reason: str):
-    """Callback function for monitors to trigger shutdown."""
-    global _termination_reason
-
-    with termination_reason_lock:
-        if not _termination_reason:  # Only set if not already set
-            _termination_reason = reason
-            logger.info(f"Shutdown triggered with reason: {reason}")
-
-    shutdown_event.set()
-
-
-def get_termination_reason() -> str:
-    """Thread-safe getter for termination reason."""
-    with termination_reason_lock:
-        return _termination_reason
-
-
-def run_training() -> int:
-    """Run the main training process and return exit code."""
-    global main_process
-
+def run_training_in_background():
+    """Launch training process in the background and return immediately."""
     cmd = ["./devops/run.sh"]
 
     module_path = os.environ.get("METTA_MODULE_PATH")
@@ -139,181 +58,61 @@ def run_training() -> int:
     if overrides:
         cmd.extend(["--overrides"] + overrides.split())
 
-    logger.info(f"Running command: {' '.join(cmd)}")
+    logger.info(f"Launching training in background: {' '.join(cmd)}")
 
-    # Create new process group
-    main_process = subprocess.Popen(
+    # Launch and forget - let it run independently
+    subprocess.Popen(
         cmd,
         start_new_session=True,
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
 
-    logger.info(f"Started process with PID: {main_process.pid}")
-
-    # Wait for process to complete or shutdown signal
-    while main_process.poll() is None and not shutdown_event.is_set():
-        time.sleep(1)
-
-    if main_process.poll() is None:
-        # Process still running, need to terminate
-        logger.info("Terminating training process...")
-        try:
-            # Try graceful shutdown first
-            os.killpg(os.getpgid(main_process.pid), signal.SIGTERM)
-            main_process.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            # Force kill if graceful shutdown fails
-            logger.warning("Graceful shutdown failed, forcing termination")
-            os.killpg(os.getpgid(main_process.pid), signal.SIGKILL)
-            main_process.wait()
-    else:
-        # Process exited on its own
-        if main_process.returncode != 0:
-            logger.error(f"Training process failed with exit code: {main_process.returncode}")
-
-    exit_code = main_process.returncode or 0
-    logger.info(f"Training process exited with code: {exit_code}")
-    return exit_code
+    logger.info("Training process launched in background")
 
 
-def set_github_status(exit_code: int, state: str, description: str):
-    """Update GitHub commit status."""
-    # Early exit if disabled
-    if not is_master or not enable_github_status:
-        return
+def start_monitoring_loop() -> Tuple[int, str]:
+    """
+    Run monitoring loop until a termination condition is met.
 
-    # Load all environment variables
-    commit_sha = os.environ.get("METTA_GIT_REF", "").strip()
-    token = os.environ.get("GITHUB_PAT", "").strip()
-    context = os.environ.get("GITHUB_STATUS_CONTEXT", "Skypilot/E2E").strip()
-    wandb_run_id = os.environ.get("METTA_RUN_ID", "").strip()
-    job_id = os.environ.get("SKYPILOT_JOB_ID", "").strip()
+    Returns:
+        Tuple of (exit_code, termination_reason)
+    """
+    monitors = []
 
-    # Validate required fields
-    if not all([state, description, commit_sha, token]):
-        logger.warning("Missing required parameters for GitHub status")
-        return
-
-    # Build description
-    desc = description
-    if exit_code and exit_code != 0 and state in ["failure", "error"]:
-        desc += f" (exit code {exit_code})"
-
-    if job_id:
-        logger.info(f"Setting GitHub status for job {job_id}")
-        desc += f" - [ jl {job_id} ]"
-
-    # Build target URL
-    target_url = f"https://wandb.ai/metta-research/metta/runs/{wandb_run_id}" if wandb_run_id else None
-    if target_url:
-        logger.info(f"Target URL: {target_url}")
-
-    logger.info(f"Setting GitHub status: {state} - {desc}")
-
-    try:
-        repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
-        retry_function(
-            lambda: post_commit_status(
-                commit_sha=commit_sha,
-                state=state,
-                repo=repo,
-                context=context,
-                description=desc,
-                target_url=target_url,
-                token=token,
-            ),
-            max_retries=3,
-            initial_delay=2.0,
-            max_delay=30.0,
-            error_prefix="Failed to post GitHub status",
+    # Initialize heartbeat monitor if configured
+    if heartbeat_timeout:
+        monitors.append(
+            HeartbeatMonitor(
+                rank=node_index,
+                heartbeat_timeout_sec=heartbeat_timeout,
+            )
         )
 
-        # Log success
-        logger.info(f"{repo}@{commit_sha[:8]} -> {state} ({context})")
+    # Initialize timeout monitor if configured
+    if max_runtime_hours:
+        monitors.append(TimeoutMonitor(rank=node_index, max_runtime_hours=max_runtime_hours))
 
-    except Exception:
-        pass  # Already logged by retry_function
+    if not monitors:
+        logger.info("No monitors configured, running indefinitely...")
+        # Just sleep forever if no monitors are configured
+        # In practice this shouldn't happen as we always have some monitoring
+        while True:
+            time.sleep(60)
 
+    logger.info(f"Starting monitoring loop with {len(monitors)} monitor(s)")
 
-def send_discord_notification(emoji: str, title: str, status_msg: str, additional_info: str = ""):
-    """Send Discord notification directly using the discord module."""
-    if not is_master or not enable_discord_posts:
-        return
+    # Main monitoring loop
+    while True:
+        # Check all monitors
+        for monitor in monitors:
+            should_terminate, reason = monitor.check_condition()
+            if should_terminate:
+                logger.info(f"{monitor.name} triggered: {reason}")
+                sys.exit(handle_master_cleanup(EXIT_AND_STOP, reason))
 
-    try:
-        # Validate required environment variables
-        required_env_vars = {
-            "GITHUB_REPOSITORY": os.getenv("GITHUB_REPOSITORY"),
-            "METTA_GIT_REF": os.getenv("METTA_GIT_REF"),
-            "METTA_RUN_ID": os.getenv("METTA_RUN_ID"),
-            "TOTAL_NODES": os.getenv("TOTAL_NODES"),
-            "JOB_METADATA_DIR": os.getenv("JOB_METADATA_DIR"),
-        }
-
-        missing_vars = [k for k, v in required_env_vars.items() if not v]
-        if missing_vars:
-            logger.warning(f"Missing required environment variables: {', '.join(missing_vars)}")
-            return
-
-        logger.info_master(f"[RUN] Sending Discord notification: {title}")
-
-        # Calculate runtime if START_TIME is set
-        runtime_msg = ""
-        start_time = os.getenv("START_TIME")
-        if start_time and start_time != "0":
-            try:
-                current_time = int(time.time())
-                duration = current_time - int(start_time)
-                hours = duration // 3600
-                minutes = (duration % 3600) // 60
-                runtime_msg = f"**Runtime**: {hours}h {minutes}m"
-            except (ValueError, TypeError):
-                logger.warning(f"Invalid START_TIME: {start_time}")
-
-        # Build Discord message
-        message_parts = [
-            f"{emoji} **{title}**",
-            "",
-            f"**Repository**: {required_env_vars['GITHUB_REPOSITORY']}",
-            f"**Git Ref**: {required_env_vars['METTA_GIT_REF']}",
-            f"**Run ID**: {required_env_vars['METTA_RUN_ID'] or 'N/A'}",
-            f"**Status**: {status_msg}",
-        ]
-
-        if runtime_msg:
-            message_parts.append(runtime_msg)
-
-        message_parts.extend(
-            [
-                f"**Time**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
-                f"**Nodes**: {required_env_vars['TOTAL_NODES']}",
-            ]
-        )
-
-        if additional_info:
-            message_parts.extend(["", additional_info])
-
-        discord_content = "\n".join(message_parts)
-
-        # Save to file (if still needed for debugging/logging purposes)
-        assert required_env_vars["JOB_METADATA_DIR"]
-        assert required_env_vars["DISCORD_WEBHOOK_URL"]
-
-        discord_message_path = os.path.join(required_env_vars["JOB_METADATA_DIR"], "discord_message.txt")
-        with open(discord_message_path, "w") as f:
-            f.write(discord_content)
-
-        # Send directly via Discord module
-        success = send_to_discord(
-            webhook_url=required_env_vars["DISCORD_WEBHOOK_URL"], content=discord_content, suppress_embeds=True
-        )
-
-        if not success:
-            logger.warning("[WARN] Discord notification failed; continuing")
-
-    except Exception as e:
-        logger.warning(f"Failed to send Discord notification: {e}")
+        # Sleep before next check
+        time.sleep(10)
 
 
 def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, str, int]:
@@ -334,95 +133,29 @@ def determine_job_status(exit_code: int, termination_reason: str) -> Tuple[str, 
     if termination_reason == "heartbeat_timeout":
         logger.error("Job terminated due to heartbeat timeout")
         description = f"Job failed - no heartbeat for {heartbeat_timeout} seconds"
-        final_exit_code = EXIT_SUCCESS  # Prevent SkyPilot restart
+        final_exit_code = EXIT_AND_STOP  # Prevent SkyPilot restart
 
     elif termination_reason == "max_runtime_reached":
         logger.info("Job terminated due to max runtime limit")
         state = "success"
         description = f"Job ran successfully for {max_runtime_hours} hours"
-        final_exit_code = EXIT_SUCCESS  # Prevent SkyPilot restart
+        final_exit_code = EXIT_AND_STOP  # Prevent SkyPilot restart
 
-    elif not termination_reason and exit_code == EXIT_SUCCESS:
-        logger.info("Job completed successfully")
-        state = "success"
-        description = "Job completed successfully"
-
-    elif exit_code == EXIT_NCCL_TEST_FAILURE:
+    elif termination_reason == "nccl_tests_failed":
         logger.error("Job failed during NCCL tests")
         state = "error"  # Infrastructure issue
         description = "NCCL tests failed"
+
+    elif not termination_reason and exit_code == EXIT_AND_STOP:
+        logger.info("Job completed successfully")
+        state = "success"
+        description = "Job completed successfully"
 
     else:
         # Default case - just log the error
         logger.error(f"Job failed with exit code {exit_code}")
 
     return state, description, final_exit_code
-
-
-def send_wandb_alert_notification(state: str, description: str):
-    """Send W&B alert notification based on job state."""
-    if not is_master or not enable_wandb_alerts:
-        return
-
-    # Map states to emojis and titles
-    state_info = {
-        "success": ("✅", "Job Completed Successfully"),
-        "failure": ("❌", "Job Failed"),
-        "error": ("🔧", "Job Configuration Error"),
-        "pending": ("🔄", "Job Restarting"),
-        "timeout": ("🚨", "Job Timeout"),  # Special case for heartbeat
-    }
-
-    # Check if heartbeat timeout (special case)
-    if "heartbeat" in description:
-        emoji, title = state_info["timeout"]
-    else:
-        emoji, title = state_info.get(state, ("❓", "Job Status Unknown"))
-
-    try:
-        required_env_vars = {
-            "METTA_RUN_ID": os.getenv("METTA_RUN_ID"),
-            "WANDB_PROJECT": os.getenv("WANDB_PROJECT"),
-            "WANDB_ENTITY": os.getenv("WANDB_ENTITY"),
-        }
-
-        missing_vars = [k for k, v in required_env_vars.items() if not v]
-        if missing_vars:
-            logger.warning(f"Missing required environment variables: {', '.join(missing_vars)}")
-            return
-
-        logger.info(f"[RUN] Sending W&B alert: {title}")
-
-        # Build alert text
-        alert_text = description
-
-        # Add runtime info if available
-        start_time = os.getenv("START_TIME")
-        if start_time and start_time != "0":
-            try:
-                current_time = int(time.time())
-                duration = current_time - int(start_time)
-                hours = duration // 3600
-                minutes = (duration % 3600) // 60
-                alert_text += f"\nRuntime: {hours}h {minutes}m"
-            except (ValueError, TypeError):
-                pass
-
-        # Add additional context
-        alert_text += f"\nNodes: {total_nodes}"
-        alert_text += f"\nTask ID: {os.environ.get('SKYPILOT_TASK_ID', 'N/A')}"
-
-        # Send the alert
-        send_wandb_alert(
-            title=f"{emoji} {title}",
-            text=alert_text,
-            run_id=required_env_vars["METTA_RUN_ID"] or "",
-            project=required_env_vars["WANDB_PROJECT"] or "",
-            entity=required_env_vars["WANDB_ENTITY"] or "",
-        )
-
-    except Exception as e:
-        logger.warning(f"Failed to send W&B alert: {e}")
 
 
 def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
@@ -435,6 +168,8 @@ def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
     if not is_master:
         return exit_code
 
+    log_final_summary(exit_code, termination_reason)
+
     # Determine job status (generic)
     state, description, final_exit_code = determine_job_status(exit_code, termination_reason)
 
@@ -445,7 +180,7 @@ def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
     elif termination_reason == "max_runtime_reached":
         send_discord_notification("✅", "SkyPilot Job Completed", description, "")
         send_wandb_alert_notification(state, description)
-    elif exit_code == EXIT_NCCL_TEST_FAILURE:
+    elif termination_reason == "nccl_tests_failed":
         send_discord_notification("🔧", "SkyPilot Job NCCL Config Error", description, "")
         send_wandb_alert_notification(state, description)
     elif state == "success":
@@ -458,23 +193,8 @@ def handle_master_cleanup(exit_code: int, termination_reason: str) -> int:
     return final_exit_code
 
 
-def print_final_summary(exit_code: int, termination_reason: str):
-    """Print final job summary."""
-    logger.info("[SUMMARY] ===== Job Summary =====")
-    logger.info(f"[SUMMARY] Metta Run ID: {os.environ.get('METTA_RUN_ID', 'N/A')}")
-    logger.info(f"[SUMMARY] Skypilot Task ID: {os.environ.get('SKYPILOT_TASK_ID', 'N/A')}")
-    logger.info(f"[SUMMARY] Exit code: {exit_code}")
-    logger.info(f"[SUMMARY] Termination reason: {termination_reason or 'unknown'}")
-    logger.info("[SUMMARY] ======================")
-
-    logger.info(f"[RUN] Job complete with exit code: {exit_code} (reason: {termination_reason or 'unknown'})")
-
-
 def main():
-    """Main entry point that runs the full lifecycle and returns exit code."""
-    # Setup environment
     log_config()
-    setup_signal_handlers()
 
     if is_master:
         latency_sec = calculate_queue_latency()
@@ -487,61 +207,14 @@ def main():
 
         log_to_wandb({"skypilot/hourly_cost": total_hourly_cost, "skypilot/queue_latency_s": latency_sec})
 
-    # Run NCCL tests on all nodes
     if test_nccl and restart_count == 0:
-        logger.info("Running GPU diagnostics and NCCL tests...")
-        try:
-            result = subprocess.run(
-                ["uv", "run", "python", "./devops/skypilot/utils/nccl_tests.py"],
-                capture_output=True,
-                text=True,
-            )
+        test_passed = launch_nccl_tests(logger, is_master)
+        if not test_passed:
+            sys.exit(handle_master_cleanup(EXIT_AND_STOP, "nccl_tests_failed"))
 
-            if is_master and result.stdout:
-                print(result.stdout)
+    run_training_in_background()
 
-            if result.returncode != 0:
-                logger.error(f"NCCL tests failed: {result.stderr}")
-                sys.exit(EXIT_NCCL_TEST_FAILURE)
-            else:
-                logger.info("NCCL tests passed")
-
-        except Exception as e:
-            logger.error(f"Failed to run NCCL tests: {e}")
-            sys.exit(EXIT_NCCL_TEST_FAILURE)
-
-    exit_code = EXIT_FAILURE
-    termination_reason = ""
-
-    try:
-        start_monitors(shutdown_callback=trigger_shutdown)
-        exit_code = run_training()
-        termination_reason = get_termination_reason()
-
-    except SystemExit:
-        # Re-raise system exit to be handled properly
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        exit_code = EXIT_FAILURE
-        if not termination_reason:
-            termination_reason = "unexpected_error"
-
-    logger.info(f"[INFO] Termination reason: {termination_reason}")
-
-    # Handle cleanup and potentially modify exit code
-    final_exit_code = handle_master_cleanup(exit_code, termination_reason)
-    print_final_summary(exit_code, termination_reason)
-
-    # Sleep briefly before exit
-    time.sleep(1)
-
-    if termination_reason in ["max_runtime_reached", "completed", "heartbeat_timeout"]:
-        logger.info("Will exit with code 0 to prevent SkyPilot restart")
-        return EXIT_SUCCESS
-    else:
-        logger.info(f"Will exit with code: {final_exit_code}")
-        return final_exit_code
+    start_monitoring_loop()
 
 
 if __name__ == "__main__":

@@ -1141,5 +1141,29 @@ def main():
     return 0 if all_passed else 1
 
 
+def launch_nccl_tests(logger, is_master: bool) -> bool:
+    logger.info("Running GPU diagnostics and NCCL tests...")
+    try:
+        result = subprocess.run(
+            ["uv", "run", "python", "./devops/skypilot/utils/nccl_tests.py"],
+            capture_output=True,
+            text=True,
+        )
+
+        if is_master and result.stdout:
+            print(result.stdout)
+
+        if result.returncode != 0:
+            logger.error(f"NCCL tests failed: {result.stderr}")
+            return False
+        else:
+            logger.info("NCCL tests passed")
+            return True
+
+    except Exception as e:
+        logger.error(f"Failed to run NCCL tests: {e}")
+        return False
+
+
 if __name__ == "__main__":
     sys.exit(main())
