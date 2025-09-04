@@ -182,34 +182,27 @@ proc getConcentricWanderPoint*(clippy: pointer, r: var Rand): IVec2 =
   
   return ivec2(x, y)
 
-proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
+proc getClippyMoveDirection*(clippyPtr: pointer, things: seq[pointer], r: var Rand): IVec2 =
   ## Determine which direction a Clippy should move
   ## Priority: 1) Chase agent if seen, 2) Move toward altar if seen, 
   ## 3) Wander in concentric circles around home temple
   
-  # First, find the clippy in the things list to access its state
-  var clippyPtr: pointer = nil
-  for thingPtr in things:
-    if isNil(thingPtr):
-      continue
-    let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
-    if thing.kind == 6 and thing.pos == clippyPos:  # Found our clippy
-      clippyPtr = thingPtr
-      break
-  
   if isNil(clippyPtr):
-    # Fallback to random if we can't find ourselves
+    # Fallback to random if invalid clippy
     let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
     return r.sample(directions)
   
   let clippyThing = cast[ptr tuple[
     kind: int, pos: IVec2, id: int, layer: int, hearts: int, 
-    resources: int, cooldown: int, agentId: int, orientation: int,
+    resources: int, cooldown: int, frozen: int, inventory: int,
+    agentId: int, orientation: int,
     inventoryOre: int, inventoryBattery: int, inventoryWater: int,
     inventoryWheat: int, inventoryWood: int, reward: float32,
     homeAltar: IVec2, homeTemple: IVec2, wanderRadius: int,
     wanderAngle: float, targetPos: IVec2, wanderStepsRemaining: int
   ]](clippyPtr)
+  
+  let clippyPos = clippyThing.pos
   
   # Check if we should continue wandering despite seeing targets
   if clippyThing.wanderStepsRemaining > 0:

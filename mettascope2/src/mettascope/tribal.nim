@@ -707,7 +707,7 @@ proc init(env: Environment) =
     let houseStruct = createHouseStructure()
     var gridPtr = cast[PlacementGrid](env.grid.addr)
     var terrainPtr = env.terrain.addr
-    let placementResult = findPlacement(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r)
+    let placementResult = findPlacement(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = true)
     
     if placementResult.success:  # Valid location found
       let elements = getStructureElements(houseStruct, placementResult.position)
@@ -1062,7 +1062,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       thingPtrs.add(cast[pointer](t))
     
     # Get movement direction from clippy AI
-    let moveDir = getClippyMoveDirection(clippy.pos, thingPtrs, r)
+    let moveDir = getClippyMoveDirection(cast[pointer](clippy), thingPtrs, r)
     let newPos = clippy.pos + moveDir
     
     # Check if new position is valid and empty

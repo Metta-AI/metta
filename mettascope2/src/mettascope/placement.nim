@@ -1,7 +1,7 @@
 ## Unified placement system for terrain and structures
 ## Handles placement priority: river → terrain features → structures → objects
 
-import std/[random, math], vmath, terrain
+import std/[random, math, algorithm], vmath, terrain
 
 type
   PlacementPriority* = enum
@@ -105,8 +105,9 @@ proc canPlaceAt*(grid: PlacementGrid, terrain: ptr TerrainGrid,
 
 proc findPlacement*(grid: PlacementGrid, terrain: ptr TerrainGrid,
                    structure: Structure, mapWidth, mapHeight, mapBorder: int,
-                   r: var Rand, maxAttempts = 100): PlacementResult =
+                   r: var Rand, maxAttempts = 100, preferCorners = false): PlacementResult =
   ## Find a suitable location for any structure
+  ## If preferCorners is true, tries corner locations first (for houses)
   
   # Calculate search bounds
   let minX = mapBorder + (if structure.needsBuffer: structure.bufferSize else: 0)
@@ -117,7 +118,43 @@ proc findPlacement*(grid: PlacementGrid, terrain: ptr TerrainGrid,
   if maxX <= minX or maxY <= minY:
     return PlacementResult(success: false, message: "Map too small for structure")
   
-  # Try random placement first
+  # If preferCorners, try corner regions first
+  if preferCorners:
+    # Define corner regions (25% of map from each corner)
+    let cornerSize = min(mapWidth, mapHeight) div 4
+    
+    # Define the 4 corner regions with some randomness
+    var cornerRegions: seq[tuple[minX, maxX, minY, maxY: int]] = @[]
+    
+    # Top-left corner
+    cornerRegions.add((minX, min(minX + cornerSize, maxX), 
+                       minY, min(minY + cornerSize, maxY)))
+    # Top-right corner
+    cornerRegions.add((max(maxX - cornerSize, minX), maxX,
+                       minY, min(minY + cornerSize, maxY)))
+    # Bottom-left corner
+    cornerRegions.add((minX, min(minX + cornerSize, maxX),
+                       max(maxY - cornerSize, minY), maxY))
+    # Bottom-right corner
+    cornerRegions.add((max(maxX - cornerSize, minX), maxX,
+                       max(maxY - cornerSize, minY), maxY))
+    
+    # Shuffle corner order for variety
+    for i in countdown(cornerRegions.len - 1, 1):
+      let j = r.rand(0 .. i)
+      swap(cornerRegions[i], cornerRegions[j])
+    
+    # Try each corner region
+    for region in cornerRegions:
+      for attempt in 0 ..< maxAttempts div 4:  # Fewer attempts per corner
+        let x = r.rand(region.minX ..< region.maxX)
+        let y = r.rand(region.minY ..< region.maxY)
+        let pos = ivec2(x.int32, y.int32)
+        
+        if canPlaceAt(grid, terrain, pos, structure, mapWidth, mapHeight):
+          return PlacementResult(success: true, position: pos)
+  
+  # Try random placement (original behavior)
   for attempt in 0 ..< maxAttempts:
     let x = r.rand(minX ..< maxX)
     let y = r.rand(minY ..< maxY)
