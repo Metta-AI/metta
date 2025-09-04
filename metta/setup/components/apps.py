@@ -45,15 +45,15 @@ class AppsSetup(SetupModule):
         installer = self._get_brew_installer_if_available()
         installed_casks = installer.get_installed_casks() if installer else []
 
-        uninstalled: set[AppConfig] = set()
+        uninstalled: list[AppConfig] = []
         for app in apps:
             if app.cask and app.cask in installed_casks:
                 continue
             elif app.alternate_app_path and os.path.exists(app.alternate_app_path):
                 continue
             else:
-                uninstalled.add(app)
-        return list(uninstalled)
+                uninstalled.append(app)
+        return uninstalled
 
     def _get_brew_installer_if_available(self) -> BrewInstaller | None:
         installer = get_package_installer()
