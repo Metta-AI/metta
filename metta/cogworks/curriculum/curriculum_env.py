@@ -31,12 +31,16 @@ class CurriculumEnv(PufferEnv):
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
-        # Stats batching configuration
+        # Stats batching configuration - increased from 10 to 50 for better performance
         self._stats_update_counter = 0
-        self._stats_update_frequency = 10  # Update stats every 10 steps
+        self._stats_update_frequency = 50  # Update stats every 50 steps instead of 10
 
         # Pre-compute string prefix for performance
         self._CURRICULUM_STAT_PREFIX = "env_curriculum/"
+
+        # Cache for curriculum stats to avoid recomputation
+        self._cached_stats = {}
+        self._stats_cache_valid = False
 
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
         """Add curriculum statistics to info dictionary for logging.
@@ -47,9 +51,12 @@ class CurriculumEnv(PufferEnv):
         # Only update curriculum stats periodically to reduce overhead
         self._stats_update_counter += 1
         if self._stats_update_counter >= self._stats_update_frequency:
-            curriculum_stats = self._curriculum.stats()
+            if not self._stats_cache_valid:
+                self._cached_stats = self._curriculum.stats()
+                self._stats_cache_valid = True
+
             # Use pre-computed prefix for better performance
-            for key, value in curriculum_stats.items():
+            for key, value in self._cached_stats.items():
                 info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
             self._stats_update_counter = 0
 
@@ -61,10 +68,15 @@ class CurriculumEnv(PufferEnv):
         self._current_task = self._curriculum.get_task()
         self._env.set_mg_config(self._current_task.get_env_cfg())
 
-        # Always log curriculum stats on reset for immediate visibility
-        curriculum_stats = self._curriculum.stats()
-        for key, value in curriculum_stats.items():
-            info[self._CURRICULUM_STAT_PREFIX + key] = value
+        # Invalidate stats cache on reset
+        self._stats_cache_valid = False
+
+        # Only log curriculum stats on reset if cache is invalid or this is first reset
+        if not hasattr(self, "_first_reset_done"):
+            curriculum_stats = self._curriculum.stats()
+            for key, value in curriculum_stats.items():
+                info[self._CURRICULUM_STAT_PREFIX + key] = value
+            self._first_reset_done = True
 
         return obs, info
 
@@ -85,6 +97,9 @@ class CurriculumEnv(PufferEnv):
             self._current_task = self._curriculum.get_task()
             self._env.set_mg_config(self._current_task.get_env_cfg())
 
+            # Invalidate stats cache when task changes
+            self._stats_cache_valid = False
+
         # Add curriculum stats to info for logging (batched)
         self._add_curriculum_stats_to_info(infos)
 
@@ -94,7 +109,7 @@ class CurriculumEnv(PufferEnv):
         """Set the frequency of curriculum stats updates during steps.
 
         Args:
-            frequency: Number of steps between stats updates (default: 10)
+            frequency: Number of steps between stats updates (default: 50)
         """
         self._stats_update_frequency = max(1, frequency)
         self._stats_update_counter = 0  # Reset counter
@@ -102,6 +117,7 @@ class CurriculumEnv(PufferEnv):
     def force_stats_update(self) -> None:
         """Force an immediate update of curriculum stats."""
         self._stats_update_counter = self._stats_update_frequency
+        self._stats_cache_valid = False
 
     def __getattribute__(self, name: str):
         """Intercept all attribute access and delegate to wrapped environment when appropriate.
@@ -120,6 +136,9 @@ class CurriculumEnv(PufferEnv):
             "_stats_update_frequency",
             "set_stats_update_frequency",
             "force_stats_update",
+            "_cached_stats",
+            "_stats_cache_valid",
+            "_first_reset_done",
         ):
             return object.__getattribute__(self, name)
 

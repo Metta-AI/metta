@@ -46,6 +46,10 @@ class BucketAnalyzer:
         # Monitored buckets (limited by max_bucket_axes)
         self._monitored_buckets: set = set()
 
+        # Cache for expensive density statistics
+        self._density_stats_cache: Optional[Dict[str, Dict[str, float]]] = None
+        self._density_cache_valid = False
+
     def extract_bucket_values(self, task) -> Dict[str, Any]:
         """Extract bucket values from a task's environment configuration."""
         bucket_values = {}
@@ -79,8 +83,15 @@ class BucketAnalyzer:
                 self._bucket_completion_counts[bucket_name][bin_index] += 1
                 self._bucket_completion_history[bucket_name].append((bin_index, score))
 
+        # Invalidate density cache when completion data changes
+        self._density_cache_valid = False
+
     def get_completion_density_stats(self) -> Dict[str, Dict[str, float]]:
         """Get completion density statistics for all monitored buckets."""
+        # Return cached result if valid
+        if self._density_cache_valid and self._density_stats_cache is not None:
+            return self._density_stats_cache
+
         stats = {}
 
         for bucket_name in self._monitored_buckets:
@@ -119,6 +130,9 @@ class BucketAnalyzer:
                 "num_total_bins": num_total_bins,
             }
 
+        # Cache the result
+        self._density_stats_cache = stats
+        self._density_cache_valid = True
         return stats
 
     def get_underexplored_regions(self, bucket_name: str) -> List[int]:
@@ -147,7 +161,7 @@ class BucketAnalyzer:
             set(task_id for bucket_tasks in self._bucket_tracking.values() for task_id in bucket_tasks.keys())
         )
 
-        # Average completion density across all buckets
+        # Use cached density stats to avoid recomputation
         density_stats = self.get_completion_density_stats()
         if density_stats:
             avg_density_coverage = np.mean([stats["density_coverage"] for stats in density_stats.values()])
@@ -167,6 +181,9 @@ class BucketAnalyzer:
         """Remove task from bucket tracking."""
         for bucket_tasks in self._bucket_tracking.values():
             bucket_tasks.pop(task_id, None)
+
+        # Invalidate density cache when tasks are removed
+        self._density_cache_valid = False
 
     def _initialize_bucket_bins(self, bucket_name: str, sample_value: Any) -> None:
         """Initialize binning for a new bucket based on sample value."""
@@ -200,16 +217,12 @@ class BucketAnalyzer:
             if value in bins:
                 return bins.index(value)
             else:
-                # Add new discrete value if we have room
-                if len(bins) < 50:  # Limit discrete bins
-                    bins.append(value)
-                    return len(bins) - 1
-                return None
+                # Add new bin for unseen discrete value
+                bins.append(value)
+                return len(bins) - 1
         else:
             # Continuous values - find appropriate bin
-            try:
-                value_float = float(value)
-                bin_index = np.digitize(value_float, bins) - 1
-                return max(0, min(bin_index, len(bins) - 2))
-            except (ValueError, TypeError):
-                return None
+            bin_edges = np.array(bins)
+            bin_index = np.digitize(value, bin_edges) - 1
+            # Clamp to valid range
+            return max(0, min(bin_index, len(bin_edges) - 2))

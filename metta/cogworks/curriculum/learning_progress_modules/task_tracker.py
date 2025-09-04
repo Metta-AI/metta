@@ -25,6 +25,10 @@ class TaskTracker:
         # Performance tracking
         self._completion_history = deque(maxlen=1000)  # Recent completion scores
 
+        # Cached values to avoid expensive recomputation
+        self._cached_total_completions = 0
+        self._cache_valid = False
+
     def track_task_creation(self, task_id: int) -> None:
         """Track when a task is created."""
         timestamp = time.time()
@@ -34,6 +38,9 @@ class TaskTracker:
         # Cleanup old tasks if we exceed memory limit
         if len(self._task_memory) > self.max_memory_tasks:
             self._cleanup_old_tasks()
+
+        # Invalidate cache when task structure changes
+        self._cache_valid = False
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance with new completion score."""
@@ -46,6 +53,12 @@ class TaskTracker:
 
         self._task_memory[task_id] = (creation_time, new_completion_count, new_total_score, score)
         self._completion_history.append(score)
+
+        # Update cached total completions incrementally
+        if self._cache_valid:
+            self._cached_total_completions += 1
+        else:
+            self._cache_valid = False
 
     def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
         """Get statistics for a specific task."""
@@ -75,8 +88,18 @@ class TaskTracker:
 
     def remove_task(self, task_id: int) -> None:
         """Remove a task from tracking."""
-        self._task_memory.pop(task_id, None)
-        # Note: We don't remove from creation_order for performance - cleanup handles this
+        if task_id in self._task_memory:
+            # Update cached total before removal
+            if self._cache_valid:
+                _, completion_count, _, _ = self._task_memory[task_id]
+                self._cached_total_completions -= completion_count
+
+            self._task_memory.pop(task_id, None)
+            # Note: We don't remove from creation_order for performance - cleanup handles this
+
+            # Invalidate cache if removal makes it invalid
+            if not self._cache_valid:
+                self._cache_valid = False
 
     def get_global_stats(self) -> Dict[str, float]:
         """Get global performance statistics."""
@@ -87,12 +110,17 @@ class TaskTracker:
                 "total_completions": 0,
             }
 
-        total_completions = sum(completion_count for _, completion_count, _, _ in self._task_memory.values())
+        # Use cached total completions if valid, otherwise compute
+        if not self._cache_valid:
+            self._cached_total_completions = sum(
+                completion_count for _, completion_count, _, _ in self._task_memory.values()
+            )
+            self._cache_valid = True
 
         return {
             "mean_recent_score": sum(self._completion_history) / len(self._completion_history),
             "total_tracked_tasks": len(self._task_memory),
-            "total_completions": total_completions,
+            "total_completions": self._cached_total_completions,
         }
 
     def _cleanup_old_tasks(self) -> None:
@@ -104,5 +132,12 @@ class TaskTracker:
         while self._task_creation_order and removed_count < cleanup_count:
             _, task_id = self._task_creation_order.popleft()
             if task_id in self._task_memory:
+                # Update cached total before removal
+                if self._cache_valid:
+                    _, completion_count, _, _ = self._task_memory[task_id]
+                    self._cached_total_completions -= completion_count
+
                 del self._task_memory[task_id]
                 removed_count += 1
+
+        # Cache may still be valid after cleanup if we tracked changes

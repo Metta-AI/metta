@@ -22,7 +22,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Performance and memory management
     max_memory_tasks: int = 1000
     max_bucket_axes: int = 3
-    enable_detailed_bucket_logging: bool = False
+    enable_detailed_bucket_logging: bool = False  # Disabled by default for performance
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -57,6 +57,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             max_bucket_axes=hypers.max_bucket_axes, enable_detailed_logging=hypers.enable_detailed_bucket_logging
         )
 
+        # Cache for expensive stats computation
+        self._stats_cache = {}
+        self._stats_cache_valid = False
+
     # CurriculumAlgorithm interface implementation
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
@@ -73,6 +77,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.lp_scorer.remove_task(task_id)
         self.bucket_analyzer.remove_task(task_id)
 
+        # Invalidate stats cache when task state changes
+        self._stats_cache_valid = False
+
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance across all components."""
         # Update task tracking
@@ -80,6 +87,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Update learning progress EMA
         self.lp_scorer.update_task_ema(task_id, score)
+
+        # Invalidate stats cache when performance updates
+        self._stats_cache_valid = False
 
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle new task creation."""
@@ -94,8 +104,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # Initialize bucket tracking with default score
             self.bucket_analyzer.track_task_completion(task_id, bucket_values, 0.0)
 
+        # Invalidate stats cache when new tasks are created
+        self._stats_cache_valid = False
+
     def stats(self, prefix: str = "") -> Dict[str, float]:
         """Get comprehensive statistics from all components."""
+        # Use cached stats if valid to avoid expensive recomputation
+        if self._stats_cache_valid and prefix in self._stats_cache:
+            return self._stats_cache[prefix]
+
         stats = {}
 
         # Add prefix to all keys
@@ -111,39 +128,31 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Bucket analysis stats
         stats.update(add_prefix(self.bucket_analyzer.get_global_stats(), "buckets/"))
 
-        # Detailed bucket density stats (if enabled)
+        # Detailed bucket density stats (if enabled) - this is expensive
         if self.hypers.enable_detailed_bucket_logging:
             density_stats = self.bucket_analyzer.get_completion_density_stats()
             for bucket_name, bucket_stats in density_stats.items():
                 bucket_prefix = f"bucket_{bucket_name}/"
                 stats.update(add_prefix(bucket_stats, bucket_prefix))
 
+        # Cache the result
+        self._stats_cache[prefix] = stats
+        self._stats_cache_valid = True
+
         return stats
 
     def _choose_task(self) -> int:
-        """Choose a task from the tracked tasks (for testing compatibility)."""
-        if not self.task_tracker._task_memory:
-            raise ValueError("No tasks in pool to sample from")
+        """
+        Choose a task using learning progress guided sampling.
 
-        task_ids = list(self.task_tracker._task_memory.keys())
-        scores = self.score_tasks(task_ids)
-
-        # Convert scores to probabilities for sampling
-        score_values = list(scores.values())
-        total_score = sum(score_values)
-
-        if total_score > 0:
-            probabilities = [score / total_score for score in score_values]
-            import numpy as np
-
-            return np.random.choice(task_ids, p=probabilities)
-        else:
-            import random
-
-            return random.choice(task_ids)
+        This delegates to the parent class implementation which uses
+        score_tasks() to get weights for weighted sampling.
+        """
+        # Use parent implementation that calls our score_tasks method
+        return super()._choose_task()
 
     def _choose_task_from_list(self, task_ids: List[int]) -> int:
-        """Choose a task from a specific list of task IDs."""
+        """Choose a task from a specific list of task IDs using learning progress scores."""
         if not task_ids:
             raise ValueError("No tasks provided to sample from")
 
@@ -155,7 +164,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         scores = self.score_tasks(task_ids)
 
         # Convert scores to probabilities for sampling
-        score_values = list(scores.values())
+        score_values = [scores.get(task_id, 0.0) for task_id in task_ids]
         total_score = sum(score_values)
 
         if total_score > 0:
