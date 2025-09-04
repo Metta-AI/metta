@@ -468,7 +468,7 @@ def get_git_hash_for_remote_task(
                 logger.warning("Running on skypilot: proceeding despite unstaged changes")
             else:
                 raise GitError(
-                    "You have uncommitted changes to tracked files that won't be reflected in the remote task.\n"
+                    "You have uncommitted changes that won't be reflected in the remote task.\n"
                     f"You can push your changes or specify to skip this check with {skip_cmd}"
                 )
     elif status_output:
