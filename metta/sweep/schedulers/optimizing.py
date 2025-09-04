@@ -173,6 +173,7 @@ class OptimizingScheduler:
             overrides["stats_server_uri"] = self.config.stats_server_uri
             overrides["trainer.evaluation.evaluate_remote"] = "True"
             overrides["trainer.evaluation.evaluate_local"] = "False"
+            overrides["trainer.evaluation.skip_git_check"] = "True"
 
         return overrides
 
