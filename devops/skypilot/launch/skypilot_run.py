@@ -14,9 +14,7 @@ from devops.skypilot.utils.nccl_tests import launch_nccl_tests
 from devops.skypilot.utils.notifications import (
     log_config,
     log_final_summary,
-    send_discord_notification,
-    send_wandb_alert_notification,
-    set_github_status,
+    send_notifications,
 )
 from devops.skypilot.utils.runtime_monitors import HeartbeatMonitor, TimeoutMonitor
 from metta.common.util.log_config import getRankAwareLogger
@@ -92,47 +90,6 @@ def monitor_until_termination() -> str:
                 logger.info(f"{monitor.name} triggered: {reason}")
                 return reason
         time.sleep(10)
-
-
-def send_notifications(termination_reason: str):
-    """Send notifications based on termination reason."""
-    if not is_master:
-        return
-
-    notifications = {
-        "heartbeat_timeout": {
-            "emoji": "🚨",
-            "title": "SkyPilot Job Heartbeat Timeout",
-            "description": f"Job failed - no heartbeat for {heartbeat_timeout} seconds",
-            "discord": True,
-            "wandb": True,
-        },
-        "max_runtime_reached": {
-            "emoji": "✅",
-            "title": "SkyPilot Job Completed",
-            "description": f"Job ran successfully for {max_runtime_hours} hours",
-            "discord": True,
-            "wandb": True,
-        },
-        "nccl_tests_failed": {
-            "emoji": "🔧",
-            "title": "SkyPilot Job NCCL Config Error",
-            "description": "NCCL tests failed",
-            "discord": True,
-            "wandb": True,
-        },
-    }
-
-    if termination_reason in notifications:
-        notif = notifications[termination_reason]
-        if notif.get("discord"):
-            send_discord_notification(notif["emoji"], notif["title"], notif["description"], "")
-        if notif.get("wandb"):
-            send_wandb_alert_notification("failure", notif["description"])
-
-        # GitHub status
-        state = "success" if termination_reason == "max_runtime_reached" else "failure"
-        set_github_status(0, state, notif["description"])
 
 
 def main() -> int:

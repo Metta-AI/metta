@@ -5,8 +5,10 @@ SkyPilot run manager that handles process groups and monitoring with integrated 
 
 import os
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from gitta import post_commit_status
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
@@ -82,7 +84,7 @@ def log_final_summary(exit_code: int, termination_reason: str):
     logger.info(f"[RUN] Job complete with exit code: {exit_code} (reason: {termination_reason or 'unknown'})")
 
 
-def set_github_status(exit_code: int, state: str, description: str):
+def set_github_status(state: str, description: str):
     """Update GitHub commit status."""
     # Early exit if disabled
     if not is_master or not enable_github_status:
@@ -102,8 +104,6 @@ def set_github_status(exit_code: int, state: str, description: str):
 
     # Build description
     desc = description
-    if exit_code and exit_code != 0 and state in ["failure", "error"]:
-        desc += f" (exit code {exit_code})"
 
     if job_id:
         logger.info(f"Setting GitHub status for job {job_id}")
@@ -283,3 +283,61 @@ def send_wandb_alert_notification(state: str, description: str):
 
     except Exception as e:
         logger.warning(f"Failed to send W&B alert: {e}")
+
+
+@dataclass
+class NotificationConfig:
+    """Configuration for a notification."""
+
+    emoji: str
+    title: str
+    description: str
+    discord: bool = True
+    wandb: bool = True
+    github: bool = True
+    github_state: str = "failure"  # Can be overridden for success cases
+
+
+def send_notifications(
+    termination_reason: str, heartbeat_timeout: Optional[int] = None, max_runtime_hours: Optional[float] = None
+):
+    """Send notifications based on termination reason."""
+    if not is_master:
+        return
+
+    # Use module-level values if not provided
+    if heartbeat_timeout is None:
+        heartbeat_timeout = globals()["heartbeat_timeout"]
+    if max_runtime_hours is None:
+        max_runtime_hours = globals()["max_runtime_hours"]
+
+    notifications = {
+        "heartbeat_timeout": NotificationConfig(
+            emoji="🚨",
+            title="SkyPilot Job Heartbeat Timeout",
+            description=f"Job failed - no heartbeat for {heartbeat_timeout} seconds",
+        ),
+        "max_runtime_reached": NotificationConfig(
+            emoji="✅",
+            title="SkyPilot Job Completed",
+            description=f"Job ran successfully for {max_runtime_hours} hours",
+            github_state="success",
+        ),
+        "nccl_tests_failed": NotificationConfig(
+            emoji="🔧",
+            title="SkyPilot Job NCCL Config Error",
+            description="NCCL tests failed",
+        ),
+    }
+
+    if termination_reason in notifications:
+        n = notifications[termination_reason]
+
+        if n.discord:
+            send_discord_notification(n.emoji, n.title, n.description, "")
+
+        if n.wandb:
+            send_wandb_alert_notification("failure", n.description)
+
+        if n.github:
+            set_github_status(n.github_state, n.description)
