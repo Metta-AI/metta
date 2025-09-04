@@ -11,7 +11,7 @@ const
   # MapRoomObjectsAgents* = 70
   # MapRoomObjectsAltars* = 50
   # MapRoomObjectsConverters* = 100
-  # MapRoomObjectsGenerators* = 100
+  # MapRoomObjectsMines* = 100
   # MapRoomObjectsWalls* = 400
 
   MapLayoutRoomsX* = 1
@@ -23,7 +23,7 @@ const
   MapRoomObjectsAgents* = 10
   MapRoomObjectsAltars* = 10
   MapRoomObjectsConverters* = 10
-  MapRoomObjectsGenerators* = 10
+  MapRoomObjectsMines* = 10
   MapRoomObjectsWalls* = 40
 
   MapObjectAgentInitialEnergy* = 250
@@ -47,10 +47,10 @@ const
   MapObjectConverterCooldown* = 2
   MapObjectConverterEnergyOutput* = 100
 
-  MapObjectGeneratorHp* = 30
-  MapObjectGeneratorCooldown* = 5
-  MapObjectGeneratorInitialResources* = 30
-  MapObjectGeneratorUseCost* = 0
+  MapObjectMineHp* = 30
+  MapObjectMineCooldown* = 5
+  MapObjectMineInitialResources* = 30
+  MapObjectMineUseCost* = 0
 
   MapObjectWallHp* = 10
 
@@ -81,10 +81,10 @@ type
     AgentInventory3Layer = 8
     WallLayer = 9
     WallHpLayer = 10
-    GeneratorLayer = 11
-    GeneratorHpLayer = 12
-    GeneratorResourceLayer = 13
-    GeneratorReadyLayer = 14
+    MineLayer = 11
+    MineHpLayer = 12
+    MineResourceLayer = 13
+    MineReadyLayer = 14
     ConverterLayer = 15
     ConverterHpLayer = 16
     ConverterInputResourceLayer = 17
@@ -104,7 +104,7 @@ type
   ThingKind* = enum
     Agent
     Wall
-    Generator
+    Mine
     Converter
     Altar
 
@@ -136,7 +136,7 @@ type
     actionAttackAgent*: int
     actionAttackAltar*: int
     actionAttackConverter*: int
-    actionAttackGenerator*: int
+    actionAttackMine*: int
     actionAttackWall*: int
     actionMove*: int
     actionNoop*: int
@@ -144,7 +144,7 @@ type
     actionShield*: int
     actionSwap*: int
     actionUse*: int
-    actionUseGenerator*: int
+    actionUseMine*: int
     actionUseConverter*: int
     actionUseAltar*: int
 
@@ -176,7 +176,7 @@ proc render*(env: Environment): string =
             cell = "A"
           of Wall:
             cell = "#"
-          of Generator:
+          of Mine:
             cell = "g"
           of Converter:
             cell = "c"
@@ -200,10 +200,10 @@ proc renderObservations*(env: Environment): string =
     "agent:inv:r3",
     "wall",
     "wall:hp",
-    "generator",
-    "generator:hp",
-    "generator:r1",
-    "generator:ready",
+    "mine",
+    "mine:hp",
+    "mine:r1",
+    "mine:ready",
     "converter",
     "converter:hp",
     "converter:input_resource",
@@ -285,14 +285,14 @@ proc updateObservations(env: Environment, agentId: int) =
         # wall:hp
         obs[10][x][y] = thing.hp.uint8
 
-      of Generator:
-        # generator
+      of Mine:
+        # mine
         obs[11][x][y] = 1
-        # generator:hp
+        # mine:hp
         obs[12][x][y] = thing.hp.uint8
-        # generator:r1
+        # mine:r1
         obs[13][x][y] = thing.inputResource.uint8
-        # generator:ready
+        # mine:ready
         obs[14][x][y] = (thing.cooldown == 0).uint8
 
       of Converter:
@@ -461,15 +461,15 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
       inc env.stats[id].actionUseAltar
       inc env.stats[id].actionUse
-  of Generator:
-    if thing.cooldown == 0 and agent.energy >= MapObjectGeneratorUseCost:
-      agent.energy -= MapObjectGeneratorUseCost
+  of Mine:
+    if thing.cooldown == 0 and agent.energy >= MapObjectMineUseCost:
+      agent.energy -= MapObjectMineUseCost
       env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
       agent.inventory += 1
       env.updateObservations(AgentInventory1Layer, agent.pos, agent.inventory)
-      thing.cooldown = MapObjectGeneratorCooldown
-      env.updateObservations(GeneratorReadyLayer, thing.pos, thing.cooldown)
-      inc env.stats[id].actionUseGenerator
+      thing.cooldown = MapObjectMineCooldown
+      env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
+      inc env.stats[id].actionUseMine
       inc env.stats[id].actionUse
   of Converter:
     if thing.cooldown == 0 and agent.inventory > 0:
@@ -514,8 +514,8 @@ proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
       inc env.stats[id].actionAttackAltar
     elif target.kind == Converter:
       inc env.stats[id].actionAttackConverter
-    elif target.kind == Generator:
-      inc env.stats[id].actionAttackGenerator
+    elif target.kind == Mine:
+      inc env.stats[id].actionAttackMine
     elif target.kind == Wall:
       inc env.stats[id].actionAttackWall
     inc env.stats[id].actionAttack
@@ -635,12 +635,12 @@ proc init(env: Environment) =
       hp: MapObjectConverterHp,
     ))
 
-  for i in 0 ..< MapRoomObjectsGenerators:
+  for i in 0 ..< MapRoomObjectsMines:
     let pos = r.randomEmptyPos(env)
     env.add(Thing(
-      kind: Generator,
+      kind: Mine,
       pos: pos,
-      hp: MapObjectGeneratorHp,
+      hp: MapObjectMineHp,
     ))
 
   for agentId in 0 ..< MapAgents:
@@ -680,12 +680,12 @@ proc loadMap*(env: Environment, map: string) =
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
         hp: MapObjectWallHp,
       ))
-    of Generator:
+    of Mine:
       env.add(Thing(
         kind: kind,
         id: id,
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-        hp: MapObjectGeneratorHp,
+        hp: MapObjectMineHp,
         inputResource: 30
       ))
     of Converter:
@@ -750,10 +750,10 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       if thing.cooldown > 0:
         thing.cooldown -= 1
         env.updateObservations(ConverterReadyLayer, thing.pos, thing.cooldown)
-    elif thing.kind == Generator:
+    elif thing.kind == Mine:
       if thing.cooldown > 0:
         thing.cooldown -= 1
-        env.updateObservations(GeneratorReadyLayer, thing.pos, thing.cooldown)
+        env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
     elif thing.kind == Agent:
       if thing.frozen > 0:
         thing.frozen -= 1
@@ -814,7 +814,7 @@ proc getEpisodeStats*(env: Environment): string =
   display "action.attack.agent", actionAttackAgent
   display "action.attack.altar", actionAttackAltar
   display "action.attack.converter", actionAttackConverter
-  display "action.attack.generator", actionAttackGenerator
+  display "action.attack.mine", actionAttackMine
   display "action.attack.wall", actionAttackWall
   display "action.move", actionMove
   display "action.noop", actionNoop
@@ -824,6 +824,6 @@ proc getEpisodeStats*(env: Environment): string =
   display "action.use", actionUse
   display "action.use.altar", actionUseAltar
   display "action.use.converter", actionUseConverter
-  display "action.use.generator", actionUseGenerator
+  display "action.use.mine", actionUseMine
 
   return result

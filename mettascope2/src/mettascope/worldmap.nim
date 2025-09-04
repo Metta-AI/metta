@@ -167,11 +167,11 @@ proc drawObjects*() =
             angle = 0,
             scale = 1/200
           )
-        of Generator:
+        of Mine:
           let
             tint = color(0.5, 0.5, 1, 1)
           bxy.drawImage(
-            "objects/generator",
+            "objects/mine",
             ivec2(x, y).vec2,
             angle = 0,
             scale = 1/200
@@ -346,9 +346,9 @@ Converter
 hp: {selection.hp}
 cooldown: {selection.cooldown}
       """
-    of Generator:
+    of Mine:
       info = &"""
-Generator
+Mine
 hp: {selection.hp}
 cooldown: {selection.cooldown}
       """
