@@ -123,6 +123,80 @@ class MettaCLI:
         success("\nCustom configuration saved.")
         info("\nRun 'metta install' to set up your environment.")
 
+    def configure_wizard(self) -> None:
+        """Interactive configuration wizard for individual components."""
+        from metta.setup.registry import get_all_modules
+        from metta.setup.utils import info
+
+        self._init_all()
+        modules = get_all_modules()
+
+        if not modules:
+            info("No configurable modules found.")
+            return
+
+        # Show available modules
+        info("\nAvailable components to configure:")
+        for i, module in enumerate(modules, 1):
+            info(f"  {i}. {module.name} - {module.description}")
+
+        while True:
+            try:
+                choice = input(f"\nEnter component number to configure (1-{len(modules)}, or 'q' to quit): ").strip()
+                if choice.lower() == "q":
+                    break
+
+                idx = int(choice) - 1
+                if 0 <= idx < len(modules):
+                    module = modules[idx]
+                    self.configure_component_unified(module.name)
+                else:
+                    print("Invalid choice. Please try again.")
+            except (ValueError, KeyboardInterrupt):
+                print("Invalid input or interrupted. Please try again.")
+
+    def configure_component_unified(self, component_name: str) -> None:
+        """Configure a specific component using unified configuration system."""
+        from metta.setup.config_manager import get_config_manager
+        from metta.setup.registry import get_all_modules
+        from metta.setup.utils import error, info, success
+
+        # Get the module
+        modules = get_all_modules()
+        module_map = {m.name: m for m in modules}
+
+        if not (module := module_map.get(component_name)):
+            error(f"Unknown component: {component_name}")
+            info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+            return
+
+        # Check if module supports interactive configuration
+        if not hasattr(module, "interactive_configure"):
+            info(f"Component '{component_name}' does not support interactive configuration.")
+            return
+
+        # Get current config
+        config_manager = get_config_manager()
+        current_config = config_manager.get_component_config(component_name)
+
+        info(f"\nConfiguring {component_name}...")
+        info("Current settings:")
+        for key, value in current_config.items():
+            info(f"  {key}: {value}")
+
+        # Run interactive configuration
+        updated = module.interactive_configure()
+        if not updated:
+            info("Configuration cancelled or no changes made.")
+            return
+
+        # Update config
+        for key, value in updated.items():
+            setattr(getattr(config_manager.config, component_name), key, value)
+
+        config_manager.save()
+        success(f"\n{component_name} configuration saved!")
+
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
         if len(text) <= max_len:
@@ -163,6 +237,19 @@ def cmd_configure(
             raise typer.Exit(1)
     else:
         cli.setup_wizard(non_interactive=non_interactive)
+
+
+@app.command(name="export-env", help="Export configuration as environment variables")
+def cmd_export_env():
+    """Export configuration as environment variables."""
+    from metta.config.schema import get_config
+
+    config = get_config()
+    env_vars = config.export_env_vars()
+
+    # Output format suitable for shell evaluation
+    for key, value in env_vars.items():
+        print(f"export {key}='{value}'")
 
 
 def configure_component(component_name: str):
