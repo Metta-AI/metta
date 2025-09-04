@@ -41,11 +41,16 @@ class OptimizingScheduler:
     def schedule(self, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]) -> list[JobDefinition]:
         """Schedule next jobs based on current state."""
 
+        # Debug: Log run statuses to identify race condition
+        for run in all_runs:
+            logger.debug(f"[OptimizingScheduler] Run {run.run_id}: status={run.status}, has_started_eval={run.has_started_eval}, has_been_evaluated={run.has_been_evaluated}")
+
         # First, check for completed training runs that need evaluation
         runs_needing_eval = [run for run in all_runs if run.status == JobStatus.TRAINING_DONE_NO_EVAL]
 
         if runs_needing_eval:
             train_run = runs_needing_eval[0]
+            logger.info(f"[OptimizingScheduler] Found run needing eval: {train_run.run_id} (has_started_eval={train_run.has_started_eval}, has_been_evaluated={train_run.has_been_evaluated})")
 
             # Merge eval_overrides with required defaults
             eval_overrides = self.config.eval_overrides.copy() if self.config.eval_overrides else {}

@@ -78,7 +78,6 @@ def ppo(
         train_entrypoint=train,
         eval_entrypoint=eval,
         max_parallel_jobs=max_parallel_jobs,
-        monitoring_interval=5,
     )
 
 
@@ -163,7 +162,6 @@ def quick_test(
         train_entrypoint="train_shaped",
         eval_entrypoint="evaluate",
         max_parallel_jobs=1,
-        monitoring_interval=5,
         train_overrides={
             "trainer.total_timesteps": "50000",  # Quick 10k timesteps for testing
         },
