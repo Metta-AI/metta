@@ -59,6 +59,7 @@ jobs:
     outputs:
       has_relevant_changes: ${{ steps.check_files.outputs.has_relevant_changes }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -67,7 +68,7 @@ jobs:
         id: check_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "metta/setup/**/*.py,tests/setup/**/*.py,metta/common/util/**/*.py,metta/app_backend/clients/**/*.py,devops/**/*.sh,**/pyproject.toml,**/pytest.ini,.github/workflows/setup-tests.yml,.github/actions/setup-uv/**/*"
+          patterns: "metta/setup/**/*.py,tests/setup/**/*.py,metta/common/util/**/*.py,metta/app_backend/clients/**/*.py,devops/**/*.sh,**/pyproject.toml,**/pytest.ini,.github/workflows/setup-tests.yml"
           specific_files: "uv.lock,install.sh"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
