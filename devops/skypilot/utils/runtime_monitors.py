@@ -162,13 +162,11 @@ class ForceRestartTestMonitor:
 
     def __init__(
         self,
-        rank: int,
         restart_time_hours: float,
     ):
         self.name = "force_restart_test"
         self.start_time = time.time()
         self.failure_delay_sec = int(restart_time_hours * 3600)
-        self.rank = rank
 
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if it's time to simulate a failure."""

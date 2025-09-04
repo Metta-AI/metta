@@ -32,6 +32,7 @@ is_master = node_index == 0
 max_runtime_hours = float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None
 heartbeat_timeout = int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None
 restart_count = int(os.environ.get("RESTART_COUNT", "0"))
+test_job_restart = os.environ.get("TEST_JOB_RESTART", "false").lower() == "true"
 test_nccl = os.environ.get("TEST_NCCL", "false").lower() == "true"
 
 
@@ -81,8 +82,8 @@ def monitor_until_termination() -> str:
     if max_runtime_hours:
         monitors.append(TimeoutMonitor(rank=node_index, max_runtime_hours=max_runtime_hours))
 
-        if is_master and restart_count == 0:
-            monitors.append(ForceRestartTestMonitor(rank=node_index, restart_time_hours=max_runtime_hours / 2.0))
+        if test_job_restart and is_master and restart_count == 0:
+            monitors.append(ForceRestartTestMonitor(restart_time_hours=max_runtime_hours / 2.0))
 
     logger.info(f"Starting monitoring loop with {len(monitors)} monitor(s)")
 
@@ -94,12 +95,6 @@ def monitor_until_termination() -> str:
                 logger.info(f"{monitor.name} triggered: {reason}")
                 return reason
         time.sleep(10)
-
-    # elif termination_reason == "force_restart_test":
-    #     logger.info("Job restarting to simulate a node failure")
-    #     state = "pending"
-    #     description = f"Forced a restart test (restart count: {restart_count + 1})"
-    #     final_exit_code = EXIT_FAILURE  # Cause SkyPilot restart
 
 
 def main() -> int:
