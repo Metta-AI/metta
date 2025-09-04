@@ -3,12 +3,11 @@ import logging
 import os
 import shutil
 import tempfile
+from typing import Callable
 
 import torch.profiler
-import wandb
 
-from metta.common.wandb.wandb_context import WandbRun
-from metta.mettagrid.util.file import http_url, is_public_uri, write_file
+from metta.mettagrid.util.file import http_url, write_file
 from metta.rl.trainer_config import TorchProfilerConfig
 from metta.rl.utils import should_run
 
@@ -34,12 +33,16 @@ class TorchProfiler:
     """
 
     def __init__(
-        self, master: bool, profiler_config: TorchProfilerConfig, wandb_run: WandbRun | None, run_dir: str
+        self,
+        master: bool,
+        profiler_config: TorchProfilerConfig,
+        log_trace_link: Callable[[str, int], None],
+        run_dir: str,
     ) -> None:
         self._master = master
         self._profiler_config = profiler_config
         self._run_dir = run_dir
-        self._wandb_run = wandb_run
+        self._log_trace_link = log_trace_link
         self._profiler = None
         self._active = False
         self._start_epoch = None
@@ -55,7 +58,7 @@ class TorchProfiler:
         if should_run(epoch, self._profiler_config.interval_epochs, force=force):
             self._setup_profiler(epoch)
 
-    def _setup_profiler(self, epoch):
+    def _setup_profiler(self, epoch: int) -> None:
         """Prepare the profiler to start on the next context entry."""
         if self._active:
             logger.warning("Profiler setup called while already active. Profiling will occur for the current setup.")
@@ -130,13 +133,8 @@ class TorchProfiler:
             write_file(upload_path, final_gz_path, content_type="application/gzip")
             upload_url = http_url(upload_path)
 
-            if is_public_uri(upload_url) and self._wandb_run:
-                link_summary = {
-                    "torch_traces/link": wandb.Html(
-                        f'<a href="{upload_url}">Torch Trace (Epoch {self._start_epoch})</a>'
-                    )
-                }
-                self._wandb_run.log(link_summary)
+            if self._start_epoch:
+                self._log_trace_link(upload_url, self._start_epoch)
 
         except Exception as e:
             logger.error(f"Error handling profile trace for epoch {self._start_epoch}: {e}", exc_info=True)
