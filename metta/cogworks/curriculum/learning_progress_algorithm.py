@@ -17,7 +17,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Core algorithm parameters
     ema_timescale: float = 0.001
-    exploration_bonus: float = 0.01
+    exploration_bonus: float = 0.1
 
     # Performance and memory management
     max_memory_tasks: int = 1000
