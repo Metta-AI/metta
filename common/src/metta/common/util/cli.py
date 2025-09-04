@@ -12,6 +12,8 @@ from typing import Callable, Iterator, Optional
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import blue, bold, cyan, green, magenta, red, yellow
 
+print("cli")
+
 
 class Spinner:
     """A simple CLI spinner for showing progress."""
