@@ -60,27 +60,27 @@ class NPCFilterWrapper:
             f"{self.policy_agents_per_env} policy agents, "
             f"{self.npc_agents_per_env} NPC agents per env"
         )
-    
+
     @property
     def num_agents(self):
         """Return the number of policy agents per environment (filtered count)."""
         return self.policy_agents_per_env
-    
+
     @property
     def driver_env(self):
         """Proxy to underlying vecenv."""
         return self.vecenv.driver_env
-    
+
     @property
     def single_action_space(self):
         """Proxy to underlying vecenv."""
         return self.vecenv.single_action_space
-    
+
     @property
     def single_observation_space(self):
         """Proxy to underlying vecenv."""
         return self.vecenv.single_observation_space
-    
+
     @property
     def envs(self):
         """Proxy to underlying vecenv."""
