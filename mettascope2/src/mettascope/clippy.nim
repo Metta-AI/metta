@@ -132,20 +132,99 @@ proc getDirectionToward*(fromPos, toPos: IVec2): IVec2 =
     if dy > 0: return ivec2(0, 1)
     else: return ivec2(0, -1)
 
+proc findNearestAgent*(clippyPos: IVec2, things: seq[pointer], visionRange: int): IVec2 =
+  ## Find the nearest agent within vision range
+  ## Returns ivec2(-1, -1) if no agent found
+  var nearestPos = ivec2(-1, -1)
+  var minDist = int.high
+  
+  for thingPtr in things:
+    if isNil(thingPtr):
+      continue
+    let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
+    # Agent is the 1st enum value (0-indexed), so value is 0
+    if thing.kind == 0:  # Agent kind
+      let dist = manhattanDistance(clippyPos, thing.pos)
+      if dist <= visionRange and dist < minDist:
+        minDist = dist
+        nearestPos = thing.pos
+  
+  return nearestPos
+
+proc getConcentricWanderPoint*(clippy: pointer, r: var Rand): IVec2 =
+  ## Get next point in expanding concentric circle pattern around home temple
+  let clippyThing = cast[ptr tuple[
+    kind: int, pos: IVec2, id: int, layer: int, hearts: int, 
+    resources: int, cooldown: int, agentId: int, orientation: int,
+    inventoryOre: int, inventoryBattery: int, inventoryWater: int,
+    inventoryWheat: int, inventoryWood: int, reward: float32,
+    homeAltar: IVec2, homeTemple: IVec2, wanderRadius: int,
+    wanderAngle: float, targetPos: IVec2
+  ]](clippy)
+  
+  # Increment angle to move around the circle
+  clippyThing.wanderAngle += 0.7853  # ~45 degrees in radians for 8 points
+  
+  # Complete circle, expand radius
+  if clippyThing.wanderAngle >= 6.28:  # 2*PI
+    clippyThing.wanderAngle = 0.0
+    clippyThing.wanderRadius = min(clippyThing.wanderRadius + 1, 15)  # Max radius 15
+  
+  # Calculate target position in the circle
+  import math
+  let x = clippyThing.homeTemple.x + int(cos(clippyThing.wanderAngle) * clippyThing.wanderRadius.float)
+  let y = clippyThing.homeTemple.y + int(sin(clippyThing.wanderAngle) * clippyThing.wanderRadius.float)
+  
+  return ivec2(x, y)
+
 proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
   ## Determine which direction a Clippy should move
-  ## Priority: 1) Move toward altar if seen, 2) Avoid other Clippies, 3) Random walk
+  ## Priority: 1) Chase agent if seen, 2) Move toward altar if seen, 
+  ## 3) Wander in concentric circles around home temple
   
-  # Look for nearest altar
+  # First, find the clippy in the things list to access its state
+  var clippyPtr: pointer = nil
+  for thingPtr in things:
+    if isNil(thingPtr):
+      continue
+    let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
+    if thing.kind == 6 and thing.pos == clippyPos:  # Found our clippy
+      clippyPtr = thingPtr
+      break
+  
+  if isNil(clippyPtr):
+    # Fallback to random if we can't find ourselves
+    let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+    return r.sample(directions)
+  
+  let clippyThing = cast[ptr tuple[
+    kind: int, pos: IVec2, id: int, layer: int, hearts: int, 
+    resources: int, cooldown: int, agentId: int, orientation: int,
+    inventoryOre: int, inventoryBattery: int, inventoryWater: int,
+    inventoryWheat: int, inventoryWood: int, reward: float32,
+    homeAltar: IVec2, homeTemple: IVec2, wanderRadius: int,
+    wanderAngle: float, targetPos: IVec2
+  ]](clippyPtr)
+  
+  # Priority 1: Look for nearest agent to chase
+  let nearestAgent = findNearestAgent(clippyPos, things, ClippyVisionRange)
+  if nearestAgent.x >= 0:  # Valid agent found
+    clippyThing.targetPos = nearestAgent
+    return getDirectionToward(clippyPos, nearestAgent)
+  
+  # Priority 2: Look for nearest altar to attack
   let nearestAltar = findNearestAltar(clippyPos, things, ClippyVisionRange)
   if nearestAltar.x >= 0:  # Valid altar found
+    clippyThing.targetPos = nearestAltar
     return getDirectionToward(clippyPos, nearestAltar)
   
-  # Look for nearby Clippies to avoid
-  let nearbyClippies = findNearbyClippies(clippyPos, things, ClippyVisionRange)
-  if nearbyClippies.len > 0:
-    return getAvoidanceDirection(clippyPos, nearbyClippies)
+  # Priority 3: No targets - wander in concentric circles
+  # If we have a valid home temple, wander around it
+  if clippyThing.homeTemple.x >= 0 and clippyThing.homeTemple.y >= 0:
+    let wanderTarget = getConcentricWanderPoint(clippyPtr, r)
+    clippyThing.targetPos = wanderTarget
+    return getDirectionToward(clippyPos, wanderTarget)
   
-  # Random walk
+  # Fallback: Random walk if no home temple
   let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
   return r.sample(directions)

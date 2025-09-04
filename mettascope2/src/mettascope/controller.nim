@@ -159,14 +159,20 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     if state.targetType == Altar and isAdjacent(agent.pos, state.currentTarget):
       # Use the altar to deposit battery
       let dir = state.currentTarget - agent.pos
-      let orientation = getOrientation(dir)
       
-      # First rotate to face the altar if needed
-      if agent.orientation != orientation:
-        return [2'u8, orientation.uint8]
+      # Determine direction argument for use action
+      var useArg: uint8
+      if dir.x > 0:
+        useArg = 2  # East
+      elif dir.x < 0:
+        useArg = 3  # West
+      elif dir.y > 0:
+        useArg = 1  # South
+      else:  # dir.y < 0
+        useArg = 0  # North
       
-      # Then use the altar
-      return [3'u8, 0'u8]  # Use action
+      # Use the altar
+      return [3'u8, useArg]  # Use action with direction
     
   elif state.hasOre:
     # Priority 2: If we have ore, find a generator/converter
@@ -193,14 +199,20 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     if state.targetType == Generator and isAdjacent(agent.pos, state.currentTarget):
       # Use the generator to convert ore to battery
       let dir = state.currentTarget - agent.pos
-      let orientation = getOrientation(dir)
       
-      # First rotate to face the generator if needed
-      if agent.orientation != orientation:
-        return [2'u8, orientation.uint8]
+      # Determine direction argument for use action
+      var useArg: uint8
+      if dir.x > 0:
+        useArg = 2  # East
+      elif dir.x < 0:
+        useArg = 3  # West
+      elif dir.y > 0:
+        useArg = 1  # South
+      else:  # dir.y < 0
+        useArg = 0  # North
       
-      # Then use the generator
-      return [3'u8, 0'u8]  # Use action
+      # Use the generator
+      return [3'u8, useArg]  # Use action with direction
     
   else:
     # Priority 3: No inventory, look for mines
@@ -227,35 +239,55 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     if state.targetType == Mine and isAdjacent(agent.pos, state.currentTarget):
       # Use the mine to get ore
       let dir = state.currentTarget - agent.pos
-      let orientation = getOrientation(dir)
       
-      # First rotate to face the mine if needed
-      if agent.orientation != orientation:
-        return [2'u8, orientation.uint8]
+      # Determine direction argument for use action
+      var useArg: uint8
+      if dir.x > 0:
+        useArg = 2  # East
+      elif dir.x < 0:
+        useArg = 3  # West
+      elif dir.y > 0:
+        useArg = 1  # South
+      else:  # dir.y < 0
+        useArg = 0  # North
       
-      # Then use the mine
-      return [3'u8, 0'u8]  # Use action
+      # Use the mine
+      return [3'u8, useArg]  # Use action with direction
   
-  # Movement logic: Move towards current target
+  # Movement logic: Move towards current target using new directional movement
   if state.currentTarget != agent.pos:
     let dir = getDirectionTo(agent.pos, state.currentTarget)
     
     if dir.x != 0 or dir.y != 0:
-      let targetOrientation = getOrientation(dir)
+      # Determine which direction to move
+      var moveArg: uint8
+      if dir.x > 0:
+        moveArg = 2  # Move East
+      elif dir.x < 0:
+        moveArg = 3  # Move West
+      elif dir.y > 0:
+        moveArg = 1  # Move South
+      else:  # dir.y < 0
+        moveArg = 0  # Move North
       
-      # Rotate to face the target direction if needed
-      if agent.orientation != targetOrientation:
-        return [2'u8, targetOrientation.uint8]  # Rotate action
-      
-      # Check if we can move forward
-      let nextPos = agent.pos + orientationToVec(agent.orientation)
+      # Check if we can move in that direction
+      let nextPos = agent.pos + dir
       if env.isEmpty(nextPos):
-        return [1'u8, 1'u8]  # Move forward
+        return [1'u8, moveArg]  # Move in direction with auto-rotation
       else:
-        # Obstacle in the way, try to go around
-        # Rotate to a random direction
-        let newOrientation = Orientation(controller.rng.rand(0..3))
-        return [2'u8, newOrientation.uint8]
+        # Obstacle in the way, try a random direction
+        let randomDir = controller.rng.rand(0..3)
+        # Check if that random direction is free
+        var testPos = agent.pos
+        case randomDir:
+        of 0: testPos.y -= 1  # North
+        of 1: testPos.y += 1  # South
+        of 2: testPos.x += 1  # East
+        of 3: testPos.x -= 1  # West
+        else: discard
+        
+        if env.isEmpty(testPos):
+          return [1'u8, randomDir.uint8]  # Move in random direction
   
   # Default: do nothing
   return [0'u8, 0'u8]  # Noop
