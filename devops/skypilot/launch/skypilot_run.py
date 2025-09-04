@@ -27,7 +27,6 @@ EXIT_AND_STOP = 0
 # Configuration
 node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
 is_master = node_index == 0
-total_nodes = int(os.environ.get("SKYPILOT_NUM_NODES", "1"))
 max_runtime_hours = float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None
 heartbeat_timeout = int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None
 restart_count = int(os.environ.get("RESTART_COUNT", "0"))

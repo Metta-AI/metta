@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-SkyPilot run manager that handles process groups and monitoring with integrated cleanup.
+Notification utilities for SkyPilot jobs including Discord, GitHub, and W&B alerts.
 """
 
 import os
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
-from typing import Optional
 
 from gitta import post_commit_status
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
@@ -19,8 +19,7 @@ from metta.common.wandb.utils import send_wandb_alert
 
 logger = getRankAwareLogger(__name__)
 
-
-# Configuration
+# Configuration from environment
 node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
 is_master = node_index == 0
 total_nodes = int(os.environ.get("SKYPILOT_NUM_NODES", "1"))
@@ -34,17 +33,30 @@ enable_github_status = os.environ.get("ENABLE_GITHUB_STATUS", "false").lower() =
 enable_wandb_alerts = os.environ.get("ENABLE_WANDB_ALERTS", "true").lower() == "true"
 
 
+def master_only(func):
+    """Decorator to ensure function only runs on master node."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if is_master:
+            return func(*args, **kwargs)
+        else:
+            logger.debug(f"Skipping {func.__name__} on non-master node")
+            return None
+
+    return wrapper
+
+
 def log_config():
     """Log the current configuration."""
     logger.info("Run Configuration:")
     logger.info(f"  - METTA_RUN_ID: {os.environ.get('METTA_RUN_ID', '')}")
     logger.info(f"  - SKYPILOT_TASK_ID: {os.environ.get('SKYPILOT_TASK_ID', '')}")
-
     logger.info(f"  - NODE_INDEX: {node_index}")
     logger.info(f"  - IS_MASTER: {is_master}")
     logger.info(f"  - TOTAL_NODES: {total_nodes}")
-
     logger.info(f"  - HEARTBEAT_TIMEOUT: {heartbeat_timeout or 'NOT SET'}")
+
     heartbeat_file_path = os.environ.get("HEARTBEAT_FILE", "") or None
     logger.info(f"  - HEARTBEAT_FILE: {heartbeat_file_path or 'NOT SET'}")
 
@@ -63,7 +75,6 @@ def log_config():
     logger.info(f"  - MAX_RUNTIME_HOURS: {max_runtime_hours or 'NOT SET'}")
     logger.info(f"  - RESTART_COUNT: {restart_count}")
     logger.info(f"  - TEST_NCCL: {test_nccl}")
-
     logger.info(
         f"  - DISCORD_ENABLED: {enable_discord_posts} "
         f"{'(webhook URL provided)' if enable_discord_posts else '(no webhook URL)'}"
@@ -73,24 +84,24 @@ def log_config():
 
 
 def log_final_summary(exit_code: int, termination_reason: str):
-    """log final job summary."""
+    """Log final job summary."""
     logger.info("[SUMMARY] ===== Job Summary =====")
     logger.info(f"[SUMMARY] Metta Run ID: {os.environ.get('METTA_RUN_ID', 'N/A')}")
     logger.info(f"[SUMMARY] Skypilot Task ID: {os.environ.get('SKYPILOT_TASK_ID', 'N/A')}")
     logger.info(f"[SUMMARY] Exit code: {exit_code}")
     logger.info(f"[SUMMARY] Termination reason: {termination_reason or 'unknown'}")
     logger.info("[SUMMARY] ======================")
+    logger.info(f"Job complete with exit code: {exit_code} (reason: {termination_reason or 'unknown'})")
 
-    logger.info(f"[RUN] Job complete with exit code: {exit_code} (reason: {termination_reason or 'unknown'})")
 
-
+@master_only
 def set_github_status(state: str, description: str):
     """Update GitHub commit status."""
-    # Early exit if disabled
-    if not is_master or not enable_github_status:
+    if not enable_github_status:
+        logger.debug("GitHub status updates disabled")
         return
 
-    # Load all environment variables
+    # Load environment variables
     commit_sha = os.environ.get("METTA_GIT_REF", "").strip()
     token = os.environ.get("GITHUB_PAT", "").strip()
     context = os.environ.get("GITHUB_STATUS_CONTEXT", "Skypilot/E2E").strip()
@@ -99,22 +110,23 @@ def set_github_status(state: str, description: str):
 
     # Validate required fields
     if not all([state, description, commit_sha, token]):
-        logger.warning("Missing required parameters for GitHub status")
+        logger.warning(
+            f"Skipping GitHub status - missing params: "
+            f"state={bool(state)}, desc={bool(description)}, "
+            f"sha={bool(commit_sha)}, token={'set' if token else 'missing'}"
+        )
         return
 
     # Build description
     desc = description
-
     if job_id:
-        logger.info(f"Setting GitHub status for job {job_id}")
         desc += f" - [ jl {job_id} ]"
 
     # Build target URL
     target_url = f"https://wandb.ai/metta-research/metta/runs/{wandb_run_id}" if wandb_run_id else None
-    if target_url:
-        logger.info(f"Target URL: {target_url}")
 
-    logger.info(f"Setting GitHub status: {state} - {desc}")
+    logger.info(f"Setting GitHub status: state={state}, context={context}, sha={commit_sha[:8]}")
+    logger.debug(f"GitHub status details: description='{desc}', target_url={target_url}")
 
     try:
         repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
@@ -131,20 +143,21 @@ def set_github_status(state: str, description: str):
             max_retries=3,
             initial_delay=2.0,
             max_delay=30.0,
-            error_prefix="Failed to post GitHub status",
+            error_prefix=f"Failed to post GitHub status for {commit_sha[:8]}",
         )
-
-        # Log success
-        logger.info(f"{repo}@{commit_sha[:8]} -> {state} ({context})")
-
-    except Exception:
-        pass  # Already logged by retry_function
+        logger.info(f"Successfully set GitHub status: {repo}@{commit_sha[:8]} → {state}")
+    except Exception as e:
+        logger.error(f"GitHub status update failed: {e}")
 
 
+@master_only
 def send_discord_notification(emoji: str, title: str, status_msg: str, additional_info: str = ""):
-    """Send Discord notification directly using the discord module."""
-    if not is_master or not enable_discord_posts:
+    """Send Discord notification."""
+    if not enable_discord_posts:
+        logger.debug("Discord notifications disabled")
         return
+
+    logger.info(f"Sending Discord notification: {title}")
 
     try:
         # Validate required environment variables
@@ -158,10 +171,8 @@ def send_discord_notification(emoji: str, title: str, status_msg: str, additiona
 
         missing_vars = [k for k, v in required_env_vars.items() if not v]
         if missing_vars:
-            logger.warning(f"Missing required environment variables: {', '.join(missing_vars)}")
+            logger.error(f"Cannot send Discord notification - missing env vars: {', '.join(missing_vars)}")
             return
-
-        logger.info_master(f"[RUN] Sending Discord notification: {title}")
 
         # Calculate runtime if START_TIME is set
         runtime_msg = ""
@@ -201,27 +212,29 @@ def send_discord_notification(emoji: str, title: str, status_msg: str, additiona
 
         discord_content = "\n".join(message_parts)
 
-        # Save to file (if still needed for debugging/logging purposes)
         assert required_env_vars["JOB_METADATA_DIR"]
-        assert discord_webhook_url
-
+        # Save to file for debugging
         discord_message_path = os.path.join(required_env_vars["JOB_METADATA_DIR"], "discord_message.txt")
         with open(discord_message_path, "w") as f:
             f.write(discord_content)
 
-        # Send directly via Discord module
+        # Send notification
         success = send_to_discord(webhook_url=discord_webhook_url, content=discord_content, suppress_embeds=True)
 
-        if not success:
-            logger.warning("[WARN] Discord notification failed; continuing")
+        if success:
+            logger.info(f"Discord notification sent successfully: {title}")
+        else:
+            logger.warning(f"Discord notification failed: {title}")
 
     except Exception as e:
-        logger.warning(f"Failed to send Discord notification: {e}")
+        logger.error(f"Discord notification error: {e}", exc_info=True)
 
 
+@master_only
 def send_wandb_alert_notification(state: str, description: str):
-    """Send W&B alert notification based on job state."""
-    if not is_master or not enable_wandb_alerts:
+    """Send W&B alert notification."""
+    if not enable_wandb_alerts:
+        logger.debug("W&B alerts disabled")
         return
 
     # Map states to emojis and titles
@@ -230,7 +243,7 @@ def send_wandb_alert_notification(state: str, description: str):
         "failure": ("❌", "Job Failed"),
         "error": ("🔧", "Job Configuration Error"),
         "pending": ("🔄", "Job Restarting"),
-        "timeout": ("🚨", "Job Timeout"),  # Special case for heartbeat
+        "timeout": ("🚨", "Job Timeout"),
     }
 
     # Check if heartbeat timeout (special case)
@@ -238,6 +251,8 @@ def send_wandb_alert_notification(state: str, description: str):
         emoji, title = state_info["timeout"]
     else:
         emoji, title = state_info.get(state, ("❓", "Job Status Unknown"))
+
+    logger.info(f"Sending W&B alert: {title}")
 
     try:
         required_env_vars = {
@@ -248,10 +263,8 @@ def send_wandb_alert_notification(state: str, description: str):
 
         missing_vars = [k for k, v in required_env_vars.items() if not v]
         if missing_vars:
-            logger.warning(f"Missing required environment variables: {', '.join(missing_vars)}")
+            logger.error(f"Cannot send W&B alert - missing env vars: {', '.join(missing_vars)}")
             return
-
-        logger.info(f"[RUN] Sending W&B alert: {title}")
 
         # Build alert text
         alert_text = description
@@ -281,8 +294,10 @@ def send_wandb_alert_notification(state: str, description: str):
             entity=required_env_vars["WANDB_ENTITY"] or "",
         )
 
+        logger.info(f"W&B alert sent successfully: {title}")
+
     except Exception as e:
-        logger.warning(f"Failed to send W&B alert: {e}")
+        logger.error(f"W&B alert error: {e}", exc_info=True)
 
 
 @dataclass
@@ -295,21 +310,16 @@ class NotificationConfig:
     discord: bool = True
     wandb: bool = True
     github: bool = True
-    github_state: str = "failure"  # Can be overridden for success cases
+    github_state: str = "failure"
 
 
-def send_notifications(
-    termination_reason: str, heartbeat_timeout: Optional[int] = None, max_runtime_hours: Optional[float] = None
-):
+@master_only
+def send_notifications(termination_reason: str):
     """Send notifications based on termination reason."""
-    if not is_master:
-        return
+    logger.info(f"Processing notifications for termination reason: {termination_reason}")
 
-    # Use module-level values if not provided
-    if heartbeat_timeout is None:
-        heartbeat_timeout = globals()["heartbeat_timeout"]
-    if max_runtime_hours is None:
-        max_runtime_hours = globals()["max_runtime_hours"]
+    heartbeat_timeout = globals()["heartbeat_timeout"]
+    max_runtime_hours = globals()["max_runtime_hours"]
 
     notifications = {
         "heartbeat_timeout": NotificationConfig(
@@ -330,14 +340,28 @@ def send_notifications(
         ),
     }
 
-    if termination_reason in notifications:
-        n = notifications[termination_reason]
+    if termination_reason not in notifications:
+        logger.warning(f"No notification configuration found for termination reason: {termination_reason}")
+        return
 
-        if n.discord:
-            send_discord_notification(n.emoji, n.title, n.description, "")
+    config = notifications[termination_reason]
+    notifications_sent = {}
 
-        if n.wandb:
-            send_wandb_alert_notification("failure", n.description)
+    if config.discord:
+        send_discord_notification(config.emoji, config.title, config.description)
+        notifications_sent["discord"] = True
 
-        if n.github:
-            set_github_status(n.github_state, n.description)
+    if config.wandb:
+        send_wandb_alert_notification("failure" if config.github_state == "failure" else "success", config.description)
+        notifications_sent["wandb"] = True
+
+    if config.github:
+        set_github_status(config.github_state, config.description)
+        notifications_sent["github"] = True
+
+    logger.info(
+        f"Notification summary: reason={termination_reason}, "
+        f"discord={notifications_sent.get('discord', False)}, "
+        f"wandb={notifications_sent.get('wandb', False)}, "
+        f"github={notifications_sent.get('github', False)}"
+    )
