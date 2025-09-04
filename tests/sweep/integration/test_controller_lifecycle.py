@@ -185,7 +185,7 @@ class TestControllerLifecycle:
             dispatcher=dispatcher,
             store=store,
             protein_config=protein_config,
-            sweep_status=SweepStatus.CREATED,
+            sweep_status=SweepStatus.RESUMED,  # Use RESUMED so has_data=True
             max_parallel_jobs=10,
             monitoring_interval=0.01,
         )
@@ -312,7 +312,7 @@ class TestControllerLifecycle:
             dispatcher=dispatcher,
             store=store,
             protein_config=protein_config,
-            sweep_status=SweepStatus.CREATED,
+            sweep_status=SweepStatus.RESUMED,  # Use RESUMED so has_data=True
             max_parallel_jobs=10,
             monitoring_interval=0.01,
         )
@@ -368,7 +368,7 @@ class TestControllerLifecycle:
             dispatcher=dispatcher,
             store=store,
             protein_config=protein_config,
-            sweep_status=SweepStatus.CREATED,
+            sweep_status=SweepStatus.RESUMED,  # Use RESUMED so has_data=True
             max_parallel_jobs=10,
             monitoring_interval=60,  # Normal interval is 60s
         )
@@ -390,11 +390,15 @@ class TestControllerLifecycle:
 
     def _run_single_iteration(self):
         """Helper method to run a single controller iteration."""
-        # This would be part of the controller's run method
-        # Extracted for testing purposes
+        # Properly implement what the controller actually does in its main loop
+
+        # 1. Fetch all runs from store
         all_run_infos = self._fetch_all_runs()
+
+        # 2. Compute metadata and track completed runs
         metadata = self._compute_metadata_from_runs(all_run_infos)
 
+        # 3. Get job schedule from scheduler
         new_jobs = self.scheduler.schedule(
             sweep_metadata=metadata,
             all_runs=all_run_infos,
@@ -402,12 +406,17 @@ class TestControllerLifecycle:
             dispatched_evals=self.dispatched_evals,
         )
 
+        # 4. Filter jobs by capacity and dispatch status
         new_jobs = self._filter_jobs_by_capacity(new_jobs, metadata)
 
+        # 5. Execute each job
         for job in new_jobs:
             self._execute_job(job)
 
-        return self._update_completed_runs(all_run_infos)
+        # 6. Update completed runs
+        has_eval_done = self._update_completed_runs(all_run_infos)
+
+        return has_eval_done
 
 
 # Add this method to the controller for testing

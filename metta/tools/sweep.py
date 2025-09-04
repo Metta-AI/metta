@@ -115,7 +115,7 @@ class SweepTool(Tool):
     dispatcher_type: DispatcherType = DispatcherType.HYBRID_REMOTE_TRAIN  # Default: train on Skypilot, evaluate locally
     capture_output: bool = True  # Capture and stream subprocess output (local only)
 
-    consumed_args: list[str] = ["sweep_name", "max_trials", "recipe_module", "train_entrypoint", "eval_entrypoint"]
+    consumed_args: list[str] = ["sweep_name", "max_trials", "recipe_module", "train_entrypoint", "eval_entrypoint", "run"]
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         """Execute the sweep."""
@@ -124,6 +124,12 @@ class SweepTool(Tool):
         if "sweep_name" in args:
             assert self.sweep_name is None, "sweep_name cannot be set via args and config"
             self.sweep_name = args["sweep_name"]
+
+        # Handle run parameter from dispatcher (ignored - only consumed to prevent unused args error)
+        if "run" in args:
+            # The run parameter is added by dispatchers for training jobs
+            # We consume it here but don't use it for sweep orchestration
+            pass
 
         # Generate sweep name if not provided (similar to TrainTool's run name)
         if self.sweep_name is None:
