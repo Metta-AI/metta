@@ -161,6 +161,7 @@ def quick_test(
         recipe_module=recipe,
         train_entrypoint="train_shaped",
         eval_entrypoint="evaluate",
+        monitoring_interval=90,
         max_parallel_jobs=1,
         train_overrides={
             "trainer.total_timesteps": "50000",  # Quick 10k timesteps for testing
