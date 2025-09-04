@@ -31,11 +31,11 @@ type
 # Constants for standard structures
 const
   DefaultHouseLayout* = @[
-    @['#', '#', '.', '#', '#'],  # Top row with north entrance
-    @['#', 'A', ' ', 'F', '#'],  # Second row with Armory (A) and Forge (F)
+    @['A', '#', '.', '#', 'F'],  # Top row with Armory (A) top-left, Forge (F) top-right
+    @['#', ' ', ' ', ' ', '#'],  # Second row
     @['.', ' ', 'a', ' ', '.'],  # Middle row with altar and E/W entrances
-    @['#', 'C', ' ', 'W', '#'],  # Fourth row with Clay Oven (C) and Weaving Loom (W)
-    @['#', '#', '.', '#', '#']   # Bottom row with south entrance
+    @['#', ' ', ' ', ' ', '#'],  # Fourth row
+    @['C', '#', '.', '#', 'W']   # Bottom row with Clay Oven (C) bottom-left, Weaving Loom (W) bottom-right
   ]
 
 proc createStructure*(width, height: int, centerX, centerY: int, 

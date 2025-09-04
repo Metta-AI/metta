@@ -261,40 +261,36 @@ proc drawObjects*() =
             scale = 1/200
           )
         of Armory:
-          # Draw armory building (use converter sprite as placeholder)
+          # Draw armory building
           bxy.drawImage(
-            "objects/converter",
+            "objects/armory",
             ivec2(x, y).vec2,
             angle = 0,
-            scale = 1/200,
-            tint = color(0.8, 0.8, 0.8, 1)  # Gray tint for armory
+            scale = 1/200
           )
         of Forge:
-          # Draw forge building (use converter sprite as placeholder)
+          # Draw forge building
           bxy.drawImage(
-            "objects/converter",
+            "objects/forge",
             ivec2(x, y).vec2,
             angle = 0,
-            scale = 1/200,
-            tint = color(1, 0.5, 0.3, 1)  # Orange tint for forge
+            scale = 1/200
           )
         of ClayOven:
-          # Draw clay oven building (use converter sprite as placeholder)
+          # Draw clay oven building
           bxy.drawImage(
-            "objects/converter",
+            "objects/clay_oven",
             ivec2(x, y).vec2,
             angle = 0,
-            scale = 1/200,
-            tint = color(0.7, 0.5, 0.3, 1)  # Brown tint for clay oven
+            scale = 1/200
           )
         of WeavingLoom:
-          # Draw weaving loom building (use converter sprite as placeholder)
+          # Draw weaving loom building
           bxy.drawImage(
-            "objects/converter",
+            "objects/weaving_loom",
             ivec2(x, y).vec2,
             angle = 0,
-            scale = 1/200,
-            tint = color(0.6, 0.3, 0.8, 1)  # Purple tint for loom
+            scale = 1/200
           )
       else:
         discard
