@@ -3,7 +3,7 @@
 import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import ValueRange
+from metta.cogworks.curriculum.task_generator import Span
 
 
 class TestTaskGenerationWorkflows:
@@ -51,7 +51,7 @@ class TestTaskGenerationWorkflows:
         # Use the correct path for navigation environment
         navigation_tasks.add_bucket("game.map_builder.width", [60, 80, 100])
         navigation_tasks.add_bucket("game.map_builder.height", [60, 80, 100])
-        navigation_tasks.add_bucket("game.objects.altar.initial_resource_count", [ValueRange.vr(3, 50)])
+        navigation_tasks.add_bucket("game.objects.altar.initial_resource_count", [Span(3, 50)])
 
         # Convert to curriculum
         curriculum = navigation_tasks.to_curriculum()
