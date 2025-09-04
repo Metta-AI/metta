@@ -4,12 +4,10 @@ This guide will help you get started with splitting large PRs using gitta.
 
 ## Prerequisites
 
-1. **Install gitta with split support:**
+1. **Install gitta:**
 
    ```bash
-   pip install gitta[split]
-   # or
-   pip install gitta anthropic
+   pip install gitta
    ```
 
 2. **Get an Anthropic API key:**
@@ -42,44 +40,7 @@ cd my-project
 git checkout feature/big-refactor
 
 # Run the splitter
-gitta-split
-
-# Or use the module directly
 python -m gitta.split
-```
-
-### Python Script
-
-You can also use it in a Python script:
-
-```python
-from gitta import split_pr
-
-# Split the current branch
-split_pr()
-
-# Or with explicit credentials
-split_pr(
-    anthropic_api_key="sk-ant-...",
-    github_token="ghp_..."
-)
-```
-
-### Advanced Usage
-
-For more control, use the PRSplitter class directly:
-
-```python
-from gitta import PRSplitter
-
-# Create splitter instance
-splitter = PRSplitter()
-
-# Customize the base branch (default: auto-detects main/master)
-splitter.base_branch = "origin/develop"
-
-# Run the split
-splitter.split()
 ```
 
 ## What Happens

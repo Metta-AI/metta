@@ -13,13 +13,7 @@ A comprehensive Python library for Git operations, GitHub API interactions, and 
 ## Installation
 
 ```bash
-pip install gitta
-```
-
-For PR splitting functionality, you'll also need:
-
-```bash
-pip install anthropic httpx
+pip install gitta anthropic httpx
 ```
 
 ## Usage
@@ -67,23 +61,13 @@ gitta.post_commit_status(
 
 Split large PRs into smaller, logically isolated ones:
 
-```python
-# Using the library
-from gitta import split_pr
-
-# Split current branch into two PRs
-split_pr()
-```
-
-Or use the CLI:
-
 ```bash
 # Set environment variables
 export ANTHROPIC_API_KEY="your-key"
 export GITHUB_TOKEN="your-token"  # Optional, for auto-creating PRs
 
 # Run the splitter
-python -m gitta.split_cli
+python -m gitta.split
 ```
 
 The PR splitter will:
@@ -117,13 +101,6 @@ repo_root = gitta.find_root(Path.cwd())
 - `GITHUB_TOKEN`: GitHub personal access token for API operations
 - `GITTA_AUTO_ADD_SAFE_DIRECTORY`: Set to "1" to auto-handle git safe directory issues
 
-## Requirements
-
-- Python 3.8+
-- Git installed and in PATH
-- `git-filter-repo` for repository filtering (optional)
-- GitHub CLI (`gh`) for some operations (optional)
-
 ## Module Structure
 
 ```
@@ -133,10 +110,5 @@ gitta/
 ├── git.py           # Git operations
 ├── github.py        # GitHub API functionality
 ├── filter.py        # Repository filtering
-├── split.py         # PR splitting logic
-└── split_cli.py     # CLI for PR splitting
+└── split.py         # PR splitting logic and CLI
 ```
-
-## License
-
-MIT

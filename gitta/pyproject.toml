@@ -12,9 +12,6 @@ dependencies = [
     "anthropic>=0.18.0",
 ]
 
-[project.scripts]
-gitta-split = "gitta.split:main"
-
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["gitta*"]
