@@ -6,8 +6,8 @@ import uuid
 from enum import StrEnum
 from typing import Any, Optional
 
-from metta.common.tool import Tool
 from cogweb.cogweb_client import CogwebClient
+from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sweep import JobTypes, LocalDispatcher, SweepController, SweepControllerConfig, SweepStatus
