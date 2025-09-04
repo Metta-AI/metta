@@ -10,7 +10,7 @@ type
 proc createHouse*(): HouseStructure =
   ## Create a house with:
   ## - Altar in the center
-  ## - Empty squares around the altar
+  ## - Four specialized buildings in the absolute corners
   ## - Walls forming a ring with entrances at cardinal directions
   result.width = 5
   result.height = 5
@@ -18,12 +18,13 @@ proc createHouse*(): HouseStructure =
   
   # Initialize the layout
   # '#' = wall, 'a' = altar, ' ' = empty space inside, '.' = entrance
+  # 'A' = Armory, 'F' = Forge, 'C' = Clay Oven, 'W' = Weaving Loom
   result.layout = @[
-    @['#', '#', '.', '#', '#'],  # Top row with north entrance
+    @['A', '#', '.', '#', 'F'],  # Top row with Armory (top-left), Forge (top-right)
     @['#', ' ', ' ', ' ', '#'],  # Second row
     @['.', ' ', 'a', ' ', '.'],  # Middle row with altar and E/W entrances
     @['#', ' ', ' ', ' ', '#'],  # Fourth row
-    @['#', '#', '.', '#', '#']   # Bottom row with south entrance
+    @['C', '#', '.', '#', 'W']   # Bottom row with Clay Oven (bottom-left), Weaving Loom (bottom-right)
   ]
 
 # Placement logic moved to placement.nim for unified handling
@@ -33,7 +34,11 @@ proc createHouse*(): HouseStructure =
 proc getHouseElements*(house: HouseStructure, topLeft: IVec2): tuple[
   altar: IVec2,
   walls: seq[IVec2],
-  entrances: seq[IVec2]
+  entrances: seq[IVec2],
+  armory: IVec2,
+  forge: IVec2,
+  clayOven: IVec2,
+  weavingLoom: IVec2
 ] =
   ## Get the positions of all house elements relative to the map
   ## topLeft is the position of the house's top-left corner on the map
@@ -51,5 +56,13 @@ proc getHouseElements*(house: HouseStructure, topLeft: IVec2): tuple[
         result.walls.add(worldPos)
       of '.':
         result.entrances.add(worldPos)
+      of 'A':
+        result.armory = worldPos
+      of 'F':
+        result.forge = worldPos
+      of 'C':
+        result.clayOven = worldPos
+      of 'W':
+        result.weavingLoom = worldPos
       else:
         discard  # Empty space
