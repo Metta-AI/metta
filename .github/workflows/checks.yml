@@ -271,7 +271,7 @@ jobs:
             pytest --testmon --collect-only -q || echo "No tests selected or collection failed"
           fi
 
-          pytest $PYTEST_ARGS
+          uv run pytest $PYTEST_ARGS
 
           echo "::endgroup::"
 
