@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metta Sweep Infrastructure Workflow</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .diagram-container {
+            background-color: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .mermaid {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Metta Sweep Infrastructure Workflow</h1>
+
+    <h2>1. High-Level Component Architecture</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+        graph TB
+            subgraph "Entry Point"
+                ST[SweepTool]
+                OS[orchestrate_sweep]
+            end
+
+            subgraph "Core Components"
+                SC[SweepController<br/>- Orchestrator<br/>- State Manager]
+                SCH[Scheduler<br/>OptimizingScheduler]
+                OPT[Optimizer<br/>ProteinOptimizer]
+                STORE[Store<br/>WandbStore]
+            end
+
+            subgraph "Dispatchers"
+                LD[LocalDispatcher]
+                SD[SkypilotDispatcher]
+                RD[RoutingDispatcher]
+            end
+
+            subgraph "External Systems"
+                WANDB[(WandB API)]
+                SKY[Skypilot Cloud]
+                LOCAL[Local Processes]
+            end
+
+            ST --> OS
+            OS --> SC
+            SC --> SCH
+            SCH --> OPT
+            SC --> STORE
+            SC --> RD
+            RD --> LD
+            RD --> SD
+            STORE <--> WANDB
+            LD --> LOCAL
+            SD --> SKY
+
+            style SC fill:#f9f,stroke:#333,stroke-width:3px
+            style SCH fill:#bbf,stroke:#333,stroke-width:2px
+            style OPT fill:#bfb,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <h2>2. Main Control Loop Workflow</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+        flowchart TD
+            START([Start Sweep]) --> INIT[Initialize Controller]
+            INIT --> LOOP{Control Loop}
+
+            LOOP --> FETCH[1. Fetch All Runs<br/>from WandbStore]
+            FETCH --> META[2. Compute Metadata<br/>Track completed runs]
+            META --> DISPLAY[3. Display Monitoring Table]
+            DISPLAY --> SCHEDULE[4. Schedule Jobs<br/>via Scheduler]
+
+            SCHEDULE --> CHECKEVAL{Any runs need<br/>evaluation?}
+            CHECKEVAL -->|Yes| EVALJ[Schedule Eval Job]
+            CHECKEVAL -->|No| CHECKMAX{Max trials<br/>reached?}
+
+            CHECKMAX -->|Yes| COMPLETE{All runs<br/>complete?}
+            CHECKMAX -->|No| CHECKWAIT{Any incomplete<br/>jobs?}
+
+            CHECKWAIT -->|Yes| WAIT[Wait for completion]
+            CHECKWAIT -->|No| SUGGEST[Get suggestion<br/>from Optimizer]
+
+            SUGGEST --> TRAINJ[Create Training Job]
+
+            EVALJ --> FILTER
+            TRAINJ --> FILTER
+            WAIT --> FILTER
+
+            FILTER[5. Filter by Capacity<br/>Check dispatched sets]
+            FILTER --> EXEC[6. Execute Jobs]
+
+            EXEC --> DISPATCH{Dispatch Type?}
+            DISPATCH -->|Training| DTRAIN[Store.init_run<br/>Dispatcher.dispatch]
+            DISPATCH -->|Eval| DEVAL[Dispatcher.dispatch]
+
+            DTRAIN --> TRACK1[Add to dispatched_trainings]
+            DEVAL --> TRACK2[Add to dispatched_evals]
+
+            TRACK1 --> UPDATE
+            TRACK2 --> UPDATE
+
+            UPDATE[7. Update Completed Runs<br/>Check for EVAL_DONE]
+            UPDATE --> SLEEP{Eval completed?}
+
+            SLEEP -->|Yes| SHORT[Sleep 5s<br/>Refractory period]
+            SLEEP -->|No| LONG[Sleep monitoring_interval]
+
+            SHORT --> LOOP
+            LONG --> LOOP
+
+            COMPLETE -->|Yes| END([Sweep Complete])
+            COMPLETE -->|No| FILTER
+
+            style LOOP fill:#ffe,stroke:#333,stroke-width:3px
+            style SCHEDULE fill:#bbf,stroke:#333,stroke-width:2px
+            style FILTER fill:#fbf,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <h2>3. Job Lifecycle State Machine</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+        stateDiagram-v2
+            [*] --> PENDING: Run initialized
+            PENDING --> IN_TRAINING: Training started
+            IN_TRAINING --> TRAINING_DONE_NO_EVAL: Training complete
+            IN_TRAINING --> FAILED: Training failed
+            TRAINING_DONE_NO_EVAL --> IN_EVAL: Evaluation started
+            IN_EVAL --> EVAL_DONE_NOT_COMPLETED: Eval complete, no observation
+            IN_EVAL --> FAILED: Eval failed
+            EVAL_DONE_NOT_COMPLETED --> COMPLETED: Observation recorded
+            FAILED --> [*]
+            COMPLETED --> [*]
+
+            note right of TRAINING_DONE_NO_EVAL
+                Triggers eval scheduling
+            end note
+
+            note right of EVAL_DONE_NOT_COMPLETED
+                Triggers observation update
+                and 5s refractory period
+            end note
+        </div>
+    </div>
+
+    <h2>4. Scheduler Decision Flow</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+        flowchart TD
+            SCHED_START([Schedule Called]) --> CHECK_EVAL{Any runs need<br/>evaluation?}
+
+            CHECK_EVAL -->|Yes| EVAL_CHECK{Already in<br/>dispatched_evals?}
+            EVAL_CHECK -->|Yes| RETURN_EMPTY1[Return []]
+            EVAL_CHECK -->|No| CREATE_EVAL[Create eval job<br/>with policy_uri]
+            CREATE_EVAL --> RETURN_EVAL[Return [eval_job]]
+
+            CHECK_EVAL -->|No| CHECK_LIMIT{Total runs >=<br/>max_trials?}
+            CHECK_LIMIT -->|Yes| CHECK_ALL{All runs<br/>complete?}
+            CHECK_ALL -->|Yes| MARK_COMPLETE[Mark sweep complete]
+            CHECK_ALL -->|No| RETURN_EMPTY2[Return []]
+            MARK_COMPLETE --> RETURN_EMPTY3[Return []]
+
+            CHECK_LIMIT -->|No| CHECK_INCOMPLETE{Any incomplete<br/>jobs?}
+            CHECK_INCOMPLETE -->|Yes| RETURN_EMPTY4[Return []<br/>Wait for completion]
+            CHECK_INCOMPLETE -->|No| GET_OBS[Collect observations<br/>from completed runs]
+
+            GET_OBS --> SUGGEST[Optimizer.suggest()]
+            SUGGEST --> CHECK_DUP{Run ID in<br/>dispatched_trainings?}
+            CHECK_DUP -->|Yes| RETURN_EMPTY5[Return []]
+            CHECK_DUP -->|No| CREATE_TRAIN[Create training job<br/>with config]
+            CREATE_TRAIN --> RETURN_TRAIN[Return [training_job]]
+
+            style CHECK_EVAL fill:#ffe,stroke:#333,stroke-width:2px
+            style SUGGEST fill:#bfb,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <h2>5. Optimizer (Protein) Workflow</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+        flowchart TD
+            OPT_START([Optimizer.suggest()]) --> CHECK_OBS{Have observations?}
+
+            CHECK_OBS -->|No| RANDOM1[Return search center<br/>or random sample]
+            CHECK_OBS -->|Yes| CHECK_COUNT{< num_random_samples?}
+
+            CHECK_COUNT -->|Yes| RANDOM2[Random sampling]
+            CHECK_COUNT -->|No| METHOD{Optimization<br/>Method?}
+
+            METHOD -->|Bayes| BAYES[Train GP models<br/>Score & Cost]
+            METHOD -->|Genetic| GENETIC[Pareto front<br/>genetic algorithm]
+            METHOD -->|Random| RANDOM3[Pure random]
+
+            BAYES --> PARETO[Find Pareto points]
+            GENETIC --> PARETO
+
+            PARETO --> SAMPLE[Sample around<br/>Pareto centers]
+            SAMPLE --> ACQ{Acquisition<br/>Function}
+
+            ACQ -->|naive| NAIVE[Cost-weighted<br/>expected improvement]
+            ACQ -->|ei| EI[Expected Improvement]
+            ACQ -->|ucb| UCB[Upper Confidence Bound]
+
+            NAIVE --> SELECT[Select best candidate]
+            EI --> SELECT
+            UCB --> SELECT
+            RANDOM2 --> SELECT
+            RANDOM3 --> SELECT
+
+            SELECT --> CONVERT[Convert to dict<br/>Unnormalize params]
+            CONVERT --> RETURN([Return suggestion])
+
+            RANDOM1 --> CONVERT
+
+            style METHOD fill:#ffe,stroke:#333,stroke-width:2px
+            style ACQ fill:#fef,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <h2>6. Dispatcher Routing Logic</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+        flowchart TD
+            DISP_START([Job to Dispatch]) --> TYPE{Dispatcher Type?}
+
+            TYPE -->|LOCAL| LOCAL_ALL[All jobs local]
+            TYPE -->|SKYPILOT| SKY_ALL[All jobs on cloud]
+            TYPE -->|HYBRID_REMOTE_TRAIN| ROUTE{Job Type?}
+
+            ROUTE -->|LAUNCH_TRAINING| SKY_TRAIN[SkypilotDispatcher<br/>Cloud training]
+            ROUTE -->|LAUNCH_EVAL| LOCAL_EVAL[LocalDispatcher<br/>Local evaluation]
+
+            LOCAL_ALL --> LOCAL_EXEC[subprocess.Popen<br/>Capture output]
+            SKY_ALL --> SKY_EXEC[launch.py<br/>Fire & forget]
+            SKY_TRAIN --> SKY_EXEC
+            LOCAL_EVAL --> LOCAL_EXEC
+
+            LOCAL_EXEC --> PID[Return PID]
+            SKY_EXEC --> UUID[Return UUID]
+
+            style TYPE fill:#ffe,stroke:#333,stroke-width:2px
+            style ROUTE fill:#fef,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#fff',
+                primaryBorderColor: '#333',
+                primaryTextColor: '#333',
+                lineColor: '#333',
+                secondaryColor: '#f5f5f5',
+                tertiaryColor: '#ddd'
+            }
+        });
+    </script>
+</body>
+</html>
