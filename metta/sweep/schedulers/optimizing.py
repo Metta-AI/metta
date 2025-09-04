@@ -34,21 +34,26 @@ class OptimizingScheduler:
     def __init__(self, config: OptimizingSchedulerConfig, optimizer: Optimizer):
         self.config = config
         self.optimizer = optimizer
-        self._created_runs = set()  # Track runs we've created to avoid duplicates
         self._is_complete = False  # Track if sweep is complete
         logger.info(f"[OptimizingScheduler] Initialized with max_trials={config.max_trials}")
 
-    def schedule(self, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]) -> list[JobDefinition]:
+    def schedule(
+        self,
+        sweep_metadata: SweepMetadata,
+        all_runs: list[RunInfo],
+        dispatched_trainings: set[str],
+        dispatched_evals: set[str],
+    ) -> list[JobDefinition]:
         """Schedule next jobs based on current state."""
 
         # Check for completed training runs that need evaluation
         runs_needing_eval = [run for run in all_runs if run.status == JobStatus.TRAINING_DONE_NO_EVAL]
 
         if runs_needing_eval:
-            return self._schedule_evaluation(runs_needing_eval[0], sweep_metadata, all_runs)
+            return self._schedule_evaluation(runs_needing_eval[0], sweep_metadata, all_runs, dispatched_evals)
 
         # Check if we've hit the trial limit
-        total_runs = max(len(all_runs), len(self._created_runs))
+        total_runs = max(len(all_runs), len(dispatched_trainings))
         if total_runs >= self.config.max_trials:
             return self._handle_max_trials_reached(all_runs)
 
@@ -63,12 +68,17 @@ class OptimizingScheduler:
             return []
 
         # Schedule new training job with optimizer suggestion
-        return self._schedule_training(sweep_metadata, all_runs)
+        return self._schedule_training(sweep_metadata, all_runs, dispatched_trainings)
 
     def _schedule_evaluation(
-        self, train_run: RunInfo, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]
+        self, train_run: RunInfo, sweep_metadata: SweepMetadata, all_runs: list[RunInfo], dispatched_evals: set[str]
     ) -> list[JobDefinition]:
         """Schedule evaluation job for a completed training run."""
+        # Check if evaluation already dispatched
+        if train_run.run_id in dispatched_evals:
+            logger.debug(f"[OptimizingScheduler] Evaluation already dispatched for {train_run.run_id}, skipping")
+            return []
+
         # Build evaluation overrides
         eval_overrides = self._build_eval_overrides(train_run.run_id, sweep_metadata.sweep_id)
 
@@ -84,10 +94,13 @@ class OptimizingScheduler:
 
         # Log scheduling with clean display ID
         display_id = self._get_display_id(train_run.run_id)
-        logger.info(f"[OptimizingScheduler] Scheduling evaluation for {display_id}")
+        logger.info(f"[OptimizingScheduler] Scheduling evaluation for run {display_id}")
+
         return [eval_job]
 
-    def _schedule_training(self, sweep_metadata: SweepMetadata, all_runs: list[RunInfo]) -> list[JobDefinition]:
+    def _schedule_training(
+        self, sweep_metadata: SweepMetadata, all_runs: list[RunInfo], dispatched_trainings: set[str]
+    ) -> list[JobDefinition]:
         """Schedule new training job with optimizer suggestion."""
         # Collect observations from completed runs
         observations = [run.observation for run in all_runs if run.observation]
@@ -99,15 +112,13 @@ class OptimizingScheduler:
             return []
 
         # Create new training job
-        trial_num = len(self._created_runs) + 1
+        trial_num = len(dispatched_trainings) + 1
         run_id = f"{sweep_metadata.sweep_id}_trial_{trial_num:04d}"
 
         # Avoid duplicates
-        if run_id in self._created_runs:
+        if run_id in dispatched_trainings:
             logger.warning(f"[OptimizingScheduler] Run {run_id} already created, skipping")
             return []
-
-        self._created_runs.add(run_id)
 
         # Build training job
         overrides = self._build_train_overrides()

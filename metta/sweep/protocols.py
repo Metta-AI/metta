@@ -14,7 +14,13 @@ class Scheduler(Protocol):
     Handles both training and evaluation job scheduling.
     """
 
-    def schedule(self, sweep_metadata: "SweepMetadata", all_runs: list["RunInfo"]) -> list["JobDefinition"]:
+    def schedule(
+        self,
+        sweep_metadata: "SweepMetadata",
+        all_runs: list["RunInfo"],
+        dispatched_trainings: set[str],
+        dispatched_evals: set[str],
+    ) -> list["JobDefinition"]:
         """
         Decide which new jobs to create based on current state of all runs.
         This includes both new training jobs and evaluation jobs for completed training.
