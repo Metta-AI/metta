@@ -240,16 +240,41 @@ def cmd_configure(
 
 
 @app.command(name="export-env", help="Export configuration as environment variables")
-def cmd_export_env():
+def cmd_export_env(
+    format: Annotated[str, typer.Option("--format", help="Output format: shell, json, dotenv")] = "shell",
+    output: Annotated[Optional[str], typer.Option("--output", "-o", help="Output file path")] = None,
+):
     """Export configuration as environment variables."""
+    import json
+    from pathlib import Path
+    
     from metta.config.schema import get_config
+    from metta.setup.utils import error, success
 
     config = get_config()
     env_vars = config.export_env_vars()
 
-    # Output format suitable for shell evaluation
-    for key, value in env_vars.items():
-        print(f"export {key}='{value}'")
+    # Generate output based on format
+    if format == "shell":
+        output_lines = [f"export {key}='{value}'" for key, value in env_vars.items()]
+    elif format == "json":
+        output_lines = [json.dumps(env_vars, indent=2)]
+    elif format == "dotenv":
+        output_lines = [f"{key}={value}" for key, value in env_vars.items()]
+    else:
+        error(f"Unknown format: {format}")
+        error("Supported formats: shell, json, dotenv")
+        raise typer.Exit(1)
+
+    # Output to file or stdout
+    content = "\n".join(output_lines)
+    if output:
+        output_path = Path(output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(content + "\n")
+        success(f"Environment variables exported to: {output_path}")
+    else:
+        print(content)
 
 
 def configure_component(component_name: str):
