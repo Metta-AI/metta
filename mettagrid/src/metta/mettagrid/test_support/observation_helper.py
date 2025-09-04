@@ -21,11 +21,6 @@ class ObservationHelper:
         return obs[obs[:, 1] == type_id]
 
     @staticmethod
-    def find_tokens_by_value(obs: np.ndarray, value: int) -> np.ndarray:
-        """Find all tokens with a specific value."""
-        return obs[obs[:, 2] == value]
-
-    @staticmethod
     def find_features_by_type(obs: np.ndarray, feature_type_id: int) -> np.ndarray:
         """Find all feature tokens with a specific feature type ID."""
         feature_tokens = ObservationHelper.find_tokens_by_type(obs, TokenTypes.TYPE_ID_FEATURE)
@@ -60,12 +55,6 @@ class ObservationHelper:
         return positions
 
     @staticmethod
-    def get_wall_positions(obs: np.ndarray) -> list[tuple[int, int]]:
-        """Get all wall positions from an observation."""
-        wall_tokens = ObservationHelper.find_features_by_type(obs, TokenTypes.WALL_TYPE_ID)
-        return ObservationHelper.get_positions_from_tokens(wall_tokens)
-
-    @staticmethod
     def count_walls(obs: np.ndarray) -> int:
         """Count the number of wall tokens in an observation."""
         return len(ObservationHelper.find_features_by_type(obs, TokenTypes.WALL_TYPE_ID))
@@ -84,8 +73,3 @@ class ObservationHelper:
     def has_feature_at(obs: np.ndarray, x: int, y: int, feature_type_id: int) -> bool:
         """Check if there's a specific feature type at the given location."""
         return len(ObservationHelper.find_feature_at_location(obs, x, y, feature_type_id)) > 0
-
-    @staticmethod
-    def has_token_at(obs: np.ndarray, x: int, y: int, token_type: int) -> bool:
-        """Check if there's a specific token type at the given location."""
-        return ObservationHelper.find_token_value_at_location(obs, x, y, token_type) is not None
