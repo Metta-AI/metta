@@ -283,7 +283,9 @@ class TestObservations:
         # Check that we see altars at all expected positions
         for x, y in expected_altar_positions:
             # Check altar exists at location
-            assert helper.has_feature_at(agent_obs, x, y, TokenTypes.ALTAR_TYPE_ID), f"Should have altar at ({x}, {y})"
+            assert helper.find_tokens(
+                agent_obs, location=(x, y), feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
+            ), f"Should have altar at ({x}, {y})"
 
             # Check color token
             color_value = helper.find_token_value_at_location(agent_obs, x, y, TokenTypes.COLOR)
@@ -296,7 +298,7 @@ class TestObservations:
             assert converter_value is not None, f"Should have converter status token at ({x}, {y})"
 
         # Verify the agent sees itself at center (1,1)
-        agent_tokens = helper.find_tokens_at_location(agent_obs, 1, 1)
+        agent_tokens = helper.find_tokens(agent_obs, location=(1, 1))
         assert len(agent_tokens) > 0, "Agent should see itself at center position"
 
         # Count total altars
@@ -326,7 +328,7 @@ class TestObservations:
         # Agent 1 at grid (2,2) - Agent 0 at grid (1,2) = offset (1,0)
         # So Agent 1 should appear at observation position (1+1, 1+0) = (2,1)
 
-        agent1_tokens = helper.find_tokens_at_location(obs[0], 2, 1)
+        agent1_tokens = helper.find_tokens(obs[0], location=(2, 1))
         assert len(agent1_tokens) > 0, "Agent 0 should see Agent 1 at (2,1)"
 
         # Agent 1 at (2,2) has observation window centered at (2,2)
@@ -338,7 +340,7 @@ class TestObservations:
         # Agent 0 at grid (1,2) - Agent 1 at grid (2,2) = offset (-1,0)
         # So Agent 0 should appear at observation position (1-1, 1+0) = (0,1)
 
-        agent0_tokens = helper.find_tokens_at_location(obs[1], 0, 1)
+        agent0_tokens = helper.find_tokens(obs[1], location=(0, 1))
         assert len(agent0_tokens) > 0, "Agent 1 should see Agent 0 at (0,1)"
 
     def test_observation_token_order(self, basic_env):
@@ -647,7 +649,7 @@ class TestEdgeObservations:
         move_idx = env.action_names.index("move")
 
         # Verify initial position - agent should be at center of observation
-        agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
+        agent_tokens = helper.find_tokens(obs[0], location=(3, 3))
         assert len(agent_tokens) > 0, "Agent should see itself at center (3,3)"
 
         # The altar at grid position (row=5, col=7) should not be visible initially
@@ -676,7 +678,9 @@ class TestEdgeObservations:
                 assert altar_visible, f"Altar should be visible after step {step} (agent at col {agent_col})"
 
                 # Find altar in observation
-                altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
+                altar_tokens = helper.find_tokens(
+                    obs[0], feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
+                )
                 altar_positions = helper.get_positions_from_tokens(altar_tokens)
                 assert len(altar_positions) == 1, "Should find exactly one altar"
 
@@ -705,10 +709,12 @@ class TestEdgeObservations:
             agent_col = 2 + step + 1
 
             # Check if altar is visible
-            altar_found = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+            altar_tokens = helper.find_tokens(
+                obs[0], feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
+            )
+            altar_found = len(altar_tokens) > 0
 
             if altar_found:
-                altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
                 altar_positions = helper.get_positions_from_tokens(altar_tokens)
                 if altar_positions:
                     obs_col, obs_row = altar_positions[0]
@@ -734,7 +740,7 @@ class TestEdgeObservations:
             obs, _, _, _, _ = env.step(actions)
 
         # Verify agent is still at center of observation
-        agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
+        agent_tokens = helper.find_tokens(obs[0], location=(3, 3))
         assert len(agent_tokens) > 0, "Agent should still see itself at center (3,3)"
 
         # Check walls at edges of observation
@@ -755,7 +761,7 @@ class TestEdgeObservations:
         # Areas beyond x=4 and y=4 should be empty
         for x in range(5, 7):
             for y in range(7):
-                tokens = helper.find_tokens_at_location(obs[0], x, y)
+                tokens = helper.find_tokens(obs[0], location=(x, y))
                 # Check tokens beyond the first few (which might be global tokens)
                 for i, token in enumerate(tokens):
                     if i >= 4:  # Skip potential global tokens
