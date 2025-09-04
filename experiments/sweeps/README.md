@@ -36,13 +36,176 @@ uv run ./tools/run.py experiments.sweeps.standard.ppo \
     --args sweep_name=ppo_sweep_001 max_trials=10
 ```
 
+## Step-by-Step Sweep Workflow Example
+
+Let's walk through a complete PPO sweep using a custom recipe (`arena_basic_easy_shaped`) with specific entrypoints. This example shows exactly how commands are built and what gets executed.
+
+### Step 1: Launch the Sweep
+
+```bash
+uv run ./tools/run.py experiments.sweeps.standard.ppo \
+    --args \
+    sweep_name=ppo_arena_basic \
+    recipe_module=experiments.recipes.arena_basic_easy_shaped \
+    train_entrypoint=train \
+    eval_entrypoint=evaluate \
+    max_trials=3 \
+    --overrides \
+    dispatcher_type=hybrid_remote_train
+```
+
+### Step 2: What Happens Behind the Scenes
+
+#### 2.1 Sweep Initialization
+The orchestrator starts and creates the sweep configuration:
+```
+[SweepOrchestrator] Starting sweep: ppo_arena_basic
+[SweepOrchestrator] Recipe: experiments.recipes.arena_basic_easy_shaped.train
+[SweepOrchestrator] Max trials: 3
+[SweepOrchestrator] Dispatcher type: hybrid_remote_train
+```
+
+#### 2.2 First Trial - Training Job
+
+The Protein optimizer suggests hyperparameters, and the orchestrator builds the training command:
+
+```
+[OptimizingScheduler] 🚀 Scheduling trial 1/3: trial_0001
+[OptimizingScheduler]    trainer.optimizer.learning_rate: 0.0003421
+[OptimizingScheduler]    trainer.losses.loss_configs.ppo.clip_coef: 0.182
+[OptimizingScheduler]    trainer.losses.loss_configs.ppo.ent_coef: 0.0023
+```
+
+**Actual dispatched command (via SkypilotDispatcher for training):**
+```bash
+/Users/axel/Documents/Softmax/metta-repo/devops/skypilot/launch.py \
+    --no-spot \
+    --gpus=1 \
+    experiments.recipes.arena_basic_easy_shaped.train \
+    --args \
+    run=ppo_arena_basic_trial_0001 \
+    --overrides \
+    trainer.optimizer.learning_rate=0.0003421 \
+    trainer.losses.loss_configs.ppo.clip_coef=0.182 \
+    trainer.losses.loss_configs.ppo.ent_coef=0.0023 \
+    trainer.losses.loss_configs.ppo.gae_lambda=0.91 \
+    trainer.losses.loss_configs.ppo.vf_coef=0.43
+```
+
+This launches the training job on cloud resources (Skypilot).
+
+#### 2.3 Training Progress Monitoring
+
+```
+[trial_0001] Epoch 1 [ppo_arena_basic_trial_0001] / 521 sps / 1.31% of 50.00 ksteps
+[trial_0001] Epoch 2 [ppo_arena_basic_trial_0001] / 743 sps / 2.62% of 50.00 ksteps
+...
+[trial_0001] Epoch 50 [ppo_arena_basic_trial_0001] / 817 sps / 100.00% of 50.00 ksteps
+[trial_0001] Training complete!
+```
+
+#### 2.4 First Trial - Evaluation Job
+
+After training completes, the orchestrator schedules evaluation:
+
+```
+[OptimizingScheduler] Scheduling evaluation for trial_0001
+```
+
+**Actual dispatched command (via LocalDispatcher for evaluation):**
+```bash
+uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.evaluate \
+    --args \
+    policy_uri=file://./train_dir/ppo_arena_basic_trial_0001/checkpoints \
+    --overrides \
+    push_metrics_to_wandb=True
+```
+
+This command is executed locally (not sent to Skypilot). The evaluation command then submits the evaluation task to a remote evaluation server (separate from Skypilot).
+
+#### 2.5 Evaluation Results
+
+```
+[trial_0001] Running evaluation suite...
+[trial_0001] eval_arena: score=0.721, survival_rate=0.89
+[OptimizingScheduler] Trial trial_0001 completed with score: 0.721
+```
+
+### Step 3: Subsequent Trials
+
+The Protein optimizer uses Bayesian optimization to suggest better hyperparameters based on trial 1's results:
+
+```
+[OptimizingScheduler] 🚀 Scheduling trial 2/3: trial_0002
+[OptimizingScheduler]    trainer.optimizer.learning_rate: 0.0008124  # Adjusted based on trial 1
+[OptimizingScheduler]    trainer.losses.loss_configs.ppo.clip_coef: 0.095  # Adjusted
+```
+
+**Trial 2 Training Command:**
+```bash
+/Users/axel/Documents/Softmax/metta-repo/devops/skypilot/launch.py \
+    --no-spot \
+    --gpus=1 \
+    experiments.recipes.arena_basic_easy_shaped.train \
+    --args \
+    run=ppo_arena_basic_trial_0002 \
+    --overrides \
+    trainer.optimizer.learning_rate=0.0008124 \
+    trainer.losses.loss_configs.ppo.clip_coef=0.095 \
+    # ... other optimized parameters
+```
+
+### Step 4: Final Summary
+
+After all trials complete:
+
+```
+[SweepOrchestrator] SWEEP SUMMARY
+[SweepOrchestrator] ========================================
+[SweepOrchestrator] Run ID                    Status         Score
+[SweepOrchestrator] ----------------------------------------
+[SweepOrchestrator] trial_0001                completed      0.721
+[SweepOrchestrator] trial_0002                completed      0.843
+[SweepOrchestrator] trial_0003                completed      0.798
+[SweepOrchestrator] ========================================
+[SweepOrchestrator] Best result:
+[SweepOrchestrator]    Run: ppo_arena_basic_trial_0002
+[SweepOrchestrator]    Score: 0.843
+[SweepOrchestrator]    Config: {
+    "trainer.optimizer.learning_rate": 0.0008124,
+    "trainer.losses.loss_configs.ppo.clip_coef": 0.095,
+    "trainer.losses.loss_configs.ppo.ent_coef": 0.0041,
+    "trainer.losses.loss_configs.ppo.gae_lambda": 0.96,
+    "trainer.losses.loss_configs.ppo.vf_coef": 0.28
+}
+```
+
+### Understanding the Command Flow
+
+1. **User Command** → Calls `experiments.sweeps.standard.ppo` function
+2. **Sweep Tool** → Creates `SweepOrchestratorTool` with PPO parameter search space
+3. **Orchestrator** → Manages the overall sweep process
+4. **Scheduler** → Uses Protein optimizer to suggest hyperparameters
+5. **Dispatcher** → Routes jobs:
+   - Training → Sent to Skypilot (executes on cloud GPUs)
+   - Evaluation → Executed locally (but submits to remote eval server)
+6. **Actual Commands** → Fully expanded with all parameters and overrides
+
+### Key Points
+
+- **Hybrid dispatch**: Training commands go through Skypilot to cloud GPUs, evaluation commands execute locally but submit tasks to remote evaluation servers
+- **Parameter paths**: Note the full paths like `trainer.losses.loss_configs.ppo.clip_coef`
+- **Bayesian optimization**: Each trial learns from previous results
+- **Automatic checkpointing**: Training saves checkpoints that evaluation loads
+- **WandB tracking**: All metrics are logged to WandB for visualization
+
 ## Dispatcher Types
 
 The sweep system supports three dispatcher modes:
 
-- **`local`**: All jobs run locally with output capture
-- **`skypilot`**: All jobs run on cloud resources via Skypilot
-- **`hybrid_remote_train`** (default): Training on cloud, evaluation locally
+- **`local`**: Commands are executed locally (but may still dispatch to remote infrastructure)
+- **`skypilot`**: Commands are sent to Skypilot for cloud execution
+- **`hybrid_remote_train`** (default): Training commands sent to Skypilot, evaluation commands executed locally
 
 ```bash
 # Force local execution
@@ -282,50 +445,11 @@ To see subprocess output for debugging:
 --overrides dispatcher_type=local capture_output=true
 ```
 
-## Migration from Old Sweep System
-
-The new orchestrator is a complete replacement for the old Hydra-based sweep system:
-
-### Key Differences
-
-| Old System | New System |
-|------------|------------|
-| Hydra configuration | Pydantic configuration |
-| Stateful controller | Stateless orchestrator |
-| Single machine only | Distributed-ready |
-| Basic grid/random search | Bayesian optimization with Protein |
-| File-based state | WandB-based persistent state |
-| `trainer.ppo.*` paths | `trainer.losses.loss_configs.ppo.*` paths |
-
-### Benefits
-
-- **Stateless**: Can be interrupted and resumed safely
-- **Efficient**: Bayesian optimization converges faster than random search
-- **Observable**: Full visibility via WandB and structured logging
-- **Extensible**: Easy to add new schedulers and optimizers
-- **Testable**: Clean separation of concerns with protocols
-- **Flexible**: Support for different dispatchers and recipes
-
 ## Examples in the Codebase
 
 - `experiments/sweeps/standard.py`: Standard sweep configurations
   - `ppo()`: Full PPO hyperparameter sweep
   - `quick_test()`: Quick test configuration with fewer trials
-
-## Recent Changes
-
-### Configuration Path Updates
-- PPO parameters moved from `trainer.ppo.*` to `trainer.losses.loss_configs.ppo.*`
-- This reflects the new loss system architecture where PPO is a configurable loss function
-
-### New Command-Line Arguments
-- Added support for `recipe_module`, `train_entrypoint`, `eval_entrypoint` as command-line args
-- Default dispatcher changed to `hybrid_remote_train` for better performance
-
-### Bug Fixes
-- Fixed `is_configured()` error in `sim.py` (changed to check `wandb.enabled`)
-- Fixed incorrect path in `SkypilotDispatcher` for launch script
-- Updated checkpoint URI handling for sweeps
 
 ## API Reference
 
