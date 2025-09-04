@@ -91,13 +91,15 @@ jobs:
         id: detect-pr
         uses: ./.github/actions/detect-external-pr
 
-      - name: Check for file changes
+      - name: Check for Python/C++ file changes
         id: check_py_files
         uses: ./.github/actions/file-changes
         with:
           patterns: "**/*.py,**/*.cpp,**/*.hpp,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
           specific_files: "uv.lock"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # No need for individual module change detection - pytest-testmon handles this automatically
 
       - name: Check for observatory file changes
         id: check_observatory_files
@@ -203,19 +205,32 @@ jobs:
           pnpm run lint
 
   unit-tests:
-    name: "Unit Tests - All Packages"
+    name: "Unit Tests (pytest-testmon)"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-8core
-    timeout-minutes: 15
+    runs-on: ubuntu-4core
+    timeout-minutes: 25
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "testing"
+
+      - name: Cache pytest-testmon database
+        uses: actions/cache@v4
+        with:
+          path: |
+            .testmondata
+            */..testmondata
+          key: testmon-${{ runner.os }}-${{ github.ref }}
+          restore-keys: |
+            testmon-${{ runner.os }}-refs/heads/main
+            testmon-${{ runner.os }}-
 
       - name: Cache PufferLib clone
         uses: actions/cache@v4
@@ -231,103 +246,37 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run all package tests
-        shell: bash
+      - name: Run tests with pytest-testmon
         run: |
-          # Create directories
-          mkdir -p test-results coverage-reports
-
-          run_package_tests() {
-            local package=$1
-            local color=$2
-
-            # packages run in parallel so we will start (packages)*(pytest_workers) processes
-            PYTEST_BASE_ARGS="-n 2 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
-
-            # Save raw output for duration parsing
-            local raw_output="test-results/${package}_raw.log"
-
-            # Run tests and prefix each line with package name and color
-            if [ "$package" == "core" ]; then
-              (pytest $PYTEST_BASE_ARGS \
-                --cov-report=xml:coverage-reports/coverage-${package}.xml \
-                2>&1; echo $? > test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
-                  echo -e "${color}[${package}]\033[0m $line"
-                done
-            else
-              (cd "$package" && pytest $PYTEST_BASE_ARGS \
-                --cov-report=xml:../coverage-reports/coverage-${package}.xml \
-                2>&1; echo $? > ../test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
-                  echo -e "${color}[${package}]\033[0m $line"
-                done
-            fi
-
-            # Extract duration info for later summary
-            grep -E "^[0-9]+\.[0-9]+s " "$raw_output" > "test-results/${package}_durations.txt" || true
-          }
-
-          # Export function
-          export -f run_package_tests
-
-          # Record start time
-          START_TIME=$(date +%s)
-
-          echo "⏳ Running tests in parallel..."
-          run_package_tests "mettagrid" "\033[1;34m" &   # Bold Blue
-          sleep 2 # mettagrid is slowest, so give time for it to grab resources
-
-          run_package_tests "agent" "\033[1;31m" &        # Bold Red
-          run_package_tests "common" "\033[1;32m" &       # Bold Green
-          run_package_tests "app_backend" "\033[1;33m" & # Bold Yellow
-          run_package_tests "codebot" "\033[1;35m" &     # Bold Magenta
-          run_package_tests "core" "\033[1;36m" &         # Bold Cyan
-
-          wait
-          END_TIME=$(date +%s)
-          TOTAL_TIME=$((END_TIME - START_TIME))
-          OVERALL_FAILED=0
-          FAILED_PACKAGES=""
-
-          for package in agent common app_backend mettagrid codebot core; do
-            if [ -f "test-results/${package}.exit" ]; then
-              EXIT_CODE=$(cat "test-results/${package}.exit")
-              if [ "$EXIT_CODE" -ne 0 ]; then
-                OVERALL_FAILED=1
-                FAILED_PACKAGES="$FAILED_PACKAGES $package"
-              fi
-            else
-              OVERALL_FAILED=1
-              FAILED_PACKAGES="$FAILED_PACKAGES $package"
-            fi
-          done
-
-          echo -e "\n\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-          echo -e "\n\033[1;37m🐌 TOP 10 SLOWEST TESTS\033[0m"
-          # Combine all duration files and sort
-          for package in agent common app_backend mettagrid codebot core; do
-            if [ -f "test-results/${package}_durations.txt" ]; then
-              # Add package name to each line
-              sed "s/^/[${package}] /" "test-results/${package}_durations.txt"
-            fi
-          done | sort -rn | head -10 | nl -w2 -s'. '
-
-          if [ $OVERALL_FAILED -ne 0 ]; then
-            echo -e "\n\033[1;31m💥 Tests failed in:$FAILED_PACKAGES\033[0m"
-            echo -e "Total time: ${TOTAL_TIME}s"
-            exit 1
+          echo "::group::Running pytest-testmon selective tests"
+          
+          # Common pytest arguments
+          PYTEST_ARGS="--testmon --cov --cov-branch --benchmark-skip -n auto --disable-warnings -v --durations=10"
+          
+          # If no .testmondata exists, do a full run first to build the database
+          if [ ! -f ".testmondata" ]; then
+            echo "No testmon database found. Running full test suite to build dependency database..."
+            pytest $PYTEST_ARGS
           else
-            echo -e "\n\033[1;32m🎉 All tests passed in ${TOTAL_TIME}s!\033[0m"
+            echo "Found testmon database. Running only affected tests..."
+            # Show which tests would be selected (dry run)
+            echo "Tests that would be selected by testmon:"
+            pytest --testmon --collect-only -q || echo "No tests selected or collection failed"
+            
+            # Run the selected tests
+            pytest $PYTEST_ARGS
           fi
+          
+          echo "::endgroup::"
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          SUBPACKAGES: "agent common app_backend mettagrid codebot core"
         run: |
           chmod +x .github/scripts/upload_codecov.py
-          # Upload all coverage files
-          .github/scripts/upload_codecov.py
+          # Upload coverage for all packages since pytest-testmon might run tests from any package
+          SUBPACKAGES="agent,common,app_backend,mettagrid,codebot,core" .github/scripts/upload_codecov.py
 
   unit-tests-summary:
     name: "Tests"
