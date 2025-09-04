@@ -51,6 +51,11 @@ class OptimizingScheduler:
             eval_overrides = self.config.eval_overrides.copy() if self.config.eval_overrides else {}
             eval_overrides["push_metrics_to_wandb"] = "True"  # Always push metrics to WandB for sweeps
 
+            # Add WandB overrides for evaluation
+            eval_overrides["wandb.name"] = train_run.run_id
+            eval_overrides["wandb.run_id"] = train_run.run_id
+            eval_overrides["wandb.group"] = sweep_metadata.sweep_id
+
             # Add stats_server_uri if configured to enable remote evaluation
             if self.config.stats_server_uri:
                 eval_overrides["stats_server_uri"] = self.config.stats_server_uri
