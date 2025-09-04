@@ -66,12 +66,12 @@ runs:
 
           "testing")
             uv sync
-            uv pip install -r .github/actions/setup-uv/dependencies-testing.txt
+            uv pip install -r .github/actions/setup-environment/dependencies-testing.txt
             ;;
 
           "linting")
             echo "Installing dependencies for linting"
-            uv pip install -r .github/actions/setup-uv/dependencies-linting.txt
+            uv pip install -r .github/actions/setup-environment/dependencies-linting.txt
             echo "Installed dependencies for linting"
             ;;
 
