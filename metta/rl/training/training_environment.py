@@ -9,6 +9,7 @@ from pydantic import Field
 from metta.cogworks.curriculum import Curriculum
 from metta.mettagrid.config import Config
 from metta.rl.experience import Experience
+from metta.rl.training.curriculum_config import CurriculumConfig
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
 
@@ -36,6 +37,9 @@ class TrainingEnvironmentConfig(Config):
     seed: int = Field(default=0)
     """Random seed for environment"""
 
+    curriculum: CurriculumConfig = Field(default=None)
+    """Curriculum configuration for task selection"""
+
 
 class TrainingEnvironment:
     """Manages the vectorized training environment and experience generation."""
@@ -43,18 +47,18 @@ class TrainingEnvironment:
     def __init__(
         self,
         config: TrainingEnvironmentConfig,
-        curriculum: Curriculum,
         rank: int = 0,
     ):
         """Initialize training environment.
 
         Args:
             config: Training environment configuration
-            curriculum: Curriculum for task selection
+            curriculum: Curriculum for task selection (uses config.curriculum if not provided)
             rank: Process rank for distributed training
         """
         self.config = config
-        self.curriculum = curriculum
+
+        self.curriculum = Curriculum(config.curriculum)
         self.rank = rank
 
         # Initialize vecenv variables

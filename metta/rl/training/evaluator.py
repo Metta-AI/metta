@@ -350,8 +350,8 @@ class Evaluator(MasterComponent):
         from metta.rl.training.training_environment import TrainingEnvironment
 
         curriculum = None
-        if isinstance(trainer.training_environment, TrainingEnvironment):
-            curriculum = trainer.training_environment.curriculum
+        if isinstance(trainer.training_env, TrainingEnvironment):
+            curriculum = trainer.training_env.curriculum
 
         # Run evaluation
         scores = self.evaluate(

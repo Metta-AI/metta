@@ -174,3 +174,40 @@ class PolicyCheckpointer(MasterComponent):
             epoch=epoch,
             metadata=metadata,
         )
+
+    def on_training_complete(self, trainer: Any) -> None:
+        """Save final policy checkpoint when training completes.
+
+        Args:
+            trainer: The trainer instance
+        """
+        # Build final metadata
+        metadata = {
+            "agent_step": trainer.trainer_state.agent_step,
+            "epoch": trainer.trainer_state.epoch,
+            "total_time": trainer.timer.get_elapsed(),
+            "total_train_time": (
+                trainer.timer.get_all_elapsed().get("_rollout", 0) + trainer.timer.get_all_elapsed().get("_train", 0)
+            ),
+            "is_final": True,
+            "upload_to_wandb": False,
+        }
+
+        # Add final evaluation scores if available
+        if hasattr(trainer, "evaluator") and trainer.evaluator:
+            eval_scores = trainer.evaluator.get_latest_scores()
+            if eval_scores and (eval_scores.category_scores or eval_scores.simulation_scores):
+                metadata.update(
+                    {
+                        "score": eval_scores.avg_simulation_score,
+                        "avg_reward": eval_scores.avg_category_score,
+                    }
+                )
+
+        # Save final policy checkpoint
+        self.save_policy(
+            policy=trainer.policy,
+            epoch=trainer.trainer_state.epoch,
+            metadata=metadata,
+            force=True,  # Force save final checkpoint
+        )

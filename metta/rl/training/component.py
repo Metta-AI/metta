@@ -73,11 +73,6 @@ class TrainerComponent:
         pass
 
 
-# Backward compatibility aliases
-ComponentConfig = TrainerComponentConfig
-TrainingComponent = TrainerComponent
-
-
 class MasterComponent(TrainerComponent):
     """Base class for training components that should only run on the master process.
 

@@ -1,17 +1,54 @@
+"""Dynamics loss implementation."""
+
+from typing import Any
+
 import einops
 import torch
 import torch.nn.functional as F
+from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 
-from metta.rl.loss.base_loss import BaseLoss
+from metta.agent.metta_agent import PolicyAgent
+from metta.mettagrid.config import Config
+from metta.rl.loss.loss import Loss
 from metta.rl.trainer_state import TrainerState
 
+# Config class
 
-class Dynamics(BaseLoss):
+
+class DynamicsConfig(Config):
+    returns_step_look_ahead: int = Field(default=1)
+    returns_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
+    reward_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
+
+    def create(
+        self,
+        policy: PolicyAgent,
+        trainer_cfg: Any,
+        vec_env: Any,
+        device: torch.device,
+        instance_name: str,
+        loss_config: Any,
+    ):
+        """Create Dynamics loss instance."""
+        return Dynamics(
+            policy,
+            trainer_cfg,
+            vec_env,
+            device,
+            instance_name=instance_name,
+            loss_config=loss_config,
+        )
+
+
+# Loss class
+
+
+class Dynamics(Loss):
     """The dynamics term in the Muesli loss."""
 
-    # BaseLoss calls this method
+    # Loss calls this method
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
         policy_td = shared_loss_data["policy_td"]

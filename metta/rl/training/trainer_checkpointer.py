@@ -58,6 +58,30 @@ class TrainerCheckpointer(TrainingComponent):
 
         return None
 
+    def restore(self, trainer: Any) -> None:
+        """Restore trainer state from checkpoint.
+
+        Args:
+            trainer: The trainer instance to restore state to
+        """
+        # Get checkpoint info
+        _, trainer_state = self.get_checkpoint_info()
+
+        if trainer_state:
+            # Restore trainer state
+            trainer.trainer_state.agent_step = trainer_state.get("agent_step", 0)
+            trainer.trainer_state.epoch = trainer_state.get("epoch", 0)
+            trainer.latest_saved_epoch = trainer.trainer_state.epoch
+
+            # Restore timer state if available
+            if "stopwatch_state" in trainer_state and hasattr(trainer, "timer"):
+                trainer.timer.load_state(trainer_state["stopwatch_state"], resume_running=True)
+
+            logger.info(
+                f"Restored trainer state: epoch={trainer.trainer_state.epoch}, "
+                f"agent_step={trainer.trainer_state.agent_step}"
+            )
+
     def save_trainer_state(
         self,
         epoch: int,
