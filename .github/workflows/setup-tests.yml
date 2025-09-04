@@ -23,13 +23,54 @@ permissions:
   pull-requests: write
 
 jobs:
-  setup-tests:
-    name: "Setup Tests"
+  # Check if Python/config files have changed
+  setup-checks:
+    name: "Check for setup-relevant changes"
     if: |
       github.event.pull_request.draft == false ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    outputs:
+      has_relevant_changes: ${{ steps.check_files.outputs.has_relevant_changes }}
+      run_test: ${{ steps.determine_tasks.outputs.run_test }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for Python/config file changes
+        id: check_files
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: "**/*.py,**/pyproject.toml,**/pytest.ini"
+          specific_files: "uv.lock"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine which tasks to run
+        id: determine_tasks
+        run: |
+          # Default behavior based on event type and file changes
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Use workflow dispatch inputs for manual runs
+            RUN_TEST="${{ github.event.inputs.run_test }}"
+          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" == "false" ]]; then
+            # Skip for PRs with no relevant changes
+            RUN_TEST="false"
+            echo "::notice title=Skipping Setup Tests::No Python/config files changed"
+          else
+            # Run for other events or when relevant changes exist
+            RUN_TEST="true"
+          fi
+
+          # Output the decision
+          echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
+          echo "run setup tests? ${RUN_TEST}"
+
+  setup-tests:
+    name: "Setup Tests"
+    needs: [setup-checks]
+    if: needs.setup-checks.outputs.run_test == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -87,6 +128,7 @@ jobs:
           uv run pytest $PYTEST_ARGS
 
       - name: Upload setup test coverage to Codecov
+        if: needs.setup-checks.outputs.has_relevant_changes == 'true'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
