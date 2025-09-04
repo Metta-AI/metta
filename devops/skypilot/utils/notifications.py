@@ -338,6 +338,11 @@ def send_notifications(termination_reason: str):
             title="SkyPilot Job NCCL Config Error",
             description="NCCL tests failed",
         ),
+        "force_restart_test": NotificationConfig(
+            emoji="🔧",
+            title="SkyPilot Job Restarted",
+            description="Job restarted to test automatic recovery.",
+        ),
     }
 
     if termination_reason not in notifications:

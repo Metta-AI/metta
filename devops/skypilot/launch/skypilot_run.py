@@ -24,6 +24,7 @@ from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
 logger = getRankAwareLogger(__name__)
 
 EXIT_AND_STOP = 0
+EXIT_AND_RESTART = 1
 
 # Configuration
 node_index = int(os.environ.get("SKYPILOT_NODE_RANK", "0"))
@@ -133,9 +134,13 @@ def main() -> int:
         run_training_in_background()
         termination_reason = monitor_until_termination()
 
-    log_final_summary(0, termination_reason)
+    exit_code = EXIT_AND_STOP
+    if termination_reason == "force_restart_test":
+        exit_code = EXIT_AND_RESTART
+
+    log_final_summary(exit_code, termination_reason)
     send_notifications(termination_reason)
-    return EXIT_AND_STOP
+    return exit_code
 
 
 if __name__ == "__main__":
