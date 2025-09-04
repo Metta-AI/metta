@@ -8,7 +8,7 @@ var
   window*: Window
   bxy*: Boxy
   env*: Environment
-  selection*: GameObject
+  selection*: Thing
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent based on their village
@@ -75,9 +75,9 @@ proc drawGridLines*() =
       color = color(0.2, 0.2, 0.2, 0.5)
     )
 
-proc drawAgent*(agent: GameObject, isSelected: bool) =
+proc drawAgent*(agent: Thing, isSelected: bool) =
   let
-    pos = vec2(agent.x.float32, agent.y.float32)
+    pos = vec2(agent.pos.x.float32, agent.pos.y.float32)
     agentCol = agentColor(agent.agentId)
   
   # Draw agent body
@@ -109,8 +109,8 @@ proc drawAgent*(agent: GameObject, isSelected: bool) =
       color = color(1, 1, 0, 0.5)
     )
 
-proc drawClippy*(clippy: GameObject) =
-  let pos = vec2(clippy.x.float32, clippy.y.float32)
+proc drawClippy*(clippy: Thing) =
+  let pos = vec2(clippy.pos.x.float32, clippy.pos.y.float32)
   
   # Draw clippy body (smaller than agent)
   bxy.drawRect(
@@ -118,10 +118,10 @@ proc drawClippy*(clippy: GameObject) =
     color = color(0.8, 0.3, 0.3, 1.0)
   )
 
-proc drawAltar*(altar: GameObject) =
+proc drawAltar*(altar: Thing) =
   let
-    pos = vec2(altar.x.float32, altar.y.float32)
-    altarCol = altarColor(ivec2(altar.x, altar.y))
+    pos = vec2(altar.pos.x.float32, altar.pos.y.float32)
+    altarCol = altarColor(altar.pos)
   
   # Draw altar (triangular shape approximated with rect)
   bxy.drawRect(
@@ -129,8 +129,8 @@ proc drawAltar*(altar: GameObject) =
     color = altarCol
   )
 
-proc drawBuilding*(building: GameObject) =
-  let pos = vec2(building.x.float32, building.y.float32)
+proc drawBuilding*(building: Thing) =
+  let pos = vec2(building.pos.x.float32, building.pos.y.float32)
   
   # Draw building
   bxy.drawRect(
@@ -138,7 +138,7 @@ proc drawBuilding*(building: GameObject) =
     color = color(0.4, 0.3, 0.2, 1.0)
   )
 
-proc draw*(boxy: Boxy, environment: Environment, selected: GameObject) =
+proc draw*(boxy: Boxy, environment: Environment, selected: Thing) =
   ## Draw the world map
   
   # Update global references
@@ -157,15 +157,38 @@ proc draw*(boxy: Boxy, environment: Environment, selected: GameObject) =
         case thing.kind
         of Agent:
           drawAgent(thing, thing == selection)
+        of Wall:
+          # Draw wall
+          bxy.drawRect(
+            rect = rect(thing.pos.x.float32 - 0.5, thing.pos.y.float32 - 0.5, 1.0, 1.0),
+            color = color(0.3, 0.3, 0.3, 1.0)
+          )
+        of Mine:
+          # Draw mine (with resource indicator)
+          bxy.drawRect(
+            rect = rect(thing.pos.x.float32 - 0.4, thing.pos.y.float32 - 0.4, 0.8, 0.8),
+            color = color(0.6, 0.4, 0.2, 1.0)
+          )
+          if thing.resources > 0:
+            bxy.drawRect(
+              rect = rect(thing.pos.x.float32 - 0.2, thing.pos.y.float32 - 0.2, 0.4, 0.4),
+              color = color(0.9, 0.7, 0.3, 1.0)
+            )
+        of Converter:
+          # Draw converter
+          bxy.drawRect(
+            rect = rect(thing.pos.x.float32 - 0.35, thing.pos.y.float32 - 0.35, 0.7, 0.7),
+            color = color(0.3, 0.5, 0.7, 1.0)
+          )
         of Clippy:
           drawClippy(thing)
         of Altar:
           drawAltar(thing)
-        of Building:
+        of Armory, Forge, ClayOven, WeavingLoom:
           drawBuilding(thing)
-        else:
-          # Draw generic object
+        of Temple:
+          # Draw temple (similar to altar but larger)
           bxy.drawRect(
-            rect = rect(thing.x.float32 - 0.25, thing.y.float32 - 0.25, 0.5, 0.5),
-            color = color(0.5, 0.5, 0.5, 1.0)
+            rect = rect(thing.pos.x.float32 - 0.45, thing.pos.y.float32 - 0.45, 0.9, 0.9),
+            color = color(0.7, 0.6, 0.4, 1.0)
           )

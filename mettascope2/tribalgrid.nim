@@ -1,10 +1,12 @@
 import std/[random, os, times, strformat, strutils]
 import boxy, opengl, windy, chroma, vmath
 import src/tribal/[tribal, worldmap, controller]
-import src/mettascope/environment_core
 
 # Global variables
 type
+  IRect* = object
+    x*, y*, w*, h*: int
+  
   WorldMapPanel = ref object
     rect*: IRect
     pos*: Vec2
@@ -16,7 +18,7 @@ var
   window*: Window
   bxy*: Boxy
   env*: Environment
-  selection*: GameObject
+  selection*: Thing
   worldMapPanel*: WorldMapPanel
   typeface*: Typeface
 
@@ -147,9 +149,8 @@ proc endPanAndZoom*() =
 
 proc drawStats*() =
   ## Draw basic stats in the corner
-  let statsText = &"""Frame: {env.frameCount}
-Agents: {env.agents.len}
-Clippys: {env.clippys.len}"""
+  let statsText = &"""Step: {env.currentStep}
+Agents: {env.agents.len}"""
   
   drawText(statsText, vec2(10, 10), 14, color(1, 1, 1, 0.8))
 
@@ -174,9 +175,6 @@ proc main() =
     zoom: 10,
     zoomVel: 0
   )
-  
-  # Load images
-  bxy.addImage("bubble", readImage("data/images/bubble.png"))
   
   # Main loop
   while not window.closeRequested:
