@@ -22,13 +22,11 @@ runs:
         version: "0.7.3"
         enable-cache: true
         prune-cache: false
-        cache-suffix: "${{ inputs.install-mode }}-${{ inputs.extra-dependencies }}"
+        cache-suffix: "${{ inputs.install-mode }}${{ inputs.extra-dependencies != '' && format('-{0}', inputs.extra-dependencies) || '' }}"
         cache-dependency-glob: |
-          ${{ (inputs.install-mode == 'testing' || inputs.install-mode == 'runtime') && 'uv.lock' || '' }}
-          ${{ inputs.install-mode == 'linting' && '.github/actions/setup-uv/dependencies-linting.txt' || '' }}
-          ${{ inputs.install-mode == 'testing' && '.github/actions/setup-uv/dependencies-testing.txt' || '' }}
-          ${{ (inputs.install-mode == 'testing' || inputs.install-mode == 'runtime') && '**/pyproject.toml' || '' }}
-          .github/actions/setup-uv/action.yml
+          uv.lock
+          **/pyproject.toml
+          .github/actions/setup-uv/dependencies-*.txt
 
     - name: Install Bazel
       shell: bash
