@@ -19,7 +19,7 @@ proc testVillageSpawning() =
   for thing in env.things:
     if thing.kind == Altar:
       villageCount += 1
-      echo fmt"Village {villageCount}: Altar at ({thing.pos.x}, {thing.pos.y}) with {thing.hp} hearts"
+      echo fmt"Village {villageCount}: Altar at ({thing.pos.x}, {thing.pos.y}) with {thing.hearts} hearts"
   
   for agent in env.agents:
     if agent.homeAltar.x >= 0:

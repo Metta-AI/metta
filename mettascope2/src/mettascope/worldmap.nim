@@ -341,49 +341,50 @@ proc drawInfoText*() =
     of Wall:
       info = &"""
 Wall
-hp: {selection.hp}
+pos: ({selection.pos.x}, {selection.pos.y})
       """
     of Agent:
       info = &"""
 Agent
 agentId: {selection.agentId}
-energy: {selection.energy}
 orientation: {selection.orientation}
-inventory: {selection.inventory}
+ore: {selection.inventoryOre}
+batteries: {selection.inventoryBattery}
+water: {selection.inventoryWater}
+wheat: {selection.inventoryWheat}
+wood: {selection.inventoryWood}
 reward: {selection.reward}
 frozen: {selection.frozen}
-shield: {selection.shield}
-hp: {selection.hp}
       """
     of Altar:
       info = &"""
 Altar
-hp: {selection.hp}
+hearts: {selection.hearts}
 cooldown: {selection.cooldown}
       """
     of Converter:
       info = &"""
 Converter
-hp: {selection.hp}
 cooldown: {selection.cooldown}
+ready: {selection.cooldown == 0}
       """
     of Mine:
       info = &"""
 Mine
-hp: {selection.hp}
+resources: {selection.resources}
 cooldown: {selection.cooldown}
       """
     of Temple:
       info = &"""
 Temple
-hp: {selection.hp}
 cooldown: {selection.cooldown}
+spawn ready: {selection.cooldown == 0}
       """
     of Clippy:
       info = &"""
 Clippy
-hp: {selection.hp}
-energy: {selection.energy}
+home: ({selection.homeTemple.x}, {selection.homeTemple.y})
+wander radius: {selection.wanderRadius}
       """
   else:
     info = &"""
