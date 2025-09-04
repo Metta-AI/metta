@@ -33,6 +33,8 @@ type
     scrollArea*: Rect
     hasMouse*: bool = false
 
+    drawFn*: proc(panel: Panel)
+
   AreaLayout* = enum
     Horizontal
     Vertical
@@ -58,15 +60,7 @@ var
   bxy*: Boxy
   frame*: int
 
-  globalTimelinePanel*: Panel
-  globalFooterPanel*: Panel
-  globalHeaderPanel*: Panel
-
-  worldMapPanel*: Panel
-  minimapPanel*: Panel
-  agentTablePanel*: Panel
-  agentTracesPanel*: Panel
-  mgConfigPanel*: Panel
+  panels*: array[PanelType, Panel]
 
   settings* = Settings()
   selection*: Entity

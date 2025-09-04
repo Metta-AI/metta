@@ -12,14 +12,19 @@ when not defined(emscripten):
 bxy = newBoxy(quadsPerBatch = 10921)
 
 rootArea = Area(layout: Horizontal)
-worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
-minimapPanel = Panel(panelType: Minimap, name: "Minimap")
-agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table")
-agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces")
-mgConfigPanel = Panel(panelType: EnvConfig, name: "Env Config")
-globalTimelinePanel = Panel(panelType: GlobalTimeline)
-globalFooterPanel = Panel(panelType: GlobalFooter)
-globalHeaderPanel = Panel(panelType: GlobalHeader)
+panels[WorldMap] = Panel(panelType: WorldMap, name: "World Map",
+    drawFn: drawWorldMap)
+panels[Minimap] = Panel(panelType: Minimap, name: "Minimap",
+    drawFn: drawMinimap)
+panels[AgentTable] = Panel(panelType: AgentTable, name: "Agent Table",
+    drawFn: drawAgentTable)
+panels[AgentTraces] = Panel(panelType: AgentTraces, name: "Agent Traces",
+    drawFn: drawAgentTraces)
+panels[EnvConfig] = Panel(panelType: EnvConfig, name: "Env Config",
+    drawFn: drawEnvConfig)
+panels[GlobalTimeline] = Panel(panelType: GlobalTimeline, drawFn: drawTimeline)
+panels[GlobalFooter] = Panel(panelType: GlobalFooter, drawFn: drawFooter)
+panels[GlobalHeader] = Panel(panelType: GlobalHeader, drawFn: drawHeader)
 
 rootArea.areas.add(Area(layout: Horizontal))
 let topArea = Area(layout: Horizontal)
@@ -27,11 +32,11 @@ rootArea.areas.add(topArea)
 let bottomArea = Area(layout: Horizontal)
 rootArea.areas.add(bottomArea)
 
-topArea.panels.add(worldMapPanel)
-topArea.panels.add(minimapPanel)
-topArea.panels.add(agentTablePanel)
-bottomArea.panels.add(agentTracesPanel)
-bottomArea.panels.add(mgConfigPanel)
+topArea.panels.add(panels[WorldMap])
+topArea.panels.add(panels[Minimap])
+topArea.panels.add(panels[AgentTable])
+bottomArea.panels.add(panels[AgentTraces])
+bottomArea.panels.add(panels[EnvConfig])
 
 proc display() =
   if window.buttonReleased[MouseLeft]:
@@ -40,46 +45,25 @@ proc display() =
 
   bxy.beginFrame(window.size)
   const RibbonHeight = 64
-  rootArea.rect = IRect(x: 0, y: RibbonHeight, w: window.size.x, h: window.size.y - RibbonHeight*3)
-  topArea.rect = IRect(x: 0, y: rootArea.rect.y, w: rootArea.rect.w, h: (rootArea.rect.h.float32 * 0.75).int)
-  bottomArea.rect = IRect(x: 0, y: rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, w: rootArea.rect.w, h: (rootArea.rect.h.float32 * 0.25).int)
+  rootArea.rect = IRect(x: 0, y: RibbonHeight, w: window.size.x,
+      h: window.size.y - RibbonHeight*3)
+  topArea.rect = IRect(x: 0, y: rootArea.rect.y, w: rootArea.rect.w, h: (
+      rootArea.rect.h.float32 * 0.75).int)
+  bottomArea.rect = IRect(x: 0, y: rootArea.rect.y + (rootArea.rect.h.float32 *
+      0.75).int, w: rootArea.rect.w, h: (rootArea.rect.h.float32 * 0.25).int)
   rootArea.updatePanelsSizes()
 
-  globalHeaderPanel.rect = IRect(x: 0, y: 0, w: window.size.x, h: RibbonHeight)
-  globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
-  globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
+  panels[GlobalHeader].rect = IRect(x: 0, y: 0, w: window.size.x,
+      h: RibbonHeight)
+  panels[GlobalFooter].rect = IRect(x: 0, y: window.size.y - RibbonHeight,
+      w: window.size.x, h: RibbonHeight)
+  panels[GlobalTimeline].rect = IRect(x: 0, y: window.size.y - RibbonHeight*2,
+      w: window.size.x, h: RibbonHeight)
 
-  globalHeaderPanel.beginDraw()
-  drawHeader(globalHeaderPanel)
-  globalHeaderPanel.endDraw()
-
-  globalFooterPanel.beginDraw()
-  drawFooter(globalFooterPanel)
-  globalFooterPanel.endDraw()
-
-  globalTimelinePanel.beginDraw()
-  drawTimeline(globalTimelinePanel)
-  globalTimelinePanel.endDraw()
-
-  worldMapPanel.beginDraw()
-  drawWorldMap(worldMapPanel)
-  worldMapPanel.endDraw()
-
-  minimapPanel.beginDraw()
-  drawMinimap(minimapPanel)
-  minimapPanel.endDraw()
-
-  agentTablePanel.beginDraw()
-  drawAgentTable(agentTablePanel)
-  agentTablePanel.endDraw()
-
-  agentTracesPanel.beginDraw()
-  drawAgentTraces(agentTracesPanel)
-  agentTracesPanel.endDraw()
-
-  mgConfigPanel.beginDraw()
-  drawEnvConfig(mgConfigPanel)
-  mgConfigPanel.endDraw()
+  for panel in PanelType:
+    panels[panel].beginDraw()
+    panels[panel].drawFn(panels[panel])
+    panels[panel].endDraw()
 
   rootArea.drawFrame()
 
