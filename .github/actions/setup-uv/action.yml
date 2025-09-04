@@ -9,10 +9,6 @@ inputs:
     description: "Extra pip dependencies to install (newline-separated list)"
     required: false
     default: ""
-  dependencies-files:
-    description: "Paths to pip dependencies.txt files relative to repository root (newline-separated)"
-    required: false
-    default: ""
 
   # NOTE: This action automatically sets UV_NO_SYNC=1 to prevent uv from syncing ALL project dependencies
   # when workflows/actions run `uv run` commands
@@ -25,48 +21,14 @@ runs:
       with:
         version: "0.7.3"
         enable-cache: true
-        # disabling cache saves 30 sec on testing but costs 40 sec in other modes
         prune-cache: false
-        cache-suffix: "${{ inputs.install-mode }}-${{ inputs.extra-dependencies }}-${{ inputs.dependencies-files }}"
+        cache-suffix: "${{ inputs.install-mode }}-${{ inputs.extra-dependencies }}"
         cache-dependency-glob: |
           ${{ (inputs.install-mode == 'testing' || inputs.install-mode == 'runtime') && 'uv.lock' || '' }}
           ${{ inputs.install-mode == 'linting' && '.github/actions/setup-uv/dependencies-linting.txt' || '' }}
           ${{ inputs.install-mode == 'testing' && '.github/actions/setup-uv/dependencies-testing.txt' || '' }}
           ${{ (inputs.install-mode == 'testing' || inputs.install-mode == 'runtime') && '**/pyproject.toml' || '' }}
-          ${{ inputs.dependencies-files || '' }}
           .github/actions/setup-uv/action.yml
-
-    - name: Debug dependencies and cache
-      shell: bash
-      run: |
-        echo "🔍 Dependency files found:"
-        dep_files="${{ inputs.dependencies-files }}"
-        find_args="-name pyproject.toml -o -name uv.lock"
-        if [ -n "$dep_files" ]; then
-          for file in $dep_files; do
-            find_args="$find_args -o -name $file"
-          done
-        fi
-        eval "find . $find_args" | sort | head -20
-
-        echo ""
-        echo "🔍 Input dependencies:"
-        echo "  Extra dependencies: ${{ inputs.extra-dependencies }}"
-        dep_files_array=($dep_files)
-        echo "  Dependencies files: n=${#dep_files_array[@]}"
-        for file in $dep_files; do
-          echo "    $file"
-        done
-        echo "  Number of files in dep_files: ${#dep_files_array[@]}"
-        echo ""
-        echo "🔍 UV cache investigation:"
-        echo "Cache directory: $(uv cache dir)"
-        echo "Cache size: $(du -sh $(uv cache dir) 2>/dev/null || echo 'N/A')"
-        ls -la $(uv cache dir) 2>/dev/null || echo "Cache dir doesn't exist yet"
-        echo ""
-        echo "🔍 Environment info:"
-        echo "RUNNER_OS: ${{ runner.os }}"
-        echo "Cache suffix: ${{ inputs.install-mode }}"
 
     - name: Install Bazel
       shell: bash
@@ -132,18 +94,4 @@ runs:
           done
         else
           echo "No extra inline pip dependencies specified"
-        fi
-        if [ -n "${{ inputs.dependencies-files }}" ]; then
-          echo "Installing dependencies from files:"
-          echo "${{ inputs.dependencies-files }}" | while read -r dep_file; do
-            if [ -n "$dep_file" ] && [ -f "$dep_file" ]; then
-              echo "Installing from $dep_file:"
-              uv pip install -r "$dep_file"
-            elif [ -n "$dep_file" ]; then
-              echo "ERROR: Dependencies file not found: $dep_file" >&2
-              exit 1
-            fi
-          done
-        else
-          echo "No extra pip dependencies files specified"
         fi
