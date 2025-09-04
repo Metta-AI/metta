@@ -26,8 +26,8 @@ const
   MapRoomWidth* = 96  # 100 - 4 border = 96
   MapRoomHeight* = 46  # 50 - 4 border = 46
   MapRoomBorder* = 0
-  MapRoomObjectsAgents* = 15  # Total agents to spawn (will be distributed across villages)
-  MapRoomObjectsHouses* = 3  # Number of villages/houses to spawn
+  MapRoomObjectsAgents* = 20  # Total agents to spawn (will be distributed across villages)
+  MapRoomObjectsHouses* = 4  # Number of villages/houses to spawn (one per corner)
   MapAgentsPerHouse* = 5  # Agents to spawn per house/village
   MapRoomObjectsConverters* = 10  # Converters to process ore into batteries
   MapRoomObjectsMines* = 20  # Mines to extract ore (2x generators)
@@ -137,12 +137,14 @@ type
     # Agent:
     agentId*: int
     orientation*: Orientation
+    hunger*: int            # Steps until starvation (dies at 0)
     inventoryOre*: int      # Ore from mines
     inventoryBattery*: int  # Batteries from converters
     inventoryWater*: int    # Water from water tiles
     inventoryWheat*: int    # Wheat from wheat tiles
     inventoryWood*: int     # Wood from tree tiles
     inventorySpear*: int    # Spears crafted from forge
+    inventoryBread*: int    # Bread baked from wheat (restores hunger)
     reward*: float32
     homeAltar*: IVec2      # Position of agent's home altar for respawning
     
@@ -583,8 +585,21 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
-  of Temple, Clippy, Armory, ClayOven, WeavingLoom:
-    # Can't use temples, Clippys, or other corner buildings (for now)
+  of ClayOven:
+    # Use clay oven to bake bread from wheat
+    if thing.cooldown == 0 and agent.inventoryWheat > 0 and agent.inventoryBread < 5:
+      # Bake bread
+      agent.inventoryWheat -= 1
+      agent.inventoryBread += 1
+      thing.cooldown = 5  # Clay oven cooldown
+      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      # Note: Add AgentInventoryBreadLayer if needed for observations
+      agent.reward += 0.02  # Small reward for making food
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  of Temple, Clippy, Armory, WeavingLoom:
+    # Can't use temples, Clippys, or other buildings (for now)
     inc env.stats[id].actionInvalid
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
@@ -943,6 +958,7 @@ proc init(env: Environment) =
             agentId: agentId,
             pos: agentPos,
             orientation: Orientation(r.rand(0..3)),
+            hunger: 100,  # Start with full hunger (100 steps until starvation)
             homeAltar: elements.center,  # Link agent to their home altar
             inventoryOre: 0,
             inventoryBattery: 0,
@@ -950,6 +966,7 @@ proc init(env: Environment) =
             inventoryWheat: 0,
             inventoryWood: 0,
             inventorySpear: 0,
+            inventoryBread: 0,
             frozen: 0,
           ))
           
@@ -974,6 +991,7 @@ proc init(env: Environment) =
       agentId: agentId,
       pos: agentPos,
       orientation: Orientation(r.rand(0..3)),
+      hunger: 100,  # Start with full hunger (100 steps until starvation)
       homeAltar: ivec2(-1, -1),  # No home altar for unaffiliated agents
       inventoryOre: 0,
       inventoryBattery: 0,
@@ -981,6 +999,7 @@ proc init(env: Environment) =
       inventoryWheat: 0,
       inventoryWood: 0,
       inventorySpear: 0,
+      inventoryBread: 0,
       frozen: 0,
     ))
     
@@ -1220,6 +1239,60 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       if thing.frozen > 0:
         thing.frozen -= 1
         # Note: frozen status is visible in observations through updateObservations(id)
+      
+      # Hunger system
+      if thing.frozen == 0:  # Only decrease hunger if not frozen
+        thing.hunger -= 1
+        
+        # Check if agent needs to eat bread
+        if thing.hunger <= 20 and thing.inventoryBread > 0:
+          # Automatically eat bread when hungry
+          thing.inventoryBread -= 1
+          thing.hunger = 100  # Reset hunger to full
+          thing.reward += 0.05  # Small reward for eating to survive
+        
+        # Die from starvation
+        if thing.hunger <= 0:
+          # Agent dies from hunger - respawn at home altar
+          if thing.homeAltar.x >= 0 and thing.homeAltar.y >= 0:
+            # Find the home altar
+            var homeAltarThing: Thing = nil
+            for altarThing in env.things:
+              if altarThing.kind == Altar and altarThing.pos == thing.homeAltar:
+                homeAltarThing = altarThing
+                break
+            
+            if homeAltarThing != nil and homeAltarThing.hearts > 0:
+              # Respawn costs 1 heart from altar
+              homeAltarThing.hearts -= 1
+              env.updateObservations(AltarHeartsLayer, homeAltarThing.pos, homeAltarThing.hearts)
+              
+              # Clear agent from current position
+              env.grid[thing.pos.x][thing.pos.y] = nil
+              env.updateObservations(AgentLayer, thing.pos, 0)
+              
+              # Find empty position near altar
+              let nearbyPositions = env.findEmptyPositionsAround(thing.homeAltar, 3)
+              if nearbyPositions.len > 0:
+                thing.pos = nearbyPositions[0]
+              else:
+                thing.pos = thing.homeAltar  # Spawn on altar if no space
+              
+              # Reset agent state
+              thing.hunger = 100  # Full hunger on respawn
+              thing.frozen = 10  # Brief invulnerability after respawn
+              thing.inventoryOre = 0
+              thing.inventoryBattery = 0
+              thing.inventoryWater = 0
+              thing.inventoryWheat = 0
+              thing.inventoryWood = 0
+              thing.inventorySpear = 0
+              thing.inventoryBread = 0
+              thing.reward -= 1.0  # Penalty for dying
+              
+              # Place at new position
+              env.grid[thing.pos.x][thing.pos.y] = thing
+              env.updateObservations(thing.agentId)
 
   # Add newly spawned clippys from temples
   for newClippy in newClippysToSpawn:
@@ -1337,13 +1410,15 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         if emptyPositions.len > 0:
           # Respawn the agent
           agent.pos = emptyPositions[0]
+          agent.hunger = 100  # Reset hunger to full on respawn
           agent.inventoryOre = 0
           agent.inventoryBattery = 0
           agent.inventoryWater = 0
           agent.inventoryWheat = 0
           agent.inventoryWood = 0
           agent.inventorySpear = 0
-          agent.frozen = 0
+          agent.inventoryBread = 0  # Reset bread inventory
+          agent.frozen = 10  # Brief invulnerability after respawn
           env.terminated[agentId] = 0.0
           
           # Update grid

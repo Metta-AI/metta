@@ -1,7 +1,7 @@
 import
   std/[strformat, tables],
   boxy, vmath, windy, chroma,
-  common, panels, tribal, actions, utils
+  tribal, actions, utils
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent based on their village
