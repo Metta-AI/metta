@@ -52,7 +52,7 @@ const
   MapObjectAltarRespawnCost* = 1  # Cost 1 heart to respawn an agent
 
   MapObjectGeneratorHp* = 30
-  MapObjectGeneratorCooldown* = 2
+  MapObjectGeneratorCooldown* = 0  # No cooldown for instant conversion
   MapObjectGeneratorEnergyOutput* = 1  # Simplified: 1 ore = 1 battery
 
   MapObjectMineHp* = 30
@@ -533,8 +533,9 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
       agent.energy = clamp(agent.energy, 0, MapObjectAgentMaxEnergy)
       env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
-      thing.cooldown = MapObjectGeneratorCooldown
-      env.updateObservations(GeneratorReadyLayer, thing.pos, thing.cooldown)
+      # No cooldown for instant conversion
+      thing.cooldown = 0
+      env.updateObservations(GeneratorReadyLayer, thing.pos, 1)  # Always ready
       inc env.stats[id].actionUseGenerator
       inc env.stats[id].actionUse
   of Temple, Clippy:
