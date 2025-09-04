@@ -1,4 +1,4 @@
-import std/[random], vmath
+import std/[random, math], vmath
 
 proc toIVec2*(x, y: int): IVec2 =
   ## Helper to create IVec2 from ints
@@ -103,36 +103,85 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
            waterPos.y >= 0 and waterPos.y < mapHeight:
           terrain[waterPos.x][waterPos.y] = Water
 
+proc createWheatField*(terrain: var TerrainGrid, centerX, centerY: int, size: int, r: var Rand) =
+  ## Create a wheat field cluster around a center point
+  let radius = (size.float / 2.0).int
+  for dx in -radius .. radius:
+    for dy in -radius .. radius:
+      let x = centerX + dx
+      let y = centerY + dy
+      if x >= 0 and x < 48 and y >= 0 and y < 48:
+        if terrain[x][y] == Empty:
+          # Use distance from center to create more organic shape
+          let dist = sqrt((dx * dx + dy * dy).float)
+          if dist <= radius.float:
+            let chance = 1.0 - (dist / radius.float) * 0.3  # Higher chance near center
+            if r.rand(1.0) < chance:
+              terrain[x][y] = Wheat
+
+proc createTreeGrove*(terrain: var TerrainGrid, centerX, centerY: int, size: int, r: var Rand) =
+  ## Create a tree grove cluster around a center point
+  let radius = (size.float / 2.0).int
+  for dx in -radius .. radius:
+    for dy in -radius .. radius:
+      let x = centerX + dx
+      let y = centerY + dy
+      if x >= 0 and x < 48 and y >= 0 and y < 48:
+        if terrain[x][y] == Empty:
+          # Use distance from center to create more organic shape
+          let dist = sqrt((dx * dx + dy * dy).float)
+          if dist <= radius.float:
+            let chance = 0.8 - (dist / radius.float) * 0.4  # Trees less dense than wheat
+            if r.rand(1.0) < chance:
+              terrain[x][y] = Tree
+
 proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate wheat fields near water
-  for x in mapBorder ..< mapWidth - mapBorder:
-    for y in mapBorder ..< mapHeight - mapBorder:
-      if terrain[x][y] == Empty:
-        # Check if near water
-        var nearWater = false
-        for dx in -3 .. 3:
-          for dy in -3 .. 3:
-            let checkX = x + dx
-            let checkY = y + dy
-            if checkX >= 0 and checkX < mapWidth and
-               checkY >= 0 and checkY < mapHeight:
-              if terrain[checkX][checkY] == Water:
-                nearWater = true
-                break
-          if nearWater:
-            break
-        
-        # Wheat is more likely near water
-        if nearWater and r.rand(1.0) < 0.4:
-          terrain[x][y] = Wheat
+  ## Generate 4-5 clustered wheat fields
+  let numFields = r.rand(4..5)
+  
+  for i in 0 ..< numFields:
+    # Try to place near water if possible
+    var placed = false
+    for attempt in 0 ..< 20:
+      let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
+      let y = r.rand(mapBorder + 3 .. mapHeight - mapBorder - 3)
+      
+      # Check if near water
+      var nearWater = false
+      for dx in -5 .. 5:
+        for dy in -5 .. 5:
+          let checkX = x + dx
+          let checkY = y + dy
+          if checkX >= 0 and checkX < mapWidth and checkY >= 0 and checkY < mapHeight:
+            if terrain[checkX][checkY] == Water:
+              nearWater = true
+              break
+        if nearWater:
+          break
+      
+      # Prefer locations near water, but accept any after some attempts
+      if nearWater or attempt > 10:
+        let fieldSize = r.rand(5..20)  # Each field has 5-20 wheat tiles
+        createWheatField(terrain, x, y, fieldSize, r)
+        placed = true
+        break
+    
+    # Fallback: place anywhere if no good spot found
+    if not placed:
+      let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
+      let y = r.rand(mapBorder + 3 .. mapHeight - mapBorder - 3)
+      let fieldSize = r.rand(5..20)
+      createWheatField(terrain, x, y, fieldSize, r)
 
 proc generateTrees*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate trees in remaining empty areas
-  for x in mapBorder ..< mapWidth - mapBorder:
-    for y in mapBorder ..< mapHeight - mapBorder:
-      if terrain[x][y] == Empty:
-        if r.rand(1.0) < 0.15:  # 15% chance for trees
-          terrain[x][y] = Tree
+  ## Generate 4-5 tree groves
+  let numGroves = r.rand(4..5)
+  
+  for i in 0 ..< numGroves:
+    let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
+    let y = r.rand(mapBorder + 3 .. mapHeight - mapBorder - 3)
+    let groveSize = r.rand(5..20)  # Each grove has 5-20 trees
+    createTreeGrove(terrain, x, y, groveSize, r)
 
 proc initTerrain*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, seed: int = 2024) =
   ## Initialize terrain with all features
