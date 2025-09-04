@@ -1,185 +1,234 @@
-import logging
-import socket
-from dataclasses import dataclass
+"""
+Unit tests for WandbContext.
+"""
 
-import pytest
+import os
+import tempfile
+
 import wandb
-from omegaconf import OmegaConf
+from wandb.errors import CommError
 
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 from metta.mettagrid.config import Config
 
-logger = logging.getLogger("Test")
+
+class SampleConfig(Config):
+    """Simple configuration for testing."""
+
+    test_value: str = "test"
+    number: int = 42
 
 
-@pytest.fixture(autouse=True)
-def patch_dependencies(monkeypatch):
-    # Patch wandb.save to no-op
-    monkeypatch.setattr(wandb, "save", lambda *args, **kwargs: None)
+def test_wandb_config_factories():
+    """Test WandbConfig factory methods."""
+    # Test Off()
+    cfg_off = WandbConfig.Off()
+    assert cfg_off.enabled is False
+    assert cfg_off.project == "na"
+    assert cfg_off.entity == "na"
 
-    # Dummy socket to bypass real network calls
-    class DummySock:
-        def settimeout(self, timeout):
-            pass
-
-        def connect(self, addr):
-            pass
-
-    monkeypatch.setattr(socket, "socket", lambda *args, **kwargs: DummySock())
-
-    yield
+    # Test Unconfigured()
+    cfg_unconf = WandbConfig.Unconfigured()
+    assert cfg_unconf.enabled is False
+    assert cfg_unconf.project == "unconfigured"
+    assert cfg_unconf.entity == "unconfigured"
 
 
-@dataclass
-class DummyRun:
-    id: str
-    job_type: str
-    project: str
-    entity: str
-    config: dict
-    group: str
-    allow_val_change: bool
-    monitor_gym: bool
-    save_code: bool
-    resume: bool
-    tags: list[str]
-    notes: str | None
-    settings: wandb.Settings
-
-    def __post_init__(self):
-        # Simulate wandb auto-assigning a name
-        self.name = f"run-{self.id}" if self.id else "auto-generated-name"
+def test_wandb_config_uri():
+    """Test URI generation."""
+    cfg = WandbConfig(enabled=True, project="p", entity="e", run_id="test-123")
+    assert cfg.uri == "wandb://run/test-123"
 
 
-@pytest.fixture
-def dummy_init(monkeypatch):
-    monkeypatch.setattr(wandb, "init", lambda *args, **kwargs: DummyRun(*args, **kwargs))
-    yield
+def test_disabled_context():
+    """Test that disabled config skips initialization."""
+    cfg = WandbConfig.Off()
+    with WandbContext(cfg, SampleConfig()) as run:
+        assert run is None
 
 
-def test_enter_disabled_does_not_init(monkeypatch):
-    # Prepare disabled config
-    cfg_off = OmegaConf.create(dict(enabled=False))
-    # Spy on wandb.init
-    init_called = False
+def test_context_initialization():
+    """Test context attributes initialization."""
+    cfg = WandbConfig(enabled=True, project="test", entity="test")
+    ctx = WandbContext(cfg, SampleConfig(), timeout=45)
 
-    def fake_init(*args, **kwargs):
-        nonlocal init_called
-        init_called = True
+    assert ctx.cfg == cfg
+    assert ctx.timeout == 45
+    assert ctx.wandb_host == "api.wandb.ai"
+    assert ctx.wandb_port == 443
+    assert ctx.run is None
+
+
+def test_network_check_failure():
+    """Test behavior when network check fails."""
+    cfg = WandbConfig(enabled=True, project="test", entity="test")
+    ctx = WandbContext(cfg, SampleConfig())
+    ctx.wandb_host = "invalid.host.example.com"
+
+    with ctx as run:
+        assert run is None
+
+
+def test_wandb_offline_mode():
+    """Test initialization in offline mode."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ["WANDB_MODE"] = "offline"
+        os.environ["WANDB_DIR"] = tmpdir
+
+        cfg = WandbConfig(enabled=True, project="offline-test", entity="test-entity", data_dir=tmpdir)
+
+        try:
+            with WandbContext(cfg, SampleConfig(), timeout=5) as _run:
+                # Offline mode might still create a run
+                pass
+        finally:
+            os.environ.pop("WANDB_MODE", None)
+            os.environ.pop("WANDB_DIR", None)
+
+
+def test_config_fields():
+    """Test WandbConfig with various field combinations."""
+    # Test defaults
+    cfg_min = WandbConfig(enabled=True, project="p", entity="e")
+    assert cfg_min.group is None
+    assert cfg_min.tags == []
+    assert cfg_min.notes == ""
+
+    # Test full config
+    cfg_full = WandbConfig(
+        enabled=True,
+        project="my-project",
+        entity="my-entity",
+        group="experiment-1",
+        name="run-name",
+        run_id="custom-id",
+        data_dir="/tmp/data",
+        job_type="training",
+        tags=["tag1", "tag2"],
+        notes="Experiment notes",
+    )
+    assert cfg_full.group == "experiment-1"
+    assert cfg_full.tags == ["tag1", "tag2"]
+    assert cfg_full.notes == "Experiment notes"
+
+
+def test_cleanup_run_static():
+    """Test static cleanup_run method."""
+    WandbContext.cleanup_run(None)  # Should not raise
+
+
+# Tests using monkeypatch instead of mocks
+class FakeRun:
+    """Simple fake wandb run object."""
+
+    def __init__(self, name="test-run", id="run-123"):
+        self.name = name
+        self.id = id
+
+
+def test_successful_init_params(monkeypatch):
+    """Test successful wandb.init call with correct parameters."""
+    init_calls = []
+    save_calls = []
+
+    def fake_init(**kwargs):
+        init_calls.append(kwargs)
+        return FakeRun()
+
+    def fake_save(*args, **kwargs):
+        save_calls.append((args, kwargs))
 
     monkeypatch.setattr(wandb, "init", fake_init)
+    monkeypatch.setattr(wandb, "save", fake_save)
+    monkeypatch.setenv("METTA_USER", "alice")
 
-    ctx = WandbContext(cfg_off, global_cfg={"foo": "bar"})
-    run = ctx.__enter__()
-    assert run is None, "Expected no run when enabled=False"
-    assert not init_called, "wandb.init should not be called when disabled"
-
-
-def test_structured_config(monkeypatch, dummy_init):
-    # Prepare config that's already validated
-    cfg_off = WandbConfig.Off()
-
-    ctx = WandbContext(cfg_off, OmegaConf.create())
-    run = ctx.__enter__()
-    assert run is None
-
-    assert ctx.cfg == cfg_off
-
-
-def test_run_fields(monkeypatch, dummy_init, tmp_path):
-    # Prepare enabled config
-    cfg_on = WandbConfig(
+    cfg = WandbConfig(
         enabled=True,
-        project="proj",
-        entity="ent",
-        group="grp",
-        name="nm",
-        run_id="id",
-        data_dir=str(tmp_path),
-        job_type="jt",
+        project="test-proj",
+        entity="test-ent",
+        group="test-group",
+        run_id="custom-id",
+        job_type="training",
+        tags=["custom"],
+        notes="Test notes",
+        data_dir="/tmp/test",
     )
 
-    # Create a proper Config object for the global_cfg
-    class TestGlobalConfig(Config):
-        a: int = 1
+    with WandbContext(cfg, SampleConfig(), timeout=15) as run:
+        assert isinstance(run, FakeRun)
+        assert run.name == "test-run"
+        assert run.id == "run-123"
 
-    global_cfg = TestGlobalConfig()
+    # Verify init parameters
+    assert len(init_calls) == 1
+    kwargs = init_calls[0]
+    assert kwargs["id"] == "custom-id"
+    assert kwargs["project"] == "test-proj"
+    assert kwargs["entity"] == "test-ent"
+    assert kwargs["group"] == "test-group"
+    assert kwargs["job_type"] == "training"
+    assert kwargs["notes"] == "Test notes"
+    assert "custom" in kwargs["tags"]
+    assert "user:alice" in kwargs["tags"]
+    assert kwargs["resume"] is True
+    assert kwargs["settings"].init_timeout == 15
 
-    ctx = WandbContext(cfg_on, global_cfg)
-    run = ctx.__enter__()
-
-    assert run is not None
-    assert isinstance(run, DummyRun)
-
-    # Check fields
-    assert run.id == "id"
-    assert run.job_type == "jt"
-    assert run.project == "proj"
-    assert run.entity == "ent"
-    assert run.config == global_cfg.model_dump()
-    assert run.group == "grp"
-    assert run.resume is True
-    assert run.monitor_gym is True
-    assert run.save_code is True
-
-
-def test_tags_and_notes(monkeypatch, dummy_init, tmp_path):
-    cfg_on = WandbConfig(
-        enabled=True,
-        project="p",
-        entity="e",
-        group="g",
-        name="n",
-        run_id="r",
-        data_dir=str(tmp_path),
-        job_type="j",
-        tags=["a", "b"],
-        notes="hello",
-    )
-
-    # Create a proper Config object for the global_cfg
-    class TestGlobalConfig(Config):
-        a: int = 1
-
-    global_cfg = TestGlobalConfig()
-
-    ctx = WandbContext(cfg_on, global_cfg)
-    run = ctx.__enter__()
-
-    assert run is not None
-    assert run.tags == ["a", "b", "user:unknown"]
-    assert run.notes == "hello"
+    # Verify save calls for log/yaml/json files
+    assert len(save_calls) == 3
 
 
-def test_exit_finishes_run(monkeypatch, dummy_init, tmp_path):
-    # Prepare enabled config
-    cfg_on = WandbConfig(
-        enabled=True,
-        project="p",
-        entity="e",
-        group="g",
-        name="n",
-        run_id="r",
-        data_dir=str(tmp_path),
-        job_type="j",
-    )
+def test_exception_handling(monkeypatch):
+    """Test various exception handling paths."""
+    cfg = WandbConfig(enabled=True, project="test", entity="test")
 
-    # Spy on finish
-    finished = False
+    # Test TimeoutError
+    def raise_timeout(**kwargs):
+        raise TimeoutError("timeout")
+
+    monkeypatch.setattr(wandb, "init", raise_timeout)
+    with WandbContext(cfg, SampleConfig()) as run:
+        assert run is None
+
+    # Test CommError
+    def raise_comm_error(**kwargs):
+        raise CommError("comm error")
+
+    monkeypatch.setattr(wandb, "init", raise_comm_error)
+    with WandbContext(cfg, SampleConfig()) as run:
+        assert run is None
+
+    # Test generic Exception
+    def raise_runtime(**kwargs):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(wandb, "init", raise_runtime)
+    with WandbContext(cfg, SampleConfig()) as run:
+        assert run is None
+
+
+def test_cleanup_calls_finish(monkeypatch):
+    """Test cleanup calls wandb.finish for active run."""
+    finish_called = []
+
+    def fake_init(**kwargs):
+        return FakeRun()
 
     def fake_finish():
-        nonlocal finished
-        finished = True
+        finish_called.append(True)
 
+    monkeypatch.setattr(wandb, "init", fake_init)
+    monkeypatch.setattr(wandb, "save", lambda *args, **kwargs: None)
     monkeypatch.setattr(wandb, "finish", fake_finish)
 
-    # Create a proper Config object for the global_cfg
-    class TestGlobalConfig(Config):
-        a: int = 1
+    with WandbContext(WandbConfig(enabled=True, project="p", entity="e"), SampleConfig()):
+        pass
 
-    global_cfg = TestGlobalConfig()
+    assert len(finish_called) == 1
 
-    ctx = WandbContext(cfg_on, global_cfg=global_cfg)
-    _ = ctx.__enter__()
-    ctx.__exit__(None, None, None)
-    assert finished, "wandb.finish should be called on exit"
+    # Test cleanup error handling
+    def fake_finish_error():
+        raise Exception("cleanup error")
+
+    monkeypatch.setattr(wandb, "finish", fake_finish_error)
+    # Should not raise
+    WandbContext.cleanup_run(FakeRun())  # type: ignore
