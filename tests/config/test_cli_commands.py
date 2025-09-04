@@ -74,11 +74,12 @@ class TestConfigureCLICommands:
                 schema_module._config = None
                 # Initialize components
                 cli._init_all()
-                with patch("builtins.input", side_effect=["n", "test-entity", "test-project", "y"]):
+                with patch("builtins.input", side_effect=["test-entity", "test-project", "y"]):
                     with (
                         patch("metta.setup.utils.header"),
                         patch("metta.setup.utils.success"),
                         patch("metta.setup.utils.info"),
+                        patch("metta.setup.components.wandb.WandbSetup.check_installed", return_value=False),
                     ):
                         cli.configure_component("wandb")
 
