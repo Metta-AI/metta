@@ -80,7 +80,8 @@ inline void bind_game_config(py::module& m) {
                     // FEATURE FLAGS
                     bool,
                     bool,
-                    bool>(),
+                    bool,
+                    const std::map<std::string, float>&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
