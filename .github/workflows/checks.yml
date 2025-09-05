@@ -386,7 +386,7 @@ jobs:
           path: |
             ~/.cache/bazel
             ~/.cache/bazel-repo
-          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/MODULE.bazel.lock', 'mettagrid/.bazelrc') }}
+          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
 
