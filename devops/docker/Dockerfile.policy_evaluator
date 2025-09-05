@@ -1,31 +1,14 @@
-FROM homebrew/brew:latest
-
-# Set non-interactive frontend
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Minimal system deps
-RUN brew install bazelisk
-
-# Install kubectl for EKS/Kind testing
-RUN brew install kubectl
+FROM --platform=linux/amd64 ubuntu:22.04
 
 WORKDIR /workspace
 
-# Copy the entire repo
-COPY --chown=linuxbrew:linuxbrew . /workspace/metta
+COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
-# Clean up git config for anonymous access
-RUN git remote remove origin && \
-    git remote add origin https://github.com/Metta-AI/metta.git && \
-    git fetch
+RUN bash ./devops/tools/install-system.sh
 
-# This is where uv is installed by default
-# TODO: update `install.sh` to accept a custom path we expect uv to be at.
-ENV PATH="/home/linuxbrew/.local/bin:${PATH}"
-
-RUN UV_HTTP_TIMEOUT=120 bash install.sh --profile=softmax-docker --non-interactive
+RUN bash install.sh --profile=softmax-docker --non-interactive
 
 # Pre-build all packages to avoid OOM during container startup
 RUN uv sync --all-extras --frozen && \
