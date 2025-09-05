@@ -10,6 +10,7 @@
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "objects/box.hpp"
 #include "objects/converter.hpp"
 #include "types.hpp"
 
@@ -46,21 +47,9 @@ protected:
       converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
       box = dynamic_cast<Box*>(_grid->object_at(target_loc));
     } else {
-      // New behavior: can be next to the converter/box in any direction
-      for (int dr = -1; dr <= 1; dr++) {
-        for (int dc = -1; dc <= 1; dc++) {
-          if (dr == 0 && dc == 0) continue;  // Skip the agent's own position
-          GridLocation neighbor_loc = {actor->location.r + dr, actor->location.c + dc, GridLayer::ObjectLayer};
-          if (!converter) {
-            converter = dynamic_cast<Converter*>(_grid->object_at(neighbor_loc));
-          }
-          if (!box) {
-            box = dynamic_cast<Box*>(_grid->object_at(neighbor_loc));
-          }
-          if (converter || box) break;
-        }
-        if (converter || box) break;
-      }
+      // New behavior: can be next to the converter/box in cardinal directions only
+      converter = _grid->next_to<Converter>(actor->location, GridLayer::ObjectLayer);
+      box = _grid->next_to<Box>(actor->location, GridLayer::ObjectLayer);
     }
 
     if (!converter && !box) {

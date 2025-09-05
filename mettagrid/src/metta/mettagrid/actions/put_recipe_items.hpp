@@ -44,19 +44,8 @@ protected:
       target_loc.layer = GridLayer::ObjectLayer;
       converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
     } else {
-      // New behavior: can be next to the converter in any direction
-      for (int dr = -1; dr <= 1; dr++) {
-        for (int dc = -1; dc <= 1; dc++) {
-          if (dr == 0 && dc == 0) continue;  // Skip the agent's own position
-          GridLocation neighbor_loc = {actor->location.r + dr, actor->location.c + dc, GridLayer::ObjectLayer};
-          Converter* neighbor_converter = dynamic_cast<Converter*>(_grid->object_at(neighbor_loc));
-          if (neighbor_converter) {
-            converter = neighbor_converter;
-            break;
-          }
-        }
-        if (converter) break;
-      }
+      // New behavior: can be next to the converter in cardinal directions only
+      converter = _grid->next_to<Converter>(actor->location, GridLayer::ObjectLayer);
     }
 
     if (!converter) {
