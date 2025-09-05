@@ -15,7 +15,6 @@ from typing import Any
 from pydantic import BaseModel
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.table import Table
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
@@ -68,9 +67,15 @@ def parse_value(value_str: str) -> Any:
     if (value_str.startswith("{") and value_str.endswith("}")) or (
         value_str.startswith("[") and value_str.endswith("]")
     ):
+        # Basic size validation to prevent parsing extremely large strings
+        if len(value_str) > 1_000_000:  # 1MB limit
+            logger.warning(f"Skipping JSON parsing for oversized value ({len(value_str)} chars)")
+            return value_str
+
         try:
             return json.loads(value_str)
-        except Exception:
+        except json.JSONDecodeError:
+            # Not valid JSON despite having JSON-like delimiters
             pass
 
     # Try to parse as numeric
@@ -205,30 +210,6 @@ def classify_remaining_args(remaining_args: dict[str, Any], tool_fields: set[str
     return overrides, unknown
 
 
-def display_arg_classification(
-    func_args: dict[str, Any], overrides: dict[str, Any], unknown: list[str], make_tool_cfg_path: str
-) -> None:
-    """Display a rich table showing how arguments were classified."""
-    table = Table(title=f"Argument Classification for [bold cyan]{make_tool_cfg_path}[/bold cyan]")
-    table.add_column("Argument", style="cyan")
-    table.add_column("Value", style="magenta")
-    table.add_column("Type", style="green")
-
-    # Add function arguments
-    for key, value in func_args.items():
-        table.add_row(f"{key}", f"{value}", "Function Arg")
-
-    # Add overrides
-    for key, value in overrides.items():
-        table.add_row(f"{key}", f"{value}", "Override")
-
-    # Add unknown arguments
-    for key in unknown:
-        table.add_row(f"{key}", "N/A", "[red]Unknown[/red]")
-
-    console.print(table)
-
-
 def main():
     """Main entry point using argparse."""
     parser = argparse.ArgumentParser(
@@ -293,7 +274,14 @@ Use -- to force treating following arguments as key=value pairs if they start wi
     # Phase 1: Extract function arguments (no tool instance needed!)
     func_args, remaining_args = extract_function_args(cli_args, make_tool_cfg)
 
-    # Phase 2: Create the tool config object with function arguments
+    # Phase 2: Log and create the tool config object with function arguments
+    if known_args.verbose and func_args:
+        # Get the function/class name for clearer logging
+        func_name = make_tool_cfg.__name__ if hasattr(make_tool_cfg, "__name__") else str(make_tool_cfg)
+        console.print(f"\n[cyan]Creating {func_name}:[/cyan]")
+        for key, value in func_args.items():
+            console.print(f"  {key}={value}")
+
     try:
         if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
             # Tool config constructor
@@ -332,17 +320,19 @@ Use -- to force treating following arguments as key=value pairs if they start wi
             console.print(f"  - {field}")
         return 2  # Exit code 2 for usage errors
 
-    # Display classification if verbose
-    if known_args.verbose:
-        display_arg_classification(func_args, override_args, unknown_args, known_args.make_tool_cfg_path)
-
     # Apply overrides
-    for key, value in override_args.items():
-        try:
-            tool_cfg = tool_cfg.override(key, value)
-        except Exception as e:
-            console.print(f"[red]Error applying override {key}={value}:[/red] {e}")
-            return 1
+    if override_args:
+        if known_args.verbose:
+            console.print("\n[cyan]Applying overrides:[/cyan]")
+            for key, value in override_args.items():
+                console.print(f"  {key}={value}")
+
+        for key, value in override_args.items():
+            try:
+                tool_cfg = tool_cfg.override(key, value)
+            except Exception as e:
+                console.print(f"[red]Error applying override {key}={value}:[/red] {e}")
+                return 1
 
     # Seed random number generators if system config is available
     if hasattr(tool_cfg, "system"):
@@ -352,7 +342,8 @@ Use -- to force treating following arguments as key=value pairs if they start wi
     console.print("\n[bold green]Running tool...[/bold green]\n")
 
     try:
-        result = tool_cfg.invoke(func_args, list(override_args.items()))
+        # Convert func_args values to strings
+        result = tool_cfg.invoke({k: str(v) for k, v in func_args.items()})
     except KeyboardInterrupt:
         return 130  # Interrupted by Ctrl-C
     except Exception:
