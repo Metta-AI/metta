@@ -901,7 +901,7 @@ proc applyTintModifications*(env: Environment) =
     env.tileColors[x][y].b = min(max(b.float32 / 1000.0, 0.3), 1.2)
   
   # Apply global decay to ALL tiles (but infrequently for performance)
-  if env.currentStep mod 30 == 0:
+  if env.currentStep mod 30 == 0 and env.currentStep > 0:
     let decay = 0.98'f32  # 2% decay every 30 steps
     let baseR = 0.7'f32
     let baseG = 0.65'f32  
@@ -909,11 +909,16 @@ proc applyTintModifications*(env: Environment) =
     
     for x in 0 ..< MapWidth:
       for y in 0 ..< MapHeight:
-        env.tileColors[x][y].r = env.tileColors[x][y].r * decay + baseR * (1.0 - decay)
-        env.tileColors[x][y].g = env.tileColors[x][y].g * decay + baseG * (1.0 - decay)
-        env.tileColors[x][y].b = env.tileColors[x][y].b * decay + baseB * (1.0 - decay)
+        # Only decay if color differs from base (avoid floating point errors)
+        if abs(env.tileColors[x][y].r - baseR) > 0.01 or 
+           abs(env.tileColors[x][y].g - baseG) > 0.01 or 
+           abs(env.tileColors[x][y].b - baseB) > 0.01:
+          env.tileColors[x][y].r = env.tileColors[x][y].r * decay + baseR * (1.0 - decay)
+          env.tileColors[x][y].g = env.tileColors[x][y].g * decay + baseG * (1.0 - decay)
+          env.tileColors[x][y].b = env.tileColors[x][y].b * decay + baseB * (1.0 - decay)
+        
         # Also decay intensity back to 1.0
-        if env.tileColors[x][y].intensity != 1.0:
+        if abs(env.tileColors[x][y].intensity - 1.0) > 0.01:
           env.tileColors[x][y].intensity = env.tileColors[x][y].intensity * decay + 1.0 * (1.0 - decay)
 
 proc add*(env: Environment, thing: Thing) =
@@ -989,18 +994,16 @@ proc init(env: Environment) =
               env.terrain[clearX][clearY] = Empty
       
       # Generate a unique warm color for this village (reds, oranges, yellows)
-      # Use warm hues: 0-60 (red to yellow) and 300-360 (magenta to red)
-      let warmHue = if i mod 2 == 0:
-        (i.float32 * 30.0 / numHouses.float32).mod(60.0) / 360.0  # Red to yellow range
-      else:
-        (300.0 + i.float32 * 30.0 / numHouses.float32).mod(60.0) / 360.0  # Magenta-red range
-      
-      let villageColor = color(
-        warmHue,                               # Warm hue
-        0.8 + (i.float32 * 0.13).mod(0.2),   # High saturation (0.8-1.0)
-        0.6 + (i.float32 * 0.17).mod(0.3),   # Medium-high lightness (0.6-0.9)
-        1.0
-      )
+      # Create warm colors using RGB values directly
+      var villageColor: Color
+      case i mod 6:
+      of 0: villageColor = color(1.0, 0.4, 0.2, 1.0)    # Red-orange
+      of 1: villageColor = color(1.0, 0.6, 0.2, 1.0)    # Orange
+      of 2: villageColor = color(1.0, 0.8, 0.2, 1.0)    # Yellow-orange
+      of 3: villageColor = color(0.9, 0.3, 0.3, 1.0)    # Crimson
+      of 4: villageColor = color(1.0, 0.5, 0.4, 1.0)    # Coral
+      of 5: villageColor = color(0.8, 0.4, 0.6, 1.0)    # Warm pink
+      else: villageColor = color(1.0, 0.5, 0.3, 1.0)    # Default warm orange
       
       # Spawn agents around this house
       let agentsForThisHouse = min(MapAgentsPerHouse, MapRoomObjectsAgents - totalAgentsSpawned)
