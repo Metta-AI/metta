@@ -202,10 +202,6 @@ def make_icl_resource_chain(
                 default_resource_limit=1,
                 resource_limits={"heart": 15},
             ),
-            reward_estimates={
-                "most_efficient_optimal_reward": 0.0,
-                "least_efficient_optimal_reward": 0.0,
-            },
         )
     )
     return cfg
