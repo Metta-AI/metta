@@ -16,8 +16,6 @@ set -euo pipefail
 : "${EXIT_NCCL_TEST_FAILURE:?Missing EXIT_NCCL_TEST_FAILURE}"
 
 cleanup() {
-  echo "cleanup starting"
-
   # Capture the actual exit code that triggered the trap
   CMD_EXIT=${CMD_EXIT:-$?}
 
