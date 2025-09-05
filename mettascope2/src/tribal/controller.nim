@@ -93,7 +93,7 @@ proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 
     state.spiralArcsCompleted += 1
   
   # Cap radius and reset if too far
-  let radius = min(state.spiralArcsCompleted, 15)
+  let radius = max(1, min(state.spiralArcsCompleted, 15))
   if radius > 15:
     state.spiralArcsCompleted = 1
     return state.basePosition
