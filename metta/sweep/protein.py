@@ -316,9 +316,7 @@ class Protein:
             else:
                 # Generate additional random suggestions
                 results = [(best_dict, info)]
-                additional_suggestions = self.hyperparameters.sample(
-                    n_suggestions - 1, scale=self.global_search_scale
-                )
+                additional_suggestions = self.hyperparameters.sample(n_suggestions - 1, scale=self.global_search_scale)
                 for i in range(n_suggestions - 1):
                     suggestion_dict = self.hyperparameters.to_dict(additional_suggestions[i], fill)
                     results.append((suggestion_dict, info.copy()))
@@ -331,14 +329,12 @@ class Protein:
             )
 
             if n_suggestions == 1:
-                self.suggestion = random.choice(suggestions[:self.random_suggestions])
+                self.suggestion = random.choice(suggestions[: self.random_suggestions])
                 return self.hyperparameters.to_dict(self.suggestion, fill), info
             else:
                 # Return multiple random suggestions
                 results = []
-                selected_indices = random.sample(
-                    range(len(suggestions)), min(n_suggestions, len(suggestions))
-                )
+                selected_indices = random.sample(range(len(suggestions)), min(n_suggestions, len(suggestions)))
                 for idx in selected_indices:
                     suggestion_dict = self.hyperparameters.to_dict(suggestions[idx], fill)
                     results.append((suggestion_dict, info.copy()))

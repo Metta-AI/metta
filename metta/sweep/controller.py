@@ -12,6 +12,7 @@ from metta.sweep.utils import make_monitor_table
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class SweepControllerConfig:
     sweep_name: str
@@ -20,6 +21,7 @@ class SweepControllerConfig:
     protein_config: ProteinConfig
     max_parallel_jobs: int = 10
     monitoring_interval: int = 60
+
 
 class SweepController:
     """Stateless orchestrator for sweep execution."""
@@ -162,7 +164,9 @@ class SweepController:
 
                     except Exception as e:
                         logger.error(f"[SweepController] Failed to initialize/dispatch job {job.run_id}: {e}")
-                        logger.error(f"[SweepController] Skipping dispatch for {job.run_id} to prevent resource overload")
+                        logger.error(
+                            f"[SweepController] Skipping dispatch for {job.run_id} to prevent resource overload"
+                        )
                         # Continue with next job rather than crashing the whole sweep
 
                 # 5. Finally, update transient states and mark completions
