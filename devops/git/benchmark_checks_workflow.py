@@ -330,7 +330,7 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
 
         for job_name in sorted_job_names:
             row = f"{job_name[:39]:<40}"
-            for branch, results in results_by_branch.items():
+            for _branch, results in results_by_branch.items():
                 job_times = [
                     d.job_durations.get(job_name) for d in results["detailed_timings"] if job_name in d.job_durations
                 ]
