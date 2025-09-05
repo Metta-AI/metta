@@ -19,7 +19,6 @@ from metta.mettagrid.mettagrid_config import (
     AttackActionConfig,
     GameConfig,
     GetItemsActionConfig,
-    GroupConfig,
     PutItemsActionConfig,
     WallConfig,
 )
@@ -53,7 +52,6 @@ def base_config():
             put_items=PutItemsActionConfig(enabled=True),
             swap=ActionConfig(enabled=True),
         ),
-        groups={"red": GroupConfig(id=0)},
         objects={
             "wall": WallConfig(type_id=1, swappable=False),
             "block": WallConfig(type_id=14, swappable=True),
@@ -155,15 +153,20 @@ def test_attack_and_swap_integration(configured_env, complex_game_map):
     """Test attack followed by swap with a frozen agent."""
     config_overrides = {
         "num_agents": 2,
-        "groups": {
-            "red": {"id": 0, "props": {}},
-            "blue": {"id": 1, "props": {}},
-        },
-        "agent": {
-            "freeze_duration": 6,
-            "resource_limits": {"laser": 10},
-            "initial_inventory": {"laser": 5},
-        },
+        "agents": [
+            {
+                "team_id": 0,
+                "freeze_duration": 6,
+                "resource_limits": {"laser": 10},
+                "initial_inventory": {"laser": 5},
+            },
+            {
+                "team_id": 1,
+                "freeze_duration": 6,
+                "resource_limits": {"laser": 10},
+                "initial_inventory": {"laser": 5},
+            },
+        ],
     }
 
     env = configured_env(complex_game_map, config_overrides)

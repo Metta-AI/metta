@@ -40,17 +40,7 @@ class AgentConfig(Config):
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
-
-
-class GroupConfig(Config):
-    """Python group configuration."""
-
-    id: int = Field(default=0)
-    sprite: Optional[int] = Field(default=None)
-    # group_reward_pct values outside of [0.0,1.0] are probably mistakes, and are probably
-    # unstable. If you want to use values outside this range, please update this comment!
-    group_reward_pct: float = Field(default=0, ge=0, le=1)
-    props: Optional[AgentConfig] = Field(default=None)
+    team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
 
 
 class ActionConfig(Config):
@@ -184,8 +174,7 @@ class GameConfig(Config):
     obs_height: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
     num_observation_tokens: int = Field(ge=1, default=200)
     agent: AgentConfig = Field(default_factory=AgentConfig)
-    # Every agent must be in a group, so we need at least one group
-    groups: dict[str, GroupConfig] = Field(default_factory=lambda: {"agent": GroupConfig()}, min_length=1)
+    agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)

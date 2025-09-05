@@ -5,7 +5,6 @@ import { Scorecard } from './Scorecard'
 import { MapViewer } from './MapViewer'
 import { METTASCOPE_REPLAY_URL } from './constants'
 
-
 // CSS for leaderboard view
 const LEADERBOARD_VIEW_CSS = `
 .view-container {
@@ -200,7 +199,7 @@ export function LeaderboardView({ repo }: LeaderboardViewProps) {
       setError(null)
       const request: LeaderboardScorecardRequest = {
         selector: policySelector,
-        num_policies: numPolicies
+        num_policies: numPolicies,
       }
       const data = await repo.generateLeaderboardScorecard(leaderboardId, request)
       setScorecardData(data)
@@ -237,7 +236,6 @@ export function LeaderboardView({ repo }: LeaderboardViewProps) {
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
   const selectedThumbnailUrl = selectedCellData?.thumbnailUrl ?? null
-
 
   if (loading) {
     return (
@@ -299,9 +297,7 @@ export function LeaderboardView({ repo }: LeaderboardViewProps) {
       <div className="view-container">
         <div className="view-header">
           <h1 className="view-title">{leaderboard.name}</h1>
-          <p className="view-subtitle">
-            Leaderboard Scorecard - {leaderboard.metric}
-          </p>
+          <p className="view-subtitle">Leaderboard Scorecard - {leaderboard.metric}</p>
         </div>
 
         {/* Scorecard Controls */}
@@ -348,14 +344,14 @@ export function LeaderboardView({ repo }: LeaderboardViewProps) {
         {!scorecardLoading && scorecardData && (
           <div>
             <Scorecard
-                data={scorecardData}
-                selectedMetric={leaderboard.metric}
-                setSelectedCell={setSelectedCell}
-                openReplayUrl={openReplayUrl}
-                numPoliciesToShow={numPolicies}
-              />
+              data={scorecardData}
+              selectedMetric={leaderboard.metric}
+              setSelectedCell={setSelectedCell}
+              openReplayUrl={openReplayUrl}
+              numPoliciesToShow={numPolicies}
+            />
 
-          <MapViewer
+            <MapViewer
               selectedEval={selectedEval}
               isViewLocked={isViewLocked}
               selectedReplayUrl={selectedReplayUrl}

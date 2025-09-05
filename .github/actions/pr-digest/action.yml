@@ -40,16 +40,11 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Setup Environment
+      uses: ./.github/actions/setup-environment
       with:
-        python-version: "3.11.7"
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
-      with:
-        version: "0.7.3"
-        enable-cache: true
+        install-mode: minimal
+        extra-dependencies: requests>=2.31.0
 
     - name: Set cache key
       id: cache-key

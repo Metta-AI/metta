@@ -11,7 +11,6 @@ from metta.mettagrid.mettagrid_config import (
     AttackActionConfig,
     GameConfig,
     GetItemsActionConfig,
-    GroupConfig,
     MettaGridConfig,
     PutItemsActionConfig,
 )
@@ -93,13 +92,6 @@ def make_arena(
                     },
                 ),
             ),
-            groups={
-                "agent": GroupConfig(
-                    id=0,
-                    sprite=0,
-                    props=AgentConfig(),
-                ),
-            },
             map_builder=map_builder,
         ),
     )
