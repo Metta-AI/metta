@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python3
+
 """
 SkyPilot run manager that handles process groups and monitoring with integrated cleanup.
 """
