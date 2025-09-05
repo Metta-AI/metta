@@ -41,7 +41,7 @@ const
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
   SpawnerCooldown* = 30  # Steps between Clippy spawns
-  ObservationLayers* = 17
+  ObservationLayers* = 19
   ObservationWidth* = 11
   ObservationHeight* = 11
   # Computed
@@ -68,15 +68,17 @@ type
     AgentInventoryWheatLayer = 5
     AgentInventoryWoodLayer = 6
     AgentInventorySpearLayer = 7
-    WallLayer = 8
-    MineLayer = 9
-    MineResourceLayer = 10
-    MineReadyLayer = 11
-    ConverterLayer = 12  # Renamed from Converter
-    ConverterReadyLayer = 13
-    AltarLayer = 14
-    AltarHeartsLayer = 15  # Hearts for respawning
-    AltarReadyLayer = 16
+    AgentInventoryHatLayer = 8
+    AgentInventoryArmorLayer = 9
+    WallLayer = 10
+    MineLayer = 11
+    MineResourceLayer = 12
+    MineReadyLayer = 13
+    ConverterLayer = 14  # Renamed from Converter
+    ConverterReadyLayer = 15
+    AltarLayer = 16
+    AltarHeartsLayer = 17  # Hearts for respawning
+    AltarReadyLayer = 18
 
   Orientation* = enum
     N = 0  # North (Up)
@@ -120,6 +122,8 @@ type
     inventoryWheat*: int    # Wheat from wheat tiles
     inventoryWood*: int     # Wood from tree tiles
     inventorySpear*: int    # Spears crafted from forge
+    inventoryHat*: int      # Hats from weaving loom (1-hit protection)
+    inventoryArmor*: int    # Armor from armory (3-hit protection, tracks remaining uses)
     reward*: float32
     homeAltar*: IVec2      # Position of agent's home altar for respawning
     # Clippy:
@@ -240,6 +244,8 @@ proc renderObservations*(env: Environment): string =
     "agent:inv:wheat",
     "agent:inv:wood",
     "agent:inv:spear",
+    "agent:inv:hat",
+    "agent:inv:armor",
     "wall",
     "mine",
     "mine:resources",
@@ -425,16 +431,16 @@ proc findNearestAltar*(env: Environment, fromPos: IVec2): IVec2 =
   return nearestAltar
 
 proc createClippy*(pos: IVec2, homeSpawner: IVec2, targetAltar: IVec2, r: var Rand): Thing =
-  ## Create a new Clippy with a target altar to pursue
+  ## Create a new Clippy that moves toward the nearest altar
   Thing(
     kind: Clippy,
     pos: pos,
     orientation: Orientation(r.rand(0..3)),
     homeSpawner: homeSpawner,
-    wanderRadius: 5,  # Not used anymore but kept for compatibility
-    wanderAngle: 0.0,  # Not used anymore but kept for compatibility
-    targetPos: targetAltar,  # Set the altar as permanent target
-    wanderStepsRemaining: 0,  # Ready to move toward target
+    wanderRadius: 0,  # Unused - we use direct movement now
+    wanderAngle: 0.0,  # Unused - we use direct movement now
+    targetPos: ivec2(-1, -1),  # Unused - we find nearest altar dynamically
+    wanderStepsRemaining: 0,  # Unused - we move every step
   )
 
 proc orientationToVec*(orientation: Orientation): IVec2 =
@@ -777,46 +783,48 @@ proc manhattanDistance*(a, b: IVec2): int =
   return abs(a.x - b.x) + abs(a.y - b.y)
 
 proc getDirectionToward*(fromPos, toPos: IVec2): IVec2 =
-  ## Calculate unit direction from one position toward another
+  ## Calculate optimal unit direction from one position toward another
+  ## Allows diagonal movement for more efficient pathfinding
   let dx = toPos.x - fromPos.x
   let dy = toPos.y - fromPos.y
   
   if dx == 0 and dy == 0:
     return ivec2(0, 0)
   
-  # Move in the direction with larger difference
-  if abs(dx) > abs(dy):
-    if dx > 0: return ivec2(1, 0)
-    else: return ivec2(-1, 0)
-  else:
-    if dy > 0: return ivec2(0, 1)
-    else: return ivec2(0, -1)
+  # Return normalized direction vector (allows diagonal movement)
+  result.x = 
+    if dx > 0: 1
+    elif dx < 0: -1
+    else: 0
+  
+  result.y = 
+    if dy > 0: 1
+    elif dy < 0: -1
+    else: 0
 
 proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
-  ## Determine Clippy movement direction toward the closest altar
+  ## Simple Clippy AI: Move directly toward the nearest altar using oracle knowledge
   
-  # Find the closest altar
   var nearestAltar = ivec2(-1, -1)
   var minDist = int.high
   
+  # Oracle knowledge: scan all entities to find closest altar
   for thingPtr in things:
     if isNil(thingPtr):
       continue
     let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
-    # Altar is the 5th enum value (0-indexed), so value is 4
-    if thing.kind == 4:  # Altar kind
+    if thing.kind == 4:  # Altar enum value
       let dist = manhattanDistance(clippyPos, thing.pos)
       if dist < minDist:
         minDist = dist
         nearestAltar = thing.pos
   
-  # If we found an altar, move toward it
+  # Move directly toward nearest altar if found
   if nearestAltar.x >= 0:
     return getDirectionToward(clippyPos, nearestAltar)
   
-  # Fallback: Random walk if no altar found (shouldn't happen in normal gameplay)
-  let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
-  return r.sample(directions)
+  # No altar found - shouldn't happen in normal gameplay
+  return ivec2(0, 0)
 
 
 # proc updateGrid(env: Environment) =

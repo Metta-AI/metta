@@ -1,5 +1,4 @@
 import ../src/tribal/environment
-import ../src/tribal/enemies
 import ../src/tribal/objects
 import ../src/tribal/ai
 ## Test for Plague-Wave Clippy Expansion

@@ -1,5 +1,5 @@
 import ../src/tribal/environment
-import ../src/tribal/attack, ../src/tribal/objects
+import ../src/tribal/combat, ../src/tribal/objects
 import vmath, std/random
 
 # Test the attack system with forge and spears

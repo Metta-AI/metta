@@ -3,7 +3,6 @@
 import std/[strformat, strutils, tables, math]
 import vmath
 import ../src/tribal/environment
-import ../src/tribal/colors
 
 proc testAgentWarmColors(env: Environment): bool =
   ## Verify agents have warm colors (reds/oranges/yellows)

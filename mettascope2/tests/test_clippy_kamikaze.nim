@@ -3,7 +3,6 @@
 import std/[strformat, strutils]
 import vmath
 import ../src/tribal/environment
-import ../src/tribal/enemies
 import ../src/tribal/objects
 
 proc testClippyAltarKamikaze() =

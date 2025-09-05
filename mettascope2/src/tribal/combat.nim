@@ -13,6 +13,11 @@ const
   ForgeWoodCost* = 1
   ForgeCooldown* = 5
   SpearRange* = 2
+  WeavingLoomWheatCost* = 1
+  WeavingLoomCooldown* = 15
+  ArmoryOreCost* = 1
+  ArmoryCooldown* = 20
+  ArmorMaxUses* = 3
 
 proc getManhattanDistance*(pos1, pos2: IVec2): int =
   return abs(pos1.x - pos2.x) + abs(pos1.y - pos2.y)
@@ -20,6 +25,10 @@ proc getManhattanDistance*(pos1, pos2: IVec2): int =
 proc hasSpear*(agent: Thing): bool =
   ## Check if an agent has a spear
   return agent.kind == Agent and agent.inventorySpear > 0
+
+proc hasDefense*(agent: Thing): bool =
+  ## Check if an agent has any defense items
+  return agent.kind == Agent and (agent.inventoryHat > 0 or agent.inventoryArmor > 0)
 
 proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
   if forge.cooldown > 0:
@@ -38,6 +47,42 @@ proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
   env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
   env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
   agent.reward += 0.5
+
+proc useWeavingLoomAction*(env: Environment, id: int, agent: Thing, loom: Thing) =
+  if loom.cooldown > 0:
+    return
+  
+  if agent.inventoryWheat <= 0:
+    return
+  
+  if agent.inventoryHat > 0:
+    return
+  
+  agent.inventoryWheat -= WeavingLoomWheatCost
+  agent.inventoryHat = 1
+  loom.cooldown = WeavingLoomCooldown
+  
+  env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+  env.updateObservations(AgentInventoryHatLayer, agent.pos, agent.inventoryHat)
+  agent.reward += 0.5
+
+proc useArmoryAction*(env: Environment, id: int, agent: Thing, armory: Thing) =
+  if armory.cooldown > 0:
+    return
+  
+  if agent.inventoryOre <= 0:
+    return
+  
+  if agent.inventoryArmor > 0:
+    return
+  
+  agent.inventoryOre -= ArmoryOreCost
+  agent.inventoryArmor = ArmorMaxUses  # Armor starts with full uses
+  armory.cooldown = ArmoryCooldown
+  
+  env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+  env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
+  agent.reward += 0.75
 
 proc attackWithSpearAction*(env: Environment, id: int, agent: Thing, targetDirection: int) =
   if agent.inventorySpear <= 0:
@@ -90,6 +135,25 @@ proc attackWithSpearAction*(env: Environment, id: int, agent: Thing, targetDirec
 
 proc useClayOvenAction*(env: Environment, id: int, agent: Thing, ovenPos: IVec2) =
   discard
+
+proc defendAgainstAttack*(agent: Thing, env: Environment): bool =
+  ## Check if agent can defend against an attack and consume defense items
+  ## Returns true if agent survived the attack, false if agent should die
+  
+  # First check armor (provides 3 hits of protection)
+  if agent.inventoryArmor > 0:
+    agent.inventoryArmor -= 1
+    env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
+    return true
+  
+  # Then check hat (provides 1 hit of protection)
+  if agent.inventoryHat > 0:
+    agent.inventoryHat = 0
+    env.updateObservations(AgentInventoryHatLayer, agent.pos, agent.inventoryHat)
+    return true
+  
+  # No defense items - agent dies
+  return false
 
 proc isThreatenedBySpear*(env: Environment, pos: IVec2): bool =
   for agent in env.agents:
