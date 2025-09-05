@@ -25,9 +25,9 @@ proc testResourceSystem() =
     agent.pos = ivec2(mine.pos.x + 1, mine.pos.y)
     env.grid[agent.pos.x][agent.pos.y] = agent
     
-    # Use mine to get ore
+    # Use GET action to extract ore from mine
     var actions: array[MapAgents, array[2, uint8]]
-    actions[0] = [3'u8, 3'u8]  # Use action, west direction
+    actions[0] = [3'u8, 3'u8]  # GET action, west direction
     env.step(addr actions)
     
     if agent.inventoryOre > 0:
@@ -47,7 +47,7 @@ proc testResourceSystem() =
       agent.pos = ivec2(conv.pos.x + 1, conv.pos.y)
       env.grid[agent.pos.x][agent.pos.y] = agent
       
-      actions[0] = [3'u8, 3'u8]  # Use converter
+      actions[0] = [3'u8, 3'u8]  # GET from converter
       env.step(addr actions)
       
       if agent.inventoryBattery > 0 and agent.inventoryOre == 0:
@@ -80,9 +80,9 @@ proc testAltarDeposit() =
     agent.pos = ivec2(altar.pos.x + 1, altar.pos.y)
     env.grid[agent.pos.x][agent.pos.y] = agent
     
-    # Deposit battery
+    # Deposit battery using PUT action
     var actions: array[MapAgents, array[2, uint8]]
-    actions[0] = [3'u8, 3'u8]  # Use altar
+    actions[0] = [5'u8, 3'u8]  # PUT to altar
     env.step(addr actions)
     
     if agent.inventoryBattery == 0 and altar.hearts > initialHearts:

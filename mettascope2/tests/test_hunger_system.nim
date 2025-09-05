@@ -63,8 +63,8 @@ if env.agents.len > 0:
     testAgent.pos = clayOven.pos
     env.grid[clayOven.pos.x][clayOven.pos.y] = testAgent
     
-    # Use the clay oven to bake bread (action 3 = use)
-    actions[0] = [3'u8, 0'u8]  # Use action
+    # Use PUT action to bake bread at clay oven  
+    actions[0] = [5'u8, 0'u8]  # PUT action
     env.step(addr actions)
     
     echo fmt"  After using Clay Oven:"
