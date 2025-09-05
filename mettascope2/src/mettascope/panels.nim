@@ -85,9 +85,6 @@ proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
   let newPos = vec2(area.rect.x.float32, area.rect.y.float32)
   if newPos != area.node.position:
-    echo "Area dirty: ", area.node.name
-    echo "  newPos: ", newPos
-    echo "  oldPos: ", area.node.position
     area.node.dirty = true
     area.node.position = newPos
 
@@ -106,7 +103,6 @@ proc updatePanelsSizes*(area: Area) =
     let newPos = vec2(panel.rect.x.float32, panel.rect.y.float32)
     let newSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
     if newPos != panel.node.position or newSize != panel.node.size:
-      echo "Panel dirty: ", panel.node.name
       panel.node.dirty = true
       panel.node.position = newPos
       panel.node.size = newSize

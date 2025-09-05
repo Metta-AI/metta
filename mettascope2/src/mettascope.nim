@@ -31,11 +31,7 @@ find "/UI/Main":
     onClick:
       echo "Clicked: AgentTracesPanel: ", thisNode.name
 
-  # onClick:
-  #   echo "Clicked: ", thisNode.name
-
   onShow:
-
     # Build the atlas.
     for path in walkDirRec("data/"):
       if path.endsWith(".png"):
