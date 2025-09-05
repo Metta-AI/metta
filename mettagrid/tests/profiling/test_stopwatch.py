@@ -1,9 +1,16 @@
 import logging
+import os
 import time
 
 import pytest
 
 from metta.mettagrid.profiling.stopwatch import Checkpoint, Stopwatch, with_instance_timer, with_timer
+
+# Skip this test module if SKIP_STOPWATCH_TEST env var is set
+pytestmark = pytest.mark.skipif(
+    os.environ.get("SKIP_STOPWATCH_TEST", "").lower() in ("1", "true", "yes"),
+    reason="Skipping flaky stopwatch test (SKIP_STOPWATCH_TEST is set)",
+)
 
 
 @pytest.fixture

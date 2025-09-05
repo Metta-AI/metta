@@ -36,9 +36,12 @@ def test_exception_when_laser_not_in_inventory():
             "change_color": {"enabled": False},
             "change_glyph": {"enabled": False, "number_of_glyphs": 4},
         },
-        "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
         "objects": {"wall": {"type_id": 1}},
         "agent": {"default_resource_limit": 10, "freeze_duration": 5, "rewards": {}},
+        "agents": [
+            {"team_id": 0, "default_resource_limit": 10, "freeze_duration": 5},  # red
+            {"team_id": 1, "default_resource_limit": 10, "freeze_duration": 5},  # blue
+        ],
     }
 
     # Check that creating the environment raises an exception
@@ -79,9 +82,12 @@ def test_no_exception_when_resources_in_inventory():
             "change_color": {"enabled": False},
             "change_glyph": {"enabled": False, "number_of_glyphs": 4},
         },
-        "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
         "objects": {"wall": {"type_id": 1}},
         "agent": {"default_resource_limit": 10, "freeze_duration": 5, "rewards": {}},
+        "agents": [
+            {"team_id": 0, "default_resource_limit": 10, "freeze_duration": 5},  # red
+            {"team_id": 1, "default_resource_limit": 10, "freeze_duration": 5},  # blue
+        ],
     }
 
     # This should not raise an exception
