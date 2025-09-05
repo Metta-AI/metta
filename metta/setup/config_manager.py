@@ -119,7 +119,12 @@ _config_manager = None
 
 def get_config_manager() -> ConfigManager:
     """Get the global config manager instance."""
+    import threading
+
     global _config_manager
     if _config_manager is None:
-        _config_manager = ConfigManager()
+        # Use double-checked locking pattern for thread safety
+        with threading.Lock():
+            if _config_manager is None:
+                _config_manager = ConfigManager()
     return _config_manager

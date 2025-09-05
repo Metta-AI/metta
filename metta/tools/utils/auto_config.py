@@ -35,11 +35,11 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
         config = get_config()
         profile_config = config.get_active_profile()
 
-        # Build config dict using active profile
+        # Build config dict using active profile, with environment variable fallback
         config_dict = {
             "enabled": profile_config.wandb.enabled,
-            "entity": profile_config.wandb.entity or "",
-            "project": profile_config.wandb.project or "",
+            "entity": profile_config.wandb.entity or os.environ.get("WANDB_ENTITY", ""),
+            "project": profile_config.wandb.project or os.environ.get("WANDB_PROJECT", ""),
         }
 
         # Config file takes precedence - environment variables only used as fallback

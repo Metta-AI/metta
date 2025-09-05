@@ -260,14 +260,15 @@ def get_configuration_components() -> dict:
                 if config_name not in components:
                     components[config_name] = component_class()
 
-    except (ImportError, Exception):
-        # Fall back to static registry if auto-discovery fails
-        for name, component_class in static_components.items():
-            components[name] = component_class()
+    except ImportError as e:
+        # Fall back to static registry only if setup registry is not available
+        import logging
 
-    # Ensure we always have the core components
-    if not components:
-        for name, component_class in static_components.items():
+        logging.warning(f"Failed to auto-discover config components: {e}. Using static registry.")
+
+    # Ensure we always have the core components (fill in any missing ones)
+    for name, component_class in static_components.items():
+        if name not in components:
             components[name] = component_class()
 
     return components

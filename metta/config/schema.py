@@ -291,9 +291,14 @@ _config: MettaConfig | None = None
 
 def get_config(profile_override: str | None = None) -> MettaConfig:
     """Get the global configuration instance."""
+    import threading
+
     global _config
     if _config is None:
-        _config = MettaConfig.load()
+        # Use double-checked locking pattern for thread safety
+        with threading.Lock():
+            if _config is None:
+                _config = MettaConfig.load()
     return _config
 
 
