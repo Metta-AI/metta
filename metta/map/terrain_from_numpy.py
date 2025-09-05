@@ -64,6 +64,7 @@ class TerrainFromNumpy(MapBuilder):
         agents: int | dict[str, int] = Field(default=0, ge=0)
         dir: str
         file: Optional[str] = None
+        remove_altars: bool = False
 
     def __init__(self, config: Config):
         self.config = config
@@ -119,6 +120,9 @@ class TerrainFromNumpy(MapBuilder):
 
         # remove agents to then repopulate
         grid[grid == "agent.agent"] = "empty"
+
+        if self.config.remove_altars:
+            grid[grid == "altar"] = "empty"
 
         # Prepare agent labels
         if isinstance(self.config.agents, int):
