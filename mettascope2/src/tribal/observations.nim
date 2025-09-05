@@ -2,8 +2,12 @@
 ## Handles observation updates and rendering for the environment
 
 import std/strformat, vmath
-import common, game
+import environment_core
 
+type
+  ObservationName* = enum
+    AgentLayer = 0
+    AgentOrientationLayer = 1
     AgentInventoryOreLayer = 2
     AgentInventoryBatteryLayer = 3
     AgentInventoryWaterLayer = 4

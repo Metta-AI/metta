@@ -1,4 +1,4 @@
-import vmath, std/[random, math], common, terrain
+import vmath, std/[random, math], terrain
 
 type
   TempleStructure* = object
@@ -54,6 +54,9 @@ proc getClippyBehavior*(clippy: pointer, target: pointer, distanceToTarget: floa
   else:
     return Guard
 
+proc manhattanDistance*(a, b: IVec2): int =
+  ## Calculate Manhattan distance between two points
+  return abs(a.x - b.x) + abs(a.y - b.y)
 
 proc findNearbyClippies*(clippyPos: IVec2, things: seq[pointer], visionRange: int): seq[IVec2] =
   ## Find positions of nearby Clippies within vision range

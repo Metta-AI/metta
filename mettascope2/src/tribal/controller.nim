@@ -1,13 +1,17 @@
 import std/[math, random, tables, sequtils]
 import vmath
-import game
+import tribal
 
 # Import the new orientations
-from game import N, S, W, E, NW, NE, SW, SE
+from tribal import N, S, W, E, NW, NE, SW, SE
 
 type
   ControllerState* = ref object
     ## State for each agent's controller
+    wanderRadius*: int  # DEPRECATED - keeping for compatibility
+    wanderAngle*: float  # DEPRECATED - keeping for compatibility
+    wanderStartAngle*: float  # DEPRECATED - keeping for compatibility
+    wanderPointsVisited*: int # DEPRECATED - keeping for compatibility
     # New spiral state
     spiralArcLength*: int  # Current arc length (how many steps to take in current direction)
     spiralStepsInArc*: int  # Steps taken in current arc
@@ -49,6 +53,10 @@ proc newController*(seed: int = 2024): Controller =
 proc initAgentState(controller: Controller, agentId: int, basePos: IVec2) =
   ## Initialize state for a new agent
   controller.agentStates[agentId] = ControllerState(
+    wanderRadius: 3,  # DEPRECATED
+    wanderAngle: 0.0,  # DEPRECATED
+    wanderStartAngle: 0.0,  # DEPRECATED
+    wanderPointsVisited: 0,  # DEPRECATED
     # New spiral initialization
     spiralArcLength: 1,  # Start with arc length of 1
     spiralStepsInArc: 0,  # No steps taken yet
@@ -85,26 +93,71 @@ proc resetWanderState(state: ControllerState) =
   state.spiralStepsInArc = 0
 
 proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 =
-  ## Simple expanding circle wander pattern
+  ## Get next point in expanding spiral pattern
+  ## Pattern: Move in increasing arc lengths - 1 step N, 1 E, 2 S, 2 W, 3 N, 3 E, 4 S, 4 W, etc.
+  ## This creates an outward spiral from the base position
+  
+  # Track current position in the spiral (accumulated from all steps)
+  var totalOffset = ivec2(0, 0)
+  var currentArcLength = 1
+  var stepsAccumulated = 0
+  var direction = 0
+  
+  # Rebuild the position by simulating all steps up to current point
+  for arcNum in 0 ..< state.spiralArcsCompleted:
+    # Calculate arc length for this arc number
+    let arcLen = (arcNum div 2) + 1  # 1,1,2,2,3,3,4,4...
+    let dir = arcNum mod 4  # Direction cycles through 0,1,2,3
+    
+    # Add the full arc's offset
+    case dir:
+    of 0: totalOffset.y -= int32(arcLen)  # North
+    of 1: totalOffset.x += int32(arcLen)  # East  
+    of 2: totalOffset.y += int32(arcLen)  # South
+    of 3: totalOffset.x -= int32(arcLen)  # West
+    else: discard
+  
+  # Add partial progress in current arc
+  currentArcLength = (state.spiralArcsCompleted div 2) + 1
+  direction = state.spiralArcsCompleted mod 4
+  
+  # Add the steps we've taken in the current arc
+  case direction:
+  of 0: totalOffset.y -= int32(state.spiralStepsInArc)  # North
+  of 1: totalOffset.x += int32(state.spiralStepsInArc)  # East
+  of 2: totalOffset.y += int32(state.spiralStepsInArc)  # South  
+  of 3: totalOffset.x -= int32(state.spiralStepsInArc)  # West
+  else: discard
+  
+  # Now calculate next step
   state.spiralStepsInArc += 1
   
-  # Every few steps, expand the radius
-  if state.spiralStepsInArc mod 8 == 0:
+  # Check if we completed the current arc
+  if state.spiralStepsInArc > currentArcLength:
+    # Move to next arc
     state.spiralArcsCompleted += 1
+    state.spiralStepsInArc = 1  # Start new arc
+    
+    # Recalculate for new arc
+    currentArcLength = (state.spiralArcsCompleted div 2) + 1
+    direction = state.spiralArcsCompleted mod 4
+    
+    # Cap the spiral size (reset after ~30 arcs which gives us 15 radius)
+    if state.spiralArcsCompleted > 30:
+      # Reset the spiral but with some randomization
+      state.spiralArcsCompleted = controller.rng.rand(0..3)  # Start at random direction
+      state.spiralStepsInArc = 1
+      return state.basePosition  # Return to base to start new spiral
   
-  # Cap radius and reset if too far
-  let radius = max(1, min(state.spiralArcsCompleted, 15))
-  if radius > 15:
-    state.spiralArcsCompleted = 1
-    return state.basePosition
+  # Calculate next position offset
+  case direction:
+  of 0: totalOffset.y -= 1  # Take one step North
+  of 1: totalOffset.x += 1  # Take one step East
+  of 2: totalOffset.y += 1  # Take one step South
+  of 3: totalOffset.x -= 1  # Take one step West
+  else: discard
   
-  # Generate random point within expanding radius
-  let angle = controller.rng.rand(0.0 .. 2*PI)
-  let r = controller.rng.rand(1 .. radius)
-  let offsetX = int32(r.float * cos(angle))
-  let offsetY = int32(r.float * sin(angle))
-  
-  result = state.basePosition + ivec2(offsetX, offsetY)
+  result = state.basePosition + totalOffset
 
 proc findNearestThing(env: Environment, pos: IVec2, kind: ThingKind, maxDist: float = 10.0): Thing =
   ## Find the nearest thing of a specific kind within max distance
@@ -162,6 +215,17 @@ proc getOrientation(dir: IVec2): Orientation =
   if dir.y < 0: return N
   return N  # Default
 
+proc isAdjacent(pos1, pos2: IVec2): bool =
+  ## Check if two positions are adjacent (including diagonals)
+  let dx = abs(pos1.x - pos2.x)
+  let dy = abs(pos1.y - pos2.y)
+  result = dx <= 1 and dy <= 1 and (dx + dy) > 0
+
+proc isCardinallyAdjacent(pos1, pos2: IVec2): bool =
+  ## Check if two positions are adjacent in a cardinal direction (N/S/E/W only)
+  let dx = abs(pos1.x - pos2.x)
+  let dy = abs(pos1.y - pos2.y)
+  result = (dx == 1 and dy == 0) or (dx == 0 and dy == 1)
 
 proc getMoveToCardinalPosition(agentPos, targetPos: IVec2, env: Environment): IVec2 =
   ## If agent is diagonally adjacent to target, return direction to move to cardinal position
@@ -455,3 +519,8 @@ proc updateController*(controller: Controller) =
   ## Update controller state (called each step)
   controller.stepCount += 1
   
+  # Periodically reset wander patterns to prevent getting stuck
+  if controller.stepCount mod 100 == 0:
+    for state in controller.agentStates.mvalues:
+      if state.targetType == Wander:
+        state.wanderAngle = controller.rng.rand(0.0 .. 2*PI)

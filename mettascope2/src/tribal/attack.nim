@@ -2,8 +2,8 @@
 ## Implements Forge for spear crafting and combat system
 
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import common, game
-export common, game
+import tribal
+export tribal
 
 # New constants for attack system
 const
@@ -11,6 +11,9 @@ const
   ForgeCooldown* = 5  # Cooldown after crafting
   SpearRange* = 2     # Attack range with spear (Manhattan distance)
 
+proc getManhattanDistance*(pos1, pos2: IVec2): int =
+  ## Calculate Manhattan distance between two positions
+  return abs(pos1.x - pos2.x) + abs(pos1.y - pos2.y)
 
 proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
   ## Use a forge to craft a spear from wood
@@ -112,7 +115,7 @@ proc useClayOvenAction*(env: Environment, id: int, agent: Thing, ovenPos: IVec2)
 proc isThreatenedBySpear*(env: Environment, pos: IVec2): bool =
   ## Check if a position is within spear range of any agent with a spear
   for agent in env.agents:
-    if agent.inventorySpear > 0:
+    if agent.hasSpear():
       if getManhattanDistance(agent.pos, pos) <= SpearRange:
         return true
   return false
@@ -138,7 +141,7 @@ proc renderWithWeapons*(env: Environment): string =
         if thing.pos.x == x and thing.pos.y == y:
           case thing.kind
           of Agent:
-            if thing.inventorySpear > 0:
+            if thing.hasSpear():
               cell = "Λ"  # Agent with spear
             else:
               cell = "A"  # Regular agent

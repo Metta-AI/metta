@@ -2,8 +2,11 @@
 ## Handles world setup, building placement, and entity spawning
 
 import std/[random, tables], vmath, chroma
-import game, terrain, placement, village, clippy, colors
-export colors
+import environment_core, terrain, placement, village, clippy, observations
+
+# Global village color management
+var agentVillageColors*: seq[Color] = @[]
+var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
 
 proc randomEmptyPos*(r: var Rand, env: Environment): IVec2 =
   ## Find an empty position in the environment
@@ -87,11 +90,11 @@ proc initMapGeneration*(env: Environment, seed: int = 2024) =
     # Add the altar
     env.add(Thing(
       kind: Altar,
-      pos: elements.altar,
+      pos: elements.center,
       hearts: MapObjectAltarInitialHearts,
       cooldown: 0
     ))
-    altarColors[elements.altar] = villageColor
+    altarColors[elements.center] = villageColor
     
     # Add walls
     for wallPos in elements.walls:
@@ -104,7 +107,7 @@ proc initMapGeneration*(env: Environment, seed: int = 2024) =
     env.add(Thing(kind: WeavingLoom, pos: elements.weavingLoom, cooldown: 0))
     
     # Spawn agents around this house
-    let emptySpots = env.findEmptyPositionsAround(elements.altar, 5)
+    let emptySpots = env.findEmptyPositionsAround(elements.center, 5)
     var agentsForThisHouse = 0
     let maxAgentsPerHouse = if villageId < housesToSpawn - 1:
       MapAgentsPerHouse
@@ -120,7 +123,7 @@ proc initMapGeneration*(env: Environment, seed: int = 2024) =
           agentId: agentId,
           pos: spawnPos,
           orientation: Orientation(r.rand(0..7)),
-          homeAltar: elements.altar,  # Link agent to their home altar
+          homeAltar: elements.center,  # Link agent to their home altar
           inventoryOre: 0,
           inventoryBattery: 0,
           inventoryWater: 0,

@@ -1,9 +1,38 @@
 import std/[strformat, random, strutils, tables, times], vmath, jsony, chroma
-import common, terrain, placement, clippy, village, colors
-import defense, food
-export common, terrain
+import terrain, placement, clippy, village
+export terrain
+
+# Global variables for storing village colors
+var agentVillageColors*: seq[Color] = @[]
+var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
 
 const
+  # From config
+  # MapLayoutRoomsX* = 1
+  # MapLayoutRoomsY* = 1
+  # MapBorder* = 4
+  # MapRoomWidth* = 100
+  # MapRoomHeight* = 100
+  # MapRoomBorder* = 0
+  # MapRoomObjectsAgents* = 70
+  # MapRoomObjectsAltars* = 50
+  # MapRoomObjectsConverters* = 100
+  # MapRoomObjectsMines* = 100
+  # MapRoomObjectsWalls* = 400
+
+  MapLayoutRoomsX* = 1
+  MapLayoutRoomsY* = 1
+  MapBorder* = 4
+  MapRoomWidth* = 96  # 100 - 4 border = 96
+  MapRoomHeight* = 46  # 50 - 4 border = 46
+  MapRoomBorder* = 0
+  MapRoomObjectsAgents* = 15  # Total agents to spawn (will be distributed across villages)
+  MapRoomObjectsHouses* = 3  # Number of villages/houses to spawn
+  MapAgentsPerHouse* = 5  # Agents to spawn per house/village
+  MapRoomObjectsConverters* = 10  # Converters to process ore into batteries
+  MapRoomObjectsMines* = 20  # Mines to extract ore (2x generators)
+  MapRoomObjectsWalls* = 30  # Increased for larger map
+  
   # Shaped Rewards - kept small since altar hearts are primary objective
   # Resource gathering (very small)
   RewardGetWater* = 0.001
@@ -21,6 +50,141 @@ const
   # Altar contribution (already has 1.0 in code)
   # RewardDepositBattery* = 1.0  # Already implemented
 
+  MapObjectAgentMaxInventory* = 5
+  MapObjectAgentFreezeDuration* = 10  # Temporary freeze when caught by clippy
+
+  MapObjectAltarInitialHearts* = 5  # Altars start with 5 hearts
+  MapObjectAltarCooldown* = 10
+  MapObjectAltarRespawnCost* = 1  # Cost 1 heart to respawn an agent
+  # Altar uses batteries directly now, no energy cost
+
+  MapObjectConverterCooldown* = 0  # No cooldown for instant conversion
+
+  MapObjectMineCooldown* = 5
+  MapObjectMineInitialResources* = 30
+  MapObjectMineUseCost* = 0
+
+  ObservationLayers* = 17  # Includes spear inventory layer
+  ObservationWidth* = 11
+  ObservationHeight* = 11
+
+  # Computed
+  MapAgents* = MapRoomObjectsAgents * MapLayoutRoomsX * MapLayoutRoomsY
+  MapWidth* = MapLayoutRoomsX * (MapRoomWidth + MapRoomBorder) + MapBorder
+  MapHeight* = MapLayoutRoomsY * (MapRoomHeight + MapRoomBorder) + MapBorder
+
+proc ivec2*(x, y: int): IVec2 =
+  ## Create a new 2D vector
+  result.x = x.int32
+  result.y = y.int32
+
+type
+  OrientationDelta* = tuple[x, y: int]
+  
+  ObservationName* = enum
+    AgentLayer = 0
+    AgentOrientationLayer = 1
+    AgentInventoryOreLayer = 2
+    AgentInventoryBatteryLayer = 3
+    AgentInventoryWaterLayer = 4
+    AgentInventoryWheatLayer = 5
+    AgentInventoryWoodLayer = 6
+    AgentInventorySpearLayer = 7
+    WallLayer = 8
+    MineLayer = 9
+    MineResourceLayer = 10
+    MineReadyLayer = 11
+    ConverterLayer = 12  # Renamed from Converter
+    ConverterReadyLayer = 13
+    AltarLayer = 14
+    AltarHeartsLayer = 15  # Hearts for respawning
+    AltarReadyLayer = 16
+
+  Orientation* = enum
+    N = 0  # North (Up)
+    S = 1  # South (Down) 
+    W = 2  # West (Left)
+    E = 3  # East (Right)
+    NW = 4 # Northwest (Up-Left)
+    NE = 5 # Northeast (Up-Right)
+    SW = 6 # Southwest (Down-Left)
+    SE = 7 # Southeast (Down-Right)
+
+  ThingKind* = enum
+    Agent
+    Wall
+    Mine
+    Converter  # Converts ore to batteries
+    Altar
+    Temple
+    Clippy
+    Armory
+    Forge
+    ClayOven
+    WeavingLoom
+
+  Thing* = ref object
+    kind*: ThingKind
+    pos*: IVec2
+    id*: int
+    layer*: int
+    hearts*: int  # For altars only - used for respawning agents
+    resources*: int  # For mines - remaining ore
+    cooldown*: int
+    frozen*: int  # Frozen duration (for agents caught by clippys)
+    inventory*: int  # Generic inventory (ore) - deprecated, use specific inventories
+
+    # Agent:
+    agentId*: int
+    orientation*: Orientation
+    inventoryOre*: int      # Ore from mines
+    inventoryBattery*: int  # Batteries from converters
+    inventoryWater*: int    # Water from water tiles
+    inventoryWheat*: int    # Wheat from wheat tiles
+    inventoryWood*: int     # Wood from tree tiles
+    inventorySpear*: int    # Spears crafted from forge
+    reward*: float32
+    homeAltar*: IVec2      # Position of agent's home altar for respawning
+    
+    # Clippy:
+    homeTemple*: IVec2     # Position of clippy's home temple
+    wanderRadius*: int     # Current radius for concentric circle wandering
+    wanderAngle*: float    # Current angle in the circle pattern
+    targetPos*: IVec2      # Current target (agent or altar)
+    wanderStepsRemaining*: int  # Steps to wander before checking for targets
+
+  Stats* = ref object
+    # Agent Stats:
+    actionInvalid*: int
+    actionMove*: int
+    actionNoop*: int
+    actionRotate*: int
+    actionSwap*: int
+    actionUse*: int
+    actionUseMine*: int
+    actionUseConverter*: int
+    actionUseAltar*: int
+    actionGet*: int
+    actionGetWater*: int
+    actionGetWheat*: int
+    actionGetWood*: int
+
+  Environment* = ref object
+    currentStep*: int
+    things*: seq[Thing]
+    agents*: seq[Thing]
+    grid*: array[MapWidth, array[MapHeight, Thing]]
+    terrain*: TerrainGrid
+    observations*: array[
+      MapAgents,
+      array[ObservationLayers,
+        array[ObservationWidth, array[ObservationHeight, uint8]]
+      ]
+    ]
+    #rewards*: array[MapAgents, float32]
+    terminated *: array[MapAgents, float32]
+    truncated*: array[MapAgents, float32]
+    stats: seq[Stats]
 
 proc render*(env: Environment): string =
   ## Render the environment as a string
@@ -217,6 +381,37 @@ proc getThing(env: Environment, pos: IVec2): Thing =
     return nil
   return env.grid[pos.x][pos.y]
 
+# Orientation deltas for each direction
+const OrientationDeltas*: array[8, OrientationDelta] = [
+  (x: 0, y: -1),   # N (North)
+  (x: 0, y: 1),    # S (South)
+  (x: -1, y: 0),   # W (West)
+  (x: 1, y: 0),    # E (East)
+  (x: -1, y: -1),  # NW (Northwest)
+  (x: 1, y: -1),   # NE (Northeast)
+  (x: -1, y: 1),   # SW (Southwest)
+  (x: 1, y: 1)     # SE (Southeast)
+]
+
+proc getOrientationDelta*(orient: Orientation): OrientationDelta =
+  ## Get the x,y delta for a given orientation
+  OrientationDeltas[ord(orient)]
+
+proc isDiagonal*(orient: Orientation): bool =
+  ## Check if orientation is diagonal
+  ord(orient) >= ord(NW)
+
+proc getOpposite*(orient: Orientation): Orientation =
+  ## Get the opposite orientation
+  case orient
+  of N: S
+  of S: N
+  of W: E
+  of E: W
+  of NW: SE
+  of NE: SW
+  of SW: NE
+  of SE: NW
 
 proc isEmpty*(env: Environment, pos: IVec2): bool =
   ## Check if a position is empty (water is now passable)
@@ -225,6 +420,29 @@ proc isEmpty*(env: Environment, pos: IVec2): bool =
   # Water is now passable, only check for objects
   return env.grid[pos.x][pos.y] == nil
 
+proc orientationToVec*(orientation: Orientation): IVec2 =
+  ## Convert orientation to a vector
+  case orientation
+  of N: result = ivec2(0, -1)
+  of S: result = ivec2(0, 1)
+  of E: result = ivec2(1, 0)
+  of W: result = ivec2(-1, 0)
+  of NW: result = ivec2(-1, -1)
+  of NE: result = ivec2(1, -1)
+  of SW: result = ivec2(-1, 1)
+  of SE: result = ivec2(1, 1)
+
+proc relativeLocation*(orientation: Orientation, distance, offset: int): IVec2 =
+  ## Calculate a relative location based on orientation.
+  case orientation
+  of N: ivec2(-offset, -distance)
+  of S: ivec2(offset, distance)
+  of E: ivec2(distance, -offset)
+  of W: ivec2(-distance, offset)
+  of NW: ivec2(-distance - offset, -distance + offset)
+  of NE: ivec2(distance - offset, -distance - offset)
+  of SW: ivec2(-distance + offset, distance + offset)
+  of SE: ivec2(distance + offset, distance - offset)
 
 proc noopAction(env: Environment, id: int, agent: Thing) =
   ## Do nothing
@@ -574,7 +792,7 @@ proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
       return
   quit("Failed to find an empty position, map too full!")
 
-proc add*(env: Environment, thing: Thing) =
+proc add(env: Environment, thing: Thing) =
   ## Add a thing to the environment
   env.things.add(thing)
   if thing.kind == Agent:
@@ -732,8 +950,6 @@ proc init(env: Environment) =
             inventoryWheat: 0,
             inventoryWood: 0,
             inventorySpear: 0,
-            inventoryBread: 0,
-            hunger: 100,  # Start with full hunger
             frozen: 0,
           ))
           
@@ -765,8 +981,6 @@ proc init(env: Environment) =
       inventoryWheat: 0,
       inventoryWood: 0,
       inventorySpear: 0,
-      inventoryBread: 0,
-      hunger: 100,  # Start with full hunger
       frozen: 0,
     ))
     
@@ -1006,41 +1220,6 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       if thing.frozen > 0:
         thing.frozen -= 1
         # Note: frozen status is visible in observations through updateObservations(id)
-      
-      # Hunger system
-      if thing.frozen == 0:  # Only decrease hunger if not frozen
-        thing.hunger -= 1
-        
-        # Auto-eat bread when hungry
-        if thing.hunger <= 20 and thing.inventoryBread > 0:
-          thing.inventoryBread -= 1
-          thing.hunger = 100  # Reset hunger to full
-          # Could add reward here for eating
-        
-        # Die from starvation
-        if thing.hunger <= 0:
-          # Agent dies from hunger - respawn at home altar
-          let homeAltar = env.getThing(thing.homeAltar)
-          if not isNil(homeAltar) and homeAltar.kind == Altar and homeAltar.hearts > 0:
-            # Respawn costs 1 heart
-            homeAltar.hearts -= 1
-            env.updateObservations(AltarHeartsLayer, homeAltar.pos, homeAltar.hearts)
-            
-            # Reset agent position to home altar
-            env.grid[thing.pos.x][thing.pos.y] = nil
-            thing.pos = thing.homeAltar
-            env.grid[thing.pos.x][thing.pos.y] = thing
-            
-            # Reset agent state
-            thing.frozen = 0
-            thing.hunger = 100  # Full hunger on respawn
-            thing.inventoryOre = 0
-            thing.inventoryBattery = 0
-            thing.inventoryWater = 0
-            thing.inventoryWheat = 0
-            thing.inventoryWood = 0
-            thing.inventorySpear = 0
-            thing.inventoryBread = 0
 
   # Add newly spawned clippys from temples
   for newClippy in newClippysToSpawn:

@@ -1,7 +1,7 @@
 ## Unified placement system for terrain and structures
 ## Handles placement priority: river → terrain features → structures → objects
 
-import std/[random, math, algorithm], vmath, common, terrain
+import std/[random, math, algorithm], vmath, terrain
 
 type
   PlacementPriority* = enum
@@ -20,7 +20,7 @@ type
     bufferSize*: int       # How much buffer space
     layout*: seq[seq[char]] # Optional layout grid for complex structures
   
-  PlacementGrid* = array[100, array[50, bool]]
+  PlacementGrid* = ptr array[100, array[50, pointer]]
   
   PlacementResult* = object
     success*: bool
@@ -79,7 +79,7 @@ proc canPlaceAt*(grid: PlacementGrid, terrain: ptr TerrainGrid,
       let gridY = pos.y + dy
       
       # Check for existing objects
-      if grid[gridX][gridY]:
+      if not isNil(grid[gridX][gridY]):
         return false
       
       # Check terrain (unless water is explicitly allowed)
@@ -99,7 +99,7 @@ proc canPlaceAt*(grid: PlacementGrid, terrain: ptr TerrainGrid,
           
         # Check bounds for buffer
         if checkX >= 0 and checkX < mapWidth and checkY >= 0 and checkY < mapHeight:
-          if grid[checkX][checkY]:
+          if not isNil(grid[checkX][checkY]):
             return false  # Something too close
   
   return true
@@ -349,7 +349,7 @@ proc findEmptyPosition*(grid: PlacementGrid, terrain: ptr TerrainGrid,
     let x = r.rand(mapBorder ..< mapWidth - mapBorder)
     let y = r.rand(mapBorder ..< mapHeight - mapBorder)
     
-    if not grid[x][y] and terrain[x][y] != Water:
+    if isNil(grid[x][y]) and terrain[x][y] != Water:
       return ivec2(x.int32, y.int32)
   
   # If we couldn't find anything randomly, give up
@@ -372,5 +372,5 @@ proc findEmptyPositionsAround*(grid: PlacementGrid, terrain: ptr TerrainGrid,
       
       if x >= mapBorder and x < mapWidth - mapBorder and
          y >= mapBorder and y < mapHeight - mapBorder:
-        if not grid[x][y] and terrain[x][y] != Water:
+        if isNil(grid[x][y]) and terrain[x][y] != Water:
           result.add(ivec2(x.int32, y.int32))
