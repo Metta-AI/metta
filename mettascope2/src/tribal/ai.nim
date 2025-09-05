@@ -2,27 +2,19 @@ import std/[math, random, tables]
 import vmath
 import environment
 
-# Import the new orientations
-from environment import N, S, W, E, NW, NE, SW, SE
+# Use the orientations from environment module directly
 
 type
   ControllerState* = ref object
-    # Deprecated fields
-    wanderRadius*: int
-    wanderAngle*: float
-    wanderStartAngle*: float
-    wanderPointsVisited*: int
-    # Spiral state
-    spiralArcLength*: int  # Current arc length (how many steps to take in current direction)
-    spiralStepsInArc*: int  # Steps taken in current arc
-    spiralDirection*: int  # Current direction (0=N, 1=E, 2=S, 3=W)
-    spiralArcsCompleted*: int  # Number of arcs completed (used to increase arc length)
-    # Stuck detection
-    lastPosition*: IVec2  # Position from previous step
-    stuckCounter*: int  # How many steps we've been in same position
-    escapeMode*: bool  # Currently escaping from stuck situation
-    escapeStepsRemaining*: int  # Steps left in escape mode
-    escapeDirection*: IVec2  # Direction to escape in
+    spiralArcLength*: int
+    spiralStepsInArc*: int
+    spiralDirection*: int
+    spiralArcsCompleted*: int
+    lastPosition*: IVec2
+    stuckCounter*: int
+    escapeMode*: bool
+    escapeStepsRemaining*: int
+    escapeDirection*: IVec2
     basePosition*: IVec2
     hasOre*: bool
     hasBattery*: bool
@@ -51,13 +43,8 @@ proc newController*(seed: int = 2024): Controller =
 
 proc initAgentState(controller: Controller, agentId: int, basePos: IVec2) =
   controller.agentStates[agentId] = ControllerState(
-    wanderRadius: 3,  # DEPRECATED
-    wanderAngle: 0.0,  # DEPRECATED
-    wanderStartAngle: 0.0,  # DEPRECATED
-    wanderPointsVisited: 0,  # DEPRECATED
-    # New spiral initialization
-    spiralArcLength: 1,  # Start with arc length of 1
-    spiralStepsInArc: 0,  # No steps taken yet
+    spiralArcLength: 1,
+    spiralStepsInArc: 0,
     spiralDirection: 0,  # Start going North
     spiralArcsCompleted: 0,  # No arcs completed yet
     # Stuck detection initialization
@@ -511,8 +498,5 @@ proc updateController*(controller: Controller) =
   ## Update controller state (called each step)
   controller.stepCount += 1
   
-  # Periodically reset wander patterns to prevent getting stuck
-  if controller.stepCount mod 100 == 0:
-    for state in controller.agentStates.mvalues:
-      if state.targetType == Wander:
-        state.wanderAngle = controller.rng.rand(0.0 .. 2*PI)
+  # Periodically reset spiral patterns to prevent getting stuck
+  # (Spiral already resets itself after ~30 arcs, so this is handled)

@@ -2,8 +2,6 @@ import
   boxy, vmath, windy,
   common, panels, utils, simulation
 
-# ============== HELPER FUNCTIONS ==============
-
 proc drawPanelBackground*(panel: Panel, bgColor: Color) =
   ## Draw a solid color background for a panel
   bxy.drawRect(
@@ -242,8 +240,6 @@ proc drawFooter*(panel: Panel) =
   ):
     echo "Focus"
   x -= 32 + 5
-
-# ============== TIMELINE UI ==============
 
 const
   TimelineBgColor = parseHtmlColor("#1D1D1D")

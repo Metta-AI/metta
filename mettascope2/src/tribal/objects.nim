@@ -1,41 +1,46 @@
-import vmath, std/[random, tables]
+import vmath
 
 # ============== OBJECT TYPES ==============
 
 type
-  # Base structure type with common fields
-  BaseStructure* = object of RootObj
+  # Simple base structure for all buildings
+  BaseStructure* = object
     width*: int
     height*: int
     centerPos*: IVec2
   
-  # Structures with layouts
-  LayoutStructure* = object of BaseStructure
-    layout*: seq[seq[char]]
+  # Houses need layouts for their complex structure
+  HouseStructure* = object
+    width*: int
+    height*: int
+    centerPos*: IVec2
+    layout*: seq[seq[char]]  # For walls, entrances, altar, etc.
   
-  # Production structures with cooldowns
-  ProductionStructure* = object of BaseStructure
-    cooldown*: int
-    maxCooldown*: int
-  
-  # Village structures
-  HouseStructure* = object of LayoutStructure
-    # Uses width, height, centerPos, layout from LayoutStructure
+  # Temple is just a simple structure
+  TempleStructure* = BaseStructure
   
   # Defense structures and items
-  DefenseStructure* = object of LayoutStructure
-    # Uses width, height, centerPos, layout from LayoutStructure
-  
   DefenseItem* = enum
     NoDefense = 0
     Hat = 1
     Armor = 2
   
-  WeavingLoomStructure* = object of ProductionStructure
+  # Production buildings have base structure + production fields
+  WeavingLoomStructure* = object
+    width*: int
+    height*: int
+    centerPos*: IVec2
+    cooldown*: int
+    maxCooldown*: int
     wheatCost*: int
     outputItem*: DefenseItem
   
-  ArmoryStructure* = object of ProductionStructure
+  ArmoryStructure* = object
+    width*: int
+    height*: int
+    centerPos*: IVec2
+    cooldown*: int
+    maxCooldown*: int
     oreCost*: int
     outputItem*: DefenseItem
   
@@ -45,12 +50,14 @@ type
     Bread = 1
     Stew = 2  # Future expansion possibility
   
-  ClayOvenStructure* = object of ProductionStructure
+  ClayOvenStructure* = object
+    width*: int
+    height*: int
+    centerPos*: IVec2
+    cooldown*: int
+    maxCooldown*: int
     wheatCost*: int
     outputItem*: FoodItem
-  
-  FoodBuilding* = object of LayoutStructure
-    # Uses width, height, centerPos, layout from LayoutStructure
   
   HungerState* = object
     currentHunger*: int       # Steps since last meal
@@ -58,10 +65,6 @@ type
     isStarving*: bool        # Whether agent is currently starving
     foodInventory*: seq[FoodItem]  # Food items in inventory
     maxFoodSlots*: int       # Max food inventory slots
-  
-  # Temple and Clippy structures
-  TempleStructure* = object of BaseStructure
-    # Uses width, height, centerPos from BaseStructure
   
   ClippyBehavior* = enum
     Patrol      # Wander around looking for targets
@@ -117,8 +120,6 @@ const
   
   # Temple properties
   TempleCooldown* = 10  # Time between Clippy spawns (doubled spawn rate)
-
-# ============== OBJECT CREATION ==============
 
 proc createHouse*(): HouseStructure =
   ## Create a house with:

@@ -1,9 +1,3 @@
-## Shaped Rewards Module
-## Defines reward values for different actions to encourage meaningful agent behavior
-## These rewards guide agents through: exploration → resource gathering → crafting → combat → cooperation
-
-# ============ Resource Gathering Rewards ============
-# Small rewards for collecting basic resources
 const
   RewardGetWater* = 0.001      # Collecting water from tiles
   RewardGetWheat* = 0.001      # Harvesting wheat 

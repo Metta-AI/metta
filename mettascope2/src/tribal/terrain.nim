@@ -3,8 +3,6 @@
 
 import std/[random, math, algorithm], vmath
 
-# ============ Core Types ============
-
 type
   TerrainType* = enum
     Empty
@@ -38,8 +36,6 @@ type
     message*: string
     cornerUsed*: int  # Which corner was used (0-3), or -1 if not a corner
 
-# ============ Constants ============
-
 const
   DefaultHouseLayout* = @[
     @['A', '#', '.', '#', 'F'],  # Top row with Armory (A) top-left, Forge (F) top-right
@@ -49,8 +45,6 @@ const
     @['C', '#', '.', '#', 'W']   # Bottom row with Clay Oven (C) bottom-left, Weaving Loom (W) bottom-right
   ]
 
-# ============ Helper Functions ============
-
 proc toIVec2*(x, y: int): IVec2 =
   ## Helper to create IVec2 from ints
   result.x = x.int32
@@ -59,8 +53,6 @@ proc toIVec2*(x, y: int): IVec2 =
 proc checkBounds(x, y, width, height, mapWidth, mapHeight: int): bool =
   ## Check if a rectangle fits within map bounds
   x >= 0 and y >= 0 and x + width <= mapWidth and y + height <= mapHeight
-
-# ============ Structure Creation ============
 
 proc createStructure*(width, height: int, centerX, centerY: int, 
                      needsBuffer = false, bufferSize = 0): Structure =
@@ -79,8 +71,6 @@ proc createHouseStructure*(): Structure =
 proc createTempleStructure*(): Structure =
   ## Create a temple structure (simpler, with buffer zone)
   result = createStructure(3, 3, 1, 1, needsBuffer = true, bufferSize = 2)
-
-# ============ Terrain Generation Functions ============
 
 proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
   ## Generate a river that flows from left to right across the map
@@ -240,8 +230,6 @@ proc initTerrain*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
   terrain.generateWheatFields(mapWidth, mapHeight, mapBorder, r)
   terrain.generateTrees(mapWidth, mapHeight, mapBorder, r)
 
-# ============ Advanced Placement Functions ============
-
 proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, 
                 r: var Rand): seq[IVec2] =
   ## Generate a river and return its path
@@ -373,8 +361,6 @@ proc placeTreeGroves*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: 
     let groveSize = r.rand(5..20)
     placeTerrainCluster(terrain, x, y, groveSize, Tree, mapWidth, mapHeight, r, 0.7)
 
-# ============ Structure Placement Functions ============
-
 proc canPlaceAt*(grid: PlacementGrid, terrain: ptr TerrainGrid, 
                 pos: IVec2, structure: Structure, 
                 mapWidth, mapHeight: int, 
@@ -494,8 +480,6 @@ proc findPlacement*(grid: PlacementGrid, terrain: ptr TerrainGrid,
   
   return PlacementResult(success: false, message: "No valid location found", cornerUsed: -1)
 
-# ============ Structure Element Extraction ============
-
 proc getStructureElements*(structure: Structure, topLeft: IVec2): tuple[
   center: IVec2,
   walls: seq[IVec2],
@@ -518,8 +502,6 @@ proc getStructureElements*(structure: Structure, topLeft: IVec2): tuple[
           of '.': result.entrances.add(worldPos)
           of 'a', 's', '*', 'A', 'F', 'C', 'W': result.special.add(worldPos)  # Various special tiles including corner buildings
           else: discard
-
-# ============ Utility Functions ============
 
 proc findEmptyPosition*(grid: PlacementGrid, terrain: ptr TerrainGrid,
                        mapWidth, mapHeight, mapBorder: int, r: var Rand,

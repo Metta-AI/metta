@@ -91,8 +91,7 @@ type
     hearts*: int  # For altars only - used for respawning agents
     resources*: int  # For mines - remaining ore
     cooldown*: int
-    frozen*: int  # Frozen duration (for agents caught by clippys)
-    inventory*: int  # Generic inventory (ore) - deprecated, use specific inventories
+    frozen*: int
 
     # Agent:
     agentId*: int

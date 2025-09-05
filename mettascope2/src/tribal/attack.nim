@@ -2,46 +2,36 @@ import std/[strformat, random, strutils, tables, times, math], vmath, chroma
 import environment
 export environment
 
-# New constants for attack system
 const
-  ForgeWoodCost* = 1  # Wood needed to craft a spear
-  ForgeCooldown* = 5  # Cooldown after crafting
-  SpearRange* = 2     # Attack range with spear (Manhattan distance)
+  ForgeWoodCost* = 1
+  ForgeCooldown* = 5
+  SpearRange* = 2
 
 proc getManhattanDistance*(pos1, pos2: IVec2): int =
   return abs(pos1.x - pos2.x) + abs(pos1.y - pos2.y)
 
 proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
-  # Check if forge is ready (not on cooldown)
   if forge.cooldown > 0:
     return
   
-  # Check if agent has wood
   if agent.inventoryWood <= 0:
     return
   
-  # Check if agent already has a spear (limit 1 for balance)
   if agent.inventorySpear > 0:
     return
   
-  # Craft the spear
   agent.inventoryWood -= ForgeWoodCost
   agent.inventorySpear = 1
   forge.cooldown = ForgeCooldown
   
-  # Update observations
   env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
   env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
-  
-  # Give small reward for crafting
   agent.reward += 0.5
 
 proc attackWithSpearAction*(env: Environment, id: int, agent: Thing, targetDirection: int) =
-  # Check if agent has a spear
   if agent.inventorySpear <= 0:
     return
   
-  # Calculate attack vector based on direction (range of 2)
   var attackPositions: seq[IVec2] = @[]
   case targetDirection:
   of 0:  # North
@@ -59,17 +49,14 @@ proc attackWithSpearAction*(env: Environment, id: int, agent: Thing, targetDirec
   else:
     return
   
-  # Check for Clippys at attack positions
   var hitClippy = false
   var clippyToRemove: Thing = nil
   
   for attackPos in attackPositions:
-    # Check bounds
     if attackPos.x < 0 or attackPos.x >= MapWidth or 
        attackPos.y < 0 or attackPos.y >= MapHeight:
       continue
     
-    # Check for Clippy at this position
     let target = env.getThing(attackPos)
     if not isNil(target) and target.kind == Clippy:
       clippyToRemove = target
@@ -77,44 +64,30 @@ proc attackWithSpearAction*(env: Environment, id: int, agent: Thing, targetDirec
       break
   
   if hitClippy and not isNil(clippyToRemove):
-    # Remove the Clippy
     env.grid[clippyToRemove.pos.x][clippyToRemove.pos.y] = nil
     let idx = env.things.find(clippyToRemove)
     if idx >= 0:
       env.things.del(idx)
     
-    # Consume the spear
     agent.inventorySpear = 0
     
-    # Update observations
     env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
-    
-    # Give reward for destroying Clippy
-    agent.reward += 2.0  # Reward for successful combat
+    agent.reward += 2.0
   else:
-    # Missed - still consume spear (risk/reward balance)
     agent.inventorySpear = 0
     env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
 
 proc useClayOvenAction*(env: Environment, id: int, agent: Thing, ovenPos: IVec2) =
-  ## Use a clay oven - placeholder for future implementation
-  ## Could be used for crafting shields, pottery for water storage, etc.
-  discard  # Not implemented yet
+  discard
 
-# Note: The step function is now handled in environment.nim with the attack action integrated
-
-# Helper function to check if position is within spear range of any agent with spear
 proc isThreatenedBySpear*(env: Environment, pos: IVec2): bool =
-  ## Check if a position is within spear range of any agent with a spear
   for agent in env.agents:
     if agent.hasSpear():
       if getManhattanDistance(agent.pos, pos) <= SpearRange:
         return true
   return false
 
-# Enhanced render function to show agents with spears
 proc renderWithWeapons*(env: Environment): string =
-  ## Render environment showing agents with spears differently
   for y in 0 ..< MapHeight:
     for x in 0 ..< MapWidth:
       var cell = " "
