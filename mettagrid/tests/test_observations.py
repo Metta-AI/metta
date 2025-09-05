@@ -303,15 +303,6 @@ class TestObservations:
         altar_count = helper.count_features_by_type(agent_obs, TokenTypes.ALTAR_TYPE_ID)
         assert altar_count == 8, f"Should see 8 altars, got {altar_count}"
 
-    def _check_token_exists(self, obs, x, y, type_id, feature_id, agent_name):
-        """Helper to check if a specific token exists at a location."""
-        helper = ObservationHelper()
-        tokens = helper.find_tokens_at_location(obs, x, y)
-        for token in tokens:
-            if token[1] == type_id and token[2] == feature_id:
-                return
-        raise AssertionError(f"{agent_name}: Expected token with type {type_id} and feature {feature_id} at ({x}, {y})")
-
     def test_agents_see_each_other(self, adjacent_agents_env):
         """Test that adjacent agents can see each other."""
         obs, _ = adjacent_agents_env.reset()
