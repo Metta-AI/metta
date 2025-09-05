@@ -285,8 +285,11 @@ def trigger_all_runs(branches: list[str], repeats: int) -> dict[str, list[tuple[
 
 
 def resolve_run_numbers(triggered_runs: dict[str, list[tuple[str, datetime]]]) -> dict[str, list[str]]:
-    print("\n⏳ Waiting for workflow logs to become available (sleeping 6 minutes)...")
-    time.sleep(360)  # GitHub logs are often available after ~5-6 minutes
+    minutes_to_wait = 10
+
+    print(f"\n⏳ Waiting for workflow logs to become available (sleeping {minutes_to_wait} minutes)...")
+
+    time.sleep(minutes_to_wait * 60)
 
     resolved_by_branch = {branch: [] for branch in triggered_runs}
 
