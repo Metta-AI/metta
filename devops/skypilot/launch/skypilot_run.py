@@ -54,6 +54,7 @@ def create_job_config_from_environment() -> JobConfig:
         heartbeat_timeout=int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None,
         restart_count=int(os.environ.get("RESTART_COUNT", "0")),
         test_nccl=os.environ.get("TEST_NCCL", "false").lower() == "true",
+        test_job_restart=os.environ.get("TEST_JOB_RESTART", "false").lower() == "true",
         start_time=int(os.environ.get("START_TIME", "0")) or None,
         # File paths
         heartbeat_file=os.environ.get("HEARTBEAT_FILE"),
