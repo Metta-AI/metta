@@ -39,8 +39,8 @@ def replay() -> ReplayTool:
     return cfg
 
 
-def evaluate(run: str = "local.{{ USER }}.1") -> SimTool:
-    cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
+def evaluate(policy_uri: str = "wandb://run/local.{{ USER }}.1") -> SimTool:
+    cfg = arena.evaluate(policy_uri=policy_uri)
 
     # If your run doesn't exist, try this:
     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
