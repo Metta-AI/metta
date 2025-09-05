@@ -1,32 +1,17 @@
 import
   std/[strformat, tables],
   boxy, vmath, windy, chroma,
-  common, panels, environment, simulation, utils
+  common, panels, environment, simulation, utils, colors
 
+# Use consolidated color functions from colors module
 proc agentColor*(id: int): Color =
-  if id >= 0 and id < agentVillageColors.len:
-    return agentVillageColors[id]
-  # Fallback for agents without village assignment
-  let f = id.float32
-  color(
-    f * Pi mod 1.0,
-    f * E mod 1.0,
-    f * sqrt(2.0) mod 1.0,
-    1.0
-  )
+  generateEntityColor("agent", id)
 
 proc altarColor*(pos: IVec2): Color =
-  if altarColors.hasKey(pos):
-    return altarColors[pos]
-  # Fallback to white if no color assigned
-  return color(1.0, 1.0, 1.0, 1.0)
+  getAltarColor(pos)
 
 proc generateVillageColor*(villageId: int): Color =
-  let hue = (villageId.float32 * 137.5) mod 360.0 / 360.0  # Golden angle for color spacing
-  let saturation = 0.7 + (villageId.float32 * 0.13) mod 0.3
-  let lightness = 0.5 + (villageId.float32 * 0.17) mod 0.2
-  # Convert HSL to RGB (simplified conversion)
-  return color(hue, saturation, lightness, 1.0)
+  generateEntityColor("village", villageId)
 
 proc useSelections*() =
   if window.buttonPressed[MouseLeft]:
@@ -78,24 +63,23 @@ proc drawTerrain*() =
       else:
         discard  # Water and Empty don't need additional sprites
 
-const wallSprites = @[
-  "objects/wall",
-  "objects/wall.e",
-  "objects/wall.s",
-  "objects/wall.se",
-  "objects/wall.w",
-  "objects/wall.we",
-  "objects/wall.ws",
-  "objects/wall.wse",
-  "objects/wall.n",
-  "objects/wall.ne",
-  "objects/wall.ns",
-  "objects/wall.nse",
-  "objects/wall.nw",
-  "objects/wall.nwe",
-  "objects/wall.nws",
-  "objects/wall.nwse",
-]
+proc generateWallSprites(): seq[string] =
+  ## Generate wall sprite names based on neighbor patterns
+  ## Bit pattern: N=8, W=4, S=2, E=1
+  result = newSeq[string](16)
+  for i in 0 .. 15:
+    var suffix = ""
+    if (i and 8) != 0: suffix.add("n")  # North
+    if (i and 4) != 0: suffix.add("w")  # West  
+    if (i and 2) != 0: suffix.add("s")  # South
+    if (i and 1) != 0: suffix.add("e")  # East
+    
+    if suffix.len > 0:
+      result[i] = "objects/wall." & suffix
+    else:
+      result[i] = "objects/wall"
+
+const wallSprites = generateWallSprites()
 
 type WallTile = enum
   WallNone = 0,

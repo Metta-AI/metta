@@ -4,7 +4,6 @@ import std/[strformat, strutils, sets, math, tables]
 import vmath
 import ../src/tribal/environment
 import ../src/tribal/ai
-import ../src/tribal/simulation
 
 # Test 1: Agent Controller Behavior
 proc testAgentController() =

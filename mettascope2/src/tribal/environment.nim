@@ -165,10 +165,11 @@ type
     truncated*: array[MapAgents, float32]
     stats: seq[Stats]
 
-# Global variables (initialized later after newEnvironment is defined)
+# Global variables for backward compatibility
+# Consider using gamestate module for better encapsulation
 var
-  env*: Environment
-  selection*: Thing
+  env*: Environment  # Global environment instance
+  selection*: Thing  # Currently selected entity for UI interaction
 
 proc render*(env: Environment): string =
   for y in 0 ..< MapHeight:
@@ -1258,33 +1259,46 @@ proc init(env: Environment) =
     
     # If we couldn't place at strategic position, fall back to random placement
     if not placed:
-      var gridPtr = cast[PlacementGrid](env.grid.addr)
-      var terrainPtr = env.terrain.addr
-      let placementResult = findPlacement(gridPtr, terrainPtr, spawnerStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = false, excludedCorners = @[])
+      # Simple random placement fallback
+      var fallbackPos = r.randomEmptyPos(env)
       
-      if placementResult.success:
-        let elements = getStructureElements(spawnerStruct, placementResult.position)
-        let spawnerCenter = elements.center
+      # Try to find a clear area for the spawner
+      for attempt in 0 ..< 20:
+        fallbackPos = r.randomEmptyPos(env)
+        # Check if we have enough space around this position
+        var hasSpace = true
+        for dx in -1 .. 1:
+          for dy in -1 .. 1:
+            let checkPos = fallbackPos + ivec2(dx, dy)
+            if checkPos.x < MapBorder or checkPos.x >= MapWidth - MapBorder or
+               checkPos.y < MapBorder or checkPos.y >= MapHeight - MapBorder or
+               not env.isEmpty(checkPos) or env.terrain[checkPos.x][checkPos.y] == Water:
+              hasSpace = false
+              break
+          if not hasSpace:
+            break
         
-        # Clear terrain and add spawner
-        for x in elements.topLeft.x ..< elements.topLeft.x + spawnerStruct.width:
-          for y in elements.topLeft.y ..< elements.topLeft.y + spawnerStruct.height:
-            let clearX = x + spawnerStruct.bufferSize
-            let clearY = y + spawnerStruct.bufferSize
-            if clearX >= 0 and clearX < MapWidth and clearY >= 0 and clearY < MapHeight:
-              if env.terrain[clearX][clearY] != Water:
-                env.terrain[clearX][clearY] = Empty
-        
-        env.add(Thing(
-          kind: Spawner,
-          pos: spawnerCenter,
-          cooldown: 0,
-          homeSpawner: spawnerCenter
-        ))
-        
-        let nearbyPositions = env.findEmptyPositionsAround(spawnerCenter, 1)
-        if nearbyPositions.len > 0:
-          env.add(createClippy(nearbyPositions[0], spawnerCenter, r))
+        if hasSpace:
+          # Clear terrain around the spawner
+          for dx in -1 .. 1:
+            for dy in -1 .. 1:
+              let clearPos = fallbackPos + ivec2(dx, dy)
+              if clearPos.x >= 0 and clearPos.x < MapWidth and 
+                 clearPos.y >= 0 and clearPos.y < MapHeight:
+                if env.terrain[clearPos.x][clearPos.y] != Water:
+                  env.terrain[clearPos.x][clearPos.y] = Empty
+          
+          env.add(Thing(
+            kind: Spawner,
+            pos: fallbackPos,
+            cooldown: 0,
+            homeSpawner: fallbackPos
+          ))
+          
+          let nearbyPositions = env.findEmptyPositionsAround(fallbackPos, 1)
+          if nearbyPositions.len > 0:
+            env.add(createClippy(nearbyPositions[0], fallbackPos, r))
+          break
 
   for i in 0 ..< MapRoomObjectsConverters:
     let pos = r.randomEmptyPos(env)
