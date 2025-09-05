@@ -76,7 +76,7 @@ type
     Mine
     Converter  # Converts ore to batteries
     Altar
-    Temple
+    Spawner
     Clippy
     Armory
     Forge
@@ -105,7 +105,7 @@ type
     reward*: float32
     homeAltar*: IVec2      # Position of agent's home altar for respawning
     # Clippy:
-    homeTemple*: IVec2     # Position of clippy's home temple
+    homeSpawner*: IVec2     # Position of clippy's home spawner
     wanderRadius*: int     # Current radius for concentric circle wandering
     wanderAngle*: float    # Current angle in the circle pattern
     targetPos*: IVec2      # Current target (agent or altar)
@@ -176,7 +176,7 @@ proc render*(env: Environment): string =
             cell = "g"
           of Altar:
             cell = "a"
-          of Temple:
+          of Spawner:
             cell = "t"
           of Clippy:
             cell = "C"
@@ -298,8 +298,8 @@ proc updateObservations*(env: Environment, agentId: int) =
         # Layer 16: AltarReadyLayer
         obs[16][x][y] = (thing.cooldown == 0).uint8
       
-      of Temple:
-        # Temple acts similar to altar for observations
+      of Spawner:
+        # Spawner acts similar to altar for observations
         obs[14][x][y] = 1
         obs[15][x][y] = thing.hearts.uint8
         obs[16][x][y] = (thing.cooldown == 0).uint8
@@ -562,7 +562,7 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
     else:
       inc env.stats[id].actionInvalid
   
-  of Temple, Clippy:
+  of Spawner, Clippy:
     # Can't use temples or Clippys
     inc env.stats[id].actionInvalid
 
@@ -958,20 +958,20 @@ proc init(env: Environment) =
     
     totalAgentsSpawned += 1
 
-  # Spawn temples with Clippys (same count as houses)
+  # Spawn spawners with Clippys (same count as houses)
   for i in 0 ..< numHouses:
-    let templeStruct = createTemple()
+    let spawnerStruct = createSpawner()
     var gridPtr = cast[PlacementGrid](env.grid.addr)
     var terrainPtr = env.terrain.addr
-    let placementResult = findPlacement(gridPtr, terrainPtr, templeStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = false, excludedCorners = @[])
+    let placementResult = findPlacement(gridPtr, terrainPtr, spawnerStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = false, excludedCorners = @[])
     
     if placementResult.success:  # Valid location found
-      let elements = getStructureElements(templeStruct, placementResult.position)
-      let templeCenter = elements.center
+      let elements = getStructureElements(spawnerStruct, placementResult.position)
+      let spawnerCenter = elements.center
       
-      # Clear terrain within the temple area to create a clearing
-      for dy in 0 ..< templeStruct.height:
-        for dx in 0 ..< templeStruct.width:
+      # Clear terrain within the spawner area to create a clearing
+      for dy in 0 ..< spawnerStruct.height:
+        for dx in 0 ..< spawnerStruct.width:
           let clearX = placementResult.position.x + dx
           let clearY = placementResult.position.y + dy
           if clearX >= 0 and clearX < MapWidth and clearY >= 0 and clearY < MapHeight:
@@ -979,22 +979,22 @@ proc init(env: Environment) =
             if env.terrain[clearX][clearY] != Water:
               env.terrain[clearX][clearY] = Empty
       
-      # Add the temple
+      # Add the spawner
       env.add(Thing(
-        kind: Temple,
-        pos: templeCenter,
+        kind: Spawner,
+        pos: spawnerCenter,
         cooldown: 0,
       ))
       
-      # Spawn initial Clippy near the temple (not on the temple itself)
-      # Find an empty position adjacent to the temple
-      let nearbyPositions = env.findEmptyPositionsAround(templeCenter, 1)
+      # Spawn initial Clippy near the spawner (not on the spawner itself)
+      # Find an empty position adjacent to the spawner
+      let nearbyPositions = env.findEmptyPositionsAround(spawnerCenter, 1)
       if nearbyPositions.len > 0:
         env.add(Thing(
           kind: Clippy,
-          pos: nearbyPositions[0],  # Pick first available position near temple
+          pos: nearbyPositions[0],  # Pick first available position near spawner
           orientation: Orientation(r.rand(0..3)),
-          homeTemple: templeCenter,  # Remember home temple
+          homeSpawner: spawnerCenter,  # Remember home spawner
           wanderRadius: 5,  # Start with medium radius
           wanderAngle: 0.0,
           targetPos: ivec2(-1, -1),  # No target initially
@@ -1074,7 +1074,7 @@ proc loadMap*(env: Environment, map: string) =
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
         hearts: MapObjectAltarInitialHearts,
       ))
-    of Temple:
+    of Spawner:
       env.add(Thing(
         kind: kind,
         id: id,
@@ -1163,22 +1163,22 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     elif thing.kind == WeavingLoom:
       if thing.cooldown > 0:
         thing.cooldown -= 1
-    elif thing.kind == Temple:
+    elif thing.kind == Spawner:
       if thing.cooldown > 0:
         thing.cooldown -= 1
       else:
-        # Temple is ready to spawn a Clippy
+        # Spawner is ready to spawn a Clippy
         # Count nearby Clippys
         var nearbyClippyCount = 0
         for other in env.things:
           if other.kind == Clippy:
             let dist = abs(other.pos.x - thing.pos.x) + abs(other.pos.y - thing.pos.y)
-            if dist <= 5:  # Within 5 tiles of temple
+            if dist <= 5:  # Within 5 tiles of spawner
               nearbyClippyCount += 1
         
         # Spawn a new Clippy (no limit for now)
         if true:
-          # Find empty positions around temple
+          # Find empty positions around spawner
           let emptyPositions = env.findEmptyPositionsAround(thing.pos, 2)
           if emptyPositions.len > 0:
             var r = initRand(env.currentStep)
@@ -1189,7 +1189,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
               kind: Clippy,
               pos: spawnPos,
               orientation: Orientation(r.rand(0..3)),
-              homeTemple: thing.pos,  # Remember home temple position
+              homeSpawner: thing.pos,  # Remember home spawner position
               wanderRadius: 5,  # Start with medium radius
               wanderAngle: 0.0,
               targetPos: ivec2(-1, -1),  # No target initially
@@ -1198,8 +1198,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             # Don't add immediately - collect for later
             newClippysToSpawn.add(newClippy)
             
-            # Reset temple cooldown
-            thing.cooldown = TempleCooldown
+            # Reset spawner cooldown
+            thing.cooldown = SpawnerCooldown
     elif thing.kind == Agent:
       if thing.frozen > 0:
         thing.frozen -= 1

@@ -110,18 +110,18 @@ proc getOutwardExpansionDirection*(clippy: pointer, things: seq[pointer], r: var
     agentId: int, orientation: int,
     inventoryOre: int, inventoryBattery: int, inventoryWater: int,
     inventoryWheat: int, inventoryWood: int, reward: float32,
-    homeAltar: IVec2, homeTemple: IVec2, wanderRadius: int,
+    homeAltar: IVec2, homeSpawner: IVec2, wanderRadius: int,
     wanderAngle: float, targetPos: IVec2, wanderStepsRemaining: int
   ]](clippy)
   
   let currentPos = clippyThing.pos
-  let homeTemple = clippyThing.homeTemple
+  let homeSpawner = clippyThing.homeSpawner
   
-  # Primary force: Move away from home temple
+  # Primary force: Move away from home spawner
   var outwardForce = vec2(0.0, 0.0)
-  if homeTemple.x >= 0 and homeTemple.y >= 0:
-    let dx = (currentPos.x - homeTemple.x).float
-    let dy = (currentPos.y - homeTemple.y).float
+  if homeSpawner.x >= 0 and homeSpawner.y >= 0:
+    let dx = (currentPos.x - homeSpawner.x).float
+    let dy = (currentPos.y - homeSpawner.y).float
     let distFromHome = sqrt(dx * dx + dy * dy)
     
     if distFromHome > 0.1:
@@ -177,15 +177,15 @@ proc getOutwardExpansionDirection*(clippy: pointer, things: seq[pointer], r: var
     return ivec2(0, if totalForce.y > 0: 1 else: -1)
   else:
     # Fallback: move away from home
-    if abs(currentPos.x - homeTemple.x) > abs(currentPos.y - homeTemple.y):
-      return ivec2(if currentPos.x > homeTemple.x: 1 else: -1, 0)
+    if abs(currentPos.x - homeSpawner.x) > abs(currentPos.y - homeSpawner.y):
+      return ivec2(if currentPos.x > homeSpawner.x: 1 else: -1, 0)
     else:
-      return ivec2(0, if currentPos.y > homeTemple.y: 1 else: -1)
+      return ivec2(0, if currentPos.y > homeSpawner.y: 1 else: -1)
 
 proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
   ## Determine which direction a Clippy should move
   ## Priority: 1) Chase agent if seen, 2) Move toward altar if seen, 
-  ## 3) Wander in concentric circles around home temple
+  ## 3) Wander in concentric circles around home spawner
   
   # First, find the clippy in the things list to access its state
   var clippyPtr: pointer = nil
@@ -208,7 +208,7 @@ proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand
     agentId: int, orientation: int,
     inventoryOre: int, inventoryBattery: int, inventoryWater: int,
     inventoryWheat: int, inventoryWood: int, reward: float32,
-    homeAltar: IVec2, homeTemple: IVec2, wanderRadius: int,
+    homeAltar: IVec2, homeSpawner: IVec2, wanderRadius: int,
     wanderAngle: float, targetPos: IVec2, wanderStepsRemaining: int
   ]](clippyPtr)
   
@@ -241,10 +241,10 @@ proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand
   
   # Priority 3: No targets - expand outward like a plague wave
   # Move away from home and other clippys to explore new territory
-  if clippyThing.homeTemple.x >= 0 and clippyThing.homeTemple.y >= 0:
+  if clippyThing.homeSpawner.x >= 0 and clippyThing.homeSpawner.y >= 0:
     # Get direct movement direction for plague expansion
     return getOutwardExpansionDirection(clippyPtr, things, r)
   
-  # Fallback: Random walk if no home temple
+  # Fallback: Random walk if no home spawner
   let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
   return r.sample(directions)

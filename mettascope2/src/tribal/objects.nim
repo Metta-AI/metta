@@ -53,7 +53,7 @@ type
   ClippyBehavior* = enum
     Patrol      # Wander around looking for targets
     Chase       # Actively pursuing a player
-    Guard       # Protecting the temple
+    Guard       # Protecting the spawner
     Attack      # Engaging with player
 
 # ============== CONSTANTS ==============
@@ -102,8 +102,8 @@ const
   ClippyAltarSearchRange* = 12  # Extended range for aggressive altar hunting
   ClippyAgentChaseRange* = 10  # Will chase agents within this range
   
-  # Temple properties
-  TempleCooldown* = 10  # Time between Clippy spawns (doubled spawn rate)
+  # Spawner properties
+  SpawnerCooldown* = 10  # Time between Clippy spawns (doubled spawn rate)
 
 proc createHouse*(): Structure =
   ## Create a house with:
@@ -163,8 +163,8 @@ proc createClayOven*(): ProductionBuilding =
   result.wheatCostOven = ClayOvenWheatCost
   result.outputFood = Bread
 
-proc createTemple*(): Structure =
-  ## Create a temple structure (3x3 with center as spawn point)
+proc createSpawner*(): Structure =
+  ## Create a spawner structure (3x3 with center as spawn point)
   result.width = 3
   result.height = 3
   result.centerPos = ivec2(1, 1)
@@ -181,13 +181,13 @@ proc initHungerState*(): HungerState =
 
 # ============== HELPER FUNCTIONS ==============
 
-proc getTempleCenter*(temple: Structure, topLeft: IVec2): IVec2 =
-  ## Get the world position of the temple's center (spawn point)
-  return topLeft + temple.centerPos
+proc getSpawnerCenter*(spawner: Structure, topLeft: IVec2): IVec2 =
+  ## Get the world position of the spawner's center (spawn point)
+  return topLeft + spawner.centerPos
 
-proc shouldSpawnClippy*(templeCooldown: int, nearbyClippyCount: int): bool =
-  ## Determine if a temple should spawn a new Clippy
-  return templeCooldown == 0
+proc shouldSpawnClippy*(spawnerCooldown: int, nearbyClippyCount: int): bool =
+  ## Determine if a spawner should spawn a new Clippy
+  return spawnerCooldown == 0
 
 proc getClippyBehavior*(clippy: pointer, target: pointer, distanceToTarget: float): ClippyBehavior =
   ## Determine Clippy's current behavior based on game state

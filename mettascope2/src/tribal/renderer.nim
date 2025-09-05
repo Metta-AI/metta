@@ -209,9 +209,9 @@ proc drawObjects*() =
             angle = 0,
             scale = 1/200
           )
-        of Temple:
+        of Spawner:
           bxy.drawImage(
-            "objects/temple",
+            "objects/spawner",
             ivec2(x, y).vec2,
             angle = 0,
             scale = 1/200
@@ -405,16 +405,16 @@ Mine
 resources: {selection.resources}
 cooldown: {selection.cooldown}
       """
-    of Temple:
+    of Spawner:
       info = &"""
-Temple
+Spawner
 cooldown: {selection.cooldown}
 spawn ready: {selection.cooldown == 0}
       """
     of Clippy:
       info = &"""
 Clippy
-home: ({selection.homeTemple.x}, {selection.homeTemple.y})
+home: ({selection.homeSpawner.x}, {selection.homeSpawner.y})
 wander radius: {selection.wanderRadius}
       """
     of Armory:

@@ -118,8 +118,8 @@ proc renderWithWeapons*(env: Environment): string =
             cell = "g"
           of Altar:
             cell = "a"
-          of Temple:
-            cell = "t"
+          of Spawner:
+            cell = "s"
           of Clippy:
             cell = "C"
           of Armory:
