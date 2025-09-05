@@ -138,6 +138,53 @@ proc testFullSimulation() =
     echo "  ⚠ Limited activity (may need more steps)"
   echo ""
 
+# Test 5: Agent Spiral Movement Pattern
+proc testAgentSpiralMovement() =
+  echo "Test: Agent Spiral Movement"
+  echo "-" & repeat("-", 40)
+  
+  var controller = newController(123)
+  var state = ControllerState(
+    spiralArcLength: 1,
+    spiralStepsInArc: 0,
+    spiralDirection: 0,
+    spiralArcsCompleted: 0,
+    basePosition: ivec2(10, 10),
+    currentTarget: ivec2(10, 10),
+    targetType: NoTarget
+  )
+  
+  controller.agentStates.add(0, state)
+  
+  echo fmt"  Base position: {state.basePosition}"
+  echo "  Generated spiral points:"
+  
+  # Test first 12 spiral points to see the pattern
+  var maxDistance = 0
+  var validMoves = 0
+  
+  for i in 1..12:
+    let nextPoint = controller.getNextWanderPoint(state)
+    let distance = abs(nextPoint.x - state.basePosition.x) + abs(nextPoint.y - state.basePosition.y)
+    maxDistance = max(maxDistance, distance)
+    
+    if nextPoint != state.basePosition:
+      validMoves += 1
+    
+    if i <= 6:  # Show first few moves
+      echo fmt"    Step {i}: {nextPoint} (distance: {distance})"
+  
+  echo fmt"  Spiral pattern analysis:"
+  echo fmt"    Valid moves: {validMoves}/12"
+  echo fmt"    Max distance from base: {maxDistance}"
+  echo fmt"    Arcs completed: {state.spiralArcsCompleted}"
+  
+  if validMoves >= 8 and maxDistance >= 3:
+    echo "  ✓ Spiral movement pattern working correctly"
+  else:
+    echo "  ⚠ Spiral pattern may need adjustment"
+  echo ""
+
 when isMainModule:
   echo "\n" & "=" & repeat("=", 50)
   echo "AI Behavior Test Suite"
@@ -146,6 +193,7 @@ when isMainModule:
   testAgentController()
   testVillageAgents()
   testFullSimulation()
+  testAgentSpiralMovement()
   
   echo "=" & repeat("=", 50)
   echo "AI behavior tests completed"
