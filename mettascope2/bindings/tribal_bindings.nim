@@ -149,6 +149,16 @@ proc getActionSpace*(): seq[int] =
   ## Tribal has action types 0-5: noop, move, attack, get, swap, put
   @[6, 8]  # 6 action types, 8-directional arguments
 
+# Export sequences first 
+exportSeq seq[int]:
+  discard
+
+exportSeq seq[float]:
+  discard
+
+exportSeq seq[bool]:
+  discard
+
 # Export everything to Python
 exportObject TribalConfig:
   discard

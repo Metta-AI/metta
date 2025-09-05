@@ -792,27 +792,44 @@ proc getDirectionToward*(fromPos, toPos: IVec2): IVec2 =
     else: 0
 
 proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[Thing], r: var Rand): IVec2 =
-  ## Simple Clippy AI: Move directly toward the nearest altar using oracle knowledge
+  ## Clippy AI: 50% move toward nearest altar, 50% random movement to avoid getting stuck
   
-  var nearestAltar = ivec2(-1, -1)
-  var minDist = int.high
-  
-  # Oracle knowledge: scan all entities to find closest altar
-  for thing in things:
-    if isNil(thing) or thing.kind != Altar:
-      continue
+  # 50% chance to move toward altar, 50% chance for random movement
+  if r.rand(0.0..1.0) < 0.5:
+    # Random movement - pick a random direction
+    let randomDirections = [
+      ivec2(0, -1),  # North
+      ivec2(0, 1),   # South  
+      ivec2(-1, 0),  # West
+      ivec2(1, 0),   # East
+      ivec2(-1, -1), # Northwest
+      ivec2(1, -1),  # Northeast
+      ivec2(-1, 1),  # Southwest
+      ivec2(1, 1)    # Southeast
+    ]
+    return randomDirections[r.rand(0..<randomDirections.len)]
+  else:
+    # Move toward nearest altar
+    var nearestAltar = ivec2(-1, -1)
+    var minDist = int.high
     
-    let dist = manhattanDistance(clippyPos, thing.pos)
-    if dist < minDist:
-      minDist = dist
-      nearestAltar = thing.pos
-  
-  # Move directly toward nearest altar if found
-  if nearestAltar.x >= 0:
-    return getDirectionToward(clippyPos, nearestAltar)
-  
-  # No altar found - shouldn't happen in normal gameplay
-  return ivec2(0, 0)
+    # Oracle knowledge: scan all entities to find closest altar
+    for thing in things:
+      if isNil(thing) or thing.kind != Altar:
+        continue
+      
+      let dist = manhattanDistance(clippyPos, thing.pos)
+      if dist < minDist:
+        minDist = dist
+        nearestAltar = thing.pos
+    
+    # Move toward nearest altar if found
+    if nearestAltar.x >= 0:
+      return getDirectionToward(clippyPos, nearestAltar)
+    
+    # No altar found - fallback to random movement
+    let randomDirections = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+    return randomDirections[r.rand(0..<randomDirections.len)]
 
 
 # proc updateGrid(env: Environment) =
@@ -1501,12 +1518,12 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         thing.frozen -= 1
         # Note: frozen status is visible in observations through updateObservations(id)
 
+  # ============== CLIPPY PROCESSING ==============
   # Add newly spawned clippys from spawners
   for newClippy in newClippysToSpawn:
     env.add(newClippy)
   
-  # Update Clippys - they move and interact
-  # First collect all clippys to process (to avoid modifying collection while iterating)
+  # Collect all clippys to process (to avoid modifying collection while iterating)
   var clippysToProcess: seq[Thing] = @[]
   for thing in env.things:
     if thing.kind == Clippy:
@@ -1547,7 +1564,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         clippysToRemove.add(clippy)
         env.grid[clippy.pos.x][clippy.pos.y] = nil
   
-  # Check for clippy vs agent combat
+  # ============== CLIPPY COMBAT ==============
   # Process combat between clippys and adjacent agents
   for clippy in clippysToProcess:
     # Skip if clippy is already marked for removal
@@ -1609,6 +1626,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         # Break after first combat (clippy is already dead)
         break
   
+  # ============== CLIPPY CLEANUP ==============
   # Remove clippys that died in combat or touched altars
   for clippy in clippysToRemove:
     let idx = env.things.find(clippy)
