@@ -231,6 +231,11 @@ def set_task_secrets(task: sky.Task) -> None:
     if not wandb.api.api_key:
         raise ValueError("Failed to get wandb api key, run 'metta install' to fix")
 
+    print("my secrerts", dict(
+            WANDB_API_KEY=wandb.api.api_key,
+            WANDB_PASSWORD=wandb_password,
+            OBSERVATORY_TOKEN=observatory_token,
+        ))
     task.update_secrets(
         dict(
             WANDB_API_KEY=wandb.api.api_key,
