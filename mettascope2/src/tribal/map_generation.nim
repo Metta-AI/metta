@@ -2,11 +2,8 @@
 ## Handles world setup, building placement, and entity spawning
 
 import std/[random, tables], vmath, chroma
-import game, terrain, placement, village, clippy, observations
-
-# Global village color management
-var agentVillageColors*: seq[Color] = @[]
-var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
+import game, terrain, placement, village, clippy, colors
+export colors
 
 proc randomEmptyPos*(r: var Rand, env: Environment): IVec2 =
   ## Find an empty position in the environment

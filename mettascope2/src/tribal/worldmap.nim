@@ -1,8 +1,7 @@
 import
   std/[strformat, tables],
   boxy, vmath, windy, chroma, pixie,
-  environment, terrain
-from map_generation import agentVillageColors, altarColors
+  game, terrain, colors
 
 # Module-level variables that get set by the main draw procedure
 var

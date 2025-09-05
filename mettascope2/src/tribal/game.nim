@@ -1,10 +1,7 @@
 import std/[strformat, random, strutils, tables, times], vmath, jsony, chroma
-import terrain, placement, clippy, village
+import terrain, placement, clippy, village, colors
 import defense, food
 export terrain
-
-# Import village colors from map_generation
-from map_generation import agentVillageColors, altarColors
 
 const
   # From config
