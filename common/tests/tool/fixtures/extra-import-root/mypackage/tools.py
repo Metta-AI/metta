@@ -12,7 +12,7 @@ class NestedConfig(Config):
 
 
 class TestTool(Tool):
-    def invoke(self, args, overrides):
+    def invoke(self, args):
         print("TestTool invoked")
         return 0
 
@@ -23,9 +23,8 @@ class SimpleTestTool(Tool):
     value: str = "default"
     nested: NestedConfig = Field(default_factory=NestedConfig)
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         print(f"Args: {args}")
-        print(f"Overrides: {overrides}")
         print(f"Tool value: {self.value}")
         print(f"Tool nested.field: {self.nested.field}")
         print(f"Tool nested.another_field: {self.nested.another_field}")

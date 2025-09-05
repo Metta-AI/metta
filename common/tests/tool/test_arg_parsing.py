@@ -28,7 +28,7 @@ class SimpleTestTool(Tool):
     value: str = "default"
     nested: NestedConfig = Field(default_factory=NestedConfig)
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         return 0
 
 
@@ -82,6 +82,19 @@ class TestArgParsing:
         assert parse_value("42abc") == "42abc"
         assert parse_value("3.14.15") == "3.14.15"
         assert parse_value("") == ""
+
+        # JSON values
+        assert parse_value('{"key": "value"}') == {"key": "value"}
+        assert parse_value("[1, 2, 3]") == [1, 2, 3]
+        assert parse_value('{"nested": {"key": 123}}') == {"nested": {"key": 123}}
+
+        # Invalid JSON that looks like JSON (should return as string)
+        assert parse_value("{not valid json}") == "{not valid json}"
+        assert parse_value('[missing quote: "test]') == '[missing quote: "test]'
+
+        # Very large JSON-like string (should return as string due to size limit)
+        large_json_like = "{" + "a" * 1_000_001 + "}"
+        assert parse_value(large_json_like) == large_json_like
 
     def test_parse_cli_args(self):
         """Test CLI argument parsing."""
