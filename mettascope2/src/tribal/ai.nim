@@ -243,28 +243,22 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   
   var state = controller.agentStates[agentId]
   
-  # Stuck detection: Check if we haven't moved
-  const StuckThreshold = 5  # Consider stuck after 5 steps in same position
-  const EscapeSteps = 5  # Escape for 5 steps when stuck
+  const StuckThreshold = 5
+  const EscapeSteps = 5
   
   if agent.pos == state.lastPosition:
     state.stuckCounter += 1
     if state.stuckCounter >= StuckThreshold and not state.escapeMode:
-      # We're stuck! Enter escape mode
       state.escapeMode = true
       state.escapeStepsRemaining = EscapeSteps
       
-      # Choose escape direction (opposite of where we were trying to go)
       if state.currentTarget != agent.pos:
         let targetDir = getDirectionTo(agent.pos, state.currentTarget)
-        # Go opposite direction
         state.escapeDirection = ivec2(-targetDir.x, -targetDir.y)
       else:
-        # Random escape direction
         let dirs = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
         state.escapeDirection = controller.rng.sample(dirs)
   else:
-    # We moved, reset stuck counter
     state.stuckCounter = 0
   
   # Update last position for next step

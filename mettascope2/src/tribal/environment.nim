@@ -30,7 +30,7 @@ const
   MapRoomObjectsWalls* = 30
 
   MapObjectAgentMaxInventory* = 5
-  MapObjectAgentFreezeDuration* = 10  # Temporary freeze when caught by clippy
+  MapObjectAgentFreezeDuration* = 10
 
   MapObjectAltarInitialHearts* = 5
   MapObjectAltarCooldown* = 10
@@ -178,8 +178,6 @@ type
     truncated*: array[MapAgents, float32]
     stats: seq[Stats]
 
-# Global variables for backward compatibility
-# Consider using gamestate module for better encapsulation
 var
   env*: Environment  # Global environment instance
   selection*: Thing  # Currently selected entity for UI interaction

@@ -1,9 +1,5 @@
 ## Combat system
 ## Handles offensive and defensive combat mechanics including spears, armor, and other weapons
-## 
-## TODO: Defense items (hats, armor) are defined in objects.nim but not yet implemented
-##       When implementing defense mechanics, consider moving DefenseItem enum here
-##       Current items: Hat (1 hit protection), Armor (3 hit protection)
 
 import vmath
 import environment
