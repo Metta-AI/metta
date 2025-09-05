@@ -44,22 +44,25 @@ proc drawFloor*() =
   # Draw the floor tiles everywhere first as the base layer
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
-      # Get ice intensity for this tile (0.0 to 1.0)
-      let iceLevel = env.iceIntensity[x][y]
+      # Get tile color data 
+      let tileColor = env.tileColors[x][y]
       
-      # First draw floor everywhere (water gets a blue tint, ice adds more blue)
+      # Apply the tile color with intensity (brightness from altars)
+      let finalR = min(tileColor.r * tileColor.intensity, 1.5)
+      let finalG = min(tileColor.g * tileColor.intensity, 1.5)
+      let finalB = min(tileColor.b * tileColor.intensity, 1.5)
+      
+      # Special case for water - blend with water color
       if env.terrain[x][y] == Water:
-        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(0.3, 0.5, 0.8, 1.0))
-      elif iceLevel > 0:
-        # Ice tinting: progressively more blue as ice intensity increases
-        # Start with normal floor color, blend toward icy blue
-        let iceTint = min(iceLevel, 1.0)  # Cap at 1.0
-        let r = 1.0 - (iceTint * 0.4)  # Reduce red channel
-        let g = 1.0 - (iceTint * 0.2)  # Slightly reduce green  
-        let b = 1.0 + (iceTint * 0.3)  # Increase blue channel
-        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(r, g, min(b, 1.0), 1.0))
+        # Mix tile color with water blue
+        let waterBlend = 0.7  # How much water color to keep
+        let r = finalR * (1.0 - waterBlend) + 0.3 * waterBlend
+        let g = finalG * (1.0 - waterBlend) + 0.5 * waterBlend
+        let b = finalB * (1.0 - waterBlend) + 0.8 * waterBlend
+        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(r, g, b, 1.0))
       else:
-        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200)
+        # Normal floor with heatmap tinting
+        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(finalR, finalG, finalB, 1.0))
 
 proc drawTerrain*() =
   # Draw terrain features on top of the floor

@@ -92,6 +92,8 @@ type
     resources*: int  # For mines - remaining ore
     cooldown*: int
     frozen*: int
+    houseTopLeft*: IVec2  # For altars - top-left corner of the house (for brightness)
+    houseSize*: int       # For altars - size of the house (typically 5)
 
     # Agent:
     agentId*: int
@@ -127,10 +129,9 @@ type
     actionGetWheat*: int
     actionGetWood*: int
 
-  HeatmapData* = object
-    agentHeat*: float32      # Warm colors (red/orange/yellow) from agent steps
-    clippyHeat*: float32     # Cold colors (blue/cyan) from clippy steps
-    tribeHeat*: array[4, float32]  # Heat contribution from each agent tribe (0-3)
+  TileColor* = object
+    r*, g*, b*: float32      # RGB color components (0.0 to 1.0+, can exceed 1.0 for brightness)
+    intensity*: float32      # Overall intensity/brightness modifier
     
   Environment* = ref object
     currentStep*: int
@@ -138,7 +139,7 @@ type
     agents*: seq[Thing]
     grid*: array[MapWidth, array[MapHeight, Thing]]
     terrain*: TerrainGrid
-    heatmap*: array[MapWidth, array[MapHeight, HeatmapData]]  # Movement heatmap tracking
+    tileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Unified color tinting system
     observations*: array[
       MapAgents,
       array[ObservationLayers,
@@ -444,10 +445,13 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
     agent.orientation = newOrientation
     env.grid[agent.pos.x][agent.pos.y] = agent
     
-    # Update heatmap with agent movement (warm colors)
-    let tribeId = min(agent.agentId div (MapRoomObjectsAgents div 4), 3)  # Determine tribe (0-3)
-    env.heatmap[newPos.x][newPos.y].agentHeat = min(env.heatmap[newPos.x][newPos.y].agentHeat + 0.05, 1.0)
-    env.heatmap[newPos.x][newPos.y].tribeHeat[tribeId] = min(env.heatmap[newPos.x][newPos.y].tribeHeat[tribeId] + 0.1, 1.0)
+    # Shift tile color toward warm (agent's tribe color)
+    if agent.agentId < agentVillageColors.len:
+      let tribeColor = agentVillageColors[agent.agentId]
+      let shift = 0.02'f32  # How much to shift toward tribe color per step
+      env.tileColors[newPos.x][newPos.y].r = env.tileColors[newPos.x][newPos.y].r * (1.0 - shift) + tribeColor.r * shift
+      env.tileColors[newPos.x][newPos.y].g = env.tileColors[newPos.x][newPos.y].g * (1.0 - shift) + tribeColor.g * shift
+      env.tileColors[newPos.x][newPos.y].b = env.tileColors[newPos.x][newPos.y].b * (1.0 - shift) + tribeColor.b * shift
     env.updateObservations(AgentLayer, agent.pos, 1)
     env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
     env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
@@ -801,6 +805,12 @@ proc init(env: Environment) =
   let seed = int(epochTime() * 1000)
   var r = initRand(seed)
   echo "Generating map with seed: ", seed
+  
+  # Initialize tile colors to neutral white
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      env.tileColors[x][y] = TileColor(r: 1.0, g: 1.0, b: 1.0, intensity: 1.0)
+  
   # Initialize terrain with all features
   initTerrain(env.terrain, MapWidth, MapHeight, MapBorder, seed)
 
@@ -867,11 +877,13 @@ proc init(env: Environment) =
       # Spawn agents around this house
       let agentsForThisHouse = min(MapAgentsPerHouse, MapRoomObjectsAgents - totalAgentsSpawned)
       
-      # Add the altar with initial hearts
+      # Add the altar with initial hearts and house bounds
       env.add(Thing(
         kind: Altar,
         pos: elements.center,
         hearts: MapObjectAltarInitialHearts,  # Altar starts with default hearts
+        houseTopLeft: placementResult.position,  # Store house position
+        houseSize: houseStruct.width,  # Store house size (typically 5)
       ))
       altarColors[elements.center] = villageColor  # Associate altar position with village color
       
@@ -1242,8 +1254,11 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       clippy.pos = newPos
       env.grid[clippy.pos.x][clippy.pos.y] = clippy
       
-      # Update heatmap with clippy movement (cold colors)
-      env.heatmap[newPos.x][newPos.y].clippyHeat = min(env.heatmap[newPos.x][newPos.y].clippyHeat + 0.08, 1.0)
+      # Shift tile color toward cold blue
+      let shift = 0.03'f32  # Clippies have stronger effect than agents
+      env.tileColors[newPos.x][newPos.y].r = env.tileColors[newPos.x][newPos.y].r * (1.0 - shift * 0.8)  # Reduce red significantly
+      env.tileColors[newPos.x][newPos.y].g = env.tileColors[newPos.x][newPos.y].g * (1.0 - shift * 0.4)  # Reduce green moderately
+      env.tileColors[newPos.x][newPos.y].b = min(env.tileColors[newPos.x][newPos.y].b * (1.0 - shift * 0.1) + shift * 1.3, 1.5)  # Increase blue
     else:
       # Check if we're trying to move onto an altar
       let target = env.getThing(newPos)
@@ -1352,6 +1367,27 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           env.updateObservations(AgentInventorySpearLayer, agent.pos, 0)
           env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
           env.updateObservations(agentId)
+  
+  # Reset intensity to base level (preserve color tinting but reset brightness)
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      env.tileColors[x][y].intensity = 1.0
+  
+  # Update tile brightness based on altars - only within their houses
+  for altar in env.things:
+    if altar.kind == Altar and altar.houseSize > 0:
+      let hearts = altar.hearts.float32
+      
+      # Calculate brightness based on hearts (0-20 typical range)
+      let brightness = 0.7 + (hearts / 10.0) * 0.8  # Range from 0.7 (no hearts) to 1.5 (10+ hearts)
+      
+      # Apply brightness only to tiles within the house
+      for dy in 0 ..< altar.houseSize:
+        for dx in 0 ..< altar.houseSize:
+          let x = altar.houseTopLeft.x + dx
+          let y = altar.houseTopLeft.y + dy
+          if x >= 0 and x < MapWidth and y >= 0 and y < MapHeight:
+            env.tileColors[x][y].intensity = brightness
 
 proc reset*(env: Environment) =
   env.currentStep = 0
