@@ -43,7 +43,7 @@ class NodejsSetup(SetupModule):
             env["NODE_NO_WARNINGS"] = "1"
             result = subprocess.run(
                 ["pnpm", "--version"],
-                capture_output=True,
+                capture_output=False,
                 text=True,
                 env=env,
             )
@@ -89,13 +89,16 @@ class NodejsSetup(SetupModule):
 
         # First enable corepack to make pnpm command available
         if not self._check_pnpm():
+            info("2")
             if not self._enable_corepack_with_cleanup():
+                info("3")
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
         # Let pnpm setup itself - this handles shell profile configuration
         info("Running pnpm setup to configure shell profiles...")
         try:
             self.run_command(["pnpm", "setup"], capture_output=False)
+            info("4")
             info("pnpm setup completed successfully")
         except subprocess.CalledProcessError as e:
             # pnpm setup can fail if there's already a config, but that's usually OK
