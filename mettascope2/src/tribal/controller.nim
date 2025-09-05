@@ -1,6 +1,6 @@
 import std/[math, random, tables, sequtils]
 import vmath
-import tribal
+import tribal_game
 
 # Import the new orientations
 from tribal import N, S, W, E, NW, NE, SW, SE

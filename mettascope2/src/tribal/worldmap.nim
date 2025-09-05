@@ -1,7 +1,21 @@
 import
   std/[strformat, tables],
-  boxy, vmath, windy, chroma,
-  common, panels, tribal, actions, utils
+  boxy, vmath, windy, chroma, pixie,
+  tribal_game, terrain, map_generation
+
+# Module-level variables that get set by the main draw procedure
+var
+  bxy: Boxy
+  env: Environment
+  selection: Thing
+  window: Window
+  typeface: Typeface
+  settings*: tuple[showGrid: bool, showObservations: int]
+  play*: bool
+  playSpeed*: float
+
+# Re-export key types
+export Environment, Thing
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent based on their village

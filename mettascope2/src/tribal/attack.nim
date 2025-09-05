@@ -2,7 +2,7 @@
 ## Implements Forge for spear crafting and combat system
 
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import tribal
+import tribal_game
 export tribal
 
 # New constants for attack system
