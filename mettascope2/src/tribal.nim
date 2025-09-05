@@ -1,4 +1,4 @@
-import std/[random, os, times, strformat, strutils, sequtils]
+import std/[os, times, strformat, strutils]
 import boxy, opengl, windy, chroma, vmath, pixie
 import tribal/[common, game, worldmap, controller, ui]
 
@@ -27,7 +27,6 @@ const
   SpeedMultiplierDecrease = 0.5
   MinPlaySpeed = 0.00001
   MaxPlaySpeed = 1.0
-  TextBounds = vec2(WindowWidth.float32, WindowHeight.float32)
 
 var
   actionsArray*: array[MapAgents, array[2, uint8]]
@@ -105,10 +104,6 @@ proc measureText*(
   let bounds = arrangement.computeBounds(transform).snapToPixels()
   return vec2(bounds.w, bounds.h)
 
-template withTransform(body: untyped) =
-  bxy.saveTransform()
-  body
-  bxy.restoreTransform()
 
 proc boxyMouse*(): Vec2 =
   return inverse(bxy.getTransform()) * window.mousePos.vec2
@@ -275,35 +270,37 @@ proc main() =
     
     # Calculate main view area (between header and footer)
     let mainAreaY = HeaderHeight.float32
-    let mainAreaHeight = window.size.y.float32 - HeaderHeight - FooterHeight
     
     # Save transform and clip to main area
-    withTransform:
-      bxy.translate(vec2(0, mainAreaY))
-      
-      # Draw world with pan/zoom in the main area
-      beginPanAndZoom()
-      
-      # Handle mouse selection
-      useSelections()
-      
-      # Draw the world map with all necessary parameters
-      draw(bxy, env, selection, window, typeface, settings, play, playSpeed)
-      
-      # Draw grid overlay if enabled
-      if settings.showGrid:
-        drawGrid()
-      
-      endPanAndZoom()
+    bxy.saveTransform()
+    bxy.translate(vec2(0, mainAreaY))
+    
+    # Draw world with pan/zoom in the main area
+    beginPanAndZoom()
+    
+    # Handle mouse selection
+    useSelections()
+    
+    # Draw the world map with all necessary parameters
+    draw(bxy, env, selection, window, typeface, settings, play, playSpeed)
+    
+    # Draw grid overlay if enabled
+    if settings.showGrid:
+      drawGrid()
+    
+    endPanAndZoom()
+    bxy.restoreTransform()
     
     # Draw header at top
-    withTransform:
-      drawHeader(bxy, window, window.size.x.float32)
+    bxy.saveTransform()
+    drawHeader(bxy, window, window.size.x.float32)
+    bxy.restoreTransform()
     
     # Draw footer at bottom
-    withTransform:
-      bxy.translate(vec2(0, window.size.y.float32 - FooterHeight))
-      drawFooter(bxy, window, window.size.x.float32, simStep)
+    bxy.saveTransform()
+    bxy.translate(vec2(0, window.size.y.float32 - FooterHeight))
+    drawFooter(bxy, window, window.size.x.float32, simStep)
+    bxy.restoreTransform()
     
     # End frame
     bxy.endFrame()

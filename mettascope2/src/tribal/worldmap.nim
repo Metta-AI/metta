@@ -566,5 +566,3 @@ proc draw*(boxy: Boxy, environment: Environment, selected: Thing,
   
   if settings.showObservations > -1:
     drawObservations()
-  
-  drawInfoText()
