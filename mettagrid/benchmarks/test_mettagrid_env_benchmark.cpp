@@ -9,6 +9,8 @@
 
 #include "actions/attack.hpp"
 #include "actions/change_glyph.hpp"
+#include "actions/get_output.hpp"
+#include "actions/put_recipe_items.hpp"
 #include "mettagrid_c.hpp"
 #include "objects/agent.hpp"
 #include "objects/wall.hpp"
@@ -54,6 +56,20 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
       false,                                         // auto_execute (default)
       4);                                            // number_of_glyphs
 
+  std::shared_ptr<PutItemsActionConfig> put_items_cfg = std::make_shared<PutItemsActionConfig>(
+      std::map<InventoryItem, InventoryQuantity>(),  // required_resources
+      std::map<InventoryItem, InventoryQuantity>(),  // consumed_resources
+      1,                                             // priority (default)
+      false,                                         // auto_execute (default)
+      true);                                         // facing_required (default)
+
+  std::shared_ptr<GetItemsActionConfig> get_items_cfg = std::make_shared<GetItemsActionConfig>(
+      std::map<InventoryItem, InventoryQuantity>(),  // required_resources
+      std::map<InventoryItem, InventoryQuantity>(),  // consumed_resources
+      2,                                             // priority (default)
+      false,                                         // auto_execute (default)
+      true);                                         // facing_required (default)
+
   std::map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
 
   actions_cfg["noop"] = action_cfg;
@@ -61,8 +77,8 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   actions_cfg["rotate"] = action_cfg;
   actions_cfg["attack"] = attack_cfg;
   actions_cfg["swap"] = action_cfg;
-  actions_cfg["put_items"] = action_cfg;
-  actions_cfg["get_items"] = action_cfg;
+  actions_cfg["put_items"] = put_items_cfg;
+  actions_cfg["get_items"] = get_items_cfg;
   actions_cfg["change_color"] = action_cfg;
   actions_cfg["change_glyph"] = change_glyph_cfg;
 
