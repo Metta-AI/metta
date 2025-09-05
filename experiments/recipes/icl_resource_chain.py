@@ -62,6 +62,15 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_sinks: list[int] = Field(
             default_factory=list, description="Number of sinks to sample from"
         )
+        width_range: tuple[int, int] = Field(
+            default=(5, 12), description="Width range to sample from"
+        )
+        height_range: tuple[int, int] = Field(
+            default=(5, 12), description="Height range to sample from"
+        )
+        max_steps: int = Field(
+            default=256, description="Maximum steps to sample from"
+        )
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
         super().__init__(config)
@@ -117,7 +126,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.map_builder_objects[sink_name] = 1
 
     def _make_env_cfg(
-        self, resource_chain, num_sinks, rng, max_steps=256
+        self, resource_chain, num_sinks, width, height, rng, max_steps=256
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
         resource_chain = ["nothing"] + list(resource_chain) + ["heart"]
@@ -133,7 +142,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         # longer episodes for longer chains
         if len(cfg.used_objects) > 4:
-            max_steps = 512
+            max_steps = self.config.max_steps * 2
 
         cooldown = 6 * (chain_length - 1)
 
@@ -145,16 +154,104 @@ class ConverterChainTaskGenerator(TaskGenerator):
             max_steps=max_steps,
             game_objects=cfg.game_objects,
             map_builder_objects=cfg.map_builder_objects,
+            width=width,
+            height=height,
         )
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         chain_length = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
         resource_chain = rng.sample(self.resource_types, chain_length)
+        width = rng.randint(self.config.width_range[0], self.config.width_range[1])
+        height = rng.randint(self.config.height_range[0], self.config.height_range[1])
+        max_steps = self.config.max_steps
 
-        icl_env = self._make_env_cfg(resource_chain, num_sinks, rng=rng)
+        icl_env = self._make_env_cfg(resource_chain, num_sinks, width=width, height=height, max_steps=max_steps, rng=rng)
+
+        # optimal reward estimates for the task, to be used in evaluation
+        most_efficient_optimal_reward, least_efficient_optimal_reward = self._estimate_max_rewards(chain_length, num_sinks, width, height, max_steps)
+
+        icl_env.game.reward_estimates = {
+            "most_efficient_optimal_reward": most_efficient_optimal_reward,
+            "least_efficient_optimal_reward": least_efficient_optimal_reward,
+        }
 
         return icl_env
+
+    def _estimate_max_rewards(
+        self,
+        chain_length: int,
+        num_sinks: int,
+        width: int,
+        height: int,
+        max_steps: int,
+    ) -> tuple[int, int]:
+        """
+        Returns (most_efficient_reward, least_efficient_reward).
+
+        Updates vs prior:
+          * Each converter interaction = 2 actions (put + get).
+          * Both scenarios include average hop distance between perimeter objects.
+          * Per-heart cycle time is the bottleneck of either converter cooldown or the
+            movement+interaction cost to traverse the whole chain again.
+
+        Definitions:
+          - chain_length: number of *intermediate* resources between "nothing" and "heart".
+          - n_converters = chain_length + 1 (edges: nothing->r1, ..., r_k->heart).
+          - cooldown = 6 * n_converters (as set in _make_env_cfg).
+        """
+        # Number of converters in the chain (nothing->r1, ..., r_k->heart)
+        n_converters = chain_length + 1
+        total_objects = n_converters + num_sinks
+
+        # Mirror _make_env_cfg’s episode-length extension
+        effective_max_steps = max_steps * 2 if total_objects > 4 else max_steps
+
+        # Converter cooldown applied uniformly
+        cooldown = 6 * n_converters
+
+        # --- Perimeter travel heuristic ---
+        # All objects are on the perimeter; approximate average hop between distinct
+        # perimeter objects by distributing objects uniformly around the rim.
+        # minus 8 because converters cannot be placed on the corners
+        perimeter = 2 * (width + height) - 8
+        avg_hop = perimeter // total_objects
+
+        # Cost per attempt at any object = move there + (put + get)
+        step_per_attempt = avg_hop + 2
+
+        # Cost to traverse the *correct* chain once (movement + interactions at each stage)
+        correct_chain_traverse_cost = n_converters * step_per_attempt
+
+        # One full production cycle after the first heart is limited by either cooldown
+        # or the time to traverse the chain again (including moving between stages).
+        per_heart_cycle = max(cooldown, correct_chain_traverse_cost)
+
+        def hearts_after(first_heart_steps: int) -> int:
+            if first_heart_steps > effective_max_steps:
+                return 0
+            remaining = effective_max_steps - first_heart_steps
+            return 1 + (remaining // per_heart_cycle)
+
+        # ---------- Most efficient ----------
+        # Immediately discover the correct chain; still pay average hop + (put+get) at each stage.
+        best_first_heart_steps = correct_chain_traverse_cost
+        most_efficient = hearts_after(best_first_heart_steps)
+
+        # ---------- Least efficient ----------
+        # At stage i (1..n_converters):
+        #   - Try all wrong converters for that stage first: (n_converters - i) attempts.
+        #   - Touch all sinks first (resets), and each reset forces rebuilding the correct
+        #     prefix of length i afterward; model this as i attempts per sink.
+        #   - Finally pick the correct converter once: 1 attempt.
+        wrong_converter_cost = sum((n_converters - i) * step_per_attempt for i in range(1, n_converters + 1))
+        sink_cost = sum(num_sinks * i * step_per_attempt for i in range(1, n_converters + 1))
+        correct_choice_cost = n_converters * step_per_attempt
+
+        worst_first_heart_steps = wrong_converter_cost + sink_cost + correct_choice_cost
+        least_efficient = hearts_after(worst_first_heart_steps)
+
+        return int(most_efficient), int(least_efficient)
 
 
 def make_mettagrid() -> MettaGridConfig:
@@ -170,6 +267,8 @@ def make_curriculum() -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
+        width_range=(5, 12),
+        height_range=(5, 12),
     )
     return CurriculumConfig(task_generator=task_generator_cfg)
 

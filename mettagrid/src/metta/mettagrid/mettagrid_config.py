@@ -180,6 +180,7 @@ class GameConfig(Config):
     )
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
+    reward_estimates: Optional[dict[str, float]] = Field(default=None)
 
 class MettaGridConfig(Config):
     """Environment configuration."""
