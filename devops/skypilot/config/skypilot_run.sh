@@ -297,4 +297,6 @@ else
 fi
 
 run_cmd
-exit $?
+EXIT_CODE=$?
+echo "[DEBUG] run_cmd finished with exit code: $EXIT_CODE"
+exit $EXIT_CODE
