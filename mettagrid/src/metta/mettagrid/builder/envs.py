@@ -96,9 +96,12 @@ def make_arena(
 
 
 def make_navigation(num_agents: int) -> MettaGridConfig:
-    altar = building.altar.model_copy()
+    altar = empty_converters.altar.model_copy()
     altar.cooldown = 255  # Maximum cooldown
     altar.initial_resource_count = 1
+    altar.max_conversions = 0
+    altar.input_resources = {}
+    altar.output_resources = {"heart": 1}
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
@@ -106,9 +109,10 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
                 "altar": altar,
                 "wall": building.wall,
             },
+            resource_names=["heart"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                rotate=ActionConfig(),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -117,6 +121,49 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
                         "heart": 1,
                     },
                 ),
+            ),
+            # Always provide a concrete map builder config so tests can set width/height
+            map_builder=RandomMapBuilder.Config(agents=num_agents),
+        )
+    )
+    return cfg
+
+
+def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
+    altar = building.altar.model_copy()
+    altar.input_resources = {"battery_red": 1}
+    altar.cooldown = 15
+    mine = building.mine_red.model_copy()
+    mine.cooldown = 15
+    generator = building.generator_red.model_copy()
+    generator.cooldown = 15
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            num_agents=num_agents,
+            objects={
+                "altar": altar,
+                "wall": building.wall,
+                "mine_red": mine,
+                "generator_red": generator,
+            },
+            resource_names=["heart", "ore_red", "battery_red"],
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(),
+                get_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    inventory={
+                        "heart": 1,
+                        "ore_red": 0.001,
+                        "battery_red": 0.01,
+                    },
+                ),
+                default_resource_limit=1,
+                resource_limits={
+                    "heart": 100,
+                },
             ),
             # Always provide a concrete map builder config so tests can set width/height
             map_builder=RandomMapBuilder.Config(agents=num_agents),
