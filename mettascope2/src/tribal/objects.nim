@@ -50,11 +50,6 @@ type
     foodInventory*: seq[FoodItem]  # Food items in inventory
     maxFoodSlots*: int       # Max food inventory slots
   
-  ClippyBehavior* = enum
-    Patrol      # Wander around looking for targets
-    Chase       # Actively pursuing a player
-    Guard       # Protecting the spawner
-    Attack      # Engaging with player
 
 # ============== CONSTANTS ==============
 
@@ -189,16 +184,6 @@ proc shouldSpawnClippy*(spawnerCooldown: int, nearbyClippyCount: int): bool =
   ## Determine if a spawner should spawn a new Clippy
   return spawnerCooldown == 0
 
-proc getClippyBehavior*(clippy: pointer, target: pointer, distanceToTarget: float): ClippyBehavior =
-  ## Determine Clippy's current behavior based on game state
-  if isNil(target):
-    return Patrol
-  elif distanceToTarget <= 1.5:
-    return Attack
-  elif distanceToTarget <= ClippyVisionRange.float:
-    return Chase
-  else:
-    return Guard
 
 # ============== FOOD & HUNGER FUNCTIONS ==============
 

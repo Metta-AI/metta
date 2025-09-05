@@ -1591,8 +1591,23 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           clippysToRemove.add(clippy)
           env.grid[clippy.pos.x][clippy.pos.y] = nil
         
-        # 50% chance agent dies and needs respawning
-        if combatRoll < 0.5:
+        # Check if agent can defend against the attack
+        let agentWouldDie = combatRoll < 0.5
+        var agentSurvived = false
+        
+        if agentWouldDie:
+          # Check defense items - armor first (3 uses), then hat (1 use)
+          if adjacentThing.inventoryArmor > 0:
+            adjacentThing.inventoryArmor -= 1
+            env.updateObservations(AgentInventoryArmorLayer, adjacentThing.pos, adjacentThing.inventoryArmor)
+            agentSurvived = true
+          elif adjacentThing.inventoryHat > 0:
+            adjacentThing.inventoryHat = 0
+            env.updateObservations(AgentInventoryHatLayer, adjacentThing.pos, adjacentThing.inventoryHat)
+            agentSurvived = true
+        
+        # Only kill agent if they would die and have no defense
+        if agentWouldDie and not agentSurvived:
           # Agent dies - mark for respawn at altar
           adjacentThing.frozen = 999999  # Mark as dead (will be respawned)
           env.terminated[adjacentThing.agentId] = 1.0
@@ -1602,6 +1617,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           
           # Clear inventory when agent dies
           env.updateObservations(AgentInventoryBatteryLayer, adjacentThing.pos, 0)
+          env.updateObservations(AgentInventoryHatLayer, adjacentThing.pos, 0)
+          env.updateObservations(AgentInventoryArmorLayer, adjacentThing.pos, 0)
         
         # Break after first combat (clippy is already dead)
         break
