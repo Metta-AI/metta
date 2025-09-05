@@ -113,6 +113,7 @@ class SweepTool(Tool):
     # Dispatcher configuration
     dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # Default: train on Skypilot, evaluate locally
     capture_output: bool = True  # Capture and stream subprocess output (local only)
+    git_ref: str | None = None
 
     consumed_args: list[str] = [
         "sweep_name",
@@ -225,6 +226,7 @@ class SweepTool(Tool):
             gpus=self.gpus,  # Pass GPU configuration
             nodes=self.nodes,
             batch_size=self.max_parallel_jobs,
+            git_ref=self.git_ref,
         )
         scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 

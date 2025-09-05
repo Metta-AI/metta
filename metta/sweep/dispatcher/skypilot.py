@@ -1,3 +1,4 @@
+from turtledemo.chaos import g
 """Skypilot dispatcher implementation for distributed job execution."""
 
 import logging
@@ -36,6 +37,9 @@ class SkypilotDispatcher(Dispatcher):
         # 3. Add --nodes if specified and > 1
         if job.nodes and job.nodes > 1:
             cmd_parts.append(f"--nodes={job.nodes}")
+
+        if job.git_ref:
+            cmd_parts.append(f"--git-ref={job.git_ref}")
 
         # 4. Add the actual command (e.g., experiments.recipes.arena.train)
         cmd_parts.append(job.cmd)

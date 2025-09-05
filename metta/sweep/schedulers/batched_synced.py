@@ -8,6 +8,7 @@ between batches and is ideal for comparing hyperparameters fairly.
 import logging
 from dataclasses import dataclass
 from typing import Any
+from mypy import git
 
 from metta.sweep.models import JobDefinition, JobStatus, RunInfo, SweepMetadata
 from metta.sweep.protocols import Optimizer
@@ -35,6 +36,7 @@ class BatchedSyncedSchedulerConfig:
     stats_server_uri: str | None = None  # Stats server for remote evaluations
     gpus: int = 1  # Number of GPUs per training job
     nodes: int = 1  # Number of nodes per training job
+    git_ref: str | None = None  # Git reference for training jobs
     batch_size: int = 4
 
 
@@ -175,6 +177,7 @@ class BatchedSyncedOptimizingScheduler:
                 train_entrypoint=self.config.train_entrypoint,
                 config=suggestion,
                 gpus=self.config.gpus,
+                git_ref=self.config.git_ref,
                 stats_server_uri=self.config.stats_server_uri,
                 train_overrides=self.config.train_overrides,
             )

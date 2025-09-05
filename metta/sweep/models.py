@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum, auto
 from typing import Any
+from mypy import git
 
 
 class JobTypes(StrEnum):
@@ -17,6 +18,7 @@ class JobDefinition:
     cmd: str  # e.g., "experiments.recipes.arena.train_shaped" or "experiments.recipes.arena.evaluate"
     gpus: int = 1
     nodes: int = 1
+    git_ref: str | None = None
     args: list[str] = field(default_factory=list)  # positional arguments
     overrides: dict[str, Any] = field(default_factory=dict)  # key=value overrides for the tool
     config: dict[str, Any] = field(default_factory=dict)  # additional config from optimizer
