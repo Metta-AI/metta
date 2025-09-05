@@ -286,10 +286,15 @@ def trigger_all_runs(branches: list[str], repeats: int) -> dict[str, list[tuple[
 
 def resolve_run_numbers(triggered_runs: dict[str, list[tuple[str, datetime]]]) -> dict[str, list[str]]:
     minutes_to_wait = 10
+    total_seconds = minutes_to_wait * 60
 
-    print(f"\n⏳ Waiting for workflow logs to become available (sleeping {minutes_to_wait} minutes)...")
-
-    time.sleep(minutes_to_wait * 60)
+    # Countdown loop
+    for remaining in range(total_seconds, 0, -1):
+        if remaining % 60 == 0 and remaining > 30:
+            print(f"⏳ Waiting for workflow logs to become available (sleeping {remaining // 60} minutes)...")
+        elif remaining in {30, 20, 10, 5, 4, 3, 2, 1}:
+            print(f"⏳ Waiting for workflow logs to become available (sleeping {remaining} seconds)...")
+        time.sleep(1)
 
     resolved_by_branch = {branch: [] for branch in triggered_runs}
 
