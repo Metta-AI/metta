@@ -24,7 +24,10 @@ def get_observation(
     with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
 
-    training_env_id = slice(env_id[0], env_id[-1] + 1)
+    # Map env indices to agent indices to match buffer shapes
+    # Supports wrappers like NPCFilterWrapper where num_agents is policy agents per env
+    agents_per_env = int(getattr(vecenv, "num_agents", 1) or 1)
+    training_env_id = slice(env_id[0] * agents_per_env, (env_id[-1] + 1) * agents_per_env)
 
     mask = torch.as_tensor(mask)
     num_steps = int(mask.sum().item())
