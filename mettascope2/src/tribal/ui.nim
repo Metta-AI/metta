@@ -1,5 +1,5 @@
 import
-  boxy, vmath, windy,
+  boxy, vmath, windy, chroma,
   common, utils, simulation
 
 proc drawPanelBackground*(panel: Panel, bgColor: Color) =
@@ -121,8 +121,10 @@ proc drawHeader*(panel: Panel) =
 
 # ============== FOOTER UI ==============
 
-# Footer background color: #2D343D (removed wrapper function)
-
+proc drawFooter*(panel: Panel) =
+  # Footer background color: #2D343D
+  drawPanelBackground(panel, parseHtmlColor("#2D343D"))
+  
   # Draw the left side buttons.
   var x = 16f
   if drawIconButton(
@@ -237,8 +239,12 @@ proc drawHeader*(panel: Panel) =
     echo "Focus"
   x -= 32 + 5
 
-# Timeline background color: #1D1D1D (removed wrapper function)
+# ============== TIMELINE UI ==============
 
+proc drawTimeline*(panel: Panel) =
+  # Timeline background color: #1D1D1D
+  drawPanelBackground(panel, parseHtmlColor("#1D1D1D"))
+  
   # Draw the scrubber bg.
   bxy.drawRect(
     rect = Rect(
