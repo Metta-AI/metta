@@ -98,7 +98,7 @@ class TaskTracker:
             # Note: We don't remove from creation_order for performance - cleanup handles this
 
             # Invalidate cache if removal makes it invalid
-            if not self._cache_valid:
+            if self._cache_valid:
                 self._cache_valid = False
 
     def get_global_stats(self) -> Dict[str, float]:
