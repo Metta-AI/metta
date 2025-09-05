@@ -691,4 +691,4 @@ def orchestrate_sweep(
     try:
         controller.run()
     finally:
-        logger.info("[Orchestrator] Bye")
+        logger.info("[Orchestrator] Sweep Completed")
