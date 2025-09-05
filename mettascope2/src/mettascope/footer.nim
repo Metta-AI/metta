@@ -1,5 +1,5 @@
 import
-  std/[strformat],
+  std/[strformat, strutils],
   boxy, vmath, windy, fidget2/[hybridrender, common], fidget2,
   common, panels, sim, actions, utils, ui
 
@@ -12,9 +12,11 @@ find "/UI/Main/GlobalFooter":
       step -= 1
       step = clamp(step, 0, replay.maxSteps - 1)
   find "**/Play":
+    onShow:
+      thisNode.setVariant("On", play)
     onClick:
-      echo "Clicked: Play"
       play = not play
+      thisNode.setVariant("On", play)
   find "**/StepForward":
     onClick:
       step += 1
@@ -23,37 +25,41 @@ find "/UI/Main/GlobalFooter":
     onClick:
       step = replay.maxSteps - 1
 
-  find "**/Speed1":
+  const speeds = [0.01, 0.05, 0.1, 0.5, 1, 5]
+  find "**/Speed?":
+    onDisplay:
+      var speedNum = parseInt($thisNode.name[^1]) - 1
+      thisNode.opacity =
+        if playSpeed < speeds[speedNum] - 0.00001:
+          0.5
+        else:
+          1
     onClick:
-      playSpeed = 0.01
-  find "**/Speed2":
-    onClick:
-      playSpeed = 0.05
-  find "**/Speed3":
-    onClick:
-      playSpeed = 0.1
-  find "**/Speed4":
-    onClick:
-      playSpeed = 0.5
-  find "**/Speed5":
-    onClick:
-      playSpeed = 1
-  find "**/Speed6":
-    onClick:
-      playSpeed = 5
+      var speedNum = parseInt($thisNode.name[^1]) - 1
+      playSpeed = speeds[speedNum]
 
   find "**/Tack":
+    onDisplay:
+      thisNode.setVariant("On", settings.lockFocus)
     onClick:
       settings.lockFocus = not settings.lockFocus
   find "**/Heart":
+    onDisplay:
+      thisNode.setVariant("On", settings.showResources)
     onClick:
       settings.showResources = not settings.showResources
   find "**/Grid":
+    onDisplay:
+      thisNode.setVariant("On", settings.showGrid)
     onClick:
       settings.showGrid = not settings.showGrid
   find "**/Eye":
+    onDisplay:
+      thisNode.setVariant("On", settings.showVisualRange)
     onClick:
       settings.showVisualRange = not settings.showVisualRange
   find "**/Cloud":
+    onDisplay:
+      thisNode.setVariant("On", settings.showFogOfWar)
     onClick:
       settings.showFogOfWar = not settings.showFogOfWar
