@@ -1,6 +1,6 @@
 import std/[random, os, times, strformat, strutils, sequtils]
 import boxy, opengl, windy, chroma, vmath, pixie
-import tribal/[common, game, worldmap, controller, ui, actions]
+import tribal/[common, game, worldmap, controller, ui]
 
 # Global variables
 type
@@ -144,11 +144,6 @@ proc beginPanAndZoom*() =
 proc endPanAndZoom*() =
   bxy.restoreTransform()
 
-proc drawStats*() =
-  let statsText = &"""Step: {env.currentStep}
-Agents: {env.agents.len}"""
-  
-  drawText(statsText, vec2(10, 10), 14, color(1, 1, 1, 0.8))
 
 proc drawHeader*(bxy: Boxy, window: Window, width: float32) =
   bxy.drawRect(
@@ -158,6 +153,10 @@ proc drawHeader*(bxy: Boxy, window: Window, width: float32) =
   
   # Draw title
   drawText("Tribal Grid", vec2(20, 20), 24, color(1, 1, 1, 0.9))
+  
+  # Draw stats in header
+  let statsText = &"Step: {env.currentStep} | Agents: {env.agents.len}"
+  drawText(statsText, vec2(200, 24), 14, color(1, 1, 1, 0.8))
   
   # Draw grid toggle button
   if drawIconButton(
@@ -223,7 +222,6 @@ proc main() =
   worldmap.env = env
   worldmap.typeface = typeface
   worldMapPanel = WorldMapPanel(
-    rect: IRect(x: 0, y: 0, w: 1280, h: 800),
     pos: vec2(640, 400),  # Center the view
     vel: vec2(0, 0),
     zoom: 5,  # Start with less zoom
@@ -297,9 +295,6 @@ proc main() =
         drawGrid()
       
       endPanAndZoom()
-      
-      # Draw UI overlay
-      drawStats()
     
     # Draw header at top
     withTransform:

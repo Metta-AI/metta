@@ -1,10 +1,9 @@
 import ../src/tribal/game
 ## AI Behavior Test Suite
-## Tests controller AI for agents and clippy movement patterns
+## Tests controller AI for agent decision making and coordination
 import std/[strformat, strutils, sets, math, tables]
 import vmath
 import ../src/tribal/controller
-import ../src/tribal/clippy
 import ../src/tribal/actions
 
 # Test 1: Agent Controller Behavior
@@ -57,63 +56,7 @@ proc testAgentController() =
     echo "  ⚠ Controller may need more steps to show progress"
   echo ""
 
-# Test 2: Clippy Movement Pattern
-proc testClippyWandering() =
-  echo "Test: Clippy Wandering"
-  echo "-" & repeat("-", 40)
-  
-  var env = newEnvironment()
-  
-  # Find a clippy
-  var clippy: Thing = nil
-  for thing in env.things:
-    if thing.kind == Clippy:
-      clippy = thing
-      break
-  
-  if clippy != nil:
-    let startPos = clippy.pos
-    let homeTemple = clippy.homeTemple
-    
-    echo fmt"  Clippy at ({startPos.x}, {startPos.y}), temple at ({homeTemple.x}, {homeTemple.y})"
-    
-    # Track movement over time
-    var positions = initHashSet[string]()
-    positions.incl(fmt"{clippy.pos.x},{clippy.pos.y}")
-    
-    var maxDist = 0.0
-    var minDist = float.high
-    
-    # Run simulation
-    for step in 0 ..< 30:
-      var actions: array[MapAgents, array[2, uint8]]
-      env.step(addr actions)
-      
-      # Track clippy position
-      for thing in env.things:
-        if thing.kind == Clippy and thing.homeTemple == homeTemple:
-          let posKey = fmt"{thing.pos.x},{thing.pos.y}"
-          positions.incl(posKey)
-          
-          let dx = (thing.pos.x - homeTemple.x).float
-          let dy = (thing.pos.y - homeTemple.y).float
-          let dist = sqrt(dx * dx + dy * dy)
-          maxDist = max(maxDist, dist)
-          minDist = min(minDist, dist)
-          break
-    
-    echo fmt"  Visited {positions.len} unique positions"
-    echo fmt"  Distance range: {minDist:.1f} - {maxDist:.1f}"
-    
-    if positions.len >= 5 and maxDist > minDist + 1:
-      echo "  ✓ Clippy is wandering in expanding pattern"
-    else:
-      echo "  ⚠ Clippy wandering pattern unclear (may need more steps)"
-  else:
-    echo "  No clippys found in environment"
-  echo ""
-
-# Test 3: Village Agent Coordination
+# Test 2: Village Agent Coordination
 proc testVillageAgents() =
   echo "Test: Village Agent Groups"
   echo "-" & repeat("-", 40)
@@ -162,8 +105,7 @@ proc testFullSimulation() =
     steps: 0,
     oreCollected: 0,
     batteriesCreated: 0,
-    heartsDeposited: 0,
-    clippyCount: 0
+    heartsDeposited: 0
   )
   
   # Run simulation
@@ -176,12 +118,6 @@ proc testFullSimulation() =
       stats.oreCollected += agent.inventoryOre
       stats.batteriesCreated += agent.inventoryBattery
     
-    # Count clippys
-    var clippys = 0
-    for thing in env.things:
-      if thing.kind == Clippy:
-        clippys += 1
-    stats.clippyCount = max(stats.clippyCount, clippys)
   
   # Count altar hearts
   for thing in env.things:
@@ -192,7 +128,6 @@ proc testFullSimulation() =
   echo fmt"    Total ore in circulation: {stats.oreCollected}"
   echo fmt"    Total batteries in circulation: {stats.batteriesCreated}"
   echo fmt"    Hearts deposited at altars: {stats.heartsDeposited}"
-  echo fmt"    Peak clippy count: {stats.clippyCount}"
   
   if stats.oreCollected > 0 or stats.batteriesCreated > 0 or stats.heartsDeposited > 0:
     echo "  ✓ Simulation shows resource flow"
@@ -206,7 +141,6 @@ when isMainModule:
   echo "=" & repeat("=", 50) & "\n"
   
   testAgentController()
-  testClippyWandering()
   testVillageAgents()
   testFullSimulation()
   

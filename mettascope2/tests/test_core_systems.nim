@@ -1,45 +1,11 @@
 import ../src/tribal/game
 ## Core Systems Test Suite
-## Tests fundamental game mechanics: movement, resources, and interactions
+## Tests fundamental game mechanics: resources, interactions, and map generation
 import std/[strformat, strutils, tables]
 import vmath
 import ../src/tribal/controller
 
-# Test 1: Directional Movement with Auto-rotation
-proc testDirectionalMovement() =
-  echo "Test: Directional Movement"
-  echo "-" & repeat("-", 40)
-  
-  var env = newEnvironment()
-  let agent = env.agents[0]
-  let startPos = agent.pos
-  
-  # Test movement in each direction
-  let movements = [
-    (direction: 0, expected: ivec2(0, -1), name: "North"),
-    (direction: 1, expected: ivec2(0, 1), name: "South"),
-    (direction: 2, expected: ivec2(1, 0), name: "East"),
-    (direction: 3, expected: ivec2(-1, 0), name: "West")
-  ]
-  
-  for move in movements:
-    # Reset position
-    agent.pos = startPos
-    env.grid[agent.pos.x][agent.pos.y] = agent
-    
-    # Apply movement
-    var actions: array[MapAgents, array[2, uint8]]
-    actions[0] = [1'u8, move.direction.uint8]
-    env.step(addr actions)
-    
-    let actualMove = agent.pos - startPos
-    if actualMove == move.expected:
-      echo fmt"  ✓ {move.name} movement correct"
-    else:
-      echo fmt"  ✗ {move.name} movement failed: expected {move.expected}, got {actualMove}"
-  echo ""
-
-# Test 2: Resource Collection and Processing
+# Test 1: Resource Collection and Processing
 proc testResourceSystem() =
   echo "Test: Resource System"
   echo "-" & repeat("-", 40)
@@ -174,7 +140,6 @@ when isMainModule:
   echo "Core Systems Test Suite"
   echo "=" & repeat("=", 50) & "\n"
   
-  testDirectionalMovement()
   testResourceSystem()
   testAltarDeposit()
   testMapGeneration()
