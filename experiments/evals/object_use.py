@@ -113,7 +113,6 @@ def make_armory_use_env() -> MettaGridConfig:
     mine.initial_resource_count = armory.input_resources.get("ore_red", 0)
     mine.cooldown = 255
 
-
     return make_object_use_env(
         name="armory_use",
         max_steps=100,
@@ -148,7 +147,6 @@ def make_generator_use_env() -> MettaGridConfig:
     mine = building.mine_red.model_copy()
     mine.initial_resource_count = generator.input_resources.get("ore_red", 0)
     mine.cooldown = 255
-
 
     return make_object_use_env(
         name="generator_use",
@@ -188,7 +186,6 @@ def make_lasery_use_env() -> MettaGridConfig:
     mine = building.mine_red.model_copy()
     mine.initial_resource_count = lasery.input_resources.get("ore_red", 0)
     mine.cooldown = 255
-
 
     return make_object_use_env(
         name="lasery_use",
@@ -342,7 +339,7 @@ def make_full_sequence_env() -> MettaGridConfig:
     generator.initial_resource_count = 0
     generator.input_resources = {"ore_red": 1}
     generator.output_resources = {"battery_red": 1}
-    generator.cooldown = 255
+    generator.cooldown = 1
 
     mine = building.mine_red.model_copy()
     mine.initial_resource_count = altar.input_resources.get("battery_red", 0)
