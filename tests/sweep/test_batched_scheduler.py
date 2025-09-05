@@ -40,8 +40,7 @@ class TestBatchedSyncedOptimizingScheduler:
         scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
 
         assert scheduler.config.max_trials == 20
-        assert scheduler._is_complete is False
-        assert hasattr(scheduler, "set_batch_size")
+        assert scheduler.config.batch_size == 4  # default batch size
 
     def test_batch_generation_when_all_complete(self):
         """Test that scheduler generates batch only when all runs are complete."""
@@ -68,15 +67,22 @@ class TestBatchedSyncedOptimizingScheduler:
             eval_entrypoint="evaluate",
         )
 
+        config = BatchedSyncedSchedulerConfig(
+            max_trials=10,
+            recipe_module="test.module",
+            train_entrypoint="train",
+            eval_entrypoint="evaluate",
+            batch_size=2,
+        )
+
         scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
-        scheduler.set_batch_size(3)  # Set batch size to 3
 
         metadata = SweepMetadata(sweep_id="test_sweep")
 
         # Case 1: No existing runs - should generate batch
         jobs = scheduler.schedule(metadata, [], set(), set())
 
-        assert len(jobs) == 3  # Should generate batch of 3
+        assert len(jobs) == 2  # Should generate batch of 2
         assert all(job.type == JobTypes.LAUNCH_TRAINING for job in jobs)
         assert jobs[0].run_id == "test_sweep_trial_0001"
         assert jobs[1].run_id == "test_sweep_trial_0002"
@@ -252,9 +258,8 @@ class TestBatchedSyncedOptimizingScheduler:
         )
 
         optimizer = ProteinOptimizer(protein_config)
-        config = BatchedSyncedSchedulerConfig(max_trials=5)
+        config = BatchedSyncedSchedulerConfig(max_trials=5, batch_size=3)
         scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
-        scheduler.set_batch_size(3)
 
         metadata = SweepMetadata(sweep_id="test_sweep")
 
@@ -344,7 +349,7 @@ class TestBatchedSyncedOptimizingScheduler:
         )
 
         assert len(jobs) == 0
-        assert scheduler.is_complete is True
+        # Completion is now tracked by controller, not scheduler
 
     def test_batch_with_observations(self):
         """Test that scheduler uses observations when generating new batch."""
@@ -364,9 +369,8 @@ class TestBatchedSyncedOptimizingScheduler:
         )
 
         optimizer = ProteinOptimizer(protein_config)
-        config = BatchedSyncedSchedulerConfig(max_trials=10)
+        config = BatchedSyncedSchedulerConfig(max_trials=10, batch_size=2)
         scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
-        scheduler.set_batch_size(2)
 
         metadata = SweepMetadata(sweep_id="test_sweep")
 
