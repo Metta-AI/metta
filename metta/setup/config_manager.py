@@ -1,6 +1,5 @@
 """Configuration manager for component-based settings."""
 
-from pathlib import Path
 from typing import Any
 
 import yaml
@@ -13,7 +12,9 @@ class ConfigManager:
     """Manages configuration for all components in a unified way."""
 
     def __init__(self):
-        self.config_path = Path.home() / ".metta" / "config.yaml"
+        from metta.config.schema import _get_config_path
+
+        self.config_path = _get_config_path()
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         self._config = self._load_config()
 

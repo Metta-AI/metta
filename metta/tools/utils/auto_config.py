@@ -2,18 +2,14 @@
 Auto-configuration utilities that read from the unified config file.
 
 This is the bridge between the new unified config system and the existing code.
-Priority order (when ignore_env_vars=False, default):
-1. Environment variables (highest)
-2. Unified config file (~/.metta/config.yaml)
-3. Cloud user config (from saved_settings)
-4. Profile defaults
-5. Hardcoded defaults (lowest)
-
-Priority order (when ignore_env_vars=True in config file):
-1. Unified config file (~/.metta/config.yaml) (highest)
+Priority order:
+1. Unified config file (project_root/config.yaml) (highest)
 2. Cloud user config (from saved_settings)
 3. Profile defaults
 4. Hardcoded defaults (lowest)
+
+The config file path is determined by _get_config_path() which finds the project root
+and uses config.yaml from there.
 """
 
 import os
