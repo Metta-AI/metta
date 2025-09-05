@@ -11,7 +11,6 @@ from metta.mettagrid.mettagrid_config import (
     AgentConfig,
     AttackActionConfig,
     GameConfig,
-    GroupConfig,
     WallConfig,
 )
 from metta.mettagrid.test_support.actions import get_agent_position, get_current_observation
@@ -30,7 +29,6 @@ def create_basic_config() -> GameConfig:
             freeze_duration=0,
             resource_limits={"ore": 10, "wood": 10},
         ),
-        groups={"default": GroupConfig(id=0, group_reward_pct=1.0)},
         actions=ActionsConfig(
             move=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), rotate=ActionConfig(enabled=True)
         ),
@@ -99,7 +97,6 @@ class TestActionOrdering:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 rotate=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), move=ActionConfig(enabled=True)
             ),
@@ -193,7 +190,6 @@ class TestResourceRequirements:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 move=ActionConfig(enabled=True, required_resources={"ore": 1}),
                 noop=ActionConfig(enabled=True),
@@ -227,7 +223,6 @@ class TestResourceRequirements:
                 resource_limits={"ore": 10, "wood": 10},
                 initial_inventory={"ore": 5, "wood": 3},
             ),
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 move=ActionConfig(enabled=True, consumed_resources={"ore": 1}),
                 noop=ActionConfig(enabled=True),
@@ -328,7 +323,6 @@ class TestActionSpace:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=basic_config.actions,
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -382,7 +376,6 @@ class TestSpecialActions:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 attack=AttackActionConfig(
                     enabled=True, required_resources={}, consumed_resources={}, defense_resources={}
@@ -415,7 +408,6 @@ class TestSpecialActions:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 swap=ActionConfig(enabled=True),
                 move=ActionConfig(enabled=True),
@@ -446,7 +438,6 @@ class TestResourceOrdering:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=basic_config.actions,
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -461,7 +452,6 @@ class TestResourceOrdering:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=basic_config.actions,
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,

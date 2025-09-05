@@ -104,3 +104,4 @@ metta/sweep/experiments/README_*.md
 identified-figures/
 # Cursor MCP configuration (may contain credentials)
 .cursor-mcp/
+mettagrid/MODULE.bazel.lock
