@@ -138,16 +138,16 @@ type
     actionInvalid*: int
     actionMove*: int
     actionNoop*: int
-    actionRotate*: int
+    actionAttack*: int
     actionSwap*: int
-    actionUse*: int
-    actionUseMine*: int
-    actionUseConverter*: int
-    actionUseAltar*: int
     actionGet*: int
     actionGetWater*: int
     actionGetWheat*: int
     actionGetWood*: int
+    actionUseMine*: int
+    actionUseConverter*: int
+    actionUseAltar*: int
+    actionPut*: int
 
   TileColor* = object
     r*, g*, b*: float32      # RGB color components  
@@ -509,126 +509,6 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
   else:
     inc env.stats[id].actionInvalid
 
-proc rotateAction(env: Environment, id: int, agent: Thing, argument: int) =
-  if argument < 0 or argument > 7:
-    inc env.stats[id].actionInvalid
-    return
-  agent.orientation = Orientation(argument)
-  env.updateObservations(AgentOrientationLayer, agent.pos, argument)
-  inc env.stats[id].actionRotate
-
-
-proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Use resources - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
-  if argument > 7:
-    inc env.stats[id].actionInvalid
-    return
-  
-  # Calculate target position based on orientation argument
-  let useOrientation = Orientation(argument)
-  let delta = getOrientationDelta(useOrientation)
-  var usePos = agent.pos
-  usePos.x += int32(delta.x)
-  usePos.y += int32(delta.y)
-  var thing = env.getThing(usePos)
-  if thing == nil:
-    inc env.stats[id].actionInvalid
-    return
-  case thing.kind
-  of Wall:
-    inc env.stats[id].actionInvalid
-  of Agent:
-    inc env.stats[id].actionInvalid
-  of Altar:
-    if thing.cooldown == 0 and agent.inventoryBattery >= 1:
-      # Agent deposits a battery as a heart into the altar (no max capacity)
-      agent.reward += 1
-      agent.inventoryBattery -= 1
-      thing.hearts += 1  # Add one heart to altar
-      env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
-      env.updateObservations(AltarHeartsLayer, thing.pos, thing.hearts)
-      thing.cooldown = MapObjectAltarCooldown
-      env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
-      inc env.stats[id].actionUseAltar
-      inc env.stats[id].actionUse
-    else:
-      inc env.stats[id].actionInvalid
-  of Mine:
-    if thing.cooldown == 0 and agent.inventoryOre < MapObjectAgentMaxInventory:
-      # Mine gives 1 ore
-      agent.inventoryOre += 1
-      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
-      thing.cooldown = MapObjectMineCooldown
-      env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
-      agent.reward += RewardMineOre  # Small shaped reward
-      inc env.stats[id].actionUseMine
-      inc env.stats[id].actionUse
-  of Converter:
-    if thing.cooldown == 0 and agent.inventoryOre > 0 and agent.inventoryBattery < MapObjectAgentMaxInventory:
-      # Convert 1 ore to 1 battery
-      agent.inventoryOre -= 1
-      agent.inventoryBattery += 1
-      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
-      env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
-      # No cooldown for instant conversion
-      thing.cooldown = 0
-      env.updateObservations(ConverterReadyLayer, thing.pos, 1)  # Always ready
-      agent.reward += RewardConvertOreToBattery  # Small shaped reward
-      inc env.stats[id].actionUseConverter
-      inc env.stats[id].actionUse
-  of Forge:
-    # Use forge to craft a spear from wood
-    if thing.cooldown == 0 and agent.inventoryWood > 0 and agent.inventorySpear == 0:
-      # Craft spear
-      agent.inventoryWood -= 1
-      agent.inventorySpear = 1
-      thing.cooldown = 5  # Forge cooldown
-      env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
-      env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
-      agent.reward += RewardCraftSpear  # Small shaped reward
-      inc env.stats[id].actionUse
-    else:
-      inc env.stats[id].actionInvalid
-  of Armory, ClayOven, WeavingLoom:
-    # Production building crafting logic
-    let canUse = thing.cooldown == 0 and (
-      case thing.kind:
-      of Armory: agent.inventoryOre >= 1 and agent.inventoryArmor == 0  # Need ore and no existing armor
-      of ClayOven: agent.inventoryWheat >= 1  
-      of WeavingLoom: agent.inventoryWheat >= 1 and agent.inventoryHat == 0  # Need wheat and no existing hat
-      else: false
-    )
-    
-    if canUse:
-      # Consume resources and create items based on building type
-      case thing.kind:
-      of Armory:
-        agent.inventoryOre -= 1
-        agent.inventoryArmor = 3  # Armor starts with 3 uses
-        agent.reward += RewardCraftArmor
-        thing.cooldown = 20
-        env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
-        env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
-      of ClayOven:
-        agent.inventoryWheat -= 1
-        agent.reward += RewardCraftFood
-        thing.cooldown = 10
-        env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-      of WeavingLoom:
-        agent.inventoryWheat -= 1
-        agent.inventoryHat = 1  # Create a hat
-        agent.reward += RewardCraftCloth
-        thing.cooldown = 15
-        env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-        env.updateObservations(AgentInventoryHatLayer, agent.pos, agent.inventoryHat)
-      else: discard
-      inc env.stats[id].actionUse
-    else:
-      inc env.stats[id].actionInvalid
-  
-  of Spawner, Clippy:
-    # Can't use spawners or Clippys
-    inc env.stats[id].actionInvalid
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
   ## Attack with a spear if agent has one
@@ -684,7 +564,7 @@ proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
     # Give reward for destroying Clippy
     agent.reward += RewardDestroyClippy  # Moderate reward for defense
     
-    inc env.stats[id].actionUse
+    inc env.stats[id].actionAttack
   else:
     # Attack missed or no valid target
     inc env.stats[id].actionInvalid
@@ -818,7 +698,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
       agent.reward += RewardCraftSpear
-      inc env.stats[id].actionUse
+      inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
   
@@ -831,7 +711,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       env.updateObservations(AgentInventoryHatLayer, agent.pos, agent.inventoryHat)
       agent.reward += RewardCraftCloth
-      inc env.stats[id].actionUse
+      inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
   
@@ -844,7 +724,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
       env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
       agent.reward += RewardCraftArmor
-      inc env.stats[id].actionUse
+      inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
   
@@ -855,7 +735,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       thing.cooldown = 10
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       agent.reward += RewardCraftFood
-      inc env.stats[id].actionUse
+      inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
   
@@ -870,7 +750,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
       agent.reward += 1.0
       inc env.stats[id].actionUseAltar
-      inc env.stats[id].actionUse
+      inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
   
@@ -898,13 +778,6 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
   else:
     inc env.stats[id].actionInvalid
 
-proc shieldAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Shield action
-  inc env.stats[id].actionInvalid
-
-proc giftAction(env: Environment, id: int, agent: Thing) =
-  ## Gift action
-  inc env.stats[id].actionInvalid
 
 # ============== CLIPPY AI ==============
 
@@ -1580,14 +1453,10 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     case action[0]:
     of 0: env.noopAction(id, agent)
     of 1: env.moveAction(id, agent, action[1].int)
-    of 2: env.rotateAction(id, agent, action[1].int)
-    of 3: env.useAction(id, agent, action[1].int)
-    of 4: env.attackAction(id, agent, action[1].int)
-    of 5: env.getAction(id, agent, action[1].int)  # Get from terrain/buildings
-    of 6: env.shieldAction(id, agent, action[1].int)
-    of 7: env.giftAction(id, agent)
-    of 8: env.swapAction(id, agent, action[1].int)
-    of 9: env.putAction(id, agent, action[1].int)  # Put resources into buildings
+    of 2: env.attackAction(id, agent, action[1].int)
+    of 3: env.getAction(id, agent, action[1].int)  # Get from terrain/buildings
+    of 4: env.swapAction(id, agent, action[1].int)
+    of 5: env.putAction(id, agent, action[1].int)  # Put resources into buildings
     #of: env.jumpAction(id, agent)
     #of: env.transferAction(id, agent)
     else: inc env.stats[id].actionInvalid
@@ -1867,16 +1736,16 @@ proc getEpisodeStats*(env: Environment): string =
   display "action.invalid", actionInvalid
   display "action.move", actionMove
   display "action.noop", actionNoop
-  display "action.rotate", actionRotate
+  display "action.attack", actionAttack
   display "action.swap", actionSwap
-  display "action.use", actionUse
-  display "action.use.altar", actionUseAltar
-  display "action.use.converter", actionUseConverter
-  display "action.use.mine", actionUseMine
   display "action.get", actionGet
   display "action.get.water", actionGetWater
   display "action.get.wheat", actionGetWheat
   display "action.get.wood", actionGetWood
+  display "action.use.altar", actionUseAltar
+  display "action.use.converter", actionUseConverter
+  display "action.use.mine", actionUseMine
+  display "action.put", actionPut
 
   return result
 

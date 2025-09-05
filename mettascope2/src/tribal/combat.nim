@@ -31,57 +31,6 @@ proc hasDefense*(agent: Thing): bool =
   return agent.kind == Agent and (agent.inventoryHat > 0 or agent.inventoryArmor > 0)
 
 
-proc attackWithSpearAction*(env: Environment, id: int, agent: Thing, targetDirection: int) =
-  if agent.inventorySpear <= 0:
-    return
-  
-  var attackPositions: seq[IVec2] = @[]
-  case targetDirection:
-  of 0:  # North
-    attackPositions.add(agent.pos + ivec2(0, -1))
-    attackPositions.add(agent.pos + ivec2(0, -2))
-  of 1:  # South
-    attackPositions.add(agent.pos + ivec2(0, 1))
-    attackPositions.add(agent.pos + ivec2(0, 2))
-  of 2:  # East
-    attackPositions.add(agent.pos + ivec2(1, 0))
-    attackPositions.add(agent.pos + ivec2(2, 0))
-  of 3:  # West
-    attackPositions.add(agent.pos + ivec2(-1, 0))
-    attackPositions.add(agent.pos + ivec2(-2, 0))
-  else:
-    return
-  
-  var hitClippy = false
-  var clippyToRemove: Thing = nil
-  
-  for attackPos in attackPositions:
-    if attackPos.x < 0 or attackPos.x >= MapWidth or 
-       attackPos.y < 0 or attackPos.y >= MapHeight:
-      continue
-    
-    let target = env.getThing(attackPos)
-    if not isNil(target) and target.kind == Clippy:
-      clippyToRemove = target
-      hitClippy = true
-      break
-  
-  if hitClippy and not isNil(clippyToRemove):
-    env.grid[clippyToRemove.pos.x][clippyToRemove.pos.y] = nil
-    let idx = env.things.find(clippyToRemove)
-    if idx >= 0:
-      env.things.del(idx)
-    
-    agent.inventorySpear = 0
-    
-    env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
-    agent.reward += 2.0
-  else:
-    agent.inventorySpear = 0
-    env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
-
-proc useClayOvenAction*(env: Environment, id: int, agent: Thing, ovenPos: IVec2) =
-  discard
 
 proc defendAgainstAttack*(agent: Thing, env: Environment): bool =
   ## Check if agent can defend against an attack and consume defense items
