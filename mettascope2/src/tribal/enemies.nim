@@ -183,68 +183,27 @@ proc getOutwardExpansionDirection*(clippy: pointer, things: seq[pointer], r: var
       return ivec2(0, if currentPos.y > homeSpawner.y: 1 else: -1)
 
 proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
-  ## Determine which direction a Clippy should move
-  ## Priority: 1) Chase agent if seen, 2) Move toward altar if seen, 
-  ## 3) Wander in concentric circles around home spawner
+  ## Simplified Clippy movement: Always move toward the closest altar
   
-  # First, find the clippy in the things list to access its state
-  var clippyPtr: pointer = nil
+  # Find the closest altar
+  var nearestAltar = ivec2(-1, -1)
+  var minDist = int.high
+  
   for thingPtr in things:
     if isNil(thingPtr):
       continue
     let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
-    if thing.kind == 6 and thing.pos == clippyPos:  # Found our clippy
-      clippyPtr = thingPtr
-      break
+    # Altar is the 5th enum value (0-indexed), so value is 4
+    if thing.kind == 4:  # Altar kind
+      let dist = manhattanDistance(clippyPos, thing.pos)
+      if dist < minDist:
+        minDist = dist
+        nearestAltar = thing.pos
   
-  if isNil(clippyPtr):
-    # Fallback to random if we can't find ourselves
-    let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
-    return r.sample(directions)
+  # If we found an altar, move toward it
+  if nearestAltar.x >= 0:
+    return getDirectionToward(clippyPos, nearestAltar)
   
-  let clippyThing = cast[ptr tuple[
-    kind: int, pos: IVec2, id: int, layer: int, hearts: int, 
-    resources: int, cooldown: int, frozen: int, inventory: int,
-    agentId: int, orientation: int,
-    inventoryOre: int, inventoryBattery: int, inventoryWater: int,
-    inventoryWheat: int, inventoryWood: int, reward: float32,
-    homeAltar: IVec2, homeSpawner: IVec2, wanderRadius: int,
-    wanderAngle: float, targetPos: IVec2, wanderStepsRemaining: int
-  ]](clippyPtr)
-  
-  # Check if we should continue wandering despite seeing targets
-  if clippyThing.wanderStepsRemaining > 0:
-    # Continue wandering, decrement counter
-    clippyThing.wanderStepsRemaining -= 1
-  else:
-    # Ready to check for targets
-    # Priority 1: Look for nearest altar to attack (prioritize altar destruction)
-    let nearestAltar = findNearestAltar(clippyPos, things, ClippyAltarSearchRange)
-    if nearestAltar.x >= 0:  # Valid altar found
-      let dist = abs(nearestAltar.x - clippyPos.x) + abs(nearestAltar.y - clippyPos.y)
-      # Move toward altar if within extended search range
-      if dist <= ClippyAltarSearchRange:
-        clippyThing.targetPos = nearestAltar
-        return getDirectionToward(clippyPos, nearestAltar)
-    
-    # Priority 2: Look for nearest agent to chase (only if no altar found)
-    let nearestAgent = findNearestAgent(clippyPos, things, ClippyVisionRange)
-    if nearestAgent.x >= 0:  # Valid agent found
-      let dist = abs(nearestAgent.x - clippyPos.x) + abs(nearestAgent.y - clippyPos.y)
-      # Chase agents aggressively within extended range
-      if dist <= ClippyAgentChaseRange:
-        clippyThing.targetPos = nearestAgent
-        return getDirectionToward(clippyPos, nearestAgent)
-    
-    # If we reach here, no close targets - set reduced wander steps for more frequent checks
-    clippyThing.wanderStepsRemaining = r.rand(2..5)  # Reduced wander time for more frequent target checking
-  
-  # Priority 3: No targets - expand outward like a plague wave
-  # Move away from home and other clippys to explore new territory
-  if clippyThing.homeSpawner.x >= 0 and clippyThing.homeSpawner.y >= 0:
-    # Get direct movement direction for plague expansion
-    return getOutwardExpansionDirection(clippyPtr, things, r)
-  
-  # Fallback: Random walk if no home spawner
+  # Fallback: Random walk if no altar found (shouldn't happen in normal gameplay)
   let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
   return r.sample(directions)

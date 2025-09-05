@@ -25,6 +25,11 @@ rootArea.panels.add(agentTablePanel)
 rootArea.panels.add(agentTracesPanel)
 
 proc display() =
+  # Handle mouse capture release
+  if window.buttonReleased[MouseLeft]:
+    mouseCaptured = false
+    mouseCapturedPanel = nil
+  
   if window.buttonPressed[KeySpace]:
     play = false
   if window.buttonPressed[KeyMinus]:
