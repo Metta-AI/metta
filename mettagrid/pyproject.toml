@@ -69,7 +69,7 @@ addopts = "--ignore=tests/run_test.py"
 [tool.uv]
 cache-keys = [
   { file = "pyproject.toml" },
-  { file = "BUILD" },
+  { file = "BUILD.bazel" },
   { file = "WORKSPACE" },
   { file = "src/**/*.{cpp,hpp}" },
 ]

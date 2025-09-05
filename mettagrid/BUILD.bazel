@@ -1,4 +1,4 @@
-# BUILD file for mettagrid C++ extension module
+# BUILD.bazel file for mettagrid C++ extension module
 load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
 
 # Basic compiler flags
@@ -56,3 +56,5 @@ exports_files(
     ]),
     visibility = ["//visibility:public"],
 )
+
+

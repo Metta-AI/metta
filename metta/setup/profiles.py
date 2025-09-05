@@ -90,6 +90,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "system": {"enabled": True},
             "core": {"enabled": True},
             "codeclip": {"enabled": True},
+            "apps": {"enabled": True},
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
