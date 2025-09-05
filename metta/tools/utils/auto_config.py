@@ -75,7 +75,7 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
         supported_tool_override = SupportedWandbEnvOverrides()
         env_overrides = supported_tool_override.to_config_settings()
         for key, value in env_overrides.items():
-            if not config_dict.get(key):  # Only use env var if config value is None/empty
+            if config_dict.get(key) is None:  # Only use env var if config value is None
                 config_dict[key] = value
 
         # Use empty string defaults for None values to match old behavior
