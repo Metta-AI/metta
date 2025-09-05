@@ -1,8 +1,14 @@
-from typing import Any
-
 from pydantic import Field
 
 from metta.common.tool import Tool
+from metta.mettagrid.config import Config
+
+
+class NestedConfig(Config):
+    """A nested configuration object for testing."""
+
+    field: str = "nested_default"
+    another_field: int = 100
 
 
 class TestTool(Tool):
@@ -15,13 +21,14 @@ class SimpleTestTool(Tool):
     """A simple tool with a field for testing."""
 
     value: str = "default"
-    nested: dict[str, Any] = Field(default_factory=lambda: {"field": "nested_default"})
+    nested: NestedConfig = Field(default_factory=NestedConfig)
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         print(f"Args: {args}")
         print(f"Overrides: {overrides}")
         print(f"Tool value: {self.value}")
-        print(f"Tool nested.field: {self.nested['field']}")
+        print(f"Tool nested.field: {self.nested.field}")
+        print(f"Tool nested.another_field: {self.nested.another_field}")
         return 0
 
 

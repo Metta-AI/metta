@@ -1,5 +1,3 @@
-import os
-from datetime import datetime
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -21,32 +19,7 @@ from metta.tools.train import TrainTool
 from experiments.evals.navigation import make_navigation_eval_suite
 
 
-def _get_user_identifier() -> str:
-    """Get user identifier from USER environment variable."""
-    return os.getenv("USER", "unknown")
-
-
-def _default_run_name() -> str:
-    """Generate a robust run name following the pattern: navigation.{user}.{date}.{unique_id}
-
-    Format: navigation.{username}.MMDD-HHMMSS.{git_hash_short} or navigation.{username}.MMDD-HHMMSS
-    Example: navigation.alice.0820-143052.a1b2c3d or navigation.alice.0820-143052"""
-    user = _get_user_identifier()
-    now = datetime.now()
-    timestamp = now.strftime("%m%d-%H%M%S")
-
-    # Try to get git hash (7 chars like CI) for better tracking
-    try:
-        import gitta
-
-        git_hash = gitta.get_current_commit()[:7]
-        return f"navigation.{user}.{timestamp}.{git_hash}"
-    except Exception:
-        # Fallback: use timestamp
-        return f"navigation.{user}.{timestamp}"
-
-
-def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
+def make_mettagrid(num_agents: int = 4, num_instances: int = 4) -> MettaGridConfig:
     nav = eb.make_navigation(num_agents=num_agents * num_instances)
 
     nav.game.map_builder = MapGen.Config(
@@ -92,12 +65,7 @@ def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConf
     return CurriculumConfig(task_generator=nav_tasks)
 
 
-def train(
-    run: Optional[str] = None, curriculum: Optional[CurriculumConfig] = None
-) -> TrainTool:
-    # Generate structured run name if not provided
-    if run is None:
-        run = _default_run_name()
+def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
@@ -106,10 +74,7 @@ def train(
         ),
     )
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        run=run,
-    )
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
