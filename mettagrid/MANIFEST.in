@@ -1,0 +1,7 @@
+include bazel_build.py
+include BUILD.bazel
+include MODULE.bazel
+include MODULE.bazel.lock
+include .bazelrc
+recursive-include src/metta/mettagrid *.cpp *.hpp
+
