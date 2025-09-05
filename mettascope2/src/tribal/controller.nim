@@ -1,9 +1,9 @@
 import std/[math, random, tables, sequtils]
 import vmath
-import tribal_game
+import environment
 
 # Import the new orientations
-from tribal_game import N, S, W, E, NW, NE, SW, SE
+from environment import N, S, W, E, NW, NE, SW, SE
 
 type
   ControllerState* = ref object

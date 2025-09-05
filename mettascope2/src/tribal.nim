@@ -1,6 +1,6 @@
 import std/[random, os, times, strformat, strutils, sequtils]
 import boxy, opengl, windy, chroma, vmath, pixie
-import tribal/[tribal_game, worldmap, controller, ui]
+import tribal/[environment, worldmap, controller, ui, actions]
 
 # Global variables
 type

@@ -1,6 +1,6 @@
 import
   boxy, vmath, windy, chroma
-import tribal_game
+import environment
 
 # We'll use the global window and bxy from tribal.nim
 var

@@ -2,8 +2,8 @@
 ## Implements Forge for spear crafting and combat system
 
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import tribal_game
-export tribal
+import environment_core, observations
+export environment_core
 
 # New constants for attack system
 const
@@ -115,7 +115,7 @@ proc useClayOvenAction*(env: Environment, id: int, agent: Thing, ovenPos: IVec2)
 proc isThreatenedBySpear*(env: Environment, pos: IVec2): bool =
   ## Check if a position is within spear range of any agent with a spear
   for agent in env.agents:
-    if agent.hasSpear():
+    if agent.inventorySpear > 0:
       if getManhattanDistance(agent.pos, pos) <= SpearRange:
         return true
   return false
@@ -141,7 +141,7 @@ proc renderWithWeapons*(env: Environment): string =
         if thing.pos.x == x and thing.pos.y == y:
           case thing.kind
           of Agent:
-            if thing.hasSpear():
+            if thing.inventorySpear > 0:
               cell = "Λ"  # Agent with spear
             else:
               cell = "A"  # Regular agent
