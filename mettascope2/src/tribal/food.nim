@@ -267,7 +267,7 @@ proc processAgentHunger*(hunger: var HungerState, agentPos: var IVec2,
       return (died: false, respawned: false, autoAte: true)
   
   # Handle starvation
-  if isDying:
+  if isDying.isDying:
     let (died, respawnPos) = hunger.handleStarvation(agentPos, homeAltar)
     if died:
       agentPos = respawnPos

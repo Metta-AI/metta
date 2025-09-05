@@ -2,8 +2,8 @@
 ## Defines reward values for different actions to encourage meaningful agent behavior
 ## These rewards guide agents through: exploration → resource gathering → crafting → combat → cooperation
 
-import environment
-export environment
+import std/tables, environment_core
+export environment_core
 
 # ============ Resource Gathering Rewards ============
 # Small rewards for collecting basic resources
