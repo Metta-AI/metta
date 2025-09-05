@@ -84,12 +84,18 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   for (const auto& [action_name, action_config] : game_config.actions) {
     if (action_name == "put_items") {
-      auto put_items_config = std::static_pointer_cast<const PutItemsActionConfig>(action_config);
+      auto put_items_config = std::dynamic_pointer_cast<const PutItemsActionConfig>(action_config);
+      if (!put_items_config) {
+        throw std::runtime_error("Expected PutItemsActionConfig for put_items action");
+      }
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*put_items_config));
     } else if (action_name == "place_box") {
       _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config));
     } else if (action_name == "get_items") {
-      auto get_items_config = std::static_pointer_cast<const GetItemsActionConfig>(action_config);
+      auto get_items_config = std::dynamic_pointer_cast<const GetItemsActionConfig>(action_config);
+      if (!get_items_config) {
+        throw std::runtime_error("Expected GetItemsActionConfig for get_items action");
+      }
       _action_handlers.push_back(std::make_unique<GetOutput>(*get_items_config));
     } else if (action_name == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
@@ -98,10 +104,16 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     } else if (action_name == "rotate") {
       _action_handlers.push_back(std::make_unique<Rotate>(*action_config, &_game_config));
     } else if (action_name == "attack") {
-      auto attack_config = std::static_pointer_cast<const AttackActionConfig>(action_config);
+      auto attack_config = std::dynamic_pointer_cast<const AttackActionConfig>(action_config);
+      if (!attack_config) {
+        throw std::runtime_error("Expected AttackActionConfig for attack action");
+      }
       _action_handlers.push_back(std::make_unique<Attack>(*attack_config, &_game_config));
     } else if (action_name == "change_glyph") {
-      auto change_glyph_config = std::static_pointer_cast<const ChangeGlyphActionConfig>(action_config);
+      auto change_glyph_config = std::dynamic_pointer_cast<const ChangeGlyphActionConfig>(action_config);
+      if (!change_glyph_config) {
+        throw std::runtime_error("Expected ChangeGlyphActionConfig for change_glyph action");
+      }
       _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
     } else if (action_name == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
