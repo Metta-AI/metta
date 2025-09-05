@@ -183,7 +183,7 @@ proc getOutwardExpansionDirection*(clippy: pointer, things: seq[pointer], r: var
       return ivec2(0, if currentPos.y > homeSpawner.y: 1 else: -1)
 
 proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
-  ## Simplified Clippy movement: Always move toward the closest altar
+  ## Determine Clippy movement direction toward the closest altar
   
   # Find the closest altar
   var nearestAltar = ivec2(-1, -1)

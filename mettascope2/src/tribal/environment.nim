@@ -92,7 +92,6 @@ type
     resources*: int  # For mines - remaining ore
     cooldown*: int
     frozen*: int
-    # Removed houseTopLeft and houseSize - no longer needed since we use team colors via tinting
 
     # Agent:
     agentId*: int
@@ -152,7 +151,6 @@ type
     baseTileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Base colors (terrain)
     agentTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Agent heat contributions
     clippyTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Clippy cold contributions  
-    # Removed altarTintMods - altar coloring now handled by base tile colors
     activeTiles*: ActiveTiles  # Sparse list of tiles to process
     observations*: array[
       MapAgents,
@@ -718,7 +716,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
     inc env.stats[id].actionInvalid  # Nothing to get
 
 proc shieldAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Shield action removed - no longer used
+  ## Shield action
   inc env.stats[id].actionInvalid
 
 proc giftAction(env: Environment, id: int, agent: Thing) =
@@ -775,7 +773,6 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
       if env.isValidEmptyPosition(pos):
         result.add(pos)
 
-# Removed getHouseCorners - no longer needed without houseTopLeft/houseSize fields
 
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
   # Try with moderate attempts first
@@ -796,7 +793,6 @@ proc clearTintModifications*(env: Environment) =
     if pos.x >= 0 and pos.x < MapWidth and pos.y >= 0 and pos.y < MapHeight:
       env.agentTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
       env.clippyTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
-      # Altar colors are now in base tile colors, no need to clear them
   
   # Clear the active list for next frame
   env.activeTiles.positions.setLen(0)
@@ -835,7 +831,6 @@ proc updateTintModifications*(env: Environment) =
         env.agentTintMods[pos.x][pos.y].b = int16((tribeColor.b - 0.6) * 50)
         
     of Altar:
-      # Altars no longer need special tinting - their house colors are set in base tiles during init
       discard
     else:
       discard
@@ -869,7 +864,6 @@ proc applyTintModifications*(env: Environment) =
       g += env.clippyTintMods[x][y].g div 8
       b += env.clippyTintMods[x][y].b div 8
     
-    # Altar team colors are now in base tiles, no special handling needed
     
     # Convert back to float with clamping
     env.tileColors[x][y].r = min(max(r.float32 / 1000.0, 0.3), 1.2)
@@ -992,7 +986,6 @@ proc init(env: Environment) =
         kind: Altar,
         pos: elements.center,
         hearts: MapObjectAltarInitialHearts  # Altar starts with default hearts
-        # House colors are now set directly in base tile colors during init
       ))
       altarColors[elements.center] = villageColor  # Associate altar position with village color
       
@@ -1113,16 +1106,13 @@ proc init(env: Environment) =
     
     totalAgentsSpawned += 1
 
-  # Calculate strategic spawner positions near the middle of the map
-  # We want spawners arranged so each altar has one closest spawner
-  # Map dimensions are approximately 100x50, with altars in corners
-  # Place spawners in a triangular pattern in the central area
+  # Calculate spawner positions in the middle area of the map
+  # Spawners are distributed to provide equal access from corners
   
   let centerX = MapWidth div 2
   let centerY = MapHeight div 2
   
-  # Define strategic spawner positions based on number of houses
-  # These positions form a pattern where each corner altar has a dedicated spawner
+  # Define spawner positions based on number of houses
   var spawnerPositions: seq[IVec2] = @[]
   
   if numHouses == 3:
@@ -1210,7 +1200,7 @@ proc init(env: Environment) =
           placed = true
           break
     
-    # If we couldn't place at strategic position, fall back to random placement
+    # Fall back to random placement if position is blocked
     if not placed:
       # Simple random placement fallback
       var fallbackPos = r.randomEmptyPos(env)
