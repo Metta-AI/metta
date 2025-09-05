@@ -178,18 +178,7 @@ class WandbStore:
                 has_started_eval = True
                 has_been_evaluated = True
 
-        # Extract observation if present
-        observation = None
-        if "observation" in summary:
-            obs_data = summary["observation"]  # type: ignore
-            if isinstance(obs_data, dict) and "score" in obs_data and "cost" in obs_data:
-                observation = Observation(
-                    score=float(obs_data["score"]),  # type: ignore
-                    cost=float(obs_data["cost"]),  # type: ignore
-                    suggestion=obs_data.get("suggestion", {}),  # type: ignore
-                )
-
-        # Extract cost and runtime
+        # Extract cost and runtime first
         # TEMPORARY PATCH: Calculate cost as $4.6 per hour of runtime
         # TODO: Remove this patch when cost tracking is fixed upstream
         # Cost is stored under monitor/cost/accrued_total in WandB
@@ -203,6 +192,18 @@ class WandbStore:
         cost_per_hour = 4.6
         runtime_hours = runtime / 3600.0 if runtime > 0 else 0
         cost = cost_per_hour * runtime_hours
+
+        # Extract observation if present - use calculated cost instead of stored value
+        observation = None
+        if "observation" in summary:
+            obs_data = summary["observation"]  # type: ignore
+            if isinstance(obs_data, dict) and "score" in obs_data:
+                # TEMPORARY PATCH: Use calculated cost instead of stored observation cost
+                observation = Observation(
+                    score=float(obs_data["score"]),  # type: ignore
+                    cost=cost,  # Use calculated cost instead of obs_data["cost"]
+                    suggestion=obs_data.get("suggestion", {}),  # type: ignore
+                )
 
         # Extract training progress metrics
         total_timesteps = None
