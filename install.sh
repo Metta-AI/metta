@@ -29,16 +29,14 @@ while [ $# -gt 0 ]; do
       echo "  3. Installs components"
       echo ""
       echo "Options:"
-      echo "  --profile PROFILE      Set user profile (external, softmax)"
-      echo "                         If not specified, shows interactive menu"
-      echo "  --non-interactive      Run in non-interactive mode (uses 'external' defaults)"
+      echo "  --profile PROFILE      Set user profile (external, cloud, or softmax)"
+      echo "                         If not specified, runs interactive configuration"
+      echo "  --non-interactive      Run in non-interactive mode (no prompts)"
       echo "  -h, --help             Show this help message"
       echo ""
       echo "Examples:"
-      echo "  $0                           # Interactive menu: choose defaults or full wizard"
-      echo "  $0 --profile=softmax         # Quick setup for Softmax employees"
-      echo "  $0 --profile=external        # Quick setup for external users"
-      echo "  $0 --non-interactive         # Automated setup with external defaults"
+      echo "  $0                     # Interactive setup"
+      echo "  $0 --profile=softmax   # Setup for Softmax employee"
       exit 0
       ;;
     *)
@@ -62,52 +60,11 @@ ensure_uv_setup
 
 uv sync || err "Failed to install Python dependencies"
 uv run python -m metta.setup.metta_cli symlink-setup setup || err "Failed to set up metta command in ~/.local/bin"
-
-# Always ask for profile configuration during setup
-echo "Setting up Metta configuration..."
 if [ -n "$PROFILE" ]; then
-  # Use provided profile directly by setting it as active profile
-  echo "Setting active profile to: $PROFILE"
-  uv run python -m metta.setup.metta_cli profile "$PROFILE" || err "Failed to set profile"
+  uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" $NON_INTERACTIVE || err "Failed to run configuration"
 else
-  if [ "$NON_INTERACTIVE" = "--non-interactive" ]; then
-    # In non-interactive mode, use external profile as default (already the default in config.yaml)
-    echo "Non-interactive mode: using 'external' profile (default)"
-  else
-    # Interactive mode: ask user to choose their profile
-    echo ""
-    echo "Which profile describes you?"
-    echo "  1) External contributor/researcher (open source)"
-    echo "  2) Softmax team member (internal)"  
-    echo "  3) Custom setup (full configuration wizard)"
-    echo ""
-    printf "Choose an option [1-3]: "
-    read -r choice
-    
-    case "$choice" in
-      1)
-        echo "Setting up external contributor profile..."
-        uv run python -m metta.setup.metta_cli profile "external" || err "Failed to set profile"
-        echo "✓ Configured for external contributors (W&B enabled, local storage)"
-        ;;
-      2)
-        echo "Setting up Softmax team member profile..."
-        uv run python -m metta.setup.metta_cli profile "softmax" || err "Failed to set profile"
-        echo "✓ Configured for Softmax team (W&B: softmax-ai/metta-internal, S3 storage)"
-        ;;
-      3)
-        echo "Starting custom configuration wizard..."
-        uv run python -m metta.setup.metta_cli configure || err "Failed to run configuration wizard"
-        ;;
-      *)
-        echo "Invalid choice. Defaulting to external contributor profile..."
-        uv run python -m metta.setup.metta_cli profile "external" || err "Failed to set profile"
-        echo "✓ Configured for external contributors (W&B enabled, local storage)"
-        ;;
-    esac
-  fi
+  uv run python -m metta.setup.metta_cli configure $NON_INTERACTIVE || err "Failed to run configuration"
 fi
-
 uv run python -m metta.setup.metta_cli install $NON_INTERACTIVE || err "Failed to install components"
 
 echo "\nSetup complete!\n"
