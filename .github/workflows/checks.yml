@@ -262,9 +262,9 @@ jobs:
             PYTEST_ARGS="--cov --cov-branch --cov-report=xml --benchmark-skip -n auto --disable-warnings -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
             echo "Running with full branch coverage for production merge"
           else
-            # Fast testmon for PRs and development (fast feedback) - temporarily disable xdist to test
-            PYTEST_ARGS="--testmon --cov --cov-report=xml --benchmark-skip --disable-warnings -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
-            echo "Running with testmon for fast development feedback"
+            # Fast testmon for PRs and development (fast feedback) with fixed xdist workers
+            PYTEST_ARGS="--testmon --cov --cov-report=xml --benchmark-skip --disable-warnings -v --durations=10 --junitxml=junit.xml -o junit_family=legacy -n 4"
+            echo "Running with testmon and 4-core parallel execution for fast development feedback"
           fi
 
           # If no .testmondata exists, do a full run first to build the database
