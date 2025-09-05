@@ -1,6 +1,6 @@
 import std/[math, random, tables]
 import vmath
-import objects
+import environment
 
 # Use the orientations from environment module directly
 
@@ -159,6 +159,27 @@ proc findVisibleThings(env: Environment, agent: Thing, viewRadius: int = 5): seq
       if dist <= viewRadius.float:
         result.add(thing)
 
+proc getMoveToCardinalPosition(agentPos, targetPos: IVec2, env: Environment): IVec2 =
+  ## If agent is diagonally adjacent to target, return direction to move to cardinal position
+  ## Returns ivec2(0, 0) if already cardinally adjacent or not adjacent at all
+  let dx = targetPos.x - agentPos.x
+  let dy = targetPos.y - agentPos.y
+  
+  # Check if diagonally adjacent
+  if abs(dx) == 1 and abs(dy) == 1:
+    # Try to move to cardinal position - prefer horizontal movement first
+    let horizontalPos = agentPos + ivec2(dx, 0)
+    let verticalPos = agentPos + ivec2(0, dy)
+    
+    # Check which position is empty and return direction to it
+    if env.isEmpty(horizontalPos):
+      return ivec2(dx, 0)
+    elif env.isEmpty(verticalPos):
+      return ivec2(0, dy)
+    # If both are blocked, return no movement
+    
+  return ivec2(0, 0)
+
 proc getDirectionTo(fromPos, toPos: IVec2): IVec2 =
   ## Get the unit direction vector from one position to another (supports 8 directions)
   let dx = toPos.x - fromPos.x
@@ -205,27 +226,6 @@ proc isCardinallyAdjacent(pos1, pos2: IVec2): bool =
   let dx = abs(pos1.x - pos2.x)
   let dy = abs(pos1.y - pos2.y)
   result = (dx == 1 and dy == 0) or (dx == 0 and dy == 1)
-
-proc getMoveToCardinalPosition(agentPos, targetPos: IVec2, env: Environment): IVec2 =
-  ## If agent is diagonally adjacent to target, return direction to move to cardinal position
-  ## Returns ivec2(0, 0) if already cardinally adjacent or not adjacent at all
-  let dx = targetPos.x - agentPos.x
-  let dy = targetPos.y - agentPos.y
-  
-  # Check if diagonally adjacent
-  if abs(dx) == 1 and abs(dy) == 1:
-    # Try to move to cardinal position - prefer horizontal movement first
-    let horizontalPos = agentPos + ivec2(dx, 0)
-    let verticalPos = agentPos + ivec2(0, dy)
-    
-    # Check which position is empty and return direction to it
-    if env.isEmpty(horizontalPos):
-      return ivec2(dx, 0)
-    elif env.isEmpty(verticalPos):
-      return ivec2(0, dy)
-    # If both are blocked, return no movement
-    
-  return ivec2(0, 0)
 
 proc decideAction*(controller: Controller, env: Environment, agentId: int): array[2, uint8] =
   ## Decide the next action for an agent
