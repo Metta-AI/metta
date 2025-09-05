@@ -16,10 +16,9 @@ from metta.agent.pytorch.fast import Fast as PyTorchFast
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAttnMed
 from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from torch import nn
 from typing import TypedDict, Dict, Any
-
 
 
 class AgentConfig(Config):

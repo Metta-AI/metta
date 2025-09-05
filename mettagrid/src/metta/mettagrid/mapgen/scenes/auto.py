@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.random.float import FloatDistribution
 from metta.mettagrid.mapgen.random.int import IntDistribution
 from metta.mettagrid.mapgen.scene import ChildrenAction, Scene

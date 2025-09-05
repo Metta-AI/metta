@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import wandb
 from wandb import Artifact
+from wandb.errors import CommError
 
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import WandbURI
@@ -98,7 +99,7 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     required_fields = ["run_name", "epoch", "agent_step", "total_time", "score"]
     if all(field in metadata for field in required_fields):
         return {
-            "run_name": metadata["run_name"],
+            "run_name": f"{metadata['run_name']}:{artifact.version}",
             "epoch": metadata["epoch"],
             "agent_step": metadata["agent_step"],
             "total_time": metadata["total_time"],
@@ -163,7 +164,7 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     try:
         logger.debug(f"Loading artifact: {qname}")
         artifact = wandb.Api().artifact(qname)
-    except wandb.errors.CommError as e:
+    except CommError as e:
         raise ValueError(f"Artifact not found: {qname}") from e
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -223,7 +224,7 @@ def upload_checkpoint_as_artifact(
     # Wait for upload to complete
     artifact.wait()
 
-    wandb_uri = f"wandb://{run.project}/{artifact_name}:latest"
+    wandb_uri = f"wandb://{run.project}/{artifact_name}:{artifact.version}"
     logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
 
     return wandb_uri

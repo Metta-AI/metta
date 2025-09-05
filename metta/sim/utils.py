@@ -3,6 +3,7 @@ import uuid
 from bidict import bidict
 
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.rl.checkpoint_manager import CheckpointManager
 
 
 def get_or_create_policy_ids(
@@ -22,8 +23,6 @@ def get_or_create_policy_ids(
     Returns:
         Bidirectional mapping of URI to policy UUID
     """
-    from metta.rl.checkpoint_manager import CheckpointManager
-
     # Process policies - using URIs as primary identifier
     processed_policies = []
     uri_to_name = {}

@@ -6,10 +6,16 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 import torch
 
+from metta.agent.mocks import MockAgent
 from metta.mettagrid.util.file import WandbURI, local_copy
-from metta.rl.wandb import expand_wandb_uri, get_wandb_checkpoint_metadata, load_policy_from_wandb_uri
 from metta.rl.policy_artifact import PolicyArtifact
 from metta.agent.metta_agent import PolicyAgent
+from metta.rl.wandb import (
+    expand_wandb_uri,
+    get_wandb_checkpoint_metadata,
+    load_policy_from_wandb_uri,
+    upload_checkpoint_as_artifact,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +180,6 @@ class CheckpointManager:
             return load_policy_from_wandb_uri(uri, device=device)
 
         if uri.startswith("mock://"):
-            from metta.agent.mocks import MockAgent
-
             return MockAgent()
 
         raise ValueError(f"Invalid URI: {uri}")
@@ -276,8 +280,6 @@ class CheckpointManager:
         # Upload to wandb if run is provided
         wandb_uri = None
         if wandb_run and statistics.get("upload_to_wandb", True):
-            from metta.rl.wandb import upload_checkpoint_as_artifact
-
             # For final checkpoint, append "_final" to distinguish it
             name = self.run_name + "_final" if statistics.get("is_final", False) else self.run_name
 

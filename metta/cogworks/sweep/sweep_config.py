@@ -1,4 +1,4 @@
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.rl.trainer_config import TrainerConfig
 
 
