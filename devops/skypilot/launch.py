@@ -278,7 +278,13 @@ def main():
         sys.exit(0)
 
     # Launch the task(s)
-    request_ids = [launch_task(copy.deepcopy(task)) for _ in range(args.copies)]
+    def prepare_task(base_task: sky.Task, env_updates, run_id):
+        task = copy.deepcopy(base_task).update_envs(env_updates)
+        task.name = run_id
+        task.validate_name()
+        return task
+
+    request_ids = [launch_task(prepare_task(task, env_updates, run_id)) for _ in range(args.copies)]
 
     # auto launch log if we have only one task and job-log flag is set
     if args.job_log and len(request_ids) == 1:
