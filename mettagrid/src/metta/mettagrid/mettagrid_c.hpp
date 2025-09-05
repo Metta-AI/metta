@@ -124,10 +124,10 @@ private:
 
   Actions _actions;
   ActionHandlers _action_handlers;
-  size_t _num_action_handlers;
+  size_t _num_action_handlers = 0;
   std::vector<unsigned char> _max_action_args;
-  unsigned char _max_action_arg;
-  unsigned char _max_action_priority;
+  unsigned char _max_action_arg = 0;
+  unsigned char _max_action_priority = 0;
 
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
