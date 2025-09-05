@@ -222,7 +222,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-4core
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -263,17 +263,18 @@ jobs:
 
           PYTEST_BASE_ARGS="-n auto --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
-          # Run tests based on package
           if [ "${{ matrix.package }}" == "core" ]; then
             pytest $PYTEST_BASE_ARGS \
               --cov-report=term \
               --cov-report=xml:coverage-reports/coverage.xml \
               2>&1 | tee test-results/output.log
+            exit ${PIPESTATUS[0]}
           else
             cd "${{ matrix.package }}" && pytest $PYTEST_BASE_ARGS \
               --cov-report=term \
               --cov-report=xml:../coverage-reports/coverage.xml \
               2>&1 | tee ../test-results/output.log
+            exit ${PIPESTATUS[0]}
           fi
 
       - name: Extract test durations
