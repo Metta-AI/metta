@@ -115,15 +115,6 @@ class SweepTool(Tool):
     dispatcher_type: DispatcherType = DispatcherType.HYBRID_REMOTE_TRAIN  # Default: train on Skypilot, evaluate locally
     capture_output: bool = True  # Capture and stream subprocess output (local only)
 
-    consumed_args: list[str] = [
-        "sweep_name",
-        "max_trials",
-        "recipe_module",
-        "train_entrypoint",
-        "eval_entrypoint",
-        "run",
-    ]
-
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         """Execute the sweep."""
 

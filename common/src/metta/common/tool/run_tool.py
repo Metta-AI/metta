@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
-"""Generic tool runner using argparse for simplicity and directness."""
+"""Runner that takes a function that creates a ToolConfig,
+invokes the function, and then runs the tool defined by the config."""
 
 import argparse
 import inspect
@@ -58,11 +59,8 @@ def parse_value(value_str: str) -> Any:
     """Parse a string value into appropriate Python type."""
     lower = value_str.lower()
 
-    # Handle boolean values
     if lower in {"true", "false"}:
         return lower == "true"
-
-    # Handle null/none
     if lower in {"none", "null"}:
         return None
 
@@ -75,19 +73,17 @@ def parse_value(value_str: str) -> Any:
         except Exception:
             pass
 
-    # Try to parse as int
+    # Try to parse as numeric
     try:
         return int(value_str)
     except ValueError:
         pass
-
-    # Try to parse as float
     try:
         return float(value_str)
     except ValueError:
         pass
 
-    # Return as string
+    # Default to string
     return value_str
 
 
@@ -113,7 +109,7 @@ def get_tool_fields(tool_class: type[Tool]) -> set[str]:
     """Get all field names from a Tool class and its parent classes."""
     fields = set()
 
-    # Walk up the MRO to get fields from Pydantic models only
+    # Walk up the MRO [method resolution order]
     for base in tool_class.__mro__:
         # Stop at Tool base class
         if base is Tool:
@@ -125,26 +121,27 @@ def get_tool_fields(tool_class: type[Tool]) -> set[str]:
     return fields
 
 
-def split_args_and_overrides(
-    cli_args: dict[str, Any], make_tool_cfg: Any, tool_cfg: Tool
-) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+def extract_function_args(cli_args: dict[str, Any], make_tool_cfg: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     """
-    Split CLI arguments into function args and tool overrides.
+    Extract function arguments from CLI args based on the function's signature.
+
+    This is the first phase of argument classification. It examines the signature
+    of make_tool_cfg (either a Tool class constructor or a function that returns
+    a Tool) and extracts any CLI arguments that match the function's parameters.
 
     Rules:
-    - Dotted keys (a.b.c) are always overrides
-    - Exact parameter name matches are function args
-    - Otherwise unknown
+    - Only exact parameter name matches are extracted (no fuzzy matching)
+    - Dotted keys (e.g., "nested.field") are never function arguments
+    - Function arguments take precedence over tool fields in case of conflicts
+
+    Args:
+        cli_args: Dictionary of parsed CLI arguments (key=value pairs)
+        make_tool_cfg: Either a Tool class or a function that returns a Tool
 
     Returns:
-        - Function arguments (for make_tool_cfg)
-        - Override arguments (for tool fields)
-        - List of unknown arguments
+        - func_args: Arguments that match function parameters
+        - remaining_args: All other arguments that need further classification
     """
-    func_args = {}
-    overrides = {}
-    unknown = []
-
     # Get function parameter names
     if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
         # Tool class constructor
@@ -153,29 +150,59 @@ def split_args_and_overrides(
         # Function that returns a Tool
         func_params = set(inspect.signature(make_tool_cfg).parameters.keys())
 
-    # Get tool field names
-    tool_fields = get_tool_fields(type(tool_cfg))
+    func_args = {}
+    remaining_args = {}
 
-    # Process each CLI argument
     for key, value in cli_args.items():
+        # Dotted keys can never be function args
+        if "." not in key and key in func_params:
+            func_args[key] = value
+        else:
+            remaining_args[key] = value
+
+    return func_args, remaining_args
+
+
+def classify_remaining_args(remaining_args: dict[str, Any], tool_fields: set[str]) -> tuple[dict[str, Any], list[str]]:
+    """
+    Classify remaining arguments as tool overrides or unknown arguments.
+
+    This is the second phase of argument classification. After function arguments
+    have been extracted, this function examines the remaining arguments and
+    determines which ones are valid tool field overrides vs unknown arguments.
+
+    Rules:
+    - Non-dotted keys must match exact tool field names
+    - Dotted keys (e.g., "nested.field") check if the base field exists
+    - Arguments that don't match any tool fields are marked as unknown
+
+    Args:
+        remaining_args: Arguments left after extracting function args
+        tool_fields: Set of valid field names from the Tool class hierarchy
+
+    Returns:
+        - overrides: Arguments that match tool fields (will be applied via tool.override())
+        - unknown: List of argument keys that don't match any known fields
+    """
+    overrides = {}
+    unknown = []
+
+    for key, value in remaining_args.items():
         if "." in key:
-            # Dotted path => always an override
+            # Dotted path - check if base field exists
             base_key = key.split(".", 1)[0]
             if base_key in tool_fields:
                 overrides[key] = value
             else:
                 unknown.append(key)
-            continue
-
-        # Non-dotted: could be a function param or a top-level tool field
-        if key in func_params:
-            func_args[key] = value
         elif key in tool_fields:
+            # Non-dotted key that matches a tool field
             overrides[key] = value
         else:
+            # Unknown argument
             unknown.append(key)
 
-    return func_args, overrides, unknown
+    return overrides, unknown
 
 
 def display_arg_classification(
@@ -207,7 +234,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Run a tool with automatic argument classification",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        allow_abbrev=False,  # avoid -v matching -verbose or similar
+        allow_abbrev=True,  # allow -v matching -verbose or similar
         epilog="""
 Examples:
   %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
@@ -263,31 +290,30 @@ Use -- to force treating following arguments as key=value pairs if they start wi
         console.print(f"[red]Error loading {known_args.make_tool_cfg_path}:[/red] {e}")
         return 1
 
-    # Create initial tool config to inspect its fields (without side effects)
-    if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
-        # Tool class constructor - use model_construct to avoid validation/side effects
-        try:
-            # Pydantic v2 method - no validation or __init__
-            temp_tool_cfg = make_tool_cfg.model_construct()
-        except Exception:
-            # Fallback if model_construct is unavailable
-            temp_tool_cfg = make_tool_cfg()
-    else:
-        # Function that makes a tool - call with only defaults to minimize side effects
-        sig = inspect.signature(make_tool_cfg)
-        temp_args = {
-            param_name: param.default
-            for param_name, param in sig.parameters.items()
-            if param.default is not inspect.Parameter.empty
-        }
-        try:
-            temp_tool_cfg = make_tool_cfg(**temp_args)
-        except Exception as e:
-            console.print(f"[red]Error creating temporary tool instance:[/red] {e}")
-            return 1
+    # Phase 1: Extract function arguments (no tool instance needed!)
+    func_args, remaining_args = extract_function_args(cli_args, make_tool_cfg)
 
-    # Split arguments into function args and overrides
-    func_args, override_args, unknown_args = split_args_and_overrides(cli_args, make_tool_cfg, temp_tool_cfg)
+    # Phase 2: Create the tool config object with function arguments
+    try:
+        if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
+            # Tool config constructor
+            tool_cfg = make_tool_cfg(**func_args)
+        else:
+            # Function that makes a tool config
+            tool_cfg = make_tool_cfg(**func_args)
+    except Exception as e:
+        console.print(f"[red]Error creating tool configuration:[/red] {e}")
+        return 1
+
+    if not isinstance(tool_cfg, Tool):
+        console.print(
+            f"[red]Error:[/red] {known_args.make_tool_cfg_path} must return a Tool instance, got {type(tool_cfg)}"
+        )
+        return 1
+
+    # Phase 3: Classify remaining arguments as overrides or unknown
+    tool_fields = get_tool_fields(type(tool_cfg))
+    override_args, unknown_args = classify_remaining_args(remaining_args, tool_fields)
 
     # Handle unknown arguments
     if unknown_args:
@@ -302,35 +328,13 @@ Use -- to force treating following arguments as key=value pairs if they start wi
                 console.print(f"  - {param.name}")
 
         console.print("\n[yellow]Available tool fields for overrides:[/yellow]")
-        for field in sorted(get_tool_fields(type(temp_tool_cfg))):
+        for field in sorted(tool_fields):
             console.print(f"  - {field}")
         return 2  # Exit code 2 for usage errors
 
     # Display classification if verbose
     if known_args.verbose:
         display_arg_classification(func_args, override_args, unknown_args, known_args.make_tool_cfg_path)
-
-    # Create the tool config object with function arguments
-    try:
-        if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
-            # Tool config constructor
-            tool_cfg = make_tool_cfg(**func_args)
-        else:
-            # Function that makes a tool config
-            tool_cfg = make_tool_cfg(**func_args)
-
-            # Mark consumed args
-            if hasattr(tool_cfg, "consumed_args"):
-                tool_cfg.consumed_args.extend(func_args.keys())
-    except Exception as e:
-        console.print(f"[red]Error creating tool configuration:[/red] {e}")
-        return 1
-
-    if not isinstance(tool_cfg, Tool):
-        console.print(
-            f"[red]Error:[/red] {known_args.make_tool_cfg_path} must return a Tool instance, got {type(tool_cfg)}"
-        )
-        return 1
 
     # Apply overrides
     for key, value in override_args.items():
