@@ -84,7 +84,7 @@ def trigger_workflow(branch: str) -> str:
 
 
 def find_workflow_run(branch: str, run_id: str) -> str:
-    """Poll GitHub Actions to find the workflow run matching the given run_id tag."""
+    """Poll GitHub Actions to find the workflow run matching the given run_id echoed in logs."""
     print(f"⏳ Searching for workflow run with run_id={run_id} on branch={branch}")
 
     for attempt in range(10):
@@ -100,7 +100,7 @@ def find_workflow_run(branch: str, run_id: str) -> str:
                 "--limit",
                 "10",
                 "--json",
-                "databaseId,inputs,createdAt",
+                "databaseId,createdAt",
             ],
             capture_output=True,
             text=True,
@@ -113,11 +113,24 @@ def find_workflow_run(branch: str, run_id: str) -> str:
 
         try:
             runs = json.loads(result.stdout)
+
             for run in runs:
-                inputs = run.get("inputs", {})
-                if inputs.get("run_id") == run_id:
-                    print(f"✅ Found run {run['databaseId']} for run_id={run_id}")
-                    return str(run["databaseId"])
+                run_db_id = str(run["databaseId"])
+
+                # Fetch logs and look for the echoed run ID
+                log_result = subprocess.run(
+                    ["gh", "run", "view", run_db_id, "--log"],
+                    capture_output=True,
+                    text=True,
+                )
+
+                if log_result.returncode != 0:
+                    continue
+
+                if f"RUN_ID={run_id}" in log_result.stdout:
+                    print(f"✅ Found run {run_db_id} for run_id={run_id} (via logs)")
+                    return run_db_id
+
         except json.JSONDecodeError as e:
             print(f"⚠️ JSON decode error: {e}")
 
