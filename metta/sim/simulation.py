@@ -141,7 +141,7 @@ class Simulation:
         )
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
         self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
-        
+
         # Store NPC group ID for later use
         self._npc_group_id = cfg.npc_group_id
 
@@ -151,10 +151,10 @@ class Simulation:
             if self._npc_agents_per_env
             else torch.tensor([], device=self._device, dtype=torch.long)
         )
-        
+
         # If group-based NPC assignment is enabled, we'll update indices after first reset
         self._update_policy_npc_assignments_on_reset = self._npc_group_id is not None
-        
+
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
     @classmethod
@@ -201,7 +201,7 @@ class Simulation:
         logger.info("Stats dir: %s", self._stats_dir)
         self._obs, _ = self._vecenv.reset()
         self._env_done_flags = [False] * self._num_envs
-        
+
         # Update policy/NPC assignments based on group IDs if configured
         if self._update_policy_npc_assignments_on_reset:
             self._update_policy_npc_assignments()
@@ -212,32 +212,32 @@ class Simulation:
         """Update policy and NPC indices based on agent group IDs."""
         if self._npc_group_id is None:
             return
-            
+
         # Get agent info from observations to find group IDs
         agent_info = self._obs  # Observations contain agent metadata
-        
+
         policy_idxs = []
         npc_idxs = []
-        
+
         # Check each environment's agents for group IDs
         for env_idx in range(self._num_envs):
             base = env_idx * self._agents_per_env
             env_policy = []
             env_npc = []
-            
+
             # Try to get group info from game state
             for local_idx in range(self._agents_per_env):
                 global_id = base + local_idx
-                
+
                 # Try to access group info from the environment
                 # This is where group_id would be stored in agent data
                 try:
                     # Access the driver environment to get agent group info
                     driver_env = self._vecenv.driver_env  # type: ignore
                     metta_grid_env = getattr(driver_env, "_env", driver_env)
-                    if hasattr(metta_grid_env, 'game') and hasattr(metta_grid_env.game, 'agent'):
+                    if hasattr(metta_grid_env, "game") and hasattr(metta_grid_env.game, "agent"):
                         agent = metta_grid_env.game.agent
-                        if hasattr(agent, 'data') and len(agent.data) > global_id:
+                        if hasattr(agent, "data") and len(agent.data) > global_id:
                             agent_data = agent.data[global_id]
                             group = agent_data.get("group_id", -1)
                             if group == self._npc_group_id:
@@ -247,22 +247,22 @@ class Simulation:
                             continue
                 except:
                     pass
-                
+
                 # Fallback to percentage split if can't get group info
                 if local_idx < self._policy_agents_per_env:
                     env_policy.append(global_id)
                 else:
                     env_npc.append(global_id)
-            
+
             policy_idxs.extend(env_policy)
             npc_idxs.extend(env_npc)
-        
+
         # Update the indices
         self._policy_idxs = torch.tensor(policy_idxs, device=self._device, dtype=torch.long)
         self._npc_idxs = torch.tensor(npc_idxs, device=self._device, dtype=torch.long)
-        
+
         logger.debug(f"Updated assignments - Policy agents: {len(policy_idxs)}, NPC agents: {len(npc_idxs)}")
-    
+
     def _get_actions_for_agents(self, agent_indices: torch.Tensor, policy) -> torch.Tensor:
         """Get actions for a group of agents, preserving agent dimension for single-agent cases."""
         agent_obs = self._obs[agent_indices]

@@ -28,7 +28,7 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import AgentConfig, EnvConfig, GroupConfig
+from metta.mettagrid.mettagrid_config import AgentConfig, MettaGridConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -37,7 +37,7 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
 
-def make_env(num_agents: int = 6) -> EnvConfig:
+def make_env(num_agents: int = 6) -> MettaGridConfig:
     """Create environment with a single wandering trader NPC."""
     arena_env = eb.make_arena(num_agents=num_agents)
 
@@ -116,13 +116,9 @@ def make_env(num_agents: int = 6) -> EnvConfig:
         "armor": 1,  # Keep minimal armor
     }
 
-    # Create trader group
-    arena_env.game.groups["trader"] = GroupConfig(
-        id=99,
-        sprite=15,  # Different visual appearance
-        group_reward_pct=0.0,  # No rewards for trader
-        props=trader_config,
-    )
+    # Note: GroupConfig was removed in main branch refactor
+    # The trader NPC is now handled via npc_group_id in SimulationConfig
+    # The trader_config is applied directly to the trader agent
 
     # CRITICAL: Ensure sufficient resources for the experiment
     arena_env.game.map_builder.root.params.objects["mine_red"] = (
@@ -135,14 +131,14 @@ def make_env(num_agents: int = 6) -> EnvConfig:
         8  # Sufficient altars for heart conversion
     )
 
-    # Agent assignment: 5 learning agents, 1 trader
-    # NOTE: The last agent (index 5) will be the NPC with random movement
-    arena_env.game.map_builder.root.params.agents = {"agent": 5, "trader": 1}
+    # Agent assignment: 6 agents total (5 learning + 1 NPC trader)
+    # The trader NPC will be identified via npc_group_id in SimulationConfig
+    arena_env.game.num_agents = 6
 
     return arena_env
 
 
-def make_curriculum(env: Optional[EnvConfig] = None) -> CurriculumConfig:
+def make_curriculum(env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
     """Create curriculum for wandering trader experiment."""
     env = env or make_env()
 
@@ -176,7 +172,7 @@ def make_curriculum(env: Optional[EnvConfig] = None) -> CurriculumConfig:
     return CurriculumConfig(task_generator=arena_tasks)
 
 
-def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
+def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     """Create evaluation scenarios to test trader vs generator preferences."""
     basic_env = env or make_env()
 
@@ -242,7 +238,7 @@ def train(
     return TrainTool(trainer=trainer_cfg)
 
 
-def play(env: Optional[EnvConfig] = None) -> PlayTool:
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Play as one of the learning agents with a wandering trader NPC."""
     eval_env = env or make_env()
     return PlayTool(
@@ -257,7 +253,7 @@ def play(env: Optional[EnvConfig] = None) -> PlayTool:
     )
 
 
-def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     """Replay episodes to observe agent-trader interactions."""
     eval_env = env or make_env()
     return ReplayTool(

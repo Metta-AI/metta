@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import math
-import tempfile
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
-import duckdb
 import pandas as pd
 from pydantic import BaseModel, validate_call
 
@@ -23,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PolicyRecord:
     """Record containing policy metadata for evaluation."""
+
     run_name: str
     epoch: int
 
@@ -128,7 +125,7 @@ class EvalStatsDB(SimulationStatsDB):
     ) -> Optional[float]:
         """
         Calculate normalized aggregated value for a metric.
-        
+
         Args:
             policy_key: Policy identifier
             policy_version: Policy version/epoch
@@ -136,7 +133,7 @@ class EvalStatsDB(SimulationStatsDB):
             agg: Aggregation type (AVG, SUM, STD, COUNT, MIN, MAX)
             filter_condition: Optional SQL filter condition
             exclude_npc_group_id: Optional group ID to exclude (for NPCs)
-        
+
         Returns:
             Aggregated metric value or None if no data
         """
@@ -144,32 +141,32 @@ class EvalStatsDB(SimulationStatsDB):
             SELECT {agg}(p.{metric}) AS value
             FROM policy_simulation_agent_samples p
         """
-        
+
         # Add join for group_id filtering if needed
         if exclude_npc_group_id is not None:
             base_query += """
-            LEFT JOIN agent_samples a 
-                ON p.sim_name = a.sim_name 
-                AND p.sim_env = a.sim_env 
-                AND p.sim_seed = a.sim_seed 
-                AND p.run_id = a.run_id 
-                AND p.episode = a.episode 
+            LEFT JOIN agent_samples a
+                ON p.sim_name = a.sim_name
+                AND p.sim_env = a.sim_env
+                AND p.sim_seed = a.sim_seed
+                AND p.run_id = a.run_id
+                AND p.episode = a.episode
                 AND p.agent_id = a.agent_id
             """
-        
+
         where_clauses = [
             f"p.policy_key = '{policy_key}'",
             f"p.policy_version = {policy_version}",
         ]
-        
+
         if filter_condition:
             where_clauses.append(f"({filter_condition})")
-        
+
         if exclude_npc_group_id is not None:
             where_clauses.append(f"(a.group_id IS NULL OR a.group_id != {exclude_npc_group_id})")
-        
+
         query = base_query + " WHERE " + " AND ".join(where_clauses)
-        
+
         try:
             result = self.query(query)
             if result.empty or pd.isna(result["value"].iloc[0]):
@@ -254,19 +251,37 @@ class EvalStatsDB(SimulationStatsDB):
         pk, pv = self.key_and_version(policy_record)
         return self._normalized_value(pk, pv, metric, "STD", filter_condition, exclude_npc_group_id)
 
-    def get_average_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None, exclude_npc_group_id: Optional[int] = 99) -> Optional[float]:
+    def get_average_metric(
+        self,
+        metric: str,
+        policy_uri: str,
+        filter_condition: str | None = None,
+        exclude_npc_group_id: Optional[int] = 99,
+    ) -> Optional[float]:
         """URI-native version to get average metric."""
         metadata = CheckpointManager.get_policy_metadata(policy_uri)
         pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition, exclude_npc_group_id)
 
-    def get_std_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None, exclude_npc_group_id: Optional[int] = 99) -> Optional[float]:
+    def get_std_metric(
+        self,
+        metric: str,
+        policy_uri: str,
+        filter_condition: str | None = None,
+        exclude_npc_group_id: Optional[int] = 99,
+    ) -> Optional[float]:
         """URI-native version to get standard deviation metric."""
         metadata = CheckpointManager.get_policy_metadata(policy_uri)
         pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "STD", filter_condition, exclude_npc_group_id)
 
-    def get_sum_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None, exclude_npc_group_id: Optional[int] = 99) -> Optional[float]:
+    def get_sum_metric(
+        self,
+        metric: str,
+        policy_uri: str,
+        filter_condition: str | None = None,
+        exclude_npc_group_id: Optional[int] = 99,
+    ) -> Optional[float]:
         """URI-native version to get sum metric."""
         metadata = CheckpointManager.get_policy_metadata(policy_uri)
         pk, pv = metadata["run_name"], metadata["epoch"]
@@ -291,7 +306,9 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
 
-    def simulation_scores(self, policy_uri: str, metric: str, exclude_npc_group_id: Optional[int] = 99) -> Dict[tuple[str, str], float]:
+    def simulation_scores(
+        self, policy_uri: str, metric: str, exclude_npc_group_id: Optional[int] = 99
+    ) -> Dict[tuple[str, str], float]:
         """Return { (name,env) : normalized mean(metric) } for a policy URI."""
         metadata = CheckpointManager.get_policy_metadata(policy_uri)
         pk, pv = metadata["run_name"], metadata["epoch"]
