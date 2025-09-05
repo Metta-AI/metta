@@ -82,9 +82,7 @@ def get_display_id(run_id: str) -> str:
     if "_trial_" in run_id:
         # Extract everything after "_trial_"
         trial_part = run_id.split("_trial_")[-1]
-        # Remove hash suffix if present (format: "0001_a1b2c3" -> "0001")
-        trial_num = trial_part.split("_")[0]
-        return f"trial_{trial_num}"
+        run_id = trial_part
     return run_id
 
 

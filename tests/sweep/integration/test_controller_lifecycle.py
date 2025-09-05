@@ -267,6 +267,7 @@ class TestControllerLifecycle:
         # Manually add a second training run ID to simulate capacity constraints
         # Generate a second run ID with same format
         from metta.sweep.utils import generate_run_id
+
         second_run_id = generate_run_id("test_sweep", 2)
         controller.dispatched_trainings.add(second_run_id)
 

@@ -1,6 +1,5 @@
 """Tests for ProteinOptimizer class."""
 
-
 import pytest
 
 from metta.sweep.models import Observation
