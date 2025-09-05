@@ -4,11 +4,7 @@ import tribal/[common, game, worldmap, controller, ui, actions]
 
 # Global variables
 type
-  IRect* = object
-    x*, y*, w*, h*: int
-  
   WorldMapPanel = ref object
-    rect*: IRect
     pos*: Vec2
     vel*: Vec2
     zoom*: float32
@@ -31,12 +27,11 @@ const
   SpeedMultiplierDecrease = 0.5
   MinPlaySpeed = 0.00001
   MaxPlaySpeed = 1.0
+  TextBounds = vec2(WindowWidth.float32, WindowHeight.float32)
 
 var
   actionsArray*: array[MapAgents, array[2, uint8]]
-  # Controller will use a random seed each time
   agentController* = newController(seed = int(epochTime() * 1000))
-  # UI state
   play* = false
   playSpeed* = 0.01
   lastSimTime* = 0.0
@@ -48,7 +43,6 @@ proc simStep*() =
     if selection != agent:
       # Use the controller to decide actions
       actionsArray[j] = agentController.decideAction(env, j)
-    # else: selected agent uses manual controls
   
   # Step the environment (this handles mines, clippys, etc.)
   env.step(addr actionsArray)
@@ -60,18 +54,12 @@ proc agentControls*() =
   if selection != nil and selection.kind == Agent:
     let agent = selection
 
-    if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
-      actionsArray[agent.agentId] = [1, 0]
-      simStep()
-    elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
-      actionsArray[agent.agentId] = [1, 1]
-      simStep()
-    elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
-      actionsArray[agent.agentId] = [1, 2]
-      simStep()
-    elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
-      actionsArray[agent.agentId] = [1, 3]
-      simStep()
+    # Check movement keys using lookup table
+    for moveKey in MovementKeys:
+      if window.buttonPressed[moveKey.primary] or window.buttonPressed[moveKey.secondary]:
+        actionsArray[agent.agentId] = [1, moveKey.direction]
+        simStep()
+        return
 
     if window.buttonPressed[KeyU]:
       let useDir = agent.orientation.uint8
@@ -117,6 +105,11 @@ proc measureText*(
   let bounds = arrangement.computeBounds(transform).snapToPixels()
   return vec2(bounds.w, bounds.h)
 
+template withTransform(body: untyped) =
+  bxy.saveTransform()
+  body
+  bxy.restoreTransform()
+
 proc boxyMouse*(): Vec2 =
   return inverse(bxy.getTransform()) * window.mousePos.vec2
 
@@ -157,7 +150,7 @@ Agents: {env.agents.len}"""
   
   drawText(statsText, vec2(10, 10), 14, color(1, 1, 1, 0.8))
 
-proc drawHeader*(bxy: Boxy, window: Window, typeface: Typeface, width: float32) =
+proc drawHeader*(bxy: Boxy, window: Window, width: float32) =
   bxy.drawRect(
     rect(0, 0, width, HeaderHeight.float32),
     color(0.16, 0.21, 0.27, 1.0)
@@ -225,7 +218,6 @@ proc main() =
   # Initialize game
   env = newEnvironment()
   
-  # Set up worldmap module globals  
   worldmap.window = window
   worldmap.bxy = bxy
   worldmap.env = env
@@ -251,12 +243,11 @@ proc main() =
     # Handle keyboard shortcuts
     if window.buttonPressed[KeySpace]:
       play = not play
-    if window.buttonPressed[KeyMinus]:
-      playSpeed *= SpeedMultiplierIncrease
-      playSpeed = clamp(playSpeed, MinPlaySpeed, MaxPlaySpeed)
-      play = true
-    if window.buttonPressed[KeyEqual]:
-      playSpeed *= SpeedMultiplierDecrease
+      lastSimTime = epochTime()
+    
+    if window.buttonPressed[KeyMinus] or window.buttonPressed[KeyEqual]:
+      let multiplier = if window.buttonPressed[KeyMinus]: SpeedMultiplierIncrease else: SpeedMultiplierDecrease
+      playSpeed *= multiplier
       playSpeed = clamp(playSpeed, MinPlaySpeed, MaxPlaySpeed)
       play = true
     
@@ -289,40 +280,35 @@ proc main() =
     let mainAreaHeight = window.size.y.float32 - HeaderHeight - FooterHeight
     
     # Save transform and clip to main area
-    bxy.saveTransform()
-    bxy.translate(vec2(0, mainAreaY))
-    
-    # Draw world with pan/zoom in the main area
-    beginPanAndZoom()
-    
-    # Handle mouse selection
-    useSelections()
-    
-    # Draw the world map with all necessary parameters
-    draw(bxy, env, selection, window, typeface, settings, play, playSpeed)
-    
-    # Draw grid overlay if enabled
-    if settings.showGrid:
-      drawGrid()
-    
-    endPanAndZoom()
-    
-    # Draw UI overlay
-    drawStats()
-    
-    # Restore transform for header/footer
-    bxy.restoreTransform()
+    withTransform:
+      bxy.translate(vec2(0, mainAreaY))
+      
+      # Draw world with pan/zoom in the main area
+      beginPanAndZoom()
+      
+      # Handle mouse selection
+      useSelections()
+      
+      # Draw the world map with all necessary parameters
+      draw(bxy, env, selection, window, typeface, settings, play, playSpeed)
+      
+      # Draw grid overlay if enabled
+      if settings.showGrid:
+        drawGrid()
+      
+      endPanAndZoom()
+      
+      # Draw UI overlay
+      drawStats()
     
     # Draw header at top
-    bxy.saveTransform()
-    drawHeader(bxy, window, typeface, window.size.x.float32)
-    bxy.restoreTransform()
+    withTransform:
+      drawHeader(bxy, window, window.size.x.float32)
     
     # Draw footer at bottom
-    bxy.saveTransform()
-    bxy.translate(vec2(0, window.size.y.float32 - FooterHeight))
-    drawFooter(bxy, window, window.size.x.float32, simStep)
-    bxy.restoreTransform()
+    withTransform:
+      bxy.translate(vec2(0, window.size.y.float32 - FooterHeight))
+      drawFooter(bxy, window, window.size.x.float32, simStep)
     
     # End frame
     bxy.endFrame()

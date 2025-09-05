@@ -1,7 +1,7 @@
 ## Common types, constants, and utilities shared across tribal modules
 ## This module centralizes core definitions to avoid circular imports and duplication
 
-import std/[strformat], vmath
+import std/[strformat], vmath, windy
 
 # =============================================================================
 # CORE CONSTANTS - Map Configuration
@@ -41,6 +41,25 @@ const
   MapAgents* = MapRoomObjectsAgents * MapLayoutRoomsX * MapLayoutRoomsY
   MapWidth* = MapLayoutRoomsX * (MapRoomWidth + MapRoomBorder) + MapBorder
   MapHeight* = MapLayoutRoomsY * (MapRoomHeight + MapRoomBorder) + MapBorder
+  
+  # UI Constants
+  WindowWidth* = 1280
+  WindowHeight* = 800
+
+# Movement key mappings for 8-way movement
+type
+  MovementKey* = tuple[primary, secondary: Button, direction: uint8]
+
+const MovementKeys*: array[8, MovementKey] = [
+  (primary: KeyW, secondary: KeyUp, direction: 0'u8),    # North
+  (primary: KeyS, secondary: KeyDown, direction: 1'u8),  # South  
+  (primary: KeyD, secondary: KeyRight, direction: 2'u8), # East
+  (primary: KeyA, secondary: KeyLeft, direction: 3'u8),  # West
+  (primary: KeyQ, secondary: KeyHome, direction: 4'u8),  # Northwest
+  (primary: KeyE, secondary: KeyPageUp, direction: 5'u8), # Northeast
+  (primary: KeyZ, secondary: KeyEnd, direction: 6'u8),   # Southwest
+  (primary: KeyC, secondary: KeyPageDown, direction: 7'u8) # Southeast
+]
 
 # =============================================================================
 # CORE ENUMS
@@ -100,6 +119,9 @@ type
 # =============================================================================
 
 type
+  IRect* = object
+    x*, y*, w*, h*: int
+  
   TerrainGrid* = array[MapWidth, array[MapHeight, TerrainType]]
   
   OrientationDelta* = tuple[x, y: int]
