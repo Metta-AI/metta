@@ -4,9 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from metta.sweep.dispatcher.local import LocalDispatcher
 from metta.sweep.dispatcher.routing import RoutingDispatcher
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
-from metta.sweep.sweep_orchestrator import Dispatcher, JobDefinition, JobTypes, LocalDispatcher
+from metta.sweep.models import JobDefinition, JobTypes
+from metta.sweep.protocols import Dispatcher
 
 # ============================================================================
 # Fixtures

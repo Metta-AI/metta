@@ -4,7 +4,7 @@ import logging
 import subprocess
 import uuid
 
-from metta.sweep.sweep_orchestrator import JobDefinition, JobTypes
+from metta.sweep.models import JobDefinition, JobTypes
 
 logger = logging.getLogger(__name__)
 

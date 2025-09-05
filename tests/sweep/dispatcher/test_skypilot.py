@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
-from metta.sweep.sweep_orchestrator import Dispatcher, JobDefinition, JobTypes
+from metta.sweep.models import JobDefinition, JobTypes
+from metta.sweep.protocols import Dispatcher
 
 # ============================================================================
 # Fixtures
@@ -461,7 +462,7 @@ class TestDispatcherComparison:
 
     def test_command_equivalence_basic(self, basic_training_job):
         """Test that both dispatchers build the same args/overrides for basic job."""
-        from metta.sweep.sweep_orchestrator import LocalDispatcher
+        from metta.sweep.dispatcher.local import LocalDispatcher
 
         with patch("subprocess.Popen") as mock_popen:
             mock_process = MagicMock()
@@ -495,7 +496,7 @@ class TestDispatcherComparison:
 
     def test_command_equivalence_complex(self, complex_job):
         """Test command equivalence for complex job with all parameters."""
-        from metta.sweep.sweep_orchestrator import LocalDispatcher
+        from metta.sweep.dispatcher.local import LocalDispatcher
 
         with patch("subprocess.Popen") as mock_popen:
             mock_process = MagicMock()
@@ -531,7 +532,7 @@ class TestDispatcherComparison:
 
     def test_eval_job_equivalence(self, basic_eval_job):
         """Test that eval jobs are handled identically by both dispatchers."""
-        from metta.sweep.sweep_orchestrator import LocalDispatcher
+        from metta.sweep.dispatcher.local import LocalDispatcher
 
         with patch("subprocess.Popen") as mock_popen:
             mock_process = MagicMock()
