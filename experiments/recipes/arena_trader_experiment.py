@@ -26,7 +26,7 @@ Research Questions:
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.config.envs as eb
+import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import AgentConfig, EnvConfig, GroupConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
