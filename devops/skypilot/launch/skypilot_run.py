@@ -158,6 +158,12 @@ def main() -> int:
         if not launch_nccl_tests(logger, job_config.is_master):
             termination_reason = "nccl_tests_failed"
 
+    # If we've restarted 3+ times and average runtime is less than 3 minutes,
+    if job_config.restart_count >= 3 and job_config.accumulated_runtime_sec is not None:
+        average_runtime_minutes = (job_config.accumulated_runtime_sec / job_config.restart_count) / 60
+        if average_runtime_minutes < 3:
+            termination_reason = "rapid_restarts"
+
     if not termination_reason:
         run_training_in_background()
         termination_reason = monitor_until_termination(job_config)

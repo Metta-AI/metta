@@ -76,6 +76,11 @@ class NotificationManager:
                 title="SkyPilot Job NCCL Config Error",
                 description="NCCL tests failed",
             ),
+            "rapid_restarts": NotificationConfig(
+                emoji="⚠️",
+                title="SkyPilot Job Failing Repeatedly",
+                description=f"Job terminated after {self.job_config.restart_count} restarts with average runtime < 3 minutes",
+            ),
         }
 
         if termination_reason not in notifications:
