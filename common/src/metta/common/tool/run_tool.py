@@ -11,7 +11,7 @@ from typing import Any, cast
 from omegaconf import OmegaConf
 from typing_extensions import TypeVar
 
-from metta.common.config.tool import Tool
+from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.mettagrid.config import Config
 from metta.mettagrid.util.module import load_symbol
