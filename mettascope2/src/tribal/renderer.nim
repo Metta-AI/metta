@@ -217,8 +217,18 @@ proc drawObjects*() =
             scale = 1/200
           )
         of Clippy:
+          let clippy = thing
+          var clippyImage = case clippy.orientation:
+            of N: "agents/clippy.color.n"
+            of S: "agents/clippy.color.s"
+            of E: "agents/clippy.color.e"
+            of W: "agents/clippy.color.w"
+            of NW: "agents/clippy.color.w"  # Use west sprite for NW
+            of NE: "agents/clippy.color.e"  # Use east sprite for NE
+            of SW: "agents/clippy.color.w"  # Use west sprite for SW
+            of SE: "agents/clippy.color.e"  # Use east sprite for SE
           bxy.drawImage(
-            "objects/clippy",
+            clippyImage,
             ivec2(x, y).vec2,
             angle = 0,
             scale = 1/200

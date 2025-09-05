@@ -307,7 +307,7 @@ proc updateObservations*(env: Environment, agentId: int) =
       of Clippy:
         # Clippy acts similar to agent for observations
         obs[0][x][y] = 1
-        obs[1][x][y] = 0  # Clippy orientation
+        obs[1][x][y] = thing.orientation.uint8  # Clippy orientation
         obs[2][x][y] = 0  # Clippys don't carry ore
         obs[3][x][y] = 0  # Clippys don't carry batteries
         obs[4][x][y] = 0  # No water
@@ -1228,6 +1228,17 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     # Get movement direction from clippy AI
     let moveDir = getClippyMoveDirection(clippy.pos, thingPtrs, r)
     let newPos = clippy.pos + moveDir
+    
+    # Update clippy orientation based on movement direction
+    if moveDir.x > 0:
+      clippy.orientation = E
+    elif moveDir.x < 0:
+      clippy.orientation = W
+    elif moveDir.y > 0:
+      clippy.orientation = S
+    elif moveDir.y < 0:
+      clippy.orientation = N
+    # Keep current orientation if not moving
     
     # Check if new position is valid and empty
     if env.isEmpty(newPos):
