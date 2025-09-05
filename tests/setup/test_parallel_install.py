@@ -8,6 +8,7 @@ These tests verify:
 - Proper ordering of component installation
 - Missing dependency auto-inclusion
 - Thread-safe parallel execution
+- Performance improvements through concurrent installation
 - Complex dependency chains and structures
 - Circular dependency detection
 - Actual concurrent execution timing
