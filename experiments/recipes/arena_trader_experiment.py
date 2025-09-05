@@ -217,13 +217,14 @@ def train(
     # Default is 524288, but with 8 nodes we need ~2M
     if batch_size is None:
         import os
+
         world_size = int(os.environ.get("WORLD_SIZE", 1))
         if world_size > 4:
             # Scale batch size for large distributed runs
             batch_size = 2097152  # 2M for 8+ nodes
         else:
             batch_size = 524288  # Default
-    
+
     trainer_cfg = TrainerConfig(
         total_timesteps=total_timesteps,
         batch_size=batch_size,
