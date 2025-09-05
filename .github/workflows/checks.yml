@@ -238,9 +238,6 @@ jobs:
             unit-tests-testmon-v3-${{ runner.os }}-
             unit-tests-testmon-v2-${{ runner.os }}-
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-environment
-
       - name: Cache PufferLib clone
         uses: actions/cache@v4
         id: cache-pufferlib
