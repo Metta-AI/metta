@@ -97,13 +97,13 @@ protected:
     for (const auto& [item, amount] : _input_resources) {
       InventoryDelta delta = actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
       assert(delta == -amount);
-      actor->stats.add(actor->stats.inventory_item_name(item) + ".traded_away", static_cast<float>(amount));
+      actor->stats.add(actor->stats.resource_name(item) + ".traded_away", static_cast<float>(amount));
     }
 
     // Add output resources to actor
     for (const auto& [item, amount] : _output_resources) {
       InventoryDelta added = actor->update_inventory(item, static_cast<InventoryDelta>(amount));
-      actor->stats.add(actor->stats.inventory_item_name(item) + ".received", static_cast<float>(added));
+      actor->stats.add(actor->stats.resource_name(item) + ".received", static_cast<float>(added));
 
       // Remove from target (unless it's an infinite trader)
       if (!_trader_only) {
