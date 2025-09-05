@@ -274,7 +274,8 @@ class CheckpointManager:
 
         # Save as .safetensors/.stats (safetensors methodology) using PolicyArtifact
         savetensors_base_path = f"{self.run_name}__e{epoch}"
-        PolicyArtifact.from_weights(agent.state_dict(), statistics, agent.env_config, write_to=savetensors_base_path)
+        PolicyArtifact.save_safetensors(agent.state_dict(), statistics, agent.env_config,
+            write_to=savetensors_base_path)
         checkpoint_path = Path(savetensors_base_path)
 
         # Upload to wandb if run is provided
