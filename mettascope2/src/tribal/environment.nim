@@ -1,8 +1,5 @@
 import std/[strformat, random, strutils, tables, times], vmath, jsony, chroma
 import terrain, objects, enemies, colors, rewards
-from village import nil  # Keep for backward compatibility
-from defense import nil
-from food import nil
 export terrain, objects, colors, rewards
 
 const
