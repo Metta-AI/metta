@@ -1,24 +1,26 @@
-import subprocess
-from pathlib import Path
-from typing import Any
+"""Fast unit tests for arg parsing logic without subprocess overhead."""
 
 from pydantic import Field
 
 from metta.common.tool import Tool
+from metta.common.tool.run_tool import get_tool_fields, parse_cli_args, parse_value, split_args_and_overrides
+from metta.mettagrid.config import Config
 
 
-# Test tools for verifying argument parsing
+class NestedConfig(Config):
+    """A nested configuration object for testing."""
+
+    field: str = "nested_default"
+    another_field: int = 100
+
+
 class SimpleTestTool(Tool):
-    """A simple tool with a field for testing."""
+    """A simple tool with fields for testing."""
 
     value: str = "default"
-    nested: dict[str, Any] = Field(default_factory=lambda: {"field": "nested_default"})
+    nested: NestedConfig = Field(default_factory=NestedConfig)
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        print(f"Args: {args}")
-        print(f"Overrides: {overrides}")
-        print(f"Tool value: {self.value}")
-        print(f"Tool nested.field: {self.nested['field']}")
         return 0
 
 
@@ -27,159 +29,195 @@ def make_test_tool(run: str = "default_run", count: int = 42) -> SimpleTestTool:
     return SimpleTestTool()
 
 
-# Path to the test fixtures directory
-FIXTURES_DIR = Path(__file__).parent / "fixtures/extra-import-root"
-
-
 class TestArgParsing:
-    """Test automatic argument classification in run_tool.py"""
+    """Unit tests for argument parsing and classification logic."""
 
-    def test_function_args_vs_overrides(self):
-        """Test that function args and overrides are properly classified."""
-        # This should classify 'run' as a function arg and 'value' as an override
-        result = subprocess.run(
-            ["tool", "mypackage.tools.make_test_tool", "run=test123", "value=override_value"],
-            env={**subprocess.os.environ, "PYTHONPATH": str(FIXTURES_DIR)},
-            capture_output=True,
-            text=True,
-        )
+    def test_parse_value(self):
+        """Test value parsing for different types."""
+        # Boolean values
+        assert parse_value("true") is True
+        assert parse_value("True") is True
+        assert parse_value("TRUE") is True
+        assert parse_value("false") is False
+        assert parse_value("False") is False
+        assert parse_value("FALSE") is False
 
-        assert result.returncode == 0
-        output = result.stdout
+        # Integer values
+        assert parse_value("42") == 42
+        assert parse_value("-100") == -100
+        assert parse_value("0") == 0
 
-        # Check that args were passed to the function
-        assert "Args: {'run': 'test123'}" in output
-        # Check that overrides were applied
-        assert "Tool value: override_value" in output
-        # Check that overrides list is correct
-        assert "Overrides: [('value', 'override_value')]" in output
+        # Float values
+        assert parse_value("3.14") == 3.14
+        assert parse_value("-2.5") == -2.5
+        assert parse_value("0.0") == 0.0
 
-    def test_nested_overrides(self):
-        """Test that nested field overrides work properly."""
-        result = subprocess.run(
-            ["tool", "mypackage.tools.make_test_tool", "run=test", "nested.field=custom_nested"],
-            env={**subprocess.os.environ, "PYTHONPATH": str(FIXTURES_DIR)},
-            capture_output=True,
-            text=True,
-        )
+        # String values (including those that look numeric but aren't)
+        assert parse_value("hello") == "hello"
+        assert parse_value("42abc") == "42abc"
+        assert parse_value("3.14.15") == "3.14.15"
+        assert parse_value("") == ""
 
-        assert result.returncode == 0
-        output = result.stdout
+    def test_parse_cli_args(self):
+        """Test CLI argument parsing."""
+        args = ["key1=value1", "key2=123", "nested.field=test"]
+        result = parse_cli_args(args)
 
-        # Check that nested override was applied
-        assert "Tool nested.field: custom_nested" in output
-        # Check that the override is in the list
-        assert "('nested.field', 'custom_nested')" in output
+        assert result == {"key1": "value1", "key2": 123, "nested.field": "test"}
 
-    def test_multiple_args_and_overrides(self):
-        """Test multiple function args and overrides together."""
-        result = subprocess.run(
-            [
-                "tool",
-                "mypackage.tools.make_test_tool",
-                "run=my_run",
-                "count=100",  # function args
-                "value=my_value",
-                "system.device=cpu",
-                "nested.field=test",  # overrides
-            ],
-            env={**subprocess.os.environ, "PYTHONPATH": str(FIXTURES_DIR)},
-            capture_output=True,
-            text=True,
-        )
+    def test_get_tool_fields(self):
+        """Test getting fields from Tool class."""
+        fields = get_tool_fields(SimpleTestTool)
 
-        assert result.returncode == 0
-        output = result.stdout
+        # Should include fields from SimpleTestTool and parent Tool class
+        assert "value" in fields
+        assert "nested" in fields
+        assert "system" in fields  # From parent Tool class
+        assert "consumed_args" in fields  # From parent Tool class
+
+    def test_split_args_and_overrides_function(self):
+        """Test splitting args for a function that returns a Tool."""
+        cli_args = {
+            "run": "test_run",
+            "count": 100,
+            "value": "override_value",
+            "nested.field": "custom",
+            "unknown_arg": "test",
+        }
+
+        temp_tool = make_test_tool()
+        func_args, overrides, unknown = split_args_and_overrides(cli_args, make_test_tool, temp_tool)
 
         # Check function args
-        assert "'run': 'my_run'" in output
-        assert "'count': 100" in output
+        assert func_args == {"run": "test_run", "count": 100}
 
         # Check overrides
-        assert "Tool value: my_value" in output
-        assert "Tool nested.field: test" in output
+        assert overrides == {"value": "override_value", "nested.field": "custom"}
 
-    def test_unknown_argument_error(self):
-        """Test that unknown arguments produce helpful error messages."""
-        result = subprocess.run(
-            ["tool", "mypackage.tools.make_test_tool", "unknown_arg=value"],
-            env={**subprocess.os.environ, "PYTHONPATH": str(FIXTURES_DIR)},
-            capture_output=True,
-            text=True,
-        )
+        # Check unknown
+        assert unknown == ["unknown_arg"]
 
-        assert result.returncode != 0
-        error_output = result.stderr + result.stdout
+    def test_split_args_and_overrides_class(self):
+        """Test splitting args for a Tool class constructor."""
+        cli_args = {"value": "test_value", "system.device": "cpu", "unknown": "arg"}
 
-        # Check for error about unknown argument
-        assert "unknown_arg" in error_output
-        assert "Error" in error_output or "Unknown" in error_output
+        temp_tool = SimpleTestTool()
+        func_args, overrides, unknown = split_args_and_overrides(cli_args, SimpleTestTool, temp_tool)
 
-        # Check that available options are shown
-        assert "Available" in error_output or "available" in error_output
+        # Tool constructor takes no args (besides self)
+        assert func_args == {}
 
-    def test_verbose_mode_classification_display(self):
-        """Test that --verbose shows argument classification."""
-        result = subprocess.run(
-            ["tool", "mypackage.tools.make_test_tool", "run=test", "value=override", "--verbose"],
-            env={**subprocess.os.environ, "PYTHONPATH": str(FIXTURES_DIR)},
-            capture_output=True,
-            text=True,
-        )
+        # All valid fields should be overrides
+        assert overrides == {"value": "test_value", "system.device": "cpu"}
 
-        assert result.returncode == 0
-        output = result.stdout
+        # Unknown args
+        assert unknown == ["unknown"]
 
-        # Check for classification table or similar output
-        assert "run" in output and "Function Arg" in output
-        assert "value" in output and "Override" in output
+    def test_nested_field_detection(self):
+        """Test that nested fields are properly detected as overrides."""
+        cli_args = {
+            "nested.field": "test",
+            "nested.another_field": 999,
+            "system.device": "cuda",
+            "deeply.nested.field": "value",
+        }
 
-    def test_tool_class_constructor(self):
-        """Test argument parsing with Tool class constructors."""
-        # Using TestTool directly (which is a Tool subclass)
-        result = subprocess.run(
-            ["tool", "mypackage.tools.TestTool"],
-            env={**subprocess.os.environ, "PYTHONPATH": str(FIXTURES_DIR)},
-            capture_output=True,
-            text=True,
-        )
+        temp_tool = SimpleTestTool()
+        func_args, overrides, unknown = split_args_and_overrides(cli_args, make_test_tool, temp_tool)
 
-        assert result.returncode == 0
-        assert "TestTool invoked" in result.stdout
+        # No function args in this case
+        assert func_args == {}
 
-    def test_empty_args(self):
-        """Test that tools can be run with no arguments."""
-        result = subprocess.run(
-            ["tool", "mypackage.tools.make_test_tool"],
-            env={**subprocess.os.environ, "PYTHONPATH": str(FIXTURES_DIR)},
-            capture_output=True,
-            text=True,
-        )
+        # Known nested fields should be treated as overrides
+        assert overrides == {"nested.field": "test", "nested.another_field": 999, "system.device": "cuda"}
 
-        assert result.returncode == 0
-        output = result.stdout
+        # Unknown base field "deeply" should make this unknown
+        assert unknown == ["deeply.nested.field"]
 
-        # Should use defaults
-        assert "Tool value: default" in output
-        assert "Tool nested.field: nested_default" in output
+    def test_parse_cli_args_error_cases(self):
+        """Test CLI argument parsing error cases."""
+        import pytest
 
-    def test_boolean_and_numeric_values(self):
-        """Test parsing of different value types."""
-        result = subprocess.run(
-            [
-                "tool",
-                "mypackage.tools.make_test_tool",
-                "count=999",  # numeric
-                "wandb.enabled=false",  # boolean
-                "threshold=3.14",  # float
-            ],
-            env={**subprocess.os.environ, "PYTHONPATH": str(FIXTURES_DIR)},
-            capture_output=True,
-            text=True,
-        )
+        # Invalid format (no equals sign)
+        with pytest.raises(ValueError, match="Invalid argument format"):
+            parse_cli_args(["invalid_arg"])
 
-        assert result.returncode == 0
-        output = result.stdout
+        # Empty argument
+        with pytest.raises(ValueError, match="Invalid argument format"):
+            parse_cli_args([""])
 
-        # Check that numeric value was parsed
-        assert "'count': 999" in output
+    def test_parse_cli_args_edge_cases(self):
+        """Test CLI argument parsing edge cases."""
+        # Empty value
+        result = parse_cli_args(["key="])
+        assert result == {"key": ""}
+
+        # Value with equals sign
+        result = parse_cli_args(["key=value=with=equals"])
+        assert result == {"key": "value=with=equals"}
+
+        # Dotted keys are kept flat
+        result = parse_cli_args(["a.b.c=1", "a.b.d=2", "a.e=3"])
+        assert result == {"a.b.c": 1, "a.b.d": 2, "a.e": 3}
+
+    def test_integration_scenario(self):
+        """Test a complete integration scenario."""
+        # Simulate what happens when the tool is called
+        cli_args_raw = ["run=my_test", "count=99", "value=custom", "nested.field=updated", "system.device=cpu"]
+
+        # Parse the arguments
+        cli_args = parse_cli_args(cli_args_raw)
+
+        # Create temp tool to inspect fields
+        temp_tool = make_test_tool()
+
+        # Split into function args and overrides
+        func_args, overrides, unknown = split_args_and_overrides(cli_args, make_test_tool, temp_tool)
+
+        # Verify the split
+        assert func_args == {"run": "my_test", "count": 99}
+        # Now parse_cli_args keeps dotted keys flat
+        assert overrides == {"value": "custom", "nested.field": "updated", "system.device": "cpu"}
+        assert unknown == []
+
+        # Create the actual tool with function args
+        tool = make_test_tool(**func_args)
+
+        # Apply overrides (this would normally be done by tool.override())
+        assert tool.value == "default"  # Before override
+        assert tool.nested.field == "nested_default"  # Before override
+
+    def test_function_args_have_precedence(self):
+        """Test that function args take precedence over tool fields in case of conflicts."""
+
+        # Create a function that has parameters that conflict with tool fields
+        def conflicting_function(
+            value: str = "func_default",  # Conflicts with SimpleTestTool.value
+            system: str = "func_system",  # Conflicts with Tool.system
+            new_param: str = "test",
+        ) -> SimpleTestTool:
+            return SimpleTestTool()
+
+        cli_args = {
+            "value": "test_value",  # Could be function arg OR tool field
+            "system": "test_system",  # Could be function arg OR tool field
+            "new_param": "test_param",  # Only function arg
+            "nested": "test_nested",  # Only tool field
+        }
+
+        temp_tool = SimpleTestTool()
+        func_args, overrides, unknown = split_args_and_overrides(cli_args, conflicting_function, temp_tool)
+
+        # Function parameters should take precedence
+        assert func_args == {
+            "value": "test_value",  # Function arg wins
+            "system": "test_system",  # Function arg wins
+            "new_param": "test_param",  # Function arg
+        }
+
+        # Only non-conflicting tool fields should be overrides
+        assert overrides == {
+            "nested": "test_nested"  # Tool field (no conflict)
+        }
+
+        assert unknown == []

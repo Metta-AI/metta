@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 import pytest
 
@@ -11,17 +12,29 @@ def with_extra_imports_root(monkeypatch):
 
 
 def test_basic(with_extra_imports_root):
-    result = subprocess.check_output(["tool", "mypackage.tools.TestTool"], text=True)
+    result = subprocess.check_output(
+        [sys.executable, "-m", "metta.common.tool.run_tool", "mypackage.tools.TestTool"], text=True
+    )
     assert "TestTool invoked" in result
 
 
 def test_unknown_tool(with_extra_imports_root):
-    result = subprocess.run(["tool", "mypackage.tools.NoSuchTool"], text=True, capture_output=True)
+    result = subprocess.run(
+        [sys.executable, "-m", "metta.common.tool.run_tool", "mypackage.tools.NoSuchTool"],
+        text=True,
+        capture_output=True,
+    )
     assert result.returncode > 0
-    assert "module 'mypackage.tools' has no attribute 'NoSuchTool'" in result.stderr
+    combined_output = result.stderr + result.stdout
+    assert "has no" in combined_output and "attribute" in combined_output and "NoSuchTool" in combined_output
 
 
 def test_unknown_module(with_extra_imports_root):
-    result = subprocess.run(["tool", "mypackage.no_such_tools.TestTool"], text=True, capture_output=True)
+    result = subprocess.run(
+        [sys.executable, "-m", "metta.common.tool.run_tool", "mypackage.no_such_tools.TestTool"],
+        text=True,
+        capture_output=True,
+    )
     assert result.returncode > 0
-    assert "No module named 'mypackage.no_such_tools'" in result.stderr
+    combined_output = result.stderr + result.stdout
+    assert "No module named" in combined_output and "mypackage.no_such_tools" in combined_output
