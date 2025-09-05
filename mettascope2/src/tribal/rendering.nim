@@ -3,7 +3,7 @@ import tribal_game
 ## Handles ASCII rendering of the game state
 
 import std/strformat
-import environment_core, 
+import environment_core 
 
 proc render*(env: Environment): string =
   ## Render the environment as an ASCII string

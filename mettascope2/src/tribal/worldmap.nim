@@ -3,13 +3,13 @@ import
   boxy, vmath, windy, chroma, pixie,
   tribal_game
 from terrain import TerrainType, Water, Wheat, Tree
+from map_generation import agentVillageColors, altarColors
 
-# Import necessary globals from tribalgrid
+# Module-level variables that get set by the main draw procedure
 var
-  window*: Window
-  bxy*: Boxy
-  env*: Environment
-  selection*: Thing
+  bxy: Boxy
+  env: Environment
+  selection: Thing
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent based on their village
@@ -41,7 +41,7 @@ proc generateVillageColor*(villageId: int): Color =
   # Convert HSL to RGB (simplified conversion)
   return color(hue, saturation, lightness, 1.0)
 
-proc useSelections*() =
+proc useSelections*(window: Window, bxy: Boxy, env: Environment, selection: var Thing) =
   ## Reads the mouse position and selects the thing under it.
   if window.buttonPressed[MouseLeft]:
     selection = nil

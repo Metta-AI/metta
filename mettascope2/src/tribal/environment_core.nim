@@ -2,7 +2,7 @@ import tribal_game
 ## Core environment types and utilities
 ## This module contains the fundamental types and basic utilities used throughout the system
 
-import vmath, 
+import vmath, terrain
 export terrain
 
 # Map configuration constants

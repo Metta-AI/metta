@@ -1,5 +1,5 @@
-import ../src/tribal/controller as ctrl_module
-import ../src/tribal/tribal_game
+import ../src/tribal/controller as ctrl
+import ../src/tribal/tribal_game as tribal
 import std/[random, tables]
 import vmath
 
@@ -8,7 +8,7 @@ echo "=================================="
 
 # Create environment and controller
 var env = newEnvironment()
-var controller = ctrl_module.newController(seed = 42)
+var controller = ctrl.newController(seed = 42)
 var r = initRand(42)
 
 # The environment is automatically initialized by newEnvironment()
@@ -18,12 +18,12 @@ var r = initRand(42)
 env.things.setLen(0)  # Clear all things
 
 # Add an agent at center
-let agent = Thing(
-  kind: Agent,
+let agent = tribal.Thing(
+  kind: tribal.Agent,
   id: 0,
   pos: ivec2(50, 25),  # Center of 100x50 map
   homeAltar: ivec2(50, 25),
-  orientation: N,
+  orientation: tribal.N,
   inventoryOre: 0,
   inventoryBattery: 0
 )
@@ -31,23 +31,23 @@ env.add(agent)
 env.agents[0] = agent
 
 # Add a mine very far away (near edge of map)
-env.add(Thing(
-  kind: Mine,
+env.add(tribal.Thing(
+  kind: tribal.Mine,
   pos: ivec2(90, 40),  # Far corner
   resources: 10,
   cooldown: 0
 ))
 
 # Add an altar for battery deposit
-env.add(Thing(
-  kind: Altar,
+env.add(tribal.Thing(
+  kind: tribal.Altar,
   pos: ivec2(50, 25),
   hearts: 5
 ))
 
 # Add a converter halfway
-env.add(Thing(
-  kind: Converter,
+env.add(tribal.Thing(
+  kind: tribal.Converter,
   pos: ivec2(70, 35),
   cooldown: 0
 ))
@@ -80,16 +80,16 @@ while stepCount < maxSteps and not usedMine:
   of 0:  # Noop
     discard
   of 1:  # Move
-    let orient = Orientation(action[1])
+    let orient = tribal.Orientation(action[1])
     let delta = case orient:
-      of N: ivec2(0, -1)
-      of S: ivec2(0, 1)
-      of W: ivec2(-1, 0)
-      of E: ivec2(1, 0)
-      of NW: ivec2(-1, -1)
-      of NE: ivec2(1, -1)
-      of SW: ivec2(-1, 1)
-      of SE: ivec2(1, 1)
+      of tribal.N: ivec2(0, -1)
+      of tribal.S: ivec2(0, 1)
+      of tribal.W: ivec2(-1, 0)
+      of tribal.E: ivec2(1, 0)
+      of tribal.NW: ivec2(-1, -1)
+      of tribal.NE: ivec2(1, -1)
+      of tribal.SW: ivec2(-1, 1)
+      of tribal.SE: ivec2(1, 1)
     
     let newPos = env.agents[0].pos + delta
     if env.isEmpty(newPos):
@@ -113,7 +113,7 @@ while stepCount < maxSteps and not usedMine:
          ", Spiral arcs: ", state.spiralArcsCompleted
   
   # Check if agent found the mine
-  if not foundMine and state.targetType == Mine:
+  if not foundMine and state.targetType == ctrl.TargetType.Mine:
     foundMine = true
     echo "  Step ", stepCount, ": Agent found mine! Target set to ", state.currentTarget
 

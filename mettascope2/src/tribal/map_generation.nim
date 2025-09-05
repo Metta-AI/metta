@@ -3,7 +3,7 @@ import tribal_game
 ## Handles world setup, building placement, and entity spawning
 
 import std/[random, tables], vmath, chroma
-import environment_core, , , , , observations
+import environment_core
 
 # Global village color management
 var agentVillageColors*: seq[Color] = @[]

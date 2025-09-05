@@ -238,13 +238,13 @@ proc main() =
     beginPanAndZoom()
     
     # Handle mouse selection
-    worldmap.useSelections()
+    useSelections(window, bxy, env, selection)
     
-    worldmap.draw(bxy, env, selection)
+    draw(bxy, env, selection)
     
     # Draw grid overlay if enabled
     if settings.showGrid:
-      worldmap.drawGrid()
+      drawGrid()
     
     endPanAndZoom()
     

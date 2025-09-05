@@ -1,5 +1,5 @@
 import std/[strformat, random]
-import ../src/tribal/tribal_game
+import ../src/tribal/tribal_game as tribal
 import vmath
 
 echo "\n=== Hunger and Bread System Test ==="

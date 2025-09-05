@@ -4,7 +4,7 @@ import tribal_game
 
 import std/[math, random]
 import vmath
-import environment_core, observations, statistics, rewards, 
+import environment_core 
 
 # Action implementations
 proc noopAction*(env: Environment, id: int, agent: Thing) =
