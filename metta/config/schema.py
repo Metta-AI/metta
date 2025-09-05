@@ -169,12 +169,23 @@ class MettaConfig:
             with open(path, "r") as f:
                 data = yaml.safe_load(f) or {}
 
+            profiles = {}
+            if "profiles" in data:
+                for profile_name, profile_data in data["profiles"].items():
+                    profiles[profile_name] = ProfileConfig(
+                        wandb=WandbConfig(**profile_data.get("wandb", {})),
+                        observatory=ObservatoryConfig(**profile_data.get("observatory", {})),
+                        storage=StorageConfig(**profile_data.get("storage", {})),
+                        datadog=DatadogConfig(**profile_data.get("datadog", {})),
+                    )
+
             return cls(
                 wandb=WandbConfig(**data.get("wandb", {})),
                 observatory=ObservatoryConfig(**data.get("observatory", {})),
                 storage=StorageConfig(**data.get("storage", {})),
                 datadog=DatadogConfig(**data.get("datadog", {})),
                 profile=data.get("profile", "external"),
+                profiles=profiles,
             )
 
         # Use project root config.yaml only
@@ -289,7 +300,7 @@ class MettaConfig:
 _config: MettaConfig | None = None
 
 
-def get_config(profile_override: str | None = None) -> MettaConfig:
+def get_config() -> MettaConfig:
     """Get the global configuration instance."""
     import threading
 
