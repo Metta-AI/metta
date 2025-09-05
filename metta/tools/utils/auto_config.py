@@ -30,26 +30,11 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
     config_path = _get_config_path()
     if config_path.exists():
         # Use new unified config system with active profile
-        from metta.config.schema import get_config
-
-        config = get_config()
-        profile_config = config.get_active_profile()
-
-        # Build config dict using active profile, with environment variable fallback
-        config_dict = {
-            "enabled": profile_config.wandb.enabled,
-            "entity": profile_config.wandb.entity or os.environ.get("WANDB_ENTITY", ""),
-            "project": profile_config.wandb.project or os.environ.get("WANDB_PROJECT", ""),
-        }
-
-        # Config file takes precedence - environment variables only used as fallback
-    else:
-        # Fall back to old system for backward compatibility
         from pydantic import Field
         from pydantic_settings import BaseSettings, SettingsConfigDict
 
         from metta.common.util.collections import remove_none_values
-        from metta.setup.components.wandb import WandbSetup
+        from metta.config.schema import get_config
 
         class SupportedWandbEnvOverrides(BaseSettings):
             model_config = SettingsConfigDict(extra="ignore")
@@ -66,6 +51,42 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
                     }
                 )
 
+        config = get_config()
+        profile_config = config.get_active_profile()
+        saved_settings = get_saved_settings()
+
+        # Start with profile config from config file
+        config_dict = {
+            "enabled": profile_config.wandb.enabled,
+            "entity": profile_config.wandb.entity,
+            "project": profile_config.wandb.project,
+        }
+
+        # Apply cloud user config if available (for backward compatibility)
+        if saved_settings.user_type == UserType.CLOUD:
+            cloud_config = saved_settings.get_cloud_config()
+            if cloud_config:
+                if "wandb_entity" in cloud_config:
+                    config_dict["entity"] = cloud_config["wandb_entity"]
+                if "wandb_project" in cloud_config:
+                    config_dict["project"] = cloud_config["wandb_project"]
+
+        # Apply environment variable fallbacks (only if config values are None/empty)
+        supported_tool_override = SupportedWandbEnvOverrides()
+        env_overrides = supported_tool_override.to_config_settings()
+        for key, value in env_overrides.items():
+            if not config_dict.get(key):  # Only use env var if config value is None/empty
+                config_dict[key] = value
+
+        # Use empty string defaults for None values to match old behavior
+        if config_dict["entity"] is None:
+            config_dict["entity"] = ""
+        if config_dict["project"] is None:
+            config_dict["project"] = ""
+    else:
+        # Fall back to old system for backward compatibility
+        from metta.setup.components.wandb import WandbSetup
+
         wandb_setup_module = WandbSetup()
         saved_settings = get_saved_settings()
 
@@ -80,6 +101,31 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
                     config_dict["entity"] = cloud_config["wandb_entity"]
                 if "wandb_project" in cloud_config:
                     config_dict["project"] = cloud_config["wandb_project"]
+
+        # Apply environment variable overrides (for backward compatibility)
+        from pydantic import Field
+        from pydantic_settings import BaseSettings, SettingsConfigDict
+
+        from metta.common.util.collections import remove_none_values
+
+        class SupportedWandbEnvOverrides(BaseSettings):
+            model_config = SettingsConfigDict(extra="ignore")
+            WANDB_ENABLED: bool | None = Field(default=None)
+            WANDB_PROJECT: str | None = Field(default=None)
+            WANDB_ENTITY: str | None = Field(default=None)
+
+            def to_config_settings(self) -> dict[str, str | bool]:
+                return remove_none_values(
+                    {
+                        "enabled": self.WANDB_ENABLED,
+                        "project": self.WANDB_PROJECT,
+                        "entity": self.WANDB_ENTITY,
+                    }
+                )
+
+        supported_tool_override = SupportedWandbEnvOverrides()
+        env_overrides = supported_tool_override.to_config_settings()
+        config_dict.update(env_overrides)
 
     cfg = WandbConfig(**config_dict)
 
