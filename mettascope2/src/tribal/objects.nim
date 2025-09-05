@@ -64,7 +64,7 @@ const
   
   # Armory properties
   ArmoryCooldown* = 20
-  ArmoryOreCost* = 2
+  ArmoryOreCost* = 1
   ArmorySize* = 4
   
   # Defense item properties
