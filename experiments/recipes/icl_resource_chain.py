@@ -264,9 +264,6 @@ class ConverterChainTaskGenerator(TaskGenerator):
         worst_first_heart_steps = wrong_converter_cost + sink_cost + correct_choice_cost
         least_efficient = hearts_after(worst_first_heart_steps)
 
-        print("most efficient", most_efficient)
-        print("least efficient", least_efficient)
-
         return int(most_efficient), int(least_efficient)
 
 
