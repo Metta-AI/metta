@@ -8,7 +8,12 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.mettagrid.util.file import WandbURI, local_copy
-from metta.rl.policy_artifact import PolicyArtifact
+from metta.rl.policy_artifact import (
+    from_path,
+    get_statistics_from_path,
+    save_safetensors,
+    write_agent_to_file,
+)
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.wandb import (
     expand_wandb_uri,
@@ -166,15 +171,15 @@ class CheckpointManager:
                 checkpoint_file = _find_latest_checkpoint_in_dir(path)
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
-                return PolicyArtifact.from_path(checkpoint_file)
+                return from_path(checkpoint_file)
             # Load specific file
-            return PolicyArtifact.from_path(path)
+            return from_path(path)
             # ?? here change to safetensors
 
         # ?? map_location=device
         if uri.startswith("s3://"):
             with local_copy(uri) as local_path:
-                return PolicyArtifact.from_path(local_path)
+                return from_path(local_path)
 
         if uri.startswith("wandb://"):
             return load_policy_from_wandb_uri(uri, device=device)
@@ -204,7 +209,7 @@ class CheckpointManager:
         if normalized_uri.startswith("file://"):
             path = Path(_parse_uri_path(normalized_uri, "file"))
             if path.is_file() and is_valid_checkpoint_filename(path.name):
-                statistics = PolicyArtifact.get_statistics_from_path(path.name)
+                statistics = get_statistics_from_path(path.name)
                 stats["agent_step"] = statistics.get("agent_step", 0)
                 stats["total_time"] = statistics.get("total_time", 0)
                 stats["score"] = statistics.get("score", 0)
@@ -270,11 +275,11 @@ class CheckpointManager:
         # Save as .pt file (agent methodology) using PolicyArtifact. ?? remove this code
         # ?? what do we do about wandb?
         pt_base_path = f"{self.run_name}__e{epoch}__s{agent_step}__t{total_time}__sc{score}"
-        PolicyArtifact.write_agent_to_file(agent, write_to=pt_base_path)
+        write_agent_to_file(agent, write_to=pt_base_path)
 
         # Save as .safetensors/.stats (safetensors methodology) using PolicyArtifact
         savetensors_base_path = f"{self.run_name}__e{epoch}"
-        PolicyArtifact.save_safetensors(agent.state_dict(), statistics, agent.env_config,
+        save_safetensors(agent.state_dict(), statistics, agent.env_config,
             write_to=savetensors_base_path)
         checkpoint_path = Path(savetensors_base_path)
 
