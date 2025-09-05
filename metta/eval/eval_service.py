@@ -40,6 +40,12 @@ def evaluate_policy(
     # Load the policy from URI directly to the correct device
     policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
 
+    # Reset LSTM memory to avoid dimension mismatches from training
+    # This is crucial when policies trained with NPCFilterWrapper are evaluated
+    # in environments with different agent configurations
+    if hasattr(policy, "reset_memory"):
+        policy.reset_memory()
+
     sims = [
         Simulation(
             name=sim.name,
