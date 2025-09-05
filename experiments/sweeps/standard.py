@@ -69,11 +69,10 @@ def ppo(
                 mean=1e-6,  # Geometric mean
                 scale="auto",
             ),
-
         },
         settings=ProteinSettings(
             num_random_samples=20,  # Start with 20 random samples for better exploration in large sweeps
-            max_suggestion_cost=7200*1.5,  # 3 hours max per trial (for quick testing)
+            max_suggestion_cost=7200 * 1.5,  # 3 hours max per trial (for quick testing)
         ),
     )
 
