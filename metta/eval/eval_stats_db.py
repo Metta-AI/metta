@@ -1,229 +1,226 @@
-"""
-EvalStatsDb adds views on top of SimulationStatsDb
-to make it easier to query policy performance across simulations,
-while handling the fact that some metrics are only logged when non‑zero.
-
-Normalisation rule
-------------------
-For every query we:
-1.  Count the **potential** agent‑episode samples for the policy / filter.
-2.  Aggregate the recorded metric values (missing = 0).
-3.  Divide by the potential count.
-
-This yields a true mean even when zeros are omitted from logging.
-"""
+"""Statistics database for evaluation metrics in simulations."""
 
 from __future__ import annotations
 
+import json
+import logging
 import math
-from contextlib import contextmanager
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
+import duckdb
 import pandas as pd
+from pydantic import BaseModel, validate_call
 
-from metta.agent.policy_record import PolicyRecord
-from metta.mettagrid.util.file import local_copy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
-# --------------------------------------------------------------------------- #
-#   Views                                                                     #
-# --------------------------------------------------------------------------- #
-EVAL_DB_VIEWS: Dict[str, str] = {
-    # All agent‑episode samples for every policy/simulation (regardless of metrics)
-    "policy_simulation_agent_samples": """
-    CREATE VIEW IF NOT EXISTS policy_simulation_agent_samples AS
-      SELECT
-          ap.policy_key,
-          ap.policy_version,
-          s.name   AS sim_name,
-          s.env    AS sim_env,
-          ap.episode_id,
-          ap.agent_id
-        FROM agent_policies ap
-        JOIN episodes   e ON e.id = ap.episode_id
-        JOIN simulations s ON s.id = e.simulation_id
-    """,
-    # Recorded per‑agent metrics (a subset of the above when metric ≠ 0)
-    "policy_simulation_agent_metrics": """
-    CREATE VIEW IF NOT EXISTS policy_simulation_agent_metrics AS
-      SELECT
-          ap.policy_key,
-          ap.policy_version,
-          s.name   AS sim_name,
-          s.env    AS sim_env,
-          am.metric,
-          am.value
-        FROM agent_metrics am
-        JOIN agent_policies ap
-              ON ap.episode_id = am.episode_id
-             AND ap.agent_id   = am.agent_id
-        JOIN episodes   e ON e.id = am.episode_id
-        JOIN simulations s ON s.id = e.simulation_id
-    """,
-}
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PolicyRecord:
+    """Record containing policy metadata for evaluation."""
+    run_name: str
+    epoch: int
+
+
+class EvalRewardSummary(BaseModel):
+    """Summary of rewards from evaluation runs."""
+
+    mean: float | None = None
+    std: float | None = None
+    max: float | None = None
+    min: float | None = None
+
+    def __str__(self) -> str:
+        """Return human-readable summary string."""
+        if self.mean is None:
+            return "No eval data available"
+        return f"Mean: {self.mean:.3f}, Std: {self.std:.3f}, Min: {self.min:.3f}, Max: {self.max:.3f}"
 
 
 class EvalStatsDB(SimulationStatsDB):
-    def __init__(self, path: Path) -> None:
-        super().__init__(path)
+    """Extends SimulationStatsDB with evaluation-specific methods."""
 
-    @classmethod
-    @contextmanager
-    def from_uri(cls, path: str):
-        """Download (if remote), open, and yield an EvalStatsDB."""
-        with local_copy(path) as local_path:
-            db = cls(local_path)
-            yield db
-
-    # Extend parent schema with the extra views
-    def tables(self) -> Dict[str, str]:
-        return {**super().tables(), **EVAL_DB_VIEWS}
-
-    def _count_agent_samples(
+    def __init__(
         self,
-        policy_key: str,
-        policy_version: int,
-        filter_condition: str | None = None,
-        exclude_npc_group_id: Optional[int] = None,
-    ) -> int:
-        """Internal helper: number of agent‑episode pairs (possible samples)."""
-        # Only count episodes that actually have metrics recorded
-        # This prevents counting "ghost" episodes that were requested but never completed
+        db_path: Optional[str] = None,
+        stats_path: Optional[str] = None,
+        delete_existing: bool = False,
+        checkpoint_manager: Optional[CheckpointManager] = None,
+    ):
+        super().__init__(db_path=db_path, stats_path=stats_path, delete_existing=delete_existing)
+        self.checkpoint_manager = checkpoint_manager or CheckpointManager()
+
+    @staticmethod
+    def key_and_version(policy_record: PolicyRecord) -> tuple[str, int]:
+        """Extract key and version from a policy record."""
+        return policy_record.run_name, policy_record.epoch
+
+    def get_table_list(self) -> pd.DataFrame:
+        """Get list of all tables in the database."""
+        return self.query("SHOW ALL TABLES")
+
+    def find_max_policy_version(self, policy_key: str) -> int:
+        """Find the maximum policy version for a given key."""
         q = f"""
-        SELECT COUNT(*) AS cnt
-          FROM policy_simulation_agent_samples ps
-         WHERE ps.policy_key     = '{policy_key}'
-           AND ps.policy_version = {policy_version}
-           -- Only count samples that have at least one metric recorded
-           AND EXISTS (
-               SELECT 1 FROM agent_metrics am
-               WHERE am.episode_id = ps.episode_id
-                 AND am.agent_id = ps.agent_id
-           )
+            SELECT COALESCE(MAX(policy_version), -1) AS max_version
+            FROM policy_simulation_agent_samples
+            WHERE policy_key = '{policy_key}'
         """
-        if filter_condition:
-            q += f" AND {filter_condition}"
+        r = self.query(q)
+        return int(r.max_version.iloc[0])
 
-        # Exclude NPC agents by group_id if specified
-        if exclude_npc_group_id is not None:
-            q += f"""
-                AND ps.agent_id NOT IN (
-                    SELECT DISTINCT ag.agent_id
-                    FROM agent_groups ag
-                    WHERE ag.group_id = {exclude_npc_group_id}
-                )
-            """
-
-        res = self.query(q)
-        return int(res["cnt"].iloc[0]) if not res.empty else 0
-
-    # Public alias (referenced by downstream code/tests)
-    def potential_samples_for_metric(
+    def fetch_simulation_rows(
         self,
-        policy_key: str,
-        policy_version: int,
-        filter_condition: str | None = None,
-        exclude_npc_group_id: Optional[int] = None,
-    ) -> int:
-        return self._count_agent_samples(policy_key, policy_version, filter_condition, exclude_npc_group_id)
-
-    def count_metric_agents(
-        self,
-        policy_key: str,
-        policy_version: int,
-        metric: str,
-        filter_condition: str | None = None,
-    ) -> int:
-        """How many samples actually recorded *metric* > 0."""
-        q = f"""
-        SELECT COUNT(*) AS cnt
-          FROM policy_simulation_agent_metrics
-         WHERE policy_key     = '{policy_key}'
-           AND policy_version = {policy_version}
-           AND metric         = '{metric}'
+        policy_key: Optional[str] = None,
+        policy_version: Optional[int] = None,
+        sim_name: Optional[str] = None,
+        sim_env: Optional[str] = None,
+    ) -> pd.DataFrame:
         """
-        if filter_condition:
-            q += f" AND {filter_condition}"
-        res = self.query(q)
-        return int(res["cnt"].iloc[0]) if not res.empty else 0
+        Fetch rows from policy_simulation_agent_samples table.
 
+        Args:
+            policy_key: Optional policy key filter
+            policy_version: Optional policy version filter
+            sim_name: Optional simulation name filter
+            sim_env: Optional simulation environment filter
+
+        Returns:
+            DataFrame with filtered results
+        """
+        conditions = ["1=1"]
+        if policy_key is not None:
+            conditions.append(f"policy_key = '{policy_key}'")
+        if policy_version is not None:
+            conditions.append(f"policy_version = {policy_version}")
+        if sim_name is not None:
+            conditions.append(f"sim_name = '{sim_name}'")
+        if sim_env is not None:
+            conditions.append(f"sim_env = '{sim_env}'")
+
+        query = f"SELECT * FROM policy_simulation_agent_samples WHERE {' AND '.join(conditions)}"
+        return self.query(query)
+
+    def get_metadata(self, policy_record: PolicyRecord) -> pd.DataFrame:
+        """Get metadata for a policy."""
+        pk, pv = self.key_and_version(policy_record)
+        query = f"""
+            SELECT DISTINCT sim_name, sim_env, sim_seed, run_id, episode, agent_id
+            FROM policy_simulation_agent_samples
+            WHERE policy_key = '{pk}' AND policy_version = {pv}
+        """
+        return self.query(query)
+
+    @validate_call(config={"arbitrary_types_allowed": True})
     def _normalized_value(
         self,
         policy_key: str,
         policy_version: int,
         metric: str,
-        agg: str,  # "SUM", "AVG", or "STD"
-        filter_condition: str | None = None,
+        agg: str,
+        filter_condition: Optional[str] = None,
         exclude_npc_group_id: Optional[int] = None,
     ) -> Optional[float]:
-        """Return SUM/AVG/STD after zero‑filling missing samples."""
-        potential = self.potential_samples_for_metric(
-            policy_key, policy_version, filter_condition, exclude_npc_group_id
-        )
-        if potential == 0:
+        """
+        Calculate normalized aggregated value for a metric.
+        
+        Args:
+            policy_key: Policy identifier
+            policy_version: Policy version/epoch
+            metric: Metric name to aggregate
+            agg: Aggregation type (AVG, SUM, STD, COUNT, MIN, MAX)
+            filter_condition: Optional SQL filter condition
+            exclude_npc_group_id: Optional group ID to exclude (for NPCs)
+        
+        Returns:
+            Aggregated metric value or None if no data
+        """
+        base_query = f"""
+            SELECT {agg}(p.{metric}) AS value
+            FROM policy_simulation_agent_samples p
+        """
+        
+        # Add join for group_id filtering if needed
+        if exclude_npc_group_id is not None:
+            base_query += """
+            LEFT JOIN agent_samples a 
+                ON p.sim_name = a.sim_name 
+                AND p.sim_env = a.sim_env 
+                AND p.sim_seed = a.sim_seed 
+                AND p.run_id = a.run_id 
+                AND p.episode = a.episode 
+                AND p.agent_id = a.agent_id
+            """
+        
+        where_clauses = [
+            f"p.policy_key = '{policy_key}'",
+            f"p.policy_version = {policy_version}",
+        ]
+        
+        if filter_condition:
+            where_clauses.append(f"({filter_condition})")
+        
+        if exclude_npc_group_id is not None:
+            where_clauses.append(f"(a.group_id IS NULL OR a.group_id != {exclude_npc_group_id})")
+        
+        query = base_query + " WHERE " + " AND ".join(where_clauses)
+        
+        try:
+            result = self.query(query)
+            if result.empty or pd.isna(result["value"].iloc[0]):
+                return None
+            return float(result["value"].iloc[0])
+        except Exception as e:
+            logger.debug(f"Query failed: {e}")
             return None
 
-        # Aggregate only over recorded rows
-        q = f"""
-        SELECT
-            SUM(value)       AS s1,
-            SUM(value*value) AS s2,
-            COUNT(*)         AS k,
-            AVG(value)       AS r_avg
-          FROM policy_simulation_agent_metrics
-         WHERE policy_key     = '{policy_key}'
-           AND policy_version = {policy_version}
-           AND metric         = '{metric}'
+    def _compute_variance(self, policy_key: str, policy_version: int, metric: str) -> Optional[float]:
+        """Compute variance for a metric."""
+        mean = self._normalized_value(policy_key, policy_version, metric, "AVG")
+        if mean is None:
+            return None
+
+        query = f"""
+            SELECT AVG(({metric} - {mean}) * ({metric} - {mean})) AS var
+            FROM policy_simulation_agent_samples
+            WHERE policy_key = '{policy_key}' AND policy_version = {policy_version}
         """
-        if filter_condition:
-            q += f" AND {filter_condition}"
+        result = self.query(query)
+        if result.empty or pd.isna(result["var"].iloc[0]):
+            return None
+        return float(result["var"].iloc[0])
 
-        # Exclude NPC agents by group_id if specified
-        # Note: We need to join back to get agent_id since policy_simulation_agent_metrics doesn't include it
-        if exclude_npc_group_id is not None:
-            q = f"""
-            SELECT
-                SUM(value)       AS s1,
-                SUM(value*value) AS s2,
-                COUNT(*)         AS k,
-                AVG(value)       AS r_avg
-              FROM agent_metrics am
-              JOIN agent_policies ap
-                    ON ap.episode_id = am.episode_id
-                   AND ap.agent_id   = am.agent_id
-              JOIN episodes   e ON e.id = am.episode_id
-              JOIN simulations s ON s.id = e.simulation_id
-             WHERE ap.policy_key     = '{policy_key}'
-               AND ap.policy_version = {policy_version}
-               AND am.metric         = '{metric}'
-               AND am.agent_id NOT IN (
-                   SELECT DISTINCT ag.agent_id
-                   FROM agent_groups ag
-                   WHERE ag.group_id = {exclude_npc_group_id}
-               )
-            """
-            if filter_condition:
-                # Need to translate filter_condition to work with the joined tables
-                # Replace sim_name and sim_env references
-                filter_translated = filter_condition.replace("sim_name", "s.name").replace("sim_env", "s.env")
-                q += f" AND ({filter_translated})"
-        r = self.query(q)
-        if r.empty:
-            return 0.0 if agg in {"SUM", "AVG"} else 0.0
+    def _aggregate_metric(
+        self,
+        metric: str,
+        policy_record: PolicyRecord,
+        agg: str,
+        filter_condition: Optional[str] = None,
+        exclude_npc_group_id: Optional[int] = None,
+    ) -> Optional[float]:
+        """
+        Generic method to aggregate metrics.
 
-        # DuckDB returns NULL→NaN when no rows match; coalesce to 0
-        s1_val, s2_val, _ = r.iloc[0][["s1", "s2", "k"]]
-        s1 = 0.0 if pd.isna(s1_val) else float(s1_val)
-        s2 = 0.0 if pd.isna(s2_val) else float(s2_val)
+        Args:
+            metric: Metric name
+            policy_record: Policy record
+            agg: Aggregation type (AVG, SUM, STD, COUNT, MIN, MAX)
+            filter_condition: Optional SQL filter
+            exclude_npc_group_id: Optional group ID to exclude (for NPCs)
 
-        if agg == "SUM":
-            return s1 / potential
-        if agg == "AVG":
-            return s1 / potential
+        Returns:
+            Aggregated value or None
+        """
+        pk, pv = self.key_and_version(policy_record)
         if agg == "STD":
-            mean = s1 / potential
-            var = (s2 / potential) - mean**2
+            var = self._compute_variance(pk, pv, metric)
+            if var is None:
+                return None
             return math.sqrt(max(var, 0.0))
         raise ValueError(f"Unknown aggregation {agg}")
 
@@ -257,43 +254,58 @@ class EvalStatsDB(SimulationStatsDB):
         pk, pv = self.key_and_version(policy_record)
         return self._normalized_value(pk, pv, metric, "STD", filter_condition, exclude_npc_group_id)
 
-    def sample_count(
+    def get_average_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None, exclude_npc_group_id: Optional[int] = 99) -> Optional[float]:
+        """URI-native version to get average metric."""
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
+        return self._normalized_value(pk, pv, metric, "AVG", filter_condition, exclude_npc_group_id)
+
+    def get_std_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None, exclude_npc_group_id: Optional[int] = 99) -> Optional[float]:
+        """URI-native version to get standard deviation metric."""
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
+        return self._normalized_value(pk, pv, metric, "STD", filter_condition, exclude_npc_group_id)
+
+    def get_sum_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None, exclude_npc_group_id: Optional[int] = 99) -> Optional[float]:
+        """URI-native version to get sum metric."""
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
+        return self._normalized_value(pk, pv, metric, "SUM", filter_condition, exclude_npc_group_id)
+
+    def count_simulations(
         self,
-        policy_record: Optional[PolicyRecord] = None,
+        policy_key: Optional[str] = None,
+        policy_version: Optional[int] = None,
         sim_name: Optional[str] = None,
         sim_env: Optional[str] = None,
     ) -> int:
-        """Return potential‑sample count for arbitrary filters."""
-        q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
-        if policy_record:
-            pk, pv = self.key_and_version(policy_record)
-            q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
-        if sim_name:
-            q += f" AND sim_name  = '{sim_name}'"
-        if sim_env:
+        """Count distinct simulations matching the criteria."""
+        q = "SELECT COUNT(DISTINCT(sim_name, sim_env, sim_seed)) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
+        if policy_key is not None:
+            q += f" AND policy_key = '{policy_key}'"
+        if policy_version is not None:
+            q += f" AND policy_version = {policy_version}"
+        if sim_name is not None:
+            q += f" AND sim_name = '{sim_name}'"
+        if sim_env is not None:
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
 
-    def simulation_scores(
-        self, policy_record: PolicyRecord, metric: str, exclude_npc_group_id: Optional[int] = 99
-    ) -> Dict[tuple[str, str], float]:
-        """Return { (name,env) : normalized mean(metric) }."""
-        pk, pv = self.key_and_version(policy_record)
+    def simulation_scores(self, policy_uri: str, metric: str, exclude_npc_group_id: Optional[int] = 99) -> Dict[tuple[str, str], float]:
+        """Return { (name,env) : normalized mean(metric) } for a policy URI."""
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
         sim_rows = self.query(f"""
             SELECT DISTINCT sim_name, sim_env
               FROM policy_simulation_agent_samples
              WHERE policy_key     = '{pk}'
                AND policy_version =  {pv}
         """)
-        scores: Dict[tuple[str, str], float] = {}
-        for _, row in sim_rows.iterrows():
-            cond = f"sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
-            val = self._normalized_value(pk, pv, metric, "AVG", cond, exclude_npc_group_id)
-            if val is not None:
-                scores[(row.sim_name, row.sim_env)] = val
+        sim_pairs = [(r["sim_name"], r["sim_env"]) for _, r in sim_rows.iterrows()]
+        scores = {}
+        for sim_name, sim_env in sim_pairs:
+            filter_condition = f"p.sim_name = '{sim_name}' AND p.sim_env = '{sim_env}'"
+            score = self._normalized_value(pk, pv, metric, "AVG", filter_condition, exclude_npc_group_id)
+            if score is not None:
+                scores[(sim_name, sim_env)] = score
         return scores
-
-    def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
-        if pr.uri is None:
-            raise ValueError("PolicyRecord must have a URI to be used in EvalStatsDB queries.")
-        return pr.uri, pr.metadata.epoch

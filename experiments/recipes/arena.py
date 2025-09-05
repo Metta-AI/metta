@@ -1,9 +1,10 @@
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.config.envs as eb
+import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -15,13 +16,13 @@ from metta.tools.train import TrainTool
 # it's possible the maps are now different
 
 
-def make_env(num_agents: int = 24) -> EnvConfig:
+def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
-    arena_env = arena_env or make_env()
+def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
+    arena_env = arena_env or make_mettagrid()
 
     # make a set of training tasks for the arena
     arena_tasks = cc.bucketed(arena_env)
@@ -48,8 +49,8 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     return CurriculumConfig(task_generator=arena_tasks)
 
 
-def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
-    basic_env = env or make_env()
+def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+    basic_env = env or make_mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
     combat_env = basic_env.model_copy()
@@ -63,6 +64,7 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
 
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
             simulations=[
@@ -80,7 +82,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
-    env_cfg = make_env()
+    env_cfg = make_mettagrid()
     env_cfg.game.agent.rewards.inventory["heart"] = 1
     env_cfg.game.agent.rewards.inventory_max["heart"] = 100
 
@@ -108,6 +110,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
 
     trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
         curriculum=cc.env_curriculum(env_cfg),
         evaluation=EvaluationConfig(
             simulations=make_evals(env_cfg),
@@ -117,13 +120,13 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     return TrainTool(trainer=trainer_cfg)
 
 
-def play(env: Optional[EnvConfig] = None) -> PlayTool:
-    eval_env = env or make_env()
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
+    eval_env = env or make_mettagrid()
     return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
-def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
-    eval_env = env or make_env()
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+    eval_env = env or make_mettagrid()
     return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 

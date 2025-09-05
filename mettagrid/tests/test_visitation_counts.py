@@ -11,10 +11,9 @@ from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
-    EnvConfig,
     GameConfig,
     GlobalObsConfig,
-    GroupConfig,
+    MettaGridConfig,
     WallConfig,
 )
 
@@ -23,21 +22,20 @@ from metta.mettagrid.mettagrid_config import (
 def env_with_visitation():
     """Environment with visitation counts enabled."""
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -66,21 +64,20 @@ def env_without_visitation():
     """Environment with visitation counts disabled."""
     # Create custom configuration matching original test setup
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -109,21 +106,20 @@ def env_default():
     """Environment with default config (no visitation_counts specified)."""
     # Create custom configuration matching original test setup
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             # No explicit visitation_counts setting - uses default (False)
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
@@ -237,16 +233,15 @@ def test_visitation_counts_configurable():
     ]
 
     # Test enabled
-    config_enabled = EnvConfig(
+    config_enabled = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(visitation_counts=True),
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
@@ -257,16 +252,15 @@ def test_visitation_counts_configurable():
     assert count == 5, f"Expected 5 features when enabled, got {count}"
 
     # Test disabled
-    config_disabled = EnvConfig(
+    config_disabled = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(visitation_counts=False),
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
@@ -277,16 +271,15 @@ def test_visitation_counts_configurable():
     assert count == 0, f"Expected 0 features when disabled, got {count}"
 
     # Test default (not specified)
-    config_default = EnvConfig(
+    config_default = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )
@@ -310,17 +303,16 @@ def performance_config():
         [".", ".", ".", ".", ".", ".", "."],
     ]
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=1000,
             obs_width=11,
             obs_height=11,
             num_observation_tokens=200,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )

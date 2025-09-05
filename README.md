@@ -408,11 +408,3 @@ pytest
 | Dry-run (print config)      | `./tools/run.py experiments.recipes.arena.train --args run=my_experiment --dry-run`                    |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.
-
-## Third-party Content
-
-Some sample map patterns in `scenes/dcss` were adapted from the open-source game
-[Dungeon Crawl Stone Soup (DCSS)](https://github.com/crawl/crawl), specifically from the file
-[`simple.des`](https://github.com/crawl/crawl/blob/master/crawl-ref/source/dat/des/arrival/simple.des).
-
-DCSS is licensed under the [GNU General Public License v2.0](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html).

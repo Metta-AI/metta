@@ -23,6 +23,7 @@ dependencies = [
   "httpx>=0.28.1",
   "wandb>=0.19.11",
   "metta-common",
+  "gitta",
 ]
 
 [dependency-groups]

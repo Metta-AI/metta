@@ -7,9 +7,16 @@ This module tests the MettaGridPettingZooEnv with PettingZoo's ParallelEnv inter
 import numpy as np
 from pettingzoo.test import parallel_api_test
 
-from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.builder.envs import make_arena
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, GroupConfig, WallConfig
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    GameConfig,
+    MettaGridConfig,
+    WallConfig,
+)
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
 
@@ -39,20 +46,17 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
         # Default to num_agents=6 which works with make_arena
         return make_arena(num_agents=num_agents)
 
-    # Create groups for team agents
-    groups = {}
-    if num_agents >= 1:
-        groups["team_1"] = GroupConfig(id=1)
-    if num_agents >= 2:
-        groups["team_2"] = GroupConfig(id=2)
-    if num_agents >= 3:
-        groups["team_3"] = GroupConfig(id=3)
-    if num_agents >= 4:
-        groups["team_4"] = GroupConfig(id=4)
-    if num_agents >= 5:
-        groups["agent"] = GroupConfig(id=0)  # Default group for @ agents
+    # Create agents with appropriate team IDs
+    agents = []
+    for i in range(num_agents):
+        if i < 4:
+            # Numbered agents (1, 2, 3, 4) get team_id based on their number
+            agents.append(AgentConfig(team_id=i + 1))
+        else:
+            # @ agents get team_id 0
+            agents.append(AgentConfig(team_id=0))
 
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
             max_steps=max_steps,
@@ -62,7 +66,7 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
                 rotate=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups=groups,
+            agents=agents,
             map_builder=AsciiMapBuilder.Config(map_data=map_data),
         )
     )

@@ -1,15 +1,16 @@
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.config.envs as eb
+import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import Span
-from metta.map.mapgen import MapGen
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mapgen.mapgen import MapGen
+from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -29,8 +30,7 @@ def _default_run_name() -> str:
     """Generate a robust run name following the pattern: navigation.{user}.{date}.{unique_id}
 
     Format: navigation.{username}.MMDD-HHMMSS.{git_hash_short} or navigation.{username}.MMDD-HHMMSS
-    Example: navigation.alice.0820-143052.a1b2c3d or navigation.alice.0820-143052
-    """
+    Example: navigation.alice.0820-143052.a1b2c3d or navigation.alice.0820-143052"""
     user = _get_user_identifier()
     now = datetime.now()
     timestamp = now.strftime("%m%d-%H%M%S")
@@ -46,7 +46,7 @@ def _default_run_name() -> str:
         return f"navigation.{user}.{timestamp}"
 
 
-def make_env(num_agents: int = 4) -> EnvConfig:
+def make_mettagrid(num_agents: int = 4) -> MettaGridConfig:
     nav = eb.make_navigation(num_agents=num_agents)
 
     nav.game.map_builder = MapGen.Config(
@@ -62,8 +62,8 @@ def make_env(num_agents: int = 4) -> EnvConfig:
     return nav
 
 
-def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
-    nav_env = nav_env or make_env()
+def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
+    nav_env = nav_env or make_mettagrid()
 
     # make a set of training tasks for navigation
     dense_tasks = cc.bucketed(nav_env)
@@ -98,6 +98,7 @@ def train(
     if run is None:
         run = _default_run_name()
     trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
@@ -110,8 +111,8 @@ def train(
     )
 
 
-def play(env: Optional[EnvConfig] = None) -> PlayTool:
-    eval_env = env or make_env()
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
+    eval_env = env or make_mettagrid()
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -120,8 +121,8 @@ def play(env: Optional[EnvConfig] = None) -> PlayTool:
     )
 
 
-def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
-    eval_env = env or make_env()
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+    eval_env = env or make_mettagrid()
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -130,5 +131,11 @@ def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
     )
 
 
-def eval() -> SimTool:
-    return SimTool(simulations=make_navigation_eval_suite())
+def evaluate(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    simulations = simulations or make_navigation_eval_suite()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
+    )

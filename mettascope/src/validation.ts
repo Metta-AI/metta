@@ -16,7 +16,7 @@ const OPTIONAL_KEYS = [
   'fileName',
   'groupNames',
   'rewardSharingMatrix',
-  'envConfig',
+  'MettaGridConfig',
 
   // frontend fields added by fixReplay() in replay.ts
   'actionImages',

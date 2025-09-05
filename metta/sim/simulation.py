@@ -1,10 +1,3 @@
-"""Vectorized simulation runner.
-
-• Launches a MettaGrid vec-env batch
-• Each worker writes its own *.duckdb* shard
-• At shutdown the shards are merged into **one** StatsDB object that the
-  caller can further merge / export."""
-
 from __future__ import annotations
 
 import logging
@@ -17,9 +10,10 @@ from typing import Any, Dict
 
 import numpy as np
 import torch
+from einops import rearrange
 
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
+from metta.agent.metta_agent import PolicyAgent
+from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
@@ -27,14 +21,13 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.rl.policy_management import initialize_policy_for_environment
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+from metta.sim.utils import get_or_create_policy_ids
 
-# Prefix for synthetic evaluation framework simulations (not real environment evaluations)
 SYNTHETIC_EVAL_PREFIX = "eval/"
 
 logger = logging.getLogger(__name__)
@@ -53,15 +46,14 @@ class Simulation:
         self,
         name: str,
         cfg: SimulationConfig,
-        policy_pr: PolicyRecord,
-        policy_store: PolicyStore,
+        policy: PolicyAgent,
+        policy_uri: str,
         device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
-        wandb_policy_name: str | None = None,
         eval_task_id: uuid.UUID | None = None,
         episode_tags: list[str] | None = None,
     ):
@@ -70,12 +62,8 @@ class Simulation:
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
         self._episode_tags = episode_tags
-        self._wandb_policy_name: str | None = None
-        self._wandb_uri: str | None = None
-        if wandb_policy_name is not None:
-            self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
+        self._policy_uri = policy_uri
 
-        # ---------------- env config ----------------------------------- #
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
@@ -85,7 +73,6 @@ class Simulation:
         self._replay_writer = ReplayWriter(replay_dir)
         self._device = device
 
-        # ----------------
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
         max_envs = os.cpu_count() or 1
@@ -104,7 +91,7 @@ class Simulation:
         )
 
         self._vecenv = make_vecenv(
-            Curriculum(CurriculumConfig.from_env(cfg.env)),
+            Curriculum(CurriculumConfig.from_mg(cfg.env)),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
@@ -116,13 +103,15 @@ class Simulation:
         self._max_time_s = cfg.max_time_s
         self._agents_per_env = cfg.env.game.num_agents
 
-        # ---------------- policies ------------------------------------- #
-        self._policy_pr = policy_pr
-        self._policy_store = policy_store
-        self._npc_pr = (
-            policy_store.policy_record_or_mock(cfg.npc_policy_uri, run_name=name) if cfg.npc_policy_uri else None
-        )
-        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_pr is not None else 1.0
+        self._policy = policy
+        self._policy_uri = policy_uri
+        # Load NPC policy if specified
+        if cfg.npc_policy_uri:
+            self._npc_policy = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+        else:
+            self._npc_policy = None
+        self._npc_policy_uri = cfg.npc_policy_uri
+        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -132,142 +121,58 @@ class Simulation:
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
         # Initialize policy to environment
-        initialize_policy_for_environment(
-            policy_record=self._policy_pr,
-            metta_grid_env=metta_grid_env,
-            device=self._device,
-            restore_feature_mapping=True,
+        self._policy.eval()  # Set to evaluation mode for simulation
+        features = metta_grid_env.get_observation_features()
+        self._policy.initialize_to_environment(
+            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
         )
 
-        if self._npc_pr is not None:
+        if self._npc_policy is not None:
             # Initialize NPC policy to environment
-            initialize_policy_for_environment(
-                policy_record=self._npc_pr,
-                metta_grid_env=metta_grid_env,
-                device=self._device,
-                restore_feature_mapping=True,
+            self._npc_policy.eval()  # Set to evaluation mode for simulation
+            features = metta_grid_env.get_observation_features()
+            self._npc_policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
             )
 
-        # ---------------- agent-index bookkeeping ---------------------- #
+        # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
+        self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
+        self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
+        
+        # Store NPC group ID for later use
+        self._npc_group_id = cfg.npc_group_id
 
-        # Store npc_group_id for use after reset when grid_objects is populated
-        self._npc_group_id = cfg.npc_group_id if hasattr(cfg, "npc_group_id") else None
-
-        # Initially use default index-based assignment
-        # This will be overridden after reset if npc_group_id is set
-        if self._npc_pr is not None and self._npc_group_id is not None:
-            # Build a mask of agent indices that belong to the npc_group_id for each env.
-            # We need per-env group ids. Use metta_grid_env.grid_objects mapping.
-            # grid_objects contains agent objects with fields including 'agent_id' and 'group_id'.
-            grid_objects = metta_grid_env.grid_objects
-            # Create per-env tensors of policy/npc indices
-            policy_indices: list[torch.Tensor] = []
-            npc_indices: list[torch.Tensor] = []
-
-            # For vecenv, agent ids are laid out per env consecutively.
-            for env_idx in range(self._num_envs):
-                base = env_idx * self._agents_per_env
-                env_policy: list[int] = []
-                env_npc: list[int] = []
-                # Iterate all agents for this env and route by group id.
-                for local_id in range(self._agents_per_env):
-                    global_id = base + local_id
-                    obj = grid_objects.get(global_id)
-                    # Fallback: if mapping missing, default to policy
-                    if not obj or obj.get("type") != 0:
-                        env_policy.append(global_id)
-                        continue
-                    group = int(obj.get("group_id", -1))
-                    if group == self._npc_group_id:
-                        env_npc.append(global_id)
-                    else:
-                        env_policy.append(global_id)
-
-                # If no NPCs found for this env, fall back to pct split for that env
-                if not env_npc:
-                    cutoff = max(1, int(self._agents_per_env * self._policy_agents_pct))
-                    env_policy = list(range(base, base + cutoff))
-                    env_npc = list(range(base + cutoff, base + self._agents_per_env))
-
-                policy_indices.append(torch.tensor(env_policy, device=self._device, dtype=torch.long))
-                npc_indices.append(torch.tensor(env_npc, device=self._device, dtype=torch.long))
-
-            self._policy_idxs = (
-                torch.cat(policy_indices) if policy_indices else torch.tensor([], device=self._device, dtype=torch.long)
-            )
-            self._npc_idxs = (
-                torch.cat(npc_indices) if npc_indices else torch.tensor([], device=self._device, dtype=torch.long)
-            )
-
-            # Derive counts for logging
-            self._policy_agents_per_env = int(self._policy_idxs.numel() // max(1, self._num_envs))
-            self._npc_agents_per_env = int(self._npc_idxs.numel() // max(1, self._num_envs))
-        else:
-            self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
-            self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
-
-            self._policy_idxs = idx_matrix[:, : self._policy_agents_per_env].reshape(-1)
-            self._npc_idxs = (
-                idx_matrix[:, self._policy_agents_per_env :].reshape(-1)
-                if self._npc_agents_per_env
-                else torch.tensor([], device=self._device, dtype=torch.long)
-            )
+        self._policy_idxs = idx_matrix[:, : self._policy_agents_per_env].reshape(-1)
+        self._npc_idxs = (
+            idx_matrix[:, self._policy_agents_per_env :].reshape(-1)
+            if self._npc_agents_per_env
+            else torch.tensor([], device=self._device, dtype=torch.long)
+        )
+        
+        # If group-based NPC assignment is enabled, we'll update indices after first reset
+        self._update_policy_npc_assignments_on_reset = self._npc_group_id is not None
+        
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
-
-    def _reassign_agents_by_group(self) -> None:
-        """Reassign policy/NPC indices based on agent groups after reset."""
-        # Get the driver env to access grid_objects
-        driver_env = self._vecenv.driver_env  # type: ignore
-        metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
-        grid_objects = metta_grid_env.grid_objects
-
-        policy_indices: list[int] = []
-        npc_indices: list[int] = []
-
-        # grid_objects is a dict where keys are object_ids (not agent_ids)
-        # We need to iterate through all objects and find agents
-        for obj in grid_objects.values():
-            # Check if this is an agent (type 0) and has an agent_id
-            if obj.get("type") == 0 and "agent_id" in obj:
-                agent_id = obj["agent_id"]
-                group = obj.get("group_id", -1)
-                if group == self._npc_group_id:
-                    npc_indices.append(agent_id)
-                else:
-                    policy_indices.append(agent_id)
-
-        if npc_indices:
-            # Successfully found NPCs by group
-            self._policy_idxs = torch.tensor(policy_indices, device=self._device, dtype=torch.long)
-            self._npc_idxs = torch.tensor(npc_indices, device=self._device, dtype=torch.long)
-            self._policy_agents_per_env = len(policy_indices) // max(1, self._num_envs)
-            self._npc_agents_per_env = len(npc_indices) // max(1, self._num_envs)
-            logger.info(
-                f"Assigned {len(npc_indices)} agents to NPC (group {self._npc_group_id}), "
-                f"{len(policy_indices)} to policy"
-            )
-        else:
-            # No agents found with the specified group, keep default assignment
-            logger.warning(f"No agents found with group_id={self._npc_group_id}, using default index-based assignment")
 
     @classmethod
     def create(
         cls,
         sim_config: SimulationConfig,
-        policy_store: PolicyStore,
         device: str,
         vectorization: str,
         stats_dir: str = "./train_dir/stats",
         replay_dir: str = "./train_dir/replays",
         policy_uri: str | None = None,
-        run_name: str = "simulation_run",
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
-        # Get policy record or create a mock
-        policy_record = policy_store.policy_record_or_mock(policy_uri, run_name)
+        # Create policy record from URI
+        if policy_uri:
+            policy = CheckpointManager.load_from_uri(policy_uri)
+        else:
+            policy = MockAgent()
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
@@ -276,8 +181,8 @@ class Simulation:
         return cls(
             sim_config.name,
             sim_config,
-            policy_record,
-            policy_store,
+            policy,
+            policy_uri or "mock://",
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,
@@ -285,9 +190,7 @@ class Simulation:
         )
 
     def start_simulation(self) -> None:
-        """
-        Start the simulation.
-        """
+        """Start the simulation."""
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
             self._name,
@@ -296,16 +199,70 @@ class Simulation:
             100 * self._policy_agents_per_env / self._agents_per_env,
         )
         logger.info("Stats dir: %s", self._stats_dir)
-        # ---------------- reset ------------------------------- #
         self._obs, _ = self._vecenv.reset()
         self._env_done_flags = [False] * self._num_envs
-
-        # Now that reset has happened, reassign agents by group if needed
-        if self._npc_pr is not None and self._npc_group_id is not None:
-            self._reassign_agents_by_group()
+        
+        # Update policy/NPC assignments based on group IDs if configured
+        if self._update_policy_npc_assignments_on_reset:
+            self._update_policy_npc_assignments()
 
         self._t0 = time.time()
 
+    def _update_policy_npc_assignments(self):
+        """Update policy and NPC indices based on agent group IDs."""
+        if self._npc_group_id is None:
+            return
+            
+        # Get agent info from observations to find group IDs
+        agent_info = self._obs  # Observations contain agent metadata
+        
+        policy_idxs = []
+        npc_idxs = []
+        
+        # Check each environment's agents for group IDs
+        for env_idx in range(self._num_envs):
+            base = env_idx * self._agents_per_env
+            env_policy = []
+            env_npc = []
+            
+            # Try to get group info from game state
+            for local_idx in range(self._agents_per_env):
+                global_id = base + local_idx
+                
+                # Try to access group info from the environment
+                # This is where group_id would be stored in agent data
+                try:
+                    # Access the driver environment to get agent group info
+                    driver_env = self._vecenv.driver_env  # type: ignore
+                    metta_grid_env = getattr(driver_env, "_env", driver_env)
+                    if hasattr(metta_grid_env, 'game') and hasattr(metta_grid_env.game, 'agent'):
+                        agent = metta_grid_env.game.agent
+                        if hasattr(agent, 'data') and len(agent.data) > global_id:
+                            agent_data = agent.data[global_id]
+                            group = agent_data.get("group_id", -1)
+                            if group == self._npc_group_id:
+                                env_npc.append(global_id)
+                            else:
+                                env_policy.append(global_id)
+                            continue
+                except:
+                    pass
+                
+                # Fallback to percentage split if can't get group info
+                if local_idx < self._policy_agents_per_env:
+                    env_policy.append(global_id)
+                else:
+                    env_npc.append(global_id)
+            
+            policy_idxs.extend(env_policy)
+            npc_idxs.extend(env_npc)
+        
+        # Update the indices
+        self._policy_idxs = torch.tensor(policy_idxs, device=self._device, dtype=torch.long)
+        self._npc_idxs = torch.tensor(npc_idxs, device=self._device, dtype=torch.long)
+        
+        logger.debug(f"Updated assignments - Policy agents: {len(policy_idxs)}, NPC agents: {len(npc_idxs)}")
+    
     def _get_actions_for_agents(self, agent_indices: torch.Tensor, policy) -> torch.Tensor:
         """Get actions for a group of agents, preserving agent dimension for single-agent cases."""
         agent_obs = self._obs[agent_indices]
@@ -317,63 +274,71 @@ class Simulation:
         return td["actions"]
 
     def generate_actions(self) -> np.ndarray:
-        """
-        Generate actions for the simulation.
-        """
+        """Generate actions for the simulation."""
         if __debug__:
-            # Debug assertion: verify no overlap between policy and NPC indices
             num_policy = len(self._policy_idxs)
             num_npc = len(self._npc_idxs)
 
+            if num_policy > 0:
+                assert self._policy_idxs[0] == 0, f"Policy indices should start at 0, got {self._policy_idxs[0]}"
+                assert self._policy_idxs[-1] == num_policy - 1, (
+                    f"Policy indices should be continuous 0 to {num_policy - 1}, last index is {self._policy_idxs[-1]}"
+                )
+                assert list(self._policy_idxs) == list(range(num_policy)), (
+                    "Policy indices should be continuous sequence starting from 0"
+                )
+
+            if self._npc_policy is not None and num_npc > 0:
+                expected_npc_start = num_policy
+                assert self._npc_idxs[0] == expected_npc_start, (
+                    f"NPC indices should start at {expected_npc_start}, got {self._npc_idxs[0]}"
+                )
+                assert self._npc_idxs[-1] == expected_npc_start + num_npc - 1, (
+                    f"NPC indices should end at {expected_npc_start + num_npc - 1}, got {self._npc_idxs[-1]}"
+                )
+                assert list(self._npc_idxs) == list(range(expected_npc_start, expected_npc_start + num_npc)), (
+                    f"NPC indices should be continuous sequence from {expected_npc_start}"
+                )
+
             if num_policy > 0 and num_npc > 0:
-                policy_set = set(self._policy_idxs.tolist())
-                npc_set = set(self._npc_idxs.tolist())
+                policy_set = set(self._policy_idxs)
+                npc_set = set(self._npc_idxs)
                 assert policy_set.isdisjoint(npc_set), (
                     f"Policy and NPC indices should not overlap. Overlap: {policy_set.intersection(npc_set)}"
                 )
 
-        # ---------------- forward passes ------------------------- #
         with torch.no_grad():
-            # Candidate-policy agents
-            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy_pr.policy)
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy)
 
-            # NPC agents (if any)
             npc_actions = None
-            if self._npc_pr is not None and len(self._npc_idxs):
-                try:
-                    npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_pr.policy)
-                except Exception as e:
-                    logger.error(f"Error generating NPC actions: {e}")
-                    raise SimulationCompatibilityError(
-                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.run_name}: {e}"
-                    ) from e
+            if self._npc_policy is not None and len(self._npc_idxs):
+                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
 
-        # ---------------- action stitching ----------------------- #
+        actions = policy_actions
         if self._npc_agents_per_env:
-            # When using group-based assignment, indices may not be contiguous
-            # Create full action tensor and fill in the right positions
-            total_agents = self._agents_per_env * self._num_envs
-            action_dim = policy_actions.shape[-1]
-            actions = torch.zeros(total_agents, action_dim, dtype=policy_actions.dtype, device=policy_actions.device)
-
-            # Fill in policy actions
-            actions[self._policy_idxs] = policy_actions
-
-            # Fill in NPC actions
-            if npc_actions is not None:
-                npc_actions = npc_actions.to(dtype=policy_actions.dtype, device=policy_actions.device)
-                actions[self._npc_idxs] = npc_actions
-        else:
-            actions = policy_actions
+            policy_actions = rearrange(
+                policy_actions,
+                "(envs policy_agents) act -> envs policy_agents act",
+                envs=self._num_envs,
+                policy_agents=self._policy_agents_per_env,
+            )
+            npc_actions = rearrange(
+                npc_actions,
+                "(envs npc_agents) act -> envs npc_agents act",
+                envs=self._num_envs,
+                npc_agents=self._npc_agents_per_env,
+            )
+            # Concatenate along agents dimension
+            actions = torch.cat([policy_actions, npc_actions], dim=1)
+            # Flatten back to (total_agents, action_dim)
+            actions = rearrange(actions, "envs agents act -> (envs agents) act")
 
         actions_np = actions.cpu().numpy().astype(dtype_actions)
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
-        # ---------------- env.step ------------------------------- #
         obs, rewards, dones, trunc, infos = self._vecenv.step(actions_np)
 
-        # ---------------- episode FSM ---------------------------- #
         done_now = np.logical_or(
             dones.reshape(self._num_envs, self._agents_per_env).all(1),
             trunc.reshape(self._num_envs, self._agents_per_env).all(1),
@@ -417,7 +382,6 @@ class Simulation:
             return None
 
     def end_simulation(self) -> SimulationResults:
-        # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
         db = self._from_shards_and_context()
 
@@ -434,14 +398,12 @@ class Simulation:
         return SimulationResults(db)
 
     def simulate(self) -> SimulationResults:
-        """
-        Run the simulation; returns the merged `StatsDB`.
-        """
+        """Run the simulation; returns the merged `StatsDB`."""
         self.start_simulation()
 
-        self._policy_pr.policy.reset_memory()
-        if self._npc_pr is not None:
-            self._npc_pr.policy.reset_memory()
+        self._policy.reset_memory()
+        if self._npc_policy is not None:
+            self._npc_policy.reset_memory()
 
         # Track iterations for heartbeat
         iteration_count = 0
@@ -460,52 +422,54 @@ class Simulation:
 
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
-        # Make sure we're creating a dictionary of the right type
-        agent_map: Dict[int, PolicyRecord] = {}
+        # Create agent map using URIs for database integration
+        agent_map: Dict[int, str] = {}
 
-        # Add policy agents to the map
-        for idx in self._policy_idxs:
-            agent_map[int(idx.item())] = self._policy_pr
+        # Add policy agents to the map if they have a URI
+        if self._policy_uri:
+            for idx in self._policy_idxs:
+                agent_map[int(idx.item())] = self._policy_uri
 
         # Add NPC agents to the map if they exist
-        if self._npc_pr is not None:
+        if self._npc_policy is not None and self._npc_policy_uri:
             for idx in self._npc_idxs:
-                agent_map[int(idx.item())] = self._npc_pr
+                agent_map[int(idx.item())] = self._npc_policy_uri
 
+        # Pass the policy URI directly
         db = SimulationStatsDB.from_shards_and_context(
             sim_id=self._id,
             dir_with_shards=self._stats_dir,
             agent_map=agent_map,
             sim_name=self._name,
             sim_env=self._config.env.label,
-            policy_record=self._policy_pr,
+            policy_uri=self._policy_uri or "",
         )
         return db
-
-    def _get_policy_name(self) -> str:
-        return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.run_name
-
-    def _get_policy_uri(self) -> str:
-        return self._wandb_uri if self._wandb_uri is not None else self._policy_pr.uri
 
     def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
-            policy_name = self._get_policy_name()
-            policy_uri = self._get_policy_uri()
-            policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
-            if self._npc_pr is not None:
-                policy_details.append((self._npc_pr.run_name, self._npc_pr.uri, None))
+            # Use policy_uri directly
+            policy_details: list[tuple[str, str | None]] = []
+
+            if self._policy_uri:  # Only add if we have a URI
+                policy_details.append((self._policy_uri, None))
+
+            # Add NPC policy if it exists
+            if self._npc_policy_uri:
+                policy_details.append((self._npc_policy_uri, "NPC policy"))
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 
             agent_map: Dict[int, uuid.UUID] = {}
-            for idx in self._policy_idxs:
-                agent_map[int(idx.item())] = policy_ids[policy_name]
 
-            if self._npc_pr is not None:
+            if self._policy_uri:
+                for idx in self._policy_idxs:
+                    agent_map[int(idx.item())] = policy_ids[self._policy_uri]
+
+            if self._npc_policy_uri:
                 for idx in self._npc_idxs:
-                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.run_name]
+                    agent_map[int(idx.item())] = policy_ids[self._npc_policy_uri]
 
             # Get all episodes from the database
             episodes_df = stats_db.query("SELECT * FROM episodes")
@@ -542,7 +506,7 @@ class Simulation:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
-                        primary_policy_id=policy_ids[policy_name],
+                        primary_policy_id=policy_ids[self._policy_uri],
                         stats_epoch=self._stats_epoch_id,
                         sim_name=self._name,
                         env_label=self._config.env.label,
@@ -556,16 +520,16 @@ class Simulation:
                     logger.error(f"Failed to record episode {episode_id} remotely: {e}")
                     # Continue with other episodes even if one fails
 
-    def get_replays(self) -> dict:
-        """Get all replays for this simulation."""
-        return self._replay_writer.episodes.values()
+    def get_policy_state(self):
+        """Get the policy state for memory manipulation."""
+        # Return the policy state if it has one
+        if hasattr(self._policy, "state"):
+            return self._policy.state
+        return None
 
-    def get_replay(self) -> dict:
-        """Makes sure this sim has a single replay, and return it."""
-        if len(self._replay_writer.episodes) != 1:
-            raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
-        for _, episode_replay in self._replay_writer.episodes.items():
-            return episode_replay.get_replay_data()
+    @property
+    def name(self) -> str:
+        return self._name
 
     def get_envs(self):
         """Returns a list of all envs in the simulation."""
@@ -577,69 +541,38 @@ class Simulation:
             raise ValueError("Attempting to get single env, but simulation has multiple envs")
         return self._vecenv.envs[0]
 
-    @property
-    def policy_record(self) -> PolicyRecord:
-        """Get the policy record used in this simulation."""
-        return self._policy_pr
+    def get_replays(self) -> dict:
+        """Get all replays for this simulation."""
+        return self._replay_writer.episodes.values()
 
-    @property
-    def name(self) -> str:
-        return self._name
-
-    def get_policy_state(self):
-        """Get the policy state for memory manipulation.
-
-        Returns a PolicyState object with lstm_h and lstm_c attributes if available.
-        Note: The actual state management depends on the specific policy implementation.
-        """
-        # The policy is the LSTM wrapper
-        policy = self._policy_pr.policy
-
-        # Try to get LSTM state from the policy
-        # This depends on the specific policy implementation
-        lstm_h = None
-        lstm_c = None
-
-        # Check if it's a pufferlib LSTMWrapper
-        if hasattr(policy, "lstm") and hasattr(policy.lstm, "weight_hh_l0"):
-            # For pufferlib LSTMWrapper, the state is managed internally during forward pass
-            # We would need to track it differently or access it through the forward pass
-            # For now, return None as this requires deeper integration
-            return None
-
-        # Check if policy has direct lstm_h and lstm_c attributes (custom implementations)
-        if hasattr(policy, "lstm_h") and hasattr(policy, "lstm_c"):
-            lstm_h = policy.lstm_h
-            lstm_c = policy.lstm_c
-
-        # Check if policy has a component that manages LSTM state (MettaAgent style)
-        elif hasattr(policy, "component") and hasattr(policy.component, "lstm"):
-            lstm_component = policy.component.lstm
-            if hasattr(lstm_component, "lstm_h") and hasattr(lstm_component, "lstm_c"):
-                # These are dictionaries mapping env_id to tensors
-                # Get the first one for single-env simulations
-                if 0 in lstm_component.lstm_h and 0 in lstm_component.lstm_c:
-                    lstm_h = lstm_component.lstm_h[0]
-                    lstm_c = lstm_component.lstm_c[0]
-
-        if lstm_h is not None and lstm_c is not None:
-            # Return an object-like dict that allows attribute access
-            class PolicyState:
-                def __init__(self, lstm_h, lstm_c):
-                    self.lstm_h = lstm_h
-                    self.lstm_c = lstm_c
-
-            return PolicyState(lstm_h, lstm_c)
-
-        return None
+    def get_replay(self) -> dict:
+        """Makes sure this sim has a single replay, and return it."""
+        # If no episodes yet, create initial replay data from the environment
+        if len(self._replay_writer.episodes) == 0:
+            env = self.get_env()
+            # Return initial replay structure with action names
+            return {
+                "version": 2,
+                "action_names": env.action_names,
+                "item_names": env.resource_names if hasattr(env, "resource_names") else [],
+                "type_names": env.object_type_names if hasattr(env, "object_type_names") else [],
+                "num_agents": env.num_agents,
+                "max_steps": env.max_steps,
+                "map_size": [env.height, env.width],
+                "file_name": "live_play",
+                "steps": [],
+            }
+        if len(self._replay_writer.episodes) != 1:
+            raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
+        # Get the single episode directly
+        episode_id = next(iter(self._replay_writer.episodes))
+        return self._replay_writer.episodes[episode_id].get_replay_data()
 
 
 @dataclass
 class SimulationResults:
-    """
-    Results of a simulation.
-    For now just a stats db. Replay plays can be retrieved from the stats db.
-    """
+    """Results of a simulation.
+    For now just a stats db. Replay plays can be retrieved from the stats db."""
 
     stats_db: SimulationStatsDB
     replay_urls: dict[str, list[str]] | None = None  # Maps simulation names to lists of replay URLs

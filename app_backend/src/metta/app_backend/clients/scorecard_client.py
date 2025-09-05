@@ -1,5 +1,6 @@
 from typing import Generic, Literal, TypeVar
 
+import requests
 from pydantic import RootModel
 
 from metta.app_backend.clients.base_client import BaseAppBackendClient
@@ -87,8 +88,6 @@ class ScorecardClient(BaseAppBackendClient):
         Returns:
             PoliciesResponse containing matching policies
         """
-        import requests
-
         # Create the request payload
         payload = PoliciesSearchRequest(
             search=search,

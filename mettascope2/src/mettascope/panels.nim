@@ -5,13 +5,10 @@ import
 const HeaderSize = 30
 
 proc rect*(rect: IRect): Rect =
-  Rect(x: rect.x.float32, y: rect.y.float32, w: rect.w.float32, h: rect.h.float32)
+  Rect(x: rect.x.float32, y: rect.y.float32, w: rect.w.float32,
+      h: rect.h.float32)
 
-proc beginPanAndZoom*(panel: Panel) =
-  ## Pan and zoom the map.
-
-  bxy.saveTransform()
-
+proc updateMouse*(panel: Panel) =
   let box = Rect(
     x: panel.rect.x.float32,
     y: panel.rect.y.float32,
@@ -19,7 +16,21 @@ proc beginPanAndZoom*(panel: Panel) =
     h: panel.rect.h.float32
   )
 
-  if window.boxyMouse.vec2.overlaps(box):
+  panel.hasMouse = (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
+    (mouseCaptured and mouseCapturedPanel == panel)
+
+proc beginPanAndZoom*(panel: Panel) =
+  ## Pan and zoom the map.
+
+  bxy.saveTransform()
+
+  updateMouse(panel)
+
+  if panel.hasMouse:
+    if window.buttonPressed[MouseLeft]:
+      mouseCaptured = true
+      mouseCapturedPanel = panel
+
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
       panel.vel = window.mouseDelta.vec2
     else:
@@ -28,19 +39,30 @@ proc beginPanAndZoom*(panel: Panel) =
     panel.pos += panel.vel
 
     if window.scrollDelta.y != 0:
-      panel.zoomVel = window.scrollDelta.y * 0.03
+      when defined(emscripten):
+        let scrollK = 0.0003
+      else:
+        let scrollK = 0.03
+      panel.zoomVel = window.scrollDelta.y * scrollK
     else:
-      panel.zoomVel *= 0.9
+      panel.zoomVel *= 0.8
 
-
-
-    let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+    let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
+        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
     panel.zoom += panel.zoomVel
-    panel.zoom = clamp(panel.zoom, 0.3, 100)
-    let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+    panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
+    let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
+        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
     let newAt = newMat.inverse() * window.mousePos.vec2
     let oldAt = oldMat.inverse() * window.mousePos.vec2
     panel.pos -= (oldAt - newAt).xy * (panel.zoom*panel.zoom)
+
+    #let area = panel.scrollArea * panel.zoom
+    #let x = panel.rect.x / 2
+    #let y = panel.rect.y / 2
+    #panel.pos = vec2(
+    #  clamp(panel.pos.x, area.x - x, area.x + area.w + x),
+    #  clamp(panel.pos.y, area.y - y, area.y + area.h + y))
 
   bxy.translate(panel.pos)
   bxy.scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
@@ -49,29 +71,28 @@ proc endPanAndZoom*(panel: Panel) =
   bxy.restoreTransform()
 
 proc beginDraw*(panel: Panel) =
-  # bxy.pushLayer()
+  bxy.pushLayer()
   bxy.saveTransform()
 
   bxy.translate(vec2(panel.rect.x.float32, panel.rect.y.float32))
-
 
 proc endDraw*(panel: Panel) =
 
   bxy.restoreTransform()
 
-  # # Draw the mask.
-  # bxy.pushLayer()
-  # bxy.drawRect(
-  #   rect = panel.rect.rect,
-  #   color = color(1, 0, 0, 1.0)
-  # )
-  # bxy.popLayer(blendMode = MaskBlend)
+  # Draw the mask.
+  bxy.pushLayer()
+  bxy.drawRect(
+    rect = panel.rect.rect,
+    color = color(1, 0, 0, 1.0)
+  )
+  bxy.popLayer(blendMode = MaskBlend)
 
-  # bxy.popLayer()
+  bxy.popLayer()
 
 proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
-  for num,panel in area.panels:
+  for num, panel in area.panels:
     if num == area.selectedPanelNum:
       panel.rect.x = area.rect.x
       panel.rect.y = area.rect.y + HeaderSize
@@ -136,3 +157,6 @@ proc drawFrame*(area: Area) =
     x += width + 10
 
   bxy.restoreTransform()
+
+  for subarea in area.areas:
+    drawFrame(subarea)

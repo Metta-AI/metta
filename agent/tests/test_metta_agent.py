@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 import torch
 from tensordict import TensorDict
+from torchrl.data import Composite
 
 # Import the actual class
 from metta.agent.agent_config import AgentConfig
@@ -221,15 +222,6 @@ def test_policy_none_error():
         agent(obs)
 
 
-def test_memory_interface(create_metta_agent):
-    """Test the memory interface methods."""
-    agent = create_metta_agent
-
-    # Test get_memory - should return dict (possibly empty)
-    memory = agent.get_memory()
-    assert isinstance(memory, dict)
-
-
 def test_device_handling(create_metta_agent):
     """Test that device is properly set on agent and policy."""
     agent = create_metta_agent
@@ -250,13 +242,11 @@ def test_agent_experience_spec(create_metta_agent):
     spec = agent.get_agent_experience_spec()
 
     # Check it's a Composite spec
-    from torchrl.data import Composite
-
     assert isinstance(spec, Composite)
 
-    # Check it has expected keys
-    assert "action" in spec
-    assert "action_dist" in spec
+    # Check it has expected keys (updated for simplified architecture)
+    assert "env_obs" in spec
+    assert "dones" in spec
 
 
 def test_clip_weights(create_metta_agent):

@@ -7,9 +7,16 @@ works correctly while being compatible with the existing test framework.
 
 import numpy as np
 
-from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.builder.envs import make_arena
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, GroupConfig, WallConfig
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    GameConfig,
+    MettaGridConfig,
+    WallConfig,
+)
 
 
 class TestNewEnvironmentHierarchy:
@@ -30,7 +37,7 @@ class TestNewEnvironmentHierarchy:
         """Test that Gymnasium environments can be created."""
         from metta.mettagrid.gym_env import MettaGridGymEnv
 
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=1,
                 actions=ActionsConfig(
@@ -59,7 +66,7 @@ class TestNewEnvironmentHierarchy:
         """Test basic Gymnasium environment operations."""
         from metta.mettagrid.gym_env import MettaGridGymEnv
 
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=1,
                 actions=ActionsConfig(
@@ -102,7 +109,7 @@ class TestNewEnvironmentHierarchy:
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
         # Create PettingZoo config
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=3,
                 actions=ActionsConfig(
@@ -111,11 +118,11 @@ class TestNewEnvironmentHierarchy:
                     rotate=ActionConfig(),
                 ),
                 objects={"wall": WallConfig(type_id=1)},
-                groups={
-                    "team_1": GroupConfig(id=1),
-                    "team_2": GroupConfig(id=2),
-                    "team_3": GroupConfig(id=3),
-                },
+                agents=[
+                    AgentConfig(team_id=1),
+                    AgentConfig(team_id=2),
+                    AgentConfig(team_id=3),
+                ],
                 map_builder=AsciiMapBuilder.Config(
                     map_data=[
                         ["#", "#", "#", "#", "#", "#", "#"],
@@ -138,7 +145,7 @@ class TestNewEnvironmentHierarchy:
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
         # Create multi-agent config
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=3,
                 actions=ActionsConfig(
@@ -147,11 +154,11 @@ class TestNewEnvironmentHierarchy:
                     rotate=ActionConfig(),
                 ),
                 objects={"wall": WallConfig(type_id=1)},
-                groups={
-                    "team_1": GroupConfig(id=1),
-                    "team_2": GroupConfig(id=2),
-                    "team_3": GroupConfig(id=3),
-                },
+                agents=[
+                    AgentConfig(team_id=1),
+                    AgentConfig(team_id=2),
+                    AgentConfig(team_id=3),
+                ],
                 map_builder=AsciiMapBuilder.Config(
                     map_data=[
                         ["#", "#", "#", "#", "#", "#", "#"],

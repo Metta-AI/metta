@@ -1,5 +1,3 @@
-"""Unified client for all Cogweb backend services."""
-
 from typing import Optional
 
 from metta.app_backend.clients.base_client import get_machine_token
@@ -52,6 +50,6 @@ class CogwebClient:
     #     """Get the stats client for metrics and logging operations."""
     #     return self._stats_client
     #
-    # def policy_store(self) -> PolicyStore:
-    #     """Get the policy store for model management."""
-    #     return self._policy_store
+    # def checkpoint_manager(self) -> CheckpointManager:
+    #     """Get the checkpoint manager for model management."""
+    #     return self._checkpoint_manager

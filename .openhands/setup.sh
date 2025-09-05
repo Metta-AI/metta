@@ -30,7 +30,7 @@ export IS_DOCKER=1
 
 # Run the main install script with external profile (suitable for OpenHands)
 echo "🛠️  Running Metta installation script..."
-if bash ./install.sh --profile=external; then
+if bash ./install.sh --profile=external --non-interactive; then
   echo "✅ Installation completed successfully"
 else
   echo "❌ Installation failed"

@@ -1,7 +1,10 @@
+import os
+from datetime import datetime
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from metta.common.util.collections import remove_none_values
+from metta.common.util.collections import remove_falsey, remove_none_values
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.setup.components.aws import AWSSetup
 from metta.setup.components.observatory_key import ObservatoryKeySetup
@@ -38,9 +41,8 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
     )
 
     if run:
-        cfg.name = run
-        cfg.group = run
         cfg.run_id = run
+        cfg.group = run
         cfg.data_dir = f"./train_dir/{run}"
 
     return cfg
@@ -94,3 +96,15 @@ def auto_replay_dir() -> str:
         **aws_setup_module.to_config_settings(),  # type: ignore
         **supported_aws_env_overrides.to_config_settings(),
     }.get("replay_dir")
+
+
+def auto_run_name(prefix: str | None = None) -> str:
+    return ".".join(
+        remove_falsey(
+            [
+                prefix,
+                os.getenv("USER", "unknown"),
+                datetime.now().strftime("%Y%m%d.%H%M%S"),
+            ]
+        )
+    )

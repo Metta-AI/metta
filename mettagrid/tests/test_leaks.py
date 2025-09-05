@@ -4,19 +4,19 @@ import os
 import psutil
 import pytest
 
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
 def test_mettagrid_env_init():
     """Test that the MettaGridEnv can be initialized properly."""
-    env = MettaGridEnv(EnvConfig(), render_mode=None)
+    env = MettaGridEnv(MettaGridConfig(), render_mode=None)
     assert env is not None, "Failed to initialize MettaGridEnv"
 
 
 def test_mettagrid_env_reset():
     """Test that the MettaGridEnv can be reset multiple times without memory leaks."""
-    env = MettaGridEnv(EnvConfig(), render_mode=None)
+    env = MettaGridEnv(MettaGridConfig(), render_mode=None)
     # Reset the environment multiple times
     for _ in range(10):
         observation = env.reset()
@@ -50,7 +50,7 @@ def test_mettagrid_env_no_memory_leaks():
 
     for i in range(num_iterations):
         # Create the environment
-        env = MettaGridEnv(EnvConfig(), render_mode=None)
+        env = MettaGridEnv(MettaGridConfig(), render_mode=None)
 
         # Reset the environment multiple times
         for _ in range(5):

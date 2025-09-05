@@ -70,6 +70,7 @@ implementation.
 
 1. **Update as you work** - When you discover new information or need to adjust the approach, update the plan file
 2. **Document completed steps** - After completing each major step, append a brief description:
+
    ```markdown
    ### Step 1 Complete: [Date/Time]
 
@@ -77,9 +78,14 @@ implementation.
    - Files affected: [list files]
    - Key decisions: [any important choices made]
    ```
+
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
 5. **CRITICAL: Always format Python code** - After editing any Python file (\*.py), immediately run:
+   ```bash
+   metta lint --fix
+   ```
+   Or alternatively, for individual files:
    ```bash
    ruff format [file_path]
    ruff check --fix [file_path]
@@ -146,12 +152,12 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 #### Agent System
 
 - Each agent has a policy with action spaces and observation spaces
-- Policies are stored in `PolicyStore` and managed by `MettaAgent`
+- Policies are stored using `CheckpointManager` and managed by `MettaAgent`
 - Agent architecture is designed to be adaptable to new game rules and environments
 - Neural components can be mixed and matched via configuration
 - Key classes:
   - `agent.src.metta.agent.metta_agent.MettaAgent` - Main agent implementation
-  - `agent.src.metta.agent.policy_store.PolicyStore` - Manages policy checkpoints
+  - `metta.rl.checkpoint_manager.CheckpointManager` - Manages policy checkpoints
   - `agent.src.metta.agent.distributed_metta_agent.DistributedMettaAgent` - Multi-GPU agent
 
 ## Development Guide
@@ -256,7 +262,7 @@ uv run ./devops/tools/auto_ruff_fix.py path/to/file
 Not needed, just run scripts, they'll work automatically through uv-powered shebangs.
 
 ```bash
-# Clean debug cmake build artifacts. `metta install` also does this
+# Clean Bazel build artifacts. `metta install` also does this
 metta clean
 ```
 
@@ -331,7 +337,7 @@ recipe files:
    - On NVIDIA GPUs: `nvidia-smi`
    - On macOS: Use Activity Monitor or `sudo powermetrics --samplers gpu_power`
 3. Check environment step timing in vecenv
-4. Profile C++ code with cmake debug builds
+4. Profile C++ code with Bazel debug builds
 
 ---
 
@@ -363,6 +369,10 @@ recipe files:
 - Remove unnecessary comments that just restate what the code does
 - Prefer properties over methods for computed attributes using `@property` decorator
 - Implement proper error handling with clear, actionable error messages
+- **Docstring style**: Use concise docstrings without Args: and Returns: blocks. The function signature and type hints
+  provide parameter information; docstrings should focus on purpose and behavior
+- **Multi-line docstring format**: Start with `"""` followed immediately by text on the same line, end with `"""` on its
+  own line
 
 ### Class Member Naming Conventions
 
@@ -469,7 +479,7 @@ The workflow automatically determines the appropriate base branch:
 #### Commit Message Format
 
 - Follow conventional commit format: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
-- Be specific about what was changed: `fix: add missing return type annotations to PolicyStore methods`
+- Be specific about what was changed: `fix: add missing return type annotations to CheckpointManager methods`
 - Reference issues when applicable: `fix: resolve type safety issues (#657)`
 
 #### PR Structure Requirements
@@ -502,3 +512,5 @@ Before creating a PR, ensure:
 - [ ] Proper error handling is implemented
 - [ ] Tests pass locally
 - [ ] Code is formatted according to project standards
+
+- use uv run <cmd> instead of python

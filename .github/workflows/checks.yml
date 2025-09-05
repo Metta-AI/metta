@@ -1,7 +1,5 @@
 name: "Test and Benchmark"
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
-  cancel-in-progress: true
+
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -24,6 +22,14 @@ on:
         description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
+      run_id:
+        description: "Optional unique identifier for this run (for parallel CI benchmarking)"
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}-${{ inputs.run_id || 'default' }}
+  cancel-in-progress: true
 
 # Set default permissions
 permissions:
@@ -33,7 +39,6 @@ permissions:
 env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
-  PYTEST_WORKERS: auto
   EVAL_SMOKE_TEST_POLICY: m.av.replay.probe.751 # just the name, no need to include any uri preamble like "wandb://run/"
   EVAL_SMOKE_TEST_MAX_ATTEMPTS: 3
   EVAL_SMOKE_TEST_MIN_REWARD: 0.0
@@ -49,13 +54,18 @@ jobs:
       github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
-      should_skip: ${{ steps.graphite_ci.outputs.skip }}
+      should_skip: ${{ steps.graphite_ci.outputs.skip || 'false' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Detect PR context
+        id: detect-pr
+        uses: ./.github/actions/detect-external-pr
+
       - name: Graphite CI Optimizer
         id: graphite_ci
+        if: steps.detect-pr.outputs.is_external != 'true'
         uses: withgraphite/graphite-ci-action@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -145,8 +155,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: "linting"
 
@@ -199,80 +209,132 @@ jobs:
           pnpm run lint
 
   unit-tests:
-    name: "Unit Tests - ${{ matrix.package }}"
+    name: "Unit Tests - All Packages"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-4core
+    runs-on: ubuntu-8core
     timeout-minutes: 15
-    strategy:
-      matrix:
-        package: [agent, common, app_backend, mettagrid, core]
-      fail-fast: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+
+      - name: Cache PufferLib clone
+        uses: actions/cache@v4
+        id: cache-pufferlib
         with:
-          install-mode: "testing"
+          path: ~/pufferlib-cache
+          key: pufferlib-clone-${{ runner.os }}-${{ hashFiles('**/test_pufferlib_integration.py') }}
+          restore-keys: |
+            pufferlib-clone-${{ runner.os }}-
 
-      - name: Run tests
+      - name: Set PufferLib cache path
         run: |
+          echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
+          mkdir -p $HOME/pufferlib-cache
 
-          # Base pytest arguments (without coverage file specification)
-          PYTEST_BASE_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+      - name: Run all package tests
+        shell: bash
+        run: |
+          # Create directories
+          mkdir -p test-results coverage-reports
 
-          if [ "${{ matrix.package }}" != "core" ]; then
-            # Navigate to package directory
-            cd ${{ matrix.package }}
-          fi
+          run_package_tests() {
+            local package=$1
+            local color=$2
 
-          # Run all tests
-          echo "::group::Running tests"
-          echo "Running all tests..."
+            # packages run in parallel so we will start (packages)*(pytest_workers) processes
+            PYTEST_BASE_ARGS="-n 2 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
-          pytest $PYTEST_BASE_ARGS \
-            --cov-report=xml:coverage${COVERAGE_SUFFIX}.xml 2>&1 | tee pytest_output.log
-          TESTS_FAILED=${PIPESTATUS[0]}  # Get pytest's exit code, not tee's
-          echo "::endgroup::"
+            # Save raw output for duration parsing
+            local raw_output="test-results/${package}_raw.log"
 
-          # Display the output with appropriate header
-          if [ "${TESTS_FAILED:-0}" -ne 0 ]; then
-            echo "::group::❌ Tests failed (exit code: ${TESTS_FAILED})"
+            # Run tests and prefix each line with package name and color
+            if [ "$package" == "core" ]; then
+              (pytest $PYTEST_BASE_ARGS \
+                --cov-report=xml:coverage-reports/coverage-${package}.xml \
+                2>&1; echo $? > test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
+                  echo -e "${color}[${package}]\033[0m $line"
+                done
+            else
+              (cd "$package" && pytest $PYTEST_BASE_ARGS \
+                --cov-report=xml:../coverage-reports/coverage-${package}.xml \
+                2>&1; echo $? > ../test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
+                  echo -e "${color}[${package}]\033[0m $line"
+                done
+            fi
+
+            # Extract duration info for later summary
+            grep -E "^[0-9]+\.[0-9]+s " "$raw_output" > "test-results/${package}_durations.txt" || true
+          }
+
+          # Export function
+          export -f run_package_tests
+
+          # Record start time
+          START_TIME=$(date +%s)
+
+          echo "⏳ Running tests in parallel..."
+          run_package_tests "mettagrid" "\033[1;34m" &   # Bold Blue
+          sleep 2 # mettagrid is slowest, so give time for it to grab resources
+
+          run_package_tests "agent" "\033[1;31m" &        # Bold Red
+          run_package_tests "common" "\033[1;32m" &       # Bold Green
+          run_package_tests "app_backend" "\033[1;33m" & # Bold Yellow
+          run_package_tests "codebot" "\033[1;35m" &     # Bold Magenta
+          run_package_tests "core" "\033[1;36m" &         # Bold Cyan
+
+          wait
+          END_TIME=$(date +%s)
+          TOTAL_TIME=$((END_TIME - START_TIME))
+          OVERALL_FAILED=0
+          FAILED_PACKAGES=""
+
+          for package in agent common app_backend mettagrid codebot core; do
+            if [ -f "test-results/${package}.exit" ]; then
+              EXIT_CODE=$(cat "test-results/${package}.exit")
+              if [ "$EXIT_CODE" -ne 0 ]; then
+                OVERALL_FAILED=1
+                FAILED_PACKAGES="$FAILED_PACKAGES $package"
+              fi
+            else
+              OVERALL_FAILED=1
+              FAILED_PACKAGES="$FAILED_PACKAGES $package"
+            fi
+          done
+
+          echo -e "\n\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+          echo -e "\n\033[1;37m🐌 TOP 10 SLOWEST TESTS\033[0m"
+          # Combine all duration files and sort
+          for package in agent common app_backend mettagrid codebot core; do
+            if [ -f "test-results/${package}_durations.txt" ]; then
+              # Add package name to each line
+              sed "s/^/[${package}] /" "test-results/${package}_durations.txt"
+            fi
+          done | sort -rn | head -10 | nl -w2 -s'. '
+
+          if [ $OVERALL_FAILED -ne 0 ]; then
+            echo -e "\n\033[1;31m💥 Tests failed in:$FAILED_PACKAGES\033[0m"
+            echo -e "Total time: ${TOTAL_TIME}s"
+            exit 1
           else
-            echo "::group::✅ Tests passed"
+            echo -e "\n\033[1;32m🎉 All tests passed in ${TOTAL_TIME}s!\033[0m"
           fi
-          # Show only content after the last "FAILURES" header
-          awk '
-          /^=+ FAILURES =+$/ { start = NR }   # remember the line number
-          END {
-            if (start) {
-              # re-read file and print from start+1
-              while ((getline line < FILENAME) > 0) {
-                if (NR > start) print line
-              }
-            }
-          }' pytest_output.log
-          echo "::endgroup::"
-
-          # Exit with test result
-          if [ "${TESTS_FAILED:-0}" -ne 0 ]; then
-            echo "::error::Tests failed!"
-            exit $TESTS_FAILED
-          fi
-
-          echo "✅ All tests complete!"
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          SUBPACKAGES: "agent common app_backend mettagrid codebot core"
         run: |
+          # We want to set flags per file so the codecov action is not convenient
+          # If we change to a matrix of runners we should delete the script
           chmod +x .github/scripts/upload_codecov.py
-          SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
+          .github/scripts/upload_codecov.py
 
   unit-tests-summary:
     name: "Tests"
@@ -305,8 +367,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: "testing"
 
@@ -317,7 +379,7 @@ jobs:
           make coverage VERBOSE=1
 
       - name: Upload MettaGrid C++ coverage to Codecov
-        if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: needs.setup-checks.outputs.is_external != 'true'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -338,8 +400,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
+
       - name: Run Python benchmarks
         env:
           PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks
@@ -371,8 +437,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
       - name: Build C++ benchmarks
         id: benchmark_build_check
@@ -381,13 +449,11 @@ jobs:
           make benchmark VERBOSE=1
 
       - name: Collect benchmarks
-        if: steps.benchmark_build_check.outputs.build_success == 'true'
         working-directory: ./mettagrid
         run: |
           mkdir -p benchmark_output
-          for f in build-release/*_benchmark; do
-            "$f" --benchmark_format=json > benchmark_output/$(basename $f).json
-          done
+          # Use bazel run to execute the benchmark with proper library paths
+          bazel run //benchmarks:test_mettagrid_env_benchmark -- --benchmark_format=json > benchmark_output/test_mettagrid_env_benchmark.json
 
       - name: Upload C++ benchmark artifacts
         uses: actions/upload-artifact@v4
