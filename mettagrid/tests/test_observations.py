@@ -508,14 +508,15 @@ class TestGlobalTokens:
             )
         )
         env = MettaGridCore(cfg)
+        glyph_feature_id = env.c_env.feature_spec()["glyph"]["id"]
 
         obs, _ = env.reset()
 
         # Check if we're seeing uninitialized memory issues
-        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=TokenTypes.GLYPH)
-        agent0_sees_agent1_glyph = helper.find_token_values(obs[0], location=(2, 1), feature_id=TokenTypes.GLYPH)
-        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=TokenTypes.GLYPH)
-        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=TokenTypes.GLYPH)
+        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
+        agent0_sees_agent1_glyph = helper.find_token_values(obs[0], location=(2, 1), feature_id=glyph_feature_id)
+        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
+        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=glyph_feature_id)
 
         # Initially, both agents should have glyph 0 (default)
         # Since glyph 0 is suppressed, we should NOT find any glyph tokens
@@ -543,13 +544,13 @@ class TestGlobalTokens:
 
         obs, _, _, _, _ = env.step(actions)
 
-        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=TokenTypes.GLYPH)
+        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
         assert agent0_self_glyph == 3, f"Agent 0 should have glyph 3, got {agent0_self_glyph}"
 
-        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=TokenTypes.GLYPH)
+        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=glyph_feature_id)
         assert agent1_sees_agent0_glyph == 3, f"Agent 1 should see Agent 0 with glyph 3, got {agent1_sees_agent0_glyph}"
 
-        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=TokenTypes.GLYPH)
+        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
         assert agent1_self_glyph == 5, f"Agent 1 should have glyph 5, got {agent1_self_glyph}"
 
         # Test 2: Invalid glyph values (should be no-op)
@@ -563,8 +564,8 @@ class TestGlobalTokens:
 
         obs, _, _, _, _ = env.step(actions)
 
-        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=TokenTypes.GLYPH)
-        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=TokenTypes.GLYPH)
+        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
+        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
 
         # Glyphs should remain unchanged
         assert agent0_glyph == 3, f"Agent 0 glyph should stay 3, got {agent0_glyph}"
@@ -583,8 +584,8 @@ class TestGlobalTokens:
         obs, _, _, _, _ = env.step(actions)
 
         # Verify glyph tokens are gone
-        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=TokenTypes.GLYPH)
-        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=TokenTypes.GLYPH)
+        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
+        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
 
         assert len(agent0_glyph) == 0, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
         assert len(agent1_glyph) == 0, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
