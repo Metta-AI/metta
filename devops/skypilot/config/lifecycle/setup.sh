@@ -7,7 +7,12 @@ git config advice.detachedHead false
 
 echo "[SETUP] Fetching latest from origin..."
 git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
-git checkout "$METTA_GIT_REF"
+
+echo "[SETUP] Resetting local changes..."
+git reset --hard
+git clean -ffd
+
+git checkout -f "$METTA_GIT_REF"
 echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
 echo "[SETUP] Installing Datadog agent..."
