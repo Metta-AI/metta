@@ -80,7 +80,7 @@ class SweepOrchestratorTool(Tool):
     capture_output: bool = True  # Capture and stream subprocess output (local only)
     output_dir: Optional[str] = None  # Directory to save output logs (local only)
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
 
         # Handle sweep_name being passed via cmd line

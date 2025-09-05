@@ -18,6 +18,6 @@ class AnalysisTool(Tool):
     policy_uri: str
     data_dir: str = Field(default="./train_dir")
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         analyze(self.policy_uri, self.analysis)
         return 0
