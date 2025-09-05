@@ -21,8 +21,10 @@ fi
 # Source common functions
 source "$REPO_ROOT/devops/tools/common.sh"
 
-ensure_uv_setup
-
+if ! check_cmd uv; then
+    echo "uv not found. Consider running ./devops/tools/install-system.sh"
+    exit 1
+fi
 
 if ! uv run --active metta run githooks pre-commit; then
     exit 1
