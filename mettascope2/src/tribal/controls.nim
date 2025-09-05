@@ -1,3 +1,6 @@
+## Game controls and coordination
+## Handles keyboard input, AI controller integration, and simulation stepping
+
 import std/times,
   common, environment, windy, ai
 

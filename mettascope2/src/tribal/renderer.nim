@@ -80,31 +80,6 @@ type WallTile = enum
   WallSE = 2 or 1,
   WallNW = 8 or 4,
 
-proc getAltarRadiance*(pos: IVec2): float32 =
-  var maxRadiance = 0.0'f32
-  
-  # Check all altars in the environment
-  for thing in env.things:
-    if thing.kind == Altar:
-      let altarPos = thing.pos
-      let hearts = thing.hearts.float32
-      
-      # Calculate distance from this position to the altar
-      let dx = abs(pos.x - altarPos.x).float32
-      let dy = abs(pos.y - altarPos.y).float32
-      let distance = max(dx, dy)  # Use Chebyshev distance for square radiance
-      
-      if distance <= 10:  # Maximum radiance radius
-        # Calculate radiance: more hearts = brighter, closer = brighter
-        # Hearts scale: 0-10 hearts is typical, can go higher
-        let heartIntensity = min(hearts / 5.0, 2.0)  # Cap at 2.0 for very rich altars
-        let distanceFalloff = 1.0 - (distance / 10.0)
-        let radiance = heartIntensity * distanceFalloff * 0.8  # Max 80% brightness boost
-        
-        maxRadiance = max(maxRadiance, radiance)
-  
-  return maxRadiance
-
 proc drawWalls*() =
   template hasWall(x: int, y: int): bool =
     x >= 0 and x < MapWidth and
@@ -132,18 +107,16 @@ proc drawWalls*() =
               hasWall(x + 1, y - 1):
             continue
         
-        # Calculate brightness based on nearby altars
-        let radiance = getAltarRadiance(ivec2(x.int32, y.int32))
-        let brightness = 0.2 + radiance  # Base darkness of 0.2, can go up to 1.0
+        # Walls have consistent brightness
+        let brightness = 0.3  # Fixed wall brightness
         let wallTint = color(brightness, brightness, brightness, 1.0)
         
         bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), 
                      angle = 0, scale = 1/200, tint = wallTint)
 
   for fillPos in wallFills:
-    # Apply the same radiance to wall fills
-    let radiance = getAltarRadiance(fillPos)
-    let brightness = 0.2 + radiance
+    # Wall fills have consistent brightness
+    let brightness = 0.3  # Fixed wall fill brightness
     let fillTint = color(brightness, brightness, brightness, 1.0)
     bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), 
                   angle = 0, scale = 1/200, tint = fillTint)

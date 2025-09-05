@@ -1,6 +1,6 @@
 import
   boxy, vmath, windy, chroma,
-  common, utils, simulation
+  common, utils, controls
 
 proc drawPanelBackground*(panel: Panel, bgColor: Color) =
   ## Draw a solid color background for a panel
