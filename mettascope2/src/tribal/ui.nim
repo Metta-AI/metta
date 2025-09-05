@@ -1,6 +1,6 @@
 import
   boxy, vmath, windy,
-  common, panels, utils, simulation
+  common, utils, simulation
 
 proc drawPanelBackground*(panel: Panel, bgColor: Color) =
   ## Draw a solid color background for a panel
@@ -121,11 +121,7 @@ proc drawHeader*(panel: Panel) =
 
 # ============== FOOTER UI ==============
 
-const
-  FooterBgColor = parseHtmlColor("#2D343D")
-
-proc drawFooter*(panel: Panel) =
-  drawPanelBackground(panel, FooterBgColor)
+# Footer background color: #2D343D (removed wrapper function)
 
   # Draw the left side buttons.
   var x = 16f
@@ -241,11 +237,7 @@ proc drawFooter*(panel: Panel) =
     echo "Focus"
   x -= 32 + 5
 
-const
-  TimelineBgColor = parseHtmlColor("#1D1D1D")
-
-proc drawTimeline*(panel: Panel) =
-  drawPanelBackground(panel, TimelineBgColor)
+# Timeline background color: #1D1D1D (removed wrapper function)
 
   # Draw the scrubber bg.
   bxy.drawRect(

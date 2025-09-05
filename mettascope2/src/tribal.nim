@@ -1,5 +1,5 @@
 import std/[os, times, strutils],
-  boxy, opengl, windy, vmath,
+  boxy, opengl, windy, vmath, chroma,
   tribal/[environment, simulation, common, panels, renderer, ui]
 
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
@@ -103,11 +103,11 @@ proc display() =
   globalHeaderPanel.endDraw()
 
   globalFooterPanel.beginDraw()
-  drawFooter(globalFooterPanel)
+  drawPanelBackground(globalFooterPanel, parseHtmlColor("#2D343D"))
   globalFooterPanel.endDraw()
 
   globalTimelinePanel.beginDraw()
-  drawTimeline(globalTimelinePanel)
+  drawPanelBackground(globalTimelinePanel, parseHtmlColor("#1D1D1D"))
   globalTimelinePanel.endDraw()
 
   rootArea.drawFrame()

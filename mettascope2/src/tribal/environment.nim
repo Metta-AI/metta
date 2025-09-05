@@ -92,8 +92,7 @@ type
     resources*: int  # For mines - remaining ore
     cooldown*: int
     frozen*: int
-    houseTopLeft*: IVec2  # For altars - top-left corner of the house (for brightness)
-    houseSize*: int       # For altars - size of the house (typically 5)
+    # Removed houseTopLeft and houseSize - no longer needed since we use team colors via tinting
 
     # Agent:
     agentId*: int
@@ -153,7 +152,7 @@ type
     baseTileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Base colors (terrain)
     agentTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Agent heat contributions
     clippyTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Clippy cold contributions  
-    altarTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Altar brightness contributions
+    # Removed altarTintMods - altar coloring now handled by base tile colors
     activeTiles*: ActiveTiles  # Sparse list of tiles to process
     observations*: array[
       MapAgents,
@@ -776,19 +775,7 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
       if env.isValidEmptyPosition(pos):
         result.add(pos)
 
-proc getHouseCorners(env: Environment, houseTopLeft: IVec2, houseSize: int = 5): seq[IVec2] =
-  result = @[]
-  # Simple: just the 4 corners
-  let corners = @[
-    ivec2(houseTopLeft.x - 1, houseTopLeft.y - 1),                    # Top-left
-    ivec2(houseTopLeft.x + houseSize, houseTopLeft.y - 1),            # Top-right
-    ivec2(houseTopLeft.x - 1, houseTopLeft.y + houseSize),            # Bottom-left
-    ivec2(houseTopLeft.x + houseSize, houseTopLeft.y + houseSize)     # Bottom-right
-  ]
-  # Check each corner is valid and empty
-  for corner in corners:
-    if env.isValidEmptyPosition(corner):
-      result.add(corner)
+# Removed getHouseCorners - no longer needed without houseTopLeft/houseSize fields
 
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
   # Try with moderate attempts first
@@ -809,8 +796,7 @@ proc clearTintModifications*(env: Environment) =
     if pos.x >= 0 and pos.x < MapWidth and pos.y >= 0 and pos.y < MapHeight:
       env.agentTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
       env.clippyTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
-      # Clear altar mods too - they get recalculated each frame from altar positions
-      env.altarTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
+      # Altar colors are now in base tile colors, no need to clear them
   
   # Clear the active list for next frame
   env.activeTiles.positions.setLen(0)
@@ -849,27 +835,8 @@ proc updateTintModifications*(env: Environment) =
         env.agentTintMods[pos.x][pos.y].b = int16((tribeColor.b - 0.6) * 50)
         
     of Altar:
-      # Altars color their house tiles with team color and brightness
-      if thing.houseSize > 0 and thing.houseTopLeft.x >= 0:
-        # Get the village color for this altar
-        let villageColor = altarColors.getOrDefault(thing.pos, color(0.7, 0.65, 0.6, 1.0))
-        let brightnessBoost = int16(thing.hearts * 100)  # 10% per heart
-        
-        for dx in 0 ..< thing.houseSize:
-          for dy in 0 ..< thing.houseSize:
-            let tileX = thing.houseTopLeft.x + dx
-            let tileY = thing.houseTopLeft.y + dy
-            if tileX >= 0 and tileX < MapWidth and tileY >= 0 and tileY < MapHeight:
-              # Store the actual team color values scaled by 100 (not 1000 to avoid overflow)
-              # We'll apply these as direct replacements in applyTintModifications
-              env.altarTintMods[tileX][tileY].r = int16(villageColor.r * 100)  # Store actual color * 100
-              env.altarTintMods[tileX][tileY].g = int16(villageColor.g * 100)
-              env.altarTintMods[tileX][tileY].b = int16(villageColor.b * 100)
-              env.altarTintMods[tileX][tileY].intensity = brightnessBoost
-              
-              # Track these tiles as active
-              env.activeTiles.positions.add(ivec2(tileX, tileY))
-              env.activeTiles.count += 1
+      # Altars no longer need special tinting - their house colors are set in base tiles during init
+      discard
     else:
       discard
 
@@ -902,16 +869,7 @@ proc applyTintModifications*(env: Environment) =
       g += env.clippyTintMods[x][y].g div 8
       b += env.clippyTintMods[x][y].b div 8
     
-    # Apply altar team color and brightness (for house tiles)
-    if env.altarTintMods[x][y].r != 0 or env.altarTintMods[x][y].g != 0 or 
-       env.altarTintMods[x][y].b != 0 or env.altarTintMods[x][y].intensity != 0:
-      # Altar tiles get FULL team color replacement (not additive)
-      # The values stored are actual color * 100, so multiply by 10 to get * 1000
-      r = env.altarTintMods[x][y].r * 10  # Direct team color
-      g = env.altarTintMods[x][y].g * 10
-      b = env.altarTintMods[x][y].b * 10
-      # And brightness boost
-      env.tileColors[x][y].intensity = 1.0 + env.altarTintMods[x][y].intensity.float32 / 1000.0
+    # Altar team colors are now in base tiles, no special handling needed
     
     # Convert back to float with clamping
     env.tileColors[x][y].r = min(max(r.float32 / 1000.0, 0.3), 1.2)
@@ -1033,9 +991,8 @@ proc init(env: Environment) =
       env.add(Thing(
         kind: Altar,
         pos: elements.center,
-        hearts: MapObjectAltarInitialHearts,  # Altar starts with default hearts
-        houseTopLeft: placementResult.position,  # Store house position
-        houseSize: houseStruct.width,  # Store house size (typically 5)
+        hearts: MapObjectAltarInitialHearts  # Altar starts with default hearts
+        # House colors are now set directly in base tile colors during init
       ))
       altarColors[elements.center] = villageColor  # Associate altar position with village color
       
@@ -1090,18 +1047,14 @@ proc init(env: Environment) =
             else:
               discard
       if agentsForThisHouse > 0:
-        # Get corner positions first, then nearby positions
-        let corners = env.getHouseCorners(placementResult.position, houseStruct.width)
+        # Get nearby positions around the altar
         let nearbyPositions = env.findEmptyPositionsAround(elements.center, 3)
         
         for j in 0 ..< agentsForThisHouse:
           var agentPos: IVec2
-          if j < corners.len:
-            # Prefer corners
-            agentPos = corners[j]
-          elif j - corners.len < nearbyPositions.len:
-            # Then nearby positions
-            agentPos = nearbyPositions[j - corners.len]
+          if j < nearbyPositions.len:
+            # Use nearby positions
+            agentPos = nearbyPositions[j]
           else:
             # Fallback to random
             agentPos = r.randomEmptyPos(env)
