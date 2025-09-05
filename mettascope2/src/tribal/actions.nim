@@ -25,22 +25,39 @@ proc agentControls*() =
   if selection != nil and selection.kind == Agent:
     let agent = selection
 
-    # Direct movement with auto-rotation
+    # Direct movement with 8-way support
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
       # Move North
-      actionsArray[agent.agentId] = [1, 0]
+      actionsArray[agent.agentId] = [1, ord(N).uint8]
       simStep()
     elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
       # Move South
-      actionsArray[agent.agentId] = [1, 1]
+      actionsArray[agent.agentId] = [1, ord(S).uint8]
       simStep()
     elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
       # Move East
-      actionsArray[agent.agentId] = [1, 2]
+      actionsArray[agent.agentId] = [1, ord(E).uint8]
       simStep()
     elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
       # Move West
-      actionsArray[agent.agentId] = [1, 3]
+      actionsArray[agent.agentId] = [1, ord(W).uint8]
+      simStep()
+    # Add diagonal movement support
+    elif window.buttonPressed[KeyQ]:
+      # Move Northwest
+      actionsArray[agent.agentId] = [1, ord(NW).uint8]
+      simStep()
+    elif window.buttonPressed[KeyE]:
+      # Move Northeast  
+      actionsArray[agent.agentId] = [1, ord(NE).uint8]
+      simStep()
+    elif window.buttonPressed[KeyZ]:
+      # Move Southwest
+      actionsArray[agent.agentId] = [1, ord(SW).uint8]
+      simStep()
+    elif window.buttonPressed[KeyC]:
+      # Move Southeast
+      actionsArray[agent.agentId] = [1, ord(SE).uint8]
       simStep()
 
     # Use - face current direction of agent
