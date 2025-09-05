@@ -2,7 +2,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.mettagrid.config import Config
+from metta.common.config import Config
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -40,7 +40,17 @@ class AgentConfig(Config):
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
-    team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
+
+
+class GroupConfig(Config):
+    """Python group configuration."""
+
+    id: int = Field(default=0)
+    sprite: Optional[int] = Field(default=None)
+    # group_reward_pct values outside of [0.0,1.0] are probably mistakes, and are probably
+    # unstable. If you want to use values outside this range, please update this comment!
+    group_reward_pct: float = Field(default=0, ge=0, le=1)
+    props: Optional[AgentConfig] = Field(default=None)
 
 
 class ActionConfig(Config):
@@ -74,7 +84,7 @@ class ActionsConfig(Config):
     noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
     place_box: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
@@ -157,7 +167,8 @@ class GameConfig(Config):
     obs_height: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
     num_observation_tokens: int = Field(ge=1, default=200)
     agent: AgentConfig = Field(default_factory=AgentConfig)
-    agents: list[AgentConfig] = Field(default_factory=list)
+    # Every agent must be in a group, so we need at least one group
+    groups: dict[str, GroupConfig] = Field(default_factory=lambda: {"agent": GroupConfig()}, min_length=1)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)
@@ -174,6 +185,9 @@ class GameConfig(Config):
     # Feature Flags
     track_movement_metrics: bool = Field(
         default=True, description="Enable movement metrics tracking (sequential rotations)"
+    )
+    no_agent_interference: bool = Field(
+        default=False, description="Enable agents to move through and not observe each other"
     )
     recipe_details_obs: bool = Field(
         default=False, description="Converters show their recipe inputs and outputs when observed"
