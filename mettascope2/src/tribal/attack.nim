@@ -1,9 +1,9 @@
-## Attack module - extends tribal.nim with weapon crafting and combat mechanics
+## Attack module - extends tribal_game.nim with weapon crafting and combat mechanics
 ## Implements Forge for spear crafting and combat system
 
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import tribal
-export tribal
+import tribal_game
+export tribal_game
 
 # New constants for attack system
 const

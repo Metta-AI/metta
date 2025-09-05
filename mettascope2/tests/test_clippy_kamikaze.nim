@@ -2,10 +2,10 @@
 ## Verifies that clippys sacrifice themselves to damage altars
 import std/[strformat, strutils]
 import vmath
-import ../src/mettascope/tribal
-import ../src/mettascope/clippy
-import ../src/mettascope/common
-import ../src/mettascope/actions
+import ../src/tribal/tribal_game
+import ../src/tribal/clippy
+import ../src/tribal/common
+import ../src/tribal/actions
 
 proc testClippyAltarKamikaze() =
   echo "Test: Clippy Kamikaze Attack on Altar"

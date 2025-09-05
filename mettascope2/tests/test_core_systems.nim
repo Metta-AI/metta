@@ -2,9 +2,9 @@
 ## Tests fundamental game mechanics: movement, resources, and interactions
 import std/[strformat, strutils, tables]
 import vmath
-import ../src/mettascope/tribal
-import ../src/mettascope/controller
-import ../src/mettascope/common
+import ../src/tribal/tribal_game
+import ../src/tribal/controller
+import ../src/tribal/common
 
 # Test 1: Directional Movement with Auto-rotation
 proc testDirectionalMovement() =

@@ -1,7 +1,8 @@
 import
   std/[strformat, tables],
-  boxy, vmath, windy, chroma,
+  boxy, vmath, windy, chroma, pixie,
   tribal_game
+from terrain import TerrainType, Water, Wheat, Tree
 
 # Import necessary globals from tribalgrid
 var
@@ -120,33 +121,52 @@ proc drawAgent*(agent: Thing, isSelected: bool) =
     )
 
 proc drawClippy*(clippy: Thing) =
-  let pos = vec2(clippy.pos.x.float32, clippy.pos.y.float32)
-  
-  # Draw clippy body (smaller than agent)
-  bxy.drawRect(
-    rect = rect(pos.x - 0.2, pos.y - 0.2, 0.4, 0.4),
-    color = color(0.8, 0.3, 0.3, 1.0)
+  bxy.drawImage(
+    "objects/clippy",
+    clippy.pos.vec2,
+    angle = 0,
+    scale = 1/200
   )
 
 proc drawAltar*(altar: Thing) =
-  let
-    pos = vec2(altar.pos.x.float32, altar.pos.y.float32)
-    altarCol = altarColor(altar.pos)
-  
-  # Draw altar (triangular shape approximated with rect)
-  bxy.drawRect(
-    rect = rect(pos.x - 0.35, pos.y - 0.35, 0.7, 0.7),
-    color = altarCol
+  bxy.drawImage(
+    "objects/altar",
+    altar.pos.vec2,
+    angle = 0,
+    scale = 1/200,
+    tint = altarColor(altar.pos)
   )
 
 proc drawBuilding*(building: Thing) =
-  let pos = vec2(building.pos.x.float32, building.pos.y.float32)
-  
-  # Draw building
-  bxy.drawRect(
-    rect = rect(pos.x - 0.4, pos.y - 0.4, 0.8, 0.8),
-    color = color(0.4, 0.3, 0.2, 1.0)
+  # For now, use a generic building sprite
+  # Could differentiate between Armory, Forge, etc. if we have specific sprites
+  bxy.drawImage(
+    "objects/temple",  # Using temple sprite as generic building
+    building.pos.vec2,
+    angle = 0,
+    scale = 1/200
   )
+
+proc drawSelection*() =
+  # Draw selection indicator
+  if selection != nil:
+    bxy.drawImage(
+      "selection",
+      selection.pos.vec2,
+      angle = 0,
+      scale = 1/200
+    )
+
+proc drawGrid*() =
+  # Draw the grid overlay
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      bxy.drawImage(
+        "view/grid",
+        ivec2(x, y).vec2,
+        angle = 0,
+        scale = 1/200
+      )
 
 proc draw*(boxy: Boxy, environment: Environment, selected: Thing) =
   ## Draw the world map
@@ -157,9 +177,9 @@ proc draw*(boxy: Boxy, environment: Environment, selected: Thing) =
   selection = selected
   
   drawFloor()
-  drawGridLines()
+  drawTerrain()
   
-  # Draw all game objects
+  # Draw all game objects (walls handled separately)
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
       let thing = env.grid[x][y]
@@ -168,27 +188,21 @@ proc draw*(boxy: Boxy, environment: Environment, selected: Thing) =
         of Agent:
           drawAgent(thing, thing == selection)
         of Wall:
-          # Draw wall
-          bxy.drawRect(
-            rect = rect(thing.pos.x.float32 - 0.5, thing.pos.y.float32 - 0.5, 1.0, 1.0),
-            color = color(0.3, 0.3, 0.3, 1.0)
-          )
+          # Walls are handled separately with special sprite logic
+          discard
         of Mine:
-          # Draw mine (with resource indicator)
-          bxy.drawRect(
-            rect = rect(thing.pos.x.float32 - 0.4, thing.pos.y.float32 - 0.4, 0.8, 0.8),
-            color = color(0.6, 0.4, 0.2, 1.0)
+          bxy.drawImage(
+            "objects/mine",
+            thing.pos.vec2,
+            angle = 0,
+            scale = 1/200
           )
-          if thing.resources > 0:
-            bxy.drawRect(
-              rect = rect(thing.pos.x.float32 - 0.2, thing.pos.y.float32 - 0.2, 0.4, 0.4),
-              color = color(0.9, 0.7, 0.3, 1.0)
-            )
         of Converter:
-          # Draw converter
-          bxy.drawRect(
-            rect = rect(thing.pos.x.float32 - 0.35, thing.pos.y.float32 - 0.35, 0.7, 0.7),
-            color = color(0.3, 0.5, 0.7, 1.0)
+          bxy.drawImage(
+            "objects/converter",
+            thing.pos.vec2,
+            angle = 0,
+            scale = 1/200
           )
         of Clippy:
           drawClippy(thing)
@@ -197,8 +211,12 @@ proc draw*(boxy: Boxy, environment: Environment, selected: Thing) =
         of Armory, Forge, ClayOven, WeavingLoom:
           drawBuilding(thing)
         of Temple:
-          # Draw temple (similar to altar but larger)
-          bxy.drawRect(
-            rect = rect(thing.pos.x.float32 - 0.45, thing.pos.y.float32 - 0.45, 0.9, 0.9),
-            color = color(0.7, 0.6, 0.4, 1.0)
+          bxy.drawImage(
+            "objects/temple",
+            thing.pos.vec2,
+            angle = 0,
+            scale = 1/200
           )
+  
+  # Draw selection on top
+  drawSelection()

@@ -1,9 +1,9 @@
 import std/[math, tables, strformat, sets, strutils, sequtils]
-import ../src/mettascope/controller
-import ../src/mettascope/tribal
-import ../src/mettascope/clippy
-import ../src/mettascope/common
-import ../src/mettascope/actions
+import ../src/tribal/controller
+import ../src/tribal/tribal_game
+import ../src/tribal/clippy
+import ../src/tribal/common
+import ../src/tribal/actions
 import vmath
 
 proc visualizeWanderPattern() =

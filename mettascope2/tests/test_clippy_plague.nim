@@ -2,11 +2,11 @@
 ## Tests the improved clippy behavior that spreads outward like a plague
 import std/[strformat, strutils, sets, math, tables, sequtils]
 import vmath
-import ../src/mettascope/tribal
-import ../src/mettascope/controller
-import ../src/mettascope/clippy
-import ../src/mettascope/common
-import ../src/mettascope/actions
+import ../src/tribal/tribal_game
+import ../src/tribal/controller
+import ../src/tribal/clippy
+import ../src/tribal/common
+import ../src/tribal/actions
 
 proc testPlagueWaveExpansion() =
   echo "Test: Plague-Wave Expansion Pattern"

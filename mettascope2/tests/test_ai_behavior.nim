@@ -2,11 +2,11 @@
 ## Tests controller AI for agents and clippy movement patterns
 import std/[strformat, strutils, sets, math, tables]
 import vmath
-import ../src/mettascope/tribal
-import ../src/mettascope/controller
-import ../src/mettascope/clippy
-import ../src/mettascope/common
-import ../src/mettascope/actions
+import ../src/tribal/tribal_game
+import ../src/tribal/controller
+import ../src/tribal/clippy
+import ../src/tribal/common
+import ../src/tribal/actions
 
 # Test 1: Agent Controller Behavior
 proc testAgentController() =

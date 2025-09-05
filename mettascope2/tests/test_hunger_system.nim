@@ -1,5 +1,5 @@
 import std/[strformat, random]
-import ../src/mettascope/tribal
+import ../src/tribal/tribal_game
 import vmath
 
 echo "\n=== Hunger and Bread System Test ==="

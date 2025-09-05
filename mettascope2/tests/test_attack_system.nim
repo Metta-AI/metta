@@ -1,4 +1,4 @@
-import ../src/mettascope/attack, vmath, std/random
+import ../src/tribal/attack, vmath, std/random
 
 # Test the attack system with forge and spears
 proc testAttackSystem() =

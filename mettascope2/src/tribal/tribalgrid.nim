@@ -1,7 +1,7 @@
 import std/[random, os, times, strformat, strutils],
   boxy, opengl, windy, chroma, vmath,
-  tribal, worldmap,
-  vmath, bumpy, windy, boxy, chroma, environment_core 
+  tribal_game, worldmap,
+  vmath, bumpy, windy, boxy, chroma, tribal_core 
 
 var
   typeface* = readTypeface("data/fonts/Inter-Regular.ttf")

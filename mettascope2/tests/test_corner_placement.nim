@@ -1,7 +1,7 @@
 import std/[math, tables, strformat, sequtils, sets, strutils]
-import ../src/mettascope/tribal
-import ../src/mettascope/placement
-import ../src/mettascope/terrain
+import ../src/tribal/tribal_game
+import ../src/tribal/placement
+import ../src/tribal/terrain
 import vmath
 import std/random
 

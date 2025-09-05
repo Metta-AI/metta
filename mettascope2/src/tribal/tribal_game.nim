@@ -807,7 +807,7 @@ proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
       return
   quit("Failed to find an empty position, map too full!")
 
-proc add(env: Environment, thing: Thing) =
+proc add*(env: Environment, thing: Thing) =
   ## Add a thing to the environment
   env.things.add(thing)
   if thing.kind == Agent:

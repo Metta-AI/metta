@@ -1,6 +1,6 @@
-import std/[random, os, times, strformat, strutils]
+import std/[random, os, times, strformat, strutils, sequtils]
 import boxy, opengl, windy, chroma, vmath, pixie
-import tribal/[tribal_game, worldmap, controller]
+import tribal/[tribal_game, worldmap, controller, ui_controls]
 
 # Global variables
 type
@@ -24,8 +24,6 @@ var
 
 const
   BgColor = parseHtmlColor("#273646")
-  FootBgColor = parseHtmlColor("#2D343D")
-  HeaderSize = 30
 
 var
   actionsArray*: array[MapAgents, array[2, uint8]]
@@ -188,28 +186,84 @@ proc main() =
     # Poll events
     pollEvents()
     
+    # Handle keyboard shortcuts
+    if window.buttonPressed[KeySpace]:
+      play = not play
+    if window.buttonPressed[KeyMinus]:
+      playSpeed *= 2.0
+      playSpeed = clamp(playSpeed, 0.00001, 1.0)
+      play = true
+      echo "Speed: ", 1.0 / playSpeed, "x"
+    if window.buttonPressed[KeyEqual]:
+      playSpeed *= 0.5
+      playSpeed = clamp(playSpeed, 0.00001, 1.0) 
+      play = true
+      echo "Speed: ", 1.0 / playSpeed, "x"
+    
+    # Handle observation controls
+    if window.buttonPressed[KeyN]:
+      dec settings.showObservations
+      echo "showObservations: ", settings.showObservations
+    if window.buttonPressed[KeyM]:
+      inc settings.showObservations
+      echo "showObservations: ", settings.showObservations
+    settings.showObservations = clamp(settings.showObservations, -1, 23)
+    
+    # Auto-step simulation based on play speed
+    let now = epochTime()
+    while play and (lastSimTime + playSpeed < now):
+      lastSimTime += playSpeed
+      simStep()
+    if window.buttonPressed[KeySpace]:
+      lastSimTime = now
+      if not play:  # If paused, step once
+        simStep()
+    
     # Handle controls
     agentControls()
-    
-    # Auto-step
-    if window.buttonDown[KeySpace]:
-      simStep()
     
     # Clear screen
     bxy.beginFrame(window.size)
     bxy.drawRect(rect(0, 0, window.size.x.float32, window.size.y.float32), BgColor)
     
-    # Draw world with pan/zoom
+    # Calculate main view area (between header and footer)
+    let mainAreaY = HeaderHeight.float32
+    let mainAreaHeight = window.size.y.float32 - HeaderHeight - FooterHeight
+    
+    # Save transform and clip to main area
+    bxy.saveTransform()
+    bxy.translate(vec2(0, mainAreaY))
+    
+    # Draw world with pan/zoom in the main area
     beginPanAndZoom()
     
-    # Debug: Draw a test rectangle at origin
-    bxy.drawRect(rect(-5, -5, 10, 10), color(1, 0, 0, 0.5))
+    # Handle mouse selection
+    worldmap.useSelections()
     
     worldmap.draw(bxy, env, selection)
+    
+    # Draw grid overlay if enabled
+    if settings.showGrid:
+      worldmap.drawGrid()
+    
     endPanAndZoom()
     
     # Draw UI overlay
     drawStats()
+    
+    # Restore transform for header/footer
+    bxy.restoreTransform()
+    
+    # Draw header at top
+    bxy.saveTransform()
+    drawHeader(bxy, window, typeface, window.size.x.float32)
+    bxy.restoreTransform()
+    
+    # Draw footer at bottom
+    bxy.saveTransform()
+    bxy.translate(vec2(0, window.size.y.float32 - FooterHeight))
+    drawFooter(bxy, window, window.size.x.float32, simStep)
+    bxy.restoreTransform()
     
     # End frame
     bxy.endFrame()

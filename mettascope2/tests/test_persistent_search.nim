@@ -1,6 +1,6 @@
-import ../src/mettascope/controller
-import ../src/mettascope/tribal
-import std/random
+import ../src/tribal/controller as ctrl_module
+import ../src/tribal/tribal_game
+import std/[random, tables]
 import vmath
 
 echo "Testing persistent search behavior"
@@ -8,11 +8,11 @@ echo "=================================="
 
 # Create environment and controller
 var env = newEnvironment()
-var controller = newController(seed = 42)
+var controller = ctrl_module.newController(seed = 42)
 var r = initRand(42)
 
-# Initialize a simple environment with limited resources far from spawn
-env.initSample(r)
+# The environment is automatically initialized by newEnvironment()
+# We'll manually add our test setup below
 
 # Clear existing mines and add ones far away
 env.things.setLen(0)  # Clear all things
@@ -73,7 +73,7 @@ while stepCount < maxSteps and not usedMine:
   let action = controller.decideAction(env, 0)
   
   # Check agent state
-  let state = controller.agentStates[0]
+  let state = if 0 in controller.agentStates: controller.agentStates[0] else: nil
   
   # Apply action
   case action[0]:
