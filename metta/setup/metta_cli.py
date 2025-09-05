@@ -10,16 +10,12 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-import gitta
 from metta.common.util.fs import get_repo_root
 from metta.setup.local_commands import app as local_app
-from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-from metta.setup.saved_settings import get_saved_settings
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
-from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success
+from metta.setup.utils import error, info, success, warning
 
-console = Console()
 app = typer.Typer(
     help="Metta Setup Tool - Configure and install development environment",
     rich_markup_mode="rich",
@@ -172,11 +168,15 @@ class MettaCLI:
         if self._components_initialized:
             return
 
+        from metta.setup.utils import import_all_modules_from_subpackage
+
         import_all_modules_from_subpackage("metta.setup", "components")
         self._components_initialized = True
 
     def setup_wizard(self, non_interactive: bool = False):
         from metta.setup.profiles import UserType
+        from metta.setup.saved_settings import get_saved_settings
+        from metta.setup.utils import header, info, prompt_choice, success
 
         header("Welcome to Metta!\n\n")
         info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
@@ -212,7 +212,10 @@ class MettaCLI:
         info("\nRun 'metta install' to set up your environment.")
 
     def _custom_setup(self, non_interactive: bool = False):
+        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
         from metta.setup.registry import get_all_modules
+        from metta.setup.saved_settings import get_saved_settings
+        from metta.setup.utils import prompt_choice
 
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
@@ -525,6 +528,9 @@ def cmd_configure(
     if component:
         configure_component(component)
     elif profile:
+        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+        from metta.setup.saved_settings import get_saved_settings
+
         selected_user_type = UserType(profile)
         if selected_user_type in PROFILE_DEFINITIONS:
             saved_settings = get_saved_settings()
@@ -571,7 +577,7 @@ def cmd_install(
     from collections import defaultdict, deque
 
     from metta.setup.registry import get_all_modules, get_enabled_setup_modules
-    from metta.setup.utils import error, info, success, warning
+    from metta.setup.saved_settings import get_saved_settings
 
     cli._init_all()
 
@@ -760,7 +766,6 @@ def cmd_status(
     import concurrent.futures
 
     from metta.setup.registry import get_all_modules
-    from metta.setup.utils import info, warning
 
     cli._init_all()
 
@@ -792,6 +797,7 @@ def cmd_status(
 
     module_status = {}
 
+    console = Console()
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -843,6 +849,7 @@ def cmd_status(
 
         table.add_row(module.name, installed_str, connected_str, expected_str, status)
 
+    console = Console()
     console.print(table)
 
     all_installed = all(module_status[name]["installed"] for name in module_status)
@@ -854,11 +861,11 @@ def cmd_status(
 
     if all_installed:
         if all_connected:
-            console.print("[green]All components are properly configured![/green]")
+            success("All components are properly configured!")
         else:
-            console.print("[yellow]Some components need authentication. Run 'metta install' to set them up.[/yellow]")
+            warning("Some components need authentication. Run 'metta install' to set them up.")
     else:
-        console.print("[yellow]Some components are not installed. Run 'metta install' to set them up.[/yellow]")
+        warning("Some components are not installed. Run 'metta install' to set them up.")
 
     not_connected = [
         name
@@ -898,7 +905,6 @@ def cmd_run(
 ):
     """Run component-specific commands."""
     from metta.setup.registry import get_all_modules
-    from metta.setup.utils import error, info
 
     cli._init_all()
 
@@ -917,7 +923,6 @@ def cmd_run(
 @app.command(name="clean", help="Clean build artifacts and temporary files")
 def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
     """Clean build artifacts and temporary files."""
-    from metta.setup.utils import info, warning
 
     build_dir = cli.repo_root / "build"
     if build_dir.exists():
@@ -977,7 +982,7 @@ def cmd_lint(
 
     for cmd in cmds:
         try:
-            console.print(f"Running: {' '.join(cmd)}")
+            info(f"Running: {' '.join(cmd)}")
             subprocess.run(cmd, cwd=cli.repo_root, check=True)
         except subprocess.CalledProcessError as e:
             raise typer.Exit(e.returncode) from e
@@ -987,7 +992,6 @@ def cmd_lint(
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
 def cmd_ci():
     """Run all Python unit tests and all Mettagrid C++ tests."""
-    from metta.setup.utils import error, info, success
 
     cli._init_all()
 
@@ -1079,7 +1083,7 @@ def cmd_tool(
     """Run a tool from the tools/ directory."""
     tool_path = cli.repo_root / "tools" / f"{tool_name}.py"
     if not tool_path.exists():
-        console.print(f"[red]Error: Tool '{tool_name}' not found at {tool_path}[/red]")
+        error(f"Error: Tool '{tool_name}' not found at {tool_path}")
         raise typer.Exit(1)
 
     cmd = [str(tool_path)] + (ctx.args or [])
@@ -1106,8 +1110,6 @@ def cmd_go(ctx: typer.Context):
     """Navigate to Softmax Home shortcut."""
     import webbrowser
 
-    from metta.setup.utils import error, info
-
     if not ctx.args:
         error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
         info("\nCommon shortcuts:")
@@ -1128,12 +1130,14 @@ def cmd_go(ctx: typer.Context):
 @app.command(name="report-env-details", help="Report environment details including UV project directory")
 def cmd_report_env_details():
     """Report environment details."""
-    console.print(f"UV Project Directory: {cli.repo_root}")
-    console.print(f"Metta CLI Working Directory: {Path.cwd()}")
+    import gitta
+
+    info(f"UV Project Directory: {cli.repo_root}")
+    info(f"Metta CLI Working Directory: {Path.cwd()}")
     if branch := gitta.get_current_branch():
-        console.print(f"Git Branch: {branch}")
+        info(f"Git Branch: {branch}")
     if commit := gitta.get_current_commit():
-        console.print(f"Git Commit: {commit}")
+        info(f"Git Commit: {commit}")
 
 
 # Clip command
@@ -1146,8 +1150,8 @@ def cmd_clip(ctx: typer.Context):
     try:
         subprocess.run(cmd, cwd=cli.repo_root, check=False)
     except FileNotFoundError:
-        console.print("[red]Error: Command not found: codeclip[/red]")
-        console.print("Run: metta install codebot")
+        error("Error: Command not found: codeclip")
+        info("Run: metta install codebot")
         raise typer.Exit(1) from None
 
 

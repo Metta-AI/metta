@@ -1,7 +1,5 @@
 name: "Test and Benchmark"
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
-  cancel-in-progress: true
+
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -24,6 +22,14 @@ on:
         description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
+      run_id:
+        description: "Optional unique identifier for this run (for parallel CI benchmarking)"
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}-${{ inputs.run_id || 'default' }}
+  cancel-in-progress: true
 
 # Set default permissions
 permissions:
@@ -151,8 +157,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: "linting"
 
@@ -231,6 +237,9 @@ jobs:
           restore-keys: |
             unit-tests-testmon-v2-${{ runner.os }}-refs/heads/main
             unit-tests-testmon-v2-${{ runner.os }}-
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
 
       - name: Cache PufferLib clone
         uses: actions/cache@v4
@@ -322,8 +331,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
@@ -354,8 +365,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
       - name: Run Python benchmarks
         env:
@@ -388,8 +401,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
       - name: Build C++ benchmarks
         id: benchmark_build_check

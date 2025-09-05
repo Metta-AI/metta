@@ -186,7 +186,6 @@ interface TrainingRunDetailProps {
   repo: Repo
 }
 
-
 export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const { runId } = useParams<{ runId: string }>()
 

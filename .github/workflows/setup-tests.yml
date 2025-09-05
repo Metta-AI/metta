@@ -35,17 +35,17 @@ jobs:
     outputs:
       has_relevant_changes: ${{ steps.check_files.outputs.has_relevant_changes }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for Python/config file changes
+      - name: Check for setup-related file changes
         id: check_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "**/*.py,**/pyproject.toml,**/pytest.ini"
-          specific_files: "uv.lock,devops/observatory_login.py"
-          directory_paths: "experiments/notebooks/utils/,mettascope/,devops/git-hooks/,experiments/recipes/scratchpad/,codebot/,devops/aws/,devops/skypilot/,devops/git/,devops/macos/,devops/mettabox/"
+          patterns: "metta/setup/**/*.py,tests/setup/**/*.py,metta/common/util/**/*.py,metta/app_backend/clients/**/*.py,devops/**/*.sh,**/pyproject.toml,**/pytest.ini,.github/workflows/setup-tests.yml"
+          specific_files: "uv.lock,install.sh"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine which tasks to run
@@ -56,16 +56,17 @@ jobs:
             # Use workflow dispatch inputs for manual runs
             RUN_TEST="${{ github.event.inputs.run_test }}"
           elif [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" == "false" ]]; then
-            # Skip for PRs with no relevant changes
+            # Skip setup tests for PRs with no setup-related changes
             RUN_TEST="false"
-            echo "::notice title=Skipping Setup Tests::No Python/config files changed"
+            echo "::notice title=Skipping Setup Tests::Skipping setup tests because no setup-related files have changed"
           else
-            # Run for other events or when relevant changes exist
+            # Default to running setup tests for other events or when setup changes exist
             RUN_TEST="true"
           fi
 
           # Output the decision
           echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
+
           echo "run setup tests? ${RUN_TEST}"
 
   setup-tests:
@@ -87,8 +88,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
       - name: Cache pytest-testmon database
         uses: actions/cache@v4

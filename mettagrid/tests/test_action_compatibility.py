@@ -243,9 +243,8 @@ class TestResourceRequirements:
         # Get initial observation
         initial_obs = get_current_observation(env, agent_idx=0)
 
-        # Feature IDs for inventory items start at 15 (ObservationFeatureCount)
-        ore_feature_id = 15
-        wood_feature_id = 16
+        ore_feature_id = env.feature_spec()["inv:ore"]["id"]
+        wood_feature_id = env.feature_spec()["inv:wood"]["id"]
 
         # Find inventory tokens by feature type
         initial_ore_count = None
