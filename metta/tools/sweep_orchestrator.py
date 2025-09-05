@@ -3,16 +3,20 @@
 import logging
 import os
 import uuid
+from enum import StrEnum
 from typing import Any, Optional
 
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
+from metta.sweep.dispatcher.routing import RoutingDispatcher
+from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
 from metta.sweep.store.wandb import WandbStore
 from metta.sweep.sweep_orchestrator import (
+    JobTypes,
     LocalDispatcher,
     SweepOrchestratorConfig,
     orchestrate_sweep,
@@ -20,6 +24,14 @@ from metta.sweep.sweep_orchestrator import (
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
+
+
+class DispatcherType(StrEnum):
+    """Available dispatcher types for job execution."""
+
+    LOCAL = "local"  # All jobs run locally
+    SKYPILOT = "skypilot"  # All jobs run on Skypilot
+    HYBRID_REMOTE_TRAIN = "hybrid_remote_train"  # Train on Skypilot, evaluate locally
 
 
 class SweepOrchestratorTool(Tool):
@@ -64,9 +76,9 @@ class SweepOrchestratorTool(Tool):
     stats_server_uri: Optional[str] = None  # Stats server for remote evaluations
 
     # Dispatcher configuration
-    dispatcher_type: str = "local"  # Only local supported for now
-    capture_output: bool = True  # Capture and stream subprocess output
-    output_dir: Optional[str] = None  # Directory to save output logs (optional)
+    dispatcher_type: DispatcherType = DispatcherType.LOCAL  # LOCAL or SKYPILOT
+    capture_output: bool = True  # Capture and stream subprocess output (local only)
+    output_dir: Optional[str] = None  # Directory to save output logs (local only)
 
     consumed_args: list[str] = ["sweep_name", "max_trials"]
 
@@ -106,8 +118,9 @@ class SweepOrchestratorTool(Tool):
         logger.info(f"[SweepOrchestrator] Max trials: {self.max_trials}")
         logger.info(f"[SweepOrchestrator] Max parallel jobs: {self.max_parallel_jobs}")
         logger.info(f"[SweepOrchestrator] Monitoring interval: {self.monitoring_interval}s")
+        logger.info(f"[SweepOrchestrator] Dispatcher type: {self.dispatcher_type}")
         logger.info(f"[SweepOrchestrator] Output capture: {self.capture_output}")
-        if self.capture_output:
+        if self.capture_output and self.dispatcher_type == DispatcherType.LOCAL:
             output_dir = self.output_dir or os.path.join(self.sweep_dir, "job_logs")
             logger.info(f"[SweepOrchestrator] Output logs directory: {output_dir}")
         logger.info("[SweepOrchestrator] " + "=" * 60)
@@ -126,13 +139,35 @@ class SweepOrchestratorTool(Tool):
         store = WandbStore(entity=self.wandb.entity, project=self.wandb.project)
 
         # Create dispatcher based on type
-        if self.dispatcher_type == "local":
+        if self.dispatcher_type == DispatcherType.LOCAL:
             # Set default output_dir if not specified
             output_dir = self.output_dir
             if output_dir is None and self.capture_output:
                 output_dir = os.path.join(self.sweep_dir, "job_logs")
 
             dispatcher = LocalDispatcher(capture_output=self.capture_output, output_dir=output_dir)
+
+        elif self.dispatcher_type == DispatcherType.SKYPILOT:
+            dispatcher = SkypilotDispatcher()
+            if self.capture_output:
+                logger.warning(
+                    "[SweepOrchestrator] capture_output is not supported for SkypilotDispatcher (fire-and-forget mode)"
+                )
+
+        elif self.dispatcher_type == DispatcherType.HYBRID_REMOTE_TRAIN:
+            # Train on Skypilot, evaluate locally
+            output_dir = self.output_dir
+            if output_dir is None and self.capture_output:
+                output_dir = os.path.join(self.sweep_dir, "job_logs")
+
+            dispatcher = RoutingDispatcher(
+                routes={
+                    JobTypes.LAUNCH_TRAINING: SkypilotDispatcher(),
+                    JobTypes.LAUNCH_EVAL: LocalDispatcher(capture_output=self.capture_output, output_dir=output_dir),
+                }
+            )
+            logger.info("[SweepOrchestrator] Using hybrid mode: training on Skypilot, evaluation locally")
+
         else:
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
 

@@ -34,7 +34,6 @@ def test_swap():
                 "enabled": True,
             },
         },
-        "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
             "wall": {"type_id": 1, "swappable": False},
             "block": {"type_id": 14, "swappable": True},  # Swappable block
@@ -167,7 +166,10 @@ def test_swap_frozen_agent_preserves_layers():
                 "enabled": True,
             },
         },
-        "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
+        "agents": [
+            {"team_id": 0, "freeze_duration": 6, "resource_limits": {"laser": 10}},  # red
+            {"team_id": 1, "freeze_duration": 6, "resource_limits": {"laser": 10}},  # blue
+        ],
         "objects": {
             "wall": {"type_id": 1, "swappable": False},
         },
