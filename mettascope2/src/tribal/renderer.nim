@@ -1,17 +1,7 @@
 import
   std/[strformat, tables],
   boxy, vmath, windy, chroma,
-  common, panels, environment, simulation, utils, colors
-
-# Use consolidated color functions from colors module
-proc agentColor*(id: int): Color =
-  generateEntityColor("agent", id)
-
-proc altarColor*(pos: IVec2): Color =
-  getAltarColor(pos)
-
-proc generateVillageColor*(villageId: int): Color =
-  generateEntityColor("village", villageId)
+  common, environment, utils, colors
 
 proc useSelections*() =
   if window.buttonPressed[MouseLeft]:
@@ -182,7 +172,7 @@ proc drawObjects*() =
             ivec2(x, y).vec2,
             angle = 0,
             scale = 1/200,
-            tint = agentColor(agent.agentId)
+            tint = generateEntityColor("agent", agent.agentId)
           )
         of Altar:
           bxy.drawImage(
@@ -190,7 +180,7 @@ proc drawObjects*() =
             ivec2(x, y).vec2,
             angle = 0,
             scale = 1/200,
-            tint = altarColor(ivec2(x, y))
+            tint = getAltarColor(ivec2(x, y))
           )
         of Converter:
           bxy.drawImage(

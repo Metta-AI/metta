@@ -1,4 +1,4 @@
-import std/[random, times],
+import std/times,
   common, environment, windy, ai
 
 var

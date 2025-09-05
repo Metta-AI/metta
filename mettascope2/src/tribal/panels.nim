@@ -4,9 +4,6 @@ import
 
 const HeaderSize = 30
 
-proc rect*(rect: IRect): Rect =
-  Rect(x: rect.x.float32, y: rect.y.float32, w: rect.w.float32, h: rect.h.float32)
-
 proc updateMouse*(panel: Panel) =
   let box = Rect(
     x: panel.rect.x.float32,
@@ -75,7 +72,8 @@ proc endDraw*(panel: Panel) =
   # Draw the mask.
   bxy.pushLayer()
   bxy.drawRect(
-    rect = panel.rect.rect,
+    rect = Rect(x: panel.rect.x.float32, y: panel.rect.y.float32, 
+                w: panel.rect.w.float32, h: panel.rect.h.float32),
     color = color(1, 0, 0, 1.0)
   )
   bxy.popLayer(blendMode = MaskBlend)
