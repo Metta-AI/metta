@@ -138,6 +138,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
     generator = building.generator_red.model_copy()
     generator.cooldown = 15
     generator.input_resources = {"ore_red": 1}
+    generator.output_resources = {"battery_red": 1}
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
