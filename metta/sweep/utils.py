@@ -206,6 +206,7 @@ def create_training_job(
     config: Dict[str, Any],
     gpus: int = 1,
     nodes: int = 1,
+    git_ref: str | None = None,
     stats_server_uri: Optional[str] = None,
     train_overrides: Optional[Dict[str, Any]] = None,
 ) -> "JobDefinition":
@@ -217,7 +218,9 @@ def create_training_job(
         recipe_module: Module containing the training function
         train_entrypoint: Name of the training function
         config: Hyperparameter configuration from optimizer
-        gpus_per_job: Number of GPUs per job
+        gpus: Number of GPUs per job
+        nodes: Number of nodes per job
+        git_ref: Git reference for the training job
         stats_server_uri: Optional stats server URI
         train_overrides: Optional additional overrides
 
@@ -236,6 +239,7 @@ def create_training_job(
         type=JobTypes.LAUNCH_TRAINING,
         gpus=gpus,
         nodes=nodes,
+        git_ref=git_ref,
         config=config,
         overrides=overrides,
         metadata={"group": sweep_id},
