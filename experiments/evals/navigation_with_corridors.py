@@ -246,6 +246,62 @@ def make_grid_maze_env() -> MettaGridConfig:
     return make_nav_eval_env(env)
 
 
+def make_hall_of_mirrors_env() -> MettaGridConfig:
+    """Procedural version of hall_of_mirrors using mirrored corridors.
+
+    Creates a central horizontal hall with symmetric vertical pillars above/below
+    and short upper/lower bands to evoke reflective symmetry.
+    """
+    env = make_navigation(num_agents=4)
+    env.game.max_steps = 400
+
+    width = 29
+    height = 27
+    center_y = height // 2
+    center_x = width // 2
+
+    corridors = []
+
+    # Central hall
+    corridors.append(horizontal(y=center_y, thickness=3, x_start=1, x_end=width - 2))
+
+    # Symmetric vertical pillars (split above and below the center hall)
+    for dx in (5, 9):
+        left_x = center_x - dx
+        right_x = center_x + dx
+        corridors.append(vertical(x=left_x, thickness=2, y_start=1, y_end=center_y - 1))
+        corridors.append(
+            vertical(x=right_x, thickness=2, y_start=center_y + 2, y_end=height - 2)
+        )
+
+    # Upper and lower bands
+    corridors.append(horizontal(y=3, thickness=1, x_start=3, x_end=width - 3))
+    corridors.append(horizontal(y=height - 4, thickness=1, x_start=3, x_end=width - 3))
+
+    params = AngledCorridorBuilderParams(
+        corridors=corridors,
+        objects={"altar": 6},
+        place_at_ends=True,
+        prefer_far_from_center=True,
+        agent_position=(center_y, 2),
+        shuffle_placements=False,
+    )
+
+    env.game.map_builder = MapGen.Config(
+        instances=4,
+        border_width=6,
+        instance_border_width=3,
+        instance_map=MapGen.Config(
+            width=width,
+            height=height,
+            border_width=1,
+            root=AngledCorridorBuilder.factory(params=params),
+        ),
+    )
+
+    return make_nav_eval_env(env)
+
+
 def make_hard_sequence_env() -> MettaGridConfig:
     """Generate a procedural version of hard_sequence.map.
 
@@ -384,13 +440,13 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
         # Procedurally generated corridor maps
         SimulationConfig(name="corridors", env=make_corridors_env()),
         SimulationConfig(
-            name="corridors_vertical",
-            env=lambda: make_corridors_env(vertical_orientation=True),
+            name="corridors_vertical", env=make_corridors_env(vertical_orientation=True)
         ),
         SimulationConfig(name="radial_mini", env=make_radial_mini_env()),
         SimulationConfig(name="radial_small", env=make_radial_small_env()),
         SimulationConfig(name="radial_large", env=make_radial_large_env()),
         SimulationConfig(name="grid_maze", env=make_grid_maze_env()),
+        SimulationConfig(name="hall_of_mirrors", env=make_hall_of_mirrors_env()),
         SimulationConfig(name="hard_sequence", env=make_hard_sequence_env()),
         # ASCII maps that are unique enough to keep as-is
         SimulationConfig(

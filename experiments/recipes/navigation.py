@@ -17,7 +17,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
-from experiments.evals.navigation import make_navigation_eval_suite
+from experiments.evals.navigation_with_corridors import make_navigation_eval_suite
 
 
 def _get_user_identifier() -> str:
