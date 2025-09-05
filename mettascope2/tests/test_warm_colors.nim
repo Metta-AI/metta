@@ -1,5 +1,6 @@
 ## Test to verify agent colors are warm (reds/oranges/yellows)
-import std/[strformat, strutils]
+import std/[strformat, strutils, tables]
+import vmath
 import ../src/tribal/environment
 import ../src/tribal/colors
 
@@ -30,7 +31,7 @@ proc testWarmColors() =
   echo ""
   echo "  Altar colors:"
   for pos, color in altarColors:
-    echo fmt"  Altar at ({pos.x},{pos.y}): R={color.r:.2f}, G={color.g:.2f}, B={color.b:.2f}"
+    echo fmt"  Altar at ({pos[0]},{pos[1]}): R={color.r:.2f}, G={color.g:.2f}, B={color.b:.2f}"
 
 when isMainModule:
   echo "\n" & "=" & repeat("=", 50)

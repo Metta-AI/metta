@@ -859,10 +859,11 @@ proc updateTintModifications*(env: Environment) =
             let tileX = thing.houseTopLeft.x + dx
             let tileY = thing.houseTopLeft.y + dy
             if tileX >= 0 and tileX < MapWidth and tileY >= 0 and tileY < MapHeight:
-              # Apply team color as base tint (stronger effect than agent trails)
-              env.altarTintMods[tileX][tileY].r = int16((villageColor.r - 0.7) * 200)  # Strong team color
-              env.altarTintMods[tileX][tileY].g = int16((villageColor.g - 0.65) * 200)
-              env.altarTintMods[tileX][tileY].b = int16((villageColor.b - 0.6) * 200)
+              # Store the actual team color values scaled by 100 (not 1000 to avoid overflow)
+              # We'll apply these as direct replacements in applyTintModifications
+              env.altarTintMods[tileX][tileY].r = int16(villageColor.r * 100)  # Store actual color * 100
+              env.altarTintMods[tileX][tileY].g = int16(villageColor.g * 100)
+              env.altarTintMods[tileX][tileY].b = int16(villageColor.b * 100)
               env.altarTintMods[tileX][tileY].intensity = brightnessBoost
               
               # Track these tiles as active
@@ -903,10 +904,11 @@ proc applyTintModifications*(env: Environment) =
     # Apply altar team color and brightness (for house tiles)
     if env.altarTintMods[x][y].r != 0 or env.altarTintMods[x][y].g != 0 or 
        env.altarTintMods[x][y].b != 0 or env.altarTintMods[x][y].intensity != 0:
-      # Altar tiles get strong team color application
-      r += env.altarTintMods[x][y].r div 5  # 20% of the modification
-      g += env.altarTintMods[x][y].g div 5
-      b += env.altarTintMods[x][y].b div 5
+      # Altar tiles get FULL team color replacement (not additive)
+      # The values stored are actual color * 100, so multiply by 10 to get * 1000
+      r = env.altarTintMods[x][y].r * 10  # Direct team color
+      g = env.altarTintMods[x][y].g * 10
+      b = env.altarTintMods[x][y].b * 10
       # And brightness boost
       env.tileColors[x][y].intensity = 1.0 + env.altarTintMods[x][y].intensity.float32 / 1000.0
     
@@ -1035,6 +1037,20 @@ proc init(env: Environment) =
         houseSize: houseStruct.width,  # Store house size (typically 5)
       ))
       altarColors[elements.center] = villageColor  # Associate altar position with village color
+      
+      # Initialize base colors for house tiles to team color
+      for dx in 0 ..< houseStruct.width:
+        for dy in 0 ..< houseStruct.height:
+          let tileX = placementResult.position.x + dx
+          let tileY = placementResult.position.y + dy
+          if tileX >= 0 and tileX < MapWidth and tileY >= 0 and tileY < MapHeight:
+            env.baseTileColors[tileX][tileY] = TileColor(
+              r: villageColor.r,
+              g: villageColor.g,
+              b: villageColor.b,
+              intensity: 1.0
+            )
+            env.tileColors[tileX][tileY] = env.baseTileColors[tileX][tileY]
       
       # Add the walls
       for wallPos in elements.walls:
