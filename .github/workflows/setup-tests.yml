@@ -104,6 +104,20 @@ jobs:
             setup-tests-testmon-v2-${{ runner.os }}-${{ matrix.profile }}-refs/heads/main
             setup-tests-testmon-v2-${{ runner.os }}-${{ matrix.profile }}-
 
+      - name: Cache PufferLib clone
+        uses: actions/cache@v4
+        id: cache-pufferlib
+        with:
+          path: ~/pufferlib-cache
+          key: pufferlib-clone-${{ runner.os }}-${{ hashFiles('**/test_pufferlib_integration.py') }}
+          restore-keys: |
+            pufferlib-clone-${{ runner.os }}-
+
+      - name: Set PufferLib cache path
+        run: |
+          echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
+          mkdir -p $HOME/pufferlib-cache
+
       - name: Run setup tests
         run: |
           echo "Running setup integration tests with pytest-testmon..."
