@@ -2,8 +2,8 @@
 ## Implements Forge for spear crafting and combat system
 
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import game
-export game
+import common, game
+export common, game
 
 # New constants for attack system
 const
@@ -11,9 +11,7 @@ const
   ForgeCooldown* = 5  # Cooldown after crafting
   SpearRange* = 2     # Attack range with spear (Manhattan distance)
 
-proc getManhattanDistance*(pos1, pos2: IVec2): int =
-  ## Calculate Manhattan distance between two positions
-  return abs(pos1.x - pos2.x) + abs(pos1.y - pos2.y)
+# getManhattanDistance is now imported from common.nim as manhattanDistance
 
 proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
   ## Use a forge to craft a spear from wood

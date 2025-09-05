@@ -1,5 +1,5 @@
 import std/[random, times], vmath, windy
-import game, controller
+import common, game, controller
 
 # Action system for managing agent actions
 type

@@ -1,7 +1,7 @@
 ## Unified placement system for terrain and structures
 ## Handles placement priority: river → terrain features → structures → objects
 
-import std/[random, math, algorithm], vmath, terrain
+import std/[random, math, algorithm], vmath, common, terrain
 
 type
   PlacementPriority* = enum

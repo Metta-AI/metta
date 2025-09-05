@@ -1,18 +1,6 @@
-import std/[random, math], vmath
+import std/[random, math], vmath, common
 
-proc toIVec2*(x, y: int): IVec2 =
-  ## Helper to create IVec2 from ints
-  result.x = x.int32
-  result.y = y.int32
-
-type
-  TerrainType* = enum
-    Empty
-    Water
-    Wheat
-    Tree
-
-  TerrainGrid* = array[100, array[50, TerrainType]]  # 100x50 map size
+# TerrainType, TerrainGrid, and toIVec2 are now imported from common.nim
 
 proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
   ## Generate a river that flows from left to right across the map
