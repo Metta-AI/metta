@@ -124,7 +124,7 @@ class TestStopwatch:
 
         # Test basic rate
         rate = stopwatch.get_rate(100, "rate_timer")
-        assert rate == pytest.approx(1000, abs=0.1)
+        assert rate == pytest.approx(1000, rel=0.1)
 
         # Add checkpoint and test lap rate
         stopwatch.checkpoint(100, "checkpoint1", "rate_timer")
