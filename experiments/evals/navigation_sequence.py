@@ -8,7 +8,7 @@ def make_nav_sequence_ascii_env(
     name: str, max_steps: int, border_width: int = 1, num_agents=1, num_instances=4
 ) -> MettaGridConfig:
     ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
-    env = make_navigation_sequence(num_agents=num_agents*num_instances)
+    env = make_navigation_sequence(num_agents=num_agents * num_instances)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGen.Config(
         instances=num_instances,
@@ -158,14 +158,20 @@ def make_navigation_sequence_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="easy_memory",
-            env=make_nav_sequence_ascii_env("easy_sequence", 90, num_agents=2, num_instances=2),
+            env=make_nav_sequence_ascii_env(
+                "easy_sequence", 90, num_agents=2, num_instances=2
+            ),
         ),
         SimulationConfig(
             name="medium_memory",
-            env=make_nav_sequence_ascii_env("medium_sequence", 100, num_agents=2, num_instances=2),
+            env=make_nav_sequence_ascii_env(
+                "medium_sequence", 100, num_agents=2, num_instances=2
+            ),
         ),
         SimulationConfig(
             name="hard_memory",
-            env=make_nav_sequence_ascii_env("hard_sequence", 170, num_agents=2, num_instances=2),
+            env=make_nav_sequence_ascii_env(
+                "hard_sequence", 170, num_agents=2, num_instances=2
+            ),
         ),
     ]
