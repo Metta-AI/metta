@@ -28,7 +28,7 @@ runs:
       with:
         version: "0.7.3"
         enable-cache: true
-        prune-cache: true
+        prune-cache: false
         cache-suffix: "${{ inputs.install-mode }}-${{ steps.hash.outputs.hash }}"
         cache-dependency-glob: |
           uv.lock
