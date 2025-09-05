@@ -107,6 +107,7 @@ class TestObservations:
     def test_detailed_wall_observations(self, basic_env):
         """Test detailed wall observations for both agents."""
         obs, _ = basic_env.reset()
+        type_id_feature_id = basic_env.c_env.feature_spec()["type_id"]["id"]
         helper = ObservationHelper()
 
         # The environment creates a 4x8 grid (height=4, width=8):
@@ -139,7 +140,7 @@ class TestObservations:
         ]
 
         agent0_wall_tokens = helper.find_tokens(
-            agent0_obs, feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID
+            agent0_obs, feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
         )
         agent0_wall_positions = helper.get_positions_from_tokens(agent0_wall_tokens)
         assert set(agent0_wall_positions) == set(wall_positions_agent0), (
@@ -166,7 +167,7 @@ class TestObservations:
         ]
 
         agent1_wall_tokens = helper.find_tokens(
-            agent1_obs, feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID
+            agent1_obs, feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
         )
         agent1_wall_positions = helper.get_positions_from_tokens(agent1_wall_tokens)
         assert set(agent1_wall_positions) == set(wall_positions_agent1), (
@@ -252,6 +253,8 @@ class TestObservations:
         )
 
         env = MettaGridCore(cfg)
+        type_id_feature_id = env.c_env.feature_spec()["type_id"]["id"]
+        color_feature_id = env.c_env.feature_spec()["agent:color"]["id"]
 
         obs, _ = env.reset()
         agent_obs = obs[0]
@@ -277,12 +280,12 @@ class TestObservations:
         for x, y in expected_altar_positions:
             # Check altar exists at location
             altar_tokens = helper.find_tokens(
-                agent_obs, location=(x, y), feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
+                agent_obs, location=(x, y), feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID
             )
             assert len(altar_tokens) == 1, f"Should have altar at ({x}, {y})"
 
             # Check color token
-            color_values = helper.find_token_values(agent_obs, location=(x, y), feature_id=TokenTypes.COLOR)
+            color_values = helper.find_token_values(agent_obs, location=(x, y), feature_id=color_feature_id)
             assert color_values == [42], f"Altar at ({x}, {y}) should have color 42, got {color_values}"
 
         # Verify the agent sees itself at center (1,1)
@@ -290,9 +293,7 @@ class TestObservations:
         assert len(agent_tokens) > 0, "Agent should see itself at center position"
 
         # Count total altars
-        altar_tokens = helper.find_tokens(
-            agent_obs, feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
-        )
+        altar_tokens = helper.find_tokens(agent_obs, feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
         assert len(altar_tokens) == 8, f"Should see 8 altars, got {len(altar_tokens)}"
 
     def test_agents_see_each_other(self, adjacent_agents_env):
@@ -355,6 +356,10 @@ class TestGlobalTokens:
     def test_initial_global_tokens(self, basic_env):
         """Test initial global token values."""
         obs, _ = basic_env.reset()
+        episode_completion_pct_feature_id = basic_env.c_env.feature_spec()["episode_completion_pct"]["id"]
+        last_action_feature_id = basic_env.c_env.feature_spec()["last_action"]["id"]
+        last_action_arg_feature_id = basic_env.c_env.feature_spec()["last_action_arg"]["id"]
+        last_reward_feature_id = basic_env.c_env.feature_spec()["last_reward"]["id"]
         helper = ObservationHelper()
 
         # Global tokens are at the center of the observation window
@@ -363,13 +368,13 @@ class TestGlobalTokens:
 
         # Check token types and values
         assert helper.find_token_values(
-            obs[0], location=(global_x, global_y), feature_id=TokenTypes.EPISODE_COMPLETION_PCT
+            obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         ) == [0]
-        assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION) == [0]
+        assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id) == [0]
         assert helper.find_token_values(
-            obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION_ARG
+            obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
         ) == [0]
-        assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_REWARD) == [0]
+        assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_reward_feature_id) == [0]
 
     def test_global_tokens_update(self):
         """Test that global tokens update correctly."""
@@ -410,6 +415,9 @@ class TestGlobalTokens:
             )
         )
         env = MettaGridCore(cfg)
+        episode_completion_pct_feature_id = env.c_env.feature_spec()["episode_completion_pct"]["id"]
+        last_action_feature_id = env.c_env.feature_spec()["last_action"]["id"]
+        last_action_arg_feature_id = env.c_env.feature_spec()["last_action_arg"]["id"]
         obs, _ = env.reset()
         num_agents = env.num_agents
         helper = ObservationHelper()
@@ -426,19 +434,19 @@ class TestGlobalTokens:
         # Check episode completion updated (1/10 = 10%)
         expected_completion = int(round(0.1 * 255))
         completion_values = helper.find_token_values(
-            obs[0], location=(global_x, global_y), feature_id=TokenTypes.EPISODE_COMPLETION_PCT
+            obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         )
         assert completion_values == [expected_completion], (
             f"Expected completion {expected_completion}, got {completion_values}"
         )
 
         # Check last action
-        last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION)
+        last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id)
         assert last_action == noop_idx, f"Expected last action {noop_idx}, got {last_action}"
 
         # Check last action arg
         last_arg = helper.find_token_values(
-            obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION_ARG
+            obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
         )
         assert last_arg == 0, f"Expected last action arg 0, got {last_arg}"
 
@@ -450,15 +458,15 @@ class TestGlobalTokens:
         # Check updates
         expected_completion = int(round(0.2 * 255))
         completion_value = helper.find_token_values(
-            obs[0], location=(global_x, global_y), feature_id=TokenTypes.EPISODE_COMPLETION_PCT
+            obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         )
         assert completion_value == expected_completion
 
-        last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION)
+        last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id)
         assert last_action == move_idx
 
         last_arg = helper.find_token_values(
-            obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION_ARG
+            obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
         )
         assert last_arg == 1
 
@@ -636,6 +644,7 @@ class TestEdgeObservations:
             )
         )
         env = MettaGridCore(cfg)
+        type_id_feature_id = env.c_env.feature_spec()["type_id"]["id"]
 
         obs, _ = env.reset()
 
@@ -650,7 +659,7 @@ class TestEdgeObservations:
         # Agent at (row=2, col=2) with 7x7 window sees:
         # - rows from (2-3) to (2+3) = -1 to 5 ✓ (altar at row 5 is at edge)
         # - cols from (2-3) to (2+3) = -1 to 5 ✗ (altar at col 7 is outside)
-        altar_tokens = helper.find_tokens(obs[0], feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID)
+        altar_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
         altar_visible = len(altar_tokens) > 0
         assert not altar_visible, "Altar should not be visible initially"
 
@@ -665,9 +674,7 @@ class TestEdgeObservations:
             agent_col = 2 + step + 1  # Started at col 2, moved (step+1) times
 
             # Use helper to check if altar is actually visible
-            altar_tokens = helper.find_tokens(
-                obs[0], feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
-            )
+            altar_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
             altar_visible = len(altar_tokens) > 0
 
             # The altar becomes visible when agent reaches column 4 (after step 1)
@@ -676,9 +683,7 @@ class TestEdgeObservations:
                 assert altar_visible, f"Altar should be visible after step {step} (agent at col {agent_col})"
 
                 # Find altar in observation
-                altar_tokens = helper.find_tokens(
-                    obs[0], feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
-                )
+                altar_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
                 altar_positions = helper.get_positions_from_tokens(altar_tokens)
                 assert len(altar_positions) == 1, "Should find exactly one altar"
 
@@ -707,9 +712,7 @@ class TestEdgeObservations:
             agent_col = 2 + step + 1
 
             # Check if altar is visible
-            altar_tokens = helper.find_tokens(
-                obs[0], feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.ALTAR_TYPE_ID
-            )
+            altar_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
             altar_found = len(altar_tokens) > 0
 
             if altar_found:
@@ -748,7 +751,7 @@ class TestEdgeObservations:
             grid_y = 8 + obs_y - 3  # Convert obs y to grid y
             if 0 <= grid_y <= 9:  # Within grid bounds
                 wall_tokens = helper.find_tokens(
-                    obs[0], location=(4, obs_y), feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID
+                    obs[0], location=(4, obs_y), feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
                 )
                 assert len(wall_tokens) == 1, f"Should see right wall at obs (4, {obs_y})"
 
@@ -757,7 +760,7 @@ class TestEdgeObservations:
             grid_x = 13 + obs_x - 3  # Convert obs x to grid x
             if 0 <= grid_x <= 14:  # Within grid bounds
                 wall_tokens = helper.find_tokens(
-                    obs[0], location=(obs_x, 4), feature_id=TokenTypes.TYPE_ID_FEATURE, value=TokenTypes.WALL_TYPE_ID
+                    obs[0], location=(obs_x, 4), feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
                 )
                 assert len(wall_tokens) == 1, f"Should see bottom wall at obs ({obs_x}, 4)"
 
