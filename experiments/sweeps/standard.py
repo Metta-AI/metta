@@ -6,16 +6,16 @@ from metta.tools.sweep import SweepTool
 
 def ppo(
     run: str | None = None,  # Accept run parameter from dispatcher (unused)
-    recipe: str = "experiments.recipes.arena",
-    train: str = "train_shaped",
-    eval: str = "evaluate",
-    max_trials: int = 10,
-    max_parallel_jobs: int = 1,
+    recipe: str = "experiments.recipes.arena_basic_easy_shaped",
+    train: str = "train",
+    eval: str = "evaluate_in_sweep",
+    max_trials: int = 300,
+    max_parallel_jobs: int = 6,
     gpus: int = 1,
 ) -> SweepTool:
     """Create PPO hyperparameter sweep."""
 
-    # Define the 5 PPO parameters to sweep over
+    # Define the 6 PPO parameters to sweep over
     protein_config = ProteinConfig(
         metric="evaluator/eval_arena/score",  # Metric to optimize
         goal="maximize",
@@ -61,10 +61,19 @@ def ppo(
                 mean=0.55,
                 scale="auto",
             ),
+            # 6. Adam epsilon - log scale from 1e-8 to 1e-4
+            "trainer.optimizer.eps": ParameterConfig(
+                min=1e-8,
+                max=1e-4,
+                distribution="log_normal",
+                mean=1e-6,  # Geometric mean
+                scale="auto",
+            ),
+
         },
         settings=ProteinSettings(
-            num_random_samples=0,  # Start with 20 random samples for better exploration in large sweeps
-            max_suggestion_cost=7200,  # 5 minutes max per trial (for quick testing)
+            num_random_samples=20,  # Start with 20 random samples for better exploration in large sweeps
+            max_suggestion_cost=7200*1.5,  # 3 hours max per trial (for quick testing)
         ),
     )
 
@@ -79,7 +88,7 @@ def ppo(
         max_parallel_jobs=max_parallel_jobs,
         gpus=gpus,
         train_overrides={
-            "trainer.total_timesteps": "1000000000",  # 1B timesteps default for PPO sweep
+            "trainer.total_timesteps": "2000000000",  # 2B timesteps default for PPO sweep
         },
     )
 
@@ -105,7 +114,7 @@ def quick_test(
             --args sweep_name=test_sweep
     """
 
-    # Use the SAME full PPO config as the main ppo() function
+    # Use the SAME full 6 PPO parameters as the main ppo() function
     protein_config = ProteinConfig(
         metric="evaluator/eval_arena/score",
         goal="maximize",
@@ -149,6 +158,14 @@ def quick_test(
                 max=1.0,
                 distribution="uniform",
                 mean=0.55,
+                scale="auto",
+            ),
+            # 6. Adam epsilon - log scale from 1e-8 to 1e-4
+            "trainer.optimizer.eps": ParameterConfig(
+                min=1e-8,
+                max=1e-4,
+                distribution="log_normal",
+                mean=1e-6,  # Geometric mean
                 scale="auto",
             ),
         },
