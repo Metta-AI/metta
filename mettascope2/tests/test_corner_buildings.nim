@@ -1,4 +1,4 @@
-import ../src/tribal/tribal, vmath
+import ../src/tribal/game
 
 # Test that the corner buildings are created properly
 proc testCornerBuildings() =

@@ -1,6 +1,6 @@
+import ../src/tribal/game
 import std/[strformat, sequtils, tables, strutils, random]
 import ../src/tribal/controller
-import ../src/tribal/tribal
 import vmath
 
 proc testDiagonalMovement() =

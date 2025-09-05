@@ -1,6 +1,6 @@
+import ../src/tribal/game
 import std/[strformat, sequtils, random, times, tables, strutils]
 import ../src/tribal/controller
-import ../src/tribal/tribal
 import vmath
 
 proc createTestEnvironment(): Environment =

@@ -1,5 +1,5 @@
+import ../src/tribal/game
 import ../src/tribal/controller as ctrl
-import ../src/tribal/tribal as tribal
 import std/[random, tables]
 import vmath
 

@@ -1,10 +1,9 @@
+import ../src/tribal/game
 ## Test for Clippy Kamikaze Behavior
 ## Verifies that clippys sacrifice themselves to damage altars
 import std/[strformat, strutils]
 import vmath
-import ../src/tribal/tribal
 import ../src/tribal/clippy
-import ../src/tribal/common
 import ../src/tribal/actions
 
 proc testClippyAltarKamikaze() =

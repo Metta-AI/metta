@@ -1,11 +1,10 @@
+import ../src/tribal/game
 ## AI Behavior Test Suite
 ## Tests controller AI for agents and clippy movement patterns
 import std/[strformat, strutils, sets, math, tables]
 import vmath
-import ../src/tribal/tribal
 import ../src/tribal/controller
 import ../src/tribal/clippy
-import ../src/tribal/common
 import ../src/tribal/actions
 
 # Test 1: Agent Controller Behavior

@@ -2,7 +2,7 @@
 ## Implements Forge for spear crafting and combat system
 
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import game, observations
+import game
 export game
 
 # New constants for attack system

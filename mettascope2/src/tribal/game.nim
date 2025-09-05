@@ -1,6 +1,6 @@
 import std/[strformat, random, strutils, tables, times], vmath, jsony, chroma
 import terrain, placement, clippy, village
-import attack, defense, food, observations, rewards
+import defense, food
 export terrain
 
 # Import village colors from map_generation

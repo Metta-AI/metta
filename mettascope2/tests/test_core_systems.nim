@@ -1,10 +1,9 @@
+import ../src/tribal/game
 ## Core Systems Test Suite
 ## Tests fundamental game mechanics: movement, resources, and interactions
 import std/[strformat, strutils, tables]
 import vmath
-import ../src/tribal/tribal
 import ../src/tribal/controller
-import ../src/tribal/common
 
 # Test 1: Directional Movement with Auto-rotation
 proc testDirectionalMovement() =

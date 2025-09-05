@@ -1,4 +1,4 @@
-import ../src/tribal/tribal
+import ../src/tribal/game
 import ../src/tribal/controller as ctrl_module
 import std/[random, tables]
 import vmath
