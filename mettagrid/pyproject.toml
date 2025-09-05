@@ -5,13 +5,13 @@ backend-path = ["."]
 
 [project]
 name = "metta-mettagrid"
-version = "0.1.6"
+version = "0.2"
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = "==3.11.7"
 license = "MIT"
 readme = "README.md"
-urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
 keywords = [
   "gridworld",
   "minigrid",
@@ -32,7 +32,6 @@ dependencies = [
   "google-auth-oauthlib>=1.0.0",
   "gymnasium==0.29.1",
   "matplotlib>=3.10.3",
-  "metta-common",
   "numpy>=1.26.4,<2",
   "omegaconf>=2.4.0.dev3",
   "pandas>=2.3.0",
