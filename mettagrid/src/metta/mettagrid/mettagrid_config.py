@@ -78,7 +78,7 @@ class GetItemsActionConfig(ActionConfig):
 class ChangeGlyphActionConfig(ActionConfig):
     """Change glyph action configuration."""
 
-    number_of_glyphs: int = Field(default=0, ge=0, le=255)
+    number_of_glyphs: int = Field(default=4, ge=0, le=255)
 
 
 class ActionsConfig(Config):
