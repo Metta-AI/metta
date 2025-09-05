@@ -30,59 +30,6 @@ proc hasDefense*(agent: Thing): bool =
   ## Check if an agent has any defense items
   return agent.kind == Agent and (agent.inventoryHat > 0 or agent.inventoryArmor > 0)
 
-proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
-  if forge.cooldown > 0:
-    return
-  
-  if agent.inventoryWood <= 0:
-    return
-  
-  if agent.inventorySpear > 0:
-    return
-  
-  agent.inventoryWood -= ForgeWoodCost
-  agent.inventorySpear = 1
-  forge.cooldown = ForgeCooldown
-  
-  env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
-  env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
-  agent.reward += 0.5
-
-proc useWeavingLoomAction*(env: Environment, id: int, agent: Thing, loom: Thing) =
-  if loom.cooldown > 0:
-    return
-  
-  if agent.inventoryWheat <= 0:
-    return
-  
-  if agent.inventoryHat > 0:
-    return
-  
-  agent.inventoryWheat -= WeavingLoomWheatCost
-  agent.inventoryHat = 1
-  loom.cooldown = WeavingLoomCooldown
-  
-  env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-  env.updateObservations(AgentInventoryHatLayer, agent.pos, agent.inventoryHat)
-  agent.reward += 0.5
-
-proc useArmoryAction*(env: Environment, id: int, agent: Thing, armory: Thing) =
-  if armory.cooldown > 0:
-    return
-  
-  if agent.inventoryOre <= 0:
-    return
-  
-  if agent.inventoryArmor > 0:
-    return
-  
-  agent.inventoryOre -= ArmoryOreCost
-  agent.inventoryArmor = ArmorMaxUses  # Armor starts with full uses
-  armory.cooldown = ArmoryCooldown
-  
-  env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
-  env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
-  agent.reward += 0.75
 
 proc attackWithSpearAction*(env: Environment, id: int, agent: Thing, targetDirection: int) =
   if agent.inventorySpear <= 0:

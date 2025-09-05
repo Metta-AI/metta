@@ -593,20 +593,22 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
     # Production building crafting logic
     let canUse = thing.cooldown == 0 and (
       case thing.kind:
-      of Armory: agent.inventoryOre >= 2
+      of Armory: agent.inventoryOre >= 1 and agent.inventoryArmor == 0  # Need ore and no existing armor
       of ClayOven: agent.inventoryWheat >= 1  
-      of WeavingLoom: agent.inventoryWheat >= 1
+      of WeavingLoom: agent.inventoryWheat >= 1 and agent.inventoryHat == 0  # Need wheat and no existing hat
       else: false
     )
     
     if canUse:
-      # Consume resources and apply rewards based on building type
+      # Consume resources and create items based on building type
       case thing.kind:
       of Armory:
-        agent.inventoryOre -= 2
+        agent.inventoryOre -= 1
+        agent.inventoryArmor = 3  # Armor starts with 3 uses
         agent.reward += RewardCraftArmor
         thing.cooldown = 20
         env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+        env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
       of ClayOven:
         agent.inventoryWheat -= 1
         agent.reward += RewardCraftFood
@@ -614,9 +616,11 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
         env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       of WeavingLoom:
         agent.inventoryWheat -= 1
+        agent.inventoryHat = 1  # Create a hat
         agent.reward += RewardCraftCloth
         thing.cooldown = 15
         env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+        env.updateObservations(AgentInventoryHatLayer, agent.pos, agent.inventoryHat)
       else: discard
       inc env.stats[id].actionUse
     else:
@@ -744,8 +748,134 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       inc env.stats[id].actionInvalid  # Inventory full
   
   of Empty:
-    inc env.stats[id].actionInvalid  # Nothing to get
+    # Check if there's a building at this position
+    let thing = env.getThing(targetPos)
+    if not isNil(thing):
+      # Handle getting outputs from buildings
+      case thing.kind:
+      of Mine:
+        # Get ore from mine
+        if thing.cooldown == 0 and agent.inventoryOre < MapObjectAgentMaxInventory:
+          agent.inventoryOre += 1
+          env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+          thing.cooldown = MapObjectMineCooldown
+          env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
+          agent.reward += RewardMineOre
+          inc env.stats[id].actionUseMine
+          inc env.stats[id].actionGet
+        else:
+          inc env.stats[id].actionInvalid
+      of Converter:
+        # Get battery from converter (requires ore to put in)
+        if thing.cooldown == 0 and agent.inventoryOre > 0 and agent.inventoryBattery < MapObjectAgentMaxInventory:
+          agent.inventoryOre -= 1
+          agent.inventoryBattery += 1
+          env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+          env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
+          thing.cooldown = 0  # Instant conversion
+          env.updateObservations(ConverterReadyLayer, thing.pos, 1)
+          agent.reward += RewardConvertOreToBattery
+          inc env.stats[id].actionUseConverter
+          inc env.stats[id].actionGet
+        else:
+          inc env.stats[id].actionInvalid
+      else:
+        inc env.stats[id].actionInvalid  # Can't get from this building type
+    else:
+      inc env.stats[id].actionInvalid  # Nothing to get
 
+proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
+  ## Put resources into buildings to get crafted items - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
+  if argument > 7:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Calculate target position based on orientation argument
+  let putOrientation = Orientation(argument)
+  let delta = getOrientationDelta(putOrientation)
+  var targetPos = agent.pos
+  targetPos.x += int32(delta.x)
+  targetPos.y += int32(delta.y)
+  
+  # Check bounds
+  if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
+    inc env.stats[id].actionInvalid
+    return
+  
+  let thing = env.getThing(targetPos)
+  if isNil(thing):
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Handle putting resources into buildings
+  case thing.kind:
+  of Forge:
+    # Put wood into forge → get spear
+    if thing.cooldown == 0 and agent.inventoryWood > 0 and agent.inventorySpear == 0:
+      agent.inventoryWood -= 1
+      agent.inventorySpear = 1
+      thing.cooldown = 5
+      env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
+      env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
+      agent.reward += RewardCraftSpear
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  
+  of WeavingLoom:
+    # Put wheat into weaving loom → get hat
+    if thing.cooldown == 0 and agent.inventoryWheat > 0 and agent.inventoryHat == 0:
+      agent.inventoryWheat -= 1
+      agent.inventoryHat = 1
+      thing.cooldown = 15
+      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      env.updateObservations(AgentInventoryHatLayer, agent.pos, agent.inventoryHat)
+      agent.reward += RewardCraftCloth
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  
+  of Armory:
+    # Put ore into armory → get armor
+    if thing.cooldown == 0 and agent.inventoryOre > 0 and agent.inventoryArmor == 0:
+      agent.inventoryOre -= 1
+      agent.inventoryArmor = 3  # Armor starts with 3 uses
+      thing.cooldown = 20
+      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+      env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
+      agent.reward += RewardCraftArmor
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  
+  of ClayOven:
+    # Put wheat into clay oven → get food
+    if thing.cooldown == 0 and agent.inventoryWheat > 0:
+      agent.inventoryWheat -= 1
+      thing.cooldown = 10
+      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      agent.reward += RewardCraftFood
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  
+  of Altar:
+    # Put battery into altar → add heart
+    if thing.cooldown == 0 and agent.inventoryBattery >= 1:
+      agent.inventoryBattery -= 1
+      thing.hearts += 1
+      thing.cooldown = MapObjectAltarCooldown
+      env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
+      env.updateObservations(AltarHeartsLayer, thing.pos, thing.hearts)
+      env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
+      agent.reward += 1.0
+      inc env.stats[id].actionUseAltar
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  
+  else:
+    inc env.stats[id].actionInvalid  # Can't put into this building type
 
 proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
   ## Swap
@@ -1453,10 +1583,11 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     of 2: env.rotateAction(id, agent, action[1].int)
     of 3: env.useAction(id, agent, action[1].int)
     of 4: env.attackAction(id, agent, action[1].int)
-    of 5: env.getAction(id, agent, action[1].int)  # New get action
+    of 5: env.getAction(id, agent, action[1].int)  # Get from terrain/buildings
     of 6: env.shieldAction(id, agent, action[1].int)
     of 7: env.giftAction(id, agent)
     of 8: env.swapAction(id, agent, action[1].int)
+    of 9: env.putAction(id, agent, action[1].int)  # Put resources into buildings
     #of: env.jumpAction(id, agent)
     #of: env.transferAction(id, agent)
     else: inc env.stats[id].actionInvalid
