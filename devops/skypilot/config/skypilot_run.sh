@@ -297,3 +297,4 @@ else
 fi
 
 run_cmd
+exit $?
