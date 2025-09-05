@@ -1,9 +1,17 @@
 """Fast unit tests for arg parsing logic without subprocess overhead."""
 
+from typing import Any
+
 from pydantic import Field
 
 from metta.common.tool import Tool
-from metta.common.tool.run_tool import get_tool_fields, parse_cli_args, parse_value, split_args_and_overrides
+from metta.common.tool.run_tool import (
+    classify_remaining_args,
+    extract_function_args,
+    get_tool_fields,
+    parse_cli_args,
+    parse_value,
+)
 from metta.mettagrid.config import Config
 
 
@@ -27,6 +35,23 @@ class SimpleTestTool(Tool):
 def make_test_tool(run: str = "default_run", count: int = 42) -> SimpleTestTool:
     """Function that creates a test tool."""
     return SimpleTestTool()
+
+
+def split_args_and_overrides_test_helper(
+    cli_args: dict[str, Any], make_tool_cfg: Any, tool_cfg: Tool
+) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    """
+    Test helper that mimics the old split_args_and_overrides behavior.
+    Uses the two separate helper functions from run_tool.
+    """
+    # Phase 1: Extract function args
+    func_args, remaining = extract_function_args(cli_args, make_tool_cfg)
+
+    # Phase 2: Classify remaining as overrides or unknown
+    tool_fields = get_tool_fields(type(tool_cfg))
+    overrides, unknown = classify_remaining_args(remaining, tool_fields)
+
+    return func_args, overrides, unknown
 
 
 class TestArgParsing:
@@ -73,7 +98,6 @@ class TestArgParsing:
         assert "value" in fields
         assert "nested" in fields
         assert "system" in fields  # From parent Tool class
-        assert "consumed_args" in fields  # From parent Tool class
 
     def test_split_args_and_overrides_function(self):
         """Test splitting args for a function that returns a Tool."""
@@ -86,7 +110,7 @@ class TestArgParsing:
         }
 
         temp_tool = make_test_tool()
-        func_args, overrides, unknown = split_args_and_overrides(cli_args, make_test_tool, temp_tool)
+        func_args, overrides, unknown = split_args_and_overrides_test_helper(cli_args, make_test_tool, temp_tool)
 
         # Check function args
         assert func_args == {"run": "test_run", "count": 100}
@@ -102,7 +126,7 @@ class TestArgParsing:
         cli_args = {"value": "test_value", "system.device": "cpu", "unknown": "arg"}
 
         temp_tool = SimpleTestTool()
-        func_args, overrides, unknown = split_args_and_overrides(cli_args, SimpleTestTool, temp_tool)
+        func_args, overrides, unknown = split_args_and_overrides_test_helper(cli_args, SimpleTestTool, temp_tool)
 
         # Tool constructor takes no args (besides self)
         assert func_args == {}
@@ -123,7 +147,7 @@ class TestArgParsing:
         }
 
         temp_tool = SimpleTestTool()
-        func_args, overrides, unknown = split_args_and_overrides(cli_args, make_test_tool, temp_tool)
+        func_args, overrides, unknown = split_args_and_overrides_test_helper(cli_args, make_test_tool, temp_tool)
 
         # No function args in this case
         assert func_args == {}
@@ -172,7 +196,7 @@ class TestArgParsing:
         temp_tool = make_test_tool()
 
         # Split into function args and overrides
-        func_args, overrides, unknown = split_args_and_overrides(cli_args, make_test_tool, temp_tool)
+        func_args, overrides, unknown = split_args_and_overrides_test_helper(cli_args, make_test_tool, temp_tool)
 
         # Verify the split
         assert func_args == {"run": "my_test", "count": 99}
@@ -206,7 +230,7 @@ class TestArgParsing:
         }
 
         temp_tool = SimpleTestTool()
-        func_args, overrides, unknown = split_args_and_overrides(cli_args, conflicting_function, temp_tool)
+        func_args, overrides, unknown = split_args_and_overrides_test_helper(cli_args, conflicting_function, temp_tool)
 
         # Function parameters should take precedence
         assert func_args == {
