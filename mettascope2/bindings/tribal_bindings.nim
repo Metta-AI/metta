@@ -186,3 +186,6 @@ exportProcs:
 # Generate the Python binding files
 when isMainModule:
   writeFiles("bindings/generated", "Tribal")
+
+# Include the implementation when this is compiled as library
+include generated/internal
