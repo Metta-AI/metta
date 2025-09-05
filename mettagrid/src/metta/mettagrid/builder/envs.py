@@ -146,6 +146,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
                 "mine_red": mine,
                 "generator_red": generator,
             },
+            resource_names=["heart", "ore_red", "battery_red"],
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(),
