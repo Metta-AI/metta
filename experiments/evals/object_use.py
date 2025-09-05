@@ -1,4 +1,4 @@
-from metta.mettagrid.config import building, empty_converters
+from metta.mettagrid.builder import building, empty_converters
 from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
 from metta.mettagrid.mettagrid_config import (
@@ -290,6 +290,7 @@ def make_swap_in_env() -> MettaGridConfig:
     """Test swap in mechanics with ASCII map"""
     altar = building.altar.model_copy()
     altar.initial_resource_count = 1
+    altar.cooldown = 255
 
     env = make_object_use_ascii_env(
         name="swap_in",
@@ -310,6 +311,7 @@ def make_swap_out_env() -> MettaGridConfig:
     """Test swap out mechanics with ASCII map"""
     altar = building.altar.model_copy()
     altar.initial_resource_count = 1
+    altar.cooldown = 255
 
     env = make_object_use_ascii_env(
         name="swap_out",
@@ -331,8 +333,6 @@ def make_full_sequence_env() -> MettaGridConfig:
 
     altar = building.altar.model_copy()
     altar.initial_resource_count = 0
-    altar.input_resources = {"battery_red": 1}
-    altar.output_resources = {"heart": 1}
     altar.cooldown = 255
 
     generator = building.generator_red.model_copy()

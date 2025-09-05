@@ -5,7 +5,7 @@ from typing import Optional, Sequence
 import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import Span
-from metta.mettagrid.config import building, empty_converters
+from metta.mettagrid.builder import building, empty_converters
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mettagrid_config import (
