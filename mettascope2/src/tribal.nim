@@ -9,7 +9,6 @@ when not defined(emscripten):
   loadExtensions()
 
 bxy = newBoxy()
-env = newEnvironment()
 rootArea = Area(layout: Horizontal)
 worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
 minimapPanel = Panel(panelType: Minimap, name: "Minimap")

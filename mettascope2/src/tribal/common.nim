@@ -1,5 +1,5 @@
 import std/[times],
-  tribal, boxy, windy, vmath
+  boxy, windy, vmath
 
 type
   IRect* = object
@@ -38,6 +38,7 @@ type
     selectedPanelNum*: int
     panels*: seq[Panel]
 
+
   Settings* = object
     showFogOfWar* = false
     showVisualRange* = true
@@ -50,7 +51,6 @@ var
   rootArea*: Area
   bxy*: Boxy
   frame*: int
-  env*: Environment
 
 
   worldMapPanel*: Panel
@@ -62,8 +62,6 @@ var
   globalHeaderPanel*: Panel
 
   settings* = Settings()
-
-  selection*: Thing
 
   play*: bool
   playSpeed*: float32 = 1/60.0

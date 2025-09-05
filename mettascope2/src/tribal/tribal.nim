@@ -1,10 +1,6 @@
 import std/[strformat, random, strutils, tables, times], vmath, jsony, chroma
-import terrain, placement, clippy, village
-export terrain
-
-# Global variables for storing village colors
-var agentVillageColors*: seq[Color] = @[]
-var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
+import terrain, placement, clippy, village, colors, rewards
+export terrain, colors, rewards
 
 const
   MapLayoutRoomsX* = 1
@@ -19,20 +15,6 @@ const
   MapRoomObjectsConverters* = 10  # Converters to process ore into batteries
   MapRoomObjectsMines* = 20  # Mines to extract ore (2x generators)
   MapRoomObjectsWalls* = 30
-  # Shaped Rewards
-  # Resource gathering
-  RewardGetWater* = 0.001
-  RewardGetWheat* = 0.001
-  RewardGetWood* = 0.002  # Slightly higher as it leads to spears
-  RewardMineOre* = 0.003
-  # Crafting
-  RewardConvertOreToBattery* = 0.01  # Converting ore to battery
-  RewardCraftSpear* = 0.01
-  RewardCraftArmor* = 0.015     # Using armory to craft armor  
-  RewardCraftFood* = 0.012      # Using clay oven to craft food
-  RewardCraftCloth* = 0.012     # Using weaving loom to craft cloth
-  # Combat
-  RewardDestroyClippy* = 0.1
 
   MapObjectAgentMaxInventory* = 5
   MapObjectAgentFreezeDuration* = 10  # Temporary freeze when caught by clippy
@@ -161,6 +143,11 @@ type
     terminated*: array[MapAgents, float32]
     truncated*: array[MapAgents, float32]
     stats: seq[Stats]
+
+# Global variables (initialized later after newEnvironment is defined)
+var
+  env*: Environment
+  selection*: Thing
 
 proc render*(env: Environment): string =
   for y in 0 ..< MapHeight:
@@ -345,6 +332,7 @@ proc updateObservations(
     if x < 0 or x >= ObservationWidth or y < 0 or y >= ObservationHeight:
       continue
     env.observations[agentId][layerId][x][y] = value.uint8
+
 
 proc getThing(env: Environment, pos: IVec2): Thing =
   if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
@@ -736,6 +724,16 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
 #   for thing in env.things:
 #     env.grid[thing.pos.x][thing.pos.y] = thing
 
+proc isValidEmptyPosition(env: Environment, pos: IVec2): bool =
+  ## Check if a position is within map bounds, empty, and not water
+  pos.x >= MapBorder and pos.x < MapWidth - MapBorder and
+  pos.y >= MapBorder and pos.y < MapHeight - MapBorder and
+  env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water
+
+proc generateRandomMapPosition(r: var Rand): IVec2 =
+  ## Generate a random position within map boundaries
+  ivec2(r.rand(MapBorder ..< MapWidth - MapBorder), r.rand(MapBorder ..< MapHeight - MapBorder))
+
 proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq[IVec2] =
   ## Find empty positions around a center point within a given radius
   result = @[]
@@ -744,10 +742,7 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
       if dx == 0 and dy == 0:
         continue  # Skip the center position
       let pos = ivec2(center.x + dx, center.y + dy)
-      # Check bounds and emptiness
-      if pos.x >= MapBorder and pos.x < MapWidth - MapBorder and
-         pos.y >= MapBorder and pos.y < MapHeight - MapBorder and
-         env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
+      if env.isValidEmptyPosition(pos):
         result.add(pos)
 
 proc getHouseCorners(env: Environment, houseTopLeft: IVec2, houseSize: int = 5): seq[IVec2] =
@@ -761,23 +756,20 @@ proc getHouseCorners(env: Environment, houseTopLeft: IVec2, houseSize: int = 5):
   ]
   # Check each corner is valid and empty
   for corner in corners:
-    if corner.x >= MapBorder and corner.x < MapWidth - MapBorder and
-       corner.y >= MapBorder and corner.y < MapHeight - MapBorder and
-       env.isEmpty(corner) and env.terrain[corner.x][corner.y] != Water:
+    if env.isValidEmptyPosition(corner):
       result.add(corner)
 
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
+  # Try with moderate attempts first
   for i in 0 ..< 100:
-    let pos = ivec2(r.rand(MapBorder ..< MapWidth - MapBorder), r.rand(MapBorder ..< MapHeight - MapBorder))
-    if env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
-      result = pos
-      return
+    let pos = r.generateRandomMapPosition()
+    if env.isValidEmptyPosition(pos):
+      return pos
   # Try harder with more attempts
   for i in 0 ..< 1000:
-    let pos = ivec2(r.rand(MapBorder ..< MapWidth - MapBorder), r.rand(MapBorder ..< MapHeight - MapBorder))
-    if env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
-      result = pos
-      return
+    let pos = r.generateRandomMapPosition()
+    if env.isValidEmptyPosition(pos):
+      return pos
   quit("Failed to find an empty position, map too full!")
 
 proc add(env: Environment, thing: Thing) =
@@ -788,13 +780,10 @@ proc add(env: Environment, thing: Thing) =
   env.grid[thing.pos.x][thing.pos.y] = thing
 
 proc init(env: Environment) =
-  ## Initialize or reset the environment.
-
   # Use current time for random seed to get different maps each time
   let seed = int(epochTime() * 1000)
   var r = initRand(seed)
   echo "Generating map with seed: ", seed
-  
   # Initialize terrain with all features
   initTerrain(env.terrain, MapWidth, MapHeight, MapBorder, seed)
 
@@ -813,16 +802,13 @@ proc init(env: Environment) =
     env.add(Thing(kind: Wall, pos: pos))
 
   # Agents will now spawn with their villages/houses below
-  
   # Clear and prepare village colors arrays
   agentVillageColors.setLen(MapRoomObjectsAgents)  # Allocate space for all agents
   altarColors.clear()  # Clear altar colors from previous game
-  
   # Spawn houses with their altars, walls, and associated agents (tribes)
   let numHouses = MapRoomObjectsHouses
   var totalAgentsSpawned = 0
   var usedCorners: seq[int] = @[]  # Track which corners have been used
-  
   for i in 0 ..< numHouses:
     # Use the new unified placement system
     let houseStruct = createHouseStructure()
@@ -1125,6 +1111,9 @@ proc newEnvironment*(): Environment =
   result = Environment()
   result.init()
 
+# Initialize the global environment
+env = newEnvironment()
+
 proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
   ## Step the environment
   inc env.currentStep
@@ -1354,14 +1343,9 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           env.updateObservations(AgentInventoryWoodLayer, agent.pos, 0)
           env.updateObservations(AgentInventorySpearLayer, agent.pos, 0)
           env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
-          # Shield layer removed\n        # env.updateObservations(AgentShieldLayer, agent.pos, agent.shield.int)
           env.updateObservations(agentId)
 
-  # for agentId in 0 ..< MapAgents:
-  #   env.updateObservations(agentId)
-
 proc reset*(env: Environment) =
-  ## Reset the environment
   env.currentStep = 0
   env.terminated.clear()
   env.truncated.clear()
@@ -1374,26 +1358,20 @@ proc reset*(env: Environment) =
   env.init()
 
 proc applyTeamAltarReward*(env: Environment) =
-  ## Give all agents on a team a reward equal to the hearts in their altar
-  ## This is the primary reward signal - altar hearts are what matter most
-  
   # Find all altars and their heart counts
   for thing in env.things:
     if thing.kind == Altar:
       let altarHearts = thing.hearts.float32
-      
       # Find all agents with this altar as their home
       for agent in env.agents:
         if agent.homeAltar == thing.pos:
           # Each agent gets reward equal to altar hearts
           agent.reward += altarHearts
-          
           # Optional: Extra bonus if altar is well-defended (>5 hearts)
           if altarHearts > 5:
             agent.reward += (altarHearts - 5) * 0.5  # Bonus for surplus
 
 proc getEpisodeStats*(env: Environment): string =
-  ## Get the episode stats
   if env.stats.len == 0:
     return
   template display(name: string, statName) =

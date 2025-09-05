@@ -22,7 +22,7 @@ const
   ClippyAgentChaseRange* = 10  # Will chase agents within this range
   
   # Temple properties
-  TempleCooldown* = 20  # Time between Clippy spawns
+  TempleCooldown* = 10  # Time between Clippy spawns (doubled spawn rate)
   TempleMaxClippys* = 3  # Max Clippys per temple
 
 proc createTemple*(): TempleStructure =
