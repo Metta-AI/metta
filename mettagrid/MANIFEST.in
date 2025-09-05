@@ -1,5 +1,5 @@
 include bazel_build.py
-include BUILD
+include BUILD.bazel
 include MODULE.bazel
 include MODULE.bazel.lock
 include .bazelrc
