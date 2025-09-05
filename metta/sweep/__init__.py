@@ -25,7 +25,7 @@ from .schedulers import BatchedSyncedOptimizingScheduler, BatchedSyncedScheduler
 from .stores import WandbStore
 
 # Utils
-from .utils import make_monitor_table
+from .utils import live_monitor_sweep, live_monitor_sweep_test, make_monitor_table, make_rich_monitor_table
 
 __all__ = [
     # Core components
@@ -48,6 +48,9 @@ __all__ = [
     "SweepControllerConfig",
     # Utils
     "make_monitor_table",
+    "make_rich_monitor_table",
+    "live_monitor_sweep",
+    "live_monitor_sweep_test",
     # Implementations
     "LocalDispatcher",
     "SkypilotDispatcher",
