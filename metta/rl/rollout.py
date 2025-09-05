@@ -20,7 +20,15 @@ def get_observation(
     device: torch.device,
     timer: Stopwatch,
 ) -> tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
-    """Get observations from vectorized environment and convert to tensors."""
+    """Get observations from vectorized environment and convert to tensors.
+
+    Returns:
+        o, r, d, t: tensors on device
+        info: environment info list
+        env_id: environment indices returned by vecenv (not converted to agent indices)
+        mask: mask tensor as provided by vecenv
+        num_steps: number of steps indicated by mask
+    """
     with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
 

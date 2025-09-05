@@ -349,10 +349,17 @@ def train(
                     buffer_step = buffer_step.select(*policy_spec.keys())
 
                     while not experience.ready_for_training and not trainer_state.stop_rollout:
-                        o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
+                        o, r, d, t, info, env_id, _, num_steps = get_observation(vecenv, device, timer)
+
+                        # Map env indices to agent indices to match buffer shapes.
+                        # Use start index from first env and length from observation batch size
+                        agents_per_env = int(getattr(vecenv, "num_agents", 1) or 1)
+                        start_idx = int(env_id[0]) * agents_per_env
+                        training_env_id = slice(start_idx, start_idx + int(o.shape[0]))
 
                         trainer_state.training_env_id = training_env_id
                         td = buffer_step[training_env_id].clone()
+
                         td["env_obs"] = o
                         td["rewards"] = r
                         td["dones"] = d.float()
