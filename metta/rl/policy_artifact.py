@@ -53,7 +53,10 @@ class PolicyArtifact:
 
     @classmethod
     def write_agent_to_file(cls, agent: Any, write_to: str) -> None:
-        cls(agent=agent).write_to_files(write_to)
+        base_path = Path(write_to)
+        # Write agent to .pt file via pickling
+        pt_path = base_path.with_suffix(".pt")
+        torch.save(agent, pt_path)
 
     @classmethod
     def from_weights(cls, weights: Dict[str, torch.Tensor], statistics: Optional[Dict[str, Any]], init_config: AgentEnvConfig,
@@ -77,20 +80,39 @@ class PolicyArtifact:
 
         artifact = cls(weights=weights, statistics=statistics, init_config=init_config)
         if write_to is not None:
-            artifact.write_to_files(write_to)
-        return artifact.create_agent()
+            base_path = Path(write_to)
+            # Write weights to .safetensors and statistics to .stats
+            if artifact.weights is None:
+                raise ValueError("Cannot write weights: weights are None")
 
-    def create_agent(self) -> "PolicyAgent":
-        """Create a PolicyAgent from the weights and statistics."""
-        return MettaAgent(self.init_config, AgentConfig.model_validate(self.init_config.agent_config))
+            # Write weights (fallback to .pt if safetensors not available)
+            try:
+                from safetensors.torch import save_file
 
-    def is_agent(self) -> bool:
-        """Check if this artifact contains an agent."""
-        return self.agent is not None
+                safetensors_path = base_path.with_suffix(".safetensors")
+                save_file(artifact.weights, str(safetensors_path))
+            except ImportError:
+                # Fallback to torch.save if safetensors not available
+                # ?? do not do this!
+                pt_path = base_path.with_suffix(".pt")
+                torch.save(artifact.weights, pt_path)
 
-    def is_weights(self) -> bool:
-        """Check if this artifact contains weights."""
-        return self.weights is not None
+            # Write statistics to .stats file
+            stats_path = base_path.with_suffix(".stats")
+            with open(stats_path, "w") as f:
+                json.dump(artifact.statistics, f, indent=2)
+
+            # Write init config to .init_config file
+            if artifact.init_config is not None:
+                init_config_path = base_path.with_suffix(".init_config")
+                with open(init_config_path, "w") as f:
+                    f.write(artifact.init_config.model_dump_json(indent=2))
+
+        # Create a PolicyAgent from the weights and statistics
+        return MettaAgent(artifact.init_config, AgentConfig.model_validate(artifact.init_config.agent_config))
+
+
+
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get the statistics if this artifact contains weights.
@@ -101,7 +123,7 @@ class PolicyArtifact:
         Raises:
             ValueError: If this artifact doesn't contain weights
         """
-        if not self.is_weights():
+        if not (self.weights is not None):
             raise ValueError("This artifact contains an agent, not weights")
         return self.statistics
 
@@ -121,7 +143,7 @@ class PolicyArtifact:
         Raises:
             ValueError: If converting from weights without providing agent_class
         """
-        if self.is_agent():
+        if self.agent is not None:
             return self.agent
 
         if self.weights is None:
@@ -130,99 +152,7 @@ class PolicyArtifact:
         agent = MettaAgent.from_weights(self.weights, env, cfg)
         return agent
 
-    def write_to_files(self, base_path: str | Path) -> None:
-        """Write the artifact to files based on its type.
 
-        Args:
-            base_path: Base path for the output files (without extension)
-        """
-        base_path = Path(base_path)
-
-        if self.is_agent():
-            # Write agent to .pt file via pickling
-            pt_path = base_path.with_suffix(".pt")
-            torch.save(self.agent, pt_path)
-        else:
-            # Write weights to .safetensors and statistics to .stats
-            if self.weights is None:
-                raise ValueError("Cannot write weights: weights are None")
-
-            # Write weights (fallback to .pt if safetensors not available)
-            try:
-                from safetensors.torch import save_file
-
-                safetensors_path = base_path.with_suffix(".safetensors")
-                save_file(self.weights, str(safetensors_path))
-            except ImportError:
-                # Fallback to torch.save if safetensors not available
-                # ?? do not do this!
-                pt_path = base_path.with_suffix(".pt")
-                torch.save(self.weights, pt_path)
-
-            # Write statistics to .stats file
-            stats_path = base_path.with_suffix(".stats")
-            with open(stats_path, "w") as f:
-                json.dump(self.statistics, f, indent=2)
-
-            # Write init config to .init_config file
-            if self.init_config is not None:
-                init_config_path = base_path.with_suffix(".init_config")
-                with open(init_config_path, "w") as f:
-                    f.write(self.init_config.model_dump_json(indent=2))
-
-    @classmethod
-    def read_from_files(cls, base_path: str | Path) -> "PolicyArtifact":
-        """Read a PolicyArtifact from files.
-
-        Args:
-            base_path: Base path for the input files (without extension)
-
-        Returns:
-            PolicyArtifact loaded from files
-
-        Raises:
-            FileNotFoundError: If required files don't exist
-            ValueError: If file format is invalid
-        """
-        base_path = Path(base_path)
-
-        # Check if .pt file exists (agent case)
-        pt_path = base_path.with_suffix(".pt")
-        if pt_path.exists():
-            agent = torch.load(pt_path, weights_only=False)
-            return cls.from_agent(agent)
-
-        # Check if .safetensors and .stats exist (weights case)
-        safetensors_path = base_path.with_suffix(".safetensors")
-        stats_path = base_path.with_suffix(".stats")
-        init_config_path = base_path.with_suffix(".init_config")
-
-        if safetensors_path.exists() and stats_path.exists():
-            # Load weights from safetensors
-            try:
-                from safetensors.torch import load_file
-                weights = load_file(str(safetensors_path))
-            except ImportError:
-                # Fallback to torch.load if safetensors not available
-                weights = torch.load(safetensors_path, weights_only=True)
-
-            # Load statistics from .stats
-            with open(stats_path, "r") as f:
-                statistics = json.load(f)
-
-            # Load init_config from .init_config
-            if not init_config_path.exists():
-                raise FileNotFoundError(f"Required .init_config file not found at {init_config_path}")
-
-            with open(init_config_path, "r") as f:
-                init_config_data = json.load(f)
-                from metta.agent.agent_env_config import AgentEnvConfig
-                init_config = AgentEnvConfig.model_validate(init_config_data)
-
-            return cls.from_weights(weights, statistics, init_config)
-
-
-        raise FileNotFoundError(f"No valid PolicyArtifact files found at {base_path}")
 
     @classmethod
     def get_statistics_from_path(cls, base_path: str | Path) -> Dict[str, Any]:
@@ -310,31 +240,11 @@ class PolicyArtifact:
         else:
             # Try safetensors first, then pt
             safetensors_path = path.with_suffix(".safetensors")
-            stats_path = path.with_suffix(".stats")
+            if safetensors_path.exists():
+                return cls.from_path(safetensors_path)
 
-            if safetensors_path.exists() and stats_path.exists():
-                # Load weights from safetensors
-                try:
-                    from safetensors.torch import load_file
-                    weights = load_file(str(safetensors_path))
-                except ImportError:
-                    # Fallback to torch.load if safetensors not available
-                    weights = torch.load(safetensors_path, weights_only=True)
-
-                # Load statistics from .stats
-                with open(stats_path, "r") as f:
-                    statistics = json.load(f)
-
-                # Load init_config from .init_config
-                init_config_path = safetensors_path.with_suffix(".init_config")
-                if not init_config_path.exists():
-                    raise FileNotFoundError(f"Required .init_config file not found at {init_config_path}")
-
-                with open(init_config_path, "r") as f:
-                    init_config_data = json.load(f)
-                    from metta.agent.agent_env_config import AgentEnvConfig
-                    init_config = AgentEnvConfig.model_validate(init_config_data)
-
-                return cls.from_weights(weights, statistics, init_config)
+            pt_path = path.with_suffix(".pt")
+            if pt_path.exists():
+                return cls.from_path(pt_path)
 
             raise FileNotFoundError(f"No valid PolicyArtifact files found at {path}")
