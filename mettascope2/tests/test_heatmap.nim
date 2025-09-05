@@ -62,21 +62,36 @@ proc testHeatmapSystem() =
   
   if not isNil(testClippy):
     let clippyPos = ivec2(60, 30)
-    let initialClippyR = env.tileColors[clippyPos.x][clippyPos.y].r
-    let initialClippyB = env.tileColors[clippyPos.x][clippyPos.y].b
     
-    # Move clippy to test position
+    # Move clippy to test position and clear the spot
     env.grid[testClippy.pos.x][testClippy.pos.y] = nil
+    
+    # Make sure position is empty
+    if not isNil(env.grid[clippyPos.x][clippyPos.y]):
+      env.grid[clippyPos.x][clippyPos.y] = nil
+    
     testClippy.pos = clippyPos
     env.grid[clippyPos.x][clippyPos.y] = testClippy
     
-    # Step to trigger update
+    # Get initial color AFTER moving
+    let initialClippyR = env.tileColors[clippyPos.x][clippyPos.y].r
+    let initialClippyB = env.tileColors[clippyPos.x][clippyPos.y].b
+    
+    echo fmt"  Moved clippy to ({clippyPos.x}, {clippyPos.y})"
+    echo fmt"  Initial: R={initialClippyR:.3f}, B={initialClippyB:.3f}"
+    
+    # Step to trigger update - track where clippy actually is
     var actions2: array[MapAgents, array[2, uint8]]
     for i in 0 ..< 10:
       env.step(addr actions2)
+      # Check clippy's actual position after step
+      if i == 0:
+        echo fmt"  After first step, clippy at: ({testClippy.pos.x}, {testClippy.pos.y})"
     
-    let newClippyR = env.tileColors[clippyPos.x][clippyPos.y].r
-    let newClippyB = env.tileColors[clippyPos.x][clippyPos.y].b
+    # Test the tile where the clippy actually ended up
+    let finalClippyPos = testClippy.pos
+    let newClippyR = env.tileColors[finalClippyPos.x][finalClippyPos.y].r
+    let newClippyB = env.tileColors[finalClippyPos.x][finalClippyPos.y].b
     
     echo fmt"  Clippy position color change: R {initialClippyR:.3f} -> {newClippyR:.3f}, B {initialClippyB:.3f} -> {newClippyB:.3f}"
     

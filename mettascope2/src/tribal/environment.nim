@@ -137,6 +137,11 @@ type
   TintModification* = object
     r*, g*, b*: int16       # Delta values to add (scaled by 1000)
     intensity*: int16       # Intensity delta (scaled by 1000)
+  
+  # Track active tiles for sparse processing
+  ActiveTiles* = object
+    positions*: seq[IVec2]  # List of tiles with entities
+    count*: int             # Number of active tiles
     
   Environment* = ref object
     currentStep*: int
@@ -145,9 +150,11 @@ type
     grid*: array[MapWidth, array[MapHeight, Thing]]
     terrain*: TerrainGrid
     tileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Main color array
+    baseTileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Base colors (terrain)
     agentTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Agent heat contributions
-    clippyTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Clippy cold contributions
+    clippyTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Clippy cold contributions  
     altarTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Altar brightness contributions
+    activeTiles*: ActiveTiles  # Sparse list of tiles to process
     observations*: array[
       MapAgents,
       array[ObservationLayers,
@@ -796,50 +803,52 @@ proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
   quit("Failed to find an empty position, map too full!")
 
 proc clearTintModifications*(env: Environment) =
-  ## Clear all tint modification arrays to zero
-  for x in 0 ..< MapWidth:
-    for y in 0 ..< MapHeight:
-      # Initialize to zero - these are deltas, not absolute values
-      env.agentTintMods[x][y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
-      env.clippyTintMods[x][y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
-      env.altarTintMods[x][y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
+  ## Clear only active tile modifications for performance
+  for pos in env.activeTiles.positions:
+    if pos.x >= 0 and pos.x < MapWidth and pos.y >= 0 and pos.y < MapHeight:
+      env.agentTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
+      env.clippyTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
+      # Don't clear altar mods - they're more persistent
+  
+  # Clear the active list for next frame
+  env.activeTiles.positions.setLen(0)
+  env.activeTiles.count = 0
 
 proc updateTintModifications*(env: Environment) =
-  ## Update tint modification arrays based on entity positions
-  # Update every 3 steps for performance
-  # No early return - we always want to track positions
-    
+  ## Update tint modification arrays based on entity positions - runs every frame
   # Clear previous frame's modifications
   env.clearTintModifications()
   
-  # Process all entities and mark their current position contributions
+  # Process all entities and mark their current positions as active
   for thing in env.things:
     let pos = thing.pos
     if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
       continue
+    
+    # Add to active tiles list
+    env.activeTiles.positions.add(pos)
+    env.activeTiles.count += 1
       
     case thing.kind
     of Clippy:
-      # Clippies make tiles colder (reduce red/green, increase blue)
-      # These are small deltas that accumulate over time
-      env.clippyTintMods[pos.x][pos.y].r = -20'i16  # Make redder less
-      env.clippyTintMods[pos.x][pos.y].g = -10'i16  # Make greener less
-      env.clippyTintMods[pos.x][pos.y].b = 30'i16   # Make bluer more
+      # Clippies make tiles colder (stronger effect)
+      env.clippyTintMods[pos.x][pos.y].r = -30'i16  # Reduce red
+      env.clippyTintMods[pos.x][pos.y].g = -15'i16  # Reduce green
+      env.clippyTintMods[pos.x][pos.y].b = 40'i16   # Increase blue
       
     of Agent:
       # Agents add warmth based on their tribe color
-      let tribeId = thing.agentId div MapAgentsPerHouse
+      let tribeId = thing.agentId
       if tribeId < agentVillageColors.len:
         let tribeColor = agentVillageColors[tribeId]
-        # Add small amount of tribe color as delta
-        env.agentTintMods[pos.x][pos.y].r = int16((tribeColor.r - 0.7) * 30)  # Delta from base
-        env.agentTintMods[pos.x][pos.y].g = int16((tribeColor.g - 0.65) * 30)
-        env.agentTintMods[pos.x][pos.y].b = int16((tribeColor.b - 0.6) * 30)
+        # Stronger tribe color effect
+        env.agentTintMods[pos.x][pos.y].r = int16((tribeColor.r - 0.7) * 50)
+        env.agentTintMods[pos.x][pos.y].g = int16((tribeColor.g - 0.65) * 50)
+        env.agentTintMods[pos.x][pos.y].b = int16((tribeColor.b - 0.6) * 50)
         
     of Altar:
-      # Altars affect brightness of house tiles only
-      if thing.houseSize > 0 and thing.houseTopLeft.x >= 0:
-        # Scale brightness based on hearts (0-10 typical range)
+      # Altars affect brightness of house tiles only (update less frequently)
+      if env.currentStep mod 10 == 0 and thing.houseSize > 0 and thing.houseTopLeft.x >= 0:
         let brightnessBoost = int16(thing.hearts * 100)  # 10% per heart
         for dx in 0 ..< thing.houseSize:
           for dy in 0 ..< thing.houseSize:
@@ -847,51 +856,65 @@ proc updateTintModifications*(env: Environment) =
             let tileY = thing.houseTopLeft.y + dy
             if tileX >= 0 and tileX < MapWidth and tileY >= 0 and tileY < MapHeight:
               env.altarTintMods[tileX][tileY].intensity = brightnessBoost
+              # Track these tiles as active too
+              env.activeTiles.positions.add(ivec2(tileX, tileY))
+              env.activeTiles.count += 1
     else:
       discard
 
 proc applyTintModifications*(env: Environment) =
-  ## Apply all tint modifications to the main color array
-  # Apply every frame to accumulate effects
+  ## Apply tint modifications only to active tiles - very fast
+  
+  # Process only tiles that have entities on them (sparse processing)
+  for pos in env.activeTiles.positions:
+    if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
+      continue
     
-  for x in 0 ..< MapWidth:
-    for y in 0 ..< MapHeight:
-      # Apply deltas to current color
-      if env.agentTintMods[x][y].r != 0 or env.agentTintMods[x][y].g != 0 or 
-         env.agentTintMods[x][y].b != 0:
-        # Agent stepped here - apply warm color shift
-        let shift = 0.02'f32  # 2% shift per update
-        env.tileColors[x][y].r += env.agentTintMods[x][y].r.float32 / 1000.0 * shift
-        env.tileColors[x][y].g += env.agentTintMods[x][y].g.float32 / 1000.0 * shift
-        env.tileColors[x][y].b += env.agentTintMods[x][y].b.float32 / 1000.0 * shift
-      
-      if env.clippyTintMods[x][y].r != 0 or env.clippyTintMods[x][y].g != 0 or 
-         env.clippyTintMods[x][y].b != 0:
-        # Clippy stepped here - apply cold color shift
-        let shift = 0.03'f32  # 3% shift per update (clippies have stronger effect)
-        env.tileColors[x][y].r += env.clippyTintMods[x][y].r.float32 / 1000.0 * shift
-        env.tileColors[x][y].g += env.clippyTintMods[x][y].g.float32 / 1000.0 * shift
-        env.tileColors[x][y].b += env.clippyTintMods[x][y].b.float32 / 1000.0 * shift
-      
-      # Apply altar brightness to intensity
-      if env.altarTintMods[x][y].intensity != 0:
-        env.tileColors[x][y].intensity = 1.0 + env.altarTintMods[x][y].intensity.float32 / 1000.0
-      
-      # Apply decay to gradually return to base color
-      let decay = 0.998'f32  # Very slight decay
-      let baseR = 0.7'f32
-      let baseG = 0.65'f32
-      let baseB = 0.6'f32
-      
-      env.tileColors[x][y].r = env.tileColors[x][y].r * decay + baseR * (1.0 - decay)
-      env.tileColors[x][y].g = env.tileColors[x][y].g * decay + baseG * (1.0 - decay)
-      env.tileColors[x][y].b = env.tileColors[x][y].b * decay + baseB * (1.0 - decay)
-      
-      # Clamp values
-      env.tileColors[x][y].r = min(max(env.tileColors[x][y].r, 0.3), 1.2)
-      env.tileColors[x][y].g = min(max(env.tileColors[x][y].g, 0.3), 1.2)
-      env.tileColors[x][y].b = min(max(env.tileColors[x][y].b, 0.3), 1.2)
-      env.tileColors[x][y].intensity = min(max(env.tileColors[x][y].intensity, 0.5), 2.0)
+    let x = pos.x
+    let y = pos.y
+    
+    # Get current color as integers (scaled by 1000 for precision)
+    var r = int(env.tileColors[x][y].r * 1000)
+    var g = int(env.tileColors[x][y].g * 1000)  
+    var b = int(env.tileColors[x][y].b * 1000)
+    
+    # Apply modifications with stronger effects
+    if env.agentTintMods[x][y].r != 0 or env.agentTintMods[x][y].g != 0 or env.agentTintMods[x][y].b != 0:
+      # Agent effect - warm shift
+      r += env.agentTintMods[x][y].r div 10  # 10% of the modification
+      g += env.agentTintMods[x][y].g div 10
+      b += env.agentTintMods[x][y].b div 10
+    
+    if env.clippyTintMods[x][y].r != 0 or env.clippyTintMods[x][y].g != 0 or env.clippyTintMods[x][y].b != 0:
+      # Clippy effect - cold shift (stronger)
+      r += env.clippyTintMods[x][y].r div 8  # 12.5% of the modification
+      g += env.clippyTintMods[x][y].g div 8
+      b += env.clippyTintMods[x][y].b div 8
+    
+    # Apply altar brightness
+    if env.altarTintMods[x][y].intensity != 0:
+      env.tileColors[x][y].intensity = 1.0 + env.altarTintMods[x][y].intensity.float32 / 1000.0
+    
+    # Convert back to float with clamping
+    env.tileColors[x][y].r = min(max(r.float32 / 1000.0, 0.3), 1.2)
+    env.tileColors[x][y].g = min(max(g.float32 / 1000.0, 0.3), 1.2)
+    env.tileColors[x][y].b = min(max(b.float32 / 1000.0, 0.3), 1.2)
+  
+  # Apply global decay to ALL tiles (but infrequently for performance)
+  if env.currentStep mod 30 == 0:
+    let decay = 0.98'f32  # 2% decay every 30 steps
+    let baseR = 0.7'f32
+    let baseG = 0.65'f32  
+    let baseB = 0.6'f32
+    
+    for x in 0 ..< MapWidth:
+      for y in 0 ..< MapHeight:
+        env.tileColors[x][y].r = env.tileColors[x][y].r * decay + baseR * (1.0 - decay)
+        env.tileColors[x][y].g = env.tileColors[x][y].g * decay + baseG * (1.0 - decay)
+        env.tileColors[x][y].b = env.tileColors[x][y].b * decay + baseB * (1.0 - decay)
+        # Also decay intensity back to 1.0
+        if env.tileColors[x][y].intensity != 1.0:
+          env.tileColors[x][y].intensity = env.tileColors[x][y].intensity * decay + 1.0 * (1.0 - decay)
 
 proc add*(env: Environment, thing: Thing) =
   env.things.add(thing)
@@ -910,6 +933,11 @@ proc init(env: Environment) =
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
       env.tileColors[x][y] = TileColor(r: 0.7, g: 0.65, b: 0.6, intensity: 1.0)
+      env.baseTileColors[x][y] = TileColor(r: 0.7, g: 0.65, b: 0.6, intensity: 1.0)
+  
+  # Initialize active tiles tracking
+  env.activeTiles.positions = @[]
+  env.activeTiles.count = 0
   
   # Initialize terrain with all features
   initTerrain(env.terrain, MapWidth, MapHeight, MapBorder, seed)
