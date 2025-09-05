@@ -2,6 +2,19 @@ import
   boxy, vmath, windy,
   common, panels, utils, simulation
 
+# ============== HELPER FUNCTIONS ==============
+
+proc drawPanelBackground*(panel: Panel, bgColor: Color) =
+  ## Draw a solid color background for a panel
+  bxy.drawRect(
+    rect = Rect(
+      x: 0,
+      y: 0,
+      w: panel.rect.w.float32,
+      h: panel.rect.h.float32
+    ),
+    color = bgColor
+  )
 
 proc drawIconButton*(
   image: string,
@@ -60,6 +73,15 @@ proc drawIconToggle*(
     tint = color(1, 1, 1, alpha)
   )
 
+proc drawSpeedButton*(x: float32, speed: float32, label: string): bool =
+  ## Draw a speed button and handle clicking
+  if drawIconButton("ui/speed", pos = vec2(x, 16), size = vec2(20, 32)):
+    playSpeed = speed
+    play = true
+    echo "Speed: " & label
+    return true
+  return false
+
 # ============== HEADER UI ==============
 
 
@@ -67,15 +89,7 @@ const
   HeaderBgColor = parseHtmlColor("#273646")
 
 proc drawHeader*(panel: Panel) =
-  bxy.drawRect(
-    rect = Rect(
-      x: 0,
-      y: 0,
-      w: panel.rect.w.float32,
-      h: panel.rect.h.float32
-    ),
-    color = HeaderBgColor
-  )
+  drawPanelBackground(panel, HeaderBgColor)
   bxy.drawImage(
     "ui/logo",
     pos = vec2(0, 0),
@@ -113,15 +127,7 @@ const
   FooterBgColor = parseHtmlColor("#2D343D")
 
 proc drawFooter*(panel: Panel) =
-  bxy.drawRect(
-    rect = Rect(
-      x: 0,
-      y: 0,
-      w: panel.rect.w.float32,
-      h: panel.rect.h.float32
-    ),
-    color = FooterBgColor
-  )
+  drawPanelBackground(panel, FooterBgColor)
 
   # Draw the left side buttons.
   var x = 16f
@@ -181,44 +187,16 @@ proc drawFooter*(panel: Panel) =
     echo "Speed: Slow (0.5x)"
   x += 32 + 3
 
-  if drawIconButton(
-    "ui/speed",
-    pos = vec2(x, 16),
-    size = vec2(20, 32)
-  ):
-    playSpeed = 0.25
-    play = true
-    echo "Speed: 1x"
+  discard drawSpeedButton(x, 0.25, "1x")
   x += 20
 
-  if drawIconButton(
-    "ui/speed",
-    pos = vec2(x, 16),
-    size = vec2(20, 32)
-  ):
-    playSpeed = 0.125
-    play = true
-    echo "Speed: 2x"
+  discard drawSpeedButton(x, 0.125, "2x")
   x += 20
 
-  if drawIconButton(
-    "ui/speed",
-    pos = vec2(x, 16),
-    size = vec2(20, 32)
-  ):
-    playSpeed = 0.0625
-    play = true
-    echo "Speed: 4x"
+  discard drawSpeedButton(x, 0.0625, "4x")
   x += 20
 
-  if drawIconButton(
-    "ui/speed",
-    pos = vec2(x, 16),
-    size = vec2(20, 32)
-  ):
-    playSpeed = 0.03125
-    play = true
-    echo "Speed: 8x"
+  discard drawSpeedButton(x, 0.03125, "8x")
   x += 20
 
   if drawIconButton(
@@ -271,15 +249,7 @@ const
   TimelineBgColor = parseHtmlColor("#1D1D1D")
 
 proc drawTimeline*(panel: Panel) =
-  bxy.drawRect(
-    rect = Rect(
-      x: 0,
-      y: 0,
-      w: panel.rect.w.float32,
-      h: panel.rect.h.float32
-    ),
-    color = TimelineBgColor
-  )
+  drawPanelBackground(panel, TimelineBgColor)
 
   # Draw the scrubber bg.
   bxy.drawRect(

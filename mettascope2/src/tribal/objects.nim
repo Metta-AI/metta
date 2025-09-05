@@ -3,40 +3,39 @@ import vmath, std/[random, tables]
 # ============== OBJECT TYPES ==============
 
 type
-  # Village structures
-  HouseStructure* = object
-    layout*: seq[seq[char]]  # 'a' = altar, '#' = wall, ' ' = empty, '.' = entrance
+  # Base structure type with common fields
+  BaseStructure* = object of RootObj
     width*: int
     height*: int
-    centerPos*: IVec2  # Position of the altar within the house
+    centerPos*: IVec2
+  
+  # Structures with layouts
+  LayoutStructure* = object of BaseStructure
+    layout*: seq[seq[char]]
+  
+  # Production structures with cooldowns
+  ProductionStructure* = object of BaseStructure
+    cooldown*: int
+    maxCooldown*: int
+  
+  # Village structures
+  HouseStructure* = object of LayoutStructure
+    # Uses width, height, centerPos, layout from LayoutStructure
   
   # Defense structures and items
-  DefenseStructure* = object
-    width*: int
-    height*: int
-    layout*: seq[seq[char]]
-    centerPos*: IVec2
+  DefenseStructure* = object of LayoutStructure
+    # Uses width, height, centerPos, layout from LayoutStructure
   
   DefenseItem* = enum
     NoDefense = 0
     Hat = 1
     Armor = 2
   
-  WeavingLoomStructure* = object
-    width*: int
-    height*: int
-    centerPos*: IVec2
-    cooldown*: int
-    maxCooldown*: int
+  WeavingLoomStructure* = object of ProductionStructure
     wheatCost*: int
     outputItem*: DefenseItem
   
-  ArmoryStructure* = object
-    width*: int
-    height*: int
-    centerPos*: IVec2
-    cooldown*: int
-    maxCooldown*: int
+  ArmoryStructure* = object of ProductionStructure
     oreCost*: int
     outputItem*: DefenseItem
   
@@ -46,20 +45,12 @@ type
     Bread = 1
     Stew = 2  # Future expansion possibility
   
-  ClayOvenStructure* = object
-    width*: int
-    height*: int
-    centerPos*: IVec2
-    cooldown*: int
-    maxCooldown*: int
+  ClayOvenStructure* = object of ProductionStructure
     wheatCost*: int
     outputItem*: FoodItem
   
-  FoodBuilding* = object
-    width*: int
-    height*: int
-    layout*: seq[seq[char]]
-    centerPos*: IVec2
+  FoodBuilding* = object of LayoutStructure
+    # Uses width, height, centerPos, layout from LayoutStructure
   
   HungerState* = object
     currentHunger*: int       # Steps since last meal
@@ -69,10 +60,8 @@ type
     maxFoodSlots*: int       # Max food inventory slots
   
   # Temple and Clippy structures
-  TempleStructure* = object
-    width*: int
-    height*: int
-    centerPos*: IVec2  # Position of the temple center
+  TempleStructure* = object of BaseStructure
+    # Uses width, height, centerPos from BaseStructure
   
   ClippyBehavior* = enum
     Patrol      # Wander around looking for targets

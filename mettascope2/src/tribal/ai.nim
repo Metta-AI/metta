@@ -83,6 +83,15 @@ proc distanceEuclidean(a, b: IVec2): float =
   let dy = (a.y - b.y).float
   result = sqrt(dx * dx + dy * dy)
 
+proc applyDirectionOffset(offset: var IVec2, direction: int, distance: int32) =
+  ## Apply a directional offset based on direction index (0=N, 1=E, 2=S, 3=W)
+  case direction:
+  of 0: offset.y -= distance  # North
+  of 1: offset.x += distance  # East
+  of 2: offset.y += distance  # South
+  of 3: offset.x -= distance  # West
+  else: discard
+
 proc resetWanderState(state: ControllerState) =
   ## Reset wander state when breaking out to pursue a resource
   # Keep the spiral progress to resume expanding search from where we left off
@@ -108,24 +117,14 @@ proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 
     let dir = arcNum mod 4  # Direction cycles through 0,1,2,3
     
     # Add the full arc's offset
-    case dir:
-    of 0: totalOffset.y -= int32(arcLen)  # North
-    of 1: totalOffset.x += int32(arcLen)  # East  
-    of 2: totalOffset.y += int32(arcLen)  # South
-    of 3: totalOffset.x -= int32(arcLen)  # West
-    else: discard
+    applyDirectionOffset(totalOffset, dir, int32(arcLen))
   
   # Add partial progress in current arc
   currentArcLength = (state.spiralArcsCompleted div 2) + 1
   direction = state.spiralArcsCompleted mod 4
   
   # Add the steps we've taken in the current arc
-  case direction:
-  of 0: totalOffset.y -= int32(state.spiralStepsInArc)  # North
-  of 1: totalOffset.x += int32(state.spiralStepsInArc)  # East
-  of 2: totalOffset.y += int32(state.spiralStepsInArc)  # South  
-  of 3: totalOffset.x -= int32(state.spiralStepsInArc)  # West
-  else: discard
+  applyDirectionOffset(totalOffset, direction, int32(state.spiralStepsInArc))
   
   # Now calculate next step
   state.spiralStepsInArc += 1
@@ -148,12 +147,7 @@ proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 
       return state.basePosition  # Return to base to start new spiral
   
   # Calculate next position offset
-  case direction:
-  of 0: totalOffset.y -= 1  # Take one step North
-  of 1: totalOffset.x += 1  # Take one step East
-  of 2: totalOffset.y += 1  # Take one step South
-  of 3: totalOffset.x -= 1  # Take one step West
-  else: discard
+  applyDirectionOffset(totalOffset, direction, 1)
   
   result = state.basePosition + totalOffset
 
