@@ -333,7 +333,7 @@ proc updateObservations*(
     env.observations[agentId][layerId][x][y] = value.uint8
 
 
-proc getThing(env: Environment, pos: IVec2): Thing =
+proc getThing*(env: Environment, pos: IVec2): Thing =
   if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
     return nil
   return env.grid[pos.x][pos.y]
