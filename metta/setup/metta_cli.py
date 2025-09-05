@@ -12,6 +12,8 @@ from rich.table import Table
 
 from metta.common.util.fs import get_repo_root
 from metta.setup.local_commands import app as local_app
+from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import error, info, success, warning
@@ -302,7 +304,6 @@ class MettaCLI:
     def cmd_install(self, args, unknown_args=None) -> None:
         import concurrent.futures
         import threading
-        from collections import defaultdict, deque
 
         from metta.setup.registry import get_all_modules, get_enabled_setup_modules
         from metta.setup.utils import error, info, success, warning
@@ -574,7 +575,6 @@ def cmd_install(
     """Install or update components with parallel execution and dependency resolution."""
     import concurrent.futures
     import threading
-    from collections import defaultdict, deque
 
     from metta.setup.registry import get_all_modules, get_enabled_setup_modules
     from metta.setup.saved_settings import get_saved_settings
