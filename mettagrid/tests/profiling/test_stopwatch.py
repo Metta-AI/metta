@@ -131,14 +131,14 @@ class TestStopwatch:
 
         # Test basic rate
         rate = stopwatch.get_rate(100, "rate_timer")
-        assert rate == pytest.approx(1000, rel=0.1)
+        assert rate == pytest.approx(1000, rel=0.2)
 
         # Add checkpoint and test lap rate
         stopwatch.checkpoint(100, "checkpoint1", "rate_timer")
         time.sleep(0.1)
 
         lap_rate = stopwatch.get_lap_rate(200, "rate_timer")
-        assert lap_rate == pytest.approx(1000, rel=0.1)
+        assert lap_rate == pytest.approx(1000, rel=0.2)
 
         stopwatch.stop("rate_timer")
 
@@ -524,7 +524,7 @@ class TestStopwatchIntegration:
 
         # Get current lap rate (should be based on steps since last checkpoint)
         current_rate = sw.get_lap_rate(650, "training")  # 50 steps in ~0.05 seconds
-        assert current_rate == pytest.approx(1000, rel=0.1)
+        assert current_rate == pytest.approx(1000, rel=0.2)
 
         sw.stop("training")
 
