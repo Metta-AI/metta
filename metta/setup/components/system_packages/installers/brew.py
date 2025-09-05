@@ -37,7 +37,7 @@ class BrewInstaller(PackageInstaller[BrewPackageConfig]):
 
     def _get_changes_to_apply(
         self, packages: list[BrewPackageConfig]
-    ) -> tuple[list[BrewPackageConfig], list[BrewPackageConfig], list[BrewPackageConfig]]:
+    ) -> tuple[list[BrewPackageConfig], list[BrewPackageConfig], list[str]]:
         installed, pinned, tapped = self._get_installed_state()
         to_install: list[BrewPackageConfig] = []
 
@@ -46,7 +46,7 @@ class BrewInstaller(PackageInstaller[BrewPackageConfig]):
 
         to_install = [p for p in packages if not _package_in_output_list(p, installed)]
         to_pin = [p for p in packages if p.pin and not _package_in_output_list(p, pinned)]
-        to_tap = [p for p in packages if p.tap and not _package_in_output_list(p, tapped)]
+        to_tap = [p.tap for p in packages if p.tap and not _package_in_output_list(p, tapped)]
         return to_install, to_pin, to_tap
 
     def check_installed(self, packages: list[BrewPackageConfig]) -> bool:
@@ -54,11 +54,9 @@ class BrewInstaller(PackageInstaller[BrewPackageConfig]):
 
     def install(self, packages: list[BrewPackageConfig]) -> None:
         to_install, to_pin, to_tap = self._get_changes_to_apply(packages)
-        if to_tap:
-            tap_names = [t.name for t in to_tap]
-            for tap_name in tap_names:
-                info(f"Adding tap: {tap_name}")
-                self._install_cmd(["brew", "tap", tap_name])
+        for tap_name in to_tap:
+            info(f"Adding tap: {tap_name}")
+            self._install_cmd(["brew", "tap", tap_name])
 
         if to_install:
             full_install_names = [p.fully_specified_name for p in packages]
