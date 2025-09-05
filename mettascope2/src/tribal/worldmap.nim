@@ -1,21 +1,44 @@
 import
   std/[strformat, tables],
   boxy, vmath, windy, chroma, pixie,
-  tribal_game, terrain, map_generation
+  tribal_game, terrain
+from map_generation import agentVillageColors, altarColors
 
 # Module-level variables that get set by the main draw procedure
 var
-  bxy: Boxy
-  env: Environment
-  selection: Thing
-  window: Window
-  typeface: Typeface
+  bxy*: Boxy
+  env*: Environment
+  selection*: Thing
+  window*: Window
+  typeface*: Typeface
   settings*: tuple[showGrid: bool, showObservations: int]
   play*: bool
   playSpeed*: float
 
 # Re-export key types
 export Environment, Thing
+
+proc drawText*(
+  imageKey: string,
+  transform: Mat3,
+  typeface: Typeface,
+  text: string,
+  size: float32,
+  color: Color
+) =
+  ## Draw text on the screen.
+  var font = newFont(typeface)
+  font.size = size
+  font.paint = color
+  let
+    arrangement = typeset(@[newSpan(text, font)], bounds = vec2(1280, 800))
+    globalBounds = arrangement.computeBounds(transform).snapToPixels()
+    textImage = newImage(globalBounds.w.int, globalBounds.h.int)
+    imageSpace = translate(-globalBounds.xy) * transform
+  textImage.fillText(arrangement, imageSpace)
+  
+  bxy.addImage(imageKey, textImage)
+  bxy.drawImage(imageKey, globalBounds.xy)
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent based on their village
@@ -361,7 +384,7 @@ proc drawActions*() =
 proc drawObservations*() =
   # Draw observations
   if settings.showObservations > -1 and selection != nil and selection.kind == Agent:
-    bxy.drawText(
+    drawText(
       "observationTitle",
       translate((selection.pos - ivec2(ObservationWidth div 2,
           ObservationHeight div 2)).vec2 * 64 + vec2(-32, -64)),
@@ -378,7 +401,7 @@ proc drawObservations*() =
           value = env.observations[selection.agentId][
               settings.showObservations][x][y]
 
-        bxy.drawText(
+        drawText(
           "observation" & $x & $y,
           translate(gridPos.vec2 * 64 + vec2(-28, -28)),
           typeface,
@@ -508,7 +531,7 @@ cooldown: {selection.cooldown}
 speed: {1/playSpeed:0.3f}
 step: {env.currentStep}
     """
-  bxy.drawText(
+  drawText(
     "info",
     translate(vec2(10, 10)),
     typeface,
@@ -516,3 +539,33 @@ step: {env.currentStep}
     16,
     color(1, 1, 1, 1)
   )
+
+proc draw*(boxy: Boxy, environment: Environment, selected: Thing,
+          winRef: Window = nil, typefaceRef: Typeface = nil,
+          settingsRef: tuple[showGrid: bool, showObservations: int] = (false, -1),
+          playRef: bool = false, playSpeedRef: float = 0.01) =
+  ## Draw the world map
+  
+  # Update global references
+  bxy = boxy
+  env = environment
+  selection = selected
+  if winRef != nil:
+    window = winRef
+  if typefaceRef != nil:
+    typeface = typefaceRef
+  settings = settingsRef
+  play = playRef
+  playSpeed = playSpeedRef
+  
+  drawFloor()
+  drawTerrain()
+  drawWalls()
+  drawObjects()
+  drawAgentDecorations()
+  drawSelection()
+  
+  if settings.showObservations > -1:
+    drawObservations()
+  
+  drawInfoText()

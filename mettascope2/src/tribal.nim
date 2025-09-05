@@ -300,9 +300,10 @@ proc main() =
     beginPanAndZoom()
     
     # Handle mouse selection
-    useSelections(window, bxy, env, selection)
+    useSelections()
     
-    draw(bxy, env, selection)
+    # Draw the world map with all necessary parameters
+    draw(bxy, env, selection, window, typeface, settings, play, playSpeed)
     
     # Draw grid overlay if enabled
     if settings.showGrid:

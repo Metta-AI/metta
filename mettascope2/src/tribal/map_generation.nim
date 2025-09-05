@@ -90,11 +90,11 @@ proc initMapGeneration*(env: Environment, seed: int = 2024) =
     # Add the altar
     env.add(Thing(
       kind: Altar,
-      pos: elements.center,
+      pos: elements.altar,
       hearts: MapObjectAltarInitialHearts,
       cooldown: 0
     ))
-    altarColors[elements.center] = villageColor
+    altarColors[elements.altar] = villageColor
     
     # Add walls
     for wallPos in elements.walls:
@@ -107,7 +107,7 @@ proc initMapGeneration*(env: Environment, seed: int = 2024) =
     env.add(Thing(kind: WeavingLoom, pos: elements.weavingLoom, cooldown: 0))
     
     # Spawn agents around this house
-    let emptySpots = env.findEmptyPositionsAround(elements.center, 5)
+    let emptySpots = env.findEmptyPositionsAround(elements.altar, 5)
     var agentsForThisHouse = 0
     let maxAgentsPerHouse = if villageId < housesToSpawn - 1:
       MapAgentsPerHouse
@@ -123,7 +123,7 @@ proc initMapGeneration*(env: Environment, seed: int = 2024) =
           agentId: agentId,
           pos: spawnPos,
           orientation: Orientation(r.rand(0..7)),
-          homeAltar: elements.center,  # Link agent to their home altar
+          homeAltar: elements.altar,  # Link agent to their home altar
           inventoryOre: 0,
           inventoryBattery: 0,
           inventoryWater: 0,

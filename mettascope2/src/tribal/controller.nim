@@ -3,7 +3,7 @@ import vmath
 import tribal_game
 
 # Import the new orientations
-from tribal import N, S, W, E, NW, NE, SW, SE
+from tribal_game import N, S, W, E, NW, NE, SW, SE
 
 type
   ControllerState* = ref object

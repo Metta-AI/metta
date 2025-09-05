@@ -2,9 +2,8 @@ import std/[strformat, random, strutils, tables, times], vmath, jsony, chroma
 import terrain, placement, clippy, village
 export terrain
 
-# Global variables for storing village colors
-var agentVillageColors*: seq[Color] = @[]
-var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
+# Import village colors from map_generation
+from map_generation import agentVillageColors, altarColors
 
 const
   # From config

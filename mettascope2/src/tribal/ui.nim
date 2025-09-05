@@ -7,8 +7,7 @@ var
   window*: Window
   bxy*: Boxy
 
-# Export for other modules  
-export drawIconButton, drawIconToggle
+# Export statements moved to end of file
 
 proc boxyMouse(): Vec2 =
   return bxy.getTransform().inverse * window.mousePos.vec2
@@ -69,3 +68,6 @@ proc drawIconToggle*(
     pos = pos,
     tint = color(1, 1, 1, alpha)
   )
+
+# Export the procedures now that they're defined
+export drawIconButton, drawIconToggle
