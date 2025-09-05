@@ -6,6 +6,7 @@ cd /workspace/metta
 git config advice.detachedHead false
 
 echo "[SETUP] Fetching latest from origin..."
+git checkout .
 git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
 git checkout "$METTA_GIT_REF"
 echo "[SETUP] Checked out: $(git rev-parse HEAD)"
