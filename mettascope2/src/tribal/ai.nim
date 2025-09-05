@@ -79,12 +79,10 @@ proc applyDirectionOffset(offset: var IVec2, direction: int, distance: int32) =
   of 3: offset.x -= distance  # West
   else: discard
 
-proc resetWanderState(state: ControllerState) =
-  ## Reset wander state when breaking out to pursue a resource
-  # Keep the spiral progress to resume expanding search from where we left off
-  # Don't reset the arc length or arcs completed - this ensures continuous expansion
-  # Just reset the steps in current arc to start fresh from current position
+proc resetWanderState(state: ControllerState, currentPos: IVec2) =
+  state.spiralArcsCompleted = 0
   state.spiralStepsInArc = 0
+  state.basePosition = currentPos
 
 proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 =
   ## Get next point in expanding spiral pattern
@@ -356,9 +354,9 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       if nearestConverter != nil:
         state.currentTarget = nearestConverter.pos
         state.targetType = Converter
-        resetWanderState(state)  # Reset wander when we find a converter
       else:
-        # No converter found, wander away from current position to explore
+        if state.targetType != Wander:
+          resetWanderState(state, agent.pos)
         state.currentTarget = controller.getNextWanderPoint(state)
         state.targetType = Wander
     
@@ -413,9 +411,9 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       if nearestMine != nil:
         state.currentTarget = nearestMine.pos
         state.targetType = Mine
-        resetWanderState(state)  # Reset wander when we find a mine
       else:
-        # No active mine visible, wander in expanding circles to find one
+        if state.targetType != Wander:
+          resetWanderState(state, agent.pos)
         state.currentTarget = controller.getNextWanderPoint(state)
         state.targetType = Wander
     

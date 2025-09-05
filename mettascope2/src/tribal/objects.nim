@@ -98,7 +98,7 @@ const
   ClippyAgentChaseRange* = 10  # Will chase agents within this range
   
   # Spawner properties
-  SpawnerCooldown* = 10  # Time between Clippy spawns (doubled spawn rate)
+  # Note: SpawnerCooldown defined in environment.nim
 
 proc createHouse*(): Structure =
   ## Create a house with:

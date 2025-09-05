@@ -40,7 +40,7 @@ const
   MapObjectMineCooldown* = 5
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
-  SpawnerCooldown* = 30  # Steps between Clippy spawns
+  SpawnerCooldown* = 120  # Steps between Clippy spawns (much reduced spawn rate)
   ObservationLayers* = 19
   ObservationWidth* = 11
   ObservationHeight* = 11
@@ -792,10 +792,10 @@ proc getDirectionToward*(fromPos, toPos: IVec2): IVec2 =
     else: 0
 
 proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[Thing], r: var Rand): IVec2 =
-  ## Clippy AI: 50% move toward nearest altar, 50% random movement to avoid getting stuck
+  ## Clippy AI: 25% move toward nearest altar, 75% random movement for natural wandering
   
-  # 50% chance to move toward altar, 50% chance for random movement
-  if r.rand(0.0..1.0) < 0.5:
+  # 75% chance for random movement, 25% chance to move toward altar
+  if r.rand(0.0..1.0) < 0.75:
     # Random movement - pick a random direction
     let randomDirections = [
       ivec2(0, -1),  # North

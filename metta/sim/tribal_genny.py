@@ -23,10 +23,17 @@ for path in _BINDINGS_PATHS:
 try:
     # Import genny-generated bindings
     from Tribal import (
-        TribalEnv, TribalConfig, 
-        newTribalEnv, defaultConfig, getActionSpace,
-        MapAgents, ObservationLayers, ObservationWidth, ObservationHeight
+        TribalEnv, TribalConfig, SeqInt, SeqFloat, SeqBool,
+        MAP_AGENTS, OBSERVATION_LAYERS, OBSERVATION_WIDTH, OBSERVATION_HEIGHT
     )
+    # Helper functions  
+    from Tribal import default_config, get_action_space
+    
+    # Constants mapping
+    MapAgents = MAP_AGENTS
+    ObservationLayers = OBSERVATION_LAYERS  
+    ObservationWidth = OBSERVATION_WIDTH
+    ObservationHeight = OBSERVATION_HEIGHT
 except ImportError as e:
     raise ImportError(
         f"Could not import Tribal bindings: {e}\n"
@@ -46,18 +53,19 @@ class TribalGridEnv:
         """Initialize tribal environment."""
         # Create configuration
         if config is None:
-            self._nim_config = defaultConfig()
+            self._nim_config = default_config()
         else:
-            nim_config = defaultConfig()
-            nim_config.numAgents = config.get('num_agents', MapAgents)
-            nim_config.maxSteps = config.get('max_steps', 1000)
-            nim_config.mapWidth = config.get('map_width', 96) 
-            nim_config.mapHeight = config.get('map_height', 46)
-            nim_config.seed = config.get('seed', 0)
-            self._nim_config = nim_config
+            default_cfg = default_config()
+            self._nim_config = TribalConfig(
+                config.get('num_agents', default_cfg.num_agents),
+                config.get('max_steps', default_cfg.max_steps),
+                config.get('map_width', default_cfg.map_width),
+                config.get('map_height', default_cfg.map_height),
+                config.get('seed', default_cfg.seed)
+            )
         
         # Create Nim environment instance
-        self._nim_env = newTribalEnv(self._nim_config)
+        self._nim_env = TribalEnv(self._nim_config)
         
         # Cache dimensions
         self.num_agents = MapAgents
@@ -66,7 +74,9 @@ class TribalGridEnv:
         self.observation_height = ObservationHeight
         
         # Action space info
-        action_space_info = getActionSpace()
+        action_space_seq = get_action_space()
+        # Convert SeqInt to Python list
+        action_space_info = [action_space_seq[i] for i in range(len(action_space_seq))]
         self.num_action_types = action_space_info[0]
         self.max_argument = action_space_info[1]
 
@@ -74,17 +84,17 @@ class TribalGridEnv:
         """Reset environment and return initial observations."""
         # Reset the Nim environment
         if seed is not None:
-            self._nim_env.resetEnv(seed)
+            self._nim_env.reset_env(seed)
         else:
-            self._nim_env.resetEnv()
+            self._nim_env.reset_env()
         
         # Get observations and convert to numpy
-        obs_data = self._nim_env.getObservations()
+        obs_data = self._nim_env.get_observations()
         observations = self._convert_observations(obs_data)
         
         info = {
-            "current_step": self._nim_env.getCurrentStep(),
-            "max_steps": self._nim_env.getMaxSteps(),
+            "current_step": self._nim_env.get_current_step(),
+            "max_steps": self._nim_env.get_max_steps(),
         }
         
         return observations, info
@@ -109,53 +119,56 @@ class TribalGridEnv:
         if actions.shape != (self.num_agents, 2):
             raise ValueError(f"Actions must have shape ({self.num_agents}, 2), got {actions.shape}")
         
-        # Convert actions to flat format expected by Nim
-        actions_flat = []
+        # Convert actions to SeqInt expected by Nim
+        actions_seq = SeqInt()
         for i in range(self.num_agents):
-            actions_flat.append(int(actions[i, 0]))
-            actions_flat.append(int(actions[i, 1]))
+            actions_seq.append(int(actions[i, 0]))
+            actions_seq.append(int(actions[i, 1]))
         
         # Step the environment
-        success = self._nim_env.step(actions_flat)
+        success = self._nim_env.step(actions_seq)
         if not success:
             raise RuntimeError("Environment step failed")
         
         # Get results
-        obs_data = self._nim_env.getObservations()
+        obs_data = self._nim_env.get_observations()
         observations = self._convert_observations(obs_data)
         
-        rewards_list = self._nim_env.getRewards()
-        rewards = np.array(rewards_list, dtype=np.float32)
+        rewards_seq = self._nim_env.get_rewards()
+        rewards = np.array([rewards_seq[i] for i in range(len(rewards_seq))], dtype=np.float32)
         
-        terminated_list = self._nim_env.getTerminated()
-        terminals = np.array(terminated_list, dtype=bool)
+        terminated_seq = self._nim_env.get_terminated()
+        terminals = np.array([terminated_seq[i] for i in range(len(terminated_seq))], dtype=bool)
         
-        truncated_list = self._nim_env.getTruncated()
-        truncations = np.array(truncated_list, dtype=bool)
+        truncated_seq = self._nim_env.get_truncated()
+        truncations = np.array([truncated_seq[i] for i in range(len(truncated_seq))], dtype=bool)
         
         # Check for episode end
-        if self._nim_env.isEpisodeDone():
+        if self._nim_env.is_episode_done():
             truncations[:] = True
         
         info = {
-            "current_step": self._nim_env.getCurrentStep(),
-            "max_steps": self._nim_env.getMaxSteps(),
-            "episode_done": self._nim_env.isEpisodeDone(),
+            "current_step": self._nim_env.get_current_step(),
+            "max_steps": self._nim_env.get_max_steps(),
+            "episode_done": self._nim_env.is_episode_done(),
         }
         
         return observations, rewards, terminals, truncations, info
 
-    def _convert_observations(self, obs_data: List[int]) -> np.ndarray:
+    def _convert_observations(self, obs_seq: SeqInt) -> np.ndarray:
         """Convert genny observation data to numpy array."""
-        # obs_data is flattened: [agents * layers * height * width]
+        # obs_seq is flattened: [agents * layers * height * width]
         obs_array = np.zeros(
             (self.num_agents, self.observation_layers, self.observation_height, self.observation_width),
             dtype=np.uint8
         )
         
-        # Reshape the flat array
-        if len(obs_data) == self.num_agents * self.observation_layers * self.observation_height * self.observation_width:
-            # Convert to numpy and reshape
+        expected_size = self.num_agents * self.observation_layers * self.observation_height * self.observation_width
+        
+        # Convert SeqInt to numpy array and reshape
+        if len(obs_seq) == expected_size:
+            # Convert to python list then numpy and reshape
+            obs_data = [obs_seq[i] for i in range(len(obs_seq))]
             flat_array = np.array(obs_data, dtype=np.uint8)
             obs_array = flat_array.reshape(
                 (self.num_agents, self.observation_layers, self.observation_height, self.observation_width)
@@ -167,8 +180,8 @@ class TribalGridEnv:
                 for layer in range(self.observation_layers):
                     for y in range(self.observation_height):
                         for x in range(self.observation_width):
-                            if index < len(obs_data):
-                                obs_array[agent_id, layer, y, x] = obs_data[index]
+                            if index < len(obs_seq):
+                                obs_array[agent_id, layer, y, x] = obs_seq[index]
                                 index += 1
         
         return obs_array
@@ -176,23 +189,23 @@ class TribalGridEnv:
     def render(self, mode: str = "human") -> Optional[str]:
         """Render the environment."""
         if mode == "human":
-            return self._nim_env.renderText()
+            return self._nim_env.render_text()
         return None
 
     def get_episode_stats(self) -> Dict[str, Any]:
         """Get episode statistics."""
-        stats_text = self._nim_env.getEpisodeStats()
+        stats_text = self._nim_env.get_episode_stats()
         return {"stats_text": stats_text}
 
     @property
     def current_step(self) -> int:
         """Get current step."""
-        return self._nim_env.getCurrentStep()
+        return self._nim_env.get_current_step()
 
     @property
     def max_steps(self) -> int:
         """Get max steps."""
-        return self._nim_env.getMaxSteps()
+        return self._nim_env.get_max_steps()
 
     def close(self) -> None:
         """Clean up environment."""

@@ -2,6 +2,11 @@ src/tmp/
 src/mettascope.out
 bindings/generated/
 
+# Dynamic libraries (platform-specific compiled binaries)
+*.dylib
+*.dll
+*.so
+
 # Nim compilation artifacts
 *.out
 *.exe
