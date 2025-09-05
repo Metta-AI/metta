@@ -1,7 +1,14 @@
 #!/bin/bash
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-. "$SCRIPT_DIR/common.sh"
+err() {
+  echo "ERROR: $1" >&2
+  exit 1
+}
+
+check_cmd() {
+  command -v "$1" > /dev/null 2>&1
+  return $?
+}
 
 detect_package_manager() {
   if check_cmd apt-get; then
