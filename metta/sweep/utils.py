@@ -203,7 +203,7 @@ def create_training_job(
     recipe_module: str,
     train_entrypoint: str,
     config: Dict[str, Any],
-    git_ref: str,
+    git_ref: Optional[str] = None,
     gpus_per_job: int = 1,
     stats_server_uri: Optional[str] = None,
     train_overrides: Optional[Dict[str, Any]] = None,

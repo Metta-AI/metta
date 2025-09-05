@@ -35,7 +35,7 @@ class BatchedSyncedSchedulerConfig:
     eval_overrides: dict[str, Any] | None = None  # Additional overrides for evaluation
     stats_server_uri: str | None = None  # Stats server for remote evaluations
     gpus_per_job: int = 1  # Number of GPUs per training job
-    git_ref: str = git.get_current_branch()  # Git reference for training jobs
+    git_ref: str | None = None  # Git reference for training jobs
     batch_size: int = 4
 
 
