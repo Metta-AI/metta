@@ -131,7 +131,7 @@ class TestStopwatch:
         time.sleep(0.1)
 
         lap_rate = stopwatch.get_lap_rate(200, "rate_timer")
-        assert lap_rate == pytest.approx(1000, abs=0.1)
+        assert lap_rate == pytest.approx(1000, rel=0.1)
 
         stopwatch.stop("rate_timer")
 
