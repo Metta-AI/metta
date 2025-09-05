@@ -53,7 +53,7 @@ def make_env(num_agents: int = 6) -> MettaGridConfig:
         True  # Restrict trades to the trader NPC
     )
     arena_env.game.actions.transfer.trader_group_id = (
-        99  # Trader group id (see GroupConfig below)
+        99  # Trader group id for NPC identification
     )
 
     # Configure rewards to incentivize finding and trading with the wandering NPC
