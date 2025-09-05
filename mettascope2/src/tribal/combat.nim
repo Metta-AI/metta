@@ -5,7 +5,7 @@
 ##       When implementing defense mechanics, consider moving DefenseItem enum here
 ##       Current items: Hat (1 hit protection), Armor (3 hit protection)
 
-import std/[strformat, random, strutils, tables, times, math], vmath, chroma
+import vmath
 import environment
 export environment
 

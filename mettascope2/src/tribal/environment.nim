@@ -802,22 +802,21 @@ proc getDirectionToward*(fromPos, toPos: IVec2): IVec2 =
     elif dy < 0: -1
     else: 0
 
-proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
+proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[Thing], r: var Rand): IVec2 =
   ## Simple Clippy AI: Move directly toward the nearest altar using oracle knowledge
   
   var nearestAltar = ivec2(-1, -1)
   var minDist = int.high
   
   # Oracle knowledge: scan all entities to find closest altar
-  for thingPtr in things:
-    if isNil(thingPtr):
+  for thing in things:
+    if isNil(thing) or thing.kind != Altar:
       continue
-    let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
-    if thing.kind == 4:  # Altar enum value
-      let dist = manhattanDistance(clippyPos, thing.pos)
-      if dist < minDist:
-        minDist = dist
-        nearestAltar = thing.pos
+    
+    let dist = manhattanDistance(clippyPos, thing.pos)
+    if dist < minDist:
+      minDist = dist
+      nearestAltar = thing.pos
   
   # Move directly toward nearest altar if found
   if nearestAltar.x >= 0:
@@ -1531,13 +1530,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
   var r = initRand(env.currentStep)
   
   for clippy in clippysToProcess:
-    # Convert things to seq of pointers for clippy module
-    var thingPtrs: seq[pointer] = @[]
-    for t in env.things:
-      thingPtrs.add(cast[pointer](t))
-    
-    # Get movement direction from clippy AI
-    let moveDir = getClippyMoveDirection(clippy.pos, thingPtrs, r)
+    # Get movement direction from clippy AI (pass things directly)
+    let moveDir = getClippyMoveDirection(clippy.pos, env.things, r)
     let newPos = clippy.pos + moveDir
     
     # Update clippy orientation based on movement direction
