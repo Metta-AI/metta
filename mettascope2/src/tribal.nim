@@ -228,6 +228,12 @@ proc main() =
   
   # Initialize game
   env = newEnvironment()
+  
+  # Set up worldmap module globals  
+  worldmap.window = window
+  worldmap.bxy = bxy
+  worldmap.env = env
+  worldmap.typeface = typeface
   echo "Environment created with ", env.agents.len, " agents"
   worldMapPanel = WorldMapPanel(
     rect: IRect(x: 0, y: 0, w: 1280, h: 800),
