@@ -130,8 +130,13 @@ type
     actionGetWood*: int
 
   TileColor* = object
-    r*, g*, b*: float32      # RGB color components (0.0 to 1.0+, can exceed 1.0 for brightness)
+    r*, g*, b*: float32      # RGB color components  
     intensity*: float32      # Overall intensity/brightness modifier
+  
+  # Tint modification layers for efficient batch updates
+  TintModification* = object
+    r*, g*, b*: int16       # Delta values to add (scaled by 1000)
+    intensity*: int16       # Intensity delta (scaled by 1000)
     
   Environment* = ref object
     currentStep*: int
@@ -139,7 +144,10 @@ type
     agents*: seq[Thing]
     grid*: array[MapWidth, array[MapHeight, Thing]]
     terrain*: TerrainGrid
-    tileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Unified color tinting system
+    tileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Main color array
+    agentTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Agent heat contributions
+    clippyTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Clippy cold contributions
+    altarTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Altar brightness contributions
     observations*: array[
       MapAgents,
       array[ObservationLayers,
@@ -445,13 +453,7 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
     agent.orientation = newOrientation
     env.grid[agent.pos.x][agent.pos.y] = agent
     
-    # Shift tile color toward warm (agent's tribe color)
-    if agent.agentId < agentVillageColors.len:
-      let tribeColor = agentVillageColors[agent.agentId]
-      let shift = 0.02'f32  # How much to shift toward tribe color per step
-      env.tileColors[newPos.x][newPos.y].r = env.tileColors[newPos.x][newPos.y].r * (1.0 - shift) + tribeColor.r * shift
-      env.tileColors[newPos.x][newPos.y].g = env.tileColors[newPos.x][newPos.y].g * (1.0 - shift) + tribeColor.g * shift
-      env.tileColors[newPos.x][newPos.y].b = env.tileColors[newPos.x][newPos.y].b * (1.0 - shift) + tribeColor.b * shift
+    # Heatmap is now updated in batch at end of step function
     env.updateObservations(AgentLayer, agent.pos, 1)
     env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
     env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
@@ -792,6 +794,85 @@ proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
     if env.isValidEmptyPosition(pos):
       return pos
   quit("Failed to find an empty position, map too full!")
+
+proc clearTintModifications*(env: Environment) =
+  ## Clear all tint modification arrays
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      env.agentTintMods[x][y] = TintModification()
+      env.clippyTintMods[x][y] = TintModification()
+      env.altarTintMods[x][y] = TintModification()
+
+proc updateTintModifications*(env: Environment) =
+  ## Update tint modification arrays based on entity positions
+  # Clear previous modifications
+  env.clearTintModifications()
+  
+  # Process all entities and mark their tint contributions
+  for thing in env.things:
+    let pos = thing.pos
+    if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
+      continue
+      
+    case thing.kind
+    of Clippy:
+      # Clippies make tiles colder (reduce red/green, increase blue)
+      env.clippyTintMods[pos.x][pos.y].r -= 8'i16
+      env.clippyTintMods[pos.x][pos.y].g -= 4'i16
+      env.clippyTintMods[pos.x][pos.y].b += 5'i16
+      
+    of Agent:
+      # Agents add warmth based on their tribe color
+      let tribeId = thing.agentId div MapAgentsPerHouse
+      if tribeId < agentVillageColors.len:
+        let tribeColor = agentVillageColors[tribeId]
+        # Add small amount of tribe color
+        env.agentTintMods[pos.x][pos.y].r += int16(tribeColor.r * 5)
+        env.agentTintMods[pos.x][pos.y].g += int16(tribeColor.g * 5)
+        env.agentTintMods[pos.x][pos.y].b += int16(tribeColor.b * 5)
+        
+    of Altar:
+      # Altars affect brightness of house tiles
+      if thing.houseSize > 0:
+        let brightnessBoost = int16(thing.hearts * 50)  # 50 = 5% per heart
+        for dx in 0 ..< thing.houseSize:
+          for dy in 0 ..< thing.houseSize:
+            let tileX = thing.houseTopLeft.x + dx
+            let tileY = thing.houseTopLeft.y + dy
+            if tileX >= 0 and tileX < MapWidth and tileY >= 0 and tileY < MapHeight:
+              env.altarTintMods[tileX][tileY].intensity = brightnessBoost
+    else:
+      discard
+
+proc applyTintModifications*(env: Environment) =
+  ## Apply all tint modifications to the main color array
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      # Get base color (scaled to integer)
+      var r = int16(env.tileColors[x][y].r * 1000)
+      var g = int16(env.tileColors[x][y].g * 1000)
+      var b = int16(env.tileColors[x][y].b * 1000)
+      var intensity = int16(env.tileColors[x][y].intensity * 1000)
+      
+      # Apply agent warmth
+      r = min(max(r + env.agentTintMods[x][y].r, 0), 1500)
+      g = min(max(g + env.agentTintMods[x][y].g, 0), 1500)
+      b = min(max(b + env.agentTintMods[x][y].b, 0), 1500)
+      
+      # Apply clippy cold
+      r = min(max(r + env.clippyTintMods[x][y].r, 600), 1500)  # Don't go too dark
+      g = min(max(g + env.clippyTintMods[x][y].g, 650), 1500)
+      b = min(max(b + env.clippyTintMods[x][y].b, 0), 1500)
+      
+      # Apply altar brightness
+      intensity = min(max(intensity + env.altarTintMods[x][y].intensity, 200), 2000)
+      
+      # Convert back to float and apply with decay
+      let decay = 0.995'f32  # Slight decay to prevent permanent accumulation
+      env.tileColors[x][y].r = (r.float32 / 1000.0) * decay
+      env.tileColors[x][y].g = (g.float32 / 1000.0) * decay
+      env.tileColors[x][y].b = (b.float32 / 1000.0) * decay
+      env.tileColors[x][y].intensity = intensity.float32 / 1000.0
 
 proc add(env: Environment, thing: Thing) =
   env.things.add(thing)
@@ -1254,11 +1335,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       clippy.pos = newPos
       env.grid[clippy.pos.x][clippy.pos.y] = clippy
       
-      # Shift tile color toward cold blue
-      let shift = 0.03'f32  # Clippies have stronger effect than agents
-      env.tileColors[newPos.x][newPos.y].r = env.tileColors[newPos.x][newPos.y].r * (1.0 - shift * 0.8)  # Reduce red significantly
-      env.tileColors[newPos.x][newPos.y].g = env.tileColors[newPos.x][newPos.y].g * (1.0 - shift * 0.4)  # Reduce green moderately
-      env.tileColors[newPos.x][newPos.y].b = min(env.tileColors[newPos.x][newPos.y].b * (1.0 - shift * 0.1) + shift * 1.3, 1.5)  # Increase blue
+      # Heatmap is now updated in batch at end of step function
     else:
       # Check if we're trying to move onto an altar
       let target = env.getThing(newPos)
@@ -1368,26 +1445,10 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
           env.updateObservations(agentId)
   
-  # Reset intensity to base level (preserve color tinting but reset brightness)
-  for x in 0 ..< MapWidth:
-    for y in 0 ..< MapHeight:
-      env.tileColors[x][y].intensity = 1.0
-  
-  # Update tile brightness based on altars - only within their houses
-  for altar in env.things:
-    if altar.kind == Altar and altar.houseSize > 0:
-      let hearts = altar.hearts.float32
-      
-      # Calculate brightness based on hearts (0-20 typical range)
-      let brightness = 0.7 + (hearts / 10.0) * 0.8  # Range from 0.7 (no hearts) to 1.5 (10+ hearts)
-      
-      # Apply brightness only to tiles within the house
-      for dy in 0 ..< altar.houseSize:
-        for dx in 0 ..< altar.houseSize:
-          let x = altar.houseTopLeft.x + dx
-          let y = altar.houseTopLeft.y + dy
-          if x >= 0 and x < MapWidth and y >= 0 and y < MapHeight:
-            env.tileColors[x][y].intensity = brightness
+  # Update heatmap using batch tint modification system
+  # This is much more efficient than updating during each entity move
+  env.updateTintModifications()  # Collect all entity contributions
+  env.applyTintModifications()   # Apply them to the main color array in one pass
 
 proc reset*(env: Environment) =
   env.currentStep = 0

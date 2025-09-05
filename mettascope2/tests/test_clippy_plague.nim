@@ -5,9 +5,8 @@ import ../src/tribal/objects
 ## Tests the improved clippy behavior that spreads outward like a plague
 import std/[strformat, strutils, sets, math, tables, sequtils]
 import vmath
-import ../src/tribal/controller
-import ../src/tribal/clippy
-import ../src/tribal/actions
+import ../src/tribal/ai
+import ../src/tribal/enemies
 
 proc testPlagueWaveExpansion() =
   echo "Test: Plague-Wave Expansion Pattern"
