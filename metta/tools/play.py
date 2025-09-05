@@ -3,7 +3,7 @@
 import logging
 
 import mettascope.server as server
-from metta.common.config.tool import Tool
+from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sim.simulation import Simulation

@@ -7,7 +7,7 @@ import torch
 import gitta as git
 from metta.agent.agent_config import AgentConfig
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.config.tool import Tool
+from metta.common.tool import Tool
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
