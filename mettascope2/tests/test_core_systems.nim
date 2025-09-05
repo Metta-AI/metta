@@ -1,9 +1,9 @@
-import ../src/tribal/game
 ## Core Systems Test Suite
 ## Tests fundamental game mechanics: resources, interactions, and map generation
 import std/[strformat, strutils, tables]
 import vmath
-import ../src/tribal/controller
+import ../src/tribal/environment
+import ../src/tribal/objects
 
 # Test 1: Resource Collection and Processing
 proc testResourceSystem() =

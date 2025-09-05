@@ -1,5 +1,6 @@
-import ../src/tribal/game
-import ../src/tribal/controller as ctrl
+import ../src/tribal/environment
+import ../src/tribal/ai
+import ../src/tribal/objects as ctrl
 import std/[random, tables]
 import vmath
 

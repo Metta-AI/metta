@@ -1,5 +1,6 @@
-import ../src/tribal/game
-import ../src/tribal/attack, vmath, std/random
+import ../src/tribal/environment
+import ../src/tribal/attack, ../src/tribal/objects
+import vmath, std/random
 
 # Test the attack system with forge and spears
 proc testAttackSystem() =

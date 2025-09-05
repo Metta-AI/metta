@@ -1,7 +1,7 @@
 ## Unified terrain and placement system
 ## Handles terrain generation and structure placement with priority ordering
 
-import std/[random, math, algorithm], vmath
+import std/[random, math], vmath
 
 type
   TerrainType* = enum
@@ -36,14 +36,6 @@ type
     message*: string
     cornerUsed*: int  # Which corner was used (0-3), or -1 if not a corner
 
-const
-  DefaultHouseLayout* = @[
-    @['A', '#', '.', '#', 'F'],  # Top row with Armory (A) top-left, Forge (F) top-right
-    @['#', ' ', ' ', ' ', '#'],  # Second row
-    @['.', ' ', 'a', ' ', '.'],  # Middle row with altar and E/W entrances
-    @['#', ' ', ' ', ' ', '#'],  # Fourth row
-    @['C', '#', '.', '#', 'W']   # Bottom row with Clay Oven (C) bottom-left, Weaving Loom (W) bottom-right
-  ]
 
 proc toIVec2*(x, y: int): IVec2 =
   ## Helper to create IVec2 from ints
@@ -63,14 +55,7 @@ proc createStructure*(width, height: int, centerX, centerY: int,
   result.needsBuffer = needsBuffer
   result.bufferSize = bufferSize
 
-proc createHouseStructure*(): Structure =
-  ## Create a standard house structure
-  result = createStructure(5, 5, 2, 2)
-  result.layout = DefaultHouseLayout
 
-proc createTempleStructure*(): Structure =
-  ## Create a temple structure (simpler, with buffer zone)
-  result = createStructure(3, 3, 1, 1, needsBuffer = true, bufferSize = 2)
 
 proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
   ## Generate a river that flows from left to right across the map

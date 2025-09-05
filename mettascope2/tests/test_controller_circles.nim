@@ -1,8 +1,9 @@
-import ../src/tribal/game
 import std/[math, tables, strformat, sequtils, strutils, sets]
-import ../src/tribal/controller
-import ../src/tribal/clippy
 import vmath
+import ../src/tribal/environment
+import ../src/tribal/ai
+import ../src/tribal/enemies
+import ../src/tribal/objects
 
 proc visualizeSpiralOnGrid() =
   echo "\n=== Visual Grid Spiral Test ==="

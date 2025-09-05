@@ -1,18 +1,17 @@
-import ../src/tribal/game
 ## Test for Clippy Kamikaze Behavior
 ## Verifies that clippys sacrifice themselves to damage altars
 import std/[strformat, strutils]
 import vmath
-import ../src/tribal/clippy
-import ../src/tribal/actions
+import ../src/tribal/environment
+import ../src/tribal/enemies
+import ../src/tribal/objects
 
 proc testClippyAltarKamikaze() =
   echo "Test: Clippy Kamikaze Attack on Altar"
   echo "-" & repeat("-", 40)
   
   # Create environment with controlled setup
-  env = newEnvironment()
-  agentController = nil  # No controller needed for this test
+  var env = newEnvironment()
   
   # Find an altar and a clippy
   var altar: Thing = nil

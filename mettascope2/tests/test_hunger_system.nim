@@ -1,6 +1,7 @@
-import ../src/tribal/game
 import std/[strformat, random]
 import vmath
+import ../src/tribal/environment
+import ../src/tribal/objects
 
 echo "\n=== Hunger and Bread System Test ==="
 echo "Testing hunger mechanics and bread production\n"

@@ -1,7 +1,8 @@
-import ../src/tribal/game
 import std/[strformat, sequtils, random, times, tables, strutils]
-import ../src/tribal/controller
 import vmath
+import ../src/tribal/environment
+import ../src/tribal/ai
+import ../src/tribal/objects
 
 proc createTestEnvironment(): Environment =
   ## Use the actual newEnvironment which creates a full game

@@ -1,23 +1,11 @@
-import vmath
+import vmath, std/tables, terrain
+
+# Import Structure types from terrain
+export terrain.Structure
 
 # ============== OBJECT TYPES ==============
 
 type
-  # Simple base structure for all buildings
-  BaseStructure* = object
-    width*: int
-    height*: int
-    centerPos*: IVec2
-  
-  # Houses need layouts for their complex structure
-  HouseStructure* = object
-    width*: int
-    height*: int
-    centerPos*: IVec2
-    layout*: seq[seq[char]]  # For walls, entrances, altar, etc.
-  
-  # Temple is just a simple structure
-  TempleStructure* = BaseStructure
   
   # Defense structures and items
   DefenseItem* = enum
@@ -25,39 +13,35 @@ type
     Hat = 1
     Armor = 2
   
-  # Production buildings have base structure + production fields
-  WeavingLoomStructure* = object
-    width*: int
-    height*: int
-    centerPos*: IVec2
-    cooldown*: int
-    maxCooldown*: int
-    wheatCost*: int
-    outputItem*: DefenseItem
-  
-  ArmoryStructure* = object
-    width*: int
-    height*: int
-    centerPos*: IVec2
-    cooldown*: int
-    maxCooldown*: int
-    oreCost*: int
-    outputItem*: DefenseItem
-  
   # Food structures and items
   FoodItem* = enum
     NoFood = 0
     Bread = 1
     Stew = 2  # Future expansion possibility
   
-  ClayOvenStructure* = object
+  # Unified production building type with variant for resource type
+  ProductionBuildingKind* = enum
+    WeavingLoom
+    Armory
+    ClayOven
+  
+  ProductionBuilding* = object
     width*: int
     height*: int
     centerPos*: IVec2
     cooldown*: int
     maxCooldown*: int
-    wheatCost*: int
-    outputItem*: FoodItem
+    case kind*: ProductionBuildingKind
+    of WeavingLoom:
+      wheatCostLoom*: int
+      outputDefense*: DefenseItem
+    of Armory:
+      oreCost*: int
+      outputArmor*: DefenseItem
+    of ClayOven:
+      wheatCostOven*: int
+      outputFood*: FoodItem
+  
   
   HungerState* = object
     currentHunger*: int       # Steps since last meal
@@ -121,7 +105,7 @@ const
   # Temple properties
   TempleCooldown* = 10  # Time between Clippy spawns (doubled spawn rate)
 
-proc createHouse*(): HouseStructure =
+proc createHouse*(): Structure =
   ## Create a house with:
   ## - Altar in the center
   ## - Four specialized buildings in the absolute corners
@@ -129,6 +113,8 @@ proc createHouse*(): HouseStructure =
   result.width = 5
   result.height = 5
   result.centerPos = ivec2(2, 2)
+  result.needsBuffer = false
+  result.bufferSize = 0
   
   # Initialize the layout
   # '#' = wall, 'a' = altar, ' ' = empty space inside, '.' = entrance
@@ -141,44 +127,49 @@ proc createHouse*(): HouseStructure =
     @['C', '#', '.', '#', 'W']   # Bottom row with Clay Oven (bottom-left), Weaving Loom (bottom-right)
   ]
 
-proc createWeavingLoom*(): WeavingLoomStructure =
+proc createWeavingLoom*(): ProductionBuilding =
   ## Create a weaving loom structure (3x3)
   ## 'w' = weaving loom center, '#' = wall, '.' = entrance
+  result = ProductionBuilding(kind: WeavingLoom)
   result.width = WeavingLoomSize
   result.height = WeavingLoomSize
   result.centerPos = ivec2(1, 1)
   result.cooldown = 0
   result.maxCooldown = WeavingLoomCooldown
-  result.wheatCost = WeavingLoomWheatCost
-  result.outputItem = Hat
+  result.wheatCostLoom = WeavingLoomWheatCost
+  result.outputDefense = Hat
 
-proc createArmory*(): ArmoryStructure =
+proc createArmory*(): ProductionBuilding =
   ## Create an armory structure (4x4 for higher tier defense)
   ## 'a' = armory center, '#' = wall, '.' = entrance
+  result = ProductionBuilding(kind: Armory)
   result.width = ArmorySize
   result.height = ArmorySize
   result.centerPos = ivec2(2, 2)  # Offset for larger building
   result.cooldown = 0
   result.maxCooldown = ArmoryCooldown
   result.oreCost = ArmoryOreCost
-  result.outputItem = Armor
+  result.outputArmor = Armor
 
-proc createClayOven*(): ClayOvenStructure =
+proc createClayOven*(): ProductionBuilding =
   ## Create a clay oven structure (3x3)
   ## 'o' = oven center, '#' = wall, '.' = entrance
+  result = ProductionBuilding(kind: ClayOven)
   result.width = ClayOvenSize
   result.height = ClayOvenSize
   result.centerPos = ivec2(1, 1)
   result.cooldown = 0
   result.maxCooldown = ClayOvenCooldown
-  result.wheatCost = ClayOvenWheatCost
-  result.outputItem = Bread
+  result.wheatCostOven = ClayOvenWheatCost
+  result.outputFood = Bread
 
-proc createTemple*(): TempleStructure =
+proc createTemple*(): Structure =
   ## Create a temple structure (3x3 with center as spawn point)
   result.width = 3
   result.height = 3
   result.centerPos = ivec2(1, 1)
+  result.needsBuffer = false
+  result.bufferSize = 0
 
 proc initHungerState*(): HungerState =
   ## Initialize a new hunger state for an agent
@@ -190,7 +181,7 @@ proc initHungerState*(): HungerState =
 
 # ============== HELPER FUNCTIONS ==============
 
-proc getTempleCenter*(temple: TempleStructure, topLeft: IVec2): IVec2 =
+proc getTempleCenter*(temple: Structure, topLeft: IVec2): IVec2 =
   ## Get the world position of the temple's center (spawn point)
   return topLeft + temple.centerPos
 
@@ -208,3 +199,184 @@ proc getClippyBehavior*(clippy: pointer, target: pointer, distanceToTarget: floa
     return Chase
   else:
     return Guard
+
+# ============== FOOD & HUNGER FUNCTIONS ==============
+
+proc canUseClayOven*(oven: ProductionBuilding, agentWheat: int): bool =
+  ## Check if agent can use the clay oven
+  assert oven.kind == ClayOven, "This function only works with ClayOven"
+  return oven.cooldown == 0 and agentWheat >= oven.wheatCostOven
+
+proc useClayOven*(oven: var ProductionBuilding, agentWheat: var int): FoodItem =
+  ## Use the clay oven to bake bread
+  assert oven.kind == ClayOven, "This function only works with ClayOven"
+  if canUseClayOven(oven, agentWheat):
+    agentWheat -= oven.wheatCostOven
+    oven.cooldown = oven.maxCooldown
+    return Bread
+  return NoFood
+
+proc updateOvenCooldown*(oven: var ProductionBuilding) =
+  ## Update cooldown for clay oven
+  assert oven.kind == ClayOven, "This function only works with ClayOven"
+  if oven.cooldown > 0:
+    oven.cooldown -= 1
+
+proc addFoodItem*(hunger: var HungerState, item: FoodItem): bool =
+  ## Add a food item to agent's inventory
+  if hunger.foodInventory.len < hunger.maxFoodSlots and item != NoFood:
+    hunger.foodInventory.add(item)
+    return true
+  return false
+
+proc hasFoodItem*(hunger: HungerState, item: FoodItem = NoFood): bool =
+  ## Check if agent has any food (or specific food if specified)
+  if item == NoFood:
+    return hunger.foodInventory.len > 0
+  else:
+    return item in hunger.foodInventory
+
+proc eatFood*(hunger: var HungerState, preferredFood: FoodItem = NoFood): tuple[
+  ate: bool,
+  foodConsumed: FoodItem,
+  hungerRestored: int
+] =
+  ## Agent eats food to reset hunger
+  ## Returns whether food was eaten, what was eaten, and hunger restored
+  if hunger.foodInventory.len == 0:
+    return (ate: false, foodConsumed: NoFood, hungerRestored: 0)
+  
+  var foodToEat = NoFood
+  var foodIndex = -1
+  
+  # Try to eat preferred food first
+  if preferredFood != NoFood:
+    for i, food in hunger.foodInventory:
+      if food == preferredFood:
+        foodToEat = food
+        foodIndex = i
+        break
+  
+  # If no preferred food found, eat first available
+  if foodIndex == -1 and hunger.foodInventory.len > 0:
+    foodToEat = hunger.foodInventory[0]
+    foodIndex = 0
+  
+  if foodIndex >= 0:
+    # Consume the food
+    hunger.foodInventory.delete(foodIndex)
+    
+    # Reset hunger based on food type
+    let hungerRestore = case foodToEat:
+      of Bread: BreadHungerRestore
+      of Stew: StewHungerRestore
+      of NoFood: 0
+    
+    hunger.currentHunger = max(0, hunger.currentHunger - hungerRestore)
+    hunger.isStarving = false
+    
+    return (ate: true, foodConsumed: foodToEat, hungerRestored: hungerRestore)
+  
+  return (ate: false, foodConsumed: NoFood, hungerRestored: 0)
+
+proc updateHunger*(hunger: var HungerState): tuple[isDying: bool] =
+  ## Update hunger state each step
+  ## Returns whether they're dying of starvation
+  hunger.currentHunger += 1
+  
+  # Check if agent is starving
+  if hunger.currentHunger >= hunger.maxHunger:
+    hunger.isStarving = true
+    return (isDying: true)
+  
+  return (isDying: false)
+
+proc shouldAgentEatAutomatically*(hunger: HungerState): bool =
+  ## Determine if agent should automatically eat (when close to starving)
+  # Auto-eat when 80% hungry
+  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10) and hunger.foodInventory.len > 0
+
+proc handleStarvation*(hunger: var HungerState, agentPos: var IVec2, homeAltar: IVec2): tuple[
+  died: bool,
+  respawnPos: IVec2
+] =
+  ## Handle agent starvation - returns if agent died and where to respawn
+  if hunger.currentHunger >= hunger.maxHunger:
+    # Agent dies from starvation
+    hunger.currentHunger = 0  # Reset hunger after respawn
+    hunger.isStarving = false
+    
+    # Respawn at home altar if it exists
+    if homeAltar.x >= 0 and homeAltar.y >= 0:
+      return (died: true, respawnPos: homeAltar)
+    else:
+      # No home altar, respawn at current position (shouldn't normally happen)
+      return (died: true, respawnPos: agentPos)
+  
+  return (died: false, respawnPos: agentPos)
+
+proc getFoodInventoryDisplay*(hunger: HungerState): string =
+  ## Get a string representation of food inventory
+  if hunger.foodInventory.len == 0:
+    return "No food"
+  
+  var counts = initTable[FoodItem, int]()
+  for item in hunger.foodInventory:
+    counts[item] = counts.getOrDefault(item, 0) + 1
+  
+  result = ""
+  for item, count in counts:
+    if result.len > 0:
+      result &= ", "
+    case item:
+    of Bread: result &= $count & " bread"
+    of Stew: result &= $count & " stew"
+    of NoFood: discard
+
+proc getHungerStatus*(hunger: HungerState): string =
+  ## Get a string describing hunger status
+  let percentage = (hunger.currentHunger.float / hunger.maxHunger.float * 100).int
+  
+  if hunger.isStarving:
+    return "STARVING!"
+  elif percentage >= 80:
+    return "Very Hungry (" & $hunger.currentHunger & "/" & $hunger.maxHunger & ")"
+  elif percentage >= 60:
+    return "Hungry (" & $hunger.currentHunger & "/" & $hunger.maxHunger & ")"  
+  elif percentage >= 40:
+    return "Getting Hungry (" & $hunger.currentHunger & "/" & $hunger.maxHunger & ")"
+  else:
+    return "Well Fed (" & $hunger.currentHunger & "/" & $hunger.maxHunger & ")"
+
+proc shouldShowHungerWarning*(hunger: HungerState): bool =
+  ## Check if we should display a hunger warning to the player
+  # Show warning when 80% hungry
+  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10)
+
+# Integration helper for main game loop
+proc processAgentHunger*(hunger: var HungerState, agentPos: var IVec2, 
+                         homeAltar: IVec2, agentFrozen: var int): tuple[
+  died: bool,
+  respawned: bool,
+  autoAte: bool
+] =
+  ## Main hunger processing for each game step
+  ## Updates hunger, handles auto-eating, and manages starvation/respawn
+  
+  let hungerResult = hunger.updateHunger()
+  
+  # Auto-eat if very hungry and has food
+  if hunger.shouldAgentEatAutomatically():
+    let eatResult = hunger.eatFood()
+    if eatResult.ate:
+      return (died: false, respawned: false, autoAte: true)
+  
+  # Handle starvation
+  if hungerResult.isDying:
+    let (died, respawnPos) = hunger.handleStarvation(agentPos, homeAltar)
+    if died:
+      agentPos = respawnPos
+      agentFrozen = 10  # Brief freeze after respawn
+      return (died: true, respawned: true, autoAte: false)
+  
+  return (died: false, respawned: false, autoAte: false)

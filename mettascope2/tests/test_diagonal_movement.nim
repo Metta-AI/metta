@@ -1,7 +1,8 @@
-import ../src/tribal/game
 import std/[strformat, sequtils, tables, strutils, random]
-import ../src/tribal/controller
 import vmath
+import ../src/tribal/environment
+import ../src/tribal/ai
+import ../src/tribal/objects
 
 proc testDiagonalMovement() =
   echo "\n=== Diagonal Movement Test ==="

@@ -1,4 +1,6 @@
-import ../src/tribal/game
+import ../src/tribal/environment
+import ../src/tribal/enemies
+import ../src/tribal/objects
 ## Test for Plague-Wave Clippy Expansion
 ## Tests the improved clippy behavior that spreads outward like a plague
 import std/[strformat, strutils, sets, math, tables, sequtils]

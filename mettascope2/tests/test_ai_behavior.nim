@@ -1,10 +1,10 @@
-import ../src/tribal/game
 ## AI Behavior Test Suite
 ## Tests controller AI for agent decision making and coordination
 import std/[strformat, strutils, sets, math, tables]
 import vmath
-import ../src/tribal/controller
-import ../src/tribal/actions
+import ../src/tribal/environment
+import ../src/tribal/ai
+import ../src/tribal/simulation
 
 # Test 1: Agent Controller Behavior
 proc testAgentController() =
@@ -96,8 +96,8 @@ proc testFullSimulation() =
   echo "Test: Full Simulation"
   echo "-" & repeat("-", 40)
   
-  env = newEnvironment()  # Use global env for actions
-  agentController = newController(seed = 42)
+  var env = newEnvironment()
+  var agentController = newController(seed = 42)
   
   echo fmt"  Starting with {env.agents.len} agents, {env.things.len} total entities"
   
@@ -110,7 +110,11 @@ proc testFullSimulation() =
   
   # Run simulation
   for i in 0 ..< 50:
-    simStep()  # Uses controller for all agents
+    var actions: array[MapAgents, array[2, uint8]]
+    for j in 0 ..< env.agents.len:
+      actions[j] = agentController.decideAction(env, j)
+    env.step(addr actions)
+    agentController.updateController()
     stats.steps += 1
     
     # Count resources

@@ -1,4 +1,4 @@
-import std/[strformat, random, strutils, tables, times], vmath, jsony, chroma
+import std/[strformat, random, strutils, tables, times], vmath, chroma
 import terrain, objects, enemies, colors, rewards
 export terrain, objects, colors, rewards
 
@@ -229,7 +229,7 @@ proc clear[N: int, T](s: ptr array[N, T]) =
   let p = cast[pointer](s[][0].addr)
   zeroMem(p, s[].len * sizeof(T))
 
-proc updateObservations(env: Environment, agentId: int) =
+proc updateObservations*(env: Environment, agentId: int) =
   var obs = env.observations[agentId].addr
   obs.clear()
 
@@ -318,7 +318,7 @@ proc updateObservations(env: Environment, agentId: int) =
         # Corner buildings act like walls for observations
         obs[8][x][y] = 1  # Use the wall layer for now
 
-proc updateObservations(
+proc updateObservations*(
   env: Environment,
   layer: ObservationName,
   pos: IVec2,
@@ -810,7 +810,7 @@ proc init(env: Environment) =
   var usedCorners: seq[int] = @[]  # Track which corners have been used
   for i in 0 ..< numHouses:
     # Use the new unified placement system
-    let houseStruct = createHouseStructure()
+    let houseStruct = createHouse()
     var gridPtr = cast[PlacementGrid](env.grid.addr)
     var terrainPtr = env.terrain.addr
     let placementResult = findPlacement(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = true, excludedCorners = usedCorners)
@@ -960,7 +960,7 @@ proc init(env: Environment) =
 
   # Spawn temples with Clippys (same count as houses)
   for i in 0 ..< numHouses:
-    let templeStruct = createTempleStructure()
+    let templeStruct = createTemple()
     var gridPtr = cast[PlacementGrid](env.grid.addr)
     var terrainPtr = env.terrain.addr
     let placementResult = findPlacement(gridPtr, terrainPtr, templeStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = false, excludedCorners = @[])

@@ -1,4 +1,6 @@
-import ../src/tribal/game
+import ../src/tribal/environment
+import ../src/tribal/terrain
+import ../src/tribal/objects
 
 # Test that the corner buildings are created properly
 proc testCornerBuildings() =
