@@ -1,7 +1,5 @@
 name: "Test and Benchmark"
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
-  cancel-in-progress: true
+
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -24,6 +22,14 @@ on:
         description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
+      run_id:
+        description: "Optional unique identifier for this run (for parallel CI benchmarking)"
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}-${{ inputs.run_id || 'default' }}
+  cancel-in-progress: true
 
 # Set default permissions
 permissions:
@@ -149,8 +155,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: "linting"
 
@@ -214,8 +220,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
 
       - name: Cache PufferLib clone
         uses: actions/cache@v4
@@ -325,8 +331,9 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           SUBPACKAGES: "agent common app_backend mettagrid codebot core"
         run: |
+          # We want to set flags per file so the codecov action is not convenient
+          # If we change to a matrix of runners we should delete the script
           chmod +x .github/scripts/upload_codecov.py
-          # Upload all coverage files
           .github/scripts/upload_codecov.py
 
   unit-tests-summary:
@@ -360,8 +367,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
+
+      - name: Cache Bazel build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazel-repo
+          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/MODULE.bazel.lock', 'mettagrid/.bazelrc') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
 
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
@@ -392,8 +411,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
       - name: Run Python benchmarks
         env:
@@ -426,8 +447,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
+
+      - name: Cache Bazel build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazel-repo
+          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/MODULE.bazel.lock', 'mettagrid/.bazelrc') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
 
       - name: Build C++ benchmarks
         id: benchmark_build_check

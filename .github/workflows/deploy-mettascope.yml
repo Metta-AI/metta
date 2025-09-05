@@ -41,8 +41,8 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: "minimal"
 

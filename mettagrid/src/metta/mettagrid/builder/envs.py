@@ -10,7 +10,6 @@ from metta.mettagrid.mettagrid_config import (
     AgentRewards,
     AttackActionConfig,
     GameConfig,
-    GroupConfig,
     MettaGridConfig,
 )
 
@@ -91,13 +90,6 @@ def make_arena(
                     },
                 ),
             ),
-            groups={
-                "agent": GroupConfig(
-                    id=0,
-                    sprite=0,
-                    props=AgentConfig(),
-                ),
-            },
             map_builder=map_builder,
         ),
     )
