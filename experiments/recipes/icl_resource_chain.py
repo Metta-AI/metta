@@ -68,9 +68,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         height_range: tuple[int, int] = Field(
             default=(5, 12), description="Height range to sample from"
         )
-        max_steps: int = Field(
-            default=256, description="Maximum steps to sample from"
-        )
+        max_steps: int = Field(default=256, description="Maximum steps to sample from")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
         super().__init__(config)
@@ -166,10 +164,21 @@ class ConverterChainTaskGenerator(TaskGenerator):
         height = rng.randint(self.config.height_range[0], self.config.height_range[1])
         max_steps = self.config.max_steps
 
-        icl_env = self._make_env_cfg(resource_chain, num_sinks, width=width, height=height, max_steps=max_steps, rng=rng)
+        icl_env = self._make_env_cfg(
+            resource_chain,
+            num_sinks,
+            width=width,
+            height=height,
+            max_steps=max_steps,
+            rng=rng,
+        )
 
         # optimal reward estimates for the task, to be used in evaluation
-        most_efficient_optimal_reward, least_efficient_optimal_reward = self._estimate_max_rewards(chain_length, num_sinks, width, height, max_steps)
+        most_efficient_optimal_reward, least_efficient_optimal_reward = (
+            self._estimate_max_rewards(
+                chain_length, num_sinks, width, height, max_steps
+            )
+        )
 
         icl_env.game.reward_estimates = {
             "most_efficient_optimal_reward": most_efficient_optimal_reward,
@@ -244,8 +253,12 @@ class ConverterChainTaskGenerator(TaskGenerator):
         #   - Touch all sinks first (resets), and each reset forces rebuilding the correct
         #     prefix of length i afterward; model this as i attempts per sink.
         #   - Finally pick the correct converter once: 1 attempt.
-        wrong_converter_cost = sum((n_converters - i) * step_per_attempt for i in range(1, n_converters + 1))
-        sink_cost = sum(num_sinks * i * step_per_attempt for i in range(1, n_converters + 1))
+        wrong_converter_cost = sum(
+            (n_converters - i) * step_per_attempt for i in range(1, n_converters + 1)
+        )
+        sink_cost = sum(
+            num_sinks * i * step_per_attempt for i in range(1, n_converters + 1)
+        )
         correct_choice_cost = n_converters * step_per_attempt
 
         worst_first_heart_steps = wrong_converter_cost + sink_cost + correct_choice_cost

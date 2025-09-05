@@ -182,6 +182,7 @@ class GameConfig(Config):
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
 
+
 class MettaGridConfig(Config):
     """Environment configuration."""
 
