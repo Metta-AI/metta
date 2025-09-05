@@ -316,10 +316,9 @@ class NotificationConfig:
 @master_only
 def send_notifications(termination_reason: str):
     """Send notifications based on termination reason."""
-    logger.info(f"Processing notifications for termination reason: {termination_reason}")
+    global heartbeat_timeout, max_runtime_hours
 
-    heartbeat_timeout = globals()["heartbeat_timeout"]
-    max_runtime_hours = globals()["max_runtime_hours"]
+    logger.info(f"Processing notifications for termination reason: {termination_reason}")
 
     notifications = {
         "heartbeat_timeout": NotificationConfig(

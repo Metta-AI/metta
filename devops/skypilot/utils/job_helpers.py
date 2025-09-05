@@ -1,6 +1,9 @@
 import netrc
 import os
+import re
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 import sky
@@ -238,3 +241,39 @@ def set_task_secrets(task: sky.Task) -> None:
             OBSERVATORY_TOKEN=observatory_token,
         )
     )
+
+
+def open_job_log_from_request_id(request_id: str, wait_seconds: float = 1.0) -> tuple[str | None, str]:
+    """Launch job log in a subprocess from a request ID."""
+
+    # Wait for the job to be registered
+    time.sleep(wait_seconds)
+
+    result = subprocess.run(["sky", "api", "logs", request_id], capture_output=True, text=True)
+
+    if result.returncode == 0:
+        output = result.stdout
+        job_id_match = re.search(r"ID:\s*(\d+)", output)
+
+        if job_id_match:
+            job_id = job_id_match.group(1)
+            print(green(f"Job submitted with ID: {job_id}"))
+
+            # Print the initial output
+            print(output)
+
+            # Now tail the job logs
+            print(f"\n{blue('Tailing job logs...')}")
+            try:
+                subprocess.run(["sky", "jobs", "logs", job_id])
+            except KeyboardInterrupt:
+                print("\n" + yellow("Stopped tailing logs"))
+
+            return job_id, output
+        else:
+            print(yellow("Job ID not found in output"))
+            return None, output
+    else:
+        error_msg = f"Error getting logs: {result.stderr}"
+        print(red(error_msg))
+        return None, error_msg

@@ -44,7 +44,7 @@ class HeartbeatMonitor:
         """Check if heartbeat has timed out."""
         try:
             # Get file stats
-            stat = os.stat(self.heartbeat_file)
+            stat = self.heartbeat_file.stat()
             last_heartbeat_time = stat.st_mtime
             current_time = time.time()
             elapsed = current_time - last_heartbeat_time
