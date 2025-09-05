@@ -104,4 +104,6 @@ metta/sweep/experiments/README_*.md
 identified-figures/
 # Cursor MCP configuration (may contain credentials)
 .cursor-mcp/
+
+# TODO - remove after troubleshooting stability and re-add to keys in .github/workflows/checks.yml
 mettagrid/MODULE.bazel.lock
