@@ -65,13 +65,6 @@ class TestBatchedSyncedOptimizingScheduler:
             recipe_module="test.module",
             train_entrypoint="train",
             eval_entrypoint="evaluate",
-        )
-
-        config = BatchedSyncedSchedulerConfig(
-            max_trials=10,
-            recipe_module="test.module",
-            train_entrypoint="train",
-            eval_entrypoint="evaluate",
             batch_size=2,
         )
 
@@ -86,7 +79,6 @@ class TestBatchedSyncedOptimizingScheduler:
         assert all(job.type == JobTypes.LAUNCH_TRAINING for job in jobs)
         assert jobs[0].run_id == "test_sweep_trial_0001"
         assert jobs[1].run_id == "test_sweep_trial_0002"
-        assert jobs[2].run_id == "test_sweep_trial_0003"
 
     def test_wait_for_incomplete_runs(self):
         """Test that scheduler waits for all runs to complete before next batch."""
