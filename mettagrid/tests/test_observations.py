@@ -516,12 +516,12 @@ class TestGlobalTokens:
 
         # Initially, both agents should have glyph 0 (default)
         # Since glyph 0 is suppressed, we should NOT find any glyph tokens
-        assert agent0_self_glyph.size == 0, f"Agent 0 with glyph 0 should have no glyph token, got {agent0_self_glyph}"
-        assert agent0_sees_agent1_glyph.size == 0, (
+        assert len(agent0_self_glyph) == 0, f"Agent 0 with glyph 0 should have no glyph token, got {agent0_self_glyph}"
+        assert len(agent0_sees_agent1_glyph) == 0, (
             f"Agent 0 should see Agent 1 with no glyph token (glyph 0), got {agent0_sees_agent1_glyph}"
         )
-        assert agent1_self_glyph.size == 0, f"Agent 1 with glyph 0 should have no glyph token, got {agent1_self_glyph}"
-        assert agent1_sees_agent0_glyph.size == 0, (
+        assert len(agent1_self_glyph) == 0, f"Agent 1 with glyph 0 should have no glyph token, got {agent1_self_glyph}"
+        assert len(agent1_sees_agent0_glyph) == 0, (
             f"Agent 1 should see Agent 0 with no glyph token (glyph 0), got {agent1_sees_agent0_glyph}"
         )
 
@@ -583,8 +583,8 @@ class TestGlobalTokens:
         agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=TokenTypes.GLYPH)
         agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=TokenTypes.GLYPH)
 
-        assert agent0_glyph.size == 0, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
-        assert agent1_glyph.size == 0, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
+        assert len(agent0_glyph) == 0, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
+        assert len(agent1_glyph) == 0, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
 
 
 class TestEdgeObservations:
