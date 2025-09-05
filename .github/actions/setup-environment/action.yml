@@ -16,13 +16,20 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Compute extra-dependencies hash
+      id: hash
+      shell: bash
+      run: |
+        echo "${{ inputs.extra-dependencies }}" | sha256sum | cut -c1-16 > hash.txt
+        echo "hash=$(cat hash.txt)" >> "$GITHUB_OUTPUT"
+
     - name: Install uv with built-in caching
       uses: astral-sh/setup-uv@v6
       with:
         version: "0.7.3"
         enable-cache: true
         prune-cache: true
-        cache-suffix: "${{ inputs.install-mode }}${{ inputs.extra-dependencies != '' && format('-{0}', inputs.extra-dependencies) || '' }}"
+        cache-suffix: "${{ inputs.install-mode }}-${{ steps.hash.outputs.hash }}"
         cache-dependency-glob: |
           uv.lock
           **/pyproject.toml
