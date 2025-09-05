@@ -11,17 +11,23 @@ from setuptools.build_meta import (
     build_editable as _build_editable,
 )
 from setuptools.build_meta import (
+    build_sdist as _build_sdist,
+)
+from setuptools.build_meta import (
     build_wheel as _build_wheel,
 )
 from setuptools.build_meta import (
     get_requires_for_build_editable,
+    get_requires_for_build_sdist,
     get_requires_for_build_wheel,
     prepare_metadata_for_build_editable,
     prepare_metadata_for_build_wheel,
 )
 
+PROJECT_ROOT = Path(__file__).resolve().parent
 
-def _run_bazel_build():
+
+def _run_bazel_build() -> None:
     """Run Bazel build to compile the C++ extension."""
     # Check if bazel is available
     if shutil.which("bazel") is None:
@@ -42,23 +48,26 @@ def _run_bazel_build():
         config = "dbg" if debug else "opt"
 
     # Build the Python extension
+    trust_store = Path(os.environ.get("JAVA_HOME", "")) / "lib" / "security" / "cacerts"
     cmd = [
         "bazel",
+        f"--host_jvm_args=-Djavax.net.ssl.trustStore={trust_store}",
+        "--host_jvm_args=-Djavax.net.ssl.trustStorePassword=changeit",
         "build",
         f"--config={config}",
         "//:mettagrid_c",
     ]
 
     print(f"Running Bazel build: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
 
     if result.returncode != 0:
         print(f"Bazel build failed:\n{result.stderr}", file=sys.stderr)
         raise RuntimeError("Bazel build failed")
 
     # Copy the built extension to the package directory
-    bazel_bin = Path("bazel-bin")
-    src_dir = Path("src/metta/mettagrid")
+    bazel_bin = PROJECT_ROOT / "bazel-bin"
+    src_dir = PROJECT_ROOT / "src/metta/mettagrid"
 
     # Find the built extension file
     # Bazel outputs the extension directly to bazel-bin/mettagrid_c.so
@@ -95,11 +104,18 @@ def build_editable(wheel_directory, config_settings=None, metadata_directory=Non
     return _build_editable(wheel_directory, config_settings, metadata_directory)
 
 
+def build_sdist(sdist_directory, config_settings=None):
+    """Build a source distribution without compiling the extension."""
+    return _build_sdist(sdist_directory, config_settings)
+
+
 __all__ = [
     "build_wheel",
     "build_editable",
+    "build_sdist",
     "get_requires_for_build_wheel",
     "get_requires_for_build_editable",
+    "get_requires_for_build_sdist",
     "prepare_metadata_for_build_wheel",
     "prepare_metadata_for_build_editable",
 ]
