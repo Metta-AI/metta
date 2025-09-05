@@ -26,7 +26,8 @@ echo ""
 echo "Testing hunger mechanics:"
 if env.agents.len > 0:
   let testAgent = env.agents[0]
-  echo fmt"  Agent 0 starting hunger: {testAgent.hunger}"
+  # NOTE: Hunger field not implemented on Thing type yet
+  # echo fmt"  Agent 0 starting hunger: {testAgent.hunger}"
   echo fmt"  Agent 0 home altar: ({testAgent.homeAltar.x}, {testAgent.homeAltar.y})"
   
   # Simulate some steps to see hunger decrease
@@ -38,7 +39,7 @@ if env.agents.len > 0:
   for step in 1 .. 10:
     env.step(addr actions)
     if step mod 5 == 0:
-      echo fmt"  After {step} steps - Agent 0 hunger: {testAgent.hunger}"
+      # echo fmt"  After {step} steps - Agent 0 hunger: {testAgent.hunger}"  # hunger not implemented
   
   echo ""
   echo "Testing bread production:"
@@ -46,7 +47,7 @@ if env.agents.len > 0:
   # Give agent some wheat
   testAgent.inventoryWheat = 3
   echo fmt"  Agent 0 wheat inventory: {testAgent.inventoryWheat}"
-  echo fmt"  Agent 0 bread inventory: {testAgent.inventoryBread}"
+  # echo fmt"  Agent 0 bread inventory: {testAgent.inventoryBread}"  # inventoryBread not implemented
   
   # Find a clay oven
   var clayOven: Thing = nil

@@ -1,6 +1,6 @@
 import ../src/tribal/environment
 import ../src/tribal/ai
-import ../src/tribal/objects as ctrl
+import ../src/tribal/objects
 import std/[random, tables]
 import vmath
 
@@ -9,7 +9,7 @@ echo "=================================="
 
 # Create environment and controller
 var env = newEnvironment()
-var controller = ctrl.newController(seed = 42)
+var controller = newController(seed = 42)
 var r = initRand(42)
 
 # The environment is automatically initialized by newEnvironment()
@@ -19,12 +19,12 @@ var r = initRand(42)
 env.things.setLen(0)  # Clear all things
 
 # Add an agent at center
-let agent = tribal.Thing(
-  kind: tribal.Agent,
+let agent = Thing(
+  kind: Agent,
   id: 0,
   pos: ivec2(50, 25),  # Center of 100x50 map
   homeAltar: ivec2(50, 25),
-  orientation: tribal.N,
+  orientation: N,
   inventoryOre: 0,
   inventoryBattery: 0
 )
@@ -32,23 +32,23 @@ env.add(agent)
 env.agents[0] = agent
 
 # Add a mine very far away (near edge of map)
-env.add(tribal.Thing(
-  kind: tribal.Mine,
+env.add(Thing(
+  kind: Mine,
   pos: ivec2(90, 40),  # Far corner
   resources: 10,
   cooldown: 0
 ))
 
 # Add an altar for battery deposit
-env.add(tribal.Thing(
-  kind: tribal.Altar,
+env.add(Thing(
+  kind: Altar,
   pos: ivec2(50, 25),
   hearts: 5
 ))
 
 # Add a converter halfway
-env.add(tribal.Thing(
-  kind: tribal.Converter,
+env.add(Thing(
+  kind: Converter,
   pos: ivec2(70, 35),
   cooldown: 0
 ))
@@ -81,16 +81,16 @@ while stepCount < maxSteps and not usedMine:
   of 0:  # Noop
     discard
   of 1:  # Move
-    let orient = tribal.Orientation(action[1])
+    let orient = Orientation(action[1])
     let delta = case orient:
-      of tribal.N: ivec2(0, -1)
-      of tribal.S: ivec2(0, 1)
-      of tribal.W: ivec2(-1, 0)
-      of tribal.E: ivec2(1, 0)
-      of tribal.NW: ivec2(-1, -1)
-      of tribal.NE: ivec2(1, -1)
-      of tribal.SW: ivec2(-1, 1)
-      of tribal.SE: ivec2(1, 1)
+      of N: ivec2(0, -1)
+      of S: ivec2(0, 1)
+      of W: ivec2(-1, 0)
+      of E: ivec2(1, 0)
+      of NW: ivec2(-1, -1)
+      of NE: ivec2(1, -1)
+      of SW: ivec2(-1, 1)
+      of SE: ivec2(1, 1)
     
     let newPos = env.agents[0].pos + delta
     if env.isEmpty(newPos):

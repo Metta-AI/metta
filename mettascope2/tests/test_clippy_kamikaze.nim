@@ -80,7 +80,6 @@ proc testMultipleClippyAttacks() =
   echo "-" & repeat("-", 40)
   
   env = newEnvironment()
-  agentController = nil
   
   # Find an altar
   var altar: Thing = nil
@@ -149,7 +148,6 @@ proc testClippyPrioritizesAltars() =
   echo "-" & repeat("-", 40)
   
   env = newEnvironment()
-  agentController = nil
   
   # Find a clippy and altar that are somewhat close
   var clippy: Thing = nil

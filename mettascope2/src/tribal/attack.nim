@@ -10,6 +10,10 @@ const
 proc getManhattanDistance*(pos1, pos2: IVec2): int =
   return abs(pos1.x - pos2.x) + abs(pos1.y - pos2.y)
 
+proc hasSpear*(agent: Thing): bool =
+  ## Check if an agent has a spear
+  return agent.kind == Agent and agent.inventorySpear > 0
+
 proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
   if forge.cooldown > 0:
     return
