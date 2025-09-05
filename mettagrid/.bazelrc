@@ -49,8 +49,13 @@ common --color=yes
 # Show progress messages
 common --show_progress_rate_limit=0.5
 
-# Use a disk cache to speed up builds
+# Local disk cache configuration
 build --disk_cache=~/.cache/bazel
+build --repository_cache=~/.cache/bazel-repo
+
+# Build execution optimization
+build --jobs=auto
+build --local_test_jobs=auto
 
 # CI configuration - use system Python to avoid root user issues
 # Remove BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN to allow toolchain detection

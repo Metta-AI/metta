@@ -148,13 +148,8 @@ Clone the repository and run the setup:
 ```bash
 git clone https://github.com/Metta-AI/metta.git
 cd metta
-./install.sh
+./install.sh  # Interactive setup - installs uv, configures metta, and installs components
 ```
-
-The interactive setup will guide you through configuration:
-- **Option 1**: Quick setup with defaults for external users (recommended for most users)
-- **Option 2**: Quick setup with defaults for Softmax employees  
-- **Option 3**: Full configuration wizard (customize everything)
 
 After installation, you can use metta commands directly:
 
@@ -164,154 +159,13 @@ metta install      # Install additional components
 metta configure    # Reconfigure for a different profile
 ```
 
-### Installation Options
+#### Additional installation options
 
-For automated/scripted setups:
-
-```bash
-# Quick setup with external defaults (no prompts)
-./install.sh --profile=external --non-interactive
-
-# Quick setup with Softmax defaults  
-./install.sh --profile=softmax --non-interactive
-
-# Fully automated setup (uses external defaults)
-./install.sh --non-interactive
 ```
-
-**Re-running setup**: The installer will always ask you to choose your profile during setup, ensuring proper configuration for new users.
-
-## Configuration
-
-Metta uses a unified profile-based configuration system with a single project-level configuration file, making it simple and discoverable for both individual developers and teams.
-
-### Configuration File
-
-The configuration file is located in your project root:
-- **`config.yaml`** - Single configuration file in the repository root
-- **Committed to version control** - Team shares the same base configuration
-- **Profile-based** - Different user types (external/softmax) have appropriate defaults
-- **Environment variable support** - For runtime overrides when needed
-
-### Profile System
-
-Metta supports different user profiles with appropriate defaults:
-
-- **`external`** - For open source contributors and researchers
-  - Basic W&B tracking enabled
-  - Local storage for replays and checkpoints  
-  - No cloud services or monitoring by default
-
-- **`softmax`** - For Softmax team members
-  - Team W&B workspace (softmax-ai/metta-internal)
-  - S3 cloud storage for artifacts
-  - Datadog monitoring enabled
-
-### Interactive Configuration
-
-Set up or modify your configuration:
-
-```bash
-metta configure              # Full interactive wizard
-metta configure wandb        # Configure specific component
-metta profile external      # Switch to external profile
-metta profile softmax       # Switch to softmax profile
-metta profiles              # List available profiles
+./install.sh --profile=softmax   # For Softmax employees
+./install.sh --profile=external  # For external collaborators
+./install.sh --help             # Show all available options
 ```
-
-The wizard will:
-- Walk you through each service with intelligent defaults
-- Ask profile-appropriate questions based on your selected profile
-- Save settings to the project configuration file
-- Allow component-specific customization
-
-### Configuration File Structure
-
-The project `config.yaml` uses a clean profile-based structure:
-
-```yaml
-# config.yaml (committed to repository)
-# Default active profile - can be overridden with METTA_PROFILE env var
-profile: external
-
-profiles:
-  # External Contributors/Researchers Profile
-  # - Basic W&B tracking enabled for experiment logging
-  # - Local storage for replays and checkpoints
-  # - No cloud services or monitoring
-  external:
-    wandb:
-      enabled: true
-      # entity and project can be configured during setup or via 'metta configure wandb'
-    observatory:
-      enabled: false
-    datadog:
-      enabled: false
-
-  # Softmax Team Internal Profile  
-  # - Configured for internal team workflows
-  # - Uses team W&B workspace and S3 storage
-  # - Datadog monitoring enabled for production runs
-  softmax:
-    wandb:
-      enabled: true
-      entity: softmax-ai
-      project: metta-internal
-    observatory:
-      enabled: false
-    storage:
-      s3_bucket: metta-softmax-storage
-      aws_profile: softmax
-      replay_dir: s3://metta-softmax-storage/replays/
-      torch_profile_dir: s3://softmax-public/torch_traces/
-    datadog:
-      enabled: true
-```
-
-### Using Different Profiles
-
-Switch profiles for different contexts:
-
-```bash
-# Switch active profile permanently
-metta profile external
-metta profile softmax
-
-# Use profile for single command
-METTA_PROFILE=softmax ./tools/run.py experiments.recipes.arena.train --args run=my_experiment
-
-# Check current profile
-metta profiles
-```
-
-### DevOps Integration
-
-Export configuration for deployment tools and CI/CD:
-
-```bash
-# Shell export format (for sourcing)
-metta export-env
-
-# Export with specific profile
-METTA_PROFILE=softmax metta export-env
-
-# JSON format (for APIs)
-metta export-env --format=json
-
-# .env file format (for containers)  
-metta export-env --format=file .env
-```
-
-### Configuration Priority
-
-Metta uses a straightforward priority system:
-
-1. **`--profile` CLI parameter** (highest priority)
-2. **`METTA_PROFILE` environment variable**
-3. **`profile` setting in config.yaml**
-4. **`"external"` default** (lowest priority)
-
-The system prioritizes profile-based configuration over environment variables, with environment variables serving as runtime overrides when needed.
 
 ## Usage
 
@@ -437,21 +291,15 @@ To use WandB with your personal account:
      login user
      password YOUR_API_KEY_HERE
    ```
-3. Configure WandB using the interactive wizard:
-   ```bash
-   metta configure wandb
+3. Edit `configs/wandb/external_user.yaml` and replace `???` with your WandB username:
+   ```yaml
+   entity: ??? # Replace with your WandB username
    ```
-   This will prompt you for your entity and project settings, and save them to the project config file.
 
-Now you can run training with WandB enabled (it's enabled by default in both profiles):
+Now you can run training with your personal WandB config:
 
-```bash
-./tools/run.py experiments.recipes.arena.train --args run=local.<your_name>.123
 ```
-
-If you need to override the entity for a specific run:
-```bash
-./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides wandb.entity=<your_user>
+./tools/run.py experiments.recipes.arena.train --args run=local.yourname.123 --overrides wandb.enabled=true wandb.entity=<your_user>
 ```
 
 ## Visualizing a Model
@@ -500,8 +348,8 @@ Evaluate a policy against the arena eval suite:
 
 Evaluate on the navigation eval suite (provide the policy URI):
 
-```bash
-./tools/run.py experiments.recipes.navigation.eval --args policy_uri=wandb://run/local.alice.1
+```
+./tools/run.py experiments.recipes.navigation.eval --overrides policy_uris=wandb://run/local.alice.1
 ```
 
 ### Specifying your agent architecture
@@ -556,7 +404,7 @@ pytest
 | Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                        |
 | Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay --overrides policy_uri=wandb://run/local.alice.1`     |
 | Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/local.alice.1`        |
-| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval --args policy_uri=wandb://run/local.alice.1` |
+| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval --overrides policy_uris=wandb://run/local.alice.1` |
 | Dry-run (print config)      | `./tools/run.py experiments.recipes.arena.train --args run=my_experiment --dry-run`                    |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

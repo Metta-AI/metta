@@ -1,3 +1,4 @@
+import functools
 import importlib
 import itertools
 import textwrap
@@ -7,42 +8,37 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TypeVar
 
-from metta.common.util.text_styles import Fore, blue, bold, colorize, cyan, green, red, yellow
+from rich.console import Console
 
 T = TypeVar("T")
 
 
+@functools.cache
+def get_console() -> Console:
+    return Console()
+
+
 def _format_message(message: str, indent: int = 0) -> str:
-    """Apply dedent and strip to message."""
     return textwrap.indent(textwrap.dedent(message).strip(), " " * indent)
 
 
-def success(message: str, indent: int = 0, **kwargs) -> None:
-    print(green(_format_message(message, indent)), **kwargs)
+def colorize(message: str, color: str) -> str:
+    return f"[{color}]{message}[/{color}]"
 
 
-def info(message: str, indent: int = 0, **kwargs) -> None:
-    print(blue(_format_message(message, indent)), **kwargs)
+def _output(color: str, message: str, indent: int = 0, **kwargs) -> None:
+    console = get_console()
+    formatted = _format_message(message, indent)
+    console.print(colorize(formatted, color), **kwargs)
 
 
-def warning(message: str, indent: int = 0, **kwargs) -> None:
-    print(yellow(_format_message(message, indent)), **kwargs)
-
-
-def error(message: str, indent: int = 0, **kwargs) -> None:
-    print(red(_format_message(message)), **kwargs)
-
-
-def header(message: str, indent: int = 0) -> None:
-    print(f"\n{bold(cyan(_format_message(message, indent)))}")
-
-
-def step(message: str, indent: int = 0) -> None:
-    print(colorize(_format_message(message, indent), Fore.WHITE))
-
-
-def debug(message: str, indent: int = 0) -> None:
-    print(colorize(_format_message(message, indent), Fore.LIGHTMAGENTA_EX))
+success = functools.partial(_output, "green")
+info = functools.partial(_output, "blue")
+warning = functools.partial(_output, "yellow")
+error = functools.partial(_output, "red")
+header = functools.partial(_output, "bold cyan")
+step = functools.partial(_output, "white")
+debug = functools.partial(_output, "magenta")
 
 
 @contextmanager
@@ -175,9 +171,9 @@ def _simple_prompt_choice(
 
         marker = f" ({', '.join(markers)})" if markers else ""
         if current is not None and value == current:
-            print(cyan(f"  {i + 1}. {desc}{marker}"))
+            debug(f"{i + 1}. {desc}{marker}", indent=2)
         else:
-            print(f"  {i + 1}. {desc}{marker}")
+            debug(f"{i + 1}. {desc}{marker}", indent=2)
 
     while True:
         try:
