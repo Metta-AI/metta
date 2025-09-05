@@ -276,19 +276,9 @@ def _get_status_color(status: str) -> str:
 
 
 def _sort_runs_for_display(runs: List["RunInfo"]) -> List["RunInfo"]:
-    """Sort runs for display with completed runs at bottom."""
-    # Define priority order (lower number = higher in list)
-    status_priority = {
-        "PENDING": 1,
-        "IN_TRAINING": 2,
-        "TRAINING_DONE_NO_EVAL": 3,
-        "IN_EVAL": 4,
-        "EVAL_DONE_NOT_COMPLETED": 5,
-        "FAILED": 6,
-        "COMPLETED": 7,  # Completed runs go to bottom
-    }
-
-    return sorted(runs, key=lambda r: (status_priority.get(str(r.status), 99), r.run_id))
+    """Sort runs for display by created_at time, newest first."""
+    # Sort by created_at time (descending), with None values at the end
+    return sorted(runs, key=lambda r: r.created_at if r.created_at else datetime.max, reverse=True)
 
 
 def make_rich_monitor_table(runs: List["RunInfo"], sweep_metadata: Optional["SweepMetadata"] = None) -> Table:
@@ -306,8 +296,10 @@ def make_rich_monitor_table(runs: List["RunInfo"], sweep_metadata: Optional["Swe
     table.add_column("Cost", style="green", width=10)
 
     for run in sorted_runs:
-        # Format run ID
+        # Format run ID with clickable link to WandB
         display_id = get_display_id(run.run_id)
+        wandb_url = f"https://wandb.ai/metta-research/metta/runs/{run.run_id}"
+        run_id_text = Text(display_id, style="link " + wandb_url)
 
         # Format progress in Gsteps
         if run.total_timesteps and run.current_steps is not None:
@@ -330,7 +322,7 @@ def make_rich_monitor_table(runs: List["RunInfo"], sweep_metadata: Optional["Swe
         status_text = Text(str(run.status), style=status_color)
 
         table.add_row(
-            display_id,
+            run_id_text,
             status_text,
             progress_str,
             score_str,
@@ -343,17 +335,35 @@ def make_rich_monitor_table(runs: List["RunInfo"], sweep_metadata: Optional["Swe
 def create_sweep_banner(sweep_id: str, runs: List["RunInfo"], start_time: Optional[datetime] = None) -> str:
     """Create a banner with sweep information."""
 
-    # Calculate runtime
-    if start_time:
-        runtime = datetime.now() - start_time
-        runtime_str = str(runtime).split('.')[0]  # Remove microseconds
+    # Calculate runtime from earliest run created_at
+    earliest_created = None
+    for run in runs:
+        if run.created_at:
+            # Parse created_at if it's a string from WandB
+            created_at = run.created_at
+            if isinstance(created_at, str):
+                from dateutil import parser
+                created_at = parser.parse(created_at)
+
+            if earliest_created is None or created_at < earliest_created:
+                earliest_created = created_at
+
+    if earliest_created:
+        # Use timezone-aware current time to match WandB timestamps
+        from datetime import timezone
+        current_time = datetime.now(timezone.utc) if earliest_created.tzinfo else datetime.now()
+        runtime = current_time - earliest_created
+        runtime_hours = runtime.total_seconds() / 3600.0
+        runtime_str = f"{runtime_hours:.1f} hours"
     else:
         runtime_str = "Unknown"
 
-    # Count runs by status
+    # Count runs by status - handle JobStatus enum
+    from metta.sweep.models import JobStatus
     status_counts = {}
     for run in runs:
-        status = str(run.status)
+        # Get the enum value name without the prefix
+        status = run.status.name if hasattr(run.status, 'name') else str(run.status)
         status_counts[status] = status_counts.get(status, 0) + 1
 
     total_runs = len(runs)
@@ -399,7 +409,7 @@ def live_monitor_sweep(sweep_id: str, refresh_interval: int = 30, entity: str = 
                 return Text(f"No runs found for sweep: {sweep_id}", style="bright_red")
 
             # Create banner
-            banner = create_sweep_banner(sweep_id, runs, start_time)
+            banner = create_sweep_banner(sweep_id, runs)
 
             # Create table
             table = make_rich_monitor_table(runs)
@@ -496,7 +506,7 @@ def live_monitor_sweep_test(sweep_id: str, refresh_interval: int = 30, clear_scr
                 )
 
             # Create banner
-            banner = create_sweep_banner(f"{sweep_id} (TEST MODE)", runs, start_time)
+            banner = create_sweep_banner(f"{sweep_id} (TEST MODE)", runs)
 
             # Create table
             table = make_rich_monitor_table(runs)
