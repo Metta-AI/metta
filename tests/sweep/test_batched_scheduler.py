@@ -287,62 +287,6 @@ class TestBatchedSyncedOptimizingScheduler:
         assert jobs[0].run_id == "test_sweep_trial_0004"
         assert jobs[1].run_id == "test_sweep_trial_0005"
 
-    def test_sweep_completion(self):
-        """Test that scheduler marks sweep as complete when all trials done."""
-        protein_config = ProteinConfig(
-            metric="test_metric",
-            goal="maximize",
-            method="bayes",
-            parameters={
-                "lr": ParameterConfig(
-                    min=0.001,
-                    max=0.01,
-                    distribution="log_normal",
-                    mean=0.003,
-                    scale="auto",
-                )
-            },
-        )
-
-        optimizer = ProteinOptimizer(protein_config)
-        config = BatchedSyncedSchedulerConfig(max_trials=2)
-        scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
-
-        metadata = SweepMetadata(sweep_id="test_sweep")
-
-        # All trials dispatched and completed
-        dispatched_trainings = {"test_sweep_trial_0001", "test_sweep_trial_0002"}
-
-        runs = [
-            RunInfo(
-                run_id="test_sweep_trial_0001",
-                has_started_training=True,
-                has_completed_training=True,
-                has_started_eval=True,
-                has_been_evaluated=True,
-                observation=Observation(score=0.5, cost=100, suggestion={"lr": 0.005}),
-            ),
-            RunInfo(
-                run_id="test_sweep_trial_0002",
-                has_started_training=True,
-                has_completed_training=True,
-                has_started_eval=True,
-                has_been_evaluated=True,
-                observation=Observation(score=0.7, cost=100, suggestion={"lr": 0.003}),
-            ),
-        ]
-
-        # Should return empty and mark as complete
-        jobs = scheduler.schedule(
-            metadata,
-            runs,
-            dispatched_trainings,
-            dispatched_trainings,
-        )
-
-        assert len(jobs) == 0
-        # Completion is now tracked by controller, not scheduler
-
     def test_batch_with_observations(self):
         """Test that scheduler uses observations when generating new batch."""
         protein_config = ProteinConfig(

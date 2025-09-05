@@ -109,7 +109,7 @@ class BatchedSyncedOptimizingScheduler:
         if total_runs >= self.config.max_trials:
             return self._handle_max_trials_reached(all_runs)
 
-        # Check if ALL runs are completed (key difference from OptimizingScheduler)
+        # Check if ALL runs are completed before generating next batch
         incomplete_runs = [run for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED)]
 
         if incomplete_runs:

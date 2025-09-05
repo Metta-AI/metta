@@ -7,7 +7,7 @@ from metta.sweep.controller import SweepController
 from metta.sweep.models import JobDefinition, JobTypes, Observation, RunInfo, SweepStatus
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
+from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 
 
 class MockStore:
@@ -113,13 +113,14 @@ class TestControllerLifecycle:
         )
 
         optimizer = ProteinOptimizer(protein_config)
-        scheduler_config = OptimizingSchedulerConfig(
+        scheduler_config = BatchedSyncedSchedulerConfig(
             max_trials=2,
             recipe_module="test",
             train_entrypoint="train",
             eval_entrypoint="eval",
+            batch_size=1,
         )
-        scheduler = OptimizingScheduler(scheduler_config, optimizer)
+        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 
         controller = SweepController(
             sweep_id="test_sweep",
@@ -169,13 +170,14 @@ class TestControllerLifecycle:
         )
 
         optimizer = ProteinOptimizer(protein_config)
-        scheduler_config = OptimizingSchedulerConfig(
+        scheduler_config = BatchedSyncedSchedulerConfig(
             max_trials=2,
             recipe_module="test",
             train_entrypoint="train",
             eval_entrypoint="eval",
+            batch_size=1,
         )
-        scheduler = OptimizingScheduler(scheduler_config, optimizer)
+        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 
         controller = SweepController(
             sweep_id="test_sweep",
@@ -232,13 +234,14 @@ class TestControllerLifecycle:
         )
 
         optimizer = ProteinOptimizer(protein_config)
-        scheduler_config = OptimizingSchedulerConfig(
+        scheduler_config = BatchedSyncedSchedulerConfig(
             max_trials=5,
             recipe_module="test",
             train_entrypoint="train",
             eval_entrypoint="eval",
+            batch_size=1,
         )
-        scheduler = OptimizingScheduler(scheduler_config, optimizer)
+        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 
         controller = SweepController(
             sweep_id="test_sweep",
@@ -294,13 +297,14 @@ class TestControllerLifecycle:
         )
 
         optimizer = ProteinOptimizer(protein_config)
-        scheduler_config = OptimizingSchedulerConfig(
+        scheduler_config = BatchedSyncedSchedulerConfig(
             max_trials=2,
             recipe_module="test",
             train_entrypoint="train",
             eval_entrypoint="eval",
+            batch_size=1,
         )
-        scheduler = OptimizingScheduler(scheduler_config, optimizer)
+        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 
         controller = SweepController(
             sweep_id="test_sweep",
@@ -349,13 +353,14 @@ class TestControllerLifecycle:
         )
 
         optimizer = ProteinOptimizer(protein_config)
-        scheduler_config = OptimizingSchedulerConfig(
+        scheduler_config = BatchedSyncedSchedulerConfig(
             max_trials=2,
             recipe_module="test",
             train_entrypoint="train",
             eval_entrypoint="eval",
+            batch_size=1,
         )
-        scheduler = OptimizingScheduler(scheduler_config, optimizer)
+        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 
         controller = SweepController(
             sweep_id="test_sweep",

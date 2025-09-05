@@ -14,7 +14,7 @@ from metta.sweep import (
 )
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
+
 from metta.sweep.stores.wandb import WandbStore
 
 
@@ -157,36 +157,7 @@ class TestLocalDispatcher:
 class TestProtocolCompliance:
     """Test that components comply with Protocol interfaces."""
 
-    def test_scheduler_protocol(self):
-        """Test that schedulers follow the Scheduler protocol."""
-        # Create a simple protein config
-        protein_config = ProteinConfig(
-            metric="test_metric",
-            goal="maximize",
-            method="bayes",
-            parameters={
-                "test_param": ParameterConfig(
-                    min=0,
-                    max=1,
-                    distribution="uniform",
-                    mean=0.5,
-                    scale="auto",
-                )
-            },
-        )
 
-        optimizer = ProteinOptimizer(protein_config)
-        scheduler_config = OptimizingSchedulerConfig(
-            max_trials=5,
-            recipe_module="experiments.recipes.arena",
-            train_entrypoint="train",
-            eval_entrypoint="evaluate",
-        )
-        scheduler = OptimizingScheduler(scheduler_config, optimizer)
-
-        # Verify protocol methods exist (Scheduler only requires schedule)
-        assert hasattr(scheduler, "schedule")
-        assert callable(scheduler.schedule)
 
     def test_store_protocol(self):
         """Test that stores follow the Store protocol."""
