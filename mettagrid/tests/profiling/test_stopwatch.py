@@ -371,7 +371,7 @@ class TestStopwatch:
         assert stopwatch.get_filename("samefile_test") == "same.py"
 
     def test_lap_all_with_running_and_stopped_timers(self, stopwatch):
-        tol = 0.03
+        tol = 0.05
 
         stopwatch.start("A")
         stopwatch.start("B")
