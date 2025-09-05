@@ -1,13 +1,22 @@
 import
-  std/[strformat],
-  boxy, vmath, windy,
-  common, panels, utils
+  boxy, vmath, windy, chroma
+import tribal_game
 
+# We'll use the global window and bxy from tribal.nim
+var
+  window*: Window
+  bxy*: Boxy
+
+# Export for other modules  
+export drawIconButton, drawIconToggle
+
+proc boxyMouse(): Vec2 =
+  return bxy.getTransform().inverse * window.mousePos.vec2
 
 proc drawIconButton*(
   image: string,
   pos: Vec2,
-  size = vec2(32, 32),
+  size = vec2(32, 32)
 ): bool =
   let box = Rect(
     x: pos.x,
@@ -16,7 +25,7 @@ proc drawIconButton*(
     h: size.y
   )
 
-  if window.boxyMouse.vec2.overlaps(box):
+  if boxyMouse().overlaps(box):
     if window.buttonPressed[MouseLeft]:
       result = true
     bxy.drawRect(

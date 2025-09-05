@@ -1,6 +1,6 @@
 import std/[random, os, times, strformat, strutils, sequtils]
 import boxy, opengl, windy, chroma, vmath, pixie
-import tribal/[tribal_game, worldmap, controller, ui_controls]
+import tribal/[tribal_game, worldmap, controller, ui]
 
 # Global variables
 type
@@ -24,11 +24,18 @@ var
 
 const
   BgColor = parseHtmlColor("#273646")
+  HeaderHeight = 64
+  FooterHeight = 64
 
 var
   actionsArray*: array[MapAgents, array[2, uint8]]
   # Controller will use a random seed each time
   agentController* = newController(seed = int(epochTime() * 1000))
+  # UI state
+  play* = false
+  playSpeed* = 0.01
+  lastSimTime* = 0.0
+  settings* = (showGrid: false, showObservations: -1)
 
 proc simStep*() =
   # Use controller for agent actions
@@ -151,6 +158,57 @@ proc drawStats*() =
 Agents: {env.agents.len}"""
   
   drawText(statsText, vec2(10, 10), 14, color(1, 1, 1, 0.8))
+
+proc drawHeader*(bxy: Boxy, window: Window, typeface: Typeface, width: float32) =
+  ## Draw simple header bar
+  bxy.drawRect(
+    rect(0, 0, width, HeaderHeight.float32),
+    color(0.16, 0.21, 0.27, 1.0)  # Dark header color
+  )
+  
+  # Draw title
+  drawText("Tribal Grid", vec2(20, 20), 24, color(1, 1, 1, 0.9))
+  
+  # Draw grid toggle button
+  if drawIconButton(
+    if settings.showGrid: "ui/grid" else: "ui/grid",
+    pos = vec2(width - 50, 16)
+  ):
+    settings.showGrid = not settings.showGrid
+
+proc drawFooter*(bxy: Boxy, window: Window, width: float32, simStepProc: proc()) =
+  ## Draw simple footer with play controls
+  bxy.drawRect(
+    rect(0, 0, width, FooterHeight.float32),
+    color(0.18, 0.20, 0.24, 1.0)  # Slightly lighter than header
+  )
+  
+  var x = 20.0
+  
+  # Play/pause button
+  if drawIconButton(
+    if play: "ui/pause" else: "ui/play",
+    pos = vec2(x, 16)
+  ):
+    play = not play
+    lastSimTime = epochTime()
+  x += 40
+  
+  # Step button (when paused)
+  if not play:
+    if drawIconButton(
+      "ui/stepForward",
+      pos = vec2(x, 16)
+    ):
+      simStepProc()
+    x += 40
+  
+  # Speed controls
+  let speedText = if play:
+    &"Speed: {1.0 / playSpeed:0.1f}x"
+  else:
+    "Paused"
+  drawText(speedText, vec2(x, 24), 16, color(1, 1, 1, 0.8))
 
 proc main() =
   # Initialize window
