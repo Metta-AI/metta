@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
-from devops.skypilot.notifications.config import JobConfig, NotificationConfig
+from devops.skypilot.notifications.config import NotificationConfig
 from devops.skypilot.notifications.discord import DiscordNotifier
 from devops.skypilot.notifications.github import GitHubStatusUpdater
 from devops.skypilot.notifications.wandb import WandbAlertNotifier
+from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.log_config import getRankAwareLogger
 
 logger = getRankAwareLogger(__name__)
