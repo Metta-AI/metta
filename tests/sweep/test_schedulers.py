@@ -37,8 +37,7 @@ class TestOptimizingScheduler:
 
         assert scheduler.config.max_trials == 10
         assert scheduler.optimizer is not None
-        # Scheduler no longer tracks created runs internally
-        assert scheduler._is_complete is False
+        # Scheduler no longer tracks completion - controller does
 
     def test_optimizing_scheduler_suggest_flow(self):
         """Test that OptimizingScheduler gets suggestions from optimizer."""
@@ -209,7 +208,6 @@ class TestOptimizingScheduler:
         # Schedule first trial
         jobs1 = scheduler.schedule(metadata, [], set(), set())
         assert len(jobs1) == 1
-        assert scheduler._is_complete is False
 
         # Simulate first job completed with evaluation
         run1 = RunInfo(
@@ -231,7 +229,6 @@ class TestOptimizingScheduler:
         )
         assert len(jobs2) == 1
         assert jobs2[0].run_id == "test_sweep_trial_0002"
-        assert scheduler._is_complete is False
 
         # Simulate second job completed with evaluation
         run2 = RunInfo(
@@ -252,8 +249,7 @@ class TestOptimizingScheduler:
             {"test_sweep_trial_0001", "test_sweep_trial_0002"},  # Both evals dispatched
         )
         assert len(jobs3) == 0
-        assert scheduler._is_complete is True
-        assert scheduler.is_complete is True
+        # Completion is now tracked by controller, not scheduler
 
     def test_optimizing_scheduler_avoids_duplicate_run_ids(self):
         """Test that scheduler doesn't create duplicate run IDs."""
@@ -353,7 +349,7 @@ class TestOptimizingScheduler:
         )
 
         assert len(jobs) == 0
-        assert scheduler._is_complete is True
+        # Completion is now tracked by controller, not scheduler
 
     def test_optimizing_scheduler_waits_for_incomplete_jobs(self):
         """Test that scheduler waits for incomplete jobs before scheduling new ones."""
