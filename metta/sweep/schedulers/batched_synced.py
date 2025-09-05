@@ -8,7 +8,6 @@ between batches and is ideal for comparing hyperparameters fairly.
 import logging
 from dataclasses import dataclass
 from typing import Any
-from mypy import git
 
 from metta.sweep.models import JobDefinition, JobStatus, RunInfo, SweepMetadata
 from metta.sweep.protocols import Optimizer
