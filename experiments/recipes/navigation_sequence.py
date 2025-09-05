@@ -26,10 +26,10 @@ def _get_user_identifier() -> str:
 
 
 def _default_run_name() -> str:
-    """Generate a robust run name following the pattern: navigation.{user}.{date}.{unique_id}
+    """Generate a robust run name following the pattern: navigation_sequence.{user}.{date}.{unique_id}
 
     Format: navigation_sequence.{username}.MMDD-HHMMSS.{git_hash_short} or navigation_sequence.{username}.MMDD-HHMMSS
-    Example: navigation.alice.0820-143052.a1b2c3d or navigation.alice.0820-143052"""
+    Example: navigation_sequence.alice.0820-143052.a1b2c3d or navigation_sequence.alice.0820-143052"""
     user = _get_user_identifier()
     now = datetime.now()
     timestamp = now.strftime("%m%d-%H%M%S")
