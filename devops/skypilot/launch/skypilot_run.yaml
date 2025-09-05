@@ -43,17 +43,7 @@ file_mounts:
     source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
-setup: |
-  set -e
-  cd /workspace/metta
-
-  git config advice.detachedHead false
-  git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
-  git checkout "$METTA_GIT_REF"
-  echo "[SETUP] Checked out: $(git rev-parse HEAD)"
-
-  echo "[SETUP] Installing Datadog agent..."
-  uv run metta install datadog-agent || echo "[SETUP] Datadog agent installation failed or skipped"
+setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/launch/setup.sh")
 
 run: |
   set -e
@@ -65,12 +55,12 @@ run: |
   fi
   . .venv/bin/activate
 
-  uv run python ./devops/skypilot/utils/configure_environment.py
+  uv run ./devops/skypilot/utils/configure_environment.py
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
   source "$METTA_ENV_FILE"
 
   echo "Starting skypilot run script..."
-  uv run python ./devops/skypilot/launch/skypilot_run.py
+  uv run ./devops/skypilot/launch/skypilot_run.py
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta

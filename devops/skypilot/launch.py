@@ -5,7 +5,6 @@ import json
 import logging
 import subprocess
 import sys
-import time
 
 import sky
 import yaml
@@ -16,6 +15,7 @@ from devops.skypilot.utils.job_helpers import (
     check_git_state,
     display_job_summary,
     launch_task,
+    open_job_log_from_request_id,
     set_task_secrets,
 )
 from metta.common.util.cli import get_user_confirmation
@@ -144,6 +144,7 @@ def main():
         action="store_true",
         help="Run NCCL and job restart tests",
     )
+    parser.add_argument("-jl", "--job-log", action="store_true", help="Open job log after launch")
 
     args = parser.parse_args()
 
@@ -278,12 +279,16 @@ def main():
         sys.exit(0)
 
     # Launch the task(s)
-    request_ids = [launch_task(copy.deepcopy(task)) for _ in range(args.copies)]
+    def prepare_task(base_task: sky.Task, env_updates, run_id):
+        task = copy.deepcopy(base_task).update_envs(env_updates)
+        task.name = run_id
+        task.validate_name()
+        return task
 
-    # auto launch log if we have only one task
-    if len(request_ids) == 1:
-        time.sleep(1)
-        subprocess.run(["sky", "api", "logs", request_ids[0]])
+    request_ids = [launch_task(prepare_task(task, env_updates, run_id)) for _ in range(args.copies)]
+
+    if args.job_log:
+        open_job_log_from_request_id(request_ids[0])
 
 
 if __name__ == "__main__":
