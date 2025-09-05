@@ -233,9 +233,9 @@ jobs:
           path: |
             .testmondata
             */..testmondata
-          key: unit-tests-testmon-v2-${{ runner.os }}-${{ github.ref }}
+          key: unit-tests-testmon-v3-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', 'uv.lock') }}
           restore-keys: |
-            unit-tests-testmon-v2-${{ runner.os }}-refs/heads/main
+            unit-tests-testmon-v3-${{ runner.os }}-
             unit-tests-testmon-v2-${{ runner.os }}-
 
       - name: Setup Environment
