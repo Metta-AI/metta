@@ -4,7 +4,8 @@ src/mettascope.out
 # Nim compilation artifacts
 *.out
 *.exe
-src/tribal
+src/tribal.out
+src/tribal/tribal
 tests/test_*
 !tests/test_*.nim
 !tests/test_*.sh
