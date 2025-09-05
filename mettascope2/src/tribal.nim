@@ -26,6 +26,11 @@ const
   BgColor = parseHtmlColor("#273646")
   HeaderHeight = 64
   FooterHeight = 64
+  MaxObservations = 23
+  SpeedMultiplierIncrease = 2.0
+  SpeedMultiplierDecrease = 0.5
+  MinPlaySpeed = 0.00001
+  MaxPlaySpeed = 1.0
 
 var
   actionsArray*: array[MapAgents, array[2, uint8]]
@@ -52,39 +57,36 @@ proc simStep*() =
   agentController.updateController()
 
 proc agentControls*() =
-  ## Controls for the selected agent.
   if selection != nil and selection.kind == Agent:
     let agent = selection
 
-    # Direct movement with auto-rotation
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
-      # Move North
       actionsArray[agent.agentId] = [1, 0]
       simStep()
     elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
-      # Move South
       actionsArray[agent.agentId] = [1, 1]
       simStep()
     elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
-      # Move East
       actionsArray[agent.agentId] = [1, 2]
       simStep()
     elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
-      # Move West
       actionsArray[agent.agentId] = [1, 3]
       simStep()
 
-    # Use - face current direction of agent
     if window.buttonPressed[KeyU]:
-      # Use in the direction the agent is facing
       let useDir = agent.orientation.uint8
       actionsArray[agent.agentId] = [3, useDir]
       simStep()
 
-    # Swap (still valid - swaps positions with frozen agents)
     if window.buttonPressed[KeyP]:
       actionsArray[agent.agentId] = [8, 0]
       simStep()
+
+proc createFont(size: float32, color: Color): Font =
+  var font = newFont(typeface)
+  font.size = size
+  font.paint = color
+  return font
 
 proc drawText*(
   text: string,
@@ -92,10 +94,7 @@ proc drawText*(
   size: float32,
   color: Color
 ) =
-  ## Draw text on the screen.
-  var font = newFont(typeface)
-  font.size = size
-  font.paint = color
+  let font = createFont(size, color)
   let
     arrangement = typeset(@[newSpan(text, font)], bounds = vec2(1280, 800))
     transform = translate(pos)
@@ -112,8 +111,7 @@ proc measureText*(
   text: string,
   size: float32
 ): Vec2 =
-  var font = newFont(typeface)
-  font.size = size
+  let font = createFont(size, color(1, 1, 1, 1))
   let arrangement = typeset(@[newSpan(text, font)], bounds = vec2(1280, 800))
   let transform = translate(vec2(0, 0))
   let bounds = arrangement.computeBounds(transform).snapToPixels()
@@ -123,7 +121,6 @@ proc boxyMouse*(): Vec2 =
   return inverse(bxy.getTransform()) * window.mousePos.vec2
 
 proc beginPanAndZoom*() =
-  ## Pan and zoom the map.
   if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
     worldMapPanel.vel = window.mouseDelta.vec2
   else:
@@ -138,32 +135,32 @@ proc beginPanAndZoom*() =
 
   bxy.saveTransform()
 
-  let oldMat = translate(vec2(worldMapPanel.pos.x, worldMapPanel.pos.y)) * scale(vec2(worldMapPanel.zoom*worldMapPanel.zoom, worldMapPanel.zoom*worldMapPanel.zoom))
+  let zoomSquared = worldMapPanel.zoom * worldMapPanel.zoom
+  let oldMat = translate(vec2(worldMapPanel.pos.x, worldMapPanel.pos.y)) * scale(vec2(zoomSquared, zoomSquared))
   worldMapPanel.zoom += worldMapPanel.zoomVel
   worldMapPanel.zoom = clamp(worldMapPanel.zoom, 0.3, 100)
-  let newMat = translate(vec2(worldMapPanel.pos.x, worldMapPanel.pos.y)) * scale(vec2(worldMapPanel.zoom*worldMapPanel.zoom, worldMapPanel.zoom*worldMapPanel.zoom))
+  let newZoomSquared = worldMapPanel.zoom * worldMapPanel.zoom
+  let newMat = translate(vec2(worldMapPanel.pos.x, worldMapPanel.pos.y)) * scale(vec2(newZoomSquared, newZoomSquared))
   let newAt = newMat.inverse() * window.mousePos.vec2
   let oldAt = oldMat.inverse() * window.mousePos.vec2
-  worldMapPanel.pos -= (oldAt - newAt).xy * (worldMapPanel.zoom*worldMapPanel.zoom)
+  worldMapPanel.pos -= (oldAt - newAt).xy * newZoomSquared
 
   bxy.translate(worldMapPanel.pos)
-  bxy.scale(vec2(worldMapPanel.zoom*worldMapPanel.zoom, worldMapPanel.zoom*worldMapPanel.zoom))
+  bxy.scale(vec2(newZoomSquared, newZoomSquared))
 
 proc endPanAndZoom*() =
   bxy.restoreTransform()
 
 proc drawStats*() =
-  ## Draw basic stats in the corner
   let statsText = &"""Step: {env.currentStep}
 Agents: {env.agents.len}"""
   
   drawText(statsText, vec2(10, 10), 14, color(1, 1, 1, 0.8))
 
 proc drawHeader*(bxy: Boxy, window: Window, typeface: Typeface, width: float32) =
-  ## Draw simple header bar
   bxy.drawRect(
     rect(0, 0, width, HeaderHeight.float32),
-    color(0.16, 0.21, 0.27, 1.0)  # Dark header color
+    color(0.16, 0.21, 0.27, 1.0)
   )
   
   # Draw title
@@ -171,16 +168,15 @@ proc drawHeader*(bxy: Boxy, window: Window, typeface: Typeface, width: float32) 
   
   # Draw grid toggle button
   if drawIconButton(
-    if settings.showGrid: "ui/grid" else: "ui/grid",
+    "ui/grid",
     pos = vec2(width - 50, 16)
   ):
     settings.showGrid = not settings.showGrid
 
 proc drawFooter*(bxy: Boxy, window: Window, width: float32, simStepProc: proc()) =
-  ## Draw simple footer with play controls
   bxy.drawRect(
     rect(0, 0, width, FooterHeight.float32),
-    color(0.18, 0.20, 0.24, 1.0)  # Slightly lighter than header
+    color(0.18, 0.20, 0.24, 1.0)
   )
   
   var x = 20.0
@@ -234,7 +230,6 @@ proc main() =
   worldmap.bxy = bxy
   worldmap.env = env
   worldmap.typeface = typeface
-  echo "Environment created with ", env.agents.len, " agents"
   worldMapPanel = WorldMapPanel(
     rect: IRect(x: 0, y: 0, w: 1280, h: 800),
     pos: vec2(640, 400),  # Center the view
@@ -246,7 +241,6 @@ proc main() =
   # Load all sprites
   for path in walkDirRec("data/"):
     if path.endsWith(".png"):
-      echo "Loading sprite: ", path
       bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
   
   # Main loop
@@ -258,24 +252,20 @@ proc main() =
     if window.buttonPressed[KeySpace]:
       play = not play
     if window.buttonPressed[KeyMinus]:
-      playSpeed *= 2.0
-      playSpeed = clamp(playSpeed, 0.00001, 1.0)
+      playSpeed *= SpeedMultiplierIncrease
+      playSpeed = clamp(playSpeed, MinPlaySpeed, MaxPlaySpeed)
       play = true
-      echo "Speed: ", 1.0 / playSpeed, "x"
     if window.buttonPressed[KeyEqual]:
-      playSpeed *= 0.5
-      playSpeed = clamp(playSpeed, 0.00001, 1.0) 
+      playSpeed *= SpeedMultiplierDecrease
+      playSpeed = clamp(playSpeed, MinPlaySpeed, MaxPlaySpeed)
       play = true
-      echo "Speed: ", 1.0 / playSpeed, "x"
     
     # Handle observation controls
     if window.buttonPressed[KeyN]:
       dec settings.showObservations
-      echo "showObservations: ", settings.showObservations
     if window.buttonPressed[KeyM]:
       inc settings.showObservations
-      echo "showObservations: ", settings.showObservations
-    settings.showObservations = clamp(settings.showObservations, -1, 23)
+    settings.showObservations = clamp(settings.showObservations, -1, MaxObservations)
     
     # Auto-step simulation based on play speed
     let now = epochTime()

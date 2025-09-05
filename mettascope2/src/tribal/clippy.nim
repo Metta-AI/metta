@@ -54,7 +54,6 @@ proc getClippyBehavior*(clippy: pointer, target: pointer, distanceToTarget: floa
   else:
     return Guard
 
-# manhattanDistance is now imported from common.nim
 
 proc findNearbyClippies*(clippyPos: IVec2, things: seq[pointer], visionRange: int): seq[IVec2] =
   ## Find positions of nearby Clippies within vision range

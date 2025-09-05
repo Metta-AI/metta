@@ -11,7 +11,6 @@ const
   ForgeCooldown* = 5  # Cooldown after crafting
   SpearRange* = 2     # Attack range with spear (Manhattan distance)
 
-# getManhattanDistance is now imported from common.nim as manhattanDistance
 
 proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
   ## Use a forge to craft a spear from wood

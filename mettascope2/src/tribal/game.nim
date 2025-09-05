@@ -21,7 +21,6 @@ const
   # Altar contribution (already has 1.0 in code)
   # RewardDepositBattery* = 1.0  # Already implemented
 
-# All common types are now imported from common.nim
 
 proc render*(env: Environment): string =
   ## Render the environment as a string
@@ -218,7 +217,6 @@ proc getThing(env: Environment, pos: IVec2): Thing =
     return nil
   return env.grid[pos.x][pos.y]
 
-# Orientation utilities are now imported from common.nim
 
 proc isEmpty*(env: Environment, pos: IVec2): bool =
   ## Check if a position is empty (water is now passable)
@@ -227,7 +225,6 @@ proc isEmpty*(env: Environment, pos: IVec2): bool =
   # Water is now passable, only check for objects
   return env.grid[pos.x][pos.y] == nil
 
-# orientationToVec and relativeLocation are now in common.nim
 
 proc noopAction(env: Environment, id: int, agent: Thing) =
   ## Do nothing

@@ -1,6 +1,5 @@
 import std/[random, math], vmath, common
 
-# TerrainType, TerrainGrid, and toIVec2 are now imported from common.nim
 
 proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
   ## Generate a river that flows from left to right across the map

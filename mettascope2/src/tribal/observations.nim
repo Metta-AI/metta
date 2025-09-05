@@ -4,7 +4,6 @@
 import std/strformat, vmath
 import common, game
 
-# ObservationName enum is now imported from common.nim
     AgentInventoryOreLayer = 2
     AgentInventoryBatteryLayer = 3
     AgentInventoryWaterLayer = 4

@@ -1,2 +1,10 @@
 src/tmp/
 src/mettascope.out
+
+# Nim compilation artifacts
+*.out
+*.exe
+src/tribal
+tests/test_*
+!tests/test_*.nim
+!tests/test_*.sh
