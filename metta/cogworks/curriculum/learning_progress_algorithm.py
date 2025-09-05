@@ -78,6 +78,39 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Recommend task to evict based on learning progress."""
         return self.lp_scorer.recommend_eviction(task_ids, self.task_tracker)
 
+    def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
+        """Check if a task should be evicted based on criteria.
+
+        Args:
+            task_id: The task to check
+            min_presentations: Minimum number of task presentations before eviction
+
+        Returns:
+            True if task should be evicted (enough presentations + low learning progress)
+        """
+        task_stats = self.task_tracker.get_task_stats(task_id)
+        if not task_stats:
+            return False
+
+        # Only evict tasks with sufficient presentations
+        if task_stats["completion_count"] < min_presentations:
+            return False
+
+        # Check if this task has low learning progress compared to others
+        all_task_ids = self.task_tracker.get_all_tracked_tasks()
+        if len(all_task_ids) <= 1:
+            return False
+
+        scores = self.score_tasks(all_task_ids)
+        task_score = scores.get(task_id, 0.0)
+
+        # Evict if this task is in the bottom 20% of learning progress scores
+        sorted_scores = sorted(scores.values())
+        threshold_index = max(0, int(len(sorted_scores) * 0.2))
+        threshold_score = sorted_scores[threshold_index] if sorted_scores else 0.0
+
+        return task_score <= threshold_score
+
     def on_task_evicted(self, task_id: int) -> None:
         """Clean up when a task is evicted."""
         self.task_tracker.remove_task(task_id)

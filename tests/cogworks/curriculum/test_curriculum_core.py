@@ -56,28 +56,24 @@ class TestCurriculumConfig:
     """Test cases for CurriculumConfig."""
 
     @pytest.mark.parametrize(
-        "max_task_id,num_active_tasks,new_task_rate",
+        "max_task_id,num_active_tasks",
         [
-            (1000, 50, 0.05),
-            (500, 25, 0.1),
-            (2000, 100, 0.02),
+            (1000, 50),
+            (500, 25),
+            (2000, 100),
         ],
     )
-    def test_curriculum_config_creation(
-        self, single_task_generator_config, max_task_id, num_active_tasks, new_task_rate
-    ):
+    def test_curriculum_config_creation(self, single_task_generator_config, max_task_id, num_active_tasks):
         """Test creating a CurriculumConfig with various parameter combinations."""
         config = CurriculumConfig(
             task_generator=single_task_generator_config,
             max_task_id=max_task_id,
             num_active_tasks=num_active_tasks,
-            new_task_rate=new_task_rate,
         )
 
         assert config.task_generator is single_task_generator_config
         assert config.max_task_id == max_task_id
         assert config.num_active_tasks == num_active_tasks
-        assert config.new_task_rate == new_task_rate
 
     def test_curriculum_config_defaults(self, single_task_generator_config):
         """Test that CurriculumConfig uses correct default values."""
@@ -85,7 +81,6 @@ class TestCurriculumConfig:
 
         assert config.max_task_id == 1000000
         assert config.num_active_tasks == 10000
-        assert config.new_task_rate == 0.01
 
     @pytest.mark.parametrize(
         "max_task_id,num_active_tasks",
@@ -104,26 +99,22 @@ class TestCurriculumConfig:
             )
 
     @pytest.mark.parametrize(
-        "max_task_id,num_active_tasks,new_task_rate",
+        "max_task_id,num_active_tasks",
         [
-            (1, 1, 0.0),  # Minimum values
-            (1000000, 1000000, 1.0),  # Maximum values
-            (100, 50, 0.5),  # Middle values
+            (1, 1),  # Minimum values
+            (1000000, 1000000),  # Maximum values
+            (100, 50),  # Middle values
         ],
     )
-    def test_curriculum_config_edge_case_values(
-        self, single_task_generator_config, max_task_id, num_active_tasks, new_task_rate
-    ):
+    def test_curriculum_config_edge_case_values(self, single_task_generator_config, max_task_id, num_active_tasks):
         """Test edge case values for parameters."""
         config = CurriculumConfig(
             task_generator=single_task_generator_config,
             max_task_id=max_task_id,
             num_active_tasks=num_active_tasks,
-            new_task_rate=new_task_rate,
         )
         assert config.max_task_id == max_task_id
         assert config.num_active_tasks == num_active_tasks
-        assert config.new_task_rate == new_task_rate
 
 
 class TestCurriculumCore:
@@ -137,7 +128,16 @@ class TestCurriculumCore:
         assert curriculum._config is curriculum_config
         assert hasattr(curriculum._task_generator, "get_task")
         assert isinstance(curriculum._rng, random.Random)
-        assert curriculum._rng.getstate() == random.Random(seed).getstate()
+
+        # RNG state will be different from a fresh Random(seed) because
+        # curriculum initialization now creates tasks at capacity, consuming randomness
+        # Just verify that the RNG was seeded properly by creating another with same seed
+        # and checking that some draws produce the same sequence after capacity initialization
+        test_curriculum = Curriculum(curriculum_config, seed=seed)
+
+        # After initialization, both should generate the same sequence
+        for _ in range(5):
+            assert curriculum._rng.random() == test_curriculum._rng.random()
 
     def test_curriculum_task_generation(self, curriculum_config):
         """Test that curriculum can generate tasks."""

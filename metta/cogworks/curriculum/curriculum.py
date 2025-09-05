@@ -116,6 +116,21 @@ class CurriculumAlgorithm(ABC):
         """Update task performance. Override in subclasses that track performance."""
         pass
 
+    def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
+        """Check if a task should be evicted based on algorithm-specific criteria.
+
+        Default implementation returns False (no eviction). Subclasses should override
+        to implement their own eviction criteria.
+
+        Args:
+            task_id: The task to check
+            min_presentations: Minimum number of task presentations before eviction
+
+        Returns:
+            True if task should be evicted
+        """
+        return False
+
     def __init__(
         self, num_tasks: int, hypers: Optional[CurriculumAlgorithmConfig] = None, initialize_weights: bool = True
     ):
@@ -178,7 +193,11 @@ class CurriculumConfig(Config):
     task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
     max_task_id: int = Field(default=1000000, gt=0, description="Maximum task ID to generate")
     num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
-    new_task_rate: float = Field(default=0.01, ge=0, le=1.0, description="Rate of new tasks to generate")
+
+    # Curriculum behavior options
+    min_presentations_for_eviction: int = Field(
+        default=5, gt=0, description="Minimum task presentations before eviction"
+    )
 
     algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
         default=None, description="Curriculum algorithm hyperparameters"
@@ -235,6 +254,9 @@ class Curriculum:
             if hasattr(self._algorithm, "set_curriculum_reference"):
                 self._algorithm.set_curriculum_reference(self)
 
+        # Always initialize task pool at capacity
+        self._initialize_at_capacity()
+
     def get_task(self) -> CurriculumTask:
         """Sample a task from the population."""
         # Curriculum always manages the task pool - no delegation
@@ -242,12 +264,41 @@ class Curriculum:
             task = self._create_task()
         else:
             task = self._choose_task()
-            if self._rng.random() < self._config.new_task_rate:
-                self._evict_task()
-                task = self._create_task()
+
+            # Always use algorithm criteria for eviction when algorithm is available
+            if self._algorithm is not None:
+                evictable_tasks = [
+                    tid
+                    for tid in self._tasks.keys()
+                    if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
+                ]
+                if evictable_tasks:
+                    # Evict a task that meets the criteria and create a new one
+                    evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
+                    if evict_candidate is not None:
+                        self._evict_specific_task(evict_candidate)
+                        task = self._create_task()
 
         task._num_scheduled += 1
         return task
+
+    def _initialize_at_capacity(self) -> None:
+        """Initialize the task pool to full capacity."""
+        while len(self._tasks) < self._config.num_active_tasks:
+            self._create_task()
+
+    def _evict_specific_task(self, task_id: int) -> None:
+        """Evict a specific task by ID."""
+        if task_id not in self._tasks:
+            return
+
+        # Notify algorithm of eviction
+        if self._algorithm is not None:
+            self._algorithm.on_task_evicted(task_id)
+
+        self._task_ids.remove(task_id)
+        self._tasks.pop(task_id)
+        self._num_evicted += 1
 
     def _choose_task(self) -> CurriculumTask:
         """Choose a task from the population using algorithm guidance."""
@@ -289,28 +340,6 @@ class Curriculum:
             self._algorithm.on_task_created(task)
 
         return task
-
-    def _evict_task(self):
-        """Evict a task from the population using algorithm guidance."""
-        if self._algorithm is not None:
-            # Get algorithm's eviction recommendation
-            eviction_candidate = self._algorithm.recommend_eviction(list(self._tasks.keys()))
-            if eviction_candidate is not None and eviction_candidate in self._tasks:
-                task_id = eviction_candidate
-            else:
-                # Fallback if algorithm doesn't provide valid recommendation
-                task_id = self._rng.choice(list(self._task_ids))
-        else:
-            # Random eviction when no algorithm
-            task_id = self._rng.choice(list(self._task_ids))
-
-        # Notify algorithm of eviction
-        if self._algorithm is not None:
-            self._algorithm.on_task_evicted(task_id)
-
-        self._task_ids.remove(task_id)
-        self._tasks.pop(task_id)
-        self._num_evicted += 1
 
     def update_task_performance(self, task_id: int, score: float):
         """Update the curriculum algorithm with task performance."""

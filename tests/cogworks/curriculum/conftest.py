@@ -28,7 +28,6 @@ def curriculum_config(arena_env):
         task_generator=SingleTaskGeneratorConfig(env=arena_env),
         max_task_id=1000,
         num_active_tasks=50,
-        new_task_rate=0.05,
     )
 
 

@@ -94,6 +94,7 @@ def make_curriculum(
 
     return CurriculumConfig(
         task_generator=nav_tasks,
+        num_active_tasks=1000,  # Smaller pool for navigation tasks
         algorithm_config=LearningProgressConfig(
             ema_timescale=0.001,
             exploration_bonus=0.1,

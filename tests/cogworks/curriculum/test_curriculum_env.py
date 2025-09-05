@@ -23,7 +23,7 @@ class TestCurriculumEnv:
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
         task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
+        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5)
         return Curriculum(config, seed=0)
 
     def create_mock_env(self):
