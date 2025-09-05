@@ -77,8 +77,8 @@ class TestBatchedSyncedOptimizingScheduler:
 
         assert len(jobs) == 2  # Should generate batch of 2
         assert all(job.type == JobTypes.LAUNCH_TRAINING for job in jobs)
-        assert jobs[0].run_id == "test_sweep_trial_0001"
-        assert jobs[1].run_id == "test_sweep_trial_0002"
+        assert jobs[0].run_id.startswith("test_sweep_trial_0001_")
+        assert jobs[1].run_id.startswith("test_sweep_trial_0002_")
 
     def test_wait_for_incomplete_runs(self):
         """Test that scheduler waits for all runs to complete before next batch."""
@@ -284,8 +284,8 @@ class TestBatchedSyncedOptimizingScheduler:
         )
 
         assert len(jobs) == 2  # Only 2 more to reach limit
-        assert jobs[0].run_id == "test_sweep_trial_0004"
-        assert jobs[1].run_id == "test_sweep_trial_0005"
+        assert jobs[0].run_id.startswith("test_sweep_trial_0004_")
+        assert jobs[1].run_id.startswith("test_sweep_trial_0005_")
 
     def test_batch_with_observations(self):
         """Test that scheduler uses observations when generating new batch."""

@@ -204,3 +204,9 @@ class SweepController:
             except Exception as e:
                 logger.error(f"[SweepController] Error in control loop: {e}")
                 time.sleep(self.monitoring_interval)
+
+            finally:
+                # TODO: Graceful shutdown
+                logger.info("[SweepController] Shutting down sweep controller...")
+                time.sleep(5)
+                logger.info("[SweepController] Shutting down dispatcher")

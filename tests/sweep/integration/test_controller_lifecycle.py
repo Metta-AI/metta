@@ -139,13 +139,16 @@ class TestControllerLifecycle:
 
         assert len(dispatcher.dispatched_jobs) == 1
         assert dispatcher.dispatched_jobs[0].type == JobTypes.LAUNCH_TRAINING
-        assert "test_sweep_trial_0001" in controller.dispatched_trainings
+        # Check that a run ID starting with the expected pattern exists
+        trial_0001_ids = [rid for rid in controller.dispatched_trainings if rid.startswith("test_sweep_trial_0001_")]
+        assert len(trial_0001_ids) == 1
+        actual_run_id = trial_0001_ids[0]
 
         # Second iteration - should NOT re-dispatch same training
         controller._run_single_iteration()
 
         assert len(dispatcher.dispatched_jobs) == 1  # Still just 1
-        assert dispatcher.dispatch_count.get("test_sweep_trial_0001", 0) == 1
+        assert dispatcher.dispatch_count.get(actual_run_id, 0) == 1
 
     def test_no_duplicate_eval_dispatch(self):
         """Test that eval jobs aren't dispatched multiple times even with API sync issues."""
@@ -258,17 +261,21 @@ class TestControllerLifecycle:
         controller._run_single_iteration()
         assert len(controller.dispatched_trainings) == 1
 
-        # Manually add second training as if scheduler suggested it
-        # but it should be filtered by capacity
-        controller.dispatched_trainings.add("test_sweep_trial_0001")
-        controller.dispatched_trainings.add("test_sweep_trial_0002")
+        # Get the actual run ID that was generated in the first iteration
+        first_run_id = list(controller.dispatched_trainings)[0]
+
+        # Manually add a second training run ID to simulate capacity constraints
+        # Generate a second run ID with same format
+        from metta.sweep.utils import generate_run_id
+        second_run_id = generate_run_id("test_sweep", 2)
+        controller.dispatched_trainings.add(second_run_id)
 
         # Try to dispatch third - should be blocked by capacity
         active_trainings = len(controller.dispatched_trainings) - len(controller.completed_runs)
         assert active_trainings == 2
 
         # Mark one as completed
-        controller.completed_runs.add("test_sweep_trial_0001")
+        controller.completed_runs.add(first_run_id)
 
         # Now active should be 1, allowing more dispatches
         active_trainings = len(controller.dispatched_trainings) - len(controller.completed_runs)

@@ -1,8 +1,11 @@
 """Utility functions for sweep orchestration."""
 
+import hashlib
 import logging
+import time
 from typing import Any, Dict, List, Optional
 from metta.sweep.models import JobDefinition, RunInfo
+
 
 
 logger = logging.getLogger(__name__)
@@ -44,10 +47,7 @@ def make_monitor_table(
     # Rows
     for run in runs:
         # Format run ID
-        display_id = run.run_id
-        if truncate_run_id and "_trial_" in run.run_id:
-            display_id = run.run_id.split("_trial_")[-1]
-            display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
+        display_id = get_display_id(run.run_id) if truncate_run_id else run.run_id
 
         # Format progress
         if run.total_timesteps and run.current_steps is not None:
@@ -74,14 +74,17 @@ def get_display_id(run_id: str) -> str:
     """Extract clean display ID from run ID.
 
     Args:
-        run_id: Full run ID (e.g., "sweep_name_trial_0001")
+        run_id: Full run ID (e.g., "sweep_name_trial_0001_a1b2c3")
 
     Returns:
         Cleaned display ID (e.g., "trial_0001")
     """
     if "_trial_" in run_id:
-        display_id = run_id.split("_trial_")[-1]
-        return f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
+        # Extract everything after "_trial_"
+        trial_part = run_id.split("_trial_")[-1]
+        # Remove hash suffix if present (format: "0001_a1b2c3" -> "0001")
+        trial_num = trial_part.split("_")[0]
+        return f"trial_{trial_num}"
     return run_id
 
 
@@ -228,13 +231,18 @@ def create_training_job(
 
 
 def generate_run_id(sweep_id: str, trial_num: int) -> str:
-    """Generate a standardized run ID.
+    """Generate a standardized run ID with hash to avoid collisions.
 
     Args:
         sweep_id: The sweep identifier
         trial_num: The trial number (1-based)
 
     Returns:
-        Formatted run ID like "sweep_id_trial_0001"
+        Formatted run ID like "sweep_id_trial_0001_a1b2c3"
     """
-    return f"{sweep_id}_trial_{trial_num:04d}"
+    # Generate a short hash to avoid name collisions
+    # Use sweep_id, trial_num, and current time to ensure uniqueness
+    hash_input = f"{sweep_id}_{trial_num}_{time.time()}"
+    short_hash = hashlib.md5(hash_input.encode()).hexdigest()[:6]
+
+    return f"{sweep_id}_trial_{trial_num:04d}_{short_hash}"
