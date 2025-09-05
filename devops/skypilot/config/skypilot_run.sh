@@ -261,6 +261,7 @@ run_cmd() {
   CMD_EXIT=$?
 
   if [[ "$IS_MASTER" == "true" ]]; then
+    echo "job_completed" > "$TERMINATION_REASON_FILE"
     echo "job_completed" > "$CLUSTER_STOP_FILE"
     echo "[INFO] Master wrote shutdown signal to cluster stop file"
   fi
