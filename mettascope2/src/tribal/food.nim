@@ -258,7 +258,7 @@ proc processAgentHunger*(hunger: var HungerState, agentPos: var IVec2,
   ## Main hunger processing for each game step
   ## Updates hunger, handles auto-eating, and manages starvation/respawn
   
-  let isDying = hunger.updateHunger()
+  let hungerResult = hunger.updateHunger()
   
   # Auto-eat if very hungry and has food
   if hunger.shouldAgentEatAutomatically():
@@ -267,7 +267,7 @@ proc processAgentHunger*(hunger: var HungerState, agentPos: var IVec2,
       return (died: false, respawned: false, autoAte: true)
   
   # Handle starvation
-  if isDying:
+  if hungerResult.isDying:
     let (died, respawnPos) = hunger.handleStarvation(agentPos, homeAltar)
     if died:
       agentPos = respawnPos

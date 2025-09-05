@@ -1,57 +1,10 @@
-import vmath, std/[random, math], terrain
+import vmath, std/[random, math]
+import objects
+export objects  # Re-export the types
 
-type
-  TempleStructure* = object
-    width*: int
-    height*: int
-    centerPos*: IVec2  # Position of the temple center
-  
-  ClippyBehavior* = enum
-    Patrol      # Wander around looking for targets
-    Chase       # Actively pursuing a player
-    Guard       # Protecting the temple
-    Attack      # Engaging with player
-
+# Import the constants from objects
 const
-  # Clippy agent properties
-  ClippyAttackDamage* = 2
-  ClippySpeed* = 1
-  ClippyVisionRange* = 15  # Even further vision for plague-wave expansion
-  ClippyWanderPriority* = 3  # How many wander steps before checking for targets
-  ClippyAltarSearchRange* = 12  # Extended range for aggressive altar hunting
-  ClippyAgentChaseRange* = 10  # Will chase agents within this range
-  
-  # Temple properties
-  TempleCooldown* = 10  # Time between Clippy spawns (doubled spawn rate)
-
-proc createTemple*(): TempleStructure =
-  ## Create a temple structure (3x3 with center as spawn point)
-  result.width = 3
-  result.height = 3
-  result.centerPos = ivec2(1, 1)
-
-# Temple placement logic moved to placement.nim for unified handling
-
-# Temple location finding moved to placement.nim's findPlacement function
-
-proc getTempleCenter*(temple: TempleStructure, topLeft: IVec2): IVec2 =
-  ## Get the world position of the temple's center (spawn point)
-  return topLeft + temple.centerPos
-
-proc shouldSpawnClippy*(templeCooldown: int, nearbyClippyCount: int): bool =
-  ## Determine if a temple should spawn a new Clippy
-  return templeCooldown == 0
-
-proc getClippyBehavior*(clippy: pointer, target: pointer, distanceToTarget: float): ClippyBehavior =
-  ## Determine Clippy's current behavior based on game state
-  if isNil(target):
-    return Patrol
-  elif distanceToTarget <= 1.5:
-    return Attack
-  elif distanceToTarget <= ClippyVisionRange.float:
-    return Chase
-  else:
-    return Guard
+  PI = 3.14159265358979323846
 
 proc manhattanDistance*(a, b: IVec2): int =
   ## Calculate Manhattan distance between two points

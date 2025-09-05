@@ -1,6 +1,5 @@
-import ../src/tribal/game
+import ../src/tribal/environment
 import std/[math, tables, strformat, sequtils, sets, strutils]
-import ../src/tribal/placement
 import ../src/tribal/terrain
 import vmath
 import std/random
