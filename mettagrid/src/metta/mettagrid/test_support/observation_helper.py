@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 
 from metta.mettagrid.mettagrid_c import PackedCoordinate
@@ -32,19 +30,13 @@ class ObservationHelper:
         feature_id: None | int = None,
         value: None | int = None,
     ) -> np.ndarray:
-        """Find the values of tokens by location, feature id, and value."""
+        """Find the values of tokens by location, feature id, and value.
+
+        Note that because this returns a numpy array, if the array has a single value, you can check equality
+        against this as if it were a scalar.
+        """
         tokens = ObservationHelper.find_tokens(obs, location, feature_id, value)
         return tokens[:, 2]
-
-    @staticmethod
-    def find_token_value_at_location(obs: np.ndarray, x: int, y: int, token_type: int) -> Optional[int]:
-        """Get the value of a specific token type at a location.
-
-        Returns None if no token of that type exists at the location.
-        """
-        location_tokens = ObservationHelper.find_tokens(obs, location=(x, y))
-        type_tokens = location_tokens[location_tokens[:, 1] == token_type]
-        return int(type_tokens[0, 2]) if len(type_tokens) > 0 else None
 
     @staticmethod
     def get_positions_from_tokens(tokens: np.ndarray) -> list[tuple[int, int]]:

@@ -439,7 +439,9 @@ class TestGlobalTokens:
         assert last_action == noop_idx, f"Expected last action {noop_idx}, got {last_action}"
 
         # Check last action arg
-        last_arg = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG)
+        last_arg = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION_ARG
+        )
         assert last_arg == 0, f"Expected last action arg 0, got {last_arg}"
 
         # Take a move action
@@ -449,15 +451,17 @@ class TestGlobalTokens:
 
         # Check updates
         expected_completion = int(round(0.2 * 255))
-        completion_value = helper.find_token_value_at_location(
-            obs[0], global_x, global_y, TokenTypes.EPISODE_COMPLETION_PCT
+        completion_value = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=TokenTypes.EPISODE_COMPLETION_PCT
         )
         assert completion_value == expected_completion
 
-        last_action = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION)
+        last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION)
         assert last_action == move_idx
 
-        last_arg = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG)
+        last_arg = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=TokenTypes.LAST_ACTION_ARG
+        )
         assert last_arg == 1
 
     def test_glyph_signaling(self):
@@ -505,19 +509,19 @@ class TestGlobalTokens:
         obs, _ = env.reset()
 
         # Check if we're seeing uninitialized memory issues
-        agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-        agent0_sees_agent1_glyph = helper.find_token_value_at_location(obs[0], 2, 1, TokenTypes.GLYPH)
-        agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
-        agent1_sees_agent0_glyph = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
+        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=TokenTypes.GLYPH)
+        agent0_sees_agent1_glyph = helper.find_token_values(obs[0], location=(2, 1), feature_id=TokenTypes.GLYPH)
+        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=TokenTypes.GLYPH)
+        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=TokenTypes.GLYPH)
 
         # Initially, both agents should have glyph 0 (default)
         # Since glyph 0 is suppressed, we should NOT find any glyph tokens
-        assert agent0_self_glyph is None, f"Agent 0 with glyph 0 should have no glyph token, got {agent0_self_glyph}"
-        assert agent0_sees_agent1_glyph is None, (
+        assert agent0_self_glyph.size == 0, f"Agent 0 with glyph 0 should have no glyph token, got {agent0_self_glyph}"
+        assert agent0_sees_agent1_glyph.size == 0, (
             f"Agent 0 should see Agent 1 with no glyph token (glyph 0), got {agent0_sees_agent1_glyph}"
         )
-        assert agent1_self_glyph is None, f"Agent 1 with glyph 0 should have no glyph token, got {agent1_self_glyph}"
-        assert agent1_sees_agent0_glyph is None, (
+        assert agent1_self_glyph.size == 0, f"Agent 1 with glyph 0 should have no glyph token, got {agent1_self_glyph}"
+        assert agent1_sees_agent0_glyph.size == 0, (
             f"Agent 1 should see Agent 0 with no glyph token (glyph 0), got {agent1_sees_agent0_glyph}"
         )
 
@@ -536,13 +540,13 @@ class TestGlobalTokens:
 
         obs, _, _, _, _ = env.step(actions)
 
-        agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
+        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=TokenTypes.GLYPH)
         assert agent0_self_glyph == 3, f"Agent 0 should have glyph 3, got {agent0_self_glyph}"
 
-        agent1_sees_agent0_glyph = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
+        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=TokenTypes.GLYPH)
         assert agent1_sees_agent0_glyph == 3, f"Agent 1 should see Agent 0 with glyph 3, got {agent1_sees_agent0_glyph}"
 
-        agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
+        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=TokenTypes.GLYPH)
         assert agent1_self_glyph == 5, f"Agent 1 should have glyph 5, got {agent1_self_glyph}"
 
         # Test 2: Invalid glyph values (should be no-op)
@@ -556,8 +560,8 @@ class TestGlobalTokens:
 
         obs, _, _, _, _ = env.step(actions)
 
-        agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-        agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
+        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=TokenTypes.GLYPH)
+        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=TokenTypes.GLYPH)
 
         # Glyphs should remain unchanged
         assert agent0_glyph == 3, f"Agent 0 glyph should stay 3, got {agent0_glyph}"
@@ -576,11 +580,11 @@ class TestGlobalTokens:
         obs, _, _, _, _ = env.step(actions)
 
         # Verify glyph tokens are gone
-        agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-        agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
+        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=TokenTypes.GLYPH)
+        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=TokenTypes.GLYPH)
 
-        assert agent0_glyph is None, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
-        assert agent1_glyph is None, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
+        assert agent0_glyph.size == 0, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
+        assert agent1_glyph.size == 0, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
 
 
 class TestEdgeObservations:
