@@ -134,20 +134,14 @@ type
     wanderStepsRemaining*: int  # Steps to wander before checking for targets
 
   Stats* = ref object
-    # Agent Stats:
+    # Agent Stats - aligned with 6 core actions:
     actionInvalid*: int
-    actionMove*: int
-    actionNoop*: int
-    actionAttack*: int
-    actionSwap*: int
-    actionGet*: int
-    actionGetWater*: int
-    actionGetWheat*: int
-    actionGetWood*: int
-    actionUseMine*: int
-    actionUseConverter*: int
-    actionUseAltar*: int
-    actionPut*: int
+    actionNoop*: int     # Action 0: NOOP
+    actionMove*: int     # Action 1: MOVE  
+    actionAttack*: int   # Action 2: ATTACK
+    actionGet*: int      # Action 3: GET (from terrain/buildings)
+    actionSwap*: int     # Action 4: SWAP
+    actionPut*: int      # Action 5: PUT (into buildings)
 
   TileColor* = object
     r*, g*, b*: float32      # RGB color components  
@@ -596,7 +590,6 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove water tile
       env.updateObservations(AgentInventoryWaterLayer, agent.pos, agent.inventoryWater)
       agent.reward += RewardGetWater  # Small shaped reward
-      inc env.stats[id].actionGetWater
       inc env.stats[id].actionGet
     else:
       inc env.stats[id].actionInvalid  # Inventory full
@@ -609,7 +602,6 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       agent.reward += RewardGetWheat  # Small shaped reward
-      inc env.stats[id].actionGetWheat
       inc env.stats[id].actionGet
     else:
       inc env.stats[id].actionInvalid  # Inventory full
@@ -622,7 +614,6 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       agent.reward += RewardGetWood  # Small shaped reward (slightly higher for spear path)
-      inc env.stats[id].actionGetWood
       inc env.stats[id].actionGet
     else:
       inc env.stats[id].actionInvalid  # Inventory full
@@ -641,7 +632,6 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
           thing.cooldown = MapObjectMineCooldown
           env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
           agent.reward += RewardMineOre
-          inc env.stats[id].actionUseMine
           inc env.stats[id].actionGet
         else:
           inc env.stats[id].actionInvalid
@@ -655,7 +645,6 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
           thing.cooldown = 0  # Instant conversion
           env.updateObservations(ConverterReadyLayer, thing.pos, 1)
           agent.reward += RewardConvertOreToBattery
-          inc env.stats[id].actionUseConverter
           inc env.stats[id].actionGet
         else:
           inc env.stats[id].actionInvalid
@@ -749,7 +738,6 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AltarHeartsLayer, thing.pos, thing.hearts)
       env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
       agent.reward += 1.0
-      inc env.stats[id].actionUseAltar
       inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
@@ -1734,17 +1722,11 @@ proc getEpisodeStats*(env: Environment): string =
 
   result = "                      Stat     Total    Average      Min      Max\n"
   display "action.invalid", actionInvalid
-  display "action.move", actionMove
   display "action.noop", actionNoop
+  display "action.move", actionMove
   display "action.attack", actionAttack
-  display "action.swap", actionSwap
   display "action.get", actionGet
-  display "action.get.water", actionGetWater
-  display "action.get.wheat", actionGetWheat
-  display "action.get.wood", actionGetWood
-  display "action.use.altar", actionUseAltar
-  display "action.use.converter", actionUseConverter
-  display "action.use.mine", actionUseMine
+  display "action.swap", actionSwap
   display "action.put", actionPut
 
   return result
