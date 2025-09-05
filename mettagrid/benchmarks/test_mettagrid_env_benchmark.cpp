@@ -35,15 +35,24 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::vector<std::string> resource_names = {"ore", "heart"};
 
   std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
-      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>());
+      std::map<InventoryItem, InventoryQuantity>(), // required_resources
+      std::map<InventoryItem, InventoryQuantity>(), // consumed_resources
+      0,                                            // priority (default)
+      false);                                       // auto_execute (default)
 
   std::shared_ptr<AttackActionConfig> attack_cfg =
-      std::make_shared<AttackActionConfig>(std::map<InventoryItem, InventoryQuantity>(),
-                                           std::map<InventoryItem, InventoryQuantity>(),
-                                           std::map<InventoryItem, InventoryQuantity>());
+      std::make_shared<AttackActionConfig>(std::map<InventoryItem, InventoryQuantity>(), // required_resources
+                                           std::map<InventoryItem, InventoryQuantity>(), // consumed_resources
+                                           3,                                            // priority (default)
+                                           false,                                        // auto_execute (default)
+                                           std::map<InventoryItem, InventoryQuantity>()); // defense_resources
 
   std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg = std::make_shared<ChangeGlyphActionConfig>(
-      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>(), 4);
+      std::map<InventoryItem, InventoryQuantity>(), // required_resources
+      std::map<InventoryItem, InventoryQuantity>(), // consumed_resources
+      0,                                            // priority (default)
+      false,                                        // auto_execute (default)
+      4);                                           // number_of_glyphs
 
   std::map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
 
