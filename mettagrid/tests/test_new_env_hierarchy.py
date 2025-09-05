@@ -12,8 +12,8 @@ from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
+    AgentConfig,
     GameConfig,
-    GroupConfig,
     MettaGridConfig,
     WallConfig,
 )
@@ -118,11 +118,11 @@ class TestNewEnvironmentHierarchy:
                     rotate=ActionConfig(),
                 ),
                 objects={"wall": WallConfig(type_id=1)},
-                groups={
-                    "team_1": GroupConfig(id=1),
-                    "team_2": GroupConfig(id=2),
-                    "team_3": GroupConfig(id=3),
-                },
+                agents=[
+                    AgentConfig(team_id=1),
+                    AgentConfig(team_id=2),
+                    AgentConfig(team_id=3),
+                ],
                 map_builder=AsciiMapBuilder.Config(
                     map_data=[
                         ["#", "#", "#", "#", "#", "#", "#"],
@@ -154,11 +154,11 @@ class TestNewEnvironmentHierarchy:
                     rotate=ActionConfig(),
                 ),
                 objects={"wall": WallConfig(type_id=1)},
-                groups={
-                    "team_1": GroupConfig(id=1),
-                    "team_2": GroupConfig(id=2),
-                    "team_3": GroupConfig(id=3),
-                },
+                agents=[
+                    AgentConfig(team_id=1),
+                    AgentConfig(team_id=2),
+                    AgentConfig(team_id=3),
+                ],
                 map_builder=AsciiMapBuilder.Config(
                     map_data=[
                         ["#", "#", "#", "#", "#", "#", "#"],
