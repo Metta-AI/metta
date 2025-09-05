@@ -1,5 +1,5 @@
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import terrain, objects, ai
+import terrain, objects
 export terrain, objects
 
 const
@@ -52,6 +52,10 @@ const
 proc ivec2*(x, y: int): IVec2 =
   result.x = x.int32
   result.y = y.int32
+
+# Global village color management
+var agentVillageColors*: seq[Color] = @[]
+var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
 
 type
   OrientationDelta* = tuple[x, y: int]
@@ -1469,7 +1473,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       thingPtrs.add(cast[pointer](t))
     
     # Get movement direction from clippy AI
-    let moveDir = getClippyMoveDirection(cast[pointer](clippy), thingPtrs, r)
+    let moveDir = getClippyMoveDirection(clippy.pos, thingPtrs, r)
     let newPos = clippy.pos + moveDir
     
     # Update clippy orientation based on movement direction
@@ -1715,10 +1719,6 @@ initGameState()
 
 # ============== COLOR MANAGEMENT ==============
 
-# Global village color management
-var agentVillageColors*: seq[Color] = @[]
-var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
-
 proc generateEntityColor*(entityType: string, id: int, fallbackColor: Color = color(0.5, 0.5, 0.5, 1.0)): Color =
   ## Unified color generation for all entity types
   ## Uses golden angle for optimal color distribution
@@ -1746,3 +1746,51 @@ proc generateEntityColor*(entityType: string, id: int, fallbackColor: Color = co
 proc getAltarColor*(pos: IVec2): Color =
   ## Get altar color by position, with white fallback
   altarColors.getOrDefault(pos, color(1.0, 1.0, 1.0, 1.0))
+
+# ============== CLIPPY AI ==============
+
+proc manhattanDistance*(a, b: IVec2): int =
+  ## Calculate Manhattan distance between two points
+  return abs(a.x - b.x) + abs(a.y - b.y)
+
+proc getDirectionToward*(fromPos, toPos: IVec2): IVec2 =
+  ## Calculate unit direction from one position toward another
+  let dx = toPos.x - fromPos.x
+  let dy = toPos.y - fromPos.y
+  
+  if dx == 0 and dy == 0:
+    return ivec2(0, 0)
+  
+  # Move in the direction with larger difference
+  if abs(dx) > abs(dy):
+    if dx > 0: return ivec2(1, 0)
+    else: return ivec2(-1, 0)
+  else:
+    if dy > 0: return ivec2(0, 1)
+    else: return ivec2(0, -1)
+
+proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
+  ## Determine Clippy movement direction toward the closest altar
+  
+  # Find the closest altar
+  var nearestAltar = ivec2(-1, -1)
+  var minDist = int.high
+  
+  for thingPtr in things:
+    if isNil(thingPtr):
+      continue
+    let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
+    # Altar is the 5th enum value (0-indexed), so value is 4
+    if thing.kind == 4:  # Altar kind
+      let dist = manhattanDistance(clippyPos, thing.pos)
+      if dist < minDist:
+        minDist = dist
+        nearestAltar = thing.pos
+  
+  # If we found an altar, move toward it
+  if nearestAltar.x >= 0:
+    return getDirectionToward(clippyPos, nearestAltar)
+  
+  # Fallback: Random walk if no altar found (shouldn't happen in normal gameplay)
+  let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+  return r.sample(directions)
