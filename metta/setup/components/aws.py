@@ -1,4 +1,3 @@
-from metta.config.schema import get_config
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
@@ -19,24 +18,6 @@ class AWSSetup(SetupModule):
         if get_saved_settings().user_type.is_softmax:
             return "devops/aws/setup_aws_profiles.sh"
         return None
-
-    def should_install(self) -> bool:
-        """Install AWS tools only if user has configured AWS/S3 usage."""
-        config = get_config()
-
-        # Check if user needs AWS tools based on their configuration
-        needs_aws = (
-            config.storage.s3_bucket is not None  # S3 storage configured
-            or config.storage.replay_dir
-            and "s3://" in config.storage.replay_dir
-            or config.storage.torch_profile_dir
-            and "s3://" in config.storage.torch_profile_dir
-            or config.storage.checkpoint_dir
-            and "s3://" in config.storage.checkpoint_dir
-            or get_saved_settings().user_type.is_softmax  # Softmax users typically need AWS
-        )
-
-        return needs_aws
 
     def check_installed(self) -> bool:
         try:
@@ -152,24 +133,6 @@ class AWSSetup(SetupModule):
             config["aws_profile"] = aws_profile
 
         return config
-
-    def export_env_vars(self, config: dict[str, str]) -> dict[str, str]:
-        """Export AWS configuration as environment variables."""
-        env_vars = {}
-
-        if config.get("aws_profile"):
-            env_vars["AWS_PROFILE"] = config["aws_profile"]
-
-        if config.get("replay_dir"):
-            env_vars["REPLAY_DIR"] = config["replay_dir"]
-
-        if config.get("torch_profile_dir"):
-            env_vars["TORCH_PROFILE_DIR"] = config["torch_profile_dir"]
-
-        if config.get("checkpoint_dir"):
-            env_vars["CHECKPOINT_DIR"] = config["checkpoint_dir"]
-
-        return env_vars
 
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()

@@ -102,19 +102,6 @@ class ObservatoryKeySetup(SetupModule):
 
         return config
 
-    def export_env_vars(self, config: dict[str, str | bool]) -> dict[str, str]:
-        """Export Observatory configuration as environment variables."""
-        env_vars = {}
-
-        if config.get("enabled"):
-            env_vars["STATS_SERVER_ENABLED"] = "true"
-            if config.get("stats_server_uri"):
-                env_vars["STATS_SERVER_URI"] = config["stats_server_uri"]
-        else:
-            env_vars["STATS_SERVER_ENABLED"] = "false"
-
-        return env_vars
-
     def to_config_settings(self) -> dict[str, str | None]:
         # Check for configured values first
         from metta.setup.config_manager import get_config_manager

@@ -150,21 +150,6 @@ class WandbSetup(SetupModule):
 
         return config
 
-    def export_env_vars(self, config: dict[str, str | bool]) -> dict[str, str]:
-        """Export W&B configuration as environment variables."""
-        env_vars = {}
-
-        if config.get("enabled", True):
-            env_vars["WANDB_ENABLED"] = "true"
-            if config.get("entity"):
-                env_vars["WANDB_ENTITY"] = config["entity"]
-            if config.get("project"):
-                env_vars["WANDB_PROJECT"] = config["project"]
-        else:
-            env_vars["WANDB_ENABLED"] = "false"
-
-        return env_vars
-
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()
         if saved_settings.user_type.is_softmax:

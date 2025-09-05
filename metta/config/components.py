@@ -219,10 +219,59 @@ class DatadogConfigComponent(ConfigurableComponent):
         return config
 
 
+def get_configuration_components() -> dict:
+    """
+    Get configuration components with auto-discovery.
+
+    Returns a mapping of component names to their ConfigurableComponent instances.
+    Auto-discovers from SetupModules when available, with fallback to static registry.
+    """
+    components = {}
+
+    # Static registry as fallback
+    static_components = {
+        "wandb": WandbConfigComponent,
+        "storage": StorageConfigComponent,
+        "observatory": ObservatoryConfigComponent,
+        "datadog": DatadogConfigComponent,
+    }
+
+    # Try to auto-discover from SetupModules
+    try:
+        from metta.setup.registry import get_all_modules
+
+        # Create a mapping of setup module names to config components
+        module_to_component = {
+            "wandb": WandbConfigComponent,
+            "aws": StorageConfigComponent,  # AWSSetup handles storage config
+            "observatory_key": ObservatoryConfigComponent,
+            "datadog_agent": DatadogConfigComponent,
+        }
+
+        for module in get_all_modules():
+            # Check if this module has a corresponding config component
+            component_class = module_to_component.get(module.name)
+            if component_class:
+                # Use the module's name for consistency
+                config_name = {"aws": "storage", "observatory_key": "observatory", "datadog_agent": "datadog"}.get(
+                    module.name, module.name
+                )
+
+                if config_name not in components:
+                    components[config_name] = component_class()
+
+    except (ImportError, Exception):
+        # Fall back to static registry if auto-discovery fails
+        for name, component_class in static_components.items():
+            components[name] = component_class()
+
+    # Ensure we always have the core components
+    if not components:
+        for name, component_class in static_components.items():
+            components[name] = component_class()
+
+    return components
+
+
 # Registry of all configuration components
-CONFIGURATION_COMPONENTS = {
-    "wandb": WandbConfigComponent(),
-    "storage": StorageConfigComponent(),
-    "observatory": ObservatoryConfigComponent(),
-    "datadog": DatadogConfigComponent(),
-}
+CONFIGURATION_COMPONENTS = get_configuration_components()

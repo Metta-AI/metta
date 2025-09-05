@@ -284,52 +284,6 @@ class MettaConfig:
         with open(path, "w") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
-    def export_env_vars(self, profile_override: str | None = None) -> dict[str, str]:
-        """Export configuration as environment variables for the active profile."""
-        # Get the active profile configuration
-        profile_config = self.get_active_profile(profile_override)
-        env_vars = {}
-
-        # Wandb
-        if profile_config.wandb.enabled:
-            env_vars["WANDB_ENABLED"] = "true"
-            if profile_config.wandb.entity:
-                env_vars["WANDB_ENTITY"] = profile_config.wandb.entity
-            if profile_config.wandb.project:
-                env_vars["WANDB_PROJECT"] = profile_config.wandb.project
-        else:
-            env_vars["WANDB_ENABLED"] = "false"
-
-        # Observatory
-        if profile_config.observatory.enabled:
-            env_vars["STATS_SERVER_ENABLED"] = "true"
-            if profile_config.observatory.stats_server_uri:
-                env_vars["STATS_SERVER_URI"] = profile_config.observatory.stats_server_uri
-        else:
-            env_vars["STATS_SERVER_ENABLED"] = "false"
-
-        # Storage
-        if profile_config.storage.aws_profile:
-            env_vars["AWS_PROFILE"] = profile_config.storage.aws_profile
-        if profile_config.storage.replay_dir:
-            env_vars["REPLAY_DIR"] = profile_config.storage.replay_dir
-        if profile_config.storage.torch_profile_dir:
-            env_vars["TORCH_PROFILE_DIR"] = profile_config.storage.torch_profile_dir
-        if profile_config.storage.checkpoint_dir:
-            env_vars["CHECKPOINT_DIR"] = profile_config.storage.checkpoint_dir
-
-        # Datadog
-        if profile_config.datadog.enabled:
-            env_vars["DD_ENABLED"] = "true"
-
-        # Include the active profile name
-        import os
-
-        active_profile_name = profile_override or os.environ.get("METTA_PROFILE") or self.profile or "external"
-        env_vars["METTA_PROFILE"] = active_profile_name
-
-        return env_vars
-
 
 # Global config instance
 _config: MettaConfig | None = None

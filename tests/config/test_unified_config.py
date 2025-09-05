@@ -63,27 +63,6 @@ class TestMettaConfig:
             assert loaded_config.storage.s3_bucket == "test-bucket"
             assert loaded_config.profile == "cloud"
 
-    def test_config_export_env_vars(self):
-        """Test environment variable export."""
-        config = MettaConfig()
-        config.wandb.enabled = True
-        config.wandb.entity = "my-team"
-        config.wandb.project = "my-project"
-        config.observatory.enabled = True
-        config.observatory.stats_server_uri = "https://example.com/api"
-        config.storage.aws_profile = "my-profile"
-        config.storage.replay_dir = "s3://my-bucket/replays/"
-
-        env_vars = config.export_env_vars()
-
-        assert env_vars["WANDB_ENABLED"] == "true"
-        assert env_vars["WANDB_ENTITY"] == "my-team"
-        assert env_vars["WANDB_PROJECT"] == "my-project"
-        assert env_vars["STATS_SERVER_ENABLED"] == "true"
-        assert env_vars["STATS_SERVER_URI"] == "https://example.com/api"
-        assert env_vars["AWS_PROFILE"] == "my-profile"
-        assert env_vars["REPLAY_DIR"] == "s3://my-bucket/replays/"
-
     def test_config_empty_sections_omitted(self):
         """Test that empty config sections are omitted from saved file."""
         with tempfile.TemporaryDirectory() as temp_dir:

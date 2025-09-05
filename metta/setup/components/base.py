@@ -186,18 +186,6 @@ class SetupModule(ABC):
         """
         return None
 
-    def export_env_vars(self, config: dict[str, Any]) -> dict[str, str]:
-        """
-        Export component configuration as environment variables.
-
-        Args:
-            config: Component configuration dict
-
-        Returns:
-            Dict of environment variable name -> value mappings
-        """
-        return {}
-
     def configure(self) -> None:
         """This method is called by 'metta configure <component>'.
         Override this to provide custom configuration logic.

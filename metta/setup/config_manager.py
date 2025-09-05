@@ -47,19 +47,6 @@ class ConfigManager:
         """Get all configuration."""
         return self._config.copy()
 
-    def export_env_vars(self) -> dict[str, str]:
-        """Export all configuration as environment variables."""
-        env_vars = {}
-
-        # Get all modules and let them contribute env vars
-        modules = get_all_modules()
-        for module in modules.values():
-            if hasattr(module, "export_env_vars"):
-                component_config = self.get_component_config(module.name)
-                env_vars.update(module.export_env_vars(component_config))
-
-        return env_vars
-
     def interactive_configure(self, component_name: str | None = None) -> None:
         """Interactive configuration walkthrough."""
         modules = get_all_modules()
