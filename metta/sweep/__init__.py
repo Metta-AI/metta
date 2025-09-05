@@ -21,7 +21,7 @@ from .optimizer.protein import ProteinOptimizer
 from .protein import Protein
 from .protein_config import ParameterConfig, ProteinConfig
 from .protocols import Dispatcher, Optimizer, Scheduler, Store
-from .schedulers import OptimizingScheduler, OptimizingSchedulerConfig
+from .schedulers import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 from .stores import WandbStore
 
 # Utils
@@ -52,8 +52,8 @@ __all__ = [
     "LocalDispatcher",
     "SkypilotDispatcher",
     "RoutingDispatcher",
-    "OptimizingScheduler",
-    "OptimizingSchedulerConfig",
+    "BatchedSyncedOptimizingScheduler",
+    "BatchedSyncedSchedulerConfig",
     "WandbStore",
     "ProteinOptimizer",
     "ProteinConfig",
