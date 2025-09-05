@@ -56,8 +56,9 @@ class BrewInstaller(PackageInstaller[BrewPackageConfig]):
         to_install, to_pin, to_tap = self._get_changes_to_apply(packages)
         if to_tap:
             tap_names = [t.name for t in to_tap]
-            info(f"Adding taps: {', '.join(tap_names)}")
-            self._install_cmd(["brew", "tap", *tap_names])
+            for tap_name in tap_names:
+                info(f"Adding tap: {tap_name}")
+                self._install_cmd(["brew", "tap", tap_name])
 
         if to_install:
             full_install_names = [p.fully_specified_name for p in packages]
