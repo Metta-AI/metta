@@ -33,6 +33,7 @@
     "cfgs",
     "charconv",
     "charliermarsh",
+    "Checkpointer",
     "chrono",
     "cimport",
     "cinit",

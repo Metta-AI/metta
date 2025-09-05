@@ -8,7 +8,7 @@ import torch.distributed
 from heavyball import ForeachMuon
 from torchrl.data import Composite
 
-from metta.agent.agent_config import AgentConfig
+from metta.agent.agent_config import PolicyArchitectureConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
@@ -26,7 +26,6 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy_remote_with_checkpoint_manager, upload_replay_html
-from metta.rl.experience import Experience
 from metta.rl.hyperparameter_scheduler import step_hyperparameters
 from metta.rl.losses import get_loss_experience_spec
 from metta.rl.optimization import (
@@ -45,6 +44,7 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
+from metta.rl.training.experience import Experience
 from metta.rl.utils import (
     log_training_progress,
     should_run,
@@ -86,7 +86,7 @@ def train(
     run_dir: str,
     run: str,
     system_cfg: SystemConfig,
-    agent_cfg: AgentConfig,
+    agent_cfg: PolicyArchitectureConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
@@ -467,7 +467,7 @@ def train(
             with timer("_process_stats"):
                 if wandb_run:
                     process_stats(
-                        agent_cfg=agent_cfg,
+                        policy_arch=agent_cfg,
                         stats=stats_tracker.rollout_stats,
                         losses_stats=losses_stats,
                         evals=eval_scores,

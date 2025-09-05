@@ -16,7 +16,7 @@ from metta.rl.stats import (
     accumulate_rollout_stats,
     process_stats,
 )
-from metta.rl.training.component import ComponentConfig, MasterComponent
+from metta.rl.training.component import TrainerComponent
 
 if TYPE_CHECKING:
     from metta.rl.trainer_v2 import Trainer
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class StatsConfig(ComponentConfig):
+class StatsConfig(Config):
     """Configuration for stats reporting."""
 
     report_to_wandb: bool = True
@@ -47,7 +47,7 @@ class StatsState(Config):
     latest_saved_epoch: int = 0
 
 
-class NoOpStatsReporter(MasterComponent):
+class NoOpStatsReporter(TrainerComponent):
     """No-op stats reporter for when stats are disabled."""
 
     def __init__(self):
@@ -73,7 +73,7 @@ class NoOpStatsReporter(MasterComponent):
         pass
 
 
-class StatsReporter(MasterComponent):
+class StatsReporter(TrainerComponent):
     """Aggregates and reports statistics to multiple backends."""
 
     @classmethod
@@ -186,7 +186,7 @@ class StatsReporter(MasterComponent):
         """
         if self._wandb_run and self._config.report_to_wandb:
             process_stats(
-                agent_cfg=None,  # This would need to be passed in
+                policy_arch=None,  # This would need to be passed in
                 stats=self._state.rollout_stats,
                 losses_stats=losses_stats,
                 evals=self._state.eval_scores,
@@ -310,9 +310,9 @@ class StatsReporter(MasterComponent):
             agent_step=trainer.trainer_state.agent_step,
             losses_stats=getattr(trainer, "latest_losses_stats", {}),
             experience=trainer.core_loop.experience if trainer.core_loop else None,
-            policy=trainer.policy,
+            policy=trainer._metta_agent,
             timer=trainer.timer,
-            trainer_cfg=trainer.trainer_cfg,
+            trainer_cfg=trainer._cfg,
             optimizer=trainer.optimizer,
             memory_monitor=trainer.memory_monitor,
             system_monitor=trainer.system_monitor,

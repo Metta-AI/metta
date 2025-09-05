@@ -1,214 +1,216 @@
 """Training environment wrapper for vectorized environments."""
 
 import logging
-from typing import Any, Optional, Tuple
+import os
+import platform
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, List, Literal, Tuple
 
 import torch
 from pydantic import Field
+from torch import Tensor
 
-from metta.cogworks.curriculum import Curriculum
+from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
+from metta.mettagrid.builder.envs import make_arena
 from metta.mettagrid.config import Config
-from metta.rl.experience import Experience
-from metta.rl.training.curriculum_config import CurriculumConfig
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
 
 logger = logging.getLogger(__name__)
 
 
+def guess_vectorization() -> Literal["serial", "multiprocessing"]:
+    if platform.system() == "Darwin":
+        return "serial"
+    return "multiprocessing"
+
+
 class TrainingEnvironmentConfig(Config):
     """Configuration for training environment."""
+
+    curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
+    """Curriculum configuration for task selection"""
 
     num_workers: int = Field(default=1, ge=1)
     """Number of parallel workers for environment"""
 
-    async_factor: int = Field(default=1, ge=1)
+    async_factor: int = Field(default=2, ge=1)
     """Async factor for environment parallelization"""
 
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     """Target size for forward pass minibatches"""
 
-    zero_copy: bool = Field(default=False)
-    """Whether to use zero-copy optimization"""
+    zero_copy: bool = Field(default=True)
+    """Whether to use zero-copy optimization to avoid memory copies (default assumes multiprocessing)"""
 
-    vectorization: str = Field(default="parallel")
+    vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
     """Vectorization mode: 'serial' or 'parallel'"""
 
     seed: int = Field(default=0)
     """Random seed for environment"""
 
-    curriculum: CurriculumConfig = Field(default=None)
-    """Curriculum configuration for task selection"""
+
+@dataclass
+class EnvironmentMetaData:
+    obs_width: int
+    obs_height: int
+    feature_normalizations: dict[int, float]
+    feature_name_to_id: dict[str, int]
+    action_names: List[str]
+    max_action_args: List[int]
+    num_agents: int
 
 
-class TrainingEnvironment:
+@dataclass
+class BatchInfo:
+    target_batch_size: int
+    batch_size: int
+    num_envs: int
+
+
+class TrainingEnvironment(ABC):
+    """Abstract base class for training environment."""
+
+    @abstractmethod
+    def close(self) -> None:
+        """Close the environment."""
+
+    @abstractmethod
+    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
+        """Get the observations."""
+
+    @abstractmethod
+    def send_actions(self, actions: Any) -> None:
+        """Send the actions."""
+
+    @property
+    @abstractmethod
+    def batch_info(self) -> BatchInfo:
+        """Get the batch information."""
+
+    @property
+    @abstractmethod
+    def single_action_space(self) -> Any:
+        """Get the single action space."""
+
+    @property
+    @abstractmethod
+    def single_observation_space(self) -> Any:
+        """Get the single observation space."""
+
+    @abstractmethod
+    def meta_data(self) -> EnvironmentMetaData:
+        """Get the observation height."""
+
+
+class VectorizedTrainingEnvironment(TrainingEnvironment):
     """Manages the vectorized training environment and experience generation."""
 
-    def __init__(
-        self,
-        config: TrainingEnvironmentConfig,
-        rank: int = 0,
-    ):
-        """Initialize training environment.
+    def __init__(self, cfg: TrainingEnvironmentConfig):
+        """Initialize training environment."""
+        super().__init__()
+        self._num_agents = 0
+        self._batch_size = 0
+        self._num_envs = 0
+        self._target_batch_size = 0
+        self._curriculum = None
+        self._vecenv = None
 
-        Args:
-            config: Training environment configuration
-            curriculum: Curriculum for task selection (uses config.curriculum if not provided)
-            rank: Process rank for distributed training
-        """
-        self.config = config
+        self._curriculum = Curriculum(cfg.curriculum)
+        env_cfg = self._curriculum.get_task().get_env_cfg()
+        self._num_agents = self._curriculum.get_task().get_env_cfg().game.num_agents
 
-        self.curriculum = Curriculum(config.curriculum)
-        self.rank = rank
+        num_workers = cfg.num_workers
+        async_factor = cfg.async_factor
 
-        # Initialize vecenv variables
-        self.vecenv: Optional[Any] = None
-        self.metta_grid_env = None
-        self.target_batch_size = None
-        self.batch_size = None
-        self.num_envs = None
-        self.num_agents = None
-
-    def setup(self) -> Tuple[Any, int, int, int]:
-        """Create and setup vectorized environment.
-
-        Returns:
-            Tuple of (metta_grid_env, target_batch_size, batch_size, num_envs)
-        """
-        # Get number of agents from the current task
-        self.num_agents = self.curriculum.get_task().get_env_cfg().game.num_agents
+        if cfg.vectorization == "serial":
+            num_workers = 1
+            async_factor = 1
+        else:
+            num_gpus = torch.cuda.device_count() or 1
+            cpu_count = os.cpu_count() or 1
+            ideal_workers = (cpu_count // 2) // num_gpus
+            num_workers = max(1, ideal_workers)
 
         # Calculate batch sizes
-        self.target_batch_size, self.batch_size, self.num_envs = calculate_batch_sizes(
-            forward_pass_minibatch_target_size=self.config.forward_pass_minibatch_target_size,
-            num_agents=self.num_agents,
-            num_workers=self.config.num_workers,
-            async_factor=self.config.async_factor,
+        self._target_batch_size, self._batch_size, self._num_envs = calculate_batch_sizes(
+            forward_pass_minibatch_target_size=cfg.forward_pass_minibatch_target_size,
+            num_agents=self._num_agents,
+            num_workers=num_workers,
+            async_factor=async_factor,
         )
 
-        # Create vectorized environment
-        self.vecenv = make_vecenv(
-            self.curriculum,
-            self.config.vectorization,
-            num_envs=self.num_envs,
-            batch_size=self.batch_size,
-            num_workers=self.config.num_workers,
-            zero_copy=self.config.zero_copy,
+        self._vecenv = make_vecenv(
+            self._curriculum,
+            cfg.vectorization,
+            num_envs=self._num_envs,
+            batch_size=self._batch_size,
+            num_workers=num_workers,
+            zero_copy=cfg.zero_copy,
             is_training=True,
         )
 
         # Initialize environment with seed
-        self.vecenv.async_reset(self.config.seed + self.rank)
+        self._vecenv.async_reset(cfg.seed)
 
-        # Get the underlying metta grid environment
-        self.metta_grid_env = self.vecenv.driver_env
-
-        logger.info(
-            f"Training environment setup: "
-            f"num_envs={self.num_envs}, "
-            f"batch_size={self.batch_size}, "
-            f"target_batch_size={self.target_batch_size}, "
-            f"num_agents={self.num_agents}"
+        # xcxc
+        self._meta_data = EnvironmentMetaData(
+            obs_width=self._vecenv.driver_env.obs_width,
+            obs_height=self._vecenv.driver_env.obs_height,
+            feature_normalizations={},
+            feature_name_to_id={},
+            action_names=self._vecenv.driver_env.action_names,
+            max_action_args=self._vecenv.driver_env.max_action_args,
+            num_agents=self._num_agents,
         )
 
-        return self.metta_grid_env, self.target_batch_size, self.batch_size, self.num_envs
-
-    def step(self, actions: torch.Tensor) -> Experience:
-        """Execute environment step with actions.
-
-        Args:
-            actions: Actions to execute
-
-        Returns:
-            Experience containing observations, rewards, etc.
-        """
-        if self.vecenv is None:
-            raise RuntimeError("Environment not setup. Call setup() first.")
-
-        # Send actions to environment
-        self.vecenv.send_actions(actions)
-
-        # Get observations and convert to experience
-        obs = self.vecenv.get_observations()
-        experience = Experience.from_vecenv_observations(obs)
-
-        return experience
-
-    def reset(self, seed: Optional[int] = None) -> None:
-        """Reset the environment.
-
-        Args:
-            seed: Optional seed for reset
-        """
-        if self.vecenv is None:
-            raise RuntimeError("Environment not setup. Call setup() first.")
-
-        seed = seed if seed is not None else self.config.seed + self.rank
-        self.vecenv.async_reset(seed)
+    def __repr__(self) -> str:
+        return (
+            f"VectorizedTrainingEnvironment("
+            f"num_envs={self._num_envs},"
+            f"batch_size={self._batch_size},"
+            f"target_batch_size={self._target_batch_size},"
+            f"num_agents={self._num_agents})"
+        )
 
     def close(self) -> None:
         """Close the environment."""
-        if self.vecenv is not None:
-            self.vecenv.close()
-            self.vecenv = None
+        self._vecenv.close()
 
-    def get_env(self) -> Any:
-        """Get the underlying metta grid environment.
+    @property
+    def meta_data(self) -> EnvironmentMetaData:
+        return self._meta_data
 
-        Returns:
-            The metta grid environment
-        """
-        if self.metta_grid_env is None:
-            raise RuntimeError("Environment not setup. Call setup() first.")
-        return self.metta_grid_env
+    @property
+    def batch_info(self) -> BatchInfo:
+        return BatchInfo(
+            target_batch_size=self._target_batch_size, batch_size=self._batch_size, num_envs=self._num_envs
+        )
 
-    def get_vecenv(self) -> Any:
-        """Get the vectorized environment.
+    @property
+    def single_action_space(self) -> Any:
+        return self._vecenv.single_action_space
 
-        Returns:
-            The vectorized environment
-        """
-        if self.vecenv is None:
-            raise RuntimeError("Environment not setup. Call setup() first.")
-        return self.vecenv
+    @property
+    def single_observation_space(self) -> Any:
+        return self._vecenv.single_observation_space
 
-    def get_batch_info(self) -> Tuple[int, int, int]:
-        """Get batch size information.
+    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
+        o, r, d, t, info, env_id, mask = self._vecenv.recv()
 
-        Returns:
-            Tuple of (target_batch_size, batch_size, num_envs)
-        """
-        if self.target_batch_size is None:
-            raise RuntimeError("Environment not setup. Call setup() first.")
-        return self.target_batch_size, self.batch_size, self.num_envs
+        training_env_id = slice(env_id[0], env_id[-1] + 1)
 
+        mask = torch.as_tensor(mask)
+        num_steps = int(mask.sum().item())
 
-def experience_generator(training_env: TrainingEnvironment, policy: Any) -> Any:
-    """Generate experience by running policy in environment.
+        # Convert to tensors
+        o = torch.as_tensor(o)
+        r = torch.as_tensor(r)
+        d = torch.as_tensor(d)
+        t = torch.as_tensor(t)
 
-    This is a generator that yields experience from the training environment
-    by executing the policy and collecting trajectories.
+        return o, r, d, t, info, training_env_id, mask, num_steps
 
-    Args:
-        training_env: The training environment
-        policy: The policy to execute
-
-    Yields:
-        Experience batches from environment interaction
-    """
-    while True:
-        # Get current observation from environment
-        obs = training_env.vecenv.get_observations()
-
-        # Convert to experience format
-        experience = Experience.from_vecenv_observations(obs)
-
-        # Get actions from policy
-        with torch.no_grad():
-            actions = policy.get_actions(experience)
-
-        # Step environment with actions
-        training_env.vecenv.send_actions(actions)
-
-        # Yield the experience
-        yield experience
+    def send_actions(self, actions: Any) -> None:
+        self._vecenv.send(actions)

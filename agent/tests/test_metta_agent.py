@@ -6,9 +6,9 @@ from tensordict import TensorDict
 from torchrl.data import Composite
 
 # Import the actual class
-from metta.agent.agent_config import AgentConfig
+from metta.agent.agent_config import PolicyArchitectureConfig
 from metta.agent.metta_agent import MettaAgent
-from metta.rl.system_config import SystemConfig
+from metta.rl.training.training_environment import TrainingEnvironment
 
 
 @pytest.fixture
@@ -30,23 +30,29 @@ def create_metta_agent():
     feature_normalizations = {0: 1.0, 1: 30.0, 2: 10.0}
 
     # Create a minimal environment mock
-    class MinimalEnv:
+    class MinimalEnv(TrainingEnvironment):
         def __init__(self):
-            self.single_observation_space = obs_space["grid_obs"]
             self.obs_width = 5
             self.obs_height = 5
-            self.single_action_space = action_space
             self.feature_normalizations = feature_normalizations
 
+        def single_observation_space(self):
+            return obs_space["grid_obs"]
+
+        def single_action_space(self):
+            return action_space
+
+        def feature_normalizations(self):
+            return feature_normalizations
+
     # Create system config
-    system_cfg = SystemConfig(device="cpu")
     # Use the current interface but with the agent the old tests expected
-    agent_cfg = AgentConfig(name="fast")
+    agent_cfg = PolicyArchitectureConfig(name="fast")
 
     # Create the agent with the CURRENT signature
     agent = MettaAgent(
         env=MinimalEnv(),
-        system_cfg=system_cfg,
+        device=torch.device("cpu"),
         policy_architecture_cfg=agent_cfg,
         policy=None,  # Will create ComponentPolicy internally
     )
@@ -111,8 +117,8 @@ def create_metta_agent():
     action_embeds = MockActionEmbeds()
 
     # Set components on the policy, not the agent
-    if hasattr(agent.policy, "components"):
-        agent.policy.components = torch.nn.ModuleDict(
+    if hasattr(agent._policy, "components"):
+        agent._policy.components = torch.nn.ModuleDict(
             {"_core_": comp1, "_action_": comp2, "_action_embeds_": action_embeds}
         )
 
@@ -198,20 +204,22 @@ def test_activate_actions_via_initialize(create_metta_agent):
 def test_policy_none_error():
     """Test that error is raised when policy is None and forward is called."""
     # Create agent with no policy
-    system_cfg = SystemConfig(device="cpu")
-    agent_cfg = AgentConfig(name="fast")
+    device = torch.device("cpu")
+    agent_cfg = PolicyArchitectureConfig(name="fast")
 
-    class MinimalEnv:
-        def __init__(self):
-            self.single_observation_space = gym.spaces.Box(low=0, high=1, shape=(5, 5, 3), dtype=np.float32)
-            self.obs_width = 5
-            self.obs_height = 5
-            self.single_action_space = gym.spaces.MultiDiscrete([3, 2])
-            self.feature_normalizations = {0: 1.0}
+    class MinimalEnv(TrainingEnvironment):
+        def single_observation_space(self):
+            return gym.spaces.Box(low=0, high=1, shape=(5, 5, 3), dtype=np.float32)
+
+        def single_action_space(self):
+            return gym.spaces.MultiDiscrete([3, 2])
+
+        def feature_normalizations(self):
+            return {0: 1.0}
 
     # Create agent but force policy to None
-    agent = MettaAgent(env=MinimalEnv(), system_cfg=system_cfg, policy_architecture_cfg=agent_cfg, policy=None)
-    agent.policy = None  # Force it to None for testing
+    agent = MettaAgent(env=MinimalEnv(), device=device, policy_architecture_cfg=agent_cfg, policy=None)
+    agent._policy = None  # Force it to None for testing
 
     # Try forward pass - should raise error
     obs = TensorDict(

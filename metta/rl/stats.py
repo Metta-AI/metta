@@ -10,8 +10,8 @@ import numpy as np
 import torch
 import wandb
 
-from metta.agent.agent_config import AgentConfig
-from metta.agent.metta_agent import PolicyAgent
+from metta.agent.metta_agent import PolicyArchitecture
+from metta.agent.policy import Policy
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
@@ -21,8 +21,8 @@ from metta.mettagrid.profiling.system_monitor import SystemMonitor
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
-from metta.rl.experience import Experience
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training.experience import Experience
 from metta.rl.utils import should_run
 from metta.rl.wandb import (
     POLICY_EVALUATOR_EPOCH_METRIC,
@@ -296,10 +296,10 @@ def process_stats(
     evals: EvalRewardSummary,
     grad_stats: dict[str, float],
     experience: Experience,
-    policy: PolicyAgent,
+    policy: Policy,
     timer: Stopwatch,
     trainer_cfg: TrainerConfig,
-    agent_cfg: AgentConfig,
+    policy_arch: PolicyArchitecture,
     agent_step: int,
     epoch: int,
     wandb_run: WandbRun | None,
@@ -328,8 +328,8 @@ def process_stats(
 
     # Compute weight stats if configured
     weight_stats = {}
-    if hasattr(agent_cfg, "analyze_weights_interval"):
-        if should_run(epoch, agent_cfg.analyze_weights_interval):
+    if hasattr(policy_arch, "analyze_weights_interval"):
+        if should_run(epoch, policy_arch.analyze_weights_interval):
             for metrics in policy.compute_weight_metrics():
                 name = metrics.get("name", "unknown")
                 for key, value in metrics.items():

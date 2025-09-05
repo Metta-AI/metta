@@ -13,7 +13,7 @@ import torch
 from tensordict import TensorDict
 
 import metta.mettagrid.builder.envs as eb
-from metta.agent.agent_config import AgentConfig
+from metta.agent.agent_config import PolicyArchitectureConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
@@ -49,7 +49,7 @@ def create_env_and_agent():
 
     env = MettaGridEnv(env_config, render_mode=None)
     system_cfg = SystemConfig(device="cpu")
-    agent_cfg = AgentConfig(name="fast")
+    agent_cfg = PolicyArchitectureConfig(name="fast")
 
     agent = MettaAgent(env=env, system_cfg=system_cfg, policy_architecture_cfg=agent_cfg)
 

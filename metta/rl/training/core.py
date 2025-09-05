@@ -1,18 +1,16 @@
 """Core training loop for rollout and training phases."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import torch
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.mettagrid import dtype_actions
+from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
-from metta.rl.experience import Experience
 from metta.rl.loss.loss import Loss
-from metta.rl.rollout import get_observation, send_observation
 from metta.rl.trainer_state import TrainerState
-from metta.rl.vecenv import VectorEnv
+from metta.rl.training.experience import Experience
+from metta.rl.training.training_environment import TrainingEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +27,7 @@ class CoreTrainingLoop:
 
     def __init__(
         self,
-        policy: PolicyAgent,
+        policy: Policy,
         experience: Experience,
         losses: Dict[str, Loss],
         optimizer: torch.optim.Optimizer,
@@ -58,16 +56,14 @@ class CoreTrainingLoop:
 
     def rollout_phase(
         self,
-        vecenv: VectorEnv,
-        trainer_state: TrainerState,
-        timer: Optional[Any] = None,
+        env: TrainingEnvironment,
+        epoch: int,
     ) -> RolloutResult:
         """Perform rollout phase to collect experience.
 
         Args:
-            vecenv: Vectorized environment to collect from
+            env: Vectorized environment to collect from
             trainer_state: Current trainer state
-            timer: Optional timer for profiling
 
         Returns:
             RolloutResult with collected info
@@ -77,27 +73,24 @@ class CoreTrainingLoop:
 
         # Notify losses of rollout start
         for loss in self.losses.values():
-            loss.on_rollout_start(trainer_state)
+            loss.on_rollout_start(epoch)
 
         # Get buffer for storing experience
         buffer_step = self.experience.buffer[self.experience.ep_indices, self.experience.ep_lengths - 1]
         buffer_step = buffer_step.select(*self.policy_spec.keys())
 
         total_steps = 0
-        trainer_state.stop_rollout = False
 
-        while not self.experience.ready_for_training and not trainer_state.stop_rollout:
+        while not self.experience.ready_for_training:
             # Get observation from environment
-            o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, self.device, timer)
-
-            trainer_state.training_env_id = training_env_id
+            o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
 
             # Prepare data for policy
             td = buffer_step[training_env_id].clone()
-            td["env_obs"] = o
-            td["rewards"] = r
-            td["dones"] = d.float()
-            td["truncateds"] = t.float()
+            td["env_obs"] = o.to(td.device)
+            td["rewards"] = r.to(td.device)
+            td["dones"] = d.float().to(td.device)
+            td["truncateds"] = t.float().to(td.device)
             td.set(
                 "training_env_id_start",
                 torch.full(
@@ -111,13 +104,13 @@ class CoreTrainingLoop:
             # Run rollout hooks for all losses
             # Each loss can modify td and potentially run inference
             for loss in self.losses.values():
-                loss.rollout(td, trainer_state)
+                loss.rollout(td, epoch)
 
             # At least one loss should have performed inference
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
 
             # Send actions to environment
-            send_observation(vecenv, td["actions"], dtype_actions, timer)
+            env.send_actions(td["actions"])
 
             if info:
                 raw_infos.extend(info)
@@ -131,7 +124,6 @@ class CoreTrainingLoop:
         trainer_state: TrainerState,
         update_epochs: int,
         max_grad_norm: float = 0.5,
-        timer: Optional[Any] = None,
     ) -> Dict[str, float]:
         """Perform training phase on collected experience.
 
@@ -139,7 +131,6 @@ class CoreTrainingLoop:
             trainer_state: Current trainer state
             update_epochs: Number of epochs to train for
             max_grad_norm: Maximum gradient norm for clipping
-            timer: Optional timer for profiling
 
         Returns:
             Dictionary of loss statistics
@@ -159,21 +150,15 @@ class CoreTrainingLoop:
         epochs_trained = 0
 
         for update_epoch in range(update_epochs):
-            trainer_state.update_epoch = update_epoch
-
             for mb_idx in range(self.experience.num_minibatches):
-                trainer_state.mb_idx = mb_idx
-                trainer_state.stop_update_epoch = False
+                epoch = mb_idx
 
                 # Compute total loss from all losses
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
                 for _loss_name, loss_obj in self.losses.items():
-                    loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)
+                    loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, epoch)
                     total_loss = total_loss + loss_val
-
-                if trainer_state.stop_update_epoch:
-                    break
 
                 # Backward pass
                 self.optimizer.zero_grad()
@@ -200,13 +185,13 @@ class CoreTrainingLoop:
 
                 # Notify losses of minibatch end
                 for loss_obj in self.losses.values():
-                    loss_obj.on_mb_end(trainer_state)
+                    loss_obj.on_mb_end(epoch)
 
             epochs_trained += 1
 
         # Notify losses of training phase end
         for loss_obj in self.losses.values():
-            loss_obj.on_train_phase_end(trainer_state)
+            loss_obj.on_train_phase_end(epoch)
 
         # Collect statistics from all losses
         losses_stats = {}
@@ -215,13 +200,13 @@ class CoreTrainingLoop:
 
         return losses_stats
 
-    def on_epoch_start(self, trainer_state: TrainerState) -> None:
+    def on_epoch_start(self, epoch: int) -> None:
         """Called at the start of each epoch.
 
         Args:
-            trainer_state: Current trainer state
+            epoch: Current epoch
         """
         self.policy.on_new_training_run()
 
         for loss in self.losses.values():
-            loss.on_new_training_run(trainer_state)
+            loss.on_new_training_run(epoch)

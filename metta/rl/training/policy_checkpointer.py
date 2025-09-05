@@ -5,23 +5,25 @@ from typing import Any, Dict, Optional
 
 import torch
 
-from metta.agent.metta_agent import MettaAgent, PolicyAgent
+from metta.agent.metta_agent import MettaAgent
+from metta.agent.policy import Policy
 from metta.mettagrid import MettaGridEnv
+from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.component import ComponentConfig, MasterComponent
+from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
 
 
-class PolicyCheckpointerConfig(ComponentConfig):
+class PolicyCheckpointerConfig(Config):
     """Configuration for policy checkpointing."""
 
-    interval: int = 100
+    epoch_interval: int = 100
     """How often to save policy checkpoints (in epochs)"""
 
 
-class PolicyCheckpointer(MasterComponent):
+class PolicyCheckpointer(TrainerComponent):
     """Manages policy checkpointing with distributed awareness and URI support."""
 
     def __init__(
@@ -49,7 +51,7 @@ class PolicyCheckpointer(MasterComponent):
         agent_cfg: Any,
         device: torch.device,
         policy_uri: Optional[str] = None,
-    ) -> PolicyAgent:
+    ) -> MettaAgent:
         """Load agent from checkpoint/URI or create new one.
 
         Args:
@@ -60,7 +62,7 @@ class PolicyCheckpointer(MasterComponent):
             policy_uri: Optional URI to load policy from (e.g., 'wandb://...' or 'file://...')
 
         Returns:
-            PolicyAgent
+            MettaAgent
         """
         existing_agent = None
 
@@ -94,7 +96,7 @@ class PolicyCheckpointer(MasterComponent):
 
     def save_policy(
         self,
-        policy: PolicyAgent,
+        policy: MettaAgent,
         epoch: int,
         metadata: Optional[Dict[str, Any]] = None,
         force: bool = False,
@@ -113,7 +115,7 @@ class PolicyCheckpointer(MasterComponent):
         if not self.distributed.should_checkpoint():
             return None
 
-        if not force and epoch % self.config.interval != 0:
+        if not force and epoch % self.config.epoch_interval != 0:
             return None
 
         # Save checkpoint
@@ -128,7 +130,7 @@ class PolicyCheckpointer(MasterComponent):
 
         return checkpoint_uri
 
-    def save_policy_to_buffer(self, policy: PolicyAgent) -> bytes:
+    def save_policy_to_buffer(self, policy: Policy) -> bytes:
         """Save policy to bytes buffer.
 
         Args:

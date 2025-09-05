@@ -3,9 +3,10 @@ from typing import Any, Dict
 import torch
 from pydantic import Field
 
-from metta.agent.metta_agent import PolicyAgent
+from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
 from metta.rl.loss.ppo import PPOConfig
+from metta.rl.training.training_environment import TrainingEnvironment
 
 
 class LossSchedule(Config):
@@ -22,12 +23,12 @@ class LossConfig(Config):
 
     def init_losses(
         self,
-        policy: PolicyAgent,
+        policy: Policy,
         trainer_cfg: Any,
-        vec_env: Any,
+        env: TrainingEnvironment,
         device: torch.device,
     ):
         losses = {}
         for loss_name, loss_config in self.loss_configs.items():
-            losses[loss_name] = loss_config.create(policy, trainer_cfg, vec_env, device, loss_name, loss_config)
+            losses[loss_name] = loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
         return losses

@@ -3,8 +3,9 @@
 import logging
 from typing import TYPE_CHECKING
 
+from metta.mettagrid.config import Config
 from metta.rl.hyperparameter_scheduler import step_hyperparameters
-from metta.rl.training.component import ComponentConfig, MasterComponent
+from metta.rl.training.component import TrainerComponent
 
 if TYPE_CHECKING:
     from metta.rl.trainer_v2 import Trainer
@@ -12,14 +13,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class HyperparameterConfig(ComponentConfig):
+class HyperparameterConfig(Config):
     """Configuration for hyperparameter scheduling."""
 
     interval: int = 1
     """How often to update hyperparameters (in epochs)"""
 
 
-class HyperparameterComponent(MasterComponent):
+class HyperparameterComponent(TrainerComponent):
     """Manages hyperparameter scheduling."""
 
     def __init__(self, config: HyperparameterConfig):
@@ -38,9 +39,9 @@ class HyperparameterComponent(MasterComponent):
         """
         # Update learning rate and other hyperparameters
         step_hyperparameters(
-            trainer.trainer_cfg,
+            trainer._cfg,
             trainer.optimizer,
             trainer.trainer_state.agent_step,
-            trainer.trainer_cfg.total_timesteps,
+            trainer._cfg.total_timesteps,
             logger,
         )

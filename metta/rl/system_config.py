@@ -1,7 +1,7 @@
 import os
 import platform
 import random
-from typing import ClassVar, Literal
+from typing import ClassVar
 
 import numpy as np
 import torch
@@ -23,12 +23,6 @@ def guess_device() -> str:
     return f"cuda:{local_rank}"
 
 
-def guess_vectorization() -> Literal["serial", "multiprocessing"]:
-    if platform.system() == "Darwin":
-        return "serial"
-    return "multiprocessing"
-
-
 def guess_data_dir() -> str:
     if os.environ.get("DATA_DIR"):
         return os.environ["DATA_DIR"]  # type: ignore
@@ -36,7 +30,6 @@ def guess_data_dir() -> str:
 
 
 class SystemConfig(Config):
-    vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
     device: str = Field(default_factory=guess_device)

@@ -12,11 +12,12 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
+from metta.mettagrid.config import Config
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
-from metta.rl.training.component import ComponentConfig, MasterComponent
+from metta.rl.training.component import TrainerComponent
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 
@@ -27,28 +28,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class EvaluationConfig(ComponentConfig):
+class EvaluatorConfig(Config):
     """Configuration for evaluation."""
 
-    interval: int = 100  # Use standard component interval
+    epoch_interval: int = 100  # 0 to disable
     evaluate_local: bool = True
     evaluate_remote: bool = False
     num_training_tasks: int = 2
     simulations: List[SimulationConfig] = Field(default_factory=list)
     replay_dir: Optional[str] = None
+    skip_git_check: bool = Field(default=False)
+    git_hash: str | None = Field(default=None)
 
 
-class NoOpEvaluator(MasterComponent):
+class NoOpEvaluator(TrainerComponent):
     """No-op evaluator for when evaluation is disabled."""
-
-    def __init__(self):
-        """Initialize no-op evaluator."""
-        # Create a minimal config for the no-op evaluator
-        config = EvaluationConfig(
-            evaluate_local=False, evaluate_remote=False, interval=999999, num_training_tasks=0, simulations=[]
-        )
-        super().__init__(config)
-        self._latest_scores = EvalRewardSummary()
 
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
@@ -57,13 +51,43 @@ class NoOpEvaluator(MasterComponent):
         pass
 
 
-class Evaluator(MasterComponent):
+class Evaluator(TrainerComponent):
     """Manages policy evaluation."""
+
+    def __init__(
+        self,
+        config: EvaluatorConfig,
+        device: torch.device,
+        system_cfg: Any,
+        trainer_cfg: Any,
+        stats_client: Optional[StatsClient] = None,
+        stats_reporter: Optional["StatsReporter"] = None,
+    ):
+        """Initialize evaluator.
+
+        Args:
+            config: Evaluation configuration
+            device: Device to evaluate on
+            system_cfg: System configuration
+            trainer_cfg: Trainer configuration
+            stats_client: Optional stats client
+            stats_reporter: Optional stats reporter for wandb/metrics
+        """
+        super().__init__()
+        self._master_only = True
+        self._config = config
+        self._device = device
+        self._system_cfg = system_cfg
+        self._trainer_cfg = trainer_cfg
+        self._stats_client = stats_client
+        self._stats_reporter = stats_reporter
+        self._latest_scores = EvalRewardSummary()
+        self._stats_reporter = stats_reporter
 
     @classmethod
     def from_config(
         cls,
-        config: Optional[EvaluationConfig],
+        config: Optional[EvaluatorConfig],
         device: Optional[torch.device] = None,
         system_cfg: Optional[Any] = None,
         trainer_cfg: Optional[Any] = None,
@@ -132,34 +156,6 @@ class Evaluator(MasterComponent):
                 else:
                     logger.info("No git hash available for remote evaluations")
 
-    def __init__(
-        self,
-        config: EvaluationConfig,
-        device: torch.device,
-        system_cfg: Any,
-        trainer_cfg: Any,
-        stats_client: Optional[StatsClient] = None,
-        stats_reporter: Optional["StatsReporter"] = None,
-    ):
-        """Initialize evaluator.
-
-        Args:
-            config: Evaluation configuration
-            device: Device to evaluate on
-            system_cfg: System configuration
-            trainer_cfg: Trainer configuration
-            stats_client: Optional stats client
-            stats_reporter: Optional stats reporter for wandb/metrics
-        """
-        super().__init__(config)
-        self._config = config
-        self._device = device
-        self._system_cfg = system_cfg
-        self._trainer_cfg = trainer_cfg
-        self._stats_client = stats_client
-        self._stats_reporter = stats_reporter
-        self._latest_scores = EvalRewardSummary()
-
     @property
     def stats_reporter(self):
         """Get the stats reporter."""
@@ -179,7 +175,7 @@ class Evaluator(MasterComponent):
         Returns:
             True if evaluation should run
         """
-        return epoch % self._config.interval == 0
+        return epoch % self._config.epoch_interval == 0
 
     def evaluate(
         self,
@@ -350,8 +346,8 @@ class Evaluator(MasterComponent):
         from metta.rl.training.training_environment import TrainingEnvironment
 
         curriculum = None
-        if isinstance(trainer.training_env, TrainingEnvironment):
-            curriculum = trainer.training_env.curriculum
+        if isinstance(trainer._env, TrainingEnvironment):
+            curriculum = trainer._env.curriculum
 
         # Run evaluation
         scores = self.evaluate(

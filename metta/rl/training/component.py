@@ -1,9 +1,10 @@
 """Base training component infrastructure."""
 
 import logging
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict
 
-from metta.mettagrid.config import Config
+from pydantic import Field
 
 if TYPE_CHECKING:
     from metta.rl.trainer_v2 import Trainer
@@ -11,84 +12,43 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class TrainerComponentConfig(Config):
-    """Base configuration for training components."""
+class TrainerCallback(Enum):
+    """Types of callbacks that can be invoked on trainer components."""
 
-    interval: int = 1
-    """How often to trigger component callbacks (in epochs)"""
+    STEP = "step"
+    EPOCH_END = "epoch"
+    TRAINING_COMPLETE = "training_complete"
+    FAILURE = "failure"
 
 
 class TrainerComponent:
     """Base class for training components."""
 
-    def __init__(self, config: TrainerComponentConfig):
-        """Initialize component.
+    _master_only: bool = False
+    _epoch_interval: int = Field(default=1, ge=1)
+    _step_interval: int = Field(default=1, ge=1)
+    _trainer: "Trainer" = None
 
-        Args:
-            config: Component configuration
-        """
-        self.config = config
-        self.interval = config.interval
-
-    def register(self, trainer: "Trainer") -> None:
-        """Register this component with the trainer.
-
-        Args:
-            trainer: The trainer to register with
-        """
-        trainer.register_component(self)
-
-    def on_step(self, trainer: "Trainer", infos: Dict[str, Any]) -> None:
-        """Called after each environment step.
-
-        Args:
-            trainer: The trainer instance
-            infos: Step information from environment
-        """
-        pass
-
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
-        """Called at the end of an epoch.
-
-        Args:
-            trainer: The trainer instance
-            epoch: The current epoch number
-        """
-        pass
-
-    def on_training_complete(self, trainer: "Trainer") -> None:
-        """Called when training completes successfully.
-
-        Args:
-            trainer: The trainer instance
-        """
-        pass
-
-    def on_failure(self, trainer: "Trainer") -> None:
-        """Called when training fails.
-
-        Args:
-            trainer: The trainer instance
-        """
-        pass
-
-
-class MasterComponent(TrainerComponent):
-    """Base class for training components that should only run on the master process.
-
-    These components automatically check if they're on the master process before
-    registering and running callbacks.
-    """
+    def __init__(self, epoch_interval: int = 1, step_interval: int = 1):
+        self._epoch_interval = epoch_interval
+        self._step_interval = step_interval
 
     def register(self, trainer: "Trainer") -> None:
-        """Register this component with the trainer only if on master.
+        """Register this component with the trainer."""
+        self._trainer = trainer
 
-        Args:
-            trainer: The trainer instance to register with
-        """
-        # Only register if we're on the master process
-        if hasattr(trainer, "distributed_helper") and trainer.distributed_helper.is_master():
-            super().register(trainer)
-        # If distributed_helper doesn't exist yet, assume we should register
-        elif not hasattr(trainer, "distributed_helper"):
-            super().register(trainer)
+    def on_step(self, infos: Dict[str, Any]) -> None:
+        """Called after each environment step."""
+        pass
+
+    def on_epoch_end(self, epoch: int) -> None:
+        """Called at the end of an epoch."""
+        pass
+
+    def on_training_complete(self) -> None:
+        """Called when training completes successfully."""
+        pass
+
+    def on_failure(self) -> None:
+        """Called when training fails."""
+        pass

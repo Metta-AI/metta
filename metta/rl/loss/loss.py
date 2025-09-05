@@ -6,11 +6,10 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.rl.experience import Experience
-
-# from metta.rl.trainer_config import TrainerConfig
+from metta.agent.policy import Policy
 from metta.rl.trainer_state import TrainerState
+from metta.rl.training.experience import Experience
+from metta.rl.training.training_environment import TrainingEnvironment
 
 
 class Loss:
@@ -28,7 +27,7 @@ class Loss:
         "replay",
         "policy_experience_spec",
         "trainer_cfg",
-        "vec_env",
+        "env",
         "device",
         "loss_tracker",
         "policy_cfg",
@@ -46,16 +45,16 @@ class Loss:
 
     def __init__(
         self,
-        policy: PolicyAgent,
+        policy: Policy,
         trainer_cfg: Any,
-        vec_env: Any,
+        env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: Any,
     ):
         self.policy = policy
         self.trainer_cfg = trainer_cfg
-        self.vec_env = vec_env
+        self.env = env
         self.device = device
         self.instance_name = instance_name
         self.loss_cfg = loss_config
@@ -79,40 +78,40 @@ class Loss:
         self.policy.on_new_training_run()
         return
 
-    def on_rollout_start(self, trainer_state: TrainerState) -> None:
+    def on_rollout_start(self, epoch: int) -> None:
         """We're about to start a new rollout phase."""
         self.policy.on_rollout_start()
         return
 
-    def rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
+    def rollout(self, td: TensorDict, epoch: int) -> None:
         """Repeatedly called rollout steps until you set completion.
         Each step gets obs and returns actions to the env."""
-        if not self._should_run_rollout(trainer_state.epoch):
+        if not self._should_run_rollout(epoch):
             return
-        self.run_rollout(td, trainer_state)
+        self.run_rollout(td, epoch)
 
-    def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
+    def run_rollout(self, td: TensorDict, epoch: int) -> None:
         """Override this method in subclasses to implement rollout logic. Or override rollout() if you need to override
         the scheduling logic."""
         return
 
-    def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+    def train(self, shared_loss_data: TensorDict, epoch: int) -> tuple[Tensor, TensorDict]:
         """Repeatedly called training steps until the total number of minibatches (set in cfg) is reached.
         Compute loss and write any shared minibatch data needed by other losses."""
-        if not self._should_run_train(trainer_state.epoch):
+        if not self._should_run_train(epoch):
             return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
-        return self.run_train(shared_loss_data, trainer_state)
+        return self.run_train(shared_loss_data, epoch)
 
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+    def run_train(self, shared_loss_data: TensorDict, epoch: int) -> tuple[Tensor, TensorDict]:
         """Override this method in subclasses to implement train logic. Or override train() if you need to override
         the scheduling logic."""
         return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
 
-    def on_mb_end(self, trainer_state: TrainerState) -> None:
+    def on_mb_end(self, epoch: int) -> None:
         """For instance, allow losses with their own optimizers to run"""
         return
 
-    def on_train_phase_end(self, trainer_state: TrainerState) -> None:
+    def on_train_phase_end(self, epoch: int) -> None:
         """We've completed the train phase and will be transitioning to the next rollout phase."""
 
     def save_loss_states(self):
