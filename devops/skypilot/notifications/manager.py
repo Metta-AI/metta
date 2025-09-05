@@ -79,7 +79,9 @@ class NotificationManager:
             "rapid_restarts": NotificationConfig(
                 emoji="⚠️",
                 title="SkyPilot Job Failing Repeatedly",
-                description=f"Job terminated after {self.job_config.restart_count} restarts with average runtime < 3 minutes",
+                description=(
+                    f"Job terminated after {self.job_config.restart_count} restarts with average runtime < 3 minutes"
+                ),
             ),
         }
 

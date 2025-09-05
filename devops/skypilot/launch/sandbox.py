@@ -200,7 +200,7 @@ def print_cost_info(hourly_cost, num_gpus):
         print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
 
 
-def check_cluster_status(cluster_name: str) -> str:
+def check_cluster_status(cluster_name: str) -> str | None:
     """Check the status of a specific cluster.
 
     Returns:
