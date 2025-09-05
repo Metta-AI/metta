@@ -36,8 +36,6 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
-    consumed_args: list[str] = ["run", "group"]
-
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         init_logging(run_dir=self.run_dir)
 
