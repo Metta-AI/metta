@@ -113,7 +113,7 @@ class MettaAgent(nn.Module):
     def from_weights(
         cls,
         weights: dict[str, torch.Tensor],
-        env: "MettaGridEnv",
+        env: MettaGridEnv | AgentEnvConfig ,
         cfg: "AgentConfig",
     ) -> "MettaAgent":
         """Create a MettaAgent instance from pre-trained weights.

@@ -15,6 +15,11 @@ class AgentEnvConfig(BaseModel):
     single_action_space: Any = Field(validate_default=False)
     max_action_args: list[int]
     single_observation_space: Any = Field(validate_default=False)
+
+    features: dict[str, dict]
+    action_names: list[str]
+    action_max_params: list[int]
+
     agent_config: Any = Field(validate_default=False)
 
     @field_serializer('single_action_space')
@@ -77,6 +82,9 @@ class AgentEnvConfig(BaseModel):
 
         return values
 
+    def get_observation_features(self):
+        return self.features
+
     @classmethod
     def create(cls, env, agent_config):
         return AgentEnvConfig(
@@ -87,4 +95,7 @@ class AgentEnvConfig(BaseModel):
             max_action_args=env.max_action_args,
             single_observation_space=env.single_observation_space,
             agent_config=agent_config,
+            features=env.get_observation_features(),
+            action_names=env.action_names,
+            action_max_params=env.max_action_args,
         )

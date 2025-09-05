@@ -59,25 +59,19 @@ class PolicyArtifact:
         torch.save(agent, pt_path)
 
     @classmethod
-    def from_weights(cls, weights: Dict[str, torch.Tensor], statistics: Optional[Dict[str, Any]], init_config: AgentEnvConfig,
-        write_to: Optional[str] = None) -> "PolicyAgent":
-        """Create a PolicyArtifact from weights and statistics.
+    def from_weights(cls, weights: Dict[str, torch.Tensor],
+            statistics: Optional[Dict[str, Any]],
+            init_config: AgentEnvConfig,
+            write_to: Optional[str] = None) -> "PolicyAgent":
+        """Create a PolicyAgent from weights and statistics.
 
         Args:
             weights: Dictionary mapping parameter names to tensors
             statistics: Policy statistics
 
         Returns:
-            PolicyArtifact with weights and statistics fields set
+            PolicyAgent with weights and statistics fields set
         """
-        if not isinstance(weights, dict):
-            raise ValueError("Weights must be a dictionary")
-
-        # Validate that all values are tensors
-        for key, value in weights.items():
-            if not isinstance(value, torch.Tensor):
-                raise ValueError(f"All values must be tensors, got {type(value)} for key {key}")
-
         artifact = cls(weights=weights, statistics=statistics, init_config=init_config)
         if write_to is not None:
             base_path = Path(write_to)
@@ -109,7 +103,9 @@ class PolicyArtifact:
                     f.write(artifact.init_config.model_dump_json(indent=2))
 
         # Create a PolicyAgent from the weights and statistics
-        return MettaAgent(artifact.init_config, AgentConfig.model_validate(artifact.init_config.agent_config))
+        return MettaAgent.from_weights(artifact.weights,
+            artifact.init_config,
+            AgentConfig.model_validate(artifact.init_config.agent_config))
 
 
 
