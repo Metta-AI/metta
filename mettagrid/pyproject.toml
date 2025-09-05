@@ -12,7 +12,14 @@ requires-python = "==3.11.7"
 license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
-keywords = ["gridworld", "minigrid", "rl", "reinforcement-learning", "environment", "gym"]
+keywords = [
+  "gridworld",
+  "minigrid",
+  "rl",
+  "reinforcement-learning",
+  "environment",
+  "gym",
+]
 dependencies = [
   "gcovr",
   "colorama",
@@ -48,7 +55,7 @@ dev = ["pytest>=8.3.3", "pytest-benchmark>=5.1.0", "pytest-xdist>=3.8.0"]
 # Bazel build configuration
 # Set DEBUG=1 environment variable to build with debug configuration
 # Otherwise builds with optimizations enabled
-build.config = "opt"  # or "dbg" for debug builds
+build.config = "opt" # or "dbg" for debug builds
 
 [tool.pytest.ini_options]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
@@ -63,7 +70,7 @@ addopts = "--ignore=tests/run_test.py"
 [tool.uv]
 cache-keys = [
   { file = "pyproject.toml" },
-  { file = "BUILD" },
+  { file = "BUILD.bazel" },
   { file = "WORKSPACE" },
   { file = "src/**/*.{cpp,hpp}" },
 ]
