@@ -387,6 +387,11 @@ jobs:
         with:
           install-mode: "testing"
 
+      - name: Clean Bazel directories
+        run: |
+          rm -rf ~/.cache/bazel
+          rm -rf ~/.cache/bazel-repo
+
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
         with:
@@ -466,6 +471,11 @@ jobs:
         uses: ./.github/actions/setup-environment
         with:
           install-mode: "testing"
+
+      - name: Clean Bazel directories
+        run: |
+          rm -rf ~/.cache/bazel
+          rm -rf ~/.cache/bazel-repo
 
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
