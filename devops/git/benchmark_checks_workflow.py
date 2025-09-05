@@ -268,21 +268,46 @@ def wait_for_run_completion(run_id: str) -> tuple[WorkflowRunDetails, str]:
         time.sleep(POLL_INTERVAL)
 
 
-def trigger_all_runs(branches: list[str], repeats: int) -> dict[str, list[str]]:
+def trigger_all_runs(branches: list[str], repeats: int) -> dict[str, list[tuple[str, datetime]]]:
     print("\n🚀 Triggering all workflow runs...")
-    run_ids_by_branch = {branch: [] for branch in branches}
+    triggered_by_branch = {branch: [] for branch in branches}
+
     for branch in branches:
         for i in range(repeats):
             print(f"▶️  Trigger {i + 1}/{repeats} for `{branch}`")
             try:
                 uuid_tag = trigger_workflow(branch)
-                time.sleep(5)  # Optional: give GitHub a head start
-                run_number = find_workflow_run(branch, uuid_tag)
-                print(f"🎯 Run number for triggered workflow: {run_number}")
-                run_ids_by_branch[branch].append(uuid_tag)
+                triggered_by_branch[branch].append((uuid_tag, datetime.utcnow()))
             except Exception as e:
                 print(f"❌ Failed to trigger workflow on `{branch}`: {e}")
-    return run_ids_by_branch
+
+    return triggered_by_branch
+
+
+def resolve_run_numbers(triggered_runs: dict[str, list[tuple[str, datetime]]]) -> dict[str, list[str]]:
+    minutes_to_wait = 10
+    total_seconds = minutes_to_wait * 60
+
+    # Countdown loop
+    for remaining in range(total_seconds, 0, -1):
+        if remaining % 60 == 0 and remaining > 30:
+            print(f"⏳ Waiting for workflow logs to become available (sleeping {remaining // 60} minutes)...")
+        elif remaining in {30, 20, 10, 5, 4, 3, 2, 1}:
+            print(f"⏳ Waiting for workflow logs to become available (sleeping {remaining} seconds)...")
+        time.sleep(1)
+
+    resolved_by_branch = {branch: [] for branch in triggered_runs}
+
+    for branch, entries in triggered_runs.items():
+        for uuid_tag, _ in entries:
+            try:
+                run_number = find_workflow_run(branch, uuid_tag)
+                print(f"🎯 Resolved run_id={uuid_tag} → {run_number}")
+                resolved_by_branch[branch].append(run_number)
+            except Exception as e:
+                print(f"❌ Failed to resolve run_id {uuid_tag} for `{branch}`: {e}")
+
+    return resolved_by_branch
 
 
 def wait_for_all_runs(run_ids_by_branch: dict[str, list[str]]) -> dict[str, dict[str, Any]]:
@@ -427,5 +452,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     triggered = trigger_all_runs(args.branches, args.repeats)
-    results = wait_for_all_runs(triggered)
+    resolved = resolve_run_numbers(triggered)
+    results = wait_for_all_runs(resolved)
     summarize(results)
