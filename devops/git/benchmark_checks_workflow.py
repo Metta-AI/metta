@@ -53,8 +53,10 @@ def parse_time(timestamp: str) -> datetime:
 
 
 def trigger_workflow(branch: str) -> str:
+    """Trigger a workflow run and return the UUID tag used for identification."""
     run_id = str(uuid.uuid4())[:8]
     print(f"🚀 Triggering workflow on branch: {branch} (run_id={run_id})")
+
     result = subprocess.run(
         [
             "gh",
@@ -78,31 +80,50 @@ def trigger_workflow(branch: str) -> str:
     if result.returncode != 0:
         raise RuntimeError(f"Failed to trigger workflow: {result.stderr}")
 
-    time.sleep(2)  # allow GitHub to register the workflow run
+    return run_id
 
-    result = subprocess.run(
-        [
-            "gh",
-            "run",
-            "list",
-            "--workflow",
-            WORKFLOW_NAME,
-            "--branch",
-            branch,
-            "--limit",
-            "1",
-            "--json",
-            "databaseId",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to fetch run list: {result.stderr}")
-    runs = json.loads(result.stdout)
-    if not runs:
-        raise RuntimeError("No runs found after triggering workflow")
-    return str(runs[0]["databaseId"])
+
+def find_workflow_run(branch: str, run_id: str) -> str:
+    """Poll GitHub Actions to find the workflow run matching the given run_id tag."""
+    print(f"⏳ Searching for workflow run with run_id={run_id} on branch={branch}")
+
+    for attempt in range(10):
+        result = subprocess.run(
+            [
+                "gh",
+                "run",
+                "list",
+                "--workflow",
+                WORKFLOW_NAME,
+                "--branch",
+                branch,
+                "--limit",
+                "10",
+                "--json",
+                "databaseId,inputs,createdAt",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            print(f"⚠️ Failed to fetch run list (attempt {attempt + 1}/10): {result.stderr}")
+            time.sleep(2)
+            continue
+
+        try:
+            runs = json.loads(result.stdout)
+            for run in runs:
+                inputs = run.get("inputs", {})
+                if inputs.get("run_id") == run_id:
+                    print(f"✅ Found run {run['databaseId']} for run_id={run_id}")
+                    return str(run["databaseId"])
+        except json.JSONDecodeError as e:
+            print(f"⚠️ JSON decode error: {e}")
+
+        time.sleep(5)
+
+    raise RuntimeError(f"❌ Could not find matching run for run_id={run_id} on branch={branch}")
 
 
 def get_job_details(run_id: str) -> dict[str, Any]:
@@ -241,8 +262,11 @@ def trigger_all_runs(branches: list[str], repeats: int) -> dict[str, list[str]]:
         for i in range(repeats):
             print(f"▶️  Trigger {i + 1}/{repeats} for `{branch}`")
             try:
-                run_id = trigger_workflow(branch)
-                run_ids_by_branch[branch].append(run_id)
+                uuid_tag = trigger_workflow(branch)
+                time.sleep(5)  # Optional: give GitHub a head start
+                run_number = find_workflow_run(branch, uuid_tag)
+                print(f"🎯 Run number for triggered workflow: {run_number}")
+                run_ids_by_branch[branch].append(uuid_tag)
             except Exception as e:
                 print(f"❌ Failed to trigger workflow on `{branch}`: {e}")
     return run_ids_by_branch
