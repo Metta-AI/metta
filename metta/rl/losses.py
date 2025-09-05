@@ -88,7 +88,7 @@ def process_minibatch_update(
     old_act_log_prob = minibatch["act_log_prob"]
     new_logprob = policy_td["act_log_prob"].reshape(old_act_log_prob.shape)
     entropy = policy_td["entropy"]
-    newvalue = policy_td["value"]
+    newvalue = policy_td["values"]
 
     logratio = new_logprob - old_act_log_prob
     importance_sampling_ratio = logratio.exp()

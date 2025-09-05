@@ -146,7 +146,7 @@ class TestKickstarter:
         mock_teacher_policy = MagicMock()
         teacher_td = TensorDict(
             {
-                "value": torch.ones(2, 1),
+                "values": torch.ones(2, 1),
                 "full_log_probs": torch.log(torch.ones(2, 5) / 5.0),  # Uniform distribution log probs
             },
             batch_size=[2],

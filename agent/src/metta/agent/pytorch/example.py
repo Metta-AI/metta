@@ -81,7 +81,7 @@ class Example(PyTorchAgentMixin, LSTMWrapper):
         else:
             td["act_log_prob"] = log_probs.mean(dim=-1)
             td["entropy"] = entropies.sum(dim=-1)
-            td["value"] = value.flatten()
+            td["values"] = value.flatten()
             td["full_log_probs"] = full_log_probs
             td = td.reshape(B, TT)
         return td

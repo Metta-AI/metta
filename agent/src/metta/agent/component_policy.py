@@ -194,7 +194,7 @@ class ComponentPolicy(nn.Module, ABC):
 
         td["act_log_prob"] = action_log_prob
         td["entropy"] = entropy
-        td["value"] = value
+        td["values"] = value
         td["full_log_probs"] = full_log_probs
         return td
 

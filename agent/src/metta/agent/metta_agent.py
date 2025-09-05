@@ -95,7 +95,15 @@ class MettaAgent(nn.Module):
         if self.policy is None:
             raise RuntimeError("No policy set during initialization.")
 
-        return self.policy(td, state, action)
+        # Internal policies want tensor dicts, external policies want tensors
+        if hasattr(self.policy, "wants_td") and self.policy.wants_td:
+            return self.policy(td, state, action)
+        else:
+            x = td["env_obs"]
+            # assume we only run external policies in simulation. otherwise we need to unpack return tuple
+            action = self.policy(x, state, action)
+            td["actions"] = action
+            return td
 
     def get_cfg(self) -> AgentConfig:
         return self.cfg
@@ -217,12 +225,12 @@ class MettaAgent(nn.Module):
             for i in range(max_param + 1)
         ]
 
-        # Initialize policy to environment
-        self.policy.initialize_to_environment(full_action_names, device)
-
         # Share tensors with policy
         self.policy.action_index_tensor = self.action_index_tensor
         self.policy.cum_action_max_params = self.cum_action_max_params
+
+        # Initialize policy to environment
+        self.policy.initialize_to_environment(full_action_names, device)
 
         log_on_master(
             f"Environment initialized with {len(features)} features and actions: "
@@ -260,38 +268,6 @@ class MettaAgent(nn.Module):
     @property
     def total_params(self):
         return self._total_params
-
-    @property
-    def lstm(self):
-        """Access to LSTM component - delegates to policy if it has one."""
-        return getattr(self.policy, "lstm", None)
-
-    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics - delegates to policy."""
-        return self.policy.compute_weight_metrics(delta)
-
-    def clip_weights(self):
-        """Clip weights to prevent large updates during training - delegates to policy."""
-        return self.policy.clip_weights()
-
-    def l2_init_loss(self) -> torch.Tensor:
-        """Calculate L2 initialization loss for regularization - delegates to policy."""
-        return self.policy.l2_init_loss()
-
-    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Convert (action_type, action_param) pairs to discrete indices."""
-        if hasattr(self.policy, "_convert_action_to_logit_index"):
-            return self.policy._convert_action_to_logit_index(flattened_action)
-        action_type_numbers = flattened_action[:, 0].long()
-        action_params = flattened_action[:, 1].long()
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_params
-
-    def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
-        """Convert discrete logit indices back to (action_type, action_param) pairs."""
-        if hasattr(self.policy, "_convert_logit_index_to_action"):
-            return self.policy._convert_logit_index_to_action(logit_indices)
-        return self.action_index_tensor[logit_indices]
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent

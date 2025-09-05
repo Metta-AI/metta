@@ -103,7 +103,7 @@ class Kickstarter:
         for policy, teacher_cfg in self.teachers.items():
             # Forward pass through teacher policy
             teacher_td = policy(td)
-            teacher_value = teacher_td["value"]
+            teacher_value = teacher_td["values"]
             teacher_normalized_logits = teacher_td["full_log_probs"]
 
             # Calculate action loss (KL divergence)

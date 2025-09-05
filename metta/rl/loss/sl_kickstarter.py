@@ -107,7 +107,7 @@ class SLKickstarter(BaseLoss):
         teacher_normalized_logits = policy_out["full_log_probs"]
 
         student_normalized_logits = shared_loss_data["policy_td"]["full_log_probs"]
-        student_value = shared_loss_data["policy_td"]["value"]
+        student_value = shared_loss_data["policy_td"]["values"]
 
         student_normalized_logits = einops.rearrange(student_normalized_logits, "b t l -> (b t) l")
         ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()

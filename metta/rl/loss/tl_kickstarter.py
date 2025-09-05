@@ -67,7 +67,7 @@ class TLKickstarter(BaseLoss):
         teacher_normalized_logits = shared_loss_data["sampled_mb"]["full_log_probs"].detach()
 
         student_normalized_logits = shared_loss_data["policy_td"]["full_log_probs"]
-        student_value = shared_loss_data["policy_td"]["value"]
+        student_value = shared_loss_data["policy_td"]["values"]
 
         # av - counterintuitive that forward KL works - test reverse KL
         ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
