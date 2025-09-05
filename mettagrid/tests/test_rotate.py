@@ -29,7 +29,6 @@ def base_config():
             "noop": {"enabled": True},
             "rotate": {"enabled": True},
         },
-        "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
             "wall": {"type_id": 1},
         },
@@ -170,10 +169,10 @@ def test_multiple_agents_rotation(configured_env):
 
     config_overrides = {
         "num_agents": 2,
-        "groups": {
-            "red": {"id": 0, "props": {}},
-            "blue": {"id": 1, "props": {}},
-        },
+        "agents": [
+            {"team_id": 0},  # red
+            {"team_id": 1},  # blue
+        ],
     }
 
     env = configured_env(multi_agent_map, config_overrides)

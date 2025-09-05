@@ -372,6 +372,16 @@ jobs:
         with:
           install-mode: "testing"
 
+      - name: Cache Bazel build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazel-repo
+          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/MODULE.bazel.lock', 'mettagrid/.bazelrc') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
+
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
         run: |
@@ -441,6 +451,16 @@ jobs:
         uses: ./.github/actions/setup-environment
         with:
           install-mode: "testing"
+
+      - name: Cache Bazel build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazel-repo
+          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/MODULE.bazel.lock', 'mettagrid/.bazelrc') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
 
       - name: Build C++ benchmarks
         id: benchmark_build_check

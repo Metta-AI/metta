@@ -2183,7 +2183,7 @@ dev = [
 
 [[package]]
 name = "metta-mettagrid"
-version = "0.1.6"
+version = "0.2"
 source = { editable = "mettagrid" }
 dependencies = [
     { name = "boto3" },
@@ -2197,7 +2197,6 @@ dependencies = [
     { name = "google-auth-oauthlib" },
     { name = "gymnasium" },
     { name = "matplotlib" },
-    { name = "metta-common" },
     { name = "numpy" },
     { name = "omegaconf" },
     { name = "pandas" },
@@ -2233,7 +2232,6 @@ requires-dist = [
     { name = "google-auth-oauthlib", specifier = ">=1.0.0" },
     { name = "gymnasium", specifier = "==0.29.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
-    { name = "metta-common", editable = "common" },
     { name = "numpy", specifier = ">=1.26.4,<2" },
     { name = "omegaconf", specifier = ">=2.4.0.dev3" },
     { name = "pandas", specifier = ">=2.3.0" },
