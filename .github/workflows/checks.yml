@@ -383,8 +383,8 @@ jobs:
       - name: Setup Bazel caching
         run: |
           # Configure Bazel to use specific cache directories
-          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> .bazelrc
-          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> .bazelrc
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
 
           # Ensure directories exist
           mkdir -p $HOME/.bazel-disk-cache
@@ -403,7 +403,9 @@ jobs:
 
       - name: Clean Bazel output if no cache hit
         if: steps.bazel-cache.outputs.cache-hit != 'true'
-        run: bazel clean --expunge
+        run: |
+          cd mettagrid
+          bazel clean --expunge
 
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
@@ -478,8 +480,8 @@ jobs:
       - name: Setup Bazel caching
         run: |
           # Configure Bazel to use specific cache directories
-          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> .bazelrc
-          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> .bazelrc
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
 
           # Ensure directories exist
           mkdir -p $HOME/.bazel-disk-cache
@@ -498,7 +500,9 @@ jobs:
 
       - name: Clean Bazel output if no cache hit
         if: steps.bazel-cache.outputs.cache-hit != 'true'
-        run: bazel clean --expunge
+        run: |
+          cd mettagrid
+          bazel clean --expunge
 
       - name: Build C++ benchmarks
         id: benchmark_build_check
