@@ -507,7 +507,7 @@ void MettaGrid::_step(Actions actions) {
         bool success = handler->handle_action(agent->id, 0);
         if (success) {
           _action_success[agent_idx] = true;
-          break; // Only execute one auto action per agent per step
+          break;  // Only execute one auto action per agent per step
         }
       }
     }
