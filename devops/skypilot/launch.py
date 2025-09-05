@@ -286,8 +286,7 @@ def main():
 
     request_ids = [launch_task(prepare_task(task, env_updates, run_id)) for _ in range(args.copies)]
 
-    # auto launch log if we have only one task and job-log flag is set
-    if args.job_log and len(request_ids) == 1:
+    if args.job_log:
         open_job_log_from_request_id(request_ids[0])
 
 
