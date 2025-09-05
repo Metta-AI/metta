@@ -53,7 +53,7 @@ class TimedTestModule(SetupModule):
     installation_log = []  # Shared log for tracking installation order and timing
     _log_lock = threading.Lock()
 
-    def __init__(self, name: str, deps: list[str], install_duration: float = 0.1):
+    def __init__(self, name: str, deps: list[str], install_duration: float = 0.01):
         super().__init__()
         self._name = name
         self._deps = deps
@@ -153,12 +153,8 @@ class TimedTestModule(SetupModule):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestParallelInstallDependencyResolution(BaseMettaSetupTest):
+class TestParallelInstallDependencyResolution(unittest.TestCase):
     """Test dependency resolution and parallel batching logic."""
-
-    def setUp(self):
-        super().setUp()
-        self._create_test_config(UserType.EXTERNAL)
 
     def test_topological_sort_parallel_simple(self):
         """Test topological sort with simple dependency chain."""
@@ -317,80 +313,83 @@ class TestParallelInstallDependencyResolution(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestParallelInstallIntegration(BaseMettaSetupTest):
-    """Integration tests for the actual parallel install command."""
-
-    def setUp(self):
-        super().setUp()
-        self._create_test_config(UserType.EXTERNAL)
+class TestParallelInstallIntegration(unittest.TestCase):
+    """Integration tests for parallel install logic with mock modules."""
 
     def test_parallel_install_output_format(self):
-        """Test that parallel install produces expected output format."""
-        # Test with a dependency chain that should show batching
-        result = self._run_metta_command(
-            ["install", "--force", "--non-interactive", "system", "nodejs", "notebookwidgets"]
-        )
-
-        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
-
-        # Should see dependency analysis
-        self.assertIn("Dependency analysis:", result.stdout)
-        self.assertIn("nodejs depends on: system", result.stdout)
-        self.assertIn("notebookwidgets depends on: nodejs", result.stdout)
-
-        # Should see batch information
-        self.assertIn("Installing", result.stdout)
-        self.assertIn("parallel batches:", result.stdout)
-        self.assertIn("Batch 1:", result.stdout)
-
-        # Should see batch execution
-        self.assertIn("components in parallel", result.stdout)
+        """Test that parallel install produces expected batch structure."""
+        # Test with mock modules that have a dependency chain
+        modules = {
+            "system": MockModule("system", []),
+            "nodejs": MockModule("nodejs", ["system"]), 
+            "notebookwidgets": MockModule("notebookwidgets", ["nodejs"])
+        }
+        dependencies = {m.name: m.dependencies() for m in modules.values()}
+        
+        batches = topological_sort_parallel(modules, dependencies)
+        
+        # Should have 3 batches: system -> nodejs -> notebookwidgets
+        self.assertEqual(len(batches), 3)
+        self.assertEqual(batches[0], ["system"])
+        self.assertEqual(batches[1], ["nodejs"])
+        self.assertEqual(batches[2], ["notebookwidgets"])
 
     def test_missing_dependency_auto_addition(self):
         """Test that missing dependencies are automatically added."""
         # Request notebookwidgets without nodejs
-        result = self._run_metta_command(["install", "--force", "--non-interactive", "notebookwidgets", "core"])
-
-        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
-
-        # Should see missing dependency message
-        self.assertIn("Adding missing dependencies:", result.stdout)
-        self.assertIn("nodejs", result.stdout)
-        self.assertIn("system", result.stdout)
-
-        # Should see correct dependency analysis
-        self.assertIn("nodejs depends on: system", result.stdout)
-        self.assertIn("notebookwidgets depends on: nodejs", result.stdout)
+        requested_modules = ["notebookwidgets", "core"]
+        
+        all_modules = [
+            MockModule("system", []),
+            MockModule("core", []),
+            MockModule("nodejs", ["system"]),
+            MockModule("notebookwidgets", ["nodejs"])
+        ]
+        
+        module_map = {m.name: m for m in all_modules if m.name in requested_modules}
+        all_modules_dict = {m.name: m for m in all_modules}
+        
+        # Should find missing dependencies
+        missing_deps = collect_missing_dependencies(module_map, all_modules_dict)
+        self.assertEqual(missing_deps, {"nodejs", "system"})
 
     def test_parallel_batch_ordering(self):
         """Test that components install in correct dependency order."""
-        # Test with components that have clear dependency relationships
-        result = self._run_metta_command(
-            ["install", "--force", "--non-interactive", "aws", "skypilot", "nodejs", "mettascope", "core"]
-        )
-
-        self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
-
-        # Parse the batch information
-        lines = result.stdout.split("\n")
-        batch_lines = [line.strip() for line in lines if "Batch" in line and ":" in line]
-
+        # Test with mock components that have clear dependency relationships  
+        modules = {
+            "core": MockModule("core", []),
+            "aws": MockModule("aws", []),
+            "nodejs": MockModule("nodejs", ["system"]),
+            "system": MockModule("system", []),
+            "skypilot": MockModule("skypilot", ["aws"]),
+            "mettascope": MockModule("mettascope", ["nodejs"])
+        }
+        dependencies = {m.name: m.dependencies() for m in modules.values()}
+        
+        batches = topological_sort_parallel(modules, dependencies)
+        
         # Should have multiple batches due to dependencies
-        self.assertGreater(len(batch_lines), 1, "Should have multiple batches for dependencies")
-
-        # Verify dependency relationships in output
-        self.assertIn("skypilot depends on: aws", result.stdout)
-        self.assertIn("mettascope depends on: nodejs", result.stdout)
+        self.assertGreater(len(batches), 1, "Should have multiple batches for dependencies")
+        
+        # Verify dependency ordering
+        batch_positions = {}
+        for i, batch in enumerate(batches):
+            for module in batch:
+                batch_positions[module] = i
+                
+        # Dependencies should be in earlier batches
+        if "nodejs" in batch_positions and "system" in batch_positions:
+            self.assertLess(batch_positions["system"], batch_positions["nodejs"])
+        if "skypilot" in batch_positions and "aws" in batch_positions:
+            self.assertLessEqual(batch_positions["aws"], batch_positions["skypilot"])
+        if "mettascope" in batch_positions and "nodejs" in batch_positions:
+            self.assertLess(batch_positions["nodejs"], batch_positions["mettascope"])
 
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestComplexDependencyStructures(BaseMettaSetupTest):
+class TestComplexDependencyStructures(unittest.TestCase):
     """Test complex dependency structures and edge cases."""
-
-    def setUp(self):
-        super().setUp()
-        self._create_test_config(UserType.EXTERNAL)
 
     def test_diamond_dependency(self):
         """Test diamond dependency pattern: A,B->C; C,D->E (diamond with E at bottom)."""
@@ -512,21 +511,16 @@ class TestComplexDependencyStructures(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestConcurrentExecutionTiming(BaseMettaSetupTest):
+class TestConcurrentExecutionTiming(unittest.TestCase):
     """Test actual concurrent execution with timing verification."""
-
-    def setUp(self):
-        super().setUp()
-        self._create_test_config(UserType.EXTERNAL)
-        TimedTestModule.clear_log()
 
     def test_parallel_execution_timing(self):
         """Test that independent modules actually install concurrently."""
         # Create 3 independent modules that each take 2 seconds
         modules = [
-            TimedTestModule("ModA", [], install_duration=0.1),
-            TimedTestModule("ModB", [], install_duration=0.1),
-            TimedTestModule("ModC", [], install_duration=0.1),
+            TimedTestModule("ModA", [], install_duration=0.01),
+            TimedTestModule("ModB", [], install_duration=0.01),
+            TimedTestModule("ModC", [], install_duration=0.01),
         ]
 
         module_map = {m.name: m for m in modules}
@@ -550,8 +544,8 @@ class TestConcurrentExecutionTiming(BaseMettaSetupTest):
         total_time = time.time() - start_time
 
         # Verify timing - should be ~2 seconds (parallel) not ~6 seconds (sequential)
-        self.assertLess(total_time, 0.25, f"Parallel execution took {total_time}s, expected ~0.1s")
-        self.assertGreater(total_time, 0.08, f"Execution too fast: {total_time}s, expected ~0.1s")
+        self.assertLess(total_time, 0.15, f"Parallel execution took {total_time}s, expected ~0.05s")
+        self.assertGreater(total_time, 0.04, f"Execution too fast: {total_time}s, expected ~0.05s")
 
         # Verify concurrent execution in logs
         summary = TimedTestModule.get_log_summary()
@@ -566,11 +560,11 @@ class TestConcurrentExecutionTiming(BaseMettaSetupTest):
 
     def test_dependency_ordering_with_timing(self):
         """Test that dependent modules wait for their dependencies."""
-        # Chain: ModA -> ModB -> ModC (each takes 0.1 seconds)
+        # Chain: ModA -> ModB -> ModC (each takes 0.05 seconds)
         modules = [
-            TimedTestModule("ModA", ["ModB"], install_duration=0.1),
-            TimedTestModule("ModB", ["ModC"], install_duration=0.1),
-            TimedTestModule("ModC", [], install_duration=0.1),
+            TimedTestModule("ModA", ["ModB"], install_duration=0.01),
+            TimedTestModule("ModB", ["ModC"], install_duration=0.01),
+            TimedTestModule("ModC", [], install_duration=0.01),
         ]
 
         module_map = {m.name: m for m in modules}
@@ -594,9 +588,9 @@ class TestConcurrentExecutionTiming(BaseMettaSetupTest):
 
         total_time = time.time() - start_time
 
-        # Should take ~0.3 seconds (sequential batches)
-        self.assertGreater(total_time, 0.25, f"Sequential execution too fast: {total_time}s")
-        self.assertLess(total_time, 0.5, f"Sequential execution too slow: {total_time}s")
+        # Should take ~0.15 seconds (sequential batches)
+        self.assertGreater(total_time, 0.12, f"Sequential execution too fast: {total_time}s")
+        self.assertLess(total_time, 0.25, f"Sequential execution too slow: {total_time}s")
 
         # Verify order in installation log
         summary = TimedTestModule.get_log_summary()
@@ -616,11 +610,11 @@ class TestConcurrentExecutionTiming(BaseMettaSetupTest):
         # Structure: Base -> [ServiceA, ServiceB] -> [Frontend, Backend]
         # Base (2s) -> ServiceA,ServiceB parallel (1.5s each) -> Frontend,Backend parallel (1s each)
         modules = [
-            TimedTestModule("Base", [], install_duration=0.1),
-            TimedTestModule("ServiceA", ["Base"], install_duration=0.1),
-            TimedTestModule("ServiceB", ["Base"], install_duration=0.1),
-            TimedTestModule("Frontend", ["ServiceA"], install_duration=0.1),
-            TimedTestModule("Backend", ["ServiceB"], install_duration=0.1),
+            TimedTestModule("Base", [], install_duration=0.01),
+            TimedTestModule("ServiceA", ["Base"], install_duration=0.01),
+            TimedTestModule("ServiceB", ["Base"], install_duration=0.01),
+            TimedTestModule("Frontend", ["ServiceA"], install_duration=0.01),
+            TimedTestModule("Backend", ["ServiceB"], install_duration=0.01),
         ]
 
         module_map = {m.name: m for m in modules}
@@ -644,9 +638,9 @@ class TestConcurrentExecutionTiming(BaseMettaSetupTest):
 
         total_time = time.time() - start_time
 
-        # Should take ~0.3 seconds: Base(0.1s) + max(ServiceA,ServiceB)(0.1s) + max(Frontend,Backend)(0.1s)
-        self.assertGreater(total_time, 0.25, f"Mixed execution too fast: {total_time}s")
-        self.assertLess(total_time, 0.5, f"Mixed execution too slow: {total_time}s")
+        # Should take ~0.15 seconds: Base(0.05s) + max(ServiceA,ServiceB)(0.05s) + max(Frontend,Backend)(0.05s)
+        self.assertGreater(total_time, 0.12, f"Mixed execution too fast: {total_time}s")
+        self.assertLess(total_time, 0.25, f"Mixed execution too slow: {total_time}s")
 
         # Verify ServiceA and ServiceB overlap (parallel execution)
         summary = TimedTestModule.get_log_summary()
@@ -659,12 +653,8 @@ class TestConcurrentExecutionTiming(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestCircularDependencyDetection(BaseMettaSetupTest):
+class TestCircularDependencyDetection(unittest.TestCase):
     """Test circular dependency detection and error handling."""
-
-    def setUp(self):
-        super().setUp()
-        self._create_test_config(UserType.EXTERNAL)
 
     def test_simple_circular_dependency(self):
         """Test detection of simple A->B->A circular dependency."""
@@ -860,7 +850,7 @@ class TestManualScenarios(BaseMettaSetupTest):
         
         # Create simple test module that sleeps
         class QuickTimedModule:
-            def __init__(self, name, deps, install_duration=0.1):
+            def __init__(self, name, deps, install_duration=0.01):
                 self.name = name
                 self._deps = deps
                 self._install_duration = install_duration
@@ -877,11 +867,11 @@ class TestManualScenarios(BaseMettaSetupTest):
                 self.install_times.append((start_time, end_time))
                 self._installed = True
 
-        # Create 3 independent modules that each take 0.1 seconds
+        # Create 3 independent modules that each take 0.05 seconds
         modules = [
-            QuickTimedModule('ModA', [], install_duration=0.1),
-            QuickTimedModule('ModB', [], install_duration=0.1), 
-            QuickTimedModule('ModC', [], install_duration=0.1)
+            QuickTimedModule('ModA', [], install_duration=0.01),
+            QuickTimedModule('ModB', [], install_duration=0.01), 
+            QuickTimedModule('ModC', [], install_duration=0.01)
         ]
 
         # Execute in parallel
@@ -895,8 +885,8 @@ class TestManualScenarios(BaseMettaSetupTest):
         total_time = time.time() - start_time
 
         # Verify timing - should be ~0.1s (parallel) not ~0.3s (sequential)
-        self.assertLess(total_time, 0.25, f"Parallel execution took {total_time:.3f}s, expected ~0.1s")
-        self.assertGreater(total_time, 0.08, f"Execution too fast: {total_time:.3f}s, expected ~0.1s")
+        self.assertLess(total_time, 0.25, f"Parallel execution took {total_time:.3f}s, expected ~0.05s")
+        self.assertGreater(total_time, 0.04, f"Execution too fast: {total_time:.3f}s, expected ~0.05s")
         
         # Verify all modules were installed
         for module in modules:

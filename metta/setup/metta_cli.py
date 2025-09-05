@@ -639,33 +639,6 @@ def cmd_install(
         dependencies[module.name] = deps
 
     # Perform topological sort with parallelization opportunities
-    def topological_sort_parallel(modules_dict, deps):
-        """Sort modules respecting dependencies, grouping independent modules together."""
-        in_degree = defaultdict(int)
-        for module in modules_dict:
-            for _dep in deps.get(module, []):
-                in_degree[module] += 1
-
-        # Start with modules that have no dependencies
-        ready_queue = deque([m for m in modules_dict if in_degree[m] == 0])
-        sorted_batches = []
-
-        while ready_queue:
-            # All modules in ready_queue can be installed in parallel
-            current_batch = list(ready_queue)
-            sorted_batches.append(current_batch)
-            ready_queue.clear()
-
-            # Remove current batch from graph and update in_degree
-            for module in current_batch:
-                for other_module, other_deps in deps.items():
-                    if module in other_deps:
-                        in_degree[other_module] -= 1
-                        if in_degree[other_module] == 0:
-                            ready_queue.append(other_module)
-
-        return sorted_batches
-
     install_batches = topological_sort_parallel(module_map, dependencies)
 
     if not install_batches:
