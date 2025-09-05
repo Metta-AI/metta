@@ -319,7 +319,6 @@ def train(
             trainer_state.epoch = epoch
             all_losses = list(loss_instances.keys())
             shared_loss_mb_data = experience.give_me_empty_md_td()
-            policy.on_new_training_run()
             for _loss_name in loss_instances.keys():
                 loss_instances[_loss_name].on_new_training_run(trainer_state)
                 shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
@@ -347,15 +346,11 @@ def train(
                         td["rewards"] = r
                         td["dones"] = d.float()
                         td["truncateds"] = t.float()
-                        td.set(
-                            "training_env_id_start",
-                            torch.full(
-                                td.batch_size,
-                                training_env_id.start,
-                                device=td.device,
-                                dtype=torch.long,
-                            ),
-                        )
+                        td["training_env_ids"] = torch.arange(
+                            training_env_id.start, training_env_id.stop, dtype=torch.long, device=device
+                        ).unsqueeze(1)  # av remove unsqueeze
+                        B = td.batch_size.numel()
+                        td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
 
                         # Inference - hybrid approach: run composable losses rollout hooks first
                         # note that each loss will modify the td, the same one that is passed to other losses.

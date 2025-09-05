@@ -70,7 +70,7 @@ class PPO(BaseLoss):
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         """This is the PPO algorithm training loop."""
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
-        self.policy.on_train_mb_start()
+        self.policy.reset_memory()
 
         # Check if we should early stop this update epoch (on subsequent minibatches)
         if self.loss_cfg.target_kl is not None and trainer_state.mb_idx > 0:
@@ -94,6 +94,11 @@ class PPO(BaseLoss):
 
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
+        B = policy_td.batch_size[0]
+        TT = policy_td.batch_size[1]
+        policy_td = policy_td.reshape(policy_td.batch_size.numel())  # flatten to BT
+        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
+
         policy_td = self.policy(policy_td, action=minibatch["actions"])
         shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
 

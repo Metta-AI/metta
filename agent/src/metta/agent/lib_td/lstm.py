@@ -72,16 +72,19 @@ class LSTM(nn.Module):
     def _forward(self, td: TensorDict):
         latent = td[self.in_key]  # → (2, num_layers, batch, hidden_size)
 
-        TT = td["bptt"][0]
-        B = td["batch"][0]
+        TT = 1
+        B = td.batch_size.numel()
+        if td["bptt"][0] != 1:
+            TT = td["bptt"][0]
+        B = B / TT
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
 
-        training_env_id_start = td.get("training_env_id_start", None)
-        if training_env_id_start is None:
+        training_env_id = td.get("training_env_id", None)
+        if training_env_id is None:
             training_env_id_start = 0
         else:
-            training_env_id_start = training_env_id_start[0].item()
+            training_env_id_start = training_env_id.reshape(-1)[0].item()  # av remove "start" aspects
 
         if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]

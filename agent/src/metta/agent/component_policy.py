@@ -114,19 +114,6 @@ class ComponentPolicy(nn.Module, ABC):
         component.setup(source_components)
 
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
-        """Forward pass."""
-        # Handle BPTT reshaping
-        if td.batch_dims > 1:
-            B = td.batch_size[0]
-            TT = td.batch_size[1]
-            td = td.reshape(td.batch_size.numel())  # flatten to BT
-            td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
-            td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
-        else:
-            B = td.batch_size.numel()
-            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
-            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
-
         # Run the value and action components
         self.components["_value_"](td)
         self.components["_action_"](td)
@@ -136,8 +123,8 @@ class ComponentPolicy(nn.Module, ABC):
         else:
             output_td = self.forward_training(td, action)
             # Reshape back for training mode
-            batch_size = td["batch"][0].item()
             bptt_size = td["bptt"][0].item()
+            batch_size = td.batch_size.numel() / bptt_size
             output_td = output_td.reshape(batch_size, bptt_size)
 
         return output_td
@@ -241,6 +228,11 @@ class ComponentPolicy(nn.Module, ABC):
     def on_eval_start(self):
         for _, component in self.components.items():
             component.on_eval_start()
+
+    def reset_memory(self):
+        for _, component in self.components.items():
+            if hasattr(component, "reset_memory"):
+                component.reset_memory()
 
     # ============================================================================
     # Weight/Training Utility Methods

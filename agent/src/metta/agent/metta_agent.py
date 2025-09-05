@@ -108,22 +108,6 @@ class MettaAgent(nn.Module):
     def get_cfg(self) -> AgentConfig:
         return self.cfg
 
-    def on_new_training_run(self):
-        if hasattr(self.policy, "on_new_training_run"):
-            self.policy.on_new_training_run()
-
-    def on_rollout_start(self):
-        if hasattr(self.policy, "on_rollout_start"):
-            self.policy.on_rollout_start()
-
-    def on_train_mb_start(self):
-        if hasattr(self.policy, "on_train_mb_start"):
-            self.policy.on_train_mb_start()
-
-    def on_eval_start(self):
-        if hasattr(self.policy, "on_eval_start"):
-            self.policy.on_eval_start()
-
     # need to revisit these methods
     def reset_memory(self) -> None:
         """Reset memory - delegates to policy if it supports memory."""
