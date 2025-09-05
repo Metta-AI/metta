@@ -12,7 +12,7 @@ class LSTMConfig(Config):
     latent_size: int = 128
     hidden_size: int = 128
     num_layers: int = 2
-    in_key: str = "latent"
+    in_key: str = "encoded_obs"
     out_key: str = "hidden"
 
 
@@ -69,14 +69,14 @@ class LSTM(nn.Module):
         self.lstm_c.clear()
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
-    def _forward(self, td: TensorDict):
+    def forward(self, td: TensorDict):
         latent = td[self.in_key]  # → (2, num_layers, batch, hidden_size)
 
         TT = 1
         B = td.batch_size.numel()
         if td["bptt"][0] != 1:
             TT = td["bptt"][0]
-        B = B / TT
+        B = B // TT
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
 

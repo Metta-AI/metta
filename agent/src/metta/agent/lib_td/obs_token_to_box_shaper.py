@@ -34,7 +34,7 @@ class ObsTokenToBoxShaper(nn.Module):
         self.num_layers = max(feature_normalizations.keys()) + 1
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
 
-    def _forward(self, td: TensorDict):
+    def forward(self, td: TensorDict):
         token_observations = td[self.in_key]
         B_TT = td.batch_size.numel()
 

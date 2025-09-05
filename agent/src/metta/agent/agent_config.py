@@ -2,7 +2,7 @@
 Agent configuration following the dehydration branch Config pattern.
 """
 
-from typing import Literal
+from typing import Literal, Optional
 
 # ComponentPolicy implementations (modular architecture)
 from metta.agent.component_policies.fast import Fast as ComponentFast
@@ -16,6 +16,8 @@ from metta.agent.pytorch.fast import Fast as PyTorchFast
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAttnMed
 from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
+
+# New TD policy
 from metta.common.config import Config
 
 
@@ -36,9 +38,10 @@ class AgentConfig(Config):
 
     clip_range: float = 0
     analyze_weights_interval: int = 300
+    policy_config: Optional[Config] = None
 
 
-# Registry mapping agent names to classes
+# Registry mapping agent names to classes. This will be removed in the future.
 AGENT_REGISTRY = {
     "fast": ComponentFast,
     "latent_attn_tiny": ComponentLatentAttnTiny,
@@ -61,12 +64,36 @@ def create_agent(
     env=None,
 ):
     """Create an agent instance from configuration."""
+    # New, preferred pattern: config objects are responsible for instantiation. This will allow us to remove the agent
+    # registry. Agent config objects must therefore have an `instantiate_policy` method.
+
+    # package obs information
+    obs_meta = {
+        "obs_space": obs_space,
+        "obs_width": obs_width,
+        "obs_height": obs_height,
+        "feature_normalizations": feature_normalizations,
+    }
+
+    if config.policy_config is not None:
+        if hasattr(config.policy_config, "instantiate_policy"):
+            return config.policy_config.instantiate_policy(env=env, obs_meta=obs_meta)
+        else:
+            raise AttributeError(
+                f"Provided policy config {type(config.policy_config).__name__} does not have an 'instantiate_policy' \
+                method."
+            )
+
+    # Backwards compatibility for old agent types. This will be removed in the future.
     if config.name not in AGENT_REGISTRY:
-        raise ValueError(f"Unknown agent: '{config.name}'. Available: {list(AGENT_REGISTRY.keys())}")
+        raise ValueError(
+            f"Agent name '{config.name}' not specified and no policy config provided, or name not in registry. "
+            f"Available names: {list(AGENT_REGISTRY.keys())}"
+        )
 
     AgentClass = AGENT_REGISTRY[config.name]
 
-    # PyTorch models use env, ComponentPolicies use structured parameters
+    # PyTorch models use env, ComponentPolicies use structured parameters. This will be removed in the future.
     if config.name.startswith("pytorch/"):
         return AgentClass(
             env=env,

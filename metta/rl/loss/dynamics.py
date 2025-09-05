@@ -13,11 +13,8 @@ class Dynamics(BaseLoss):
 
     # BaseLoss calls this method
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
-        # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
         policy_td = shared_loss_data["policy_td"]
 
-        self.policy.policy.components["returns_pred"](policy_td)
-        self.policy.policy.components["reward_pred"](policy_td)
         returns_pred: Tensor = policy_td["returns_pred"].to(dtype=torch.float32)
         reward_pred: Tensor = policy_td["reward_pred"].to(dtype=torch.float32)
 

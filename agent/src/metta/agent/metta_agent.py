@@ -97,7 +97,7 @@ class MettaAgent(nn.Module):
 
         # Internal policies want tensor dicts, external policies want tensors
         if hasattr(self.policy, "wants_td") and self.policy.wants_td:
-            return self.policy(td, state, action)
+            return self.policy(td, action=action)
         else:
             x = td["env_obs"]
             # assume we only run external policies in simulation. otherwise we need to unpack return tuple

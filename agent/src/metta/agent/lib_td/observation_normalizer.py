@@ -13,7 +13,7 @@ class ObservationNormalizer(nn.Module):
     magnitudes from dominating the learning process.
     """
 
-    def __init__(self, feature_normalizations, in_key="obs", out_key="obs_normalizer"):
+    def __init__(self, feature_normalizations, in_key="box_obs", out_key="obs_normalizer"):
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key

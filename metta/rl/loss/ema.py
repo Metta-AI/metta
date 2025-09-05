@@ -54,10 +54,10 @@ class EMA(BaseLoss):
         # reshape to 1D for the head ie flatten the batch and time dimension
         B, TT = policy_td.batch_size[0], policy_td.batch_size[1]
         policy_td = policy_td.reshape(B * TT)
+        # av these likely need to be updated
         policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
         policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
 
-        self.policy.policy.components["EMA_pred_output_2"](policy_td)
         pred: Tensor = policy_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
         # target prediction: you need to clear all keys except env_obs and then clone
@@ -66,7 +66,7 @@ class EMA(BaseLoss):
         target_td.set("batch", torch.full((B * TT,), B, device=target_td.device, dtype=torch.long))
 
         with torch.no_grad():
-            self.target_model.components["EMA_pred_output_2"](target_td)
+            self.target_model(target_td)
             target_pred: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
         # Store only tensors in shared_loss_data for downstream consumers

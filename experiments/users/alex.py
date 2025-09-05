@@ -3,6 +3,8 @@ from typing import List, Optional
 import metta.cogworks.curriculum as cc
 import metta.map.scenes.random
 import metta.mettagrid.config.envs as eb
+from metta.agent.agent_config import AgentConfig
+from metta.agent.pytorch_td.fast_td import FastConfig
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config import building
 from metta.mettagrid.mettagrid_config import (
@@ -174,8 +176,13 @@ def train() -> TrainTool:
         # All optimizer, PPO, and batch settings use defaults which already match
         # the original trainer.yaml configuration
     )
+    fast_td_config = FastConfig()
+    fast_td_config.lstm_config.hidden_size = 128
+    my_agent_config = AgentConfig(
+        policy_config=fast_td_config,
+    )
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(trainer=trainer_cfg, policy_architecture=my_agent_config)
 
 
 def play(

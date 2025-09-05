@@ -11,17 +11,9 @@ from metta.common.config.config import Config
 
 class ActorQueryConfig(Config):
     hidden_size: int = 128
-    embed_dim: int = 128
+    embed_dim: int = 16
     in_key: str = "hidden"
     out_key: str = "query"
-
-
-class ActorKeyConfig(Config):
-    hidden_size: int = 128
-    embed_dim: int = 128
-    query_key: str = "query"
-    embedding_key: str = "action_embeddings"
-    out_key: str = "logits"
 
 
 class ActorQuery(nn.Module):
@@ -56,6 +48,14 @@ class ActorQuery(nn.Module):
 
         td[self.out_key] = query
         return td
+
+
+class ActorKeyConfig(Config):
+    hidden_size: int = 128
+    embed_dim: int = 16
+    query_key: str = "query"
+    embedding_key: str = "action_embeddings"
+    out_key: str = "logits"
 
 
 class ActorKey(nn.Module):

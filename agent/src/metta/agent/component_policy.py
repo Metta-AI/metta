@@ -115,8 +115,8 @@ class ComponentPolicy(nn.Module, ABC):
 
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         # Run the value and action components
-        self.components["_value_"](td)
-        self.components["_action_"](td)
+        for component_name in self._get_output_heads():
+            self.components[component_name](td)
 
         if action is None:
             output_td = self.forward_inference(td)

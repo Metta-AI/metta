@@ -337,6 +337,8 @@ def train(
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
                     buffer_step = buffer_step.select(*policy_spec.keys())
 
+                    policy.reset_memory()  # av these should be handled by the memory layer once LSTM etc. is fixed
+
                     while not experience.ready_for_training and not trainer_state.stop_rollout:
                         o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
 
@@ -382,6 +384,7 @@ def train(
                     # Reset loss tracking
                     shared_loss_mb_data.zero_()
                     experience.reset_importance_sampling_ratios()
+                    policy.reset_memory()  # av these should be handled by the memory layer once LSTM etc. is fixed
 
                     epochs_trained = 0
                     for _lname in list(all_losses):
@@ -418,8 +421,6 @@ def train(
                                         break
                                 torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
                                 optimizer.step()
-
-                                policy.clip_weights()
 
                                 if device.type == "cuda":
                                     torch.cuda.synchronize()

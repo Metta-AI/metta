@@ -63,7 +63,6 @@ class BaseLoss:
         self.checkpoint_manager = checkpoint_manager
         self.instance_name = instance_name
         self.loss_cfg = loss_config
-        # self.policy_cfg = self.policy.get_cfg()
         self.policy_experience_spec = self.policy.get_agent_experience_spec()
         self.loss_tracker = defaultdict(list)
 
@@ -80,12 +79,10 @@ class BaseLoss:
 
     def on_new_training_run(self, trainer_state: TrainerState) -> None:
         """We're at the very beginning of the training loop."""
-        self.policy.on_new_training_run()
         return
 
     def on_rollout_start(self, trainer_state: TrainerState) -> None:
         """We're about to start a new rollout phase."""
-        self.policy.on_rollout_start()
         return
 
     def rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:

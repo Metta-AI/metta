@@ -22,13 +22,15 @@ class CNNEncoderConfig(Config):
 
 
 class CNNEncoder(nn.Module):
-    def __init__(self, env, config: Optional[CNNEncoderConfig] = None):
+    def __init__(self, obs_meta: dict, config: Optional[CNNEncoderConfig] = None):
         super().__init__()
         self.config = config or CNNEncoderConfig()
 
-        self.obs_shaper = ObsTokenToBoxShaper(env.obs_shape, env.obs_width, env.obs_height, env.feature_normalizations)
-        self.num_layers = max(env.feature_normalizations.keys()) + 1
-        self.obs_normalizer = ObservationNormalizer(env.feature_normalizations)
+        self.obs_shaper = ObsTokenToBoxShaper(
+            obs_meta["obs_space"], obs_meta["obs_width"], obs_meta["obs_height"], obs_meta["feature_normalizations"]
+        )
+        self.num_layers = max(obs_meta["feature_normalizations"].keys()) + 1
+        self.obs_normalizer = ObservationNormalizer(obs_meta["feature_normalizations"])
 
         self.cnn1 = pufferlib.pytorch.layer_init(
             nn.Conv2d(self.num_layers, **self.config.cnn1_cfg),
@@ -40,7 +42,7 @@ class CNNEncoder(nn.Module):
             std=1.0,  # Match YAML orthogonal gain=1,
         )
 
-        test_input = torch.zeros(1, self.num_layers, env.obs_width, env.obs_height)
+        test_input = torch.zeros(1, self.num_layers, obs_meta["obs_width"], obs_meta["obs_height"])
         with torch.no_grad():
             test_output = self.cnn2(self.cnn1(test_input))
             self.flattened_size = test_output.numel() // test_output.shape[0]
