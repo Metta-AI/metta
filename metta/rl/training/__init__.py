@@ -1,10 +1,10 @@
 """Training components for Metta RL."""
 
-from metta.rl.training import vecenv
-from metta.rl.training.component import ComponentConfig, MasterComponent, TrainingComponent
+from metta.rl.training import training_environment
+from metta.rl.training.component import TrainerComponent
 from metta.rl.training.core import CoreTrainingLoop, RolloutResult
 from metta.rl.training.distributed_helper import DistributedHelper
-from metta.rl.training.evaluator import EvaluationConfig, Evaluator, NoOpEvaluator
+from metta.rl.training.evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
 from metta.rl.training.gradient_stats import GradientStatsComponent, GradientStatsConfig
 from metta.rl.training.heartbeat import HeartbeatConfig, HeartbeatWriter
 from metta.rl.training.hyperparameter import HyperparameterComponent, HyperparameterConfig
@@ -29,7 +29,7 @@ __all__ = [
     "TrainerCheckpointerConfig",
     # Evaluation
     "Evaluator",
-    "EvaluationConfig",
+    "EvaluatorConfig",
     "NoOpEvaluator",
     # Stats
     "StatsReporter",
@@ -37,9 +37,9 @@ __all__ = [
     "StatsState",
     "NoOpStatsReporter",
     # Components
-    "TrainingComponent",
-    "MasterComponent",
-    "ComponentConfig",
+    "TrainerComponent",
+    "TrainerComponent",
+    "Config",
     # Torch profiler
     "TorchProfilerComponent",
     "TorchProfilerConfig",
@@ -52,6 +52,6 @@ __all__ = [
     # Gradient stats
     "GradientStatsComponent",
     "GradientStatsConfig",
-    # Vecenv
-    "vecenv",
+    # Training environment
+    "training_environment",
 ]

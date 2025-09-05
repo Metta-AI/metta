@@ -4,21 +4,22 @@ import logging
 from typing import Any, Dict, Optional
 
 from metta.common.wandb.wandb_context import WandbRun
+from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.component import ComponentConfig, MasterComponent
+from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
 
 
-class PolicyUploaderConfig(ComponentConfig):
+class PolicyUploaderConfig(Config):
     """Configuration for policy uploading."""
 
-    interval: int = 1000
+    epoch_interval: int = 1000
     """How often to upload policy to wandb (in epochs)"""
 
 
-class PolicyUploader(MasterComponent):
+class PolicyUploader(TrainerComponent):
     """Manages uploading policies to wandb and other destinations."""
 
     def __init__(
@@ -66,7 +67,7 @@ class PolicyUploader(MasterComponent):
         if not self.wandb_run:
             return None
 
-        if not force and epoch % self.config.interval != 0:
+        if not force and epoch % self.config.epoch_interval != 0:
             return None
 
         try:
@@ -87,7 +88,7 @@ class PolicyUploader(MasterComponent):
         """Check if policy should be uploaded at epoch end."""
 
         # Check if we should upload
-        if epoch % self.config.interval != 0:
+        if epoch % self.config.epoch_interval != 0:
             return
 
         # Get latest checkpoint URI from policy checkpointer

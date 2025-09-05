@@ -5,11 +5,10 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
-from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
-from metta.rl.experience import Experience
 from metta.rl.loss.ppo import compute_ppo_losses
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training.experience import Experience
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +70,7 @@ def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dt
 
 
 def process_minibatch_update(
-    policy: PolicyAgent,
+    policy: "PolicyAgent",
     experience: Experience,
     minibatch: TensorDict,
     policy_td: TensorDict,

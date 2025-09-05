@@ -3,29 +3,35 @@
 import logging
 from typing import Any, Dict, Optional, Tuple
 
+from pydantic import Field
+
+from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.component import ComponentConfig, TrainingComponent
+from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
 
 
-class TrainerCheckpointerConfig(ComponentConfig):
+class TrainerCheckpointerConfig(Config):
     """Configuration for trainer state checkpointing."""
 
-    interval: int = 50
+    checkpoint_dir: str | None = Field(default=None)
+    """Directory to save trainer state checkpoints"""
+
+    epoch_interval: int = 50
     """How often to save trainer state checkpoints (in epochs)"""
+
     keep_last_n: int = 5
     """Number of recent trainer checkpoints to keep"""
 
 
-class TrainerCheckpointer(TrainingComponent):
+class TrainerCheckpointer(TrainerComponent):
     """Manages trainer state checkpointing (optimizer, epoch, etc.)."""
 
     def __init__(
         self,
         config: TrainerCheckpointerConfig,
-        checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
     ):
         """Initialize trainer checkpointer.
@@ -36,7 +42,7 @@ class TrainerCheckpointer(TrainingComponent):
             distributed_helper: Helper for distributed training
         """
         super().__init__(config)
-        self.checkpoint_manager = checkpoint_manager
+        self.checkpoint_manager = CheckpointManager(run_dir=config.checkpoint_dir)
         self.distributed = distributed_helper
         self.config = config
 
@@ -107,7 +113,7 @@ class TrainerCheckpointer(TrainingComponent):
         if not self.distributed.should_checkpoint():
             return False
 
-        if not force and epoch % self.config.interval != 0:
+        if not force and epoch % self.config.epoch_interval != 0:
             return False
 
         trainer_state = {
@@ -202,3 +208,40 @@ class TrainerCheckpointer(TrainingComponent):
             timer_state=timer_state,
             force=True,  # Always save final state
         )
+
+        """Finalize training."""
+        if not self.distributed_helper.is_master():
+            return
+
+        logger.info("Training complete!")
+
+        # Save final checkpoint
+        metadata = {
+            "agent_step": self._agent_step,
+            "total_time": self.timer.get_elapsed(),
+            "total_train_time": (
+                self.timer.get_all_elapsed().get("_rollout", 0) + self.timer.get_all_elapsed().get("_train", 0)
+            ),
+            "is_final": True,
+            "upload_to_wandb": False,
+        }
+
+        # Add final evaluation scores
+        if self.evaluator:
+            eval_scores = self.evaluator.get_latest_scores()
+            if eval_scores.category_scores or eval_scores.simulation_scores:
+                metadata.update(
+                    {
+                        "score": eval_scores.avg_simulation_score,
+                        "avg_reward": eval_scores.avg_category_score,
+                    }
+                )
+
+        # Final saves are handled by component callbacks (on_training_complete)
+
+        # Log timing summary
+        if self.distributed_helper.is_master():
+            timing_summary = self.timer.get_all_summaries()
+            logger.info("Timing Summary:")
+            for name, summary in timing_summary.items():
+                logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")

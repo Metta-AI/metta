@@ -12,8 +12,8 @@ import numpy as np
 import torch
 from einops import rearrange
 
-from metta.agent.metta_agent import PolicyAgent
 from metta.agent.mocks import MockAgent
+from metta.agent.policy import Policy
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
@@ -46,7 +46,7 @@ class Simulation:
         self,
         name: str,
         cfg: SimulationConfig,
-        policy: PolicyAgent,
+        policy: Policy,
         policy_uri: str,
         device: torch.device,
         vectorization: str,

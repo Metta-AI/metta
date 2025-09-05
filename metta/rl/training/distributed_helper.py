@@ -1,13 +1,14 @@
 """Helper for distributed training operations."""
 
 import logging
+import os
 from typing import TYPE_CHECKING, Any, List
 
 import torch
 import torch.distributed
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.core.distributed import TorchDistributedConfig
+from metta.agent.metta_agent import MettaAgent
+from metta.mettagrid.config import Config
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -15,20 +16,55 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class TorchDistributedConfig(Config):
+    device: str
+    is_master: bool
+    world_size: int
+    rank: int
+    local_rank: int
+    distributed: bool
+
+
 class DistributedHelper:
     """Helper class for distributed training operations."""
 
-    def __init__(self, config: TorchDistributedConfig):
+    def __init__(self, device: torch.device):
         """Initialize distributed helper.
 
         Args:
-            config: Torch distributed configuration
+            device: Device string (e.g. "cuda:0", "cpu")
         """
-        self._config = config
-        self._is_distributed = config.distributed
-        self._is_master = config.is_master
-        self._rank = config.rank
-        self._world_size = config.world_size
+        assert not torch.distributed.is_initialized()
+
+        master = True
+        world_size = 1
+        rank = 0
+        local_rank = 0
+        distributed = False
+
+        if "LOCAL_RANK" in os.environ and device.type == "cuda":
+            torch.distributed.init_process_group(backend="nccl")
+
+            torch.cuda.set_device(device)
+            distributed = True
+            local_rank = torch.distributed.get_rank()
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+            master = rank == 0
+            logger.info(f"Initialized NCCL distributed training on {device.type}")
+
+        self._config = TorchDistributedConfig(
+            device=device.type,
+            is_master=master,
+            world_size=world_size,
+            rank=rank,
+            local_rank=local_rank,
+            distributed=distributed,
+        )
+        self._is_distributed = distributed
+        self._is_master = master
+        self._rank = rank
+        self._world_size = world_size
 
     def setup(self) -> None:
         """Initialize distributed training if needed."""
@@ -63,7 +99,7 @@ class DistributedHelper:
             f"forward_pass_minibatch_target_size={trainer_cfg.forward_pass_minibatch_target_size}"
         )
 
-    def wrap_policy(self, policy: PolicyAgent, device: torch.device) -> PolicyAgent:
+    def wrap_policy(self, policy: MettaAgent, device: torch.device) -> MettaAgent:
         """Wrap policy for distributed training if needed.
 
         Args:
@@ -185,3 +221,9 @@ class DistributedHelper:
         if self._is_distributed:
             torch.distributed.all_reduce(tensor, op=op)
         return tensor
+
+    def cleanup(self) -> None:
+        """Destroy the torch distributed process group if initialized."""
+        if torch.distributed.is_initialized():
+            torch.distributed.destroy_process_group()
+            logger.info("Destroyed distributed process group")

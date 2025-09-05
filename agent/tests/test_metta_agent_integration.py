@@ -4,7 +4,7 @@ import torch
 from tensordict import TensorDict
 
 import metta.mettagrid.builder.envs as eb
-from metta.agent.agent_config import AgentConfig
+from metta.agent.agent_config import PolicyArchitectureConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.utils import obs_to_td
 from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -25,7 +25,7 @@ def create_env_and_agent():
 
     # Create system and agent configs
     system_cfg = SystemConfig(device="cpu")
-    agent_cfg = AgentConfig(name="fast")
+    agent_cfg = PolicyArchitectureConfig(name="fast")
 
     # Create the agent
     agent = MettaAgent(
@@ -211,7 +211,7 @@ def test_multi_agent_environment(create_env_and_agent):
 
     # Create agent
     system_cfg = SystemConfig(device="cpu")
-    agent_cfg = AgentConfig(name="latent_attn_tiny")  # Use attention model for multi-agent
+    agent_cfg = PolicyArchitectureConfig(name="latent_attn_tiny")  # Use attention model for multi-agent
 
     agent = MettaAgent(
         env=multi_env,
@@ -245,7 +245,7 @@ def test_different_agent_architectures():
 
         # Create agent with specific architecture
         system_cfg = SystemConfig(device="cpu")
-        agent_cfg = AgentConfig(name=arch_name)
+        agent_cfg = PolicyArchitectureConfig(name=arch_name)
 
         agent = MettaAgent(
             env=env,
@@ -277,11 +277,11 @@ def test_pytorch_vs_component_policies():
     system_cfg = SystemConfig(device="cpu")
 
     # ComponentPolicy version (latent_attn_tiny)
-    component_cfg = AgentConfig(name="latent_attn_tiny")
+    component_cfg = PolicyArchitectureConfig(name="latent_attn_tiny")
     component_agent = MettaAgent(env=env, system_cfg=system_cfg, policy_architecture_cfg=component_cfg)
 
     # PyTorch version (pytorch/latent_attn_tiny)
-    pytorch_cfg = AgentConfig(name="pytorch/latent_attn_tiny")
+    pytorch_cfg = PolicyArchitectureConfig(name="pytorch/latent_attn_tiny")
     pytorch_agent = MettaAgent(env=env, system_cfg=system_cfg, policy_architecture_cfg=pytorch_cfg)
 
     # Initialize both

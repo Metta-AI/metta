@@ -4,8 +4,8 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.training.evaluator import EvaluatorConfig
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -63,22 +63,12 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
-        evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(
-                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-                ),
-                SimulationConfig(
-                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-                ),
-            ],
-        ),
-    )
+    curriculum = curriculum or make_curriculum()
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
+    )
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
@@ -109,15 +99,10 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     if converters:
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=cc.env_curriculum(env_cfg),
-        evaluation=EvaluationConfig(
-            simulations=make_evals(env_cfg),
-        ),
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
     )
-
-    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:

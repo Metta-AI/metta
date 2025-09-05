@@ -4,8 +4,8 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training.evaluator import EvaluatorConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -76,22 +76,19 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
-        evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(
-                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-                ),
-                SimulationConfig(
-                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-                ),
-            ],
-        ),
+    curriculum = curriculum or make_curriculum()
+    evaluator = EvaluatorConfig(
+        simulations=[
+            SimulationConfig(
+                name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
+            ),
+            SimulationConfig(
+                name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
+            ),
+        ],
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(trainer=TrainerConfig(), evaluation=evaluator)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
