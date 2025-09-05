@@ -1,0 +1,44 @@
+################# Base builder image: install system and non-workspace dependencies #################
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
+ENV READTHEDOCS=True
+ENV UV_LINK_MODE=copy
+ENV METTA_SYSTEM_INSTALL_DIR=/usr/local/bin
+
+RUN mkdir -p /workspace/metta
+WORKDIR /workspace/metta
+
+COPY .python-version pyproject.toml uv.lock ./
+COPY */pyproject.toml */
+COPY devops/tools/install-system.sh devops/tools/install-system.sh
+
+RUN bash ./devops/tools/install-system.sh
+RUN uv sync --no-install-workspace --frozen
+
+################# Runtime image: copy system deps and install workspace deps #################
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
+ENV READTHEDOCS=True
+ENV UV_LINK_MODE=copy
+
+WORKDIR /workspace/metta
+
+COPY . .
+
+RUN git config --remove-section http."https://github.com/" || true
+RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
+RUN git fetch
+
+# Copy built workspace from builder stage
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+COPY --from=builder /usr/local/bin/bazel /usr/local/bin/bazel
+COPY --from=builder /root/.local/share/uv /root/.local/share/uv
+
+RUN bash ./devops/tools/install-system.sh
+RUN bash install.sh --profile=softmax-docker --non-interactive
+
+ENTRYPOINT ["/bin/bash", "-c"]
