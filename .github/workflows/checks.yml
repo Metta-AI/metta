@@ -280,9 +280,18 @@ jobs:
         if: always()
         run: |
           if [ -f test-results/output.log ]; then
-            echo "## Slowest tests for ${{ matrix.package }}:" >> $GITHUB_STEP_SUMMARY
-            grep -E "^[0-9]+\.[0-9]+s " test-results/output.log | head -10 >> $GITHUB_STEP_SUMMARY || echo "No duration info found" >> $GITHUB_STEP_SUMMARY
+            grep -E "^[0-9]+\.[0-9]+s " test-results/output.log > test-results/durations.txt || echo "No durations found" > test-results/durations.txt
+            # Add package name to each line for context
+            sed -i "s/$/ [${{ matrix.package }}]/" test-results/durations.txt
           fi
+
+      - name: Upload test durations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations-${{ matrix.package }}
+          path: test-results/durations.txt
+          retention-days: 1
 
       - name: Upload coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
@@ -301,6 +310,44 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Download all test durations
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-durations-*
+          path: ./all-durations/
+
+      - name: Find slowest tests overall
+        if: always()
+        run: |
+          # Combine all duration files
+          cat ./all-durations/*/durations.txt > combined-durations.txt 2>/dev/null || echo "No duration files found" > combined-durations.txt
+
+          # Check if we have actual durations
+          if grep -q "^[0-9]" combined-durations.txt; then
+            echo "## 🐌 Top 10 Slowest Tests Overall" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Duration | Test | Package |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|------|---------|" >> $GITHUB_STEP_SUMMARY
+
+            # Sort by duration (numerical, reverse) and take top 10
+            sort -rn combined-durations.txt | head -10 | while read -r line; do
+              # Extract duration, test path, and package
+              duration=$(echo "$line" | awk '{print $1}')
+              test_info=$(echo "$line" | awk '{$1=""; print $0}' | sed 's/^ //')
+              # Extract package name from the [package] suffix we added
+              package=$(echo "$test_info" | grep -oE '\[[^]]+\]$' | tr -d '[]')
+              test_path=$(echo "$test_info" | sed 's/ \[[^]]*\]$//')
+
+              echo "| $duration | $test_path | $package |" >> $GITHUB_STEP_SUMMARY
+            done
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "_Note: Durations include test setup and teardown time_" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ℹ️ No test duration information available" >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Check test results
         run: |
           echo "Test job results: ${{ toJSON(needs) }}"
