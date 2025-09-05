@@ -1,14 +1,27 @@
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import terrain, objects, enemies, colors, rewards
-export terrain, objects, colors, rewards
+import terrain, objects, ai
+export terrain, objects
 
 const
+  # Map layout constants
   MapLayoutRoomsX* = 1
   MapLayoutRoomsY* = 1
   MapBorder* = 4
   MapRoomWidth* = 96  # 100 - 4 border = 96
   MapRoomHeight* = 46  # 50 - 4 border = 46
   MapRoomBorder* = 0
+  
+  # Reward constants
+  RewardGetWater* = 0.001      # Collecting water from tiles
+  RewardGetWheat* = 0.001      # Harvesting wheat 
+  RewardGetWood* = 0.002       # Chopping wood (slightly higher as it's needed for spears)
+  RewardMineOre* = 0.003       # Mining ore (first step in battery chain)
+  RewardConvertOreToBattery* = 0.01   # Using converter to make batteries
+  RewardCraftSpear* = 0.01            # Using forge to craft spear
+  RewardCraftArmor* = 0.015           # Using armory to craft armor  
+  RewardCraftFood* = 0.012            # Using clay oven to craft food
+  RewardCraftCloth* = 0.012           # Using weaving loom to craft cloth
+  RewardDestroyClippy* = 0.1          # Destroying a clippy with spear
   MapRoomObjectsAgents* = 15  # Total agents to spawn (will be distributed across villages)
   MapRoomObjectsHouses* = 3  # Number of villages/houses to spawn
   MapAgentsPerHouse* = 5  # Agents to spawn per house/village
@@ -27,6 +40,7 @@ const
   MapObjectMineCooldown* = 5
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
+  SpawnerCooldown* = 30  # Steps between Clippy spawns
   ObservationLayers* = 17
   ObservationWidth* = 11
   ObservationHeight* = 11
@@ -392,17 +406,31 @@ proc isEmpty*(env: Environment, pos: IVec2): bool =
     return false
   return env.grid[pos.x][pos.y] == nil
 
-proc createClippy*(pos: IVec2, homeSpawner: IVec2, r: var Rand): Thing =
-  ## Create a new Clippy with standard initial settings
+proc findNearestAltar*(env: Environment, fromPos: IVec2): IVec2 =
+  ## Find the position of the nearest altar to a given position
+  var nearestAltar = ivec2(-1, -1)
+  var minDist = int.high
+  
+  for thing in env.things:
+    if thing.kind == Altar:
+      let dist = abs(thing.pos.x - fromPos.x) + abs(thing.pos.y - fromPos.y)
+      if dist < minDist:
+        minDist = dist
+        nearestAltar = thing.pos
+  
+  return nearestAltar
+
+proc createClippy*(pos: IVec2, homeSpawner: IVec2, targetAltar: IVec2, r: var Rand): Thing =
+  ## Create a new Clippy with a target altar to pursue
   Thing(
     kind: Clippy,
     pos: pos,
     orientation: Orientation(r.rand(0..3)),
     homeSpawner: homeSpawner,
-    wanderRadius: 5,  # Start with medium radius
-    wanderAngle: 0.0,
-    targetPos: ivec2(-1, -1),  # No target initially
-    wanderStepsRemaining: 0,  # Start ready to look for targets
+    wanderRadius: 5,  # Not used anymore but kept for compatibility
+    wanderAngle: 0.0,  # Not used anymore but kept for compatibility
+    targetPos: targetAltar,  # Set the altar as permanent target
+    wanderStepsRemaining: 0,  # Ready to move toward target
   )
 
 proc orientationToVec*(orientation: Orientation): IVec2 =
@@ -479,13 +507,6 @@ proc rotateAction(env: Environment, id: int, agent: Thing, argument: int) =
   env.updateObservations(AgentOrientationLayer, agent.pos, argument)
   inc env.stats[id].actionRotate
 
-proc jumpAction(env: Environment, id: int, agent: Thing) =
-  ## Jump the agent
-  discard
-
-proc transferAction(env: Environment, id: int, agent: Thing) =
-  ## Transfer resources
-  discard
 
 proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
   ## Use resources - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
@@ -715,13 +736,6 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
   of Empty:
     inc env.stats[id].actionInvalid  # Nothing to get
 
-proc shieldAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Shield action
-  inc env.stats[id].actionInvalid
-
-proc giftAction(env: Environment, id: int, agent: Thing) =
-  ## Gift
-  discard
 
 proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
   ## Swap
@@ -743,6 +757,7 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
     env.updateObservations(target.agentId)
   else:
     inc env.stats[id].actionInvalid
+
 
 # proc updateGrid(env: Environment) =
 #   ## Update the grid
@@ -1195,7 +1210,8 @@ proc init(env: Environment) =
           # Find an empty position adjacent to the spawner for initial clippy
           let nearbyPositions = env.findEmptyPositionsAround(targetPos, 1)
           if nearbyPositions.len > 0:
-            env.add(createClippy(nearbyPositions[0], targetPos, r))
+            let nearestAltar = env.findNearestAltar(targetPos)
+            env.add(createClippy(nearbyPositions[0], targetPos, nearestAltar, r))
           
           placed = true
           break
@@ -1240,7 +1256,8 @@ proc init(env: Environment) =
           
           let nearbyPositions = env.findEmptyPositionsAround(fallbackPos, 1)
           if nearbyPositions.len > 0:
-            env.add(createClippy(nearbyPositions[0], fallbackPos, r))
+            let nearestAltar = env.findNearestAltar(fallbackPos)
+            env.add(createClippy(nearbyPositions[0], fallbackPos, nearestAltar, r))
           break
 
   for i in 0 ..< MapRoomObjectsConverters:
@@ -1418,8 +1435,9 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             var r = initRand(env.currentStep)
             let spawnPos = r.sample(emptyPositions)
             
-            # Create new Clippy
-            let newClippy = createClippy(spawnPos, thing.pos, r)
+            # Create new Clippy with nearest altar as target
+            let nearestAltar = env.findNearestAltar(thing.pos)
+            let newClippy = createClippy(spawnPos, thing.pos, nearestAltar, r)
             # Don't add immediately - collect for later
             newClippysToSpawn.add(newClippy)
             
@@ -1451,7 +1469,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       thingPtrs.add(cast[pointer](t))
     
     # Get movement direction from clippy AI
-    let moveDir = getClippyMoveDirection(clippy.pos, thingPtrs, r)
+    let moveDir = getClippyMoveDirection(cast[pointer](clippy), thingPtrs, r)
     let newPos = clippy.pos + moveDir
     
     # Update clippy orientation based on movement direction
@@ -1651,3 +1669,80 @@ proc getEpisodeStats*(env: Environment): string =
   display "action.get.wood", actionGetWood
 
   return result
+
+# ============== GAME STATE MANAGEMENT ==============
+
+type
+  GameState* = ref object
+    env*: Environment
+    selection*: Thing
+
+# Global game state instance
+var gameState* = GameState(
+  env: nil,
+  selection: nil
+)
+
+proc initGameState*() =
+  ## Initialize the game state with a new environment
+  gameState.env = newEnvironment()
+  gameState.selection = nil
+
+proc getEnv*(): Environment =
+  ## Get the current environment
+  if gameState.env == nil:
+    initGameState()
+  return gameState.env
+
+proc setEnv*(env: Environment) =
+  ## Set the current environment
+  gameState.env = env
+
+proc getSelection*(): Thing =
+  ## Get the currently selected thing
+  return gameState.selection
+
+proc setSelection*(thing: Thing) =
+  ## Set the currently selected thing
+  gameState.selection = thing
+
+proc clearSelection*() =
+  ## Clear the current selection
+  gameState.selection = nil
+
+# Initialize on module load
+initGameState()
+
+# ============== COLOR MANAGEMENT ==============
+
+# Global village color management
+var agentVillageColors*: seq[Color] = @[]
+var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
+
+proc generateEntityColor*(entityType: string, id: int, fallbackColor: Color = color(0.5, 0.5, 0.5, 1.0)): Color =
+  ## Unified color generation for all entity types
+  ## Uses golden angle for optimal color distribution
+  case entityType:
+  of "agent":
+    if id >= 0 and id < agentVillageColors.len:
+      return agentVillageColors[id]
+    # Fallback using mathematical constants for variety
+    let f = id.float32
+    return color(
+      f * PI mod 1.0,
+      f * E mod 1.0,
+      f * sqrt(2.0) mod 1.0,
+      1.0
+    )
+  of "village":
+    # Warm colors for villages using golden angle
+    let hue = (id.float32 * 137.5) mod 360.0 / 360.0
+    let saturation = 0.7 + (id.float32 * 0.13) mod 0.3
+    let lightness = 0.5 + (id.float32 * 0.17) mod 0.2
+    return color(hue, saturation, lightness, 1.0)
+  else:
+    return fallbackColor
+
+proc getAltarColor*(pos: IVec2): Color =
+  ## Get altar color by position, with white fallback
+  altarColors.getOrDefault(pos, color(1.0, 1.0, 1.0, 1.0))

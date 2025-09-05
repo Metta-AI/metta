@@ -41,19 +41,6 @@ proc measureText*(
   return vec2(bounds.w, bounds.h)
 
 
-proc drawBubbleLine*(bxy: Boxy, start: Vec2, stop: Vec2, color: Color) =
-  ## Draw a line with circles.
-  let
-    dir = (stop - start).normalize
-  for i in 0 ..< int(dist(start, stop) / 5):
-    let pos = start + dir * i.float32 * 5
-    # bxy.drawImage(
-    #   "bubble",
-    #   pos,
-    #   angle = 0,
-    #   scale = 0.25,
-    #   tint = color
-    # )
 
 proc boxyMouse*(window: Window): Vec2 =
   return inverse(bxy.getTransform()) * window.mousePos.vec2

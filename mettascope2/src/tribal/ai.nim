@@ -500,3 +500,51 @@ proc updateController*(controller: Controller) =
   
   # Periodically reset spiral patterns to prevent getting stuck
   # (Spiral already resets itself after ~30 arcs, so this is handled)
+
+# ============== CLIPPY AI ==============
+
+proc manhattanDistance*(a, b: IVec2): int =
+  ## Calculate Manhattan distance between two points
+  return abs(a.x - b.x) + abs(a.y - b.y)
+
+proc getDirectionToward*(fromPos, toPos: IVec2): IVec2 =
+  ## Calculate unit direction from one position toward another
+  let dx = toPos.x - fromPos.x
+  let dy = toPos.y - fromPos.y
+  
+  if dx == 0 and dy == 0:
+    return ivec2(0, 0)
+  
+  # Move in the direction with larger difference
+  if abs(dx) > abs(dy):
+    if dx > 0: return ivec2(1, 0)
+    else: return ivec2(-1, 0)
+  else:
+    if dy > 0: return ivec2(0, 1)
+    else: return ivec2(0, -1)
+
+proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[pointer], r: var Rand): IVec2 =
+  ## Determine Clippy movement direction toward the closest altar
+  
+  # Find the closest altar
+  var nearestAltar = ivec2(-1, -1)
+  var minDist = int.high
+  
+  for thingPtr in things:
+    if isNil(thingPtr):
+      continue
+    let thing = cast[ptr tuple[kind: int, pos: IVec2]](thingPtr)
+    # Altar is the 5th enum value (0-indexed), so value is 4
+    if thing.kind == 4:  # Altar kind
+      let dist = manhattanDistance(clippyPos, thing.pos)
+      if dist < minDist:
+        minDist = dist
+        nearestAltar = thing.pos
+  
+  # If we found an altar, move toward it
+  if nearestAltar.x >= 0:
+    return getDirectionToward(clippyPos, nearestAltar)
+  
+  # Fallback: Random walk if no altar found (shouldn't happen in normal gameplay)
+  let directions = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+  return r.sample(directions)
