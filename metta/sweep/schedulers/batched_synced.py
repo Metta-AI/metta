@@ -9,8 +9,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from torch import batch_norm_gather_stats
-
 from metta.sweep.models import JobDefinition, JobStatus, RunInfo, SweepMetadata
 from metta.sweep.protocols import Optimizer
 from metta.sweep.utils import (

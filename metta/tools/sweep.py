@@ -229,7 +229,7 @@ class SweepTool(Tool):
             eval_entrypoint=self.eval_entrypoint,
             train_overrides=self.train_overrides,  # Pass train overrides to scheduler
             stats_server_uri=self.stats_server_uri,  # Pass stats server for remote evals
-            batch_size = self.max_parallel_jobs,
+            batch_size=self.max_parallel_jobs,
             gpus_per_job=self.gpus_per_job,  # Pass GPU configuration
         )
         scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)

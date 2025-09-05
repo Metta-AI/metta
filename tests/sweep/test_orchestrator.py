@@ -12,9 +12,6 @@ from metta.sweep import (
     RunInfo,
     SweepMetadata,
 )
-from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-
 from metta.sweep.stores.wandb import WandbStore
 
 
@@ -156,8 +153,6 @@ class TestLocalDispatcher:
 
 class TestProtocolCompliance:
     """Test that components comply with Protocol interfaces."""
-
-
 
     def test_store_protocol(self):
         """Test that stores follow the Store protocol."""

@@ -1,7 +1,6 @@
 """Integration tests for sweep controller lifecycle management."""
 
 import time
-from unittest.mock import patch
 
 from metta.sweep.controller import SweepController
 from metta.sweep.models import JobDefinition, JobTypes, Observation, RunInfo, SweepStatus
@@ -426,7 +425,8 @@ class TestControllerLifecycle:
             return False
 
         # 2. Update sweep metadata based on ALL runs
-        from metta.sweep.models import SweepMetadata, JobStatus
+        from metta.sweep.models import JobStatus, SweepMetadata
+
         metadata = SweepMetadata(sweep_id=self.sweep_id)
         metadata.runs_created = len(all_run_infos)
 
@@ -450,6 +450,7 @@ class TestControllerLifecycle:
 
         # 4. Filter jobs based on capacity constraints and dispatch status
         from metta.sweep.models import JobTypes
+
         filtered_jobs = []
 
         for job in new_jobs:
@@ -480,7 +481,7 @@ class TestControllerLifecycle:
                 elif job.type == JobTypes.LAUNCH_EVAL:
                     pass  # Just dispatch
 
-                dispatch_id = self.dispatcher.dispatch(job)
+                self.dispatcher.dispatch(job)
 
                 # Track that we've dispatched this job
                 if job.type == JobTypes.LAUNCH_TRAINING:
@@ -488,7 +489,7 @@ class TestControllerLifecycle:
                 elif job.type == JobTypes.LAUNCH_EVAL:
                     self.dispatched_evals.add(job.run_id)
 
-            except Exception as e:
+            except Exception:
                 continue
 
         # 6. Update completed runs
