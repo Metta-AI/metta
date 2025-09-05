@@ -48,11 +48,8 @@ def _run_bazel_build() -> None:
         config = "dbg" if debug else "opt"
 
     # Build the Python extension
-    trust_store = Path(os.environ.get("JAVA_HOME", "")) / "lib" / "security" / "cacerts"
     cmd = [
         "bazel",
-        f"--host_jvm_args=-Djavax.net.ssl.trustStore={trust_store}",
-        "--host_jvm_args=-Djavax.net.ssl.trustStorePassword=changeit",
         "build",
         f"--config={config}",
         "//:mettagrid_c",
