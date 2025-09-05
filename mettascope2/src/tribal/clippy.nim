@@ -23,7 +23,6 @@ const
   
   # Temple properties
   TempleCooldown* = 10  # Time between Clippy spawns (doubled spawn rate)
-  TempleMaxClippys* = 3  # Max Clippys per temple
 
 proc createTemple*(): TempleStructure =
   ## Create a temple structure (3x3 with center as spawn point)
@@ -41,7 +40,7 @@ proc getTempleCenter*(temple: TempleStructure, topLeft: IVec2): IVec2 =
 
 proc shouldSpawnClippy*(templeCooldown: int, nearbyClippyCount: int): bool =
   ## Determine if a temple should spawn a new Clippy
-  return templeCooldown == 0 and nearbyClippyCount < TempleMaxClippys
+  return templeCooldown == 0
 
 proc getClippyBehavior*(clippy: pointer, target: pointer, distanceToTarget: float): ClippyBehavior =
   ## Determine Clippy's current behavior based on game state

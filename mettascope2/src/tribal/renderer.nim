@@ -1,7 +1,7 @@
 import
   std/[strformat, tables],
   boxy, vmath, windy, chroma,
-  common, panels, tribal, actions, utils
+  common, panels, environment, simulation, utils
 
 proc agentColor*(id: int): Color =
   if id >= 0 and id < agentVillageColors.len:

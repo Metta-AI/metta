@@ -1,6 +1,6 @@
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import tribal
-export tribal
+import environment
+export environment
 
 # New constants for attack system
 const
@@ -101,7 +101,7 @@ proc useClayOvenAction*(env: Environment, id: int, agent: Thing, ovenPos: IVec2)
   ## Could be used for crafting shields, pottery for water storage, etc.
   discard  # Not implemented yet
 
-# Note: The step function is now handled in tribal.nim with the attack action integrated
+# Note: The step function is now handled in environment.nim with the attack action integrated
 
 # Helper function to check if position is within spear range of any agent with spear
 proc isThreatenedBySpear*(env: Environment, pos: IVec2): bool =

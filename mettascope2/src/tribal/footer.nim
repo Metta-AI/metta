@@ -1,6 +1,6 @@
 import
   boxy, vmath, windy,
-  common, panels, actions, utils, ui
+  common, panels, simulation, utils, ui
 
 const
   BgColor = parseHtmlColor("#2D343D")

@@ -1177,8 +1177,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             if dist <= 5:  # Within 5 tiles of temple
               nearbyClippyCount += 1
         
-        # Spawn a new Clippy if under the max limit
-        if nearbyClippyCount < TempleMaxClippys:
+        # Spawn a new Clippy (no limit for now)
+        if true:
           # Find empty positions around temple
           let emptyPositions = env.findEmptyPositionsAround(thing.pos, 2)
           if emptyPositions.len > 0:
