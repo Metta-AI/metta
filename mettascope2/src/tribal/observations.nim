@@ -2,7 +2,7 @@
 ## Handles observation updates and rendering for the environment
 
 import std/strformat, vmath
-import environment_core
+import game
 
 type
   ObservationName* = enum

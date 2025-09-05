@@ -1,9 +1,9 @@
 import std/[math, random, tables, sequtils]
 import vmath
-import environment
+import game
 
 # Import the new orientations
-from environment import N, S, W, E, NW, NE, SW, SE
+from game import N, S, W, E, NW, NE, SW, SE
 
 type
   ControllerState* = ref object

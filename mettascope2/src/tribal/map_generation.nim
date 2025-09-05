@@ -2,7 +2,7 @@
 ## Handles world setup, building placement, and entity spawning
 
 import std/[random, tables], vmath, chroma
-import environment_core, terrain, placement, village, clippy, observations
+import game, terrain, placement, village, clippy, observations
 
 # Global village color management
 var agentVillageColors*: seq[Color] = @[]
