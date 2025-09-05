@@ -217,13 +217,23 @@ jobs:
           pnpm run lint
 
   unit-tests:
-    name: "Unit Tests - All Packages"
+    name: "Unit Tests - ${{ matrix.package }}"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-8core
+    runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - agent
+          - common
+          - app_backend
+          - mettagrid
+          - codebot
+          - core
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -245,107 +255,48 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run all package tests
+      - name: Run ${{ matrix.package }} tests
         shell: bash
         run: |
           # Create directories
           mkdir -p test-results coverage-reports
 
-          run_package_tests() {
-            local package=$1
-            local color=$2
+          PYTEST_BASE_ARGS="-n auto --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
-            # packages run in parallel so we will start (packages)*(pytest_workers) processes
-            PYTEST_BASE_ARGS="-n 2 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
-
-            # Save raw output for duration parsing
-            local raw_output="test-results/${package}_raw.log"
-
-            # Run tests and prefix each line with package name and color
-            if [ "$package" == "core" ]; then
-              (pytest $PYTEST_BASE_ARGS \
-                --cov-report=xml:coverage-reports/coverage-${package}.xml \
-                2>&1; echo $? > test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
-                  echo -e "${color}[${package}]\033[0m $line"
-                done
-            else
-              (cd "$package" && pytest $PYTEST_BASE_ARGS \
-                --cov-report=xml:../coverage-reports/coverage-${package}.xml \
-                2>&1; echo $? > ../test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
-                  echo -e "${color}[${package}]\033[0m $line"
-                done
-            fi
-
-            # Extract duration info for later summary
-            grep -E "^[0-9]+\.[0-9]+s " "$raw_output" > "test-results/${package}_durations.txt" || true
-          }
-
-          # Export function
-          export -f run_package_tests
-
-          # Record start time
-          START_TIME=$(date +%s)
-
-          echo "⏳ Running tests in parallel..."
-          run_package_tests "mettagrid" "\033[1;34m" &   # Bold Blue
-          sleep 2 # mettagrid is slowest, so give time for it to grab resources
-
-          run_package_tests "agent" "\033[1;31m" &        # Bold Red
-          run_package_tests "common" "\033[1;32m" &       # Bold Green
-          run_package_tests "app_backend" "\033[1;33m" & # Bold Yellow
-          run_package_tests "codebot" "\033[1;35m" &     # Bold Magenta
-          run_package_tests "core" "\033[1;36m" &         # Bold Cyan
-
-          wait
-          END_TIME=$(date +%s)
-          TOTAL_TIME=$((END_TIME - START_TIME))
-          OVERALL_FAILED=0
-          FAILED_PACKAGES=""
-
-          for package in agent common app_backend mettagrid codebot core; do
-            if [ -f "test-results/${package}.exit" ]; then
-              EXIT_CODE=$(cat "test-results/${package}.exit")
-              if [ "$EXIT_CODE" -ne 0 ]; then
-                OVERALL_FAILED=1
-                FAILED_PACKAGES="$FAILED_PACKAGES $package"
-              fi
-            else
-              OVERALL_FAILED=1
-              FAILED_PACKAGES="$FAILED_PACKAGES $package"
-            fi
-          done
-
-          echo -e "\n\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-          echo -e "\n\033[1;37m🐌 TOP 10 SLOWEST TESTS\033[0m"
-          # Combine all duration files and sort
-          for package in agent common app_backend mettagrid codebot core; do
-            if [ -f "test-results/${package}_durations.txt" ]; then
-              # Add package name to each line
-              sed "s/^/[${package}] /" "test-results/${package}_durations.txt"
-            fi
-          done | sort -rn | head -10 | nl -w2 -s'. '
-
-          if [ $OVERALL_FAILED -ne 0 ]; then
-            echo -e "\n\033[1;31m💥 Tests failed in:$FAILED_PACKAGES\033[0m"
-            echo -e "Total time: ${TOTAL_TIME}s"
-            exit 1
+          # Run tests based on package
+          if [ "${{ matrix.package }}" == "core" ]; then
+            pytest $PYTEST_BASE_ARGS \
+              --cov-report=term \
+              --cov-report=xml:coverage-reports/coverage.xml \
+              2>&1 | tee test-results/output.log
           else
-            echo -e "\n\033[1;32m🎉 All tests passed in ${TOTAL_TIME}s!\033[0m"
+            cd "${{ matrix.package }}" && pytest $PYTEST_BASE_ARGS \
+              --cov-report=term \
+              --cov-report=xml:../coverage-reports/coverage.xml \
+              2>&1 | tee ../test-results/output.log
           fi
 
-      - name: Upload python test coverage to Codecov
-        if: needs.setup-checks.outputs.is_external != 'true'
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          SUBPACKAGES: "agent common app_backend mettagrid codebot core"
+      - name: Extract test durations
+        if: always()
         run: |
-          # We want to set flags per file so the codecov action is not convenient
-          # If we change to a matrix of runners we should delete the script
-          chmod +x .github/scripts/upload_codecov.py
-          .github/scripts/upload_codecov.py
+          if [ -f test-results/output.log ]; then
+            echo "## Slowest tests for ${{ matrix.package }}:" >> $GITHUB_STEP_SUMMARY
+            grep -E "^[0-9]+\.[0-9]+s " test-results/output.log | head -10 >> $GITHUB_STEP_SUMMARY || echo "No duration info found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload coverage to Codecov
+        if: needs.setup-checks.outputs.is_external != 'true'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage-reports/coverage.xml
+          flags: ${{ matrix.package }}
+          name: ${{ matrix.package }}-coverage
+          fail_ci_if_error: false
+          verbose: true
 
   unit-tests-summary:
-    name: "Tests"
+    name: "Tests Summary"
     needs: [unit-tests]
     if: always()
     runs-on: ubuntu-latest
@@ -359,6 +310,15 @@ jobs:
           elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
             echo "One or more test jobs were cancelled"
             exit 1
+          elif [ "${{ contains(join(needs.*.result, ','), 'skipped') }}" == "true" ]; then
+            # Check if all jobs were skipped
+            if [ "${{ needs.unit-tests.result }}" == "skipped" ]; then
+              echo "All test jobs were skipped (likely due to no relevant changes)"
+              exit 0
+            else
+              echo "Some test jobs were unexpectedly skipped"
+              exit 1
+            fi
           else
             echo "All test jobs completed successfully"
           fi
