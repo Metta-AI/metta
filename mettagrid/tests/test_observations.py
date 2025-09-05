@@ -508,7 +508,7 @@ class TestGlobalTokens:
             )
         )
         env = MettaGridCore(cfg)
-        glyph_feature_id = env.c_env.feature_spec()["glyph"]["id"]
+        glyph_feature_id = env.c_env.feature_spec()["agent:glyph"]["id"]
 
         obs, _ = env.reset()
 
