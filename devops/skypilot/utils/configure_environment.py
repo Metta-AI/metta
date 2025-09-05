@@ -12,15 +12,6 @@ from metta.common.util.log_config import getRankAwareLogger, init_logging
 logger = getRankAwareLogger(__name__)
 
 
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Configure runtime environment for Skypilot jobs")
-    parser.add_argument(
-        "--sandbox", action="store_true", help="Configure for sandbox environment (skip job metadata setup)"
-    )
-    return parser.parse_args()
-
-
 def run_command(cmd, capture_output=True):
     """Run a shell command and return the output."""
     if isinstance(cmd, str):
@@ -182,9 +173,11 @@ def create_job_secrets(profile, wandb_password, observatory_token):
 
 
 def main():
-    """Main function to configure the runtime environment."""
-    # Parse command line arguments
-    args = parse_args()
+    parser = argparse.ArgumentParser(description="Configure runtime environment for Skypilot jobs")
+    parser.add_argument(
+        "--sandbox", action="store_true", help="Configure for sandbox environment (skip job metadata setup)"
+    )
+    args = parser.parse_args()
 
     # Log mode
     if args.sandbox:
