@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-from devops.skypilot.notifications.config import JobConfig
+from devops.skypilot.utils.job_config import JobConfig
 from gitta import post_commit_status
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 from metta.common.util.log_config import getRankAwareLogger

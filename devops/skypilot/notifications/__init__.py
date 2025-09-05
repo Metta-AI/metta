@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
 
-from .config import JobConfig
-from .manager import NotificationManager
+from devops.skypilot.notifications.manager import NotificationManager
 
 __all__ = [
     "NotificationManager",
-    "JobConfig",
 ]

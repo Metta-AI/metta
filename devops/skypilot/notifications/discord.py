@@ -5,7 +5,7 @@ import os
 import time
 from datetime import datetime
 
-from devops.skypilot.notifications.config import JobConfig
+from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.discord import send_to_discord
 from metta.common.util.log_config import getRankAwareLogger
 

@@ -2,7 +2,7 @@
 
 import time
 
-from devops.skypilot.notifications.config import JobConfig
+from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.utils import send_wandb_alert
 

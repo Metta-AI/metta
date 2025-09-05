@@ -11,8 +11,9 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from devops.skypilot.notifications import JobConfig, NotificationManager
+from devops.skypilot.notifications import NotificationManager
 from devops.skypilot.utils.cost_monitor import get_cost_info
+from devops.skypilot.utils.job_config import JobConfig
 from devops.skypilot.utils.job_latency import calculate_queue_latency
 from devops.skypilot.utils.nccl_tests import launch_nccl_tests
 from devops.skypilot.utils.runtime_monitors import ForceRestartTestMonitor, HeartbeatMonitor, TimeoutMonitor
