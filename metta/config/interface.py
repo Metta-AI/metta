@@ -23,10 +23,10 @@ class ConfigurableComponent(ABC):
         """Human-readable description."""
         pass
 
-    @abstractmethod
     def interactive_configure(self, current_config: dict[str, Any]) -> dict[str, Any]:
         """
         Interactive configuration wizard for this component.
+        Optional - defaults to returning current config unchanged.
 
         Args:
             current_config: Current configuration for this component
@@ -34,7 +34,7 @@ class ConfigurableComponent(ABC):
         Returns:
             Updated configuration dict
         """
-        pass
+        return current_config
 
     def validate_config(self, config: dict[str, Any]) -> list[str]:
         """
