@@ -13,11 +13,11 @@ These tests verify:
 - Actual concurrent execution timing
 """
 
-import time
 import threading
+import time
 import unittest
-from unittest.mock import Mock, patch
 from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import Mock
 
 import pytest
 
@@ -288,7 +288,7 @@ class TestParallelInstallDependencyResolution(unittest.TestCase):
 
         # Expected batching:
         # Batch 1: system, core, aws (no dependencies - can run in parallel)
-        # Batch 2: nodejs, skypilot, datadog_agent (depend on system/aws respectively - can run in parallel after batch 1)
+        # Batch 2: nodejs, skypilot, datadog_agent (depend on system/aws - can run in parallel after batch 1)
         # Batch 3: notebookwidgets, mettascope (depend on nodejs - can run in parallel after batch 2)
 
         self.assertEqual(len(batches), 3)
