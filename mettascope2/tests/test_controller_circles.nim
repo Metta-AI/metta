@@ -168,8 +168,8 @@ proc testClippyExpansion() =
           clippyPositions[thing.id].add(thing.pos)
           
           # Calculate exploration radius
-          let dx = (thing.pos.x - thing.homeTemple.x).float
-          let dy = (thing.pos.y - thing.homeTemple.y).float
+          let dx = (thing.pos.x - thing.homeSpawner.x).float
+          let dy = (thing.pos.y - thing.homeSpawner.y).float
           let dist = sqrt(dx * dx + dy * dy)
           maxExplorationRadius = max(maxExplorationRadius, dist)
           

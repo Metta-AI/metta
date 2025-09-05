@@ -26,7 +26,7 @@ proc testPlagueWaveExpansion() =
   for thing in env.things:
     if thing.kind == Clippy:
       clippyTrails[thing.id] = @[thing.pos]
-      homePositions[thing.id] = thing.homeTemple
+      homePositions[thing.id] = thing.homeSpawner
       maxDistances[thing.id] = 0.0
   
   let initialClippyCount = clippyTrails.len
@@ -43,14 +43,14 @@ proc testPlagueWaveExpansion() =
         # Track new clippys that spawn during simulation
         if thing.id notin clippyTrails:
           clippyTrails[thing.id] = @[]
-          homePositions[thing.id] = thing.homeTemple
+          homePositions[thing.id] = thing.homeSpawner
           maxDistances[thing.id] = 0.0
         
         clippyTrails[thing.id].add(thing.pos)
         
         # Calculate distance from home
-        let dx = (thing.pos.x - thing.homeTemple.x).float
-        let dy = (thing.pos.y - thing.homeTemple.y).float
+        let dx = (thing.pos.x - thing.homeSpawner.x).float
+        let dy = (thing.pos.y - thing.homeSpawner.y).float
         let dist = sqrt(dx * dx + dy * dy)
         maxDistances[thing.id] = max(maxDistances[thing.id], dist)
     
@@ -159,10 +159,10 @@ proc testDirectionalExpansion() =
         
         if prevPos != currPos:  # Clippy moved
           # Calculate if movement was away from or toward home
-          let homeDist1 = sqrt(((prevPos.x - thing.homeTemple.x) * (prevPos.x - thing.homeTemple.x) + 
-                               (prevPos.y - thing.homeTemple.y) * (prevPos.y - thing.homeTemple.y)).float)
-          let homeDist2 = sqrt(((currPos.x - thing.homeTemple.x) * (currPos.x - thing.homeTemple.x) + 
-                               (currPos.y - thing.homeTemple.y) * (currPos.y - thing.homeTemple.y)).float)
+          let homeDist1 = sqrt(((prevPos.x - thing.homeSpawner.x) * (prevPos.x - thing.homeSpawner.x) + 
+                               (prevPos.y - thing.homeSpawner.y) * (prevPos.y - thing.homeSpawner.y)).float)
+          let homeDist2 = sqrt(((currPos.x - thing.homeSpawner.x) * (currPos.x - thing.homeSpawner.x) + 
+                               (currPos.y - thing.homeSpawner.y) * (currPos.y - thing.homeSpawner.y)).float)
           
           if homeDist2 > homeDist1:
             outwardMovements += 1

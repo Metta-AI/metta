@@ -16,12 +16,12 @@ type
     ## Order matters - higher priority items are placed first
     PriorityRiver = 0      # Rivers always first - they shape the map
     PriorityTerrain = 1    # Wheat fields and trees
-    PriorityStructure = 2  # Houses and temples 
+    PriorityStructure = 2  # Houses and spawners 
     PriorityObject = 3     # Mines, generators, walls
     PriorityAgent = 4      # Agents placed last
   
   Structure* = object
-    ## Generic structure that can represent houses, temples, or any building
+    ## Generic structure that can represent houses, spawners, or any building
     width*, height*: int
     centerPos*: IVec2      # Center/important position within structure
     needsBuffer*: bool     # Whether to enforce empty space around it

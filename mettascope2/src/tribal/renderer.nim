@@ -44,9 +44,20 @@ proc drawFloor*() =
   # Draw the floor tiles everywhere first as the base layer
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
-      # First draw floor everywhere (water gets a blue tint)
+      # Get ice intensity for this tile (0.0 to 1.0)
+      let iceLevel = env.iceIntensity[x][y]
+      
+      # First draw floor everywhere (water gets a blue tint, ice adds more blue)
       if env.terrain[x][y] == Water:
         bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(0.3, 0.5, 0.8, 1.0))
+      elif iceLevel > 0:
+        # Ice tinting: progressively more blue as ice intensity increases
+        # Start with normal floor color, blend toward icy blue
+        let iceTint = min(iceLevel, 1.0)  # Cap at 1.0
+        let r = 1.0 - (iceTint * 0.4)  # Reduce red channel
+        let g = 1.0 - (iceTint * 0.2)  # Slightly reduce green  
+        let b = 1.0 + (iceTint * 0.3)  # Increase blue channel
+        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(r, g, min(b, 1.0), 1.0))
       else:
         bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200)
 
@@ -201,66 +212,37 @@ proc drawObjects*() =
             angle = 0,
             scale = 1/200
           )
-        of Mine:
-          let tint = color(0.5, 0.5, 1, 1)
+        of Mine, Spawner:
+          let imageName = if thing.kind == Mine: "objects/mine" else: "objects/spawner"
           bxy.drawImage(
-            "objects/mine",
-            ivec2(x, y).vec2,
-            angle = 0,
-            scale = 1/200
-          )
-        of Spawner:
-          bxy.drawImage(
-            "objects/spawner",
+            imageName,
             ivec2(x, y).vec2,
             angle = 0,
             scale = 1/200
           )
         of Clippy:
-          let clippy = thing
-          var clippyImage = case clippy.orientation:
-            of N: "agents/clippy.color.n"
-            of S: "agents/clippy.color.s"
-            of E: "agents/clippy.color.e"
-            of W: "agents/clippy.color.w"
-            of NW: "agents/clippy.color.w"  # Use west sprite for NW
-            of NE: "agents/clippy.color.e"  # Use east sprite for NE
-            of SW: "agents/clippy.color.w"  # Use west sprite for SW
-            of SE: "agents/clippy.color.e"  # Use east sprite for SE
+          # Map diagonal orientations to cardinal sprites
+          let spriteDir = case thing.orientation:
+            of N: "n"
+            of S: "s"
+            of E, NE, SE: "e"
+            of W, NW, SW: "w"
           bxy.drawImage(
-            clippyImage,
+            "agents/clippy.color." & spriteDir,
             ivec2(x, y).vec2,
             angle = 0,
             scale = 1/200
           )
-        of Armory:
-          # Draw armory building
+        of Armory, Forge, ClayOven, WeavingLoom:
+          # Draw production buildings
+          let imageName = case thing.kind:
+            of Armory: "objects/armory"
+            of Forge: "objects/forge"
+            of ClayOven: "objects/clay_oven"
+            of WeavingLoom: "objects/weaving_loom"
+            else: ""  # Won't happen due to case constraint
           bxy.drawImage(
-            "objects/armory",
-            ivec2(x, y).vec2,
-            angle = 0,
-            scale = 1/200
-          )
-        of Forge:
-          # Draw forge building
-          bxy.drawImage(
-            "objects/forge",
-            ivec2(x, y).vec2,
-            angle = 0,
-            scale = 1/200
-          )
-        of ClayOven:
-          # Draw clay oven building
-          bxy.drawImage(
-            "objects/clay_oven",
-            ivec2(x, y).vec2,
-            angle = 0,
-            scale = 1/200
-          )
-        of WeavingLoom:
-          # Draw weaving loom building
-          bxy.drawImage(
-            "objects/weaving_loom",
+            imageName,
             ivec2(x, y).vec2,
             angle = 0,
             scale = 1/200

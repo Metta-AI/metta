@@ -107,7 +107,7 @@ proc testMultipleClippyAttacks() =
           kind: Clippy,
           pos: pos,
           orientation: N,
-          homeTemple: ivec2(0, 0),
+          homeSpawner: ivec2(0, 0),
           targetPos: altar.pos,
           wanderRadius: 0,
           wanderAngle: 0.0,

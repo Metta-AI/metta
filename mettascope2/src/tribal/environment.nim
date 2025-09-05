@@ -127,12 +127,18 @@ type
     actionGetWheat*: int
     actionGetWood*: int
 
+  HeatmapData* = object
+    agentHeat*: float32      # Warm colors (red/orange/yellow) from agent steps
+    clippyHeat*: float32     # Cold colors (blue/cyan) from clippy steps
+    tribeHeat*: array[4, float32]  # Heat contribution from each agent tribe (0-3)
+    
   Environment* = ref object
     currentStep*: int
     things*: seq[Thing]
     agents*: seq[Thing]
     grid*: array[MapWidth, array[MapHeight, Thing]]
     terrain*: TerrainGrid
+    heatmap*: array[MapWidth, array[MapHeight, HeatmapData]]  # Movement heatmap tracking
     observations*: array[
       MapAgents,
       array[ObservationLayers,
@@ -372,6 +378,19 @@ proc isEmpty*(env: Environment, pos: IVec2): bool =
     return false
   return env.grid[pos.x][pos.y] == nil
 
+proc createClippy*(pos: IVec2, homeSpawner: IVec2, r: var Rand): Thing =
+  ## Create a new Clippy with standard initial settings
+  Thing(
+    kind: Clippy,
+    pos: pos,
+    orientation: Orientation(r.rand(0..3)),
+    homeSpawner: homeSpawner,
+    wanderRadius: 5,  # Start with medium radius
+    wanderAngle: 0.0,
+    targetPos: ivec2(-1, -1),  # No target initially
+    wanderStepsRemaining: 0,  # Start ready to look for targets
+  )
+
 proc orientationToVec*(orientation: Orientation): IVec2 =
   case orientation
   of N: result = ivec2(0, -1)
@@ -424,6 +443,11 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
     agent.pos = newPos
     agent.orientation = newOrientation
     env.grid[agent.pos.x][agent.pos.y] = agent
+    
+    # Update heatmap with agent movement (warm colors)
+    let tribeId = min(agent.agentId div (MapRoomObjectsAgents div 4), 3)  # Determine tribe (0-3)
+    env.heatmap[newPos.x][newPos.y].agentHeat = min(env.heatmap[newPos.x][newPos.y].agentHeat + 0.05, 1.0)
+    env.heatmap[newPos.x][newPos.y].tribeHeat[tribeId] = min(env.heatmap[newPos.x][newPos.y].tribeHeat[tribeId] + 0.1, 1.0)
     env.updateObservations(AgentLayer, agent.pos, 1)
     env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
     env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
@@ -523,47 +547,41 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
-  of Armory:
-    # Use armory to craft armor from ore
-    if thing.cooldown == 0 and agent.inventoryOre >= 2:
-      agent.inventoryOre -= 2
-      # Note: In a full implementation, this would create armor items
-      # For now, just give a reward
-      agent.reward += RewardCraftArmor
-      thing.cooldown = 20  # Armory cooldown
-      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
-      inc env.stats[id].actionUse
-    else:
-      inc env.stats[id].actionInvalid
-  
-  of ClayOven:
-    # Use clay oven to cook food from wheat
-    if thing.cooldown == 0 and agent.inventoryWheat >= 1:
-      agent.inventoryWheat -= 1
-      # Note: In a full implementation, this would create food items
-      # For now, just give a reward
-      agent.reward += RewardCraftFood
-      thing.cooldown = 10  # Clay oven cooldown
-      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-      inc env.stats[id].actionUse
-    else:
-      inc env.stats[id].actionInvalid
-  
-  of WeavingLoom:
-    # Use weaving loom to make cloth from wheat
-    if thing.cooldown == 0 and agent.inventoryWheat >= 1:
-      agent.inventoryWheat -= 1
-      # Note: In a full implementation, this would create cloth items
-      # For now, just give a reward
-      agent.reward += RewardCraftCloth
-      thing.cooldown = 15  # Weaving loom cooldown
-      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+  of Armory, ClayOven, WeavingLoom:
+    # Production building crafting logic
+    let canUse = thing.cooldown == 0 and (
+      case thing.kind:
+      of Armory: agent.inventoryOre >= 2
+      of ClayOven: agent.inventoryWheat >= 1  
+      of WeavingLoom: agent.inventoryWheat >= 1
+      else: false
+    )
+    
+    if canUse:
+      # Consume resources and apply rewards based on building type
+      case thing.kind:
+      of Armory:
+        agent.inventoryOre -= 2
+        agent.reward += RewardCraftArmor
+        thing.cooldown = 20
+        env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+      of ClayOven:
+        agent.inventoryWheat -= 1
+        agent.reward += RewardCraftFood
+        thing.cooldown = 10
+        env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      of WeavingLoom:
+        agent.inventoryWheat -= 1
+        agent.reward += RewardCraftCloth
+        thing.cooldown = 15
+        env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      else: discard
       inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
   
   of Spawner, Clippy:
-    # Can't use temples or Clippys
+    # Can't use spawners or Clippys
     inc env.stats[id].actionInvalid
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
@@ -832,11 +850,17 @@ proc init(env: Environment) =
             if env.terrain[clearX][clearY] != Water:
               env.terrain[clearX][clearY] = Empty
       
-      # Generate a unique color for this village
+      # Generate a unique warm color for this village (reds, oranges, yellows)
+      # Use warm hues: 0-60 (red to yellow) and 300-360 (magenta to red)
+      let warmHue = if i mod 2 == 0:
+        (i.float32 * 30.0 / numHouses.float32).mod(60.0) / 360.0  # Red to yellow range
+      else:
+        (300.0 + i.float32 * 30.0 / numHouses.float32).mod(60.0) / 360.0  # Magenta-red range
+      
       let villageColor = color(
-        (i.float32 * 137.5 / 360.0) mod 1.0,  # Hue using golden angle
-        0.7 + (i.float32 * 0.13).mod(0.3),    # Saturation
-        0.5 + (i.float32 * 0.17).mod(0.2),    # Lightness
+        warmHue,                               # Warm hue
+        0.8 + (i.float32 * 0.13).mod(0.2),   # High saturation (0.8-1.0)
+        0.6 + (i.float32 * 0.17).mod(0.3),   # Medium-high lightness (0.6-0.9)
         1.0
       )
       
@@ -990,16 +1014,7 @@ proc init(env: Environment) =
       # Find an empty position adjacent to the spawner
       let nearbyPositions = env.findEmptyPositionsAround(spawnerCenter, 1)
       if nearbyPositions.len > 0:
-        env.add(Thing(
-          kind: Clippy,
-          pos: nearbyPositions[0],  # Pick first available position near spawner
-          orientation: Orientation(r.rand(0..3)),
-          homeSpawner: spawnerCenter,  # Remember home spawner
-          wanderRadius: 5,  # Start with medium radius
-          wanderAngle: 0.0,
-          targetPos: ivec2(-1, -1),  # No target initially
-          wanderStepsRemaining: 0,  # Start ready to look for targets
-        ))
+        env.add(createClippy(nearbyPositions[0], spawnerCenter, r))
 
   for i in 0 ..< MapRoomObjectsConverters:
     let pos = r.randomEmptyPos(env)
@@ -1151,16 +1166,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       if thing.cooldown > 0:
         thing.cooldown -= 1
         env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
-    elif thing.kind == Forge:
-      if thing.cooldown > 0:
-        thing.cooldown -= 1
-    elif thing.kind == Armory:
-      if thing.cooldown > 0:
-        thing.cooldown -= 1
-    elif thing.kind == ClayOven:
-      if thing.cooldown > 0:
-        thing.cooldown -= 1
-    elif thing.kind == WeavingLoom:
+    elif thing.kind in {Forge, Armory, ClayOven, WeavingLoom}:
+      # All production buildings have simple cooldown
       if thing.cooldown > 0:
         thing.cooldown -= 1
     elif thing.kind == Spawner:
@@ -1185,16 +1192,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             let spawnPos = r.sample(emptyPositions)
             
             # Create new Clippy
-            let newClippy = Thing(
-              kind: Clippy,
-              pos: spawnPos,
-              orientation: Orientation(r.rand(0..3)),
-              homeSpawner: thing.pos,  # Remember home spawner position
-              wanderRadius: 5,  # Start with medium radius
-              wanderAngle: 0.0,
-              targetPos: ivec2(-1, -1),  # No target initially
-              wanderStepsRemaining: 0,  # Start ready to look for targets
-            )
+            let newClippy = createClippy(spawnPos, thing.pos, r)
             # Don't add immediately - collect for later
             newClippysToSpawn.add(newClippy)
             
@@ -1205,7 +1203,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         thing.frozen -= 1
         # Note: frozen status is visible in observations through updateObservations(id)
 
-  # Add newly spawned clippys from temples
+  # Add newly spawned clippys from spawners
   for newClippy in newClippysToSpawn:
     env.add(newClippy)
   
@@ -1230,15 +1228,12 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     let newPos = clippy.pos + moveDir
     
     # Update clippy orientation based on movement direction
-    if moveDir.x > 0:
-      clippy.orientation = E
-    elif moveDir.x < 0:
-      clippy.orientation = W
-    elif moveDir.y > 0:
-      clippy.orientation = S
-    elif moveDir.y < 0:
-      clippy.orientation = N
-    # Keep current orientation if not moving
+    if moveDir != ivec2(0, 0):
+      clippy.orientation = 
+        if moveDir.x > 0: E
+        elif moveDir.x < 0: W
+        elif moveDir.y > 0: S
+        else: N
     
     # Check if new position is valid and empty
     if env.isEmpty(newPos):
@@ -1246,6 +1241,9 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
       env.grid[clippy.pos.x][clippy.pos.y] = nil
       clippy.pos = newPos
       env.grid[clippy.pos.x][clippy.pos.y] = clippy
+      
+      # Update heatmap with clippy movement (cold colors)
+      env.heatmap[newPos.x][newPos.y].clippyHeat = min(env.heatmap[newPos.x][newPos.y].clippyHeat + 0.08, 1.0)
     else:
       # Check if we're trying to move onto an altar
       let target = env.getThing(newPos)
