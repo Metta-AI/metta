@@ -42,7 +42,7 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
             "project": profile_config.wandb.project or "",
         }
 
-        # Profile-based system takes precedence over environment variables
+        # Config file takes precedence - environment variables only used as fallback
     else:
         # Fall back to old system for backward compatibility
         from pydantic import Field
@@ -108,7 +108,7 @@ def auto_stats_server_uri() -> str | None:
         if profile_config.observatory.enabled and profile_config.observatory.stats_server_uri:
             result = profile_config.observatory.stats_server_uri
 
-        # Profile-based system takes precedence over environment variables
+        # Config file takes precedence - environment variables only used as fallback
 
         return result
     else:
@@ -136,7 +136,7 @@ def auto_replay_dir() -> str:
         # Use active profile configuration
         result = profile_config.storage.replay_dir
 
-        # Profile-based system takes precedence over environment variables
+        # Config file takes precedence - environment variables only used as fallback
         # Environment variables can still be used if no config value is set
         if not result and os.environ.get("REPLAY_DIR"):
             result = os.environ["REPLAY_DIR"]

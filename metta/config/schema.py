@@ -114,7 +114,7 @@ class MettaConfig:
         Priority:
         1. profile_override parameter (--profile flag)
         2. METTA_PROFILE environment variable
-        3. self.target (target profile in config file)
+        3. self.profile (profile in config file)
         4. Default "external" profile
         """
         import os
