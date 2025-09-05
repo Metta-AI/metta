@@ -2,5 +2,5 @@
 
 Common utilities shared across the metta codebase.
 Provides helper functions and shared functionality.
-Testing conditional xdist with testmon database.
+Testing true single-threaded testmon execution.
 """

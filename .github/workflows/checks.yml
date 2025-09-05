@@ -268,7 +268,7 @@ jobs:
               PYTEST_ARGS="--testmon --cov --cov-report=xml --benchmark-skip --disable-warnings -v --durations=10 --junitxml=junit.xml -o junit_family=legacy -n 4"
               echo "No testmon database found. Running with 4-core parallel execution to build database."
             else
-              PYTEST_ARGS="--testmon --cov --cov-report=xml --benchmark-skip --disable-warnings -v --durations=10 --junitxml=junit.xml -o junit_family=legacy"
+              PYTEST_ARGS="--testmon --cov --cov-report=xml --benchmark-skip --disable-warnings -v --durations=10 --junitxml=junit.xml -o junit_family=legacy -n 0"
               echo "Found testmon database. Running selective tests without parallel execution for accuracy."
               # Show which tests would be selected (dry run)
               echo "Tests that would be selected by testmon:"
