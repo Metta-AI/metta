@@ -321,13 +321,13 @@ class TestParallelInstallIntegration(unittest.TestCase):
         # Test with mock modules that have a dependency chain
         modules = {
             "system": MockModule("system", []),
-            "nodejs": MockModule("nodejs", ["system"]), 
-            "notebookwidgets": MockModule("notebookwidgets", ["nodejs"])
+            "nodejs": MockModule("nodejs", ["system"]),
+            "notebookwidgets": MockModule("notebookwidgets", ["nodejs"]),
         }
         dependencies = {m.name: m.dependencies() for m in modules.values()}
-        
+
         batches = topological_sort_parallel(modules, dependencies)
-        
+
         # Should have 3 batches: system -> nodejs -> notebookwidgets
         self.assertEqual(len(batches), 3)
         self.assertEqual(batches[0], ["system"])
@@ -338,45 +338,45 @@ class TestParallelInstallIntegration(unittest.TestCase):
         """Test that missing dependencies are automatically added."""
         # Request notebookwidgets without nodejs
         requested_modules = ["notebookwidgets", "core"]
-        
+
         all_modules = [
             MockModule("system", []),
             MockModule("core", []),
             MockModule("nodejs", ["system"]),
-            MockModule("notebookwidgets", ["nodejs"])
+            MockModule("notebookwidgets", ["nodejs"]),
         ]
-        
+
         module_map = {m.name: m for m in all_modules if m.name in requested_modules}
         all_modules_dict = {m.name: m for m in all_modules}
-        
+
         # Should find missing dependencies
         missing_deps = collect_missing_dependencies(module_map, all_modules_dict)
         self.assertEqual(missing_deps, {"nodejs", "system"})
 
     def test_parallel_batch_ordering(self):
         """Test that components install in correct dependency order."""
-        # Test with mock components that have clear dependency relationships  
+        # Test with mock components that have clear dependency relationships
         modules = {
             "core": MockModule("core", []),
             "aws": MockModule("aws", []),
             "nodejs": MockModule("nodejs", ["system"]),
             "system": MockModule("system", []),
             "skypilot": MockModule("skypilot", ["aws"]),
-            "mettascope": MockModule("mettascope", ["nodejs"])
+            "mettascope": MockModule("mettascope", ["nodejs"]),
         }
         dependencies = {m.name: m.dependencies() for m in modules.values()}
-        
+
         batches = topological_sort_parallel(modules, dependencies)
-        
+
         # Should have multiple batches due to dependencies
         self.assertGreater(len(batches), 1, "Should have multiple batches for dependencies")
-        
+
         # Verify dependency ordering
         batch_positions = {}
         for i, batch in enumerate(batches):
             for module in batch:
                 batch_positions[module] = i
-                
+
         # Dependencies should be in earlier batches
         if "nodejs" in batch_positions and "system" in batch_positions:
             self.assertLess(batch_positions["system"], batch_positions["nodejs"])
@@ -721,79 +721,79 @@ class TestCircularDependencyDetection(unittest.TestCase):
 @pytest.mark.profile("external")
 class TestManualScenarios(BaseMettaSetupTest):
     """Test the specific scenarios that were manually verified."""
-    
+
     def setUp(self):
         super().setUp()
         self._create_test_config(UserType.EXTERNAL)
-    
+
     def test_diamond_dependency_manual_scenario(self):
         """Test the exact diamond dependency scenario from manual verification."""
         # Diamond dependency pattern: A,B->C; C,D->E
-        modules = {'A': 'mod_a', 'B': 'mod_b', 'C': 'mod_c', 'D': 'mod_d', 'E': 'mod_e'}
-        dependencies = {
-            'A': ['C'], 'B': ['C'], 'C': ['E'], 'D': ['E'], 'E': []
-        }
+        modules = {"A": "mod_a", "B": "mod_b", "C": "mod_c", "D": "mod_d", "E": "mod_e"}
+        dependencies = {"A": ["C"], "B": ["C"], "C": ["E"], "D": ["E"], "E": []}
 
         batches = topological_sort_parallel(modules, dependencies)
-        
+
         # Should be: [E], [C,D], [A,B]
-        expected_batch_0 = {'E'}
-        expected_batch_1 = {'C', 'D'}
-        expected_batch_2 = {'A', 'B'}
+        expected_batch_0 = {"E"}
+        expected_batch_1 = {"C", "D"}
+        expected_batch_2 = {"A", "B"}
 
         self.assertEqual(len(batches), 3, "Should have exactly 3 batches")
         self.assertEqual(set(batches[0]), expected_batch_0, f"Batch 0 should be {expected_batch_0}")
         self.assertEqual(set(batches[1]), expected_batch_1, f"Batch 1 should be {expected_batch_1}")
         self.assertEqual(set(batches[2]), expected_batch_2, f"Batch 2 should be {expected_batch_2}")
-    
+
     def test_simple_circular_dependency_manual_scenario(self):
         """Test the exact circular dependency scenario from manual verification."""
         # Simple circular: A->B->A
-        modules = {'A': 'mod_a', 'B': 'mod_b'}
-        dependencies = {'A': ['B'], 'B': ['A']}
+        modules = {"A": "mod_a", "B": "mod_b"}
+        dependencies = {"A": ["B"], "B": ["A"]}
 
         batches = topological_sort_parallel(modules, dependencies)
-        
+
         # Should be empty or not resolve all modules
         all_batched = {module for batch in batches for module in batch} if batches else set()
-        
+
         # Circular dependency should not be fully resolved
-        self.assertNotEqual(all_batched, {'A', 'B'}, "Circular dependency should not resolve all modules")
-    
+        self.assertNotEqual(all_batched, {"A", "B"}, "Circular dependency should not resolve all modules")
+
     def test_partial_circular_dependency_manual_scenario(self):
         """Test the exact partial circular dependency scenario from manual verification."""
-        # Partial circular: A->B->A (circular), C->D (normal), E (independent)  
-        modules = {'A': 'mod_a', 'B': 'mod_b', 'C': 'mod_c', 'D': 'mod_d', 'E': 'mod_e'}
+        # Partial circular: A->B->A (circular), C->D (normal), E (independent)
+        modules = {"A": "mod_a", "B": "mod_b", "C": "mod_c", "D": "mod_d", "E": "mod_e"}
         dependencies = {
-            'A': ['B'], 'B': ['A'],  # Circular
-            'C': ['D'], 'D': [],     # Normal chain
-            'E': []                  # Independent
+            "A": ["B"],
+            "B": ["A"],  # Circular
+            "C": ["D"],
+            "D": [],  # Normal chain
+            "E": [],  # Independent
         }
 
         batches = topological_sort_parallel(modules, dependencies)
         all_batched = {module for batch in batches for module in batch}
-        
+
         # Verify non-circular modules are batched
-        self.assertIn('D', all_batched, "Non-circular module D should be batched")
-        self.assertIn('E', all_batched, "Independent module E should be batched")
+        self.assertIn("D", all_batched, "Non-circular module D should be batched")
+        self.assertIn("E", all_batched, "Independent module E should be batched")
         # Circular should not be fully resolved
-        self.assertFalse({'A', 'B'}.issubset(all_batched), "Circular dependency A->B->A should not be fully resolved")
-    
+        self.assertFalse({"A", "B"}.issubset(all_batched), "Circular dependency A->B->A should not be fully resolved")
+
     def test_comprehensive_real_world_scenario(self):
         """Test the comprehensive integration scenario from manual verification."""
         # Real-world scenario: User requests mettascope and skypilot
-        requested = ['mettascope', 'skypilot']
+        requested = ["mettascope", "skypilot"]
 
         # All available modules with realistic dependencies
         all_modules = [
-            MockModule('system', []),
-            MockModule('core', []),
-            MockModule('aws', []),
-            MockModule('nodejs', ['system']),
-            MockModule('mettascope', ['nodejs']),
-            MockModule('skypilot', ['aws']),
-            MockModule('notebookwidgets', ['nodejs']),
-            MockModule('datadog_agent', ['aws'])
+            MockModule("system", []),
+            MockModule("core", []),
+            MockModule("aws", []),
+            MockModule("nodejs", ["system"]),
+            MockModule("mettascope", ["nodejs"]),
+            MockModule("skypilot", ["aws"]),
+            MockModule("notebookwidgets", ["nodejs"]),
+            MockModule("datadog_agent", ["aws"]),
         ]
 
         # Create maps
@@ -802,7 +802,7 @@ class TestManualScenarios(BaseMettaSetupTest):
 
         # Test dependency collection
         missing_deps = collect_missing_dependencies(module_map, all_modules_dict)
-        expected_missing = {'aws', 'nodejs', 'system'}
+        expected_missing = {"aws", "nodejs", "system"}
         self.assertEqual(missing_deps, expected_missing, f"Should find missing deps: {expected_missing}")
 
         # Add missing deps
@@ -811,7 +811,7 @@ class TestManualScenarios(BaseMettaSetupTest):
                 module_map[dep_name] = all_modules_dict[dep_name]
 
         final_modules = sorted(module_map.keys())
-        expected_final = ['aws', 'mettascope', 'nodejs', 'skypilot', 'system']
+        expected_final = ["aws", "mettascope", "nodejs", "skypilot", "system"]
         self.assertEqual(final_modules, expected_final, f"Final module list should be: {expected_final}")
 
         # Test topological sorting
@@ -819,32 +819,32 @@ class TestManualScenarios(BaseMettaSetupTest):
         batches = topological_sort_parallel(module_map, dependencies)
 
         # Verify dependency relationships
-        self.assertEqual(dependencies.get('nodejs'), ['system'], "nodejs should depend on system")
-        self.assertEqual(dependencies.get('mettascope'), ['nodejs'], "mettascope should depend on nodejs")
-        self.assertEqual(dependencies.get('skypilot'), ['aws'], "skypilot should depend on aws")
+        self.assertEqual(dependencies.get("nodejs"), ["system"], "nodejs should depend on system")
+        self.assertEqual(dependencies.get("mettascope"), ["nodejs"], "mettascope should depend on nodejs")
+        self.assertEqual(dependencies.get("skypilot"), ["aws"], "skypilot should depend on aws")
 
         # Verify batch structure
         batch_contents = [set(batch) for batch in batches]
-        
+
         # system/aws should be in early batch
-        early_batch_has_deps = any('system' in batch and 'aws' in batch for batch in batch_contents)
+        early_batch_has_deps = any("system" in batch and "aws" in batch for batch in batch_contents)
         self.assertTrue(early_batch_has_deps, "system and aws should be in early batch")
-        
+
         # nodejs/skypilot should be after their dependencies
         later_batches = batch_contents[1:] if len(batch_contents) > 1 else []
-        nodejs_skypilot_later = any('nodejs' in batch and 'skypilot' in batch for batch in later_batches)
+        nodejs_skypilot_later = any("nodejs" in batch and "skypilot" in batch for batch in later_batches)
         self.assertTrue(nodejs_skypilot_later, "nodejs and skypilot should be in later batch")
-        
+
         # mettascope should be last (depends on nodejs)
         if batch_contents:
-            mettascope_last = 'mettascope' in batch_contents[-1]
+            mettascope_last = "mettascope" in batch_contents[-1]
             self.assertTrue(mettascope_last, "mettascope should be in final batch")
-    
+
     def test_concurrent_execution_verification(self):
         """Test that concurrent execution actually works with timing."""
         import time
         from concurrent.futures import ThreadPoolExecutor
-        
+
         # Create simple test module that sleeps
         class QuickTimedModule:
             def __init__(self, name, deps, install_duration=0.01):
@@ -853,10 +853,10 @@ class TestManualScenarios(BaseMettaSetupTest):
                 self._install_duration = install_duration
                 self._installed = False
                 self.install_times = []
-            
+
             def dependencies(self):
                 return self._deps
-            
+
             def install(self):
                 start_time = time.time()
                 time.sleep(self._install_duration)
@@ -866,9 +866,9 @@ class TestManualScenarios(BaseMettaSetupTest):
 
         # Create 3 independent modules that each take 0.05 seconds
         modules = [
-            QuickTimedModule('ModA', [], install_duration=0.01),
-            QuickTimedModule('ModB', [], install_duration=0.01), 
-            QuickTimedModule('ModC', [], install_duration=0.01)
+            QuickTimedModule("ModA", [], install_duration=0.01),
+            QuickTimedModule("ModB", [], install_duration=0.01),
+            QuickTimedModule("ModC", [], install_duration=0.01),
         ]
 
         # Execute in parallel
@@ -883,7 +883,7 @@ class TestManualScenarios(BaseMettaSetupTest):
 
         # Verify timing - should complete successfully in reasonable time
         self.assertLess(total_time, 1.0, f"Parallel execution took {total_time:.3f}s, should be reasonable")
-        
+
         # Verify all modules were installed
         for module in modules:
             self.assertTrue(module._installed, f"Module {module.name} should be installed")
