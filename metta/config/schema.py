@@ -48,7 +48,7 @@ def _get_config_path() -> Path:
 class WandbConfig:
     """Weights & Biases configuration."""
 
-    enabled: bool = True
+    enabled: bool = False
     entity: str | None = None
     project: str | None = None
 
@@ -174,7 +174,7 @@ class MettaConfig:
                 observatory=ObservatoryConfig(**data.get("observatory", {})),
                 storage=StorageConfig(**data.get("storage", {})),
                 datadog=DatadogConfig(**data.get("datadog", {})),
-                profile=data.get("profile", data.get("target", "external")),
+                profile=data.get("profile", "external"),
             )
 
         # Use project root config.yaml only
@@ -203,7 +203,7 @@ class MettaConfig:
             observatory=ObservatoryConfig(**data.get("observatory", {})),
             storage=StorageConfig(**data.get("storage", {})),
             datadog=DatadogConfig(**data.get("datadog", {})),
-            profile=data.get("profile", data.get("target", "external")),
+            profile=data.get("profile", "external"),
         )
 
     def save(self, path: Path | None = None) -> None:

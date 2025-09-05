@@ -19,7 +19,7 @@ class TestMettaConfig:
         config = MettaConfig()
 
         # Check defaults
-        assert config.wandb.enabled is True
+        assert config.wandb.enabled is False
         assert config.wandb.entity is None
         assert config.wandb.project is None
 
