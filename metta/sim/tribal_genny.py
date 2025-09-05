@@ -74,9 +74,9 @@ class TribalGridEnv:
         """Reset environment and return initial observations."""
         # Reset the Nim environment
         if seed is not None:
-            self._nim_env.reset(seed)
+            self._nim_env.resetEnv(seed)
         else:
-            self._nim_env.reset()
+            self._nim_env.resetEnv()
         
         # Get observations and convert to numpy
         obs_data = self._nim_env.getObservations()
@@ -109,13 +109,14 @@ class TribalGridEnv:
         if actions.shape != (self.num_agents, 2):
             raise ValueError(f"Actions must have shape ({self.num_agents}, 2), got {actions.shape}")
         
-        # Convert actions to format expected by Nim (list of lists)
-        actions_list = []
+        # Convert actions to flat format expected by Nim
+        actions_flat = []
         for i in range(self.num_agents):
-            actions_list.append([int(actions[i, 0]), int(actions[i, 1])])
+            actions_flat.append(int(actions[i, 0]))
+            actions_flat.append(int(actions[i, 1]))
         
         # Step the environment
-        success = self._nim_env.step(actions_list)
+        success = self._nim_env.step(actions_flat)
         if not success:
             raise RuntimeError("Environment step failed")
         
@@ -144,19 +145,31 @@ class TribalGridEnv:
         
         return observations, rewards, terminals, truncations, info
 
-    def _convert_observations(self, obs_data: List[List[List[List[int]]]]) -> np.ndarray:
+    def _convert_observations(self, obs_data: List[int]) -> np.ndarray:
         """Convert genny observation data to numpy array."""
-        # obs_data is [agents][layers][height][width]
+        # obs_data is flattened: [agents * layers * height * width]
         obs_array = np.zeros(
             (self.num_agents, self.observation_layers, self.observation_height, self.observation_width),
             dtype=np.uint8
         )
         
-        for agent_id in range(min(self.num_agents, len(obs_data))):
-            for layer in range(min(self.observation_layers, len(obs_data[agent_id]))):
-                for y in range(min(self.observation_height, len(obs_data[agent_id][layer]))):
-                    for x in range(min(self.observation_width, len(obs_data[agent_id][layer][y]))):
-                        obs_array[agent_id, layer, y, x] = obs_data[agent_id][layer][y][x]
+        # Reshape the flat array
+        if len(obs_data) == self.num_agents * self.observation_layers * self.observation_height * self.observation_width:
+            # Convert to numpy and reshape
+            flat_array = np.array(obs_data, dtype=np.uint8)
+            obs_array = flat_array.reshape(
+                (self.num_agents, self.observation_layers, self.observation_height, self.observation_width)
+            )
+        else:
+            # Fallback: fill array element by element (slower)
+            index = 0
+            for agent_id in range(self.num_agents):
+                for layer in range(self.observation_layers):
+                    for y in range(self.observation_height):
+                        for x in range(self.observation_width):
+                            if index < len(obs_data):
+                                obs_array[agent_id, layer, y, x] = obs_data[index]
+                                index += 1
         
         return obs_array
 

@@ -40,7 +40,7 @@ proc newTribalEnv*(config: TribalConfig): TribalEnv =
   )
 
 # Core environment methods
-proc reset*(tribal: TribalEnv, seed: int = -1) =
+proc resetEnv*(tribal: TribalEnv, seed: int = -1) =
   ## Reset the environment to initial state
   tribal.env.reset()
   tribal.stepCount = 0
@@ -48,20 +48,22 @@ proc reset*(tribal: TribalEnv, seed: int = -1) =
     # Nim environment uses time-based seeding, but we track this
     discard
 
-proc step*(tribal: TribalEnv, actions: seq[seq[int]]): bool =
+proc step*(tribal: TribalEnv, actions: seq[int]): bool =
   ## Step environment with actions
-  ## actions: seq of [action_type, argument] pairs for each agent
+  ## actions: flat sequence of [action_type, argument, action_type, argument, ...]
+  ## Length should be MapAgents * 2
   ## Returns true on success, false on error
   
-  if actions.len != MapAgents:
+  if actions.len != MapAgents * 2:
     return false
     
   # Convert Python actions to Nim format
   var nimActions: array[MapAgents, array[2, uint8]]
   for i in 0..<MapAgents:
-    if i < actions.len and actions[i].len >= 2:
-      nimActions[i][0] = actions[i][0].uint8
-      nimActions[i][1] = actions[i][1].uint8
+    let actionIndex = i * 2
+    if actionIndex + 1 < actions.len:
+      nimActions[i][0] = actions[actionIndex].uint8
+      nimActions[i][1] = actions[actionIndex + 1].uint8
     else:
       nimActions[i][0] = 0  # noop
       nimActions[i][1] = 0
@@ -74,18 +76,18 @@ proc step*(tribal: TribalEnv, actions: seq[seq[int]]): bool =
     return false
 
 # Observation access
-proc getObservations*(tribal: TribalEnv): seq[seq[seq[seq[int]]]] =
-  ## Get current observations as 4D sequence: [agents][layers][height][width]
-  result = newSeq[seq[seq[seq[int]]]](MapAgents)
+proc getObservations*(tribal: TribalEnv): seq[int] =
+  ## Get current observations as flat sequence: [agents * layers * height * width]
+  let totalSize = MapAgents * ObservationLayers * ObservationHeight * ObservationWidth
+  result = newSeq[int](totalSize)
   
+  var index = 0
   for agentId in 0..<MapAgents:
-    result[agentId] = newSeq[seq[seq[int]]](ObservationLayers)
     for layer in 0..<ObservationLayers:
-      result[agentId][layer] = newSeq[seq[int]](ObservationHeight)
       for y in 0..<ObservationHeight:
-        result[agentId][layer][y] = newSeq[int](ObservationWidth)
         for x in 0..<ObservationWidth:
-          result[agentId][layer][y][x] = tribal.env.observations[agentId][layer][x][y].int
+          result[index] = tribal.env.observations[agentId][layer][x][y].int
+          inc index
 
 # Reward access
 proc getRewards*(tribal: TribalEnv): seq[float] =
@@ -148,27 +150,28 @@ proc getActionSpace*(): seq[int] =
   @[6, 8]  # 6 action types, 8-directional arguments
 
 # Export everything to Python
-exportObject(TribalConfig)
-exportObject(TribalEnv)
+exportObject TribalConfig:
+  discard
+
+exportRefObject TribalEnv:
+  constructor:
+    newTribalEnv(TribalConfig)
+  procs:
+    resetEnv(TribalEnv, int)
+    step(TribalEnv, seq[int])
+    getObservations(TribalEnv)
+    getRewards(TribalEnv)
+    getTerminated(TribalEnv)
+    getTruncated(TribalEnv)
+    getCurrentStep(TribalEnv)
+    getMaxSteps(TribalEnv)
+    isEpisodeDone(TribalEnv)
+    getEpisodeStats(TribalEnv)
+    renderText(TribalEnv)
 
 exportProcs:
-  newTribalEnv
-  defaultConfig  
+  defaultConfig
   getActionSpace
-
-# Export all TribalEnv methods
-exportMethods(TribalEnv):
-  reset
-  step
-  getObservations
-  getRewards
-  getTerminated
-  getTruncated
-  getCurrentStep
-  getMaxSteps
-  isEpisodeDone
-  getEpisodeStats
-  renderText
 
 # Generate the Python binding files
 when isMainModule:

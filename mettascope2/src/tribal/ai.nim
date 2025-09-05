@@ -492,6 +492,17 @@ proc updateController*(controller: Controller) =
   ## Update controller state (called each step)
   controller.stepCount += 1
   
-  # Periodically reset spiral patterns to prevent getting stuck
-  # (Spiral already resets itself after ~30 arcs, so this is handled)
+  # Periodically reset stuck agents to prevent endless loops
+  if controller.stepCount mod 100 == 0:
+    for state in controller.agentStates.mvalues:
+      # Reset agents that have been wandering too long or are stuck
+      if state.targetType == Wander:
+        # Reset spiral to start exploring from a different direction
+        state.spiralArcsCompleted = controller.rng.rand(0..3)
+        state.spiralStepsInArc = 0
+      
+      # Reset stuck agents that have been in escape mode too long
+      if state.escapeMode and state.escapeStepsRemaining <= 0:
+        state.escapeMode = false
+        state.targetType = NoTarget
 

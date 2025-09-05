@@ -1,5 +1,6 @@
 src/tmp/
 src/mettascope.out
+bindings/generated/
 
 # Nim compilation artifacts
 *.out
