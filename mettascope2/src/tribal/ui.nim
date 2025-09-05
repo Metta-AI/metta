@@ -51,7 +51,7 @@ proc drawIconToggle*(
     h: size.y
   )
 
-  if window.boxyMouse.vec2.overlaps(box):
+  if boxyMouse().overlaps(box):
     if window.buttonPressed[MouseLeft]:
       value = not value
       result = true

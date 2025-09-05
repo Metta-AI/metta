@@ -952,6 +952,8 @@ proc init(env: Environment) =
             inventoryWheat: 0,
             inventoryWood: 0,
             inventorySpear: 0,
+            inventoryBread: 0,
+            hunger: 100,  # Start with full hunger
             frozen: 0,
           ))
           
@@ -983,6 +985,8 @@ proc init(env: Environment) =
       inventoryWheat: 0,
       inventoryWood: 0,
       inventorySpear: 0,
+      inventoryBread: 0,
+      hunger: 100,  # Start with full hunger
       frozen: 0,
     ))
     
@@ -1240,7 +1244,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           if not isNil(homeAltar) and homeAltar.kind == Altar and homeAltar.hearts > 0:
             # Respawn costs 1 heart
             homeAltar.hearts -= 1
-            env.updateObservations(AltarHeartsLayer, homeAltar.pos, homeAltar.hearts.uint8)
+            env.updateObservations(AltarHeartsLayer, homeAltar.pos, homeAltar.hearts)
             
             # Reset agent position to home altar
             env.grid[thing.pos.x][thing.pos.y] = nil

@@ -222,6 +222,10 @@ proc main() =
   bxy = newBoxy()
   typeface = readTypeface("data/fonts/Inter-Regular.ttf")
   
+  # Set up UI module globals
+  ui.window = window
+  ui.bxy = bxy
+  
   # Initialize game
   env = newEnvironment()
   echo "Environment created with ", env.agents.len, " agents"
