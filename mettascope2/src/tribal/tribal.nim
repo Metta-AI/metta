@@ -7,19 +7,6 @@ var agentVillageColors*: seq[Color] = @[]
 var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
 
 const
-  # From config
-  # MapLayoutRoomsX* = 1
-  # MapLayoutRoomsY* = 1
-  # MapBorder* = 4
-  # MapRoomWidth* = 100
-  # MapRoomHeight* = 100
-  # MapRoomBorder* = 0
-  # MapRoomObjectsAgents* = 70
-  # MapRoomObjectsAltars* = 50
-  # MapRoomObjectsConverters* = 100
-  # MapRoomObjectsMines* = 100
-  # MapRoomObjectsWalls* = 400
-
   MapLayoutRoomsX* = 1
   MapLayoutRoomsY* = 1
   MapBorder* = 4
@@ -31,56 +18,47 @@ const
   MapAgentsPerHouse* = 5  # Agents to spawn per house/village
   MapRoomObjectsConverters* = 10  # Converters to process ore into batteries
   MapRoomObjectsMines* = 20  # Mines to extract ore (2x generators)
-  MapRoomObjectsWalls* = 30  # Increased for larger map
-  
-  # Shaped Rewards - kept small since altar hearts are primary objective
-  # Resource gathering (very small)
+  MapRoomObjectsWalls* = 30
+  # Shaped Rewards
+  # Resource gathering
   RewardGetWater* = 0.001
   RewardGetWheat* = 0.001
   RewardGetWood* = 0.002  # Slightly higher as it leads to spears
-  RewardMineOre* = 0.003  # Slightly higher as it leads to batteries
-  
-  # Crafting (small)
+  RewardMineOre* = 0.003
+  # Crafting
   RewardConvertOreToBattery* = 0.01  # Converting ore to battery
-  RewardCraftSpear* = 0.01  # Crafting spear at forge
-  
-  # Combat (moderate - helps protect altar)
-  RewardDestroyClippy* = 0.1  # Destroying a clippy
-  
-  # Altar contribution (already has 1.0 in code)
-  # RewardDepositBattery* = 1.0  # Already implemented
+  RewardCraftSpear* = 0.01
+  RewardCraftArmor* = 0.015     # Using armory to craft armor  
+  RewardCraftFood* = 0.012      # Using clay oven to craft food
+  RewardCraftCloth* = 0.012     # Using weaving loom to craft cloth
+  # Combat
+  RewardDestroyClippy* = 0.1
 
   MapObjectAgentMaxInventory* = 5
   MapObjectAgentFreezeDuration* = 10  # Temporary freeze when caught by clippy
 
-  MapObjectAltarInitialHearts* = 5  # Altars start with 5 hearts
+  MapObjectAltarInitialHearts* = 5
   MapObjectAltarCooldown* = 10
-  MapObjectAltarRespawnCost* = 1  # Cost 1 heart to respawn an agent
-  # Altar uses batteries directly now, no energy cost
-
-  MapObjectConverterCooldown* = 0  # No cooldown for instant conversion
+  MapObjectAltarRespawnCost* = 1
+  MapObjectConverterCooldown* = 0
 
   MapObjectMineCooldown* = 5
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
-
-  ObservationLayers* = 17  # Includes spear inventory layer
+  ObservationLayers* = 17
   ObservationWidth* = 11
   ObservationHeight* = 11
-
   # Computed
   MapAgents* = MapRoomObjectsAgents * MapLayoutRoomsX * MapLayoutRoomsY
   MapWidth* = MapLayoutRoomsX * (MapRoomWidth + MapRoomBorder) + MapBorder
   MapHeight* = MapLayoutRoomsY * (MapRoomHeight + MapRoomBorder) + MapBorder
 
 proc ivec2*(x, y: int): IVec2 =
-  ## Create a new 2D vector
   result.x = x.int32
   result.y = y.int32
 
 type
   OrientationDelta* = tuple[x, y: int]
-  
   ObservationName* = enum
     AgentLayer = 0
     AgentOrientationLayer = 1
@@ -145,7 +123,6 @@ type
     inventorySpear*: int    # Spears crafted from forge
     reward*: float32
     homeAltar*: IVec2      # Position of agent's home altar for respawning
-    
     # Clippy:
     homeTemple*: IVec2     # Position of clippy's home temple
     wanderRadius*: int     # Current radius for concentric circle wandering
@@ -181,13 +158,11 @@ type
         array[ObservationWidth, array[ObservationHeight, uint8]]
       ]
     ]
-    #rewards*: array[MapAgents, float32]
-    terminated *: array[MapAgents, float32]
+    terminated*: array[MapAgents, float32]
     truncated*: array[MapAgents, float32]
     stats: seq[Stats]
 
 proc render*(env: Environment): string =
-  ## Render the environment as a string
   for y in 0 ..< MapHeight:
     for x in 0 ..< MapWidth:
       var cell = " "
@@ -232,7 +207,6 @@ proc render*(env: Environment): string =
     result.add("\n")
 
 proc renderObservations*(env: Environment): string =
-  ## Render the observations as a string
   const featureNames = [
     "agent",
     "agent:orientation",
@@ -262,17 +236,14 @@ proc renderObservations*(env: Environment): string =
         result.add "\n"
 
 proc clear[T](s: var openarray[T]) =
-  ## Clear the entire array and set everything to 0.
   let p = cast[pointer](s[0].addr)
   zeroMem(p, s.len * sizeof(T))
 
 proc clear[N: int, T](s: ptr array[N, T]) =
-  ## Clear the entire array and set everything to 0.
   let p = cast[pointer](s[][0].addr)
   zeroMem(p, s[].len * sizeof(T))
 
 proc updateObservations(env: Environment, agentId: int) =
-  ## Update observations
   var obs = env.observations[agentId].addr
   obs.clear()
 
@@ -376,7 +347,6 @@ proc updateObservations(
     env.observations[agentId][layerId][x][y] = value.uint8
 
 proc getThing(env: Environment, pos: IVec2): Thing =
-  ## Get the thing at a position
   if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
     return nil
   return env.grid[pos.x][pos.y]
@@ -394,15 +364,12 @@ const OrientationDeltas*: array[8, OrientationDelta] = [
 ]
 
 proc getOrientationDelta*(orient: Orientation): OrientationDelta =
-  ## Get the x,y delta for a given orientation
   OrientationDeltas[ord(orient)]
 
 proc isDiagonal*(orient: Orientation): bool =
-  ## Check if orientation is diagonal
   ord(orient) >= ord(NW)
 
 proc getOpposite*(orient: Orientation): Orientation =
-  ## Get the opposite orientation
   case orient
   of N: S
   of S: N
@@ -414,14 +381,11 @@ proc getOpposite*(orient: Orientation): Orientation =
   of SE: NW
 
 proc isEmpty*(env: Environment, pos: IVec2): bool =
-  ## Check if a position is empty (water is now passable)
   if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
     return false
-  # Water is now passable, only check for objects
   return env.grid[pos.x][pos.y] == nil
 
 proc orientationToVec*(orientation: Orientation): IVec2 =
-  ## Convert orientation to a vector
   case orientation
   of N: result = ivec2(0, -1)
   of S: result = ivec2(0, 1)
@@ -433,7 +397,6 @@ proc orientationToVec*(orientation: Orientation): IVec2 =
   of SE: result = ivec2(1, 1)
 
 proc relativeLocation*(orientation: Orientation, distance, offset: int): IVec2 =
-  ## Calculate a relative location based on orientation.
   case orientation
   of N: ivec2(-offset, -distance)
   of S: ivec2(offset, distance)
@@ -445,13 +408,9 @@ proc relativeLocation*(orientation: Orientation, distance, offset: int): IVec2 =
   of SE: ivec2(distance + offset, distance - offset)
 
 proc noopAction(env: Environment, id: int, agent: Thing) =
-  ## Do nothing
   inc env.stats[id].actionNoop
 
 proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Move the agent in any of 8 directions and auto-rotate to face that direction
-  ## argument: 0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE
-  
   # Validate orientation argument
   if argument < 0 or argument > 7:
     inc env.stats[id].actionInvalid
@@ -466,7 +425,6 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
   
   # Update orientation to face movement direction
   let newOrientation = moveOrientation
-    
   if env.isEmpty(newPos):
     env.grid[agent.pos.x][agent.pos.y] = nil
     env.updateObservations(AgentLayer, agent.pos, 0)
@@ -476,10 +434,8 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
     env.updateObservations(AgentInventoryWaterLayer, agent.pos, 0)
     env.updateObservations(AgentInventoryWheatLayer, agent.pos, 0)
     env.updateObservations(AgentInventoryWoodLayer, agent.pos, 0)
-
     agent.pos = newPos
-    agent.orientation = newOrientation  # Update orientation when moving
-
+    agent.orientation = newOrientation
     env.grid[agent.pos.x][agent.pos.y] = agent
     env.updateObservations(AgentLayer, agent.pos, 1)
     env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
@@ -488,15 +444,12 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
     env.updateObservations(AgentInventoryWaterLayer, agent.pos, agent.inventoryWater)
     env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
     env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
-
     env.updateObservations(id)
-
     inc env.stats[id].actionMove
   else:
     inc env.stats[id].actionInvalid
 
 proc rotateAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Rotate the agent to face any of 8 directions
   if argument < 0 or argument > 7:
     inc env.stats[id].actionInvalid
     return
@@ -583,8 +536,47 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
-  of Temple, Clippy, Armory, ClayOven, WeavingLoom:
-    # Can't use temples, Clippys, or other corner buildings (for now)
+  of Armory:
+    # Use armory to craft armor from ore
+    if thing.cooldown == 0 and agent.inventoryOre >= 2:
+      agent.inventoryOre -= 2
+      # Note: In a full implementation, this would create armor items
+      # For now, just give a reward
+      agent.reward += RewardCraftArmor
+      thing.cooldown = 20  # Armory cooldown
+      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  
+  of ClayOven:
+    # Use clay oven to cook food from wheat
+    if thing.cooldown == 0 and agent.inventoryWheat >= 1:
+      agent.inventoryWheat -= 1
+      # Note: In a full implementation, this would create food items
+      # For now, just give a reward
+      agent.reward += RewardCraftFood
+      thing.cooldown = 10  # Clay oven cooldown
+      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  
+  of WeavingLoom:
+    # Use weaving loom to make cloth from wheat
+    if thing.cooldown == 0 and agent.inventoryWheat >= 1:
+      agent.inventoryWheat -= 1
+      # Note: In a full implementation, this would create cloth items
+      # For now, just give a reward
+      agent.reward += RewardCraftCloth
+      thing.cooldown = 15  # Weaving loom cooldown
+      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  
+  of Temple, Clippy:
+    # Can't use temples or Clippys
     inc env.stats[id].actionInvalid
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
@@ -759,9 +751,7 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
         result.add(pos)
 
 proc getHouseCorners(env: Environment, houseTopLeft: IVec2, houseSize: int = 5): seq[IVec2] =
-  ## Get the 4 corners around a house (just outside the structure)
   result = @[]
-  
   # Simple: just the 4 corners
   let corners = @[
     ivec2(houseTopLeft.x - 1, houseTopLeft.y - 1),                    # Top-left
@@ -769,7 +759,6 @@ proc getHouseCorners(env: Environment, houseTopLeft: IVec2, houseSize: int = 5):
     ivec2(houseTopLeft.x - 1, houseTopLeft.y + houseSize),            # Bottom-left
     ivec2(houseTopLeft.x + houseSize, houseTopLeft.y + houseSize)     # Bottom-right
   ]
-  
   # Check each corner is valid and empty
   for corner in corners:
     if corner.x >= MapBorder and corner.x < MapWidth - MapBorder and
@@ -778,7 +767,6 @@ proc getHouseCorners(env: Environment, houseTopLeft: IVec2, houseSize: int = 5):
       result.add(corner)
 
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
-  ## Find an empty position in the environment (not on water)
   for i in 0 ..< 100:
     let pos = ivec2(r.rand(MapBorder ..< MapWidth - MapBorder), r.rand(MapBorder ..< MapHeight - MapBorder))
     if env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
@@ -793,7 +781,6 @@ proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
   quit("Failed to find an empty position, map too full!")
 
 proc add(env: Environment, thing: Thing) =
-  ## Add a thing to the environment
   env.things.add(thing)
   if thing.kind == Agent:
     env.agents.add(thing)
@@ -1177,6 +1164,15 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         thing.cooldown -= 1
         env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
     elif thing.kind == Forge:
+      if thing.cooldown > 0:
+        thing.cooldown -= 1
+    elif thing.kind == Armory:
+      if thing.cooldown > 0:
+        thing.cooldown -= 1
+    elif thing.kind == ClayOven:
+      if thing.cooldown > 0:
+        thing.cooldown -= 1
+    elif thing.kind == WeavingLoom:
       if thing.cooldown > 0:
         thing.cooldown -= 1
     elif thing.kind == Temple:

@@ -1,6 +1,3 @@
-## Attack module - extends tribal.nim with weapon crafting and combat mechanics
-## Implements Forge for spear crafting and combat system
-
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
 import tribal
 export tribal
@@ -12,11 +9,9 @@ const
   SpearRange* = 2     # Attack range with spear (Manhattan distance)
 
 proc getManhattanDistance*(pos1, pos2: IVec2): int =
-  ## Calculate Manhattan distance between two positions
   return abs(pos1.x - pos2.x) + abs(pos1.y - pos2.y)
 
 proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
-  ## Use a forge to craft a spear from wood
   # Check if forge is ready (not on cooldown)
   if forge.cooldown > 0:
     return
@@ -42,9 +37,6 @@ proc useForgeAction*(env: Environment, id: int, agent: Thing, forge: Thing) =
   agent.reward += 0.5
 
 proc attackWithSpearAction*(env: Environment, id: int, agent: Thing, targetDirection: int) =
-  ## Attack with a spear in the specified direction
-  ## targetDirection: 0=N, 1=S, 2=E, 3=W
-  
   # Check if agent has a spear
   if agent.inventorySpear <= 0:
     return

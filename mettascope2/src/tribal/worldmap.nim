@@ -4,8 +4,6 @@ import
   common, panels, tribal, actions, utils
 
 proc agentColor*(id: int): Color =
-  ## Get the color for an agent based on their village
-  # Agents now get colors from their village assignment stored in tribal module
   if id >= 0 and id < agentVillageColors.len:
     return agentVillageColors[id]
   # Fallback for agents without village assignment
@@ -18,15 +16,12 @@ proc agentColor*(id: int): Color =
   )
 
 proc altarColor*(pos: IVec2): Color =
-  ## Get the color for an altar based on its village association
   if altarColors.hasKey(pos):
     return altarColors[pos]
   # Fallback to white if no color assigned
   return color(1.0, 1.0, 1.0, 1.0)
 
 proc generateVillageColor*(villageId: int): Color =
-  ## Generate a distinct color for a village
-  # Use HSL to generate distinct colors with good saturation and lightness
   let hue = (villageId.float32 * 137.5) mod 360.0 / 360.0  # Golden angle for color spacing
   let saturation = 0.7 + (villageId.float32 * 0.13) mod 0.3
   let lightness = 0.5 + (villageId.float32 * 0.17) mod 0.2
@@ -34,7 +29,6 @@ proc generateVillageColor*(villageId: int): Color =
   return color(hue, saturation, lightness, 1.0)
 
 proc useSelections*() =
-  ## Reads the mouse position and selects the thing under it.
   if window.buttonPressed[MouseLeft]:
     selection = nil
     let
@@ -99,8 +93,6 @@ type WallTile = enum
   WallNW = 8 or 4,
 
 proc getAltarRadiance*(pos: IVec2): float32 =
-  ## Calculate brightness based on distance to nearby altars and their hearts
-  ## Returns a value between 0.0 (dark) and 1.0 (bright)
   var maxRadiance = 0.0'f32
   
   # Check all altars in the environment
@@ -126,7 +118,6 @@ proc getAltarRadiance*(pos: IVec2): float32 =
   return maxRadiance
 
 proc drawWalls*() =
-  ## Draw the walls on the map.
   template hasWall(x: int, y: int): bool =
     x >= 0 and x < MapWidth and
     y >= 0 and y < MapHeight and
@@ -170,7 +161,6 @@ proc drawWalls*() =
                   angle = 0, scale = 1/200, tint = fillTint)
 
 proc drawObjects*() =
-  ## Draw the objects on the map.
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
       if env.grid[x][y] != nil:
@@ -178,7 +168,6 @@ proc drawObjects*() =
         case thing.kind
         of Wall:
           discard
-          # bxy.drawImage("objects/wall",  ivec2(x, y).vec2, angle = 0, scale = 1/200)
         of Agent:
           let agent = thing
           var agentImage = case agent.orientation:
@@ -197,31 +186,6 @@ proc drawObjects*() =
             scale = 1/200,
             tint = agentColor(agent.agentId)
           )
-
-          # var face = case agent.orientation:
-          #   of N: ivec2(0, -1)
-          #   of S: ivec2(0, 1)
-          #   of E: ivec2(1, 0)
-          #   of W: ivec2(-1, 0)
-          #   of NW: ivec2(-1, -1)
-          #   of NE: ivec2(1, -1)
-          #   of SW: ivec2(-1, 1)
-          #   of SE: ivec2(1, 1)
-          # bxy.drawImage(
-          #   "bubble",
-          #   (agent.pos + face).vec2 * 64,
-          #   angle = 0,
-          #   tint = color(1, 0, 0, 0.5)
-          # )
-
-          # var face2 = relativeLocation(agent.orientation, 2, 0)
-          # bxy.drawImage(
-          #   "bubble",
-          #   (agent.pos + face).vec2 * 64,
-          #   angle = 0,
-          #   tint = color(1, 0, 0, 0.5)
-          # )
-
         of Altar:
           bxy.drawImage(
             "objects/altar",
@@ -238,8 +202,7 @@ proc drawObjects*() =
             scale = 1/200
           )
         of Mine:
-          let
-            tint = color(0.5, 0.5, 1, 1)
+          let tint = color(0.5, 0.5, 1, 1)
           bxy.drawImage(
             "objects/mine",
             ivec2(x, y).vec2,
@@ -297,7 +260,6 @@ proc drawObjects*() =
 
 
 proc drawVisualRanges*(alpha = 0.2) =
-  ## Draw the visual ranges of the selected agent.
   var visibility: array[MapWidth, array[MapHeight, bool]]
   for agent in env.agents:
     for i in 0 ..< ObservationWidth:
@@ -319,30 +281,10 @@ proc drawVisualRanges*(alpha = 0.2) =
         )
 
 proc drawFogOfWar*() =
-  ## Draw the fog of war.
   drawVisualRanges(alpha = 1.0)
 
 proc drawActions*() =
-  ## Draw the actions of the selected agent.
-    # # Draw all possible attacks:
-  # for agent in env.agents:
-  #   for i in 1 .. 9:
-  #     let
-  #       distance = 1 + (i - 1) div 3
-  #       offset = -((i - 1) mod 3 - 1)
-  #       targetPos = agent.pos + relativeLocation(agent.orientation, distance, offset)
-  #     bxy.drawImage(
-  #       "empty",
-  #       targetPos.vec2 * 64,
-  #       angle = 0,
-  #       scale = 2,
-  #       tint = color(1, 0, 0, 1)
-  #     )
-
-  # Attack actions removed - no longer rendering attack effects
-  # for agentId, action in actionsArray:
-  #   if action[0] == 4:
-  #     # Attack effects would be rendered here
+  discard
 
 proc drawObservations*() =
   # Draw observations

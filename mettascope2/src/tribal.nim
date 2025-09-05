@@ -1,6 +1,6 @@
-import std/[random, os, times, strformat, strutils],
-  boxy, opengl, windy, chroma, vmath,
-  tribal/[tribal, actions, replays, common, panels, utils, worldmap, header, footer, timeline]
+import std/[os, times, strutils],
+  boxy, opengl, windy, vmath,
+  tribal/[tribal, actions, common, panels, worldmap, header, footer, timeline]
 
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
 makeContextCurrent(window)

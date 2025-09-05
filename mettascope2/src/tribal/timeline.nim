@@ -1,7 +1,6 @@
 import
-  std/[strformat],
-  boxy, vmath, windy,
-  common, panels, tribal, actions, utils
+  boxy,
+  common, panels
 
 const
   BgColor = parseHtmlColor("#1D1D1D")

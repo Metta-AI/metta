@@ -1,6 +1,6 @@
 import
   boxy, vmath, windy,
-  common, panels, tribal
+  common
 
 
 var

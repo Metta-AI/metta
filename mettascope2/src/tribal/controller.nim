@@ -1,4 +1,4 @@
-import std/[math, random, tables, sequtils]
+import std/[math, random, tables]
 import vmath
 import tribal
 
@@ -7,12 +7,12 @@ from tribal import N, S, W, E, NW, NE, SW, SE
 
 type
   ControllerState* = ref object
-    ## State for each agent's controller
-    wanderRadius*: int  # DEPRECATED - keeping for compatibility
-    wanderAngle*: float  # DEPRECATED - keeping for compatibility
-    wanderStartAngle*: float  # DEPRECATED - keeping for compatibility
-    wanderPointsVisited*: int # DEPRECATED - keeping for compatibility
-    # New spiral state
+    # Deprecated fields
+    wanderRadius*: int
+    wanderAngle*: float
+    wanderStartAngle*: float
+    wanderPointsVisited*: int
+    # Spiral state
     spiralArcLength*: int  # Current arc length (how many steps to take in current direction)
     spiralStepsInArc*: int  # Steps taken in current arc
     spiralDirection*: int  # Current direction (0=N, 1=E, 2=S, 3=W)
@@ -43,7 +43,6 @@ type
     stepCount: int
 
 proc newController*(seed: int = 2024): Controller =
-  ## Create a new controller for managing agent behaviors
   result = Controller(
     agentStates: initTable[int, ControllerState](),
     rng: initRand(seed),
@@ -51,7 +50,6 @@ proc newController*(seed: int = 2024): Controller =
   )
 
 proc initAgentState(controller: Controller, agentId: int, basePos: IVec2) =
-  ## Initialize state for a new agent
   controller.agentStates[agentId] = ControllerState(
     wanderRadius: 3,  # DEPRECATED
     wanderAngle: 0.0,  # DEPRECATED
