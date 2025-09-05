@@ -1,9 +1,8 @@
-import tribal_game
 ## Rendering module for environment visualization
 ## Handles ASCII rendering of the game state
 
 import std/strformat
-import environment_core 
+import environment_core, terrain
 
 proc render*(env: Environment): string =
   ## Render the environment as an ASCII string

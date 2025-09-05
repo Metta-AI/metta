@@ -1,5 +1,5 @@
 import std/[math, tables, strformat, sequtils, sets, strutils]
-import ../src/tribal/tribal_game
+import ../src/tribal/tribal
 import ../src/tribal/placement
 import ../src/tribal/terrain
 import vmath

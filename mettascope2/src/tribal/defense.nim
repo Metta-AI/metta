@@ -1,5 +1,4 @@
-import tribal_game
-import vmath, std/[random, tables], 
+import vmath, std/[random, tables], terrain
 
 type
   DefenseStructure* = object
@@ -193,7 +192,7 @@ proc getDefenseValue*(item: DefenseItem): int =
   of Hat: return HatDefenseValue
   of Armor: return ArmorDefenseValue
 
-proc shouldAgentSurviveClippyAttack*(defense: var AgentDefense, Damage: int): tuple[
+proc shouldAgentSurviveClippyAttack*(defense: var AgentDefense, clippyDamage: int): tuple[
   survives: bool,
   consumedItem: DefenseItem,
   remainingDamage: int
@@ -218,7 +217,7 @@ proc shouldAgentSurviveClippyAttack*(defense: var AgentDefense, Damage: int): tu
   if bestItem != NoDefense:
     let consumedItem = defense.consumeDefenseItem(bestItem)
     let defenseValue = getDefenseValue(consumedItem)
-    let remainingDamage = max(0, Damage - defenseValue)
+    let remainingDamage = max(0, clippyDamage - defenseValue)
     
     return (
       survives: remainingDamage == 0,

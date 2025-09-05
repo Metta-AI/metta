@@ -1,4 +1,3 @@
-import tribal_game
 ## Core environment types and utilities
 ## This module contains the fundamental types and basic utilities used throughout the system
 
@@ -13,8 +12,8 @@ const
   MapRoomWidth* = 96  # 100 - 4 border = 96
   MapRoomHeight* = 46  # 50 - 4 border = 46
   MapRoomBorder* = 0
-  MapRoomObjectsAgents* = 20  # Total agents to spawn
-  MapRoomObjectsHouses* = 4  # Number of villages/houses to spawn (one per corner)
+  MapRoomObjectsAgents* = 15  # Total agents to spawn
+  MapRoomObjectsHouses* = 3  # Number of villages/houses to spawn
   MapAgentsPerHouse* = 5  # Agents to spawn per house/village
   MapRoomObjectsConverters* = 10  # Converters to process ore into batteries
   MapRoomObjectsMines* = 20  # Mines to extract ore

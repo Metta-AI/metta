@@ -1,5 +1,5 @@
 import std/[times],
-  tribal_game, boxy, windy, vmath
+  tribal, boxy, windy, vmath
 
 type
   IRect* = object

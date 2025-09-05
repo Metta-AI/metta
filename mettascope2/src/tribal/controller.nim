@@ -1,7 +1,9 @@
 import std/[math, random, tables, sequtils]
 import vmath
-from tribal_game import Environment, Thing, ThingKind, MapAgents, ObservationLayers, Orientation,
-  N, S, W, E, NW, NE, SW, SE, MapWidth, MapHeight, isEmpty
+import tribal
+
+# Import the new orientations
+from tribal import N, S, W, E, NW, NE, SW, SE
 
 type
   ControllerState* = ref object
@@ -91,8 +93,8 @@ proc resetWanderState(state: ControllerState) =
   state.spiralStepsInArc = 0
 
 proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 =
-  ## Get next point in expanding spiral pattern using 8 directions
-  ## Pattern: Move in increasing arc lengths using all 8 directions for efficient coverage
+  ## Get next point in expanding spiral pattern
+  ## Pattern: Move in increasing arc lengths - 1 step N, 1 E, 2 S, 2 W, 3 N, 3 E, 4 S, 4 W, etc.
   ## This creates an outward spiral from the base position
   
   # Track current position in the spiral (accumulated from all steps)
@@ -104,51 +106,27 @@ proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 
   # Rebuild the position by simulating all steps up to current point
   for arcNum in 0 ..< state.spiralArcsCompleted:
     # Calculate arc length for this arc number
-    let arcLen = (arcNum div 4) + 1  # Slower growth since we have 8 directions now
-    let dir = arcNum mod 8  # Direction cycles through 0-7 (8 directions)
+    let arcLen = (arcNum div 2) + 1  # 1,1,2,2,3,3,4,4...
+    let dir = arcNum mod 4  # Direction cycles through 0,1,2,3
     
-    # Add the full arc's offset using 8 directions
+    # Add the full arc's offset
     case dir:
     of 0: totalOffset.y -= int32(arcLen)  # North
-    of 1: 
-      totalOffset.x += int32(arcLen)  # NE diagonal
-      totalOffset.y -= int32(arcLen)
-    of 2: totalOffset.x += int32(arcLen)  # East  
-    of 3: 
-      totalOffset.x += int32(arcLen)  # SE diagonal
-      totalOffset.y += int32(arcLen)
-    of 4: totalOffset.y += int32(arcLen)  # South
-    of 5: 
-      totalOffset.x -= int32(arcLen)  # SW diagonal
-      totalOffset.y += int32(arcLen)
-    of 6: totalOffset.x -= int32(arcLen)  # West
-    of 7: 
-      totalOffset.x -= int32(arcLen)  # NW diagonal
-      totalOffset.y -= int32(arcLen)
+    of 1: totalOffset.x += int32(arcLen)  # East  
+    of 2: totalOffset.y += int32(arcLen)  # South
+    of 3: totalOffset.x -= int32(arcLen)  # West
     else: discard
   
   # Add partial progress in current arc
-  currentArcLength = (state.spiralArcsCompleted div 4) + 1  # Adjusted for 8 directions
-  direction = state.spiralArcsCompleted mod 8
+  currentArcLength = (state.spiralArcsCompleted div 2) + 1
+  direction = state.spiralArcsCompleted mod 4
   
-  # Add the steps we've taken in the current arc with diagonal support
+  # Add the steps we've taken in the current arc
   case direction:
   of 0: totalOffset.y -= int32(state.spiralStepsInArc)  # North
-  of 1: 
-    totalOffset.x += int32(state.spiralStepsInArc)  # NE
-    totalOffset.y -= int32(state.spiralStepsInArc)
-  of 2: totalOffset.x += int32(state.spiralStepsInArc)  # East
-  of 3: 
-    totalOffset.x += int32(state.spiralStepsInArc)  # SE
-    totalOffset.y += int32(state.spiralStepsInArc)
-  of 4: totalOffset.y += int32(state.spiralStepsInArc)  # South  
-  of 5: 
-    totalOffset.x -= int32(state.spiralStepsInArc)  # SW
-    totalOffset.y += int32(state.spiralStepsInArc)
-  of 6: totalOffset.x -= int32(state.spiralStepsInArc)  # West
-  of 7: 
-    totalOffset.x -= int32(state.spiralStepsInArc)  # NW
-    totalOffset.y -= int32(state.spiralStepsInArc)
+  of 1: totalOffset.x += int32(state.spiralStepsInArc)  # East
+  of 2: totalOffset.y += int32(state.spiralStepsInArc)  # South  
+  of 3: totalOffset.x -= int32(state.spiralStepsInArc)  # West
   else: discard
   
   # Now calculate next step
@@ -160,38 +138,23 @@ proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 
     state.spiralArcsCompleted += 1
     state.spiralStepsInArc = 1  # Start new arc
     
-    # Recalculate for new arc with 8 directions
-    currentArcLength = (state.spiralArcsCompleted div 4) + 1  # Adjusted for 8 directions
-    direction = state.spiralArcsCompleted mod 8
+    # Recalculate for new arc
+    currentArcLength = (state.spiralArcsCompleted div 2) + 1
+    direction = state.spiralArcsCompleted mod 4
     
-    # Continue expanding with much larger spirals before reset
-    # This ensures agents keep searching even in large maps
-    if state.spiralArcsCompleted > 120:  # Much larger spirals with 8 directions
-      # Only reset if we've been wandering for a very long time
-      # Keep significant progress to avoid searching the same area repeatedly
-      state.spiralArcsCompleted = controller.rng.rand(40..50)  # Start much further out
+    # Cap the spiral size (reset after ~30 arcs which gives us 15 radius)
+    if state.spiralArcsCompleted > 30:
+      # Reset the spiral but with some randomization
+      state.spiralArcsCompleted = controller.rng.rand(0..3)  # Start at random direction
       state.spiralStepsInArc = 1
-      # Don't return to base, continue from current position to explore new areas
-      # This helps agents explore the entire map rather than staying near home
+      return state.basePosition  # Return to base to start new spiral
   
-  # Calculate next position offset using 8 directions for efficient diagonal movement
+  # Calculate next position offset
   case direction:
   of 0: totalOffset.y -= 1  # Take one step North
-  of 1: # Take one step NE (diagonal)
-    totalOffset.x += 1
-    totalOffset.y -= 1
-  of 2: totalOffset.x += 1  # Take one step East
-  of 3: # Take one step SE (diagonal)
-    totalOffset.x += 1
-    totalOffset.y += 1
-  of 4: totalOffset.y += 1  # Take one step South
-  of 5: # Take one step SW (diagonal)
-    totalOffset.x -= 1
-    totalOffset.y += 1
-  of 6: totalOffset.x -= 1  # Take one step West
-  of 7: # Take one step NW (diagonal)
-    totalOffset.x -= 1
-    totalOffset.y -= 1
+  of 1: totalOffset.x += 1  # Take one step East
+  of 2: totalOffset.y += 1  # Take one step South
+  of 3: totalOffset.x -= 1  # Take one step West
   else: discard
   
   result = state.basePosition + totalOffset
@@ -413,9 +376,9 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
             minDist = dist
             nearestConverter = thing
       
-      # If no visible converter, search much wider and keep looking
+      # If no visible converter, search wider and wander to find one
       if nearestConverter == nil:
-        nearestConverter = env.findNearestThing(agent.pos, Converter, maxDist = 50.0)  # Increased from 20
+        nearestConverter = env.findNearestThing(agent.pos, Converter, maxDist = 20.0)
       
       if nearestConverter != nil:
         state.currentTarget = nearestConverter.pos
@@ -462,8 +425,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         needNewTarget = true
         state.targetType = NoTarget
     
-    # Look for a new mine if we don't have a valid target - search much wider area
-    if state.targetType != Mine or distance(agent.pos, state.currentTarget) > 30 or needNewTarget:  # Increased from 15
+    # Look for a new mine if we don't have a valid target
+    if state.targetType != Mine or distance(agent.pos, state.currentTarget) > 15 or needNewTarget:
       var nearestMine: Thing = nil
       var minDist = 999999.0
       

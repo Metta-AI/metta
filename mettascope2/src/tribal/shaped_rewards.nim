@@ -2,8 +2,8 @@
 ## Defines reward values for different actions to encourage meaningful agent behavior
 ## These rewards guide agents through: exploration → resource gathering → crafting → combat → cooperation
 
-import tribal_game
-export tribal_game
+import tribal
+export tribal
 
 # ============ Resource Gathering Rewards ============
 # Small rewards for collecting basic resources

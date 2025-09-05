@@ -1,5 +1,4 @@
-import tribal_game
-import vmath, std/[random, tables], 
+import vmath, std/[random, tables], terrain
 
 type
   FoodItem* = enum

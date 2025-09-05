@@ -1,6 +1,6 @@
 import std/[math, tables, strformat, sequtils, strutils]
 import ../src/tribal/controller
-import ../src/tribal/tribal_game
+import ../src/tribal/tribal
 import vmath
 
 proc visualizeSpiralOnGrid() =

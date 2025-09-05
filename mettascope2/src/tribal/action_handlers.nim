@@ -1,10 +1,9 @@
-import tribal_game
 ## Core action implementations for agents
 ## Contains all the action logic extracted from tribal.nim
 
 import std/[math, random]
 import vmath
-import environment_core 
+import environment_core, observations, statistics, rewards, terrain
 
 # Action implementations
 proc noopAction*(env: Environment, id: int, agent: Thing) =

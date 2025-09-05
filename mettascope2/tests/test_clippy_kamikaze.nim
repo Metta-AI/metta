@@ -2,7 +2,7 @@
 ## Verifies that clippys sacrifice themselves to damage altars
 import std/[strformat, strutils]
 import vmath
-import ../src/tribal/tribal_game
+import ../src/tribal/tribal
 import ../src/tribal/clippy
 import ../src/tribal/common
 import ../src/tribal/actions

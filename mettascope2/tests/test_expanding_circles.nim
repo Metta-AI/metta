@@ -1,6 +1,6 @@
 import std/[math, tables, strformat, sets, strutils, sequtils]
 import ../src/tribal/controller
-import ../src/tribal/tribal_game
+import ../src/tribal/tribal
 import ../src/tribal/clippy
 import ../src/tribal/common
 import ../src/tribal/actions
