@@ -808,7 +808,8 @@ proc clearTintModifications*(env: Environment) =
     if pos.x >= 0 and pos.x < MapWidth and pos.y >= 0 and pos.y < MapHeight:
       env.agentTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
       env.clippyTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
-      # Don't clear altar mods - they're more persistent
+      # Clear altar mods too - they get recalculated each frame from altar positions
+      env.altarTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
   
   # Clear the active list for next frame
   env.activeTiles.positions.setLen(0)
@@ -847,16 +848,24 @@ proc updateTintModifications*(env: Environment) =
         env.agentTintMods[pos.x][pos.y].b = int16((tribeColor.b - 0.6) * 50)
         
     of Altar:
-      # Altars affect brightness of house tiles only (update less frequently)
-      if env.currentStep mod 10 == 0 and thing.houseSize > 0 and thing.houseTopLeft.x >= 0:
+      # Altars color their house tiles with team color and brightness
+      if thing.houseSize > 0 and thing.houseTopLeft.x >= 0:
+        # Get the village color for this altar
+        let villageColor = altarColors.getOrDefault(thing.pos, color(0.7, 0.65, 0.6, 1.0))
         let brightnessBoost = int16(thing.hearts * 100)  # 10% per heart
+        
         for dx in 0 ..< thing.houseSize:
           for dy in 0 ..< thing.houseSize:
             let tileX = thing.houseTopLeft.x + dx
             let tileY = thing.houseTopLeft.y + dy
             if tileX >= 0 and tileX < MapWidth and tileY >= 0 and tileY < MapHeight:
+              # Apply team color as base tint (stronger effect than agent trails)
+              env.altarTintMods[tileX][tileY].r = int16((villageColor.r - 0.7) * 200)  # Strong team color
+              env.altarTintMods[tileX][tileY].g = int16((villageColor.g - 0.65) * 200)
+              env.altarTintMods[tileX][tileY].b = int16((villageColor.b - 0.6) * 200)
               env.altarTintMods[tileX][tileY].intensity = brightnessBoost
-              # Track these tiles as active too
+              
+              # Track these tiles as active
               env.activeTiles.positions.add(ivec2(tileX, tileY))
               env.activeTiles.count += 1
     else:
@@ -891,8 +900,14 @@ proc applyTintModifications*(env: Environment) =
       g += env.clippyTintMods[x][y].g div 8
       b += env.clippyTintMods[x][y].b div 8
     
-    # Apply altar brightness
-    if env.altarTintMods[x][y].intensity != 0:
+    # Apply altar team color and brightness (for house tiles)
+    if env.altarTintMods[x][y].r != 0 or env.altarTintMods[x][y].g != 0 or 
+       env.altarTintMods[x][y].b != 0 or env.altarTintMods[x][y].intensity != 0:
+      # Altar tiles get strong team color application
+      r += env.altarTintMods[x][y].r div 5  # 20% of the modification
+      g += env.altarTintMods[x][y].g div 5
+      b += env.altarTintMods[x][y].b div 5
+      # And brightness boost
       env.tileColors[x][y].intensity = 1.0 + env.altarTintMods[x][y].intensity.float32 / 1000.0
     
     # Convert back to float with clamping
@@ -903,12 +918,14 @@ proc applyTintModifications*(env: Environment) =
   # Apply global decay to ALL tiles (but infrequently for performance)
   if env.currentStep mod 30 == 0 and env.currentStep > 0:
     let decay = 0.98'f32  # 2% decay every 30 steps
-    let baseR = 0.7'f32
-    let baseG = 0.65'f32  
-    let baseB = 0.6'f32
     
     for x in 0 ..< MapWidth:
       for y in 0 ..< MapHeight:
+        # Get the base color for this tile (could be team color for houses)
+        let baseR = env.baseTileColors[x][y].r
+        let baseG = env.baseTileColors[x][y].g
+        let baseB = env.baseTileColors[x][y].b
+        
         # Only decay if color differs from base (avoid floating point errors)
         if abs(env.tileColors[x][y].r - baseR) > 0.01 or 
            abs(env.tileColors[x][y].g - baseG) > 0.01 or 
@@ -917,9 +934,10 @@ proc applyTintModifications*(env: Environment) =
           env.tileColors[x][y].g = env.tileColors[x][y].g * decay + baseG * (1.0 - decay)
           env.tileColors[x][y].b = env.tileColors[x][y].b * decay + baseB * (1.0 - decay)
         
-        # Also decay intensity back to 1.0
-        if abs(env.tileColors[x][y].intensity - 1.0) > 0.01:
-          env.tileColors[x][y].intensity = env.tileColors[x][y].intensity * decay + 1.0 * (1.0 - decay)
+        # Also decay intensity back to base intensity
+        let baseIntensity = env.baseTileColors[x][y].intensity
+        if abs(env.tileColors[x][y].intensity - baseIntensity) > 0.01:
+          env.tileColors[x][y].intensity = env.tileColors[x][y].intensity * decay + baseIntensity * (1.0 - decay)
 
 proc add*(env: Environment, thing: Thing) =
   env.things.add(thing)
