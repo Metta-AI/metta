@@ -129,19 +129,18 @@ jobs:
             PYTEST_ARGS="tests/setup --cov --cov-branch --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy -n auto"
             echo "Running setup tests with full branch coverage and 4-core parallel execution for production merge"
           else
-            # Fast testmon for PRs and development (fast feedback) with parallel execution
-            PYTEST_ARGS="tests/setup --testmon --cov --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy -n auto"
-            echo "Running setup tests with testmon and 4-core parallel execution for fast development feedback"
-          fi
-
-          # If no .testmondata exists, do a full run first to build the database
-          if [ ! -f ".testmondata" ]; then
-            echo "No testmon database found."
-          else
-            echo "Found testmon database. Running only affected setup tests..."
-            # Show which tests would be selected (dry run)
-            echo "Setup tests that would be selected by testmon:"
-            uv run pytest tests/setup --testmon --collect-only -q || echo "No tests selected or collection failed"
+            # Fast testmon for PRs and development (fast feedback)
+            # Use parallel execution only when no testmon database exists for accuracy
+            if [ ! -f ".testmondata" ]; then
+              PYTEST_ARGS="tests/setup --testmon --cov --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy -n 4"
+              echo "No testmon database found. Running setup tests with 4-core parallel execution to build database."
+            else
+              PYTEST_ARGS="tests/setup --testmon --cov --cov-report=xml -v --durations=10 --junitxml=junit.xml -o junit_family=legacy -n 0"
+              echo "Found testmon database. Running selective setup tests without parallel execution for accuracy."
+              # Show which tests would be selected (dry run)
+              echo "Setup tests that would be selected by testmon:"
+              uv run pytest tests/setup --testmon --collect-only -q || echo "No tests selected or collection failed"
+            fi
           fi
 
           uv run pytest $PYTEST_ARGS
