@@ -483,11 +483,3 @@ class Curriculum:
         # Add algorithm prefix to avoid conflicts
         prefixed_algorithm_stats = {f"algorithm/{k}": v for k, v in algorithm_stats.items()}
         return {**base_stats, **prefixed_algorithm_stats}
-
-
-# Import concrete config classes at the end to avoid circular imports
-# ruff: noqa: E402
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-
-# Rebuild the model to resolve forward references
-CurriculumConfig.model_rebuild()

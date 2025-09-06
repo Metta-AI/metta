@@ -16,6 +16,10 @@ from .task_generator import (
     TaskGeneratorSetConfig,
 )
 
+# Rebuild models after all imports to resolve forward references
+
+CurriculumConfig.model_rebuild()
+
 __all__ = [
     "Curriculum",
     "CurriculumConfig",

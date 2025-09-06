@@ -20,7 +20,7 @@ from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
-    pass
+    from metta.cogworks.curriculum.curriculum import CurriculumConfig
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +67,9 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             )
         return cls._generator_cls
 
-    def to_curriculum(self):
+    def to_curriculum(self) -> "CurriculumConfig":
         """Create a CurriculumConfig from this TaskGeneratorConfig."""
+        # Import here to avoid circular dependency at module level
         from metta.cogworks.curriculum.curriculum import CurriculumConfig
 
         return CurriculumConfig(task_generator=self)
