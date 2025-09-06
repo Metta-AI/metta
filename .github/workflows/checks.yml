@@ -217,13 +217,23 @@ jobs:
           pnpm run lint
 
   unit-tests:
-    name: "Unit Tests - All Packages"
+    name: "Unit Tests - ${{ matrix.package }}"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-8core
+    runs-on: ubuntu-4core
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - agent
+          - common
+          - app_backend
+          - mettagrid
+          - codebot
+          - core
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -245,111 +255,101 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run all package tests
+      # IMPORTANT: Keep this step name consistent for benchmarking
+      - name: Run ${{ matrix.package }} tests
         shell: bash
         run: |
           # Create directories
           mkdir -p test-results coverage-reports
 
-          run_package_tests() {
-            local package=$1
-            local color=$2
+          PYTEST_BASE_ARGS="-n auto --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
-            # packages run in parallel so we will start (packages)*(pytest_workers) processes
-            PYTEST_BASE_ARGS="-n 2 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
-
-            # Save raw output for duration parsing
-            local raw_output="test-results/${package}_raw.log"
-
-            # Run tests and prefix each line with package name and color
-            if [ "$package" == "core" ]; then
-              (pytest $PYTEST_BASE_ARGS \
-                --cov-report=xml:coverage-reports/coverage-${package}.xml \
-                2>&1; echo $? > test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
-                  echo -e "${color}[${package}]\033[0m $line"
-                done
-            else
-              (cd "$package" && pytest $PYTEST_BASE_ARGS \
-                --cov-report=xml:../coverage-reports/coverage-${package}.xml \
-                2>&1; echo $? > ../test-results/${package}.exit) | tee "$raw_output" | while IFS= read -r line; do
-                  echo -e "${color}[${package}]\033[0m $line"
-                done
-            fi
-
-            # Extract duration info for later summary
-            grep -E "^[0-9]+\.[0-9]+s " "$raw_output" > "test-results/${package}_durations.txt" || true
-          }
-
-          # Export function
-          export -f run_package_tests
-
-          # Record start time
-          START_TIME=$(date +%s)
-
-          echo "⏳ Running tests in parallel..."
-          run_package_tests "mettagrid" "\033[1;34m" &   # Bold Blue
-          sleep 2 # mettagrid is slowest, so give time for it to grab resources
-
-          run_package_tests "agent" "\033[1;31m" &        # Bold Red
-          run_package_tests "common" "\033[1;32m" &       # Bold Green
-          run_package_tests "app_backend" "\033[1;33m" & # Bold Yellow
-          run_package_tests "codebot" "\033[1;35m" &     # Bold Magenta
-          run_package_tests "core" "\033[1;36m" &         # Bold Cyan
-
-          wait
-          END_TIME=$(date +%s)
-          TOTAL_TIME=$((END_TIME - START_TIME))
-          OVERALL_FAILED=0
-          FAILED_PACKAGES=""
-
-          for package in agent common app_backend mettagrid codebot core; do
-            if [ -f "test-results/${package}.exit" ]; then
-              EXIT_CODE=$(cat "test-results/${package}.exit")
-              if [ "$EXIT_CODE" -ne 0 ]; then
-                OVERALL_FAILED=1
-                FAILED_PACKAGES="$FAILED_PACKAGES $package"
-              fi
-            else
-              OVERALL_FAILED=1
-              FAILED_PACKAGES="$FAILED_PACKAGES $package"
-            fi
-          done
-
-          echo -e "\n\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-          echo -e "\n\033[1;37m🐌 TOP 10 SLOWEST TESTS\033[0m"
-          # Combine all duration files and sort
-          for package in agent common app_backend mettagrid codebot core; do
-            if [ -f "test-results/${package}_durations.txt" ]; then
-              # Add package name to each line
-              sed "s/^/[${package}] /" "test-results/${package}_durations.txt"
-            fi
-          done | sort -rn | head -10 | nl -w2 -s'. '
-
-          if [ $OVERALL_FAILED -ne 0 ]; then
-            echo -e "\n\033[1;31m💥 Tests failed in:$FAILED_PACKAGES\033[0m"
-            echo -e "Total time: ${TOTAL_TIME}s"
-            exit 1
+          if [ "${{ matrix.package }}" == "core" ]; then
+            pytest $PYTEST_BASE_ARGS \
+              --cov-report=term \
+              --cov-report=xml:coverage-reports/coverage.xml \
+              2>&1 | tee test-results/output.log
+            exit ${PIPESTATUS[0]}
           else
-            echo -e "\n\033[1;32m🎉 All tests passed in ${TOTAL_TIME}s!\033[0m"
+            cd "${{ matrix.package }}" && pytest $PYTEST_BASE_ARGS \
+              --cov-report=term \
+              --cov-report=xml:../coverage-reports/coverage.xml \
+              2>&1 | tee ../test-results/output.log
+            exit ${PIPESTATUS[0]}
           fi
 
-      - name: Upload python test coverage to Codecov
-        if: needs.setup-checks.outputs.is_external != 'true'
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          SUBPACKAGES: "agent common app_backend mettagrid codebot core"
+      - name: Extract test durations
+        if: always()
         run: |
-          # We want to set flags per file so the codecov action is not convenient
-          # If we change to a matrix of runners we should delete the script
-          chmod +x .github/scripts/upload_codecov.py
-          .github/scripts/upload_codecov.py
+          if [ -f test-results/output.log ]; then
+            grep -E "^[0-9]+\.[0-9]+s " test-results/output.log > test-results/durations.txt || echo "No durations found" > test-results/durations.txt
+            # Add package name to each line for context
+            sed -i "s/$/ [${{ matrix.package }}]/" test-results/durations.txt
+          fi
+
+      - name: Upload test durations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations-${{ matrix.package }}
+          path: test-results/durations.txt
+          retention-days: 1
+
+      - name: Upload coverage to Codecov
+        if: needs.setup-checks.outputs.is_external != 'true'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage-reports/coverage.xml
+          flags: ${{ matrix.package }}
+          name: ${{ matrix.package }}-coverage
+          fail_ci_if_error: false
+          verbose: true
 
   unit-tests-summary:
-    name: "Tests"
+    name: "Tests Summary"
     needs: [unit-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Download all test durations
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-durations-*
+          path: ./all-durations/
+
+      - name: Find slowest tests overall
+        if: always()
+        run: |
+          # Combine all duration files
+          cat ./all-durations/*/durations.txt > combined-durations.txt 2>/dev/null || echo "No duration files found" > combined-durations.txt
+
+          # Check if we have actual durations
+          if grep -q "^[0-9]" combined-durations.txt; then
+            echo "## 🐌 Top 10 Slowest Tests Overall" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Duration | Test | Package |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|------|---------|" >> $GITHUB_STEP_SUMMARY
+
+            # Sort by duration (numerical, reverse) and take top 10
+            sort -rn combined-durations.txt | head -10 | while read -r line; do
+              # Extract duration, test path, and package
+              duration=$(echo "$line" | awk '{print $1}')
+              test_info=$(echo "$line" | awk '{$1=""; print $0}' | sed 's/^ //')
+              # Extract package name from the [package] suffix we added
+              package=$(echo "$test_info" | grep -oE '\[[^]]+\]$' | tr -d '[]')
+              test_path=$(echo "$test_info" | sed 's/ \[[^]]*\]$//')
+
+              echo "| $duration | $test_path | $package |" >> $GITHUB_STEP_SUMMARY
+            done
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "_Note: Durations include test setup and teardown time_" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ℹ️ No test duration information available" >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Check test results
         run: |
           echo "Test job results: ${{ toJSON(needs) }}"
@@ -359,6 +359,15 @@ jobs:
           elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
             echo "One or more test jobs were cancelled"
             exit 1
+          elif [ "${{ contains(join(needs.*.result, ','), 'skipped') }}" == "true" ]; then
+            # Check if all jobs were skipped
+            if [ "${{ needs.unit-tests.result }}" == "skipped" ]; then
+              echo "All test jobs were skipped (likely due to no relevant changes)"
+              exit 0
+            else
+              echo "Some test jobs were unexpectedly skipped"
+              exit 1
+            fi
           else
             echo "All test jobs completed successfully"
           fi
@@ -380,17 +389,23 @@ jobs:
         with:
           install-mode: "testing"
 
-      - name: Clean Bazel cache directories
+      - name: Setup Bazel caching
         run: |
-          # Clean bazel cache directories to prevent extraction conflicts
-          rm -rf ~/.cache/bazel ~/.cache/bazel-repo || true
+          # Configure Bazel to use specific cache directories
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
+
+          # Ensure directories exist
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
 
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
+        id: bazel-cache
         with:
           path: |
-            ~/.cache/bazel
-            ~/.cache/bazel-repo
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
           key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
@@ -434,11 +449,11 @@ jobs:
           PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks
         run: |
           # Main benchmarks
-          pytest -n 0 --benchmark-only --benchmark-json=main_benchmark_results.json
+          pytest -n 0 --timeout=100 --timeout-method=thread --benchmark-only --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
           cd mettagrid
-          pytest -n 0 --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
+          pytest -n 0 --timeout=100 --timeout-method=thread --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -465,17 +480,23 @@ jobs:
         with:
           install-mode: "testing"
 
-      - name: Clean Bazel cache directories
+      - name: Setup Bazel caching
         run: |
-          # Clean bazel cache directories to prevent extraction conflicts
-          rm -rf ~/.cache/bazel ~/.cache/bazel-repo || true
+          # Configure Bazel to use specific cache directories
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
+
+          # Ensure directories exist
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
 
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
+        id: bazel-cache
         with:
           path: |
-            ~/.cache/bazel
-            ~/.cache/bazel-repo
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
           key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
