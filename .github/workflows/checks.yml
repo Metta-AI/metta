@@ -382,11 +382,23 @@ jobs:
 
       - name: Setup Bazel caching
         run: |
-          # Configure Bazel to use specific cache directories
+          # Bazel's default ~/.cache/bazel contains internal state with symlinks,
+          # lock files, and files with future timestamps (2035) that cause
+          # "File exists" errors when actions/cache tries to extract them.
+          #
+          # Using --disk_cache and --repository_cache directories avoids these
+          # issues by caching only reusable artifacts:
+          # - Build outputs (disk_cache)
+          # - Downloaded external dependencies (repository_cache)
+          #
+          # Documentation:
+          # - https://bazel.build/reference/command-line-reference#flag--disk_cache
+          # - https://bazel.build/reference/command-line-reference#flag--repository_cache
+          # - https://bazel.build/remote/caching#disk-cache
+
           echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
           echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
 
-          # Ensure directories exist
           mkdir -p $HOME/.bazel-disk-cache
           mkdir -p $HOME/.bazel-repo-cache
 
@@ -400,12 +412,6 @@ jobs:
           key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
-
-      - name: Clean Bazel output if no cache hit
-        if: steps.bazel-cache.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          bazel clean --expunge
 
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
@@ -497,12 +503,6 @@ jobs:
           key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
-
-      - name: Clean Bazel output if no cache hit
-        if: steps.bazel-cache.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          bazel clean --expunge
 
       - name: Build C++ benchmarks
         id: benchmark_build_check
