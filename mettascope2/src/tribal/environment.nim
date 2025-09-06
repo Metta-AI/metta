@@ -367,19 +367,18 @@ proc isEmpty*(env: Environment, pos: IVec2): bool =
     return false
   return env.grid[pos.x][pos.y] == nil
 
-proc findNearestAltar*(env: Environment, fromPos: IVec2): IVec2 =
-  ## Find the position of the nearest altar to a given position
-  var nearestAltar = ivec2(-1, -1)
+proc findNearestThingPos*(env: Environment, fromPos: IVec2, kind: ThingKind): IVec2 =
+  var nearestPos = ivec2(-1, -1)
   var minDist = int.high
   
   for thing in env.things:
-    if thing.kind == Altar:
+    if thing.kind == kind:
       let dist = manhattanDistance(thing.pos, fromPos)
       if dist < minDist:
         minDist = dist
-        nearestAltar = thing.pos
+        nearestPos = thing.pos
   
-  return nearestAltar
+  return nearestPos
 
 proc createClippy*(pos: IVec2, homeSpawner: IVec2, targetAltar: IVec2, r: var Rand): Thing =
   ## Create a new Clippy that moves toward the nearest altar
@@ -1179,7 +1178,7 @@ proc init(env: Environment) =
           # Find an empty position adjacent to the spawner for initial clippy
           let nearbyPositions = env.findEmptyPositionsAround(targetPos, 1)
           if nearbyPositions.len > 0:
-            let nearestAltar = env.findNearestAltar(targetPos)
+            let nearestAltar = env.findNearestThingPos(targetPos, Altar)
             env.add(createClippy(nearbyPositions[0], targetPos, nearestAltar, r))
           
           placed = true
@@ -1225,7 +1224,7 @@ proc init(env: Environment) =
           
           let nearbyPositions = env.findEmptyPositionsAround(fallbackPos, 1)
           if nearbyPositions.len > 0:
-            let nearestAltar = env.findNearestAltar(fallbackPos)
+            let nearestAltar = env.findNearestThingPos(fallbackPos, Altar)
             env.add(createClippy(nearbyPositions[0], fallbackPos, nearestAltar, r))
           break
 
@@ -1400,7 +1399,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             let spawnPos = r.sample(emptyPositions)
             
             # Create new Clippy with nearest altar as target
-            let nearestAltar = env.findNearestAltar(thing.pos)
+            let nearestAltar = env.findNearestThingPos(thing.pos, Altar)
             let newClippy = createClippy(spawnPos, thing.pos, nearestAltar, r)
             # Don't add immediately - collect for later
             newClippysToSpawn.add(newClippy)

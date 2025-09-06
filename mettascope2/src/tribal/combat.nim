@@ -1,9 +1,6 @@
 import vmath
-import environment, common
+import environment, common, objects
 export environment
-
-const
-  SpearRange* = 2
 
 proc defendAgainstAttack*(agent: Thing, env: Environment): bool =
   

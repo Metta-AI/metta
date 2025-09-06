@@ -98,35 +98,36 @@ proc createHouse*(): Structure =
     @['C', '#', '.', '#', 'W']   # Bottom row with Clay Oven (bottom-left), Weaving Loom (bottom-right)
   ]
 
-proc createWeavingLoom*(): ProductionBuilding =
-  result = ProductionBuilding(kind: WeavingLoom)
-  result.width = WeavingLoomSize
-  result.height = WeavingLoomSize
-  result.centerPos = ivec2(1, 1)
+proc createProductionBuilding*(kind: ProductionBuildingKind): ProductionBuilding =
+  result = ProductionBuilding(kind: kind)
   result.cooldown = 0
-  result.maxCooldown = WeavingLoomCooldown
-  result.wheatCostLoom = WeavingLoomWheatCost
-  result.outputDefense = Hat
+  
+  case kind
+  of WeavingLoom:
+    result.width = WeavingLoomSize
+    result.height = WeavingLoomSize
+    result.centerPos = ivec2(1, 1)
+    result.maxCooldown = WeavingLoomCooldown
+    result.wheatCostLoom = WeavingLoomWheatCost
+    result.outputDefense = Hat
+  of Armory:
+    result.width = ArmorySize
+    result.height = ArmorySize
+    result.centerPos = ivec2(2, 2)
+    result.maxCooldown = ArmoryCooldown
+    result.oreCost = ArmoryOreCost
+    result.outputArmor = Armor
+  of ClayOven:
+    result.width = ClayOvenSize
+    result.height = ClayOvenSize
+    result.centerPos = ivec2(1, 1)
+    result.maxCooldown = ClayOvenCooldown
+    result.wheatCostOven = ClayOvenWheatCost
+    result.outputFood = Bread
 
-proc createArmory*(): ProductionBuilding =
-  result = ProductionBuilding(kind: Armory)
-  result.width = ArmorySize
-  result.height = ArmorySize
-  result.centerPos = ivec2(2, 2)
-  result.cooldown = 0
-  result.maxCooldown = ArmoryCooldown
-  result.oreCost = ArmoryOreCost
-  result.outputArmor = Armor
-
-proc createClayOven*(): ProductionBuilding =
-  result = ProductionBuilding(kind: ClayOven)
-  result.width = ClayOvenSize
-  result.height = ClayOvenSize
-  result.centerPos = ivec2(1, 1)
-  result.cooldown = 0
-  result.maxCooldown = ClayOvenCooldown
-  result.wheatCostOven = ClayOvenWheatCost
-  result.outputFood = Bread
+proc createWeavingLoom*(): ProductionBuilding = createProductionBuilding(WeavingLoom)
+proc createArmory*(): ProductionBuilding = createProductionBuilding(Armory)  
+proc createClayOven*(): ProductionBuilding = createProductionBuilding(ClayOven)
 
 proc createSpawner*(): Structure =
   result.width = 3
@@ -150,10 +151,6 @@ proc useClayOven*(oven: var ProductionBuilding, agentWheat: var int): FoodItem =
     return Bread
   NoFood
 
-proc updateOvenCooldown*(oven: var ProductionBuilding) =
-  assert oven.kind == ClayOven, "This function only works with ClayOven"
-  if oven.cooldown > 0:
-    oven.cooldown -= 1
 
 proc addFoodItem*(hunger: var HungerState, item: FoodItem): bool =
   ## Add a food item to agent's inventory
@@ -224,10 +221,13 @@ proc updateHunger*(hunger: var HungerState): tuple[isDying: bool] =
   
   return (isDying: false)
 
+proc isHungerCritical*(hunger: HungerState): bool =
+  ## Check if hunger is at critical level (80% of max)
+  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10)
+
 proc shouldAgentEatAutomatically*(hunger: HungerState): bool =
   ## Determine if agent should automatically eat (when close to starving)
-  # Auto-eat when 80% hungry
-  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10) and hunger.foodInventory.len > 0
+  return hunger.isHungerCritical() and hunger.foodInventory.len > 0
 
 proc handleStarvation*(hunger: var HungerState, agentPos: var IVec2, homeAltar: IVec2): tuple[
   died: bool,
@@ -283,8 +283,7 @@ proc getHungerStatus*(hunger: HungerState): string =
 
 proc shouldShowHungerWarning*(hunger: HungerState): bool =
   ## Check if we should display a hunger warning to the player
-  # Show warning when 80% hungry
-  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10)
+  return hunger.isHungerCritical()
 
 # Integration helper for main game loop
 proc processAgentHunger*(hunger: var HungerState, agentPos: var IVec2, 

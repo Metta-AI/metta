@@ -107,8 +107,10 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
            waterPos.y >= 0 and waterPos.y < mapHeight:
           terrain[waterPos.x][waterPos.y] = Water
 
-proc createWheatField*(terrain: var TerrainGrid, centerX, centerY: int, size: int, mapWidth, mapHeight: int, r: var Rand) =
-  ## Create a wheat field cluster around a center point
+proc createTerrainCluster*(terrain: var TerrainGrid, centerX, centerY: int, size: int, 
+                          mapWidth, mapHeight: int, terrainType: TerrainType, 
+                          baseDensity: float, falloffRate: float, r: var Rand) =
+  ## Create a terrain cluster around a center point with configurable density
   let radius = (size.float / 2.0).int
   for dx in -radius .. radius:
     for dy in -radius .. radius:
@@ -119,25 +121,17 @@ proc createWheatField*(terrain: var TerrainGrid, centerX, centerY: int, size: in
           # Use distance from center to create more organic shape
           let dist = sqrt((dx * dx + dy * dy).float)
           if dist <= radius.float:
-            let chance = 1.0 - (dist / radius.float) * 0.3  # Higher chance near center
+            let chance = baseDensity - (dist / radius.float) * falloffRate
             if r.rand(1.0) < chance:
-              terrain[x][y] = Wheat
+              terrain[x][y] = terrainType
+
+proc createWheatField*(terrain: var TerrainGrid, centerX, centerY: int, size: int, mapWidth, mapHeight: int, r: var Rand) =
+  ## Create a wheat field cluster around a center point
+  terrain.createTerrainCluster(centerX, centerY, size, mapWidth, mapHeight, Wheat, 1.0, 0.3, r)
 
 proc createTreeGrove*(terrain: var TerrainGrid, centerX, centerY: int, size: int, mapWidth, mapHeight: int, r: var Rand) =
   ## Create a tree grove cluster around a center point
-  let radius = (size.float / 2.0).int
-  for dx in -radius .. radius:
-    for dy in -radius .. radius:
-      let x = centerX + dx
-      let y = centerY + dy
-      if x >= 0 and x < mapWidth and y >= 0 and y < mapHeight:
-        if terrain[x][y] == Empty:
-          # Use distance from center to create more organic shape
-          let dist = sqrt((dx * dx + dy * dy).float)
-          if dist <= radius.float:
-            let chance = 0.8 - (dist / radius.float) * 0.4  # Trees less dense than wheat
-            if r.rand(1.0) < chance:
-              terrain[x][y] = Tree
+  terrain.createTerrainCluster(centerX, centerY, size, mapWidth, mapHeight, Tree, 0.8, 0.4, r)
 
 proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
   ## Generate 7-10 clustered wheat fields for 100x50 map
