@@ -28,7 +28,7 @@ def get_jobs_controller_name() -> str:
     return job_clusters[0]["name"]
 
 
-def print_tip(text: str):
+def print_tip(text: str) -> None:
     print(blue(text), file=sys.stderr)
 
 
@@ -43,7 +43,7 @@ def launch_task(task: sky.Task) -> str:
     dashboard_url = sky.server.common.get_server_url() + "/dashboard/jobs"
     print(f"- Or, visit: {yellow(dashboard_url)}")
 
-    return short_request_id
+    return request_id
 
 
 def check_git_state(commit_hash: str) -> str | None:
@@ -88,7 +88,7 @@ def check_config_files(cmd_args: list[str]) -> bool:
                 value = task_arg.split("=", 1)[1]
                 config_path = path_template.format(value)
                 config_files_to_check.append((task_arg, config_path))
-                break  # Found a match, no need to check other prefixes
+                break
 
     missing_files = []
     for arg, config_path in config_files_to_check:
@@ -219,7 +219,6 @@ def display_job_summary(
 
 def set_task_secrets(task: sky.Task) -> None:
     """Write job secrets to task envs."""
-
     # Note: we can't mount these with `file_mounts` because of skypilot bug with service accounts.
     # Also, copying the entire `.netrc` is too much (it could contain other credentials).
 
@@ -259,10 +258,8 @@ def open_job_log_from_request_id(request_id: str, wait_seconds: float = 1.0) -> 
             job_id = job_id_match.group(1)
             print(green(f"Job submitted with ID: {job_id}"))
 
-            # Print the initial output
             print(output)
 
-            # Now tail the job logs
             print(f"\n{blue('Tailing job logs...')}")
             try:
                 subprocess.run(["sky", "jobs", "logs", job_id])
@@ -277,3 +274,118 @@ def open_job_log_from_request_id(request_id: str, wait_seconds: float = 1.0) -> 
         error_msg = f"Error getting logs: {result.stderr}"
         print(red(error_msg))
         return None, error_msg
+
+
+def get_request_id_from_launch_output(output: str) -> str | None:
+    """looks for "Submitted sky.jobs.launch request: XXX" pattern in cli output"""
+    request_match = re.search(r"Submitted sky\.jobs\.launch request:\s*([a-f0-9-]+)", output)
+
+    if request_match:
+        return request_match.group(1)
+
+    # Fallback patterns
+    request_id_match = re.search(r"request[_-]?id[:\s]+([a-f0-9-]+)", output, re.IGNORECASE)
+    if request_id_match:
+        return request_id_match.group(1)
+
+    return None
+
+
+def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> str | None:
+    """Get job ID from a request ID by querying sky api logs."""
+    time.sleep(wait_seconds)  # Wait for job to be registered
+
+    try:
+        result = subprocess.run(["sky", "api", "logs", request_id], capture_output=True, text=True)
+
+        if result.returncode == 0:
+            job_id_match = re.search(r"ID:\s*(\d+)", result.stdout)
+            if job_id_match:
+                return job_id_match.group(1)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    return None
+
+
+def tail_job_log(job_id: str, lines: int = 100) -> str | None:
+    try:
+        # Get the full logs
+        cmd = ["sky", "jobs", "logs", job_id]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+        if result.returncode == 0:
+            # Split into lines and get the tail
+            log_lines = result.stdout.strip().split("\n")
+            if len(log_lines) > lines:
+                # Return only the last N lines
+                return "\n".join(log_lines[-lines:])
+            else:
+                # Return all lines if less than requested
+                return result.stdout
+        else:
+            return f"Error getting logs: {result.stderr}"
+    except subprocess.TimeoutExpired:
+        return "Error: Timeout getting logs (job may still be provisioning)"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
+    if not job_ids:
+        return {}
+
+    job_data = {}
+
+    try:
+        # Get all jobs in one command
+        cmd = ["sky", "jobs", "queue", "--all"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            # Parse the output
+            lines = result.stdout.strip().split("\n")
+
+            # Process each job ID
+            for job_id in job_ids:
+                job_info = {"status": "UNKNOWN", "raw_line": "", "name": "", "duration": "", "submitted": ""}
+
+                # Find the job in the output
+                for line in lines:
+                    # Match job ID at start of line
+                    if re.match(rf"^{job_id}\s+", line):
+                        job_info["raw_line"] = line
+
+                        # Look for known status values anywhere in the line
+                        status_values = ["RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "PENDING", "PROVISIONING"]
+                        for status in status_values:
+                            if status in line:
+                                job_info["status"] = status
+                                break
+
+                        # Extract other fields using more robust parsing
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            job_info["name"] = parts[2]
+
+                        # Find "ago" to locate submitted time
+                        for i, part in enumerate(parts):
+                            if part == "ago" and i >= 2:
+                                # Reconstruct submitted time (e.g., "26 mins ago")
+                                job_info["submitted"] = " ".join(parts[i - 2 : i + 1])
+                                break
+
+                        break
+
+                job_data[job_id] = job_info
+        else:
+            # If command failed, return error info
+            for job_id in job_ids:
+                job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": result.stderr}
+
+    except Exception as e:
+        # On exception, return error info
+        for job_id in job_ids:
+            job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": str(e)}
+
+    return job_data
