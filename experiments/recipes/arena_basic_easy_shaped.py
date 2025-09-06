@@ -42,7 +42,6 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
 def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
-    # make a set of training tasks for the arena
     arena_tasks = cc.bucketed(arena_env)
 
     for item in ["ore_red", "battery_red", "laser", "armor"]:

@@ -24,7 +24,6 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
 def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
-    # make a set of training tasks for the arena
     arena_tasks = cc.bucketed(arena_env)
 
     # arena_tasks.add_bucket("game.map_builder.root.params.agents", [1, 2, 3, 4, 6])
@@ -46,7 +45,7 @@ def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumCo
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return CurriculumConfig(task_generator=arena_tasks)
+    return arena_tasks.to_curriculum()
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
@@ -62,7 +61,9 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     ]
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    curriculum: Optional[CurriculumConfig] = None,
+) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
