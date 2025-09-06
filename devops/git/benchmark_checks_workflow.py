@@ -22,6 +22,11 @@ MAX_RETRIES = 10
 RETRY_DELAY = 5  # seconds
 POLL_INTERVAL = 10  # seconds
 
+# Matrix job patterns to aggregate
+MATRIX_JOB_PATTERNS = {
+    "unit-tests": "Unit Tests - ",  # Matches "Unit Tests - agent", "Unit Tests - common", etc.
+}
+
 
 class WorkflowRunError(Exception):
     """Custom exception for workflow run errors"""
@@ -38,6 +43,7 @@ class WorkflowRunDetails:
         self.setup_env_duration: Optional[float] = None
         self.run_tests_duration: Optional[float] = None
         self.job_durations: dict[str, float] = {}
+        self.matrix_aggregates: dict[str, dict[str, Any]] = {}
 
 
 def format_duration(seconds: float) -> str:
@@ -185,6 +191,49 @@ def get_step_timing(job_id: str, step_name: str) -> Optional[float]:
         return None
 
 
+def aggregate_matrix_jobs(jobs: dict[str, Any], details: WorkflowRunDetails) -> None:
+    """Aggregate matrix job timings to find worst-case performance"""
+
+    for matrix_name, pattern in MATRIX_JOB_PATTERNS.items():
+        matrix_jobs = []
+
+        # Find all jobs matching the matrix pattern
+        for job_name, job_data in jobs.items():
+            if job_name.startswith(pattern) and job_data["conclusion"] == "success":
+                if job_data.get("startedAt") and job_data.get("completedAt"):
+                    started = parse_time(job_data["startedAt"])
+                    completed = parse_time(job_data["completedAt"])
+                    duration = (completed - started).total_seconds()
+
+                    # Extract the matrix value (e.g., "agent" from "Unit Tests - agent")
+                    matrix_value = job_name[len(pattern) :]
+
+                    matrix_jobs.append(
+                        {
+                            "name": job_name,
+                            "value": matrix_value,
+                            "duration": duration,
+                            "job_id": job_data["databaseId"],
+                        }
+                    )
+
+        if matrix_jobs:
+            # Sort by duration to find worst case
+            matrix_jobs.sort(key=lambda x: x["duration"], reverse=True)
+            worst_case = matrix_jobs[0]
+
+            details.matrix_aggregates[matrix_name] = {
+                "worst_case": worst_case,
+                "all_jobs": matrix_jobs,
+                "worst_duration": worst_case["duration"],
+                "mean_duration": statistics.mean(job["duration"] for job in matrix_jobs),
+                "count": len(matrix_jobs),
+            }
+
+            # Also add the worst case to regular job durations with a special key
+            details.job_durations[f"{matrix_name} (worst-case: {worst_case['value']})"] = worst_case["duration"]
+
+
 def wait_for_run_completion(run_id: str) -> tuple[WorkflowRunDetails, str]:
     """Wait for workflow run to complete and collect detailed timing data"""
     retries = 0
@@ -230,27 +279,15 @@ def wait_for_run_completion(run_id: str) -> tuple[WorkflowRunDetails, str]:
                 # Get all jobs
                 jobs = get_job_details(run_id)
 
-                # Find the unit-tests job
-                unit_tests_job = None
+                # Aggregate matrix jobs first
+                aggregate_matrix_jobs(jobs, details)
+
+                # Collect all job durations (non-matrix jobs)
                 for job_name, job_data in jobs.items():
-                    if job_name == "Unit Tests - All Packages":
-                        unit_tests_job = job_data
-                        break
+                    # Skip matrix jobs as they're already aggregated
+                    if any(job_name.startswith(pattern) for pattern in MATRIX_JOB_PATTERNS.values()):
+                        continue
 
-                if unit_tests_job and unit_tests_job["conclusion"] == "success":
-                    job_id = unit_tests_job["databaseId"]
-
-                    # Get timing for specific steps
-                    setup_env_time = get_step_timing(job_id, "Setup Environment")
-                    run_tests_time = get_step_timing(job_id, "Run all package tests")
-
-                    if setup_env_time is not None:
-                        details.setup_env_duration = setup_env_time
-                    if run_tests_time is not None:
-                        details.run_tests_duration = run_tests_time
-
-                # Collect all job durations
-                for job_name, job_data in jobs.items():
                     if (
                         job_data["conclusion"] == "success"
                         and job_data.get("startedAt")
@@ -259,6 +296,19 @@ def wait_for_run_completion(run_id: str) -> tuple[WorkflowRunDetails, str]:
                         started = parse_time(job_data["startedAt"])
                         completed = parse_time(job_data["completedAt"])
                         details.job_durations[job_name] = (completed - started).total_seconds()
+
+                # Try to get step timings from the worst-case matrix job
+                if "unit-tests" in details.matrix_aggregates:
+                    worst_case = details.matrix_aggregates["unit-tests"]["worst_case"]
+                    job_id = worst_case["job_id"]
+
+                    setup_env_time = get_step_timing(job_id, "Setup Environment")
+                    run_tests_time = get_step_timing(job_id, f"Run {worst_case['value']} tests")
+
+                    if setup_env_time is not None:
+                        details.setup_env_duration = setup_env_time
+                    if run_tests_time is not None:
+                        details.run_tests_duration = run_tests_time
 
             except Exception as e:
                 print(f"⚠️  Failed to get detailed timing data: {e}")
@@ -326,10 +376,19 @@ def wait_for_all_runs(run_ids_by_branch: dict[str, list[str]]) -> dict[str, dict
 
                 # Print summary for this run
                 print(f"✅ {branch} → {format_duration(details.total_duration)} ({details.total_duration:.1f}s)")
+
+                # Print matrix aggregates if any
+                for matrix_name, matrix_data in details.matrix_aggregates.items():
+                    worst = matrix_data["worst_case"]
+                    print(f"   └─ {matrix_name} worst-case: {worst['value']} @ {format_duration(worst['duration'])}")
+                    print(
+                        f"      └─ Mean across {matrix_data['count']} jobs: {format_duration(matrix_data['mean_duration'])}"
+                    )
+
                 if details.setup_env_duration:
                     print(f"   └─ Setup Environment: {details.setup_env_duration:.1f}s")
                 if details.run_tests_duration:
-                    print(f"   └─ Run all package tests: {details.run_tests_duration:.1f}s")
+                    print(f"   └─ Run tests: {details.run_tests_duration:.1f}s")
 
             except WorkflowRunError as e:
                 print(f"❌ {branch} run {run_id} failed: {e}")
@@ -374,8 +433,141 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
         else:
             print(f"{branch:<20} {'N/A':>10} {'N/A':>10} {'N/A':>10} {'N/A':>10} {0:>8} {failed_count:>7}")
 
-    # Unit test step timing summary
-    print("\n🧪 UNIT TEST STEP TIMINGS:")
+    # Matrix job analysis
+    print("\n🔢 MATRIX JOB ANALYSIS:")
+
+    for branch, results in results_by_branch.items():
+        detailed_timings = results["detailed_timings"]
+        if not detailed_timings:
+            continue
+
+        # Check if this branch uses matrix jobs
+        has_matrix = any("unit-tests" in timing.matrix_aggregates for timing in detailed_timings)
+
+        if has_matrix:
+            # Collect matrix aggregates across all runs
+            worst_durations = []
+            mean_durations = []
+            worst_job_names = []
+
+            for timing in detailed_timings:
+                if "unit-tests" in timing.matrix_aggregates:
+                    aggregate = timing.matrix_aggregates["unit-tests"]
+                    worst_durations.append(aggregate["worst_duration"])
+                    mean_durations.append(aggregate["mean_duration"])
+                    worst_job_names.append(aggregate["worst_case"]["value"])
+
+            if worst_durations:
+                # Find which job was worst most often
+                from collections import Counter
+
+                job_counter = Counter(worst_job_names)
+                most_common_worst = job_counter.most_common(1)[0]
+
+                print(f"\n{branch} (uses matrix strategy):")
+                print("  unit-tests:")
+                print(
+                    f"    Worst-case duration: min={format_duration(min(worst_durations)):>6}  "
+                    f"mean={format_duration(statistics.mean(worst_durations)):>6}  "
+                    f"max={format_duration(max(worst_durations)):>6}"
+                )
+                print(f"    Average across matrix: {format_duration(statistics.mean(mean_durations)):>6}")
+                print(
+                    f"    Most often slowest: {most_common_worst[0]} ({most_common_worst[1]}/{len(worst_job_names)} times)"
+                )
+        else:
+            print(f"\n{branch} (single job strategy)")
+
+    # Unit test step timing comparison - THE KEY COMPARISON
+    print("\n🧪 UNIT TEST STEP TIMING COMPARISON:")
+    print("=" * 80)
+
+    comparison_data = {}
+
+    for branch, results in results_by_branch.items():
+        detailed_timings = results["detailed_timings"]
+        if not detailed_timings:
+            continue
+
+        # Determine strategy type
+        has_matrix = any("unit-tests" in timing.matrix_aggregates for timing in detailed_timings)
+        strategy_type = "matrix" if has_matrix else "single"
+
+        # Collect setup environment times
+        setup_times = [d.setup_env_duration for d in detailed_timings if d.setup_env_duration is not None]
+        test_times = [d.run_tests_duration for d in detailed_timings if d.run_tests_duration is not None]
+
+        if setup_times or test_times:
+            comparison_data[branch] = {"strategy": strategy_type, "setup_times": setup_times, "test_times": test_times}
+
+    # Print comparison table
+    if comparison_data:
+        print(f"\n{'Branch':<20} {'Strategy':<10} {'Setup Environment':<25} {'Run Tests':<25}")
+        print("-" * 80)
+
+        for branch, data in comparison_data.items():
+            strategy_label = f"{data['strategy']:<10}"
+
+            # Setup environment stats
+            if data["setup_times"]:
+                setup_stats = (
+                    f"mean={format_duration(statistics.mean(data['setup_times'])):>6} (n={len(data['setup_times'])})"
+                )
+            else:
+                setup_stats = "N/A"
+
+            # Test run stats
+            if data["test_times"]:
+                test_mean = statistics.mean(data["test_times"])
+                test_min = min(data["test_times"])
+                test_max = max(data["test_times"])
+                test_stats = (
+                    f"mean={format_duration(test_mean):>6} [{format_duration(test_min)}-{format_duration(test_max)}]"
+                )
+                if data["strategy"] == "matrix":
+                    test_stats += " *"
+            else:
+                test_stats = "N/A"
+
+            print(f"{branch:<20} {strategy_label} {setup_stats:<25} {test_stats:<25}")
+
+        if any(d["strategy"] == "matrix" for d in comparison_data.values()):
+            print("\n* For matrix strategy, this represents the worst-case (slowest) job from each run")
+
+        # Direct comparison if we have both strategies
+        matrix_branches = [b for b, d in comparison_data.items() if d["strategy"] == "matrix"]
+        single_branches = [b for b, d in comparison_data.items() if d["strategy"] == "single"]
+
+        if matrix_branches and single_branches:
+            print("\n📈 STRATEGY COMPARISON:")
+            print("-" * 50)
+
+            # Compare average test times
+            matrix_test_times = []
+            single_test_times = []
+
+            for branch in matrix_branches:
+                matrix_test_times.extend(comparison_data[branch]["test_times"])
+            for branch in single_branches:
+                single_test_times.extend(comparison_data[branch]["test_times"])
+
+            if matrix_test_times and single_test_times:
+                matrix_mean = statistics.mean(matrix_test_times)
+                single_mean = statistics.mean(single_test_times)
+
+                speedup = single_mean / matrix_mean if matrix_mean > 0 else 0
+
+                print(f"Average test time (matrix worst-case): {format_duration(matrix_mean)}")
+                print(f"Average test time (single job):        {format_duration(single_mean)}")
+                print(f"Speedup factor:                        {speedup:.2f}x")
+
+                if speedup > 1:
+                    print(f"✅ Single job is {speedup:.2f}x faster than matrix worst-case")
+                else:
+                    print(f"⚠️  Matrix is {1 / speedup:.2f}x faster than single job")
+
+    # Detailed breakdown per branch
+    print("\n📋 DETAILED STEP TIMINGS PER BRANCH:")
 
     for branch, results in results_by_branch.items():
         detailed_timings = results["detailed_timings"]
@@ -400,14 +592,14 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
 
             if test_times:
                 print(
-                    f"  Run all package tests:  "
+                    f"  Run tests:              "
                     f"min={format_duration(min(test_times)):>6}  "
                     f"mean={format_duration(statistics.mean(test_times)):>6}  "
                     f"max={format_duration(max(test_times)):>6}  "
                     f"(n={len(test_times)})"
                 )
 
-    # Job timing summary
+    # Job timing summary (now includes worst-case matrix timings)
     print("\n⚙️  JOB DURATION BREAKDOWN (mean):")
     all_job_names = set()
     for results in results_by_branch.values():
@@ -416,11 +608,11 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
 
     if all_job_names:
         sorted_job_names = sorted(all_job_names)
-        print(f"{'Job':<40} " + " ".join(f"{branch:<15}" for branch in results_by_branch.keys()))
-        print("-" * (40 + 16 * len(results_by_branch)))
+        print(f"{'Job':<50} " + " ".join(f"{branch:<15}" for branch in results_by_branch.keys()))
+        print("-" * (50 + 16 * len(results_by_branch)))
 
         for job_name in sorted_job_names:
-            row = f"{job_name[:39]:<40}"
+            row = f"{job_name[:49]:<50}"
             for _branch, results in results_by_branch.items():
                 job_times = []
                 for d in results["detailed_timings"]:

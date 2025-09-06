@@ -255,6 +255,7 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
+      # IMPORTANT: Keep this step name consistent for benchmarking
       - name: Run ${{ matrix.package }} tests
         shell: bash
         run: |
