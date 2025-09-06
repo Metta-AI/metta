@@ -29,16 +29,16 @@ WORKDIR /workspace/metta
 
 COPY . .
 
-RUN git config --remove-section http."https://github.com/" || true
-RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
-RUN git fetch
-
-# Copy built workspace from builder stage
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/bazel /usr/local/bin/bazel
 COPY --from=builder /root/.local/share/uv /root/.local/share/uv
 
 RUN bash ./devops/tools/install-system.sh
+
+RUN git config --remove-section http."https://github.com/" || true
+RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
+RUN git fetch
+
 RUN bash install.sh --profile=softmax-docker --non-interactive
 
 ENTRYPOINT ["/bin/bash", "-c"]
