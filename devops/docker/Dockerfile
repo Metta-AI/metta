@@ -70,6 +70,8 @@ RUN git fetch
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --locked
 
+RUN git diff --quiet --exit-code || (echo "Error: tracked files were modified after uv sync" >&2; git status --porcelain >&2; exit 1)
+
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/workspace/metta/.venv"
 
