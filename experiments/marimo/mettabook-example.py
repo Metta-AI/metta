@@ -40,6 +40,7 @@ def _():
 def _():
     import altair as alt
     import pandas as pd
+
     from experiments.notebooks.utils.metrics import fetch_metrics
     from experiments.notebooks.utils.monitoring_marimo import monitor_training_statuses
     from experiments.notebooks.utils.replays import show_replay

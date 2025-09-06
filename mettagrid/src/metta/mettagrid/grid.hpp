@@ -216,6 +216,29 @@ public:
     if (grid[row][col][layer] != 0) return false;
     return true;
   }
+
+  // Find an object of the specified type in cardinal directions adjacent to the given location
+  template<typename ObjectType>
+  inline ObjectType* next_to(const GridLocation& center_loc, Layer layer = GridLayer::ObjectLayer) const {
+    for (int dr = -1; dr <= 1; dr++) {
+      for (int dc = -1; dc <= 1; dc++) {
+        if (dr == 0 && dc == 0) continue;  // Skip the center position
+        if (dr != 0 && dc != 0) continue;  // Skip diagonal positions - only cardinal directions
+
+        GridLocation neighbor_loc = {center_loc.r + dr, center_loc.c + dc, layer};
+        if (!is_valid_location(neighbor_loc)) continue;
+
+        GridObject* obj = object_at(neighbor_loc);
+        if (!obj) continue;
+
+        ObjectType* typed_obj = dynamic_cast<ObjectType*>(obj);
+        if (typed_obj) {
+          return typed_obj;
+        }
+      }
+    }
+    return nullptr;
+  }
 };
 
 #endif  // GRID_HPP_

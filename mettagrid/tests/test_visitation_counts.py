@@ -12,6 +12,7 @@ from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     GameConfig,
+    GetItemsActionConfig,
     GlobalObsConfig,
     MettaGridConfig,
     WallConfig,
@@ -33,7 +34,7 @@ def env_with_visitation():
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
+                get_items=GetItemsActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
             global_obs=GlobalObsConfig(
@@ -75,7 +76,7 @@ def env_without_visitation():
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
+                get_items=GetItemsActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
             global_obs=GlobalObsConfig(
@@ -117,7 +118,7 @@ def env_default():
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
+                get_items=GetItemsActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
             # No explicit visitation_counts setting - uses default (False)

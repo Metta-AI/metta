@@ -18,6 +18,8 @@ from metta.mettagrid.mettagrid_config import (
     AgentRewards,
     AttackActionConfig,
     GameConfig,
+    GetItemsActionConfig,
+    PutItemsActionConfig,
     WallConfig,
 )
 from metta.mettagrid.test_support.actions import (
@@ -45,9 +47,9 @@ def base_config():
             noop=ActionConfig(enabled=True),
             move=ActionConfig(enabled=True),
             rotate=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
+            get_items=GetItemsActionConfig(enabled=True),
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
-            put_items=ActionConfig(enabled=True),
+            put_items=PutItemsActionConfig(enabled=True),
             swap=ActionConfig(enabled=True),
         ),
         objects={

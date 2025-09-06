@@ -21,10 +21,13 @@
 struct AttackActionConfig : public ActionConfig {
   std::map<InventoryItem, InventoryQuantity> defense_resources;
 
-  AttackActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
-                     const std::map<InventoryItem, InventoryQuantity>& consumed_resources,
-                     const std::map<InventoryItem, InventoryQuantity>& defense_resources)
-      : ActionConfig(required_resources, consumed_resources), defense_resources(defense_resources) {}
+  AttackActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources = {},
+                     const std::map<InventoryItem, InventoryQuantity>& consumed_resources = {},
+                     unsigned char priority = 3,
+                     bool auto_execute = false,
+                     const std::map<InventoryItem, InventoryQuantity>& defense_resources = {})
+      : ActionConfig(required_resources, consumed_resources, priority, auto_execute),
+        defense_resources(defense_resources) {}
 };
 
 class Attack : public ActionHandler {
@@ -32,9 +35,7 @@ public:
   explicit Attack(const AttackActionConfig& cfg,
                   const GameConfig* game_config,
                   const std::string& action_name = "attack")
-      : ActionHandler(cfg, action_name), _defense_resources(cfg.defense_resources), _game_config(game_config) {
-    priority = 1;
-  }
+      : ActionHandler(cfg, action_name), _defense_resources(cfg.defense_resources), _game_config(game_config) {}
 
   unsigned char max_arg() const override {
     return 8;
@@ -225,9 +226,13 @@ inline void bind_attack_action_config(py::module& m) {
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
       .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&,
+                    unsigned char,
+                    bool,
                     const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("priority") = 3,
+           py::arg("auto_execute") = false,
            py::arg("defense_resources") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
 }

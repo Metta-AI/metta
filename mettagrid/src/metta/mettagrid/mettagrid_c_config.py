@@ -5,7 +5,9 @@ from metta.mettagrid.mettagrid_c import BoxConfig as CppBoxConfig
 from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
+from metta.mettagrid.mettagrid_c import GetItemsActionConfig as CppGetItemsActionConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
+from metta.mettagrid.mettagrid_c import PutItemsActionConfig as CppPutItemsActionConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import AgentConfig, BoxConfig, ConverterConfig, GameConfig, WallConfig
 
@@ -235,6 +237,26 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 "number_of_glyphs": action_config["number_of_glyphs"],
             }
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
+        elif action_name == "put_items":
+            # Extract the specific parameters needed for PutItemsActionConfig
+            put_items_params = {
+                "required_resources": action_cpp_params.get("required_resources", {}),
+                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
+                "priority": action_cpp_params.get("priority", 1),
+                "auto_execute": action_cpp_params.get("auto_execute", False),
+                "facing_required": action_config.get("facing_required", True),
+            }
+            actions_cpp_params[action_name] = CppPutItemsActionConfig(**put_items_params)
+        elif action_name == "get_items":
+            # Extract the specific parameters needed for GetItemsActionConfig
+            get_items_params = {
+                "required_resources": action_cpp_params.get("required_resources", {}),
+                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
+                "priority": action_cpp_params.get("priority", 2),
+                "auto_execute": action_cpp_params.get("auto_execute", False),
+                "facing_required": action_config.get("facing_required", True),
+            }
+            actions_cpp_params[action_name] = CppGetItemsActionConfig(**get_items_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
