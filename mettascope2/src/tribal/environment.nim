@@ -1,5 +1,5 @@
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import terrain, objects
+import terrain, objects, common
 export terrain, objects
 
 const
@@ -40,7 +40,7 @@ const
   MapObjectMineCooldown* = 5
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
-  SpawnerCooldown* = 120  # Steps between Clippy spawns (much reduced spawn rate)
+  SpawnerCooldown* = 40  # Steps between Clippy spawns (much reduced spawn rate)
   ObservationLayers* = 19
   ObservationWidth* = 11
   ObservationHeight* = 11
@@ -767,20 +767,14 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
 
 # ============== CLIPPY AI ==============
 
-proc manhattanDistance*(a, b: IVec2): int =
-  ## Calculate Manhattan distance between two points
-  return abs(a.x - b.x) + abs(a.y - b.y)
 
 proc getDirectionToward*(fromPos, toPos: IVec2): IVec2 =
-  ## Calculate optimal unit direction from one position toward another
-  ## Allows diagonal movement for more efficient pathfinding
   let dx = toPos.x - fromPos.x
   let dy = toPos.y - fromPos.y
   
   if dx == 0 and dy == 0:
     return ivec2(0, 0)
   
-  # Return normalized direction vector (allows diagonal movement)
   result.x = 
     if dx > 0: 1
     elif dx < 0: -1

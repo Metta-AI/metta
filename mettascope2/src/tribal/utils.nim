@@ -43,4 +43,4 @@ proc measureText*(
 
 
 proc boxyMouse*(window: Window): Vec2 =
-  return inverse(bxy.getTransform()) * window.mousePos.vec2
+  inverse(bxy.getTransform()) * window.mousePos.vec2

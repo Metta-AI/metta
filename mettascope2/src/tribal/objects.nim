@@ -1,25 +1,20 @@
 import vmath, std/tables, terrain
 
-# Import Structure types from terrain
 export terrain.Structure
 
-# ============== OBJECT TYPES ==============
 
 type
   
-  # Defense structures and items
   DefenseItem* = enum
     NoDefense = 0
     Hat = 1
     Armor = 2
   
-  # Food structures and items
   FoodItem* = enum
     NoFood = 0
     Bread = 1
     Stew = 2  # Future expansion possibility
   
-  # Unified production building type with variant for resource type
   ProductionBuildingKind* = enum
     WeavingLoom
     Armory
@@ -51,45 +46,35 @@ type
     maxFoodSlots*: int       # Max food inventory slots
   
 
-# ============== CONSTANTS ==============
 
 const
-  # Village
   HouseSize* = 5
   
-  # WeavingLoom properties
   WeavingLoomCooldown* = 15
   WeavingLoomWheatCost* = 1
   WeavingLoomSize* = 3
   
-  # Armory properties
   ArmoryCooldown* = 20
   ArmoryOreCost* = 1
   ArmorySize* = 4
   
-  # Defense item properties
   HatDefenseValue* = 1  # Number of hits a hat can absorb
   ArmorDefenseValue* = 3  # Armor provides strong protection
   
-  # ClayOven properties
   ClayOvenCooldown* = 10
   ClayOvenWheatCost* = 1
   ClayOvenSize* = 3
   
-  # Hunger mechanics
   MaxHungerSteps* = 50     # Agent dies after 50 steps without eating
   MaxFoodInventory* = 3    # Max food items agent can carry
   
-  # Food properties
   BreadHungerRestore* = 50  # Bread resets hunger to 0
   StewHungerRestore* = 75   # Future: stew could restore more
   
-  # Attack/Forge properties
   ForgeWoodCost* = 1  # Wood needed to craft a spear
   ForgeCooldown* = 5  # Cooldown after crafting
   SpearRange* = 2     # Attack range with spear (Manhattan distance)
   
-  # Clippy agent properties
   ClippyAttackDamage* = 2
   ClippySpeed* = 1
   ClippyVisionRange* = 15  # Even further vision for plague-wave expansion
@@ -97,23 +82,14 @@ const
   ClippyAltarSearchRange* = 12  # Extended range for aggressive altar hunting
   ClippyAgentChaseRange* = 10  # Will chase agents within this range
   
-  # Spawner properties
-  # Note: SpawnerCooldown defined in environment.nim
 
 proc createHouse*(): Structure =
-  ## Create a house with:
-  ## - Altar in the center
-  ## - Four specialized buildings in the absolute corners
-  ## - Walls forming a ring with entrances at cardinal directions
   result.width = 5
   result.height = 5
   result.centerPos = ivec2(2, 2)
   result.needsBuffer = false
   result.bufferSize = 0
   
-  # Initialize the layout
-  # '#' = wall, 'a' = altar, ' ' = empty space inside, '.' = entrance
-  # 'A' = Armory, 'F' = Forge, 'C' = Clay Oven, 'W' = Weaving Loom
   result.layout = @[
     @['A', '#', '.', '#', 'F'],  # Top row with Armory (top-left), Forge (top-right)
     @['#', ' ', ' ', ' ', '#'],  # Second row
@@ -123,8 +99,6 @@ proc createHouse*(): Structure =
   ]
 
 proc createWeavingLoom*(): ProductionBuilding =
-  ## Create a weaving loom structure (3x3)
-  ## 'w' = weaving loom center, '#' = wall, '.' = entrance
   result = ProductionBuilding(kind: WeavingLoom)
   result.width = WeavingLoomSize
   result.height = WeavingLoomSize
@@ -135,20 +109,16 @@ proc createWeavingLoom*(): ProductionBuilding =
   result.outputDefense = Hat
 
 proc createArmory*(): ProductionBuilding =
-  ## Create an armory structure (4x4 for higher tier defense)
-  ## 'a' = armory center, '#' = wall, '.' = entrance
   result = ProductionBuilding(kind: Armory)
   result.width = ArmorySize
   result.height = ArmorySize
-  result.centerPos = ivec2(2, 2)  # Offset for larger building
+  result.centerPos = ivec2(2, 2)
   result.cooldown = 0
   result.maxCooldown = ArmoryCooldown
   result.oreCost = ArmoryOreCost
   result.outputArmor = Armor
 
 proc createClayOven*(): ProductionBuilding =
-  ## Create a clay oven structure (3x3)
-  ## 'o' = oven center, '#' = wall, '.' = entrance
   result = ProductionBuilding(kind: ClayOven)
   result.width = ClayOvenSize
   result.height = ClayOvenSize
@@ -159,7 +129,6 @@ proc createClayOven*(): ProductionBuilding =
   result.outputFood = Bread
 
 proc createSpawner*(): Structure =
-  ## Create a spawner structure (3x3 with center as spawn point)
   result.width = 3
   result.height = 3
   result.centerPos = ivec2(1, 1)
@@ -167,42 +136,27 @@ proc createSpawner*(): Structure =
   result.bufferSize = 0
 
 proc initHungerState*(): HungerState =
-  ## Initialize a new hunger state for an agent
   result.currentHunger = 0
   result.maxHunger = MaxHungerSteps
   result.isStarving = false
   result.foodInventory = @[]
   result.maxFoodSlots = MaxFoodInventory
 
-# ============== HELPER FUNCTIONS ==============
-
-proc getSpawnerCenter*(spawner: Structure, topLeft: IVec2): IVec2 =
-  ## Get the world position of the spawner's center (spawn point)
-  return topLeft + spawner.centerPos
-
-proc shouldSpawnClippy*(spawnerCooldown: int, nearbyClippyCount: int): bool =
-  ## Determine if a spawner should spawn a new Clippy
-  return spawnerCooldown == 0
 
 
-# ============== FOOD & HUNGER FUNCTIONS ==============
 
-proc canUseClayOven*(oven: ProductionBuilding, agentWheat: int): bool =
-  ## Check if agent can use the clay oven
-  assert oven.kind == ClayOven, "This function only works with ClayOven"
-  return oven.cooldown == 0 and agentWheat >= oven.wheatCostOven
+
+
 
 proc useClayOven*(oven: var ProductionBuilding, agentWheat: var int): FoodItem =
-  ## Use the clay oven to bake bread
   assert oven.kind == ClayOven, "This function only works with ClayOven"
-  if canUseClayOven(oven, agentWheat):
+  if oven.cooldown == 0 and agentWheat >= oven.wheatCostOven:
     agentWheat -= oven.wheatCostOven
     oven.cooldown = oven.maxCooldown
     return Bread
-  return NoFood
+  NoFood
 
 proc updateOvenCooldown*(oven: var ProductionBuilding) =
-  ## Update cooldown for clay oven
   assert oven.kind == ClayOven, "This function only works with ClayOven"
   if oven.cooldown > 0:
     oven.cooldown -= 1

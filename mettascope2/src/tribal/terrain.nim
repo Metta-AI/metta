@@ -1,5 +1,3 @@
-## Unified terrain and placement system
-## Handles terrain generation and structure placement with priority ordering
 
 import std/[random, math], vmath
 
@@ -13,7 +11,6 @@ type
   TerrainGrid* = array[100, array[50, TerrainType]]  # 100x50 map size
 
   PlacementPriority* = enum
-    ## Order matters - higher priority items are placed first
     PriorityRiver = 0      # Rivers always first - they shape the map
     PriorityTerrain = 1    # Wheat fields and trees
     PriorityStructure = 2  # Houses and spawners 
@@ -21,7 +18,6 @@ type
     PriorityAgent = 4      # Agents placed last
   
   Structure* = object
-    ## Generic structure that can represent houses, spawners, or any building
     width*, height*: int
     centerPos*: IVec2      # Center/important position within structure
     needsBuffer*: bool     # Whether to enforce empty space around it
@@ -37,18 +33,16 @@ type
     cornerUsed*: int  # Which corner was used (0-3), or -1 if not a corner
 
 
+
 proc toIVec2*(x, y: int): IVec2 =
-  ## Helper to create IVec2 from ints
   result.x = x.int32
   result.y = y.int32
 
 proc checkBounds(x, y, width, height, mapWidth, mapHeight: int): bool =
-  ## Check if a rectangle fits within map bounds
   x >= 0 and y >= 0 and x + width <= mapWidth and y + height <= mapHeight
 
 proc createStructure*(width, height: int, centerX, centerY: int, 
                      needsBuffer = false, bufferSize = 0): Structure =
-  ## Create a generic structure
   result.width = width
   result.height = height  
   result.centerPos = ivec2(centerX.int32, centerY.int32)
@@ -58,15 +52,12 @@ proc createStructure*(width, height: int, centerX, centerY: int,
 
 
 proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate a river that flows from left to right across the map
   const riverWidth = 4
   
   var riverPath: seq[IVec2] = @[]
   
-  # Always start on the left edge, randomly positioned vertically
   var currentPos = toIVec2(mapBorder, r.rand(mapBorder + riverWidth .. mapHeight - mapBorder - riverWidth))
   
-  # Generate main river path
   var hasFork = false
   var forkPoint: IVec2
   var secondaryPath: seq[IVec2] = @[]
@@ -75,19 +66,16 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
         currentPos.y >= mapBorder and currentPos.y < mapHeight - mapBorder:
     riverPath.add(currentPos)
     
-    # Decide if we should fork (only once, after traveling some distance)
     if not hasFork and riverPath.len > 20 and r.rand(1.0) < 0.4:
       hasFork = true
       forkPoint = currentPos
       
-      # Create secondary branch that also flows right but diverges up or down
       var secondaryDirection = toIVec2(1, r.sample(@[-1, 1]))  # Flow right and either up or down
       
       var secondaryPos = forkPoint
       for i in 0 ..< 30:  # Longer secondary branch for wider map
         secondaryPos.x += 1  # Always move right
         secondaryPos.y += secondaryDirection.y  # Move in chosen vertical direction
-        # Add some randomness to secondary path
         if r.rand(1.0) < 0.2:
           secondaryPos.y += r.sample(@[-1, 0, 1]).int32
         
@@ -97,10 +85,8 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
         else:
           break
     
-    # Move primarily right with some vertical meandering
     currentPos.x += 1  # Always move right
     if r.rand(1.0) < 0.3:
-      # Add vertical movement for more natural meandering
       currentPos.y += r.sample(@[-1, 0, 0, 1]).int32  # Bias towards staying straight
   
   # Place water tiles for main river
@@ -227,7 +213,6 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
   var currentPos = ivec2(mapBorder.int32, 
                          r.rand(mapBorder + riverWidth .. mapHeight - mapBorder - riverWidth).int32)
   
-  # Generate main river path
   var hasFork = false
   var forkPoint: IVec2
   var secondaryPath: seq[IVec2] = @[]

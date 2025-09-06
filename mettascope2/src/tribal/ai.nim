@@ -1,8 +1,7 @@
 import std/[math, random, tables]
 import vmath
-import environment
+import environment, common
 
-# Use the orientations from environment module directly
 
 type
   ControllerState* = ref object
@@ -29,7 +28,6 @@ type
     Wander
     
   Controller* = ref object
-    ## Main controller for all agents
     agentStates*: Table[int, ControllerState]
     rng: Rand
     stepCount: int
@@ -60,30 +58,17 @@ proc initAgentState(controller: Controller, agentId: int, basePos: IVec2) =
     targetType: NoTarget
   )
 
-proc distance(a, b: IVec2): float =
-  ## Calculate Manhattan distance between two points
-  result = abs(a.x - b.x).float + abs(a.y - b.y).float
 
-proc distanceEuclidean(a, b: IVec2): float =
-  ## Calculate Euclidean distance between two points
-  let dx = (a.x - b.x).float
-  let dy = (a.y - b.y).float
-  result = sqrt(dx * dx + dy * dy)
 
 proc applyDirectionOffset(offset: var IVec2, direction: int, distance: int32) =
-  ## Apply a directional offset based on direction index (0=N, 1=E, 2=S, 3=W)
   case direction:
-  of 0: offset.y -= distance  # North
-  of 1: offset.x += distance  # East
-  of 2: offset.y += distance  # South
-  of 3: offset.x -= distance  # West
+  of 0: offset.y -= distance
+  of 1: offset.x += distance
+  of 2: offset.y += distance
+  of 3: offset.x -= distance
   else: discard
 
 proc resetWanderState(state: ControllerState) =
-  ## Reset wander state when breaking out to pursue a resource
-  # Keep the spiral progress to resume expanding search from where we left off
-  # Don't reset the arc length or arcs completed - this ensures continuous expansion
-  # Just reset the steps in current arc to start fresh from current position
   state.spiralStepsInArc = 0
 
 proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 =
@@ -138,25 +123,23 @@ proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 
   
   result = state.basePosition + totalOffset
 
-proc findNearestThing(env: Environment, pos: IVec2, kind: ThingKind, maxDist: float = 10.0): Thing =
-  ## Find the nearest thing of a specific kind within max distance
+proc findNearestThing(env: Environment, pos: IVec2, kind: ThingKind, maxDist: int = 10): Thing =
   result = nil
   var minDist = maxDist
   
   for thing in env.things:
     if thing.kind == kind:
-      let dist = distance(pos, thing.pos)
+      let dist = manhattanDistance(pos, thing.pos)
       if dist < minDist:
         minDist = dist
         result = thing
 
 proc findVisibleThings(env: Environment, agent: Thing, viewRadius: int = 5): seq[Thing] =
-  ## Find all things visible to the agent within view radius
   result = @[]
   for thing in env.things:
     if thing != agent:
-      let dist = distance(agent.pos, thing.pos)
-      if dist <= viewRadius.float:
+      let dist = manhattanDistance(agent.pos, thing.pos)
+      if dist <= viewRadius:
         result.add(thing)
 
 proc getMoveToCardinalPosition(agentPos, targetPos: IVec2, env: Environment): IVec2 =
@@ -350,14 +333,14 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       
       for thing in visibleThings:
         if thing.kind == Converter and thing.cooldown == 0:
-          let dist = distance(agent.pos, thing.pos)
+          let dist = manhattanDistance(agent.pos, thing.pos).float
           if dist < minDist:
             minDist = dist
             nearestConverter = thing
       
       # If no visible converter, search wider and wander to find one
       if nearestConverter == nil:
-        nearestConverter = env.findNearestThing(agent.pos, Converter, maxDist = 20.0)
+        nearestConverter = env.findNearestThing(agent.pos, Converter, maxDist = 20)
       
       if nearestConverter != nil:
         state.currentTarget = nearestConverter.pos
@@ -405,13 +388,13 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         state.targetType = NoTarget
     
     # Look for a new mine if we don't have a valid target
-    if state.targetType != Mine or distance(agent.pos, state.currentTarget) > 15 or needNewTarget:
+    if state.targetType != Mine or manhattanDistance(agent.pos, state.currentTarget) > 15 or needNewTarget:
       var nearestMine: Thing = nil
       var minDist = 999999.0
       
       for thing in visibleThings:
         if thing.kind == Mine and thing.cooldown == 0 and thing.resources > 0:
-          let dist = distance(agent.pos, thing.pos)
+          let dist = manhattanDistance(agent.pos, thing.pos).float
           if dist < minDist:
             minDist = dist
             nearestMine = thing

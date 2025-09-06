@@ -19,50 +19,41 @@ proc drawFloor*() =
   # Draw the floor tiles everywhere first as the base layer
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
-      # Get tile color data 
+ 
       let tileColor = env.tileColors[x][y]
       
-      # Apply the tile color with intensity (brightness from altars)
       let finalR = min(tileColor.r * tileColor.intensity, 1.5)
       let finalG = min(tileColor.g * tileColor.intensity, 1.5)
       let finalB = min(tileColor.b * tileColor.intensity, 1.5)
       
-      # Special case for water - blend with water color
       if env.terrain[x][y] == Water:
-        # Mix tile color with water blue
         let waterBlend = 0.7  # How much water color to keep
         let r = finalR * (1.0 - waterBlend) + 0.3 * waterBlend
         let g = finalG * (1.0 - waterBlend) + 0.5 * waterBlend
         let b = finalB * (1.0 - waterBlend) + 0.8 * waterBlend
         bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(r, g, b, 1.0))
       else:
-        # Normal floor with heatmap tinting
         bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(finalR, finalG, finalB, 1.0))
 
 proc drawTerrain*() =
-  # Draw terrain features on top of the floor
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
       case env.terrain[x][y]
       of Wheat:
-        # Draw wheat field sprite on top of floor
         bxy.drawImage("objects/wheat_field", ivec2(x, y).vec2, angle = 0, scale = 1/200)
       of Tree:
-        # Draw palm tree sprite on top of floor
         bxy.drawImage("objects/palm_tree", ivec2(x, y).vec2, angle = 0, scale = 1/200)
       else:
-        discard  # Water and Empty don't need additional sprites
+        discard
 
 proc generateWallSprites(): seq[string] =
-  ## Generate wall sprite names based on neighbor patterns
-  ## Bit pattern: N=8, W=4, S=2, E=1
   result = newSeq[string](16)
   for i in 0 .. 15:
     var suffix = ""
-    if (i and 8) != 0: suffix.add("n")  # North
-    if (i and 4) != 0: suffix.add("w")  # West  
-    if (i and 2) != 0: suffix.add("s")  # South
-    if (i and 1) != 0: suffix.add("e")  # East
+    if (i and 8) != 0: suffix.add("n")
+    if (i and 4) != 0: suffix.add("w")  
+    if (i and 2) != 0: suffix.add("s")
+    if (i and 1) != 0: suffix.add("e")
     
     if suffix.len > 0:
       result[i] = "objects/wall." & suffix
@@ -107,7 +98,6 @@ proc drawWalls*() =
               hasWall(x + 1, y - 1):
             continue
         
-        # Walls have consistent brightness
         let brightness = 0.3  # Fixed wall brightness
         let wallTint = color(brightness, brightness, brightness, 1.0)
         
@@ -115,7 +105,6 @@ proc drawWalls*() =
                      angle = 0, scale = 1/200, tint = wallTint)
 
   for fillPos in wallFills:
-    # Wall fills have consistent brightness
     let brightness = 0.3  # Fixed wall fill brightness
     let fillTint = color(brightness, brightness, brightness, 1.0)
     bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), 
@@ -184,13 +173,12 @@ proc drawObjects*() =
             scale = 1/200
           )
         of Armory, Forge, ClayOven, WeavingLoom:
-          # Draw production buildings
           let imageName = case thing.kind:
             of Armory: "objects/armory"
             of Forge: "objects/forge"
             of ClayOven: "objects/clay_oven"
             of WeavingLoom: "objects/weaving_loom"
-            else: ""  # Won't happen due to case constraint
+            else: ""
           bxy.drawImage(
             imageName,
             ivec2(x, y).vec2,
@@ -229,7 +217,6 @@ proc drawActions*() =
   discard
 
 proc drawObservations*() =
-  # Draw observations
   if settings.showObservations > -1 and selection != nil and selection.kind == Agent:
     bxy.drawText(
       "observationTitle",
@@ -258,14 +245,7 @@ proc drawObservations*() =
         )
 
 proc drawAgentDecorations*() =
-  # Draw agent status indicators (frozen, etc.)
   for agent in env.agents:
-    # if agent.shield:
-    #   bxy.drawImage(
-    #     "shield",
-    #     agent.pos.vec2 * 64,
-    #     angle = 0
-    #   )
     if agent.frozen > 0:
       bxy.drawImage(
         "agents/frozen",
@@ -275,7 +255,6 @@ proc drawAgentDecorations*() =
       )
 
 proc drawGrid*() =
-  # Draw the grid.
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
       bxy.drawImage(
@@ -286,7 +265,6 @@ proc drawGrid*() =
       )
 
 proc drawSelection*() =
-  # Draw selection.
   if selection != nil:
     bxy.drawImage(
       "selection",

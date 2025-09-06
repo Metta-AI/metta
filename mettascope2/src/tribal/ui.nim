@@ -3,7 +3,6 @@ import
   common, utils, controls
 
 proc drawPanelBackground*(panel: Panel, bgColor: Color) =
-  ## Draw a solid color background for a panel
   bxy.drawRect(
     rect = Rect(
       x: 0,
@@ -72,7 +71,6 @@ proc drawIconToggle*(
   )
 
 proc drawSpeedButton*(x: float32, speed: float32, label: string): bool =
-  ## Draw a speed button and handle clicking
   if drawIconButton("ui/speed", pos = vec2(x, 16), size = vec2(20, 32)):
     playSpeed = speed
     play = true
@@ -80,7 +78,6 @@ proc drawSpeedButton*(x: float32, speed: float32, label: string): bool =
     return true
   return false
 
-# ============== HEADER UI ==============
 
 
 const
@@ -97,7 +94,6 @@ proc drawHeader*(panel: Panel) =
     pos = vec2(0, 0),
   )
 
-  # Draw the title.
   bxy.drawText(
     "Mettascope Arena Basic",
     translate(vec2(64+16, 16)),
@@ -119,13 +115,10 @@ proc drawHeader*(panel: Panel) =
   ):
     echo "Help"
 
-# ============== FOOTER UI ==============
 
 proc drawFooter*(panel: Panel) =
-  # Footer background color: #2D343D
   drawPanelBackground(panel, parseHtmlColor("#2D343D"))
   
-  # Draw the left side buttons.
   var x = 16f
   if drawIconButton(
     "ui/rewindToStart",
@@ -149,12 +142,6 @@ proc drawFooter*(panel: Panel) =
     echo if play: "Playing" else: "Paused"
   x += 32 + 5
 
-  # if drawIconButton(
-  #   "ui/pause",
-  #   pos = vec2(x, 16)
-  # ):
-  #   echo "Pause"
-  # x += 32 + 5
 
   if drawIconButton(
     "ui/stepForward",
@@ -171,7 +158,6 @@ proc drawFooter*(panel: Panel) =
     echo "Rewind to end"
 
 
-  # Draw the middle buttons.
   x = panel.rect.w.float32 / 2 - 32
 
   if drawIconButton(
@@ -204,7 +190,6 @@ proc drawFooter*(panel: Panel) =
     echo "Speed: Fast (16x)"
 
 
-  # Draw the right side buttons.
   x = panel.rect.w.float32 - 16 - 32
 
   if drawIconToggle(
@@ -239,13 +224,10 @@ proc drawFooter*(panel: Panel) =
     echo "Focus"
   x -= 32 + 5
 
-# ============== TIMELINE UI ==============
 
 proc drawTimeline*(panel: Panel) =
-  # Timeline background color: #1D1D1D
   drawPanelBackground(panel, parseHtmlColor("#1D1D1D"))
   
-  # Draw the scrubber bg.
   bxy.drawRect(
     rect = Rect(
       x: 16,
@@ -258,7 +240,6 @@ proc drawTimeline*(panel: Panel) =
 
   var progress = 0.37
 
-  # Draw the progress bar.
   bxy.drawRect(
     rect = Rect(
       x: 16,

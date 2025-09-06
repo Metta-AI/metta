@@ -75,3 +75,11 @@ var
   followSelection*: bool = false
   mouseCaptured*: bool = false
   mouseCapturedPanel*: Panel = nil
+
+proc manhattanDistance*(a, b: IVec2): int =
+  abs(a.x - b.x) + abs(a.y - b.y)
+
+proc euclideanDistance*(a, b: IVec2): float =
+  let dx = (a.x - b.x).float
+  let dy = (a.y - b.y).float
+  sqrt(dx * dx + dy * dy)
