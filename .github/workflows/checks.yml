@@ -262,7 +262,7 @@ jobs:
           # Create directories
           mkdir -p test-results coverage-reports
 
-          PYTEST_BASE_ARGS="-n auto --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+          PYTEST_BASE_ARGS="-n auto --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
           if [ "${{ matrix.package }}" == "core" ]; then
             pytest $PYTEST_BASE_ARGS \
@@ -443,11 +443,11 @@ jobs:
           PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks
         run: |
           # Main benchmarks
-          pytest -n 0 --benchmark-only --benchmark-json=main_benchmark_results.json
+          pytest -n 0 --timeout=100 --timeout-method=thread --benchmark-only --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
           cd mettagrid
-          pytest -n 0 --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
+          pytest -n 0 --timeout=100 --timeout-method=thread --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
