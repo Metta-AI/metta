@@ -8,12 +8,20 @@ This script launches 9 test jobs:
 - Each with CI tests enabled for one job per node configuration
 """
 
+import argparse
 import json
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
+
+from devops.skypilot.utils.job_helpers import (
+    get_job_id_from_request_id,
+    get_request_id_from_launch_output,
+    print_tip,
+)
+from metta.common.util.text_styles import bold, cyan, green, red, yellow
 
 # Test matrix configuration
 NODE_CONFIGS = [1, 2, 4]
@@ -48,9 +56,25 @@ def generate_run_name(base: str, nodes: int, condition: str, ci_test: bool = Fal
 
 
 def launch_job(
-    nodes: int, condition_config: dict, run_name: str, enable_ci_tests: bool = False, dry_run: bool = False
-) -> Optional[str]:
-    """Launch a single test job and return the job ID."""
+    nodes: int,
+    condition_config: dict,
+    run_name: str,
+    enable_ci_tests: bool = False,
+    dry_run: bool = False,
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Launch a single test job and return (job_id, request_id).
+
+    Args:
+        nodes: Number of nodes for the job
+        condition_config: Configuration for the test condition
+        run_name: Name of the job
+        enable_ci_tests: Whether to enable CI tests
+        dry_run: If True, skip actual launch
+
+    Returns:
+        Tuple of (job_id, request_id)
+    """
     # Build the command
     cmd = [
         "devops/skypilot/launch.py",
@@ -66,37 +90,73 @@ def launch_job(
     if enable_ci_tests:
         cmd.append("--run-ci-tests")
 
-    print(f"\nLaunching job: {run_name}")
-    print(f"  Nodes: {nodes}")
-    print(f"  Condition: {condition_config['name']}")
-    print(f"  CI Tests: {'Yes' if enable_ci_tests else 'No'}")
-    print(f"  Command: {' '.join(cmd)}")
+    # Display launch info
+    print(f"\n{bold('Launching job:')} {yellow(run_name)}")
+    print(f"  {cyan('Nodes:')} {nodes}")
+    print(f"  {cyan('Condition:')} {condition_config['name']}")
+    print(f"  {cyan('CI Tests:')} {'Yes' if enable_ci_tests else 'No'}")
 
     if dry_run:
-        print("  [DRY RUN] Skipping actual launch")
-        return f"dry_run_{run_name}"
+        print(f"  {yellow('[DRY RUN] Command:')} {' '.join(cmd)}")
+        return None, f"dry_run_{run_name}"
 
     try:
         # Launch the job and capture output
-        _result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-        # Extract job ID from output (looking for the run name which becomes the job ID)
-        # The job ID is typically the run name in skypilot
-        job_id = run_name
+        # Combine stdout and stderr for parsing
+        full_output = result.stdout + "\n" + result.stderr
 
-        print(f"  ✅ Launched successfully - Job ID: {job_id}")
-        return job_id
+        # Extract request ID from output using helper
+        request_id = get_request_id_from_launch_output(full_output)
+
+        if request_id:
+            print(f"  {green('✅ Launched successfully')} - Request ID: {yellow(request_id)}")
+
+            # Try to get job ID using helper
+            job_id = get_job_id_from_request_id(request_id)
+
+            if job_id:
+                print(f"  {green('✅ Job ID retrieved:')} {yellow(job_id)}")
+                return job_id, request_id
+            else:
+                print(f"  {cyan('⚠️  Job ID not available yet (may need more time)')}")
+                return None, request_id
+        else:
+            print(f"  {yellow('⚠️  Launched but could not extract request ID from output')}")
+            print_tip("Check the output manually for the request ID")
+            return None, None
 
     except subprocess.CalledProcessError as e:
-        print("  ❌ Failed to launch job")
-        print(f"  Error: {e.stderr}")
-        return None
+        print(f"  {red('❌ Failed to launch job')}")
+        print(f"  {red('Error:')} {e.stderr}")
+        return None, None
+
+
+def print_summary_table(launched_jobs: list, failed_launches: list) -> None:
+    """Print a nice summary table of all jobs."""
+    if not launched_jobs:
+        return
+
+    print("\n" + bold("Launched Jobs Summary:"))
+    print("─" * 80)
+    print(f"{'Nodes':^6} │ {'Condition':^20} │ {'CI':^4} │ {'Job ID':^10} │ {'Request ID'}")
+    print("─" * 80)
+
+    for job in launched_jobs:
+        nodes = job["nodes"]
+        condition = job["condition_name"][:20]
+        ci = "✓" if job["ci_tests_enabled"] else ""
+        job_id = job["job_id"] or "pending"
+        request_id = job["request_id"][:8] + "..."
+
+        print(f"{nodes:^6} │ {condition:^20} │ {ci:^4} │ {job_id:^10} │ {request_id}")
+
+    print("─" * 80)
 
 
 def main():
     """Main execution function."""
-    import argparse
-
     parser = argparse.ArgumentParser(description="Launch skypilot test matrix")
     parser.add_argument("--base-name", default="skypilot_test", help="Base name for the test runs")
     parser.add_argument("--output-file", default="skypilot_test_jobs.json", help="Output file for job information")
@@ -105,13 +165,13 @@ def main():
     args = parser.parse_args()
 
     # Show test matrix
-    print("=== Skypilot Test Matrix ===")
-    print(f"Node configurations: {NODE_CONFIGS}")
-    print("Test conditions:")
-    for _key, config in TEST_CONDITIONS.items():
-        print(f"  - {config['name']}: {config['description']}")
-    print(f"\nTotal jobs to launch: {len(NODE_CONFIGS) * len(TEST_CONDITIONS)}")
-    print(f"Output file: {args.output_file}")
+    print(bold("=== Skypilot Test Matrix ==="))
+    print(f"{cyan('Node configurations:')} {NODE_CONFIGS}")
+    print(f"{cyan('Test conditions:')}")
+    for key, config in TEST_CONDITIONS.items():
+        print(f"  • {yellow(config['name'])}: {config['description']}")
+    print(f"\n{cyan('Total jobs to launch:')} {len(NODE_CONFIGS) * len(TEST_CONDITIONS)}")
+    print(f"{cyan('Output file:')} {args.output_file}")
 
     # Track all launched jobs
     launched_jobs = []
@@ -125,7 +185,7 @@ def main():
 
             run_name = generate_run_name(args.base_name, nodes, condition_key, ci_test=enable_ci_tests)
 
-            job_id = launch_job(
+            job_id, request_id = launch_job(
                 nodes=nodes,
                 condition_config=condition_config,
                 run_name=run_name,
@@ -135,6 +195,7 @@ def main():
 
             job_info = {
                 "job_id": job_id,
+                "request_id": request_id,
                 "run_name": run_name,
                 "nodes": nodes,
                 "condition": condition_key,
@@ -142,10 +203,10 @@ def main():
                 "condition_description": condition_config["description"],
                 "ci_tests_enabled": enable_ci_tests,
                 "launch_time": datetime.now().isoformat(),
-                "success": job_id is not None,
+                "success": request_id is not None,
             }
 
-            if job_id:
+            if request_id:
                 launched_jobs.append(job_info)
             else:
                 failed_launches.append(job_info)
@@ -169,22 +230,28 @@ def main():
         json.dump(output_data, f, indent=2)
 
     # Print summary
-    print("\n=== Launch Summary ===")
-    print(f"Successfully launched: {len(launched_jobs)} jobs")
-    print(f"Failed to launch: {len(failed_launches)} jobs")
-    print(f"Results saved to: {output_path.absolute()}")
+    print(f"\n{bold('=== Launch Summary ===')}")
+    print(f"{green('Successfully launched:')} {len(launched_jobs)} jobs")
+    print(f"{red('Failed to launch:')} {len(failed_launches)} jobs")
+    print(f"{cyan('Results saved to:')} {output_path.absolute()}")
 
+    # Print nice summary table
     if launched_jobs:
-        print("\nLaunched job IDs:")
-        for job in launched_jobs:
-            ci_marker = " (CI)" if job["ci_tests_enabled"] else ""
-            print(f"  - {job['job_id']} ({job['nodes']} nodes, {job['condition_name']}{ci_marker})")
+        print_summary_table(launched_jobs, failed_launches)
 
     if failed_launches:
-        print("\nFailed launches:")
+        print(f"\n{red('Failed launches:')}")
         for job in failed_launches:
-            print(f"  - {job['run_name']} ({job['nodes']} nodes, {job['condition_name']})")
+            ci_marker = " (CI)" if job["ci_tests_enabled"] else ""
+            print(f"  • {job['run_name']} ({job['nodes']} nodes, {job['condition_name']}{ci_marker})")
         sys.exit(1)
+
+    # Print helpful commands
+    if launched_jobs and not args.dry_run:
+        print(f"\n{bold('Helpful commands:')}")
+        print_tip("• Check all jobs: sky jobs queue")
+        print_tip("• Check specific job: sky jobs logs <job_id>")
+        print_tip("• Cancel all test jobs: sky jobs cancel $(sky jobs queue | grep skypilot_test | awk '{print $1}')")
 
 
 if __name__ == "__main__":
