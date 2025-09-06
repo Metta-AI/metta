@@ -7,8 +7,10 @@ with village-based cooperation, resource management, and defense mechanics.
 
 from typing import Optional
 
-from metta.rl.trainer_config import TrainerConfig
-from metta.sim.tribal_genny import make_tribal_env, TribalGridEnv
+from metta.rl.trainer_config import TrainerConfig, EvaluationConfig, CheckpointConfig
+from metta.rl.loss.loss_config import LossConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.sim.env_config import TribalEnvConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
@@ -19,9 +21,9 @@ def make_tribal_environment(
     num_agents: int = 15,
     max_steps: int = 2000,
     **kwargs
-) -> TribalGridEnv:
+) -> TribalEnvConfig:
     """
-    Create tribal environment with optimized settings for RL training.
+    Create tribal environment configuration for training.
     
     The tribal environment features:
     - Village-based agent tribes with shared altars
@@ -30,7 +32,7 @@ def make_tribal_environment(
     - Defensive gameplay against Clippy enemies
     - Terrain interaction (water, wheat fields, forests)
     """
-    return make_tribal_env(
+    return TribalEnvConfig(
         num_agents=num_agents,
         max_steps=max_steps,
         render_mode=None,  # No rendering during training
@@ -61,42 +63,29 @@ def train(
     # Configure trainer for tribal environment
     trainer_config = TrainerConfig(
         total_timesteps=total_timesteps,
-        rollout_workers=num_workers,
+        losses=LossConfig(),
         
         # Tribal-specific tuning
         batch_size=2048,  # Larger batch for stable multi-agent learning
         minibatch_size=256,
-        learning_rate=3e-4,
         
-        # Episode settings
-        max_episode_length=2000,  # Longer episodes for complex strategies
-        
-        # Evaluation
-        evaluation=TrainerConfig.EvaluationConfig(
-            enabled=True,
-            interval=50000,  # Evaluate every 50k steps
-            episodes=10,
+        # Evaluation with tribal environment
+        evaluation=EvaluationConfig(
+            simulations=[
+                SimulationConfig(name="tribal/basic", env=env),
+            ],
+            evaluate_interval=5,  # Evaluate every 5 epochs (must be >= checkpoint_interval)
+            skip_git_check=True,  # Skip git check for development
         ),
         
         # Checkpointing
-        checkpoint=TrainerConfig.CheckpointConfig(
-            enabled=True,
-            interval=100000,  # Save every 100k steps
-            save_on_exit=True,
-        ),
-        
-        # Skip git check for development
-        simulation=TrainerConfig.SimulationConfig(
-            skip_git_check=True,
+        checkpoint=CheckpointConfig(
+            checkpoint_interval=5,  # Save every 5 epochs
+            wandb_checkpoint_interval=5,  # Must be >= checkpoint_interval
         ),
     )
     
-    return TrainTool(
-        env=env,
-        trainer_config=trainer_config,
-        run=run,
-        **overrides
-    )
+    return TrainTool(trainer=trainer_config)
 
 
 def evaluate(
