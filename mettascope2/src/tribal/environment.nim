@@ -1371,10 +1371,10 @@ proc defaultEnvironmentConfig*(): EnvironmentConfig =
     clippySpawnRate: 0.05,
     clippyDamage: 1,
     
-    # Reward configuration (match original constants)
+    # Reward configuration (aligned with arena_basic_easy_shaped)
     heartReward: 10.0,                  # High reward for completing resource chain
-    oreReward: 0.003,                   # RewardMineOre
-    batteryReward: 0.01,                # RewardConvertOreToBattery
+    oreReward: 0.01,                    # Mining ore action reward
+    batteryReward: 0.1,                 # Crafting battery action reward
     woodReward: 0.002,                  # RewardGetWood
     waterReward: 0.001,                 # RewardGetWater
     wheatReward: 0.001,                 # RewardGetWheat

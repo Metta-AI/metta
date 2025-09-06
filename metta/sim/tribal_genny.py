@@ -77,27 +77,27 @@ class TribalGridEnv:
             
             # Override with provided config values (only configurable parameters)
             if 'max_steps' in config:
-                nim_config.game.maxSteps = config['max_steps']
+                nim_config.game.max_steps = config['max_steps']
             if 'ore_per_battery' in config:
-                nim_config.game.orePerBattery = config['ore_per_battery']
+                nim_config.game.ore_per_battery = config['ore_per_battery']
             if 'batteries_per_heart' in config:
-                nim_config.game.batteriesPerHeart = config['batteries_per_heart']
+                nim_config.game.batteries_per_heart = config['batteries_per_heart']
             if 'enable_combat' in config:
-                nim_config.game.enableCombat = config['enable_combat']
+                nim_config.game.enable_combat = config['enable_combat']
             if 'clippy_spawn_rate' in config:
-                nim_config.game.clippySpawnRate = config['clippy_spawn_rate']
+                nim_config.game.clippy_spawn_rate = config['clippy_spawn_rate']
             if 'clippy_damage' in config:
-                nim_config.game.clippyDamage = config['clippy_damage']
+                nim_config.game.clippy_damage = config['clippy_damage']
             if 'heart_reward' in config:
-                nim_config.game.heartReward = config['heart_reward']
+                nim_config.game.heart_reward = config['heart_reward']
             if 'battery_reward' in config:
-                nim_config.game.batteryReward = config['battery_reward']
+                nim_config.game.battery_reward = config['battery_reward']
             if 'ore_reward' in config:
-                nim_config.game.oreReward = config['ore_reward']
+                nim_config.game.ore_reward = config['ore_reward']
             if 'survival_penalty' in config:
-                nim_config.game.survivalPenalty = config['survival_penalty']
+                nim_config.game.survival_penalty = config['survival_penalty']
             if 'death_penalty' in config:
-                nim_config.game.deathPenalty = config['death_penalty']
+                nim_config.game.death_penalty = config['death_penalty']
         
         # Create Nim environment instance with full configuration
         self._nim_env = TribalEnv(nim_config)
