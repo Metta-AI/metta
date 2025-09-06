@@ -185,9 +185,6 @@ proc drawObjects*() =
             angle = 0,
             scale = 1/200
           )
-      else:
-        discard
-
 
 proc drawVisualRanges*(alpha = 0.2) =
   var visibility: array[MapWidth, array[MapHeight, bool]]

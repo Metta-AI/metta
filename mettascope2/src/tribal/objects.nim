@@ -142,12 +142,6 @@ proc initHungerState*(): HungerState =
   result.foodInventory = @[]
   result.maxFoodSlots = MaxFoodInventory
 
-
-
-
-
-
-
 proc useClayOven*(oven: var ProductionBuilding, agentWheat: var int): FoodItem =
   assert oven.kind == ClayOven, "This function only works with ClayOven"
   if oven.cooldown == 0 and agentWheat >= oven.wheatCostOven:

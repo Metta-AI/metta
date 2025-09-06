@@ -491,13 +491,12 @@ proc findEmptyPosition*(grid: PlacementGrid, terrain: ptr TerrainGrid,
 proc findEmptyPositionsAround*(grid: PlacementGrid, terrain: ptr TerrainGrid,
                               center: IVec2, radius: int,
                               mapWidth, mapHeight, mapBorder: int): seq[IVec2] =
-  ## Find all empty positions around a center point
   result = @[]
   
   for dx in -radius .. radius:
     for dy in -radius .. radius:
       if dx == 0 and dy == 0:
-        continue  # Skip center
+        continue
       
       let x = center.x + dx
       let y = center.y + dy

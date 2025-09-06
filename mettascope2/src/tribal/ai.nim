@@ -72,9 +72,6 @@ proc resetWanderState(state: ControllerState) =
   state.spiralStepsInArc = 0
 
 proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 =
-  ## Get next point in expanding spiral pattern
-  ## Pattern: Move in increasing arc lengths - 1 step N, 1 E, 2 S, 2 W, 3 N, 3 E, 4 S, 4 W, etc.
-  ## This creates an outward spiral from the base position
   
   # Track current position in the spiral (accumulated from all steps)
   var totalOffset = ivec2(0, 0)
@@ -143,8 +140,6 @@ proc findVisibleThings(env: Environment, agent: Thing, viewRadius: int = 5): seq
         result.add(thing)
 
 proc getMoveToCardinalPosition(agentPos, targetPos: IVec2, env: Environment): IVec2 =
-  ## If agent is diagonally adjacent to target, return direction to move to cardinal position
-  ## Returns ivec2(0, 0) if already cardinally adjacent or not adjacent at all
   let dx = targetPos.x - agentPos.x
   let dy = targetPos.y - agentPos.y
   
@@ -164,7 +159,6 @@ proc getMoveToCardinalPosition(agentPos, targetPos: IVec2, env: Environment): IV
   return ivec2(0, 0)
 
 proc getDirectionTo(fromPos, toPos: IVec2): IVec2 =
-  ## Get the unit direction vector from one position to another (supports 8 directions)
   let dx = toPos.x - fromPos.x
   let dy = toPos.y - fromPos.y
   
@@ -185,7 +179,6 @@ proc getDirectionTo(fromPos, toPos: IVec2): IVec2 =
   result = ivec2(dirX, dirY)
 
 proc getOrientation(dir: IVec2): Orientation =
-  ## Convert direction vector to orientation (8 directions)
   # Handle diagonal directions first
   if dir.x > 0 and dir.y < 0: return NE
   if dir.x > 0 and dir.y > 0: return SE
@@ -199,19 +192,16 @@ proc getOrientation(dir: IVec2): Orientation =
   return N  # Default
 
 proc isAdjacent(pos1, pos2: IVec2): bool =
-  ## Check if two positions are adjacent (including diagonals)
   let dx = abs(pos1.x - pos2.x)
   let dy = abs(pos1.y - pos2.y)
   result = dx <= 1 and dy <= 1 and (dx + dy) > 0
 
 proc isCardinallyAdjacent(pos1, pos2: IVec2): bool =
-  ## Check if two positions are adjacent in a cardinal direction (N/S/E/W only)
   let dx = abs(pos1.x - pos2.x)
   let dy = abs(pos1.y - pos2.y)
   result = (dx == 1 and dy == 0) or (dx == 0 and dy == 1)
 
 proc decideAction*(controller: Controller, env: Environment, agentId: int): array[2, uint8] =
-  ## Decide the next action for an agent
   let agent = env.agents[agentId]
   
   # Skip frozen agents
@@ -478,8 +468,4 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   return [0'u8, 0'u8]  # Noop
 
 proc updateController*(controller: Controller) =
-  ## Update controller state (called each step)
   controller.stepCount += 1
-  
-  # Periodically reset spiral patterns to prevent getting stuck
-  # (Spiral already resets itself after ~30 arcs, so this is handled)

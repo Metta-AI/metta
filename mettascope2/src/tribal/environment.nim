@@ -825,15 +825,6 @@ proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[Thing], r: var Rand):
     let randomDirections = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
     return randomDirections[r.rand(0..<randomDirections.len)]
 
-
-# proc updateGrid(env: Environment) =
-#   ## Update the grid
-#   for x in 0 ..< MapWidth:
-#     for y in 0 ..< MapHeight:
-#       env.grid[x][y] = nil
-#   for thing in env.things:
-#     env.grid[thing.pos.x][thing.pos.y] = thing
-
 proc isValidEmptyPosition(env: Environment, pos: IVec2): bool =
   ## Check if a position is within map bounds, empty, and not water
   pos.x >= MapBorder and pos.x < MapWidth - MapBorder and
@@ -1453,9 +1444,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     of 2: env.attackAction(id, agent, action[1].int)
     of 3: env.getAction(id, agent, action[1].int)  # Get from terrain/buildings
     of 4: env.swapAction(id, agent, action[1].int)
-    of 5: env.putAction(id, agent, action[1].int)  # Put resources into buildings
-    #of: env.jumpAction(id, agent)
-    #of: env.transferAction(id, agent)
+    of 5: env.putAction(id, agent, action[1].int)
     else: inc env.stats[id].actionInvalid
 
   # Update objects and collect new clippys to spawn

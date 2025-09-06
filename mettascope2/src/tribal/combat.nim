@@ -1,21 +1,9 @@
-
 import vmath
 import environment, common
 export environment
 
 const
-  ForgeWoodCost* = 1
-  ForgeCooldown* = 5
   SpearRange* = 2
-  WeavingLoomWheatCost* = 1
-  WeavingLoomCooldown* = 15
-  ArmoryOreCost* = 1
-  ArmoryCooldown* = 20
-  ArmorMaxUses* = 3
-
-
-
-
 
 proc defendAgainstAttack*(agent: Thing, env: Environment): bool =
   
@@ -37,4 +25,3 @@ proc isThreatenedBySpear*(env: Environment, pos: IVec2): bool =
       if manhattanDistance(agent.pos, pos) <= SpearRange:
         return true
   return false
-
