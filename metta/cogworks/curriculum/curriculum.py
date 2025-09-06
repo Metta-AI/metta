@@ -361,8 +361,8 @@ class Curriculum:
     """Base curriculum class that uses TaskGenerator to generate EnvConfigs and returns Tasks.
 
     Curriculum takes a CurriculumConfig, and supports get_task(). It uses the task generator
-    to generate the EnvConfig and then returns a Task(env_cfg). It can optionally use a
-    CurriculumAlgorithm for intelligent task selection.
+    to generate the EnvConfig and then returns a Task(env_cfg). It always uses a
+    CurriculumAlgorithm for task selection (defaults to DiscreteRandom if none specified).
     """
 
     def __init__(self, config: CurriculumConfig, seed: int = 0):
@@ -374,12 +374,13 @@ class Curriculum:
         self._num_created = 0
         self._num_evicted = 0
 
-        self._algorithm: Optional[CurriculumAlgorithm] = None
-        if config.algorithm_config is not None:
-            self._algorithm = config.algorithm_config.create(config.num_active_tasks)
-            # Pass curriculum reference to algorithm for stats updates
-            if hasattr(self._algorithm, "set_curriculum_reference"):
-                self._algorithm.set_curriculum_reference(self)
+        # Always have an algorithm - default to DiscreteRandom
+        algorithm_config = config.algorithm_config or DiscreteRandomConfig()
+        self._algorithm = algorithm_config.create(config.num_active_tasks)
+
+        # Pass curriculum reference to algorithm for stats updates
+        if hasattr(self._algorithm, "set_curriculum_reference"):
+            self._algorithm.set_curriculum_reference(self)
 
         # Always initialize task pool at capacity
         self._initialize_at_capacity()
@@ -392,19 +393,18 @@ class Curriculum:
         else:
             task = self._choose_task()
 
-            # Always use algorithm criteria for eviction when algorithm is available
-            if self._algorithm is not None:
-                evictable_tasks = [
-                    tid
-                    for tid in self._tasks.keys()
-                    if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
-                ]
-                if evictable_tasks:
-                    # Evict a task that meets the criteria and create a new one
-                    evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
-                    if evict_candidate is not None:
-                        self._evict_specific_task(evict_candidate)
-                        task = self._create_task()
+            # Use algorithm criteria for eviction
+            evictable_tasks = [
+                tid
+                for tid in self._tasks.keys()
+                if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
+            ]
+            if evictable_tasks:
+                # Evict a task that meets the criteria and create a new one
+                evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
+                if evict_candidate is not None:
+                    self._evict_specific_task(evict_candidate)
+                    task = self._create_task()
 
         task._num_scheduled += 1
         return task
@@ -420,8 +420,7 @@ class Curriculum:
             return
 
         # Notify algorithm of eviction
-        if self._algorithm is not None:
-            self._algorithm.on_task_evicted(task_id)
+        self._algorithm.on_task_evicted(task_id)
 
         self._task_ids.remove(task_id)
         self._tasks.pop(task_id)
@@ -429,20 +428,19 @@ class Curriculum:
 
     def _choose_task(self) -> CurriculumTask:
         """Choose a task from the population using algorithm guidance."""
-        if self._algorithm is not None:
-            # Get algorithm's task selection preferences
-            task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
-            if task_scores:
-                # Convert scores to probabilities for sampling
-                task_ids = list(task_scores.keys())
-                scores = list(task_scores.values())
-                total_score = sum(scores)
-                if total_score > 0:
-                    probabilities = [score / total_score for score in scores]
-                    selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
-                    return self._tasks[selected_id]
+        # Get algorithm's task selection preferences
+        task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
+        if task_scores:
+            # Convert scores to probabilities for sampling
+            task_ids = list(task_scores.keys())
+            scores = list(task_scores.values())
+            total_score = sum(scores)
+            if total_score > 0:
+                probabilities = [score / total_score for score in scores]
+                selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
+                return self._tasks[selected_id]
 
-        # Fallback to random selection
+        # Fallback to random selection if no scores provided
         return self._tasks[self._rng.choice(list(self._tasks.keys()))]
 
     def _create_task(self) -> CurriculumTask:
@@ -463,15 +461,14 @@ class Curriculum:
         self._num_created += 1
 
         # Notify algorithm of new task
-        if self._algorithm is not None and hasattr(self._algorithm, "on_task_created"):
+        if hasattr(self._algorithm, "on_task_created"):
             self._algorithm.on_task_created(task)
 
         return task
 
     def update_task_performance(self, task_id: int, score: float):
         """Update the curriculum algorithm with task performance."""
-        if self._algorithm is not None:
-            self._algorithm.update_task_performance(task_id, score)
+        self._algorithm.update_task_performance(task_id, score)
 
     def stats(self) -> dict:
         """Return curriculum statistics for logging purposes."""
@@ -484,14 +481,11 @@ class Curriculum:
             "num_active_tasks": len(self._tasks),
         }
 
-        if self._algorithm is not None:
-            # Add algorithm stats with prefix
-            algorithm_stats = self._algorithm.stats()
-            # Add algorithm prefix to avoid conflicts
-            prefixed_algorithm_stats = {f"algorithm/{k}": v for k, v in algorithm_stats.items()}
-            return {**base_stats, **prefixed_algorithm_stats}
-        else:
-            return base_stats
+        # Always add algorithm stats
+        algorithm_stats = self._algorithm.stats()
+        # Add algorithm prefix to avoid conflicts
+        prefixed_algorithm_stats = {f"algorithm/{k}": v for k, v in algorithm_stats.items()}
+        return {**base_stats, **prefixed_algorithm_stats}
 
 
 # Import concrete config classes at the end to avoid circular imports
