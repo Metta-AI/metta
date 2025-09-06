@@ -3,12 +3,13 @@ import
   common, utils, controls
 
 proc drawPanelBackground*(panel: Panel, bgColor: Color) =
+  let panelRect = panel.rect.rect
   bxy.drawRect(
     rect = Rect(
       x: 0,
       y: 0,
-      w: panel.rect.w.float32,
-      h: panel.rect.h.float32
+      w: panelRect.w,
+      h: panelRect.h
     ),
     color = bgColor
   )
@@ -74,7 +75,7 @@ proc drawSpeedButton*(x: float32, speed: float32, label: string): bool =
   if drawIconButton("ui/speed", pos = vec2(x, 16), size = vec2(20, 32)):
     playSpeed = speed
     play = true
-    echo "Speed: " & label
+    debugLog("Speed button clicked: " & label)
     return true
   return false
 
@@ -105,15 +106,15 @@ proc drawHeader*(panel: Panel) =
 
   if drawIconButton(
     "ui/share",
-    pos = vec2(panel.rect.w.float32 - (16 + 32)*1, 16)
+    pos = vec2(panel.rect.rect.w - (16 + 32)*1, 16)
   ):
-    echo "Share"
+    debugLog("Share button clicked")
 
   if drawIconButton(
     "ui/help",
-    pos = vec2(panel.rect.w.float32 - (16 + 32)*2, 16)
+    pos = vec2(panel.rect.rect.w - (16 + 32)*2, 16)
   ):
-    echo "Help"
+    debugLog("Help button clicked")
 
 
 proc drawFooter*(panel: Panel) =
@@ -124,14 +125,14 @@ proc drawFooter*(panel: Panel) =
     "ui/rewindToStart",
     pos = vec2(x, 16)
   ):
-    echo "Rewind to start"
+    debugLog("Rewind to start")
   x += 32 + 5
 
   if drawIconButton(
     "ui/stepBack",
     pos = vec2(x, 16)
   ):
-    echo "Step back"
+    debugLog("Step back")
   x += 32 + 5
 
   if drawIconButton(
@@ -147,7 +148,7 @@ proc drawFooter*(panel: Panel) =
     "ui/stepForward",
     pos = vec2(x, 16)
   ):
-    echo "Step forward"
+    debugLog("Step forward")
     simStep()  # Step the simulation once
   x += 32 + 5
 
@@ -155,10 +156,10 @@ proc drawFooter*(panel: Panel) =
     "ui/rewindToEnd",
     pos = vec2(x, 16)
   ):
-    echo "Rewind to end"
+    debugLog("Rewind to end")
 
 
-  x = panel.rect.w.float32 / 2 - 32
+  x = panel.rect.rect.w / 2 - 32
 
   if drawIconButton(
     "ui/turtle",
@@ -166,7 +167,7 @@ proc drawFooter*(panel: Panel) =
   ):
     playSpeed = 0.5
     play = true
-    echo "Speed: Slow (0.5x)"
+    debugLog("Speed: Slow (0.5x)")
   x += 32 + 3
 
   discard drawSpeedButton(x, 0.25, "1x")
@@ -187,17 +188,17 @@ proc drawFooter*(panel: Panel) =
   ):
     playSpeed = 0.015625
     play = true
-    echo "Speed: Fast (16x)"
+    debugLog("Speed: Fast (16x)")
 
 
-  x = panel.rect.w.float32 - 16 - 32
+  x = panel.rect.rect.w - 16 - 32
 
   if drawIconToggle(
     "ui/cloud",
     pos = vec2(x, 16),
     value = settings.showFogOfWar
   ):
-    echo "Fog of war"
+    debugLog("Fog of war toggled")
   x -= 32 + 5
 
   if drawIconToggle(
@@ -205,7 +206,7 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     value = settings.showVisualRange
   ):
-    echo "Visual range"
+    debugLog("Visual range toggled")
   x -= 32 + 5
 
   if drawIconToggle(
@@ -213,7 +214,7 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     value = settings.showGrid
   ):
-    echo "Grid"
+    debugLog("Grid toggled")
   x -= 32 + 5
 
   if drawIconToggle(
@@ -221,7 +222,7 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     value = settings.lockFocus
   ):
-    echo "Focus"
+    debugLog("Focus toggled")
   x -= 32 + 5
 
 
@@ -232,7 +233,7 @@ proc drawTimeline*(panel: Panel) =
     rect = Rect(
       x: 16,
       y: 32,
-      w: panel.rect.w.float32 - 32,
+      w: panel.rect.rect.w - 32,
       h: 16
     ),
     color = parseHtmlColor("#717171")
@@ -244,7 +245,7 @@ proc drawTimeline*(panel: Panel) =
     rect = Rect(
       x: 16,
       y: 32,
-      w: (panel.rect.w.float32 - 32) * progress,
+      w: (panel.rect.rect.w - 32) * progress,
       h: 16
     ),
     color = color(1, 1, 1, 1)

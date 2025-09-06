@@ -5,12 +5,7 @@ import
 const HeaderSize = 30
 
 proc updateMouse*(panel: Panel) =
-  let box = Rect(
-    x: panel.rect.x.float32,
-    y: panel.rect.y.float32,
-    w: panel.rect.w.float32,
-    h: panel.rect.h.float32
-  )
+  let box = panel.rect.rect
 
   panel.hasMouse = panel.visible and ((not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
     (mouseCaptured and mouseCapturedPanel == panel))
@@ -67,7 +62,8 @@ proc beginDraw*(panel: Panel) =
   bxy.pushLayer()
   bxy.saveTransform()
 
-  bxy.translate(vec2(panel.rect.x.float32, panel.rect.y.float32))
+  let panelRect = panel.rect.rect
+  bxy.translate(vec2(panelRect.x, panelRect.y))
 
 proc endDraw*(panel: Panel) =
 
@@ -76,8 +72,7 @@ proc endDraw*(panel: Panel) =
   # Draw the mask.
   bxy.pushLayer()
   bxy.drawRect(
-    rect = Rect(x: panel.rect.x.float32, y: panel.rect.y.float32, 
-                w: panel.rect.w.float32, h: panel.rect.h.float32),
+    rect = panel.rect.rect,
     color = color(1, 0, 0, 1.0)
   )
   bxy.popLayer(blendMode = MaskBlend)
@@ -88,15 +83,9 @@ proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
   for num,panel in area.panels:
     if num == area.selectedPanelNum:
-      panel.rect.x = area.rect.x
-      panel.rect.y = area.rect.y + HeaderSize
-      panel.rect.w = area.rect.w
-      panel.rect.h = area.rect.h - HeaderSize
+      panel.rect = irect(area.rect.x, area.rect.y + HeaderSize, area.rect.w, area.rect.h - HeaderSize)
     else:
-      panel.rect.x = 0
-      panel.rect.y = 0
-      panel.rect.w = 0
-      panel.rect.h = 0
+      panel.rect = irect(0, 0, 0, 0)
 
   for subarea in area.areas:
     updatePanelsSizes(subarea)
@@ -106,12 +95,13 @@ proc drawFrame*(area: Area) =
 
   # Draw the header ribbon background.
   bxy.saveTransform()
-  bxy.translate(vec2(area.rect.x.float32, area.rect.y.float32))
+  let areaRect = area.rect.rect
+  bxy.translate(vec2(areaRect.x, areaRect.y))
   bxy.drawRect(
     rect = Rect(
       x: 0,
       y: 0,
-      w: area.rect.w.float32,
+      w: areaRect.w,
       h: HeaderSize.float32
     ),
     color = color(0, 0, 0, 1)
