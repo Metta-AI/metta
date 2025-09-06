@@ -117,23 +117,46 @@ proc defaultTribalConfig*(): TribalConfig =
 proc newTribalEnv*(config: TribalConfig): TribalEnv =
   ## Create a new tribal environment with full configuration
   try:
+    # Convert TribalConfig to EnvironmentConfig
+    var envConfig = EnvironmentConfig(
+      numAgents: config.game.numAgents,
+      maxSteps: config.game.maxSteps,
+      episodeTruncates: config.game.episodeTruncates,
+      obsWidth: config.game.obsWidth,
+      obsHeight: config.game.obsHeight,
+      obsLayers: config.game.obsLayers,
+      mapWidth: config.game.mapWidth,
+      mapHeight: config.game.mapHeight,
+      numVillages: config.game.numVillages,
+      resourceSpawnRate: config.game.resourceSpawnRate,
+      orePerBattery: config.game.orePerBattery,
+      batteriesPerHeart: config.game.batteriesPerHeart,
+      enableCombat: config.game.enableCombat,
+      clippySpawnRate: config.game.clippySpawnRate,
+      clippyDamage: config.game.clippyDamage,
+      heartReward: config.game.heartReward,
+      oreReward: config.game.oreReward,
+      batteryReward: config.game.batteryReward,
+      woodReward: 0.002,  # Default values for rewards not in TribalConfig yet
+      waterReward: 0.001,
+      wheatReward: 0.001,
+      spearReward: 0.01,
+      armorReward: 0.015,
+      foodReward: 0.012,
+      clothReward: 0.012,
+      clippyKillReward: 0.1,
+      survivalPenalty: config.game.survivalPenalty,
+      deathPenalty: config.game.deathPenalty
+    )
+    
     result = TribalEnv(
-      env: newEnvironment(),
+      env: newEnvironment(envConfig),
       config: config,
       stepCount: 0
     )
-    # TODO: Apply configuration to environment (future enhancement)
   except:
     lastError = getCurrentException()
 
-proc newTribalEnv*(maxSteps: int): TribalEnv =
-  ## Create a new tribal environment (backwards compatibility)
-  try:
-    var config = defaultTribalConfig()
-    config.game.maxSteps = maxSteps
-    result = newTribalEnv(config)
-  except:
-    lastError = getCurrentException()
 
 # Core environment methods
 proc resetEnv*(tribal: TribalEnv) =
@@ -266,7 +289,6 @@ exportObject TribalConfig:
 exportRefObject TribalEnv:
   constructor:
     newTribalEnv(TribalConfig)
-    newTribalEnv(int)  # backwards compatibility
   procs:
     resetEnv(TribalEnv)
     step(TribalEnv, seq[int])

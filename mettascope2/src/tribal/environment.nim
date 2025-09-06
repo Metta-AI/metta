@@ -1,6 +1,6 @@
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import terrain, objects, common
-export terrain, objects, common
+import terrain, objects, common, config
+export terrain, objects, common, config
 
 const
   # Map layout constants
@@ -147,6 +147,7 @@ type
     
   Environment* = ref object
     currentStep*: int
+    config*: EnvironmentConfig  # Configuration for this environment
     things*: seq[Thing]
     agents*: seq[Thing]
     grid*: array[MapWidth, array[MapHeight, Thing]]
@@ -493,7 +494,7 @@ proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
     env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
     
     # Give reward for destroying Clippy
-    agent.reward += RewardDestroyClippy  # Moderate reward for defense
+    agent.reward += env.config.clippyKillReward  # Moderate reward for defense
     
     inc env.stats[id].actionAttack
   else:
@@ -526,7 +527,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       agent.inventoryWater += 1
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove water tile
       env.updateObservations(AgentInventoryWaterLayer, agent.pos, agent.inventoryWater)
-      agent.reward += RewardGetWater  # Small shaped reward
+      agent.reward += env.config.waterReward  # Small shaped reward
       inc env.stats[id].actionGet
     else:
       inc env.stats[id].actionInvalid  # Inventory full
@@ -538,7 +539,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove wheat tile
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
-      agent.reward += RewardGetWheat  # Small shaped reward
+      agent.reward += env.config.wheatReward  # Small shaped reward
       inc env.stats[id].actionGet
     else:
       inc env.stats[id].actionInvalid  # Inventory full
@@ -550,7 +551,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.terrain[targetPos.x][targetPos.y] = Empty  # Remove tree tile
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
-      agent.reward += RewardGetWood  # Small shaped reward (slightly higher for spear path)
+      agent.reward += env.config.woodReward  # Small shaped reward (slightly higher for spear path)
       inc env.stats[id].actionGet
     else:
       inc env.stats[id].actionInvalid  # Inventory full
@@ -568,7 +569,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
           env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
           thing.cooldown = MapObjectMineCooldown
           env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
-          agent.reward += RewardMineOre
+          agent.reward += env.config.oreReward
           inc env.stats[id].actionGet
         else:
           inc env.stats[id].actionInvalid
@@ -581,7 +582,7 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
           env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
           thing.cooldown = 0  # Instant conversion
           env.updateObservations(ConverterReadyLayer, thing.pos, 1)
-          agent.reward += RewardConvertOreToBattery
+          agent.reward += env.config.batteryReward
           inc env.stats[id].actionGet
         else:
           inc env.stats[id].actionInvalid
@@ -623,7 +624,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       thing.cooldown = 5
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
-      agent.reward += RewardCraftSpear
+      agent.reward += env.config.spearReward
       inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
@@ -636,7 +637,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       thing.cooldown = 15
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       env.updateObservations(AgentInventoryHatLayer, agent.pos, agent.inventoryHat)
-      agent.reward += RewardCraftCloth
+      agent.reward += env.config.clothReward
       inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
@@ -649,7 +650,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       thing.cooldown = 20
       env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
       env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
-      agent.reward += RewardCraftArmor
+      agent.reward += env.config.armorReward
       inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
@@ -660,7 +661,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       agent.inventoryWheat -= 1
       thing.cooldown = 10
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-      agent.reward += RewardCraftFood
+      agent.reward += env.config.foodReward
       inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
@@ -674,7 +675,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
       env.updateObservations(AltarHeartsLayer, thing.pos, thing.hearts)
       env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
-      agent.reward += 1.0
+      agent.reward += env.config.heartReward
       inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
@@ -1325,9 +1326,15 @@ proc dumpMap*(env: Environment): string =
     else:
       result.add fmt"{thing.kind} {thing.id} {thing.pos.x} {thing.pos.y}" & "\n"
 
+
 proc newEnvironment*(): Environment =
-  ## Create a new environment
-  result = Environment()
+  ## Create a new environment with default configuration
+  result = Environment(config: defaultEnvironmentConfig())
+  result.init()
+
+proc newEnvironment*(config: EnvironmentConfig): Environment =
+  ## Create a new environment with custom configuration
+  result = Environment(config: config)
   result.init()
 
 # Initialize the global environment
@@ -1403,8 +1410,13 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             # Don't add immediately - collect for later
             newClippysToSpawn.add(newClippy)
             
-            # Reset spawner cooldown
-            thing.cooldown = SpawnerCooldown
+            # Reset spawner cooldown based on spawn rate
+            # Convert spawn rate (0.0-1.0) to cooldown steps (higher rate = lower cooldown)
+            let cooldown = if env.config.clippySpawnRate > 0.0:
+              max(1, int(20.0 / env.config.clippySpawnRate))  # Base 20 steps, scaled by rate
+            else:
+              1000  # Very long cooldown if spawn disabled
+            thing.cooldown = cooldown
     elif thing.kind == Agent:
       if thing.frozen > 0:
         thing.frozen -= 1
@@ -1501,11 +1513,13 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             env.updateObservations(AgentInventoryHatLayer, adjacentThing.pos, adjacentThing.inventoryHat)
             agentSurvived = true
         
-        # Only kill agent if they would die and have no defense
-        if agentWouldDie and not agentSurvived:
+        # Only kill agent if they would die, have no defense, and combat is enabled
+        if agentWouldDie and not agentSurvived and env.config.enableCombat:
           # Agent dies - mark for respawn at altar
           adjacentThing.frozen = 999999  # Mark as dead (will be respawned)
           env.terminated[adjacentThing.agentId] = 1.0
+          # Apply death penalty
+          adjacentThing.reward += env.config.deathPenalty
           
           # Clear the agent from its current position
           env.grid[adjacentThing.pos.x][adjacentThing.pos.y] = nil
@@ -1571,6 +1585,12 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           env.updateObservations(AgentInventorySpearLayer, agent.pos, 0)
           env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
           env.updateObservations(agentId)
+  
+  # Apply per-step survival penalty to all living agents
+  if env.config.survivalPenalty != 0.0:
+    for agent in env.agents:
+      if agent.frozen == 0:  # Only alive agents
+        agent.reward += env.config.survivalPenalty
   
   # Update heatmap using batch tint modification system
   # This is much more efficient than updating during each entity move

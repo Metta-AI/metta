@@ -245,26 +245,14 @@ class TribalGridEnv:
         pass
 
 
-def make_tribal_env(
-    num_agents: int = 15,
-    max_steps: int = 1000,
-    **kwargs
-) -> TribalGridEnv:
+def make_tribal_env(**config) -> TribalGridEnv:
     """
     Create a tribal environment instance using genny bindings.
     
     Args:
-        num_agents: Number of agents (fixed at compile time, but configurable in future)
-        max_steps: Maximum steps per episode
-        **kwargs: Additional configuration parameters
+        **config: Configuration parameters for the environment
     
     Returns:
         TribalGridEnv instance
     """
-    config = {
-        'num_agents': num_agents,
-        'max_steps': max_steps,
-        **kwargs
-    }
-    
     return TribalGridEnv(config)
