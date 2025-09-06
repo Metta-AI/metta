@@ -6,6 +6,7 @@
 #include <pybind11/stl.h>
 
 #include <map>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,7 @@ class ActionHandler {
 public:
   unsigned char priority;
   Grid* _grid{};
+  std::mt19937* _rng{};
 
   ActionHandler(const ActionConfig& cfg, const std::string& action_name)
       : priority(0),
@@ -45,8 +47,9 @@ public:
 
   virtual ~ActionHandler() {}
 
-  void init(Grid* grid) {
+  void init(Grid* grid, std::mt19937* rng) {
     this->_grid = grid;
+    this->_rng = rng;
   }
 
   bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
