@@ -21,10 +21,14 @@ class AWSSetup(SetupModule):
 
     def check_installed(self) -> bool:
         try:
+            # Also check if AWS CLI is available
+            import subprocess
+
             import boto3  # noqa: F401
 
+            subprocess.run(["aws", "--version"], check=True, capture_output=True)
             return True
-        except ImportError:
+        except (ImportError, subprocess.CalledProcessError):
             return False
 
     def install(self, non_interactive: bool = False) -> None:
@@ -37,7 +41,25 @@ class AWSSetup(SetupModule):
         Args:
             non_interactive: If True, skip interactive configuration prompts
         """
+        import platform
+        import subprocess
+
+        from metta.setup.utils import success, warning
+
         saved_settings = get_saved_settings()
+
+        # Install AWS CLI tools first
+        if platform.system() == "Darwin":
+            try:
+                info("Installing AWS CLI tools...")
+                subprocess.run(["brew", "tap", "aws/homebrew-aws"], check=True, capture_output=True)
+                subprocess.run(["brew", "install", "aws/aws/amazon-efs-utils"], check=True, capture_output=True)
+                subprocess.run(["brew", "install", "awscli"], check=True, capture_output=True)
+                subprocess.run(["brew", "install", "--cask", "session-manager-plugin"], check=True, capture_output=True)
+                success("AWS CLI tools installed")
+            except subprocess.CalledProcessError as e:
+                warning(f"Failed to install some AWS tools: {e}")
+
         if saved_settings.user_type == UserType.SOFTMAX_DOCKER:
             info("AWS access for this profile should be provided via IAM roles or environment variables.")
             info("Skipping AWS profile setup.")
@@ -63,8 +85,67 @@ class AWSSetup(SetupModule):
         except Exception:
             return None
 
+    def get_configuration_schema(self) -> dict[str, tuple[type, str, str | None]]:
+        """Define configuration schema for AWS."""
+        return {
+            "s3_bucket": (str, "S3 bucket for storing data", None),
+            "aws_profile": (str, "AWS profile to use", None),
+            "replay_dir": (str, "Directory for replay storage", None),
+            "torch_profile_dir": (str, "Directory for torch profiler traces", None),
+            "checkpoint_dir": (str, "Directory for model checkpoints", None),
+        }
+
+    def interactive_configure(self) -> dict[str, str] | None:
+        """Interactive configuration for AWS."""
+        from metta.setup.utils import info
+
+        info("\nConfiguring AWS Storage...")
+        info("Leave blank to use defaults")
+
+        config = {}
+
+        # Check if connected
+        account = self.check_connected_as()
+        if account:
+            info(f"✓ Connected to AWS account: {account}")
+
+        # Get S3 bucket
+        s3_bucket = input("S3 bucket name (e.g., my-company-metta): ").strip()
+        if s3_bucket:
+            config["s3_bucket"] = s3_bucket
+
+            # Suggest S3 paths if bucket is provided
+            use_s3 = input("Use S3 for replays? (y/n) [y]: ").strip().lower()
+            if use_s3 != "n":
+                config["replay_dir"] = f"s3://{s3_bucket}/replays/"
+
+            use_s3_torch = input("Use S3 for torch profiler traces? (y/n) [n]: ").strip().lower()
+            if use_s3_torch == "y":
+                config["torch_profile_dir"] = f"s3://{s3_bucket}/torch_traces/"
+
+            use_s3_checkpoints = input("Use S3 for checkpoints? (y/n) [n]: ").strip().lower()
+            if use_s3_checkpoints == "y":
+                config["checkpoint_dir"] = f"s3://{s3_bucket}/checkpoints/"
+
+        # Get AWS profile
+        aws_profile = input("AWS profile name (leave blank for default): ").strip()
+        if aws_profile:
+            config["aws_profile"] = aws_profile
+
+        return config
+
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()
+
+        # Check for configured values first
+        from metta.setup.config_manager import get_config_manager
+
+        config = get_config_manager().get_component_config("aws")
+
+        if config.get("replay_dir"):
+            return dict(replay_dir=config["replay_dir"])
+
+        # Fall back to profile defaults
         if saved_settings.user_type.is_softmax:
             return dict(replay_dir="s3://softmax-public/replays/")
         return dict(replay_dir="./train_dir/replays/")

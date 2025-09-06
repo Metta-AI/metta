@@ -111,6 +111,23 @@ class SavedSettings:
             for key, value in settings.items():
                 self.set(f"components.{component}.{key}", value)
 
+    def get_cloud_config(self, key: str | None = None) -> dict | str | None:
+        """Get cloud-specific configuration."""
+        if key:
+            return self.get(f"cloud_config.{key}", None)
+        return self.get("cloud_config", {})
+
+    def set_cloud_config(self, key: str, value: str | None) -> None:
+        """Set cloud-specific configuration."""
+        if value is None:
+            # Remove the key if value is None
+            cloud_config = self.get("cloud_config", {})
+            if key in cloud_config:
+                del cloud_config[key]
+                self.set("cloud_config", cloud_config)
+        else:
+            self.set(f"cloud_config.{key}", value)
+
 
 @functools.cache
 def get_saved_settings(config_path: Path | None = None) -> SavedSettings:
