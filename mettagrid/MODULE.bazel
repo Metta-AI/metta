@@ -8,6 +8,14 @@ bazel_dep(name = "bazel_skylib", version = "1.8.1")
 # C++ rules and toolchain
 bazel_dep(name = "rules_cc", version = "0.2.0")
 
+# Compile commands generation for LSP support (using git_override since not in BCR)
+bazel_dep(name = "hedron_compile_commands", version = "")
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+    commit = "abb61a688167623088f8768cc9264798df6a9d10",
+)
+
 # Python toolchain - use latest compatible version
 bazel_dep(name = "rules_python", version = "1.5.3")
 
