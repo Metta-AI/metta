@@ -1,6 +1,6 @@
 import
   std/[strformat],
-  boxy, vmath, windy,
+  boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays
 
 proc agentColor*(id: int): Color =
@@ -15,7 +15,7 @@ proc agentColor*(id: int): Color =
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
-  if panel.hasMouse and window.buttonPressed[MouseLeft]:
+  if window.buttonPressed[MouseLeft]:
     selection = nil
     let
       mousePos = bxy.getTransform().inverse * window.mousePos.vec2
@@ -436,7 +436,9 @@ proc drawWorldMain*() =
 
 
 proc drawWorldMap*(panel: Panel) =
+
   panel.beginPanAndZoom()
+
   useSelections(panel)
   agentControls()
 

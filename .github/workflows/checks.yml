@@ -410,12 +410,6 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: Clean Bazel output if no cache hit
-        if: steps.bazel-cache.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          bazel clean --expunge
-
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
         run: |
@@ -506,12 +500,6 @@ jobs:
           key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
-
-      - name: Clean Bazel output if no cache hit
-        if: steps.bazel-cache.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          bazel clean --expunge
 
       - name: Build C++ benchmarks
         id: benchmark_build_check
