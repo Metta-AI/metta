@@ -40,48 +40,23 @@ def make_tribal_environment(
     )
 
 
-def train(
-    run: str = "tribal_basic",
-    num_agents: int = 15,
-    total_timesteps: int = 1_000_000,
-    num_workers: int = 4,
-    **overrides
-) -> TrainTool:
+def train() -> TrainTool:
     """
     Train agents on the tribal environment.
     
-    Args:
-        run: Name for this training run
-        num_agents: Number of agents per environment
-        total_timesteps: Total training timesteps
-        num_workers: Number of parallel workers
-        **overrides: Additional configuration overrides
+    Uses a minimal configuration similar to the working arena recipe.
     """
-    # Create environment
-    env = make_tribal_environment(num_agents=num_agents)
+    # Create environment - start with small number of agents
+    env = make_tribal_environment(num_agents=8)  # Smaller than default 15
     
-    # Configure trainer for tribal environment
+    # Minimal trainer config like arena recipe
     trainer_config = TrainerConfig(
-        total_timesteps=total_timesteps,
         losses=LossConfig(),
-        
-        # Tribal-specific tuning
-        batch_size=2048,  # Larger batch for stable multi-agent learning
-        minibatch_size=256,
-        
-        # Evaluation with tribal environment
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(name="tribal/basic", env=env),
             ],
-            evaluate_interval=5,  # Evaluate every 5 epochs (must be >= checkpoint_interval)
             skip_git_check=True,  # Skip git check for development
-        ),
-        
-        # Checkpointing
-        checkpoint=CheckpointConfig(
-            checkpoint_interval=5,  # Save every 5 epochs
-            wandb_checkpoint_interval=5,  # Must be >= checkpoint_interval
         ),
     )
     
