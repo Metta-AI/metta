@@ -91,16 +91,29 @@ def trigger_workflow(branch: str) -> str:
     return run_id
 
 
-def find_workflow_run(branch: str, run_id: str) -> str:
-    """Poll GitHub Actions to find the workflow run matching the given run_id echoed in logs."""
-    print(f"🔍 Searching for workflow run with run_id={run_id} on branch={branch}")
+def find_workflow_runs_batch(branch: str, run_ids: list[str]) -> dict[str, str]:
+    """Find multiple workflow runs for a branch in a single pass.
+
+    Returns a dict mapping run_id to run_number for found runs.
+    """
+    print(f"🔍 Searching for {len(run_ids)} workflow runs on branch={branch}")
+
+    # Keep track of which run_ids we've found
+    found_runs = {}
+    remaining_ids = set(run_ids)
+
+    # Cache for run logs to avoid re-fetching
+    run_logs_cache = {}
 
     # Based on benchmarks: 20→50→100→200 provides good balance
-    # Most runs found in first 20-50 (1-1.5s)
     limits = [20, 50, 100, 200]
 
     for i, limit in enumerate(limits):
+        if not remaining_ids:
+            break  # Found everything
+
         # Fetch list of recent runs
+        print(f"  Fetching {limit} recent runs...")
         result = subprocess.run(
             [
                 "gh",
@@ -129,15 +142,21 @@ def find_workflow_run(branch: str, run_id: str) -> str:
 
         try:
             runs = json.loads(result.stdout)
-            print(f"  Checking {len(runs)} runs...")
+            new_runs_count = len([r for r in runs if str(r["databaseId"]) not in run_logs_cache])
+            if new_runs_count > 0:
+                print(f"  Checking {new_runs_count} new runs (already cached: {len(run_logs_cache)})")
 
-            # Check each run's logs for our run_id
+            # Check each run's logs for our run_ids
             for j, run in enumerate(runs):
                 run_db_id = str(run["databaseId"])
 
+                # Skip if we already checked this run
+                if run_db_id in run_logs_cache:
+                    continue
+
                 # Show progress for larger searches
-                if len(runs) >= 50 and (j + 1) % 25 == 0:
-                    print(f"    Checked {j + 1}/{len(runs)} runs...")
+                if new_runs_count >= 50 and (j + 1) % 25 == 0:
+                    print(f"    Checked {j + 1}/{new_runs_count} new runs...")
 
                 # Fetch logs for this run
                 log_result = subprocess.run(
@@ -147,17 +166,25 @@ def find_workflow_run(branch: str, run_id: str) -> str:
                 )
 
                 if log_result.returncode != 0:
-                    # Skip runs where we can't fetch logs
+                    # Cache as None to avoid re-fetching
+                    run_logs_cache[run_db_id] = None
                     continue
 
-                if f"RUN_ID={run_id}" in log_result.stdout:
-                    print(f"✅ Found run {run_db_id} for run_id={run_id}")
-                    return run_db_id
+                # Cache the log content
+                run_logs_cache[run_db_id] = log_result.stdout
 
-            # If not found and we have more limits to try
-            if i < len(limits) - 1:
-                print(f"  Not found in {limit} runs, expanding search...")
-                time.sleep(1)  # Brief pause before expanding
+                # Check if this run matches any of our remaining run_ids
+                for run_id in list(remaining_ids):
+                    if f"RUN_ID={run_id}" in log_result.stdout:
+                        print(f"  ✅ Found run {run_db_id} for run_id={run_id}")
+                        found_runs[run_id] = run_db_id
+                        remaining_ids.remove(run_id)
+                        break  # This run can only match one run_id
+
+            # If we still have unfound IDs and more limits to try
+            if remaining_ids and i < len(limits) - 1:
+                print(f"  Still looking for {len(remaining_ids)} run(s), expanding search...")
+                time.sleep(1)
 
         except json.JSONDecodeError as e:
             print(f"⚠️  JSON decode error: {e}")
@@ -167,10 +194,11 @@ def find_workflow_run(branch: str, run_id: str) -> str:
             else:
                 raise
 
-    raise RuntimeError(
-        f"❌ Could not find matching run for run_id={run_id} on branch={branch} "
-        f"after checking {limits[-1]} most recent runs"
-    )
+    # Report any unfound runs
+    if remaining_ids:
+        print(f"  ❌ Could not find {len(remaining_ids)} run(s): {', '.join(remaining_ids)}")
+
+    return found_runs
 
 
 def get_job_details(run_id: str) -> dict[str, Any]:
@@ -416,14 +444,29 @@ def resolve_run_numbers(triggered_runs: dict[str, list[tuple[str, datetime]]]) -
 
     resolved_by_branch = {branch: [] for branch in triggered_runs}
 
+    # Process all runs for each branch in batch
     for branch, entries in triggered_runs.items():
-        for uuid_tag, _ in entries:
-            try:
-                run_number = find_workflow_run(branch, uuid_tag)
-                print(f"🎯 Resolved run_id={uuid_tag} → {run_number}")
-                resolved_by_branch[branch].append(run_number)
-            except Exception as e:
-                print(f"❌ Failed to resolve run_id {uuid_tag} for `{branch}`: {e}")
+        # Extract all run_ids for this branch
+        run_ids = [uuid_tag for uuid_tag, _ in entries]
+
+        if not run_ids:
+            continue
+
+        try:
+            # Find all runs for this branch in one go
+            found_runs = find_workflow_runs_batch(branch, run_ids)
+
+            # Maintain order and handle missing runs
+            for uuid_tag, _ in entries:
+                if uuid_tag in found_runs:
+                    run_number = found_runs[uuid_tag]
+                    print(f"🎯 Resolved run_id={uuid_tag} → {run_number}")
+                    resolved_by_branch[branch].append(run_number)
+                else:
+                    print(f"❌ Failed to resolve run_id {uuid_tag} for `{branch}`")
+
+        except Exception as e:
+            print(f"❌ Failed to resolve runs for `{branch}`: {e}")
 
     return resolved_by_branch
 
@@ -511,14 +554,20 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
         if not detailed_timings:
             continue
 
-        # Check if this branch uses matrix jobs
-        has_matrix = any("unit-tests" in timing.matrix_aggregates for timing in detailed_timings)
+        # Check if this branch uses matrix jobs with more than 1 job
+        has_matrix = False
+        for timing in detailed_timings:
+            if "unit-tests" in timing.matrix_aggregates:
+                if timing.matrix_aggregates["unit-tests"]["count"] > 1:
+                    has_matrix = True
+                    break
 
         if has_matrix:
             # Collect matrix aggregates across all runs
             worst_durations = []
             mean_durations = []
             worst_job_names = []
+            job_counts = []
 
             for timing in detailed_timings:
                 if "unit-tests" in timing.matrix_aggregates:
@@ -526,6 +575,7 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
                     worst_durations.append(aggregate["worst_duration"])
                     mean_durations.append(aggregate["mean_duration"])
                     worst_job_names.append(aggregate["worst_case"]["value"])
+                    job_counts.append(aggregate["count"])
 
             if worst_durations:
                 # Find which job was worst most often
@@ -534,20 +584,51 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
                 job_counter = Counter(worst_job_names)
                 most_common_worst = job_counter.most_common(1)[0]
 
-                print(f"\n{branch} (uses matrix strategy):")
+                # Get the count from the first timing's aggregate
+                job_count = job_counts[0] if job_counts else 1
+
+                print(f"\n{branch} (uses {'matrix' if job_count > 1 else 'single job'} strategy):")
                 print("  unit-tests:")
                 print(
                     f"    Worst-case duration: min={format_duration(min(worst_durations)):>6}  "
                     f"mean={format_duration(statistics.mean(worst_durations)):>6}  "
                     f"max={format_duration(max(worst_durations)):>6}"
                 )
-                print(f"    Average across matrix: {format_duration(statistics.mean(mean_durations)):>6}")
-                print(
-                    f"    Most often slowest: {most_common_worst[0]} "
-                    f"({most_common_worst[1]}/{len(worst_job_names)} times)"
-                )
+
+                if job_count > 1:
+                    print(f"    Average across matrix: {format_duration(statistics.mean(mean_durations)):>6}")
+                    print(
+                        f"    Most often slowest: {most_common_worst[0]} "
+                        f"({most_common_worst[1]}/{len(worst_job_names)} times)"
+                    )
+                else:
+                    # Single job - the "worst case" is the only case
+                    print(f"    Single job: {most_common_worst[0]}")
         else:
-            print(f"\n{branch} (single job strategy)")
+            # Check if we have any unit-tests data at all
+            has_unit_tests = any("unit-tests" in timing.matrix_aggregates for timing in detailed_timings)
+            if has_unit_tests:
+                # We have unit tests but in single job configuration
+                worst_durations = []
+                job_names = []
+
+                for timing in detailed_timings:
+                    if "unit-tests" in timing.matrix_aggregates:
+                        aggregate = timing.matrix_aggregates["unit-tests"]
+                        worst_durations.append(aggregate["worst_duration"])
+                        job_names.append(aggregate["worst_case"]["value"])
+
+                if worst_durations:
+                    print(f"\n{branch} (uses single job strategy):")
+                    print("  unit-tests:")
+                    print(
+                        f"    Duration: min={format_duration(min(worst_durations)):>6}  "
+                        f"mean={format_duration(statistics.mean(worst_durations)):>6}  "
+                        f"max={format_duration(max(worst_durations)):>6}"
+                    )
+                    print(f"    Single job: {job_names[0]}")
+            else:
+                print(f"\n{branch} (no matrix jobs found)")
 
     # Unit test step timing comparison - THE KEY COMPARISON
     print("\n🧪 UNIT TEST STEP TIMING COMPARISON:")
@@ -560,8 +641,14 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
         if not detailed_timings:
             continue
 
-        # Determine strategy type
-        has_matrix = any("unit-tests" in timing.matrix_aggregates for timing in detailed_timings)
+        # Determine strategy type - check if actually using multiple matrix jobs
+        has_matrix = False
+        for timing in detailed_timings:
+            if "unit-tests" in timing.matrix_aggregates:
+                # Only consider it a matrix strategy if there's more than 1 job
+                if timing.matrix_aggregates["unit-tests"]["count"] > 1:
+                    has_matrix = True
+                    break
         strategy_type = "matrix" if has_matrix else "single"
 
         # Collect setup environment times
