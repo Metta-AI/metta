@@ -306,3 +306,26 @@ def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> st
         pass
 
     return None
+
+
+def tail_job_log(job_id: str, lines: int = 100) -> str | None:
+    try:
+        # Get the full logs
+        cmd = ["sky", "jobs", "logs", job_id]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+        if result.returncode == 0:
+            # Split into lines and get the tail
+            log_lines = result.stdout.strip().split("\n")
+            if len(log_lines) > lines:
+                # Return only the last N lines
+                return "\n".join(log_lines[-lines:])
+            else:
+                # Return all lines if less than requested
+                return result.stdout
+        else:
+            return f"Error getting logs: {result.stderr}"
+    except subprocess.TimeoutExpired:
+        return "Error: Timeout getting logs (job may still be provisioning)"
+    except Exception as e:
+        return f"Error: {str(e)}"
