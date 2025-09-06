@@ -1,6 +1,6 @@
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
-import terrain, objects, common, config
-export terrain, objects, common, config
+import terrain, objects, common
+export terrain, objects, common
 
 const
   # Map layout constants
@@ -144,6 +144,36 @@ type
   ActiveTiles* = object
     positions*: seq[IVec2]  # List of tiles with entities
     count*: int             # Number of active tiles
+
+  # Configuration structure for environment - ONLY runtime parameters
+  # Structural constants (map size, agent count, observation dimensions) remain compile-time constants
+  EnvironmentConfig* = object
+    # Core game parameters
+    maxSteps*: int
+    
+    # Resource configuration
+    orePerBattery*: int
+    batteriesPerHeart*: int
+    
+    # Combat configuration
+    enableCombat*: bool
+    clippySpawnRate*: float
+    clippyDamage*: int
+    
+    # Reward configuration
+    heartReward*: float
+    oreReward*: float
+    batteryReward*: float
+    woodReward*: float
+    waterReward*: float
+    wheatReward*: float
+    spearReward*: float
+    armorReward*: float
+    foodReward*: float
+    clothReward*: float
+    clippyKillReward*: float
+    survivalPenalty*: float
+    deathPenalty*: float
     
   Environment* = ref object
     currentStep*: int
@@ -1326,6 +1356,36 @@ proc dumpMap*(env: Environment): string =
     else:
       result.add fmt"{thing.kind} {thing.id} {thing.pos.x} {thing.pos.y}" & "\n"
 
+proc defaultEnvironmentConfig*(): EnvironmentConfig =
+  ## Create default environment configuration
+  EnvironmentConfig(
+    # Core game parameters
+    maxSteps: 2000,
+    
+    # Resource configuration
+    orePerBattery: 3,
+    batteriesPerHeart: 2,
+    
+    # Combat configuration
+    enableCombat: true,
+    clippySpawnRate: 0.05,
+    clippyDamage: 1,
+    
+    # Reward configuration (match original constants)
+    heartReward: 10.0,                  # High reward for completing resource chain
+    oreReward: 0.003,                   # RewardMineOre
+    batteryReward: 0.01,                # RewardConvertOreToBattery
+    woodReward: 0.002,                  # RewardGetWood
+    waterReward: 0.001,                 # RewardGetWater
+    wheatReward: 0.001,                 # RewardGetWheat
+    spearReward: 0.01,                  # RewardCraftSpear
+    armorReward: 0.015,                 # RewardCraftArmor
+    foodReward: 0.012,                  # RewardCraftFood
+    clothReward: 0.012,                 # RewardCraftCloth
+    clippyKillReward: 0.1,             # RewardDestroyClippy
+    survivalPenalty: -0.01,            # Small per-step penalty
+    deathPenalty: -5.0                 # Penalty for agent death
+  )
 
 proc newEnvironment*(): Environment =
   ## Create a new environment with default configuration

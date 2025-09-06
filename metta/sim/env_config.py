@@ -11,25 +11,17 @@ from metta.mettagrid.config import Config
 
 
 class TribalGameConfig(Config):
-    """Configuration for tribal game mechanics."""
+    """Configuration for tribal game mechanics.
+    
+    NOTE: Structural parameters (num_agents, map dimensions, observation space) 
+    are kept as compile-time constants for performance. Only gameplay parameters
+    are configurable at runtime.
+    """
     
     # Core game parameters
-    num_agents: int = Field(default=15, ge=1, description="Number of agents in the environment")
-    max_steps: int = Field(default=2000, ge=0, description="Maximum steps per episode (0 = no limit)")
-    episode_truncates: bool = Field(default=False, description="Use truncation vs termination")
+    max_steps: int = Field(default=2000, ge=0, description="Maximum steps per episode")
     
-    # Observation space configuration
-    obs_width: int = Field(default=24, description="Width of agent observations")
-    obs_height: int = Field(default=24, description="Height of agent observations")
-    obs_layers: int = Field(default=8, description="Number of observation layers")
-    
-    # Map configuration
-    map_width: int = Field(default=64, description="Total map width")
-    map_height: int = Field(default=64, description="Total map height")
-    num_villages: int = Field(default=3, description="Number of villages on the map")
-    
-    # Resource configuration
-    resource_spawn_rate: float = Field(default=0.1, ge=0, le=1, description="Rate of resource spawning")
+    # Resource configuration  
     ore_per_battery: int = Field(default=3, description="Ore required to craft battery")
     batteries_per_heart: int = Field(default=2, description="Batteries required at altar for hearts")
     
@@ -40,8 +32,8 @@ class TribalGameConfig(Config):
     
     # Reward configuration
     heart_reward: float = Field(default=10.0, description="Reward for creating hearts")
-    ore_reward: float = Field(default=0.1, description="Reward for collecting ore")
-    battery_reward: float = Field(default=1.0, description="Reward for crafting batteries")
+    ore_reward: float = Field(default=0.003, description="Reward for collecting ore")  # Match RewardMineOre
+    battery_reward: float = Field(default=0.01, description="Reward for crafting batteries")  # Match RewardConvertOreToBattery
     survival_penalty: float = Field(default=-0.01, description="Per-step survival penalty")
     death_penalty: float = Field(default=-5.0, description="Penalty for agent death")
 
@@ -57,14 +49,7 @@ class TribalEnvConfig(Config):
     
     # Environment settings
     desync_episodes: bool = Field(default=True, description="Desynchronize episode resets")
-    num_envs: Optional[int] = Field(default=None, description="Number of parallel environments")
     render_mode: Optional[str] = Field(default=None, description="Rendering mode (human, rgb_array)")
-    bindings_path: Optional[str] = Field(default=None, description="Path to Nim bindings")
-    
-    # Vectorization settings
-    batch_size: Optional[int] = Field(default=None, description="Batch size for vectorized steps")
-    async_envs: bool = Field(default=False, description="Use async environment stepping")
-    num_threads: int = Field(default=1, description="Number of threads for environment")
     
     def get_observation_space(self) -> Dict[str, Any]:
         """Get tribal environment observation space."""
@@ -99,16 +84,17 @@ class TribalEnvConfig(Config):
         
         # Convert configuration to dictionary format expected by tribal_genny
         config = {
-            'num_agents': self.game.num_agents,
             'max_steps': self.game.max_steps,
+            'ore_per_battery': self.game.ore_per_battery,
+            'batteries_per_heart': self.game.batteries_per_heart,
             'enable_combat': self.game.enable_combat,
+            'clippy_spawn_rate': self.game.clippy_spawn_rate,
+            'clippy_damage': self.game.clippy_damage,
             'heart_reward': self.game.heart_reward,
             'battery_reward': self.game.battery_reward,
             'ore_reward': self.game.ore_reward,
             'survival_penalty': self.game.survival_penalty,
             'death_penalty': self.game.death_penalty,
-            'resource_spawn_rate': self.game.resource_spawn_rate,
-            'clippy_spawn_rate': self.game.clippy_spawn_rate,
             'render_mode': self.render_mode,
             **kwargs
         }

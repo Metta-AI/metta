@@ -11,7 +11,6 @@ from metta.tools.train import TrainTool
 
 
 def make_tribal_environment(
-    num_agents: int = 15,
     max_steps: int = 2000,
     enable_combat: bool = True,
     **kwargs
@@ -20,11 +19,14 @@ def make_tribal_environment(
     Create tribal environment configuration for training.
     
     The tribal environment features:
-    - Village-based agent tribes with shared altars
+    - Village-based agent tribes with shared altars (15 agents, compile-time constant)
     - Multi-step resource chains (ore → battery → hearts)
     - Crafting system (wood → spears, wheat → hats/food, ore → armor)
     - Defensive gameplay against Clippy enemies
     - Terrain interaction (water, wheat fields, forests)
+    
+    NOTE: Agent count, map dimensions, and observation space are compile-time constants
+    for performance. Only gameplay parameters are configurable.
     """
     config = TribalEnvConfig(
         label="tribal_basic",
@@ -32,15 +34,14 @@ def make_tribal_environment(
         **kwargs
     )
     
-    # Configure game mechanics
-    config.game.num_agents = num_agents
+    # Configure game mechanics (only runtime-configurable parameters)
     config.game.max_steps = max_steps
     config.game.enable_combat = enable_combat
     
     # Set up resource chain rewards
     config.game.heart_reward = 10.0  # High reward for completing the chain
-    config.game.battery_reward = 1.0  # Medium reward for intermediate product
-    config.game.ore_reward = 0.1     # Small reward for raw materials
+    config.game.battery_reward = 0.01  # Medium reward for intermediate product (match original)
+    config.game.ore_reward = 0.003     # Small reward for raw materials (match original)
     
     return config
 

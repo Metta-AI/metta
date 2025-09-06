@@ -27,25 +27,13 @@ exportConsts:
   MapHeight
 
 # Configuration objects matching Python TribalEnvConfig structure
+# NOTE: Structural parameters (numAgents, obsWidth, etc.) are kept as compile-time constants
 type
   TribalGameConfig* = object
     # Core game parameters
-    numAgents*: int
     maxSteps*: int
-    episodeTruncates*: bool
-    
-    # Observation space configuration
-    obsWidth*: int
-    obsHeight*: int
-    obsLayers*: int
-    
-    # Map configuration
-    mapWidth*: int
-    mapHeight*: int
-    numVillages*: int
     
     # Resource configuration
-    resourceSpawnRate*: float
     orePerBattery*: int
     batteriesPerHeart*: int
     
@@ -62,14 +50,8 @@ type
     deathPenalty*: float
   
   TribalConfig* = object
-    environmentType*: string
-    label*: string
     game*: TribalGameConfig
     desyncEpisodes*: bool
-    renderMode*: string
-    batchSize*: int
-    asyncEnvs*: bool
-    numThreads*: int
 
 # Wrapper around Environment for cleaner Python API
 type
@@ -82,53 +64,29 @@ type
 proc defaultTribalConfig*(): TribalConfig =
   ## Create default tribal configuration
   TribalConfig(
-    environmentType: "tribal",
-    label: "tribal",
     game: TribalGameConfig(
-      numAgents: MapAgents,
       maxSteps: 2000,
-      episodeTruncates: false,
-      obsWidth: ObservationWidth,
-      obsHeight: ObservationHeight, 
-      obsLayers: ObservationLayers,
-      mapWidth: MapWidth,
-      mapHeight: MapHeight,
-      numVillages: 3,
-      resourceSpawnRate: 0.1,
       orePerBattery: 3,
       batteriesPerHeart: 2,
       enableCombat: true,
       clippySpawnRate: 0.05,
       clippyDamage: 1,
       heartReward: 10.0,
-      oreReward: 0.1,
-      batteryReward: 1.0,
+      oreReward: 0.003,  # Match original RewardMineOre
+      batteryReward: 0.01,  # Match original RewardConvertOreToBattery
       survivalPenalty: -0.01,
       deathPenalty: -5.0
     ),
-    desyncEpisodes: true,
-    renderMode: "",
-    batchSize: 1,
-    asyncEnvs: false,
-    numThreads: 1
+    desyncEpisodes: true
   )
 
 # Constructors
 proc newTribalEnv*(config: TribalConfig): TribalEnv =
   ## Create a new tribal environment with full configuration
   try:
-    # Convert TribalConfig to EnvironmentConfig
+    # Convert TribalConfig to EnvironmentConfig (only configurable parameters)
     var envConfig = EnvironmentConfig(
-      numAgents: config.game.numAgents,
       maxSteps: config.game.maxSteps,
-      episodeTruncates: config.game.episodeTruncates,
-      obsWidth: config.game.obsWidth,
-      obsHeight: config.game.obsHeight,
-      obsLayers: config.game.obsLayers,
-      mapWidth: config.game.mapWidth,
-      mapHeight: config.game.mapHeight,
-      numVillages: config.game.numVillages,
-      resourceSpawnRate: config.game.resourceSpawnRate,
       orePerBattery: config.game.orePerBattery,
       batteriesPerHeart: config.game.batteriesPerHeart,
       enableCombat: config.game.enableCombat,
@@ -137,7 +95,7 @@ proc newTribalEnv*(config: TribalConfig): TribalEnv =
       heartReward: config.game.heartReward,
       oreReward: config.game.oreReward,
       batteryReward: config.game.batteryReward,
-      woodReward: 0.002,  # Default values for rewards not in TribalConfig yet
+      woodReward: 0.002,  # Default values for rewards not exposed in Python yet
       waterReward: 0.001,
       wheatReward: 0.001,
       spearReward: 0.01,

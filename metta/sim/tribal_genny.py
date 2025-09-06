@@ -75,13 +75,19 @@ class TribalGridEnv:
             # Start with default configuration
             nim_config = default_tribal_config()
             
-            # Override with provided config values
+            # Override with provided config values (only configurable parameters)
             if 'max_steps' in config:
                 nim_config.game.maxSteps = config['max_steps']
-            if 'num_agents' in config:
-                nim_config.game.numAgents = config['num_agents']
+            if 'ore_per_battery' in config:
+                nim_config.game.orePerBattery = config['ore_per_battery']
+            if 'batteries_per_heart' in config:
+                nim_config.game.batteriesPerHeart = config['batteries_per_heart']
             if 'enable_combat' in config:
                 nim_config.game.enableCombat = config['enable_combat']
+            if 'clippy_spawn_rate' in config:
+                nim_config.game.clippySpawnRate = config['clippy_spawn_rate']
+            if 'clippy_damage' in config:
+                nim_config.game.clippyDamage = config['clippy_damage']
             if 'heart_reward' in config:
                 nim_config.game.heartReward = config['heart_reward']
             if 'battery_reward' in config:
@@ -92,20 +98,16 @@ class TribalGridEnv:
                 nim_config.game.survivalPenalty = config['survival_penalty']
             if 'death_penalty' in config:
                 nim_config.game.deathPenalty = config['death_penalty']
-            if 'resource_spawn_rate' in config:
-                nim_config.game.resourceSpawnRate = config['resource_spawn_rate']
-            if 'clippy_spawn_rate' in config:
-                nim_config.game.clippySpawnRate = config['clippy_spawn_rate']
         
         # Create Nim environment instance with full configuration
         self._nim_env = TribalEnv(nim_config)
         self._config = nim_config
         
-        # Cache dimensions (can be overridden by config)
-        self.num_agents = nim_config.game.numAgents
-        self.observation_layers = nim_config.game.obsLayers
-        self.observation_width = nim_config.game.obsWidth
-        self.observation_height = nim_config.game.obsHeight
+        # Cache dimensions (compile-time constants)
+        self.num_agents = MapAgents
+        self.observation_layers = ObservationLayers
+        self.observation_width = ObservationWidth
+        self.observation_height = ObservationHeight
         
         # Action space info (tribal has 6 action types, 8 directional arguments)
         self.num_action_types = 6  # NOOP, MOVE, ATTACK, GET, SWAP, PUT
@@ -122,7 +124,7 @@ class TribalGridEnv:
         
         info = {
             "current_step": self._nim_env.get_current_step(),
-            "max_steps": self._config.game.maxSteps,
+            "max_steps": self._config.game.max_steps,
         }
         
         return observations, info
@@ -177,7 +179,7 @@ class TribalGridEnv:
         
         info = {
             "current_step": self._nim_env.get_current_step(),
-            "max_steps": self._config.game.maxSteps,
+            "max_steps": self._config.game.max_steps,
             "episode_done": self._nim_env.is_episode_done(),
         }
         
@@ -225,7 +227,7 @@ class TribalGridEnv:
         # Our binding doesn't have get_episode_stats, return basic info
         return {
             "current_step": self._nim_env.get_current_step(),
-            "max_steps": self._config.game.maxSteps,
+            "max_steps": self._config.game.max_steps,
             "episode_done": self._nim_env.is_episode_done(),
         }
 
@@ -237,7 +239,7 @@ class TribalGridEnv:
     @property
     def max_steps(self) -> int:
         """Get max steps."""
-        return self._config.game.maxSteps
+        return self._config.game.max_steps
 
     def close(self) -> None:
         """Clean up environment."""
