@@ -1,10 +1,3 @@
-"""
-Tribal Environment Training Recipe
-
-This recipe configures training for the Nim tribal environment
-with village-based cooperation, resource management, and defense mechanics.
-"""
-
 from typing import Optional
 
 from metta.rl.trainer_config import TrainerConfig, EvaluationConfig, CheckpointConfig
