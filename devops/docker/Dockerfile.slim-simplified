@@ -17,7 +17,7 @@ COPY devops/tools/install-system.sh devops/tools/install-system.sh
 RUN bash ./devops/tools/install-system.sh
 RUN uv sync --no-install-workspace --frozen
 
-################# Runtime image: copy system deps and install workspace deps #################
+################# Runtime image: install workspace deps #################
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -37,7 +37,7 @@ RUN bash ./devops/tools/install-system.sh
 
 RUN git config --remove-section http."https://github.com/" || true
 RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
-RUN git fetch
+RUN git ls-remote --exit-code origin HEAD >/dev/null
 
 RUN bash install.sh --profile=softmax-docker --non-interactive
 
