@@ -380,6 +380,11 @@ jobs:
         with:
           install-mode: "testing"
 
+      - name: Clean Bazel cache directories
+        run: |
+          # Clean bazel cache directories to prevent extraction conflicts
+          rm -rf ~/.cache/bazel ~/.cache/bazel-repo || true
+
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
         with:
@@ -459,6 +464,11 @@ jobs:
         uses: ./.github/actions/setup-environment
         with:
           install-mode: "testing"
+
+      - name: Clean Bazel cache directories
+        run: |
+          # Clean bazel cache directories to prevent extraction conflicts
+          rm -rf ~/.cache/bazel ~/.cache/bazel-repo || true
 
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
