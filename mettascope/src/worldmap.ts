@@ -1,5 +1,5 @@
 import * as Common from './common.js'
-import { ctx, setFollowSelection, state, ui, HEATMAP_MIN_OPACITY, HEATMAP_MAX_OPACITY } from './common.js'
+import { ctx, setFollowSelection, state, ui } from './common.js'
 import { Grid } from './grid.js'
 import { renderHeatmapTiles } from './heatmap.js'
 import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
@@ -662,7 +662,7 @@ function drawVisibility() {
       }
     }
 
-    let color = [0, 0, 0, 0.25]
+    let color: [number, number, number, number] = [0, 0, 0, 0.25]
     if (state.showFogOfWar) {
       color = [0, 0, 0, 1]
     }
