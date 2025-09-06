@@ -32,6 +32,9 @@ type
     message*: string
     cornerUsed*: int  # Which corner was used (0-3), or -1 if not a corner
 
+const
+  RiverWidth* = 4
+
 
 
 proc toIVec2*(x, y: int): IVec2 =
@@ -52,11 +55,10 @@ proc createStructure*(width, height: int, centerX, centerY: int,
 
 
 proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  const riverWidth = 4
   
   var riverPath: seq[IVec2] = @[]
   
-  var currentPos = toIVec2(mapBorder, r.rand(mapBorder + riverWidth .. mapHeight - mapBorder - riverWidth))
+  var currentPos = toIVec2(mapBorder, r.rand(mapBorder + RiverWidth .. mapHeight - mapBorder - RiverWidth))
   
   var hasFork = false
   var forkPoint: IVec2
@@ -91,8 +93,8 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
   
   # Place water tiles for main river
   for pos in riverPath:
-    for dx in -riverWidth div 2 .. riverWidth div 2:
-      for dy in -riverWidth div 2 .. riverWidth div 2:
+    for dx in -RiverWidth div 2 .. RiverWidth div 2:
+      for dy in -RiverWidth div 2 .. RiverWidth div 2:
         let waterPos = pos + toIVec2(dx, dy)
         if waterPos.x >= 0 and waterPos.x < mapWidth and
            waterPos.y >= 0 and waterPos.y < mapHeight:
@@ -100,8 +102,8 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
   
   # Place water tiles for secondary branch
   for pos in secondaryPath:
-    for dx in -(riverWidth div 2 - 1) .. (riverWidth div 2 - 1):
-      for dy in -(riverWidth div 2 - 1) .. (riverWidth div 2 - 1):
+    for dx in -(RiverWidth div 2 - 1) .. (RiverWidth div 2 - 1):
+      for dy in -(RiverWidth div 2 - 1) .. (RiverWidth div 2 - 1):
         let waterPos = pos + toIVec2(dx, dy)
         if waterPos.x >= 0 and waterPos.x < mapWidth and
            waterPos.y >= 0 and waterPos.y < mapHeight:
@@ -199,13 +201,12 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
                 r: var Rand): seq[IVec2] =
   ## Generate a river and return its path
   ## This is always placed first as it shapes the entire map
-  const riverWidth = 4
   
   result = @[]
   
   # Start on the left edge
   var currentPos = ivec2(mapBorder.int32, 
-                         r.rand(mapBorder + riverWidth .. mapHeight - mapBorder - riverWidth).int32)
+                         r.rand(mapBorder + RiverWidth .. mapHeight - mapBorder - RiverWidth).int32)
   
   var hasFork = false
   var forkPoint: IVec2
@@ -242,8 +243,8 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
   
   # Place water tiles for main river
   for pos in result:
-    for dx in -riverWidth div 2 .. riverWidth div 2:
-      for dy in -riverWidth div 2 .. riverWidth div 2:
+    for dx in -RiverWidth div 2 .. RiverWidth div 2:
+      for dy in -RiverWidth div 2 .. RiverWidth div 2:
         let waterX = pos.x + dx
         let waterY = pos.y + dy
         if waterX >= 0 and waterX < mapWidth and waterY >= 0 and waterY < mapHeight:
@@ -251,8 +252,8 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
   
   # Place water for secondary branch
   for pos in secondaryPath:
-    for dx in -(riverWidth div 2 - 1) .. (riverWidth div 2 - 1):
-      for dy in -(riverWidth div 2 - 1) .. (riverWidth div 2 - 1):
+    for dx in -(RiverWidth div 2 - 1) .. (RiverWidth div 2 - 1):
+      for dy in -(RiverWidth div 2 - 1) .. (RiverWidth div 2 - 1):
         let waterX = pos.x + dx
         let waterY = pos.y + dy
         if waterX >= 0 and waterX < mapWidth and waterY >= 0 and waterY < mapHeight:
