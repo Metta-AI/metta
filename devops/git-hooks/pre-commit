@@ -18,8 +18,10 @@ if [ -f "$CONFIG_FILE" ]; then
     fi
 fi
 
-# Source common functions
-source "$REPO_ROOT/devops/tools/common.sh"
+check_cmd() {
+  command -v "$1" > /dev/null 2>&1
+  return $?
+}
 
 if ! check_cmd uv; then
     echo "uv not found. Consider running ./devops/tools/install-system.sh"
