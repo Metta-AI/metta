@@ -370,7 +370,6 @@ class Curriculum:
         self._task_generator = config.task_generator.create()
         self._rng = random.Random(seed)
         self._tasks: dict[int, CurriculumTask] = {}
-        self._task_ids: set[int] = set()
         self._num_created = 0
         self._num_evicted = 0
 
@@ -422,7 +421,6 @@ class Curriculum:
         # Notify algorithm of eviction
         self._algorithm.on_task_evicted(task_id)
 
-        self._task_ids.remove(task_id)
         self._tasks.pop(task_id)
         self._num_evicted += 1
 
@@ -446,9 +444,8 @@ class Curriculum:
     def _create_task(self) -> CurriculumTask:
         """Create a new task."""
         task_id = self._rng.randint(0, self._config.max_task_id)
-        while task_id in self._task_ids:
+        while task_id in self._tasks:
             task_id = self._rng.randint(0, self._config.max_task_id)
-        self._task_ids.add(task_id)
         env_cfg = self._task_generator.get_task(task_id)
 
         # Extract bucket values if available
