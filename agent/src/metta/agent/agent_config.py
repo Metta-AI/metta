@@ -32,6 +32,7 @@ class AgentConfig(Config):
         "pytorch/latent_attn_tiny",
         "pytorch/latent_attn_small",
         "pytorch/latent_attn_med",
+        "pytorch/hrm",
     ] = "fast"
 
     clip_range: float = 0
