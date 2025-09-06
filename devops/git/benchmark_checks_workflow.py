@@ -730,7 +730,6 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
                 print(f"Average test time (single job):        {format_duration(single_mean)}")
                 print(f"Speedup factor:                        {speedup:.2f}x")
 
-            if speedup is not None:
                 if speedup > 1:
                     print(f"✅ Single job is {speedup:.2f}x faster than matrix worst-case")
                 else:
