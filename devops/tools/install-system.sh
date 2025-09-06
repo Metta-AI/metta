@@ -127,6 +127,7 @@ ensure_paths() {
 
 # Return first dir in COMMON_INSTALL_DIRS that is in PATH and writable
 get_install_dir() {
+  if [ -n "$METTA_SYSTEM_INSTALL_DIR" ]; then echo "$METTA_SYSTEM_INSTALL_DIR"; return 0; fi
   for dir in $COMMON_INSTALL_DIRS; do
     case ":$PATH:" in
       *":$dir:"*)

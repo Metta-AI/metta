@@ -39,8 +39,8 @@ jobs:
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,suffix=-slim
-            type=sha,format=long,suffix=-slim
+            type=sha,suffix=-slim-simplified
+            type=sha,format=long,suffix=-slim-simplified
             type=raw,value=slim,enable={{is_default_branch}}
 
       - name: Set up Docker Buildx
@@ -51,7 +51,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: devops/docker/Dockerfile.slim
+          file: devops/docker/Dockerfile.slim-simplified
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
