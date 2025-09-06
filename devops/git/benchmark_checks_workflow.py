@@ -410,7 +410,7 @@ def wait_for_all_runs(run_ids_by_branch: dict[str, list[str]]) -> dict[str, dict
                     print(f"   └─ {matrix_name} worst-case: {worst['value']} @ {format_duration(worst['duration'])}")
                     print(
                         f"      └─ Mean across {matrix_data['count']} jobs: "
-                        "{format_duration(matrix_data['mean_duration'])}"
+                        f"{format_duration(matrix_data['mean_duration'])}"
                     )
 
                 if details.setup_env_duration:
@@ -502,7 +502,7 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
                 print(f"    Average across matrix: {format_duration(statistics.mean(mean_durations)):>6}")
                 print(
                     f"    Most often slowest: {most_common_worst[0]} "
-                    "({most_common_worst[1]}/{len(worst_job_names)} times)"
+                    f"({most_common_worst[1]}/{len(worst_job_names)} times)"
                 )
         else:
             print(f"\n{branch} (single job strategy)")
