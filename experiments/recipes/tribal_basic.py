@@ -13,6 +13,7 @@ from metta.tools.train import TrainTool
 def make_tribal_environment(
     num_agents: int = 15,
     max_steps: int = 2000,
+    enable_combat: bool = True,
     **kwargs
 ) -> TribalEnvConfig:
     """
@@ -25,12 +26,23 @@ def make_tribal_environment(
     - Defensive gameplay against Clippy enemies
     - Terrain interaction (water, wheat fields, forests)
     """
-    return TribalEnvConfig(
-        num_agents=num_agents,
-        max_steps=max_steps,
-        render_mode=None,  # No rendering during training
+    config = TribalEnvConfig(
+        label="tribal_basic",
+        desync_episodes=True,
         **kwargs
     )
+    
+    # Configure game mechanics
+    config.game.num_agents = num_agents
+    config.game.max_steps = max_steps
+    config.game.enable_combat = enable_combat
+    
+    # Set up resource chain rewards
+    config.game.heart_reward = 10.0  # High reward for completing the chain
+    config.game.battery_reward = 1.0  # Medium reward for intermediate product
+    config.game.ore_reward = 0.1     # Small reward for raw materials
+    
+    return config
 
 
 def train() -> TrainTool:

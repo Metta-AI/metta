@@ -26,11 +26,50 @@ exportConsts:
   MapWidth
   MapHeight
 
-# Simple configuration object for Python
+# Configuration objects matching Python TribalEnvConfig structure
 type
-  TribalConfig* = object
+  TribalGameConfig* = object
+    # Core game parameters
+    numAgents*: int
     maxSteps*: int
-    seed*: int
+    episodeTruncates*: bool
+    
+    # Observation space configuration
+    obsWidth*: int
+    obsHeight*: int
+    obsLayers*: int
+    
+    # Map configuration
+    mapWidth*: int
+    mapHeight*: int
+    numVillages*: int
+    
+    # Resource configuration
+    resourceSpawnRate*: float
+    orePerBattery*: int
+    batteriesPerHeart*: int
+    
+    # Combat configuration
+    enableCombat*: bool
+    clippySpawnRate*: float
+    clippyDamage*: int
+    
+    # Reward configuration
+    heartReward*: float
+    oreReward*: float
+    batteryReward*: float
+    survivalPenalty*: float
+    deathPenalty*: float
+  
+  TribalConfig* = object
+    environmentType*: string
+    label*: string
+    game*: TribalGameConfig
+    desyncEpisodes*: bool
+    renderMode*: string
+    batchSize*: int
+    asyncEnvs*: bool
+    numThreads*: int
 
 # Wrapper around Environment for cleaner Python API
 type
@@ -39,15 +78,60 @@ type
     config*: TribalConfig
     stepCount*: int
 
-# Constructor
-proc newTribalEnv*(maxSteps: int): TribalEnv =
-  ## Create a new tribal environment
+# Helper procedure to create default config
+proc defaultTribalConfig*(): TribalConfig =
+  ## Create default tribal configuration
+  TribalConfig(
+    environmentType: "tribal",
+    label: "tribal",
+    game: TribalGameConfig(
+      numAgents: MapAgents,
+      maxSteps: 2000,
+      episodeTruncates: false,
+      obsWidth: ObservationWidth,
+      obsHeight: ObservationHeight, 
+      obsLayers: ObservationLayers,
+      mapWidth: MapWidth,
+      mapHeight: MapHeight,
+      numVillages: 3,
+      resourceSpawnRate: 0.1,
+      orePerBattery: 3,
+      batteriesPerHeart: 2,
+      enableCombat: true,
+      clippySpawnRate: 0.05,
+      clippyDamage: 1,
+      heartReward: 10.0,
+      oreReward: 0.1,
+      batteryReward: 1.0,
+      survivalPenalty: -0.01,
+      deathPenalty: -5.0
+    ),
+    desyncEpisodes: true,
+    renderMode: "",
+    batchSize: 1,
+    asyncEnvs: false,
+    numThreads: 1
+  )
+
+# Constructors
+proc newTribalEnv*(config: TribalConfig): TribalEnv =
+  ## Create a new tribal environment with full configuration
   try:
     result = TribalEnv(
       env: newEnvironment(),
-      config: TribalConfig(maxSteps: maxSteps, seed: 0),
+      config: config,
       stepCount: 0
     )
+    # TODO: Apply configuration to environment (future enhancement)
+  except:
+    lastError = getCurrentException()
+
+proc newTribalEnv*(maxSteps: int): TribalEnv =
+  ## Create a new tribal environment (backwards compatibility)
+  try:
+    var config = defaultTribalConfig()
+    config.game.maxSteps = maxSteps
+    result = newTribalEnv(config)
   except:
     lastError = getCurrentException()
 
@@ -140,7 +224,7 @@ proc getCurrentStep*(tribal: TribalEnv): int =
 
 proc isEpisodeDone*(tribal: TribalEnv): bool =
   ## Check if episode should end
-  tribal.stepCount >= tribal.config.maxSteps
+  tribal.stepCount >= tribal.config.game.maxSteps
 
 # Statistics and debugging
 proc renderText*(tribal: TribalEnv): string =
@@ -172,13 +256,17 @@ exportProcs:
   takeError
 
 # Export simple objects
+exportObject TribalGameConfig:
+  discard
+
 exportObject TribalConfig:
   discard
 
 # Export ref objects
 exportRefObject TribalEnv:
   constructor:
-    newTribalEnv(int)
+    newTribalEnv(TribalConfig)
+    newTribalEnv(int)  # backwards compatibility
   procs:
     resetEnv(TribalEnv)
     step(TribalEnv, seq[int])
@@ -193,6 +281,7 @@ exportRefObject TribalEnv:
 # Export standalone procedures
 exportProcs:
   defaultMaxSteps
+  defaultTribalConfig
 
 # Generate the Python binding files and include implementation (must be at the end)
 writeFiles("bindings/generated", "Tribal")
