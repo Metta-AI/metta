@@ -155,3 +155,25 @@ class TimeoutMonitor:
             return True, "max_runtime_reached"
 
         return False, None
+
+
+class ForceRestartTestMonitor:
+    """Monitor that simulates node failure for testing job recovery."""
+
+    def __init__(
+        self,
+        restart_time_hours: float,
+    ):
+        self.name = "force_restart_test"
+        self.start_time = time.time()
+        self.failure_delay_sec = int(restart_time_hours * 3600)
+
+    def check_condition(self) -> tuple[bool, Optional[str]]:
+        """Check if it's time to simulate a failure."""
+
+        elapsed = time.time() - self.start_time
+
+        if elapsed >= self.failure_delay_sec:
+            return True, "force_restart_test"
+
+        return False, None

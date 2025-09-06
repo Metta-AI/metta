@@ -16,13 +16,14 @@ from devops.skypilot.utils.cost_monitor import get_cost_info
 from devops.skypilot.utils.job_config import JobConfig
 from devops.skypilot.utils.job_latency import calculate_queue_latency
 from devops.skypilot.utils.nccl_tests import launch_nccl_tests
-from devops.skypilot.utils.runtime_monitors import HeartbeatMonitor, TimeoutMonitor
+from devops.skypilot.utils.runtime_monitors import ForceRestartTestMonitor, HeartbeatMonitor, TimeoutMonitor
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
 
 logger = getRankAwareLogger(__name__)
 
 EXIT_AND_STOP = 0
+EXIT_AND_RESTART = 1
 
 
 def create_job_config_from_environment() -> JobConfig:
@@ -54,6 +55,7 @@ def create_job_config_from_environment() -> JobConfig:
         heartbeat_timeout=int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None,
         restart_count=int(os.environ.get("RESTART_COUNT", "0")),
         test_nccl=os.environ.get("TEST_NCCL", "false").lower() == "true",
+        test_job_restart=os.environ.get("TEST_JOB_RESTART", "false").lower() == "true",
         start_time=int(os.environ.get("START_TIME", "0")) or None,
         # File paths
         heartbeat_file=os.environ.get("HEARTBEAT_FILE"),
@@ -117,6 +119,10 @@ def monitor_until_termination(job_config: JobConfig) -> str:
     if job_config.max_runtime_hours:
         monitors.append(TimeoutMonitor(rank=job_config.node_index, max_runtime_hours=job_config.max_runtime_hours))
 
+        if job_config.test_job_restart and job_config.is_master and job_config.restart_count == 0:
+            restart_time_hours = job_config.max_runtime_hours / 2.0
+            monitors.append(ForceRestartTestMonitor(restart_time_hours))
+
     logger.info(f"Starting monitoring loop with {len(monitors)} monitor(s)")
 
     # Main monitoring loop
@@ -169,9 +175,13 @@ def main() -> int:
         run_training_in_background()
         termination_reason = monitor_until_termination(job_config)
 
-    notifications_manager.log_final_summary(0, termination_reason)
+    exit_code = EXIT_AND_STOP
+    if termination_reason == "force_restart_test":
+        exit_code = EXIT_AND_RESTART
+
+    notifications_manager.log_final_summary(exit_code, termination_reason)
     notifications_manager.send_notifications(termination_reason)
-    return EXIT_AND_STOP
+    return exit_code
 
 
 if __name__ == "__main__":

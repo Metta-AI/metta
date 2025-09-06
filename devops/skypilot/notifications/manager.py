@@ -84,6 +84,11 @@ class NotificationManager:
                     f"Job terminated after {self.job_config.restart_count} restarts with average runtime < 3 minutes"
                 ),
             ),
+            "force_restart_test": NotificationConfig(
+                emoji="🔧",
+                title="SkyPilot Job Restarted",
+                description="Job restarted to test automatic recovery.",
+            ),
         }
 
         if termination_reason not in notifications:
