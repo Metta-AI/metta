@@ -12,8 +12,12 @@ proc updateMouse*(panel: Panel) =
     h: panel.rect.h.float32
   )
 
-  panel.hasMouse = (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
-    (mouseCaptured and mouseCapturedPanel == panel)
+  panel.hasMouse = panel.visible and ((not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
+    (mouseCaptured and mouseCapturedPanel == panel))
+  
+  # Handle focus changes
+  if panel.hasMouse and window.buttonPressed[MouseLeft]:
+    panel.focused = true
 
 proc beginPanAndZoom*(panel: Panel) =
   ## Pan and zoom the map.

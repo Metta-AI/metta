@@ -1,6 +1,9 @@
 src/tmp/
 src/mettascope.out
 bindings/generated/
+mettascope2/dist/
+mettascope2/data/fidget/
+data/fidget/
 
 # Dynamic libraries (platform-specific compiled binaries)
 *.dylib

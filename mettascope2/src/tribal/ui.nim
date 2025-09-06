@@ -249,3 +249,56 @@ proc drawTimeline*(panel: Panel) =
     ),
     color = color(1, 1, 1, 1)
   )
+
+proc drawResourceBar*(pos: Vec2, size: Vec2, current: int, maximum: int, bgColor: Color = color(0.2, 0.2, 0.2, 1), fillColor: Color = color(0.8, 0.8, 0.8, 1)) =
+  ## Draw a resource bar (health, hunger, etc.)
+  let progress = if maximum > 0: current.float / maximum.float else: 0.0
+  
+  # Background
+  bxy.drawRect(
+    rect = Rect(x: pos.x, y: pos.y, w: size.x, h: size.y),
+    color = bgColor
+  )
+  
+  # Fill
+  if progress > 0:
+    bxy.drawRect(
+      rect = Rect(x: pos.x, y: pos.y, w: size.x * progress, h: size.y),
+      color = fillColor
+    )
+
+proc drawStatusIcon*(icon: string, pos: Vec2, active: bool = true) =
+  ## Draw a status icon with optional dimming for inactive state
+  let alpha = if active: 1.0 else: 0.3
+  bxy.drawImage(
+    icon,
+    pos = pos,
+    tint = color(1, 1, 1, alpha)
+  )
+
+proc drawInfoTooltip*(text: string, pos: Vec2, bgColor: Color = color(0, 0, 0, 0.8)) =
+  ## Draw an information tooltip
+  let textWidth = text.len.float * 8.0  # Approximate text width
+  let textHeight = 16.0  # Approximate text height
+  let padding = 8.0
+  
+  # Background
+  bxy.drawRect(
+    rect = Rect(
+      x: pos.x - padding,
+      y: pos.y - padding,
+      w: textWidth + padding * 2,
+      h: textHeight + padding * 2
+    ),
+    color = bgColor
+  )
+  
+  # Text
+  bxy.drawText(
+    "",  # image key
+    translate(pos) * scale(vec2(16, 16)),  # transform  
+    typeface,
+    text,
+    16,  # size
+    color(1, 1, 1, 1)
+  )

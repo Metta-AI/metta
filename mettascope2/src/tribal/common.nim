@@ -30,6 +30,8 @@ type
     maxZoom*: float32 = 100
     scrollArea*: Rect
     hasMouse*: bool = false
+    visible*: bool = true
+    focused*: bool = false
 
   AreaLayout* = enum
     Horizontal
@@ -41,6 +43,8 @@ type
     areas*: seq[Area]
     selectedPanelNum*: int
     panels*: seq[Panel]
+    minSize*: float32 = 100.0
+    resizable*: bool = true
 
 
   Settings* = object
@@ -50,6 +54,13 @@ type
     showResources* = true
     showObservations* = -1
     lockFocus* = false
+    showAgentPaths* = false
+    showBuildingStatus* = true
+    showHungerStatus* = true
+    enableInteraction* = true
+    debugMode* = false
+    showPerformanceStats* = false
+    enableLogging* = true
 
 var
   window*: Window
@@ -78,6 +89,27 @@ var
 
 proc manhattanDistance*(a, b: IVec2): int =
   abs(a.x - b.x) + abs(a.y - b.y)
+
+proc irect*(x, y, w, h: int): IRect =
+  ## Utility function to create IRect from coordinates
+  result.x = x
+  result.y = y
+  result.w = w
+  result.h = h
+
+proc irect*(rect: Rect): IRect =
+  ## Convert floating point Rect to integer IRect
+  result.x = rect.x.int
+  result.y = rect.y.int
+  result.w = rect.w.int
+  result.h = rect.h.int
+
+proc rect*(irect: IRect): Rect =
+  ## Convert integer IRect to floating point Rect
+  result.x = irect.x.float32
+  result.y = irect.y.float32
+  result.w = irect.w.float32
+  result.h = irect.h.float32
 
 proc euclideanDistance*(a, b: IVec2): float =
   let dx = (a.x - b.x).float
