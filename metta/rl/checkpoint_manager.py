@@ -1,3 +1,4 @@
+import json
 import logging
 from collections import OrderedDict
 from pathlib import Path
@@ -7,6 +8,13 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.mettagrid.util.file import WandbURI, local_copy
+from metta.rl.policy_artifact import (
+    from_path,
+    get_statistics_from_path,
+    save_safetensors,
+    write_agent_to_file,
+)
+from metta.agent.metta_agent import PolicyAgent
 from metta.rl.wandb import (
     expand_wandb_uri,
     get_wandb_checkpoint_metadata,
@@ -17,8 +25,8 @@ from metta.rl.wandb import (
 logger = logging.getLogger(__name__)
 
 
-class PolicyMetadata(TypedDict, total=False):
-    """Type definition for policy metadata returned by get_policy_metadata."""
+class PolicyTrainingRunStatistics(TypedDict, total=False):
+    """Type definition for policy training run statistics returned by get_policy_metadata."""
 
     run_name: str
     epoch: int
@@ -31,12 +39,18 @@ class PolicyMetadata(TypedDict, total=False):
 
 
 def _parse_uri_path(uri: str, scheme: str) -> str:
-    """Extract path from URI, removing the scheme prefix.
-    "file:///tmp/model.pt" -> "/tmp/model.pt"
+    """Extract path from URI, removing the scheme prefix and file suffix.
+    "file:///tmp/model.pt" -> "/tmp/model"
     "wandb://project/artifact:v1" -> "project/artifact:v1"
     """
     prefix = f"{scheme}://"
-    return uri[len(prefix) :] if uri.startswith(prefix) else uri
+    path = uri[len(prefix) :] if uri.startswith(prefix) else uri
+
+    # Remove file suffix if present
+    if scheme == "file" and "." in path:
+        path = str(Path(path).with_suffix(""))
+
+    return path
 
 
 def key_and_version(uri: str) -> tuple[str, int]:
@@ -47,16 +61,17 @@ def key_and_version(uri: str) -> tuple[str, int]:
     """
     if uri.startswith("file://"):
         path = Path(_parse_uri_path(uri, "file"))
-        if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
-            return parse_checkpoint_filename(path.name)[:2]
-
         # Handle directory URIs by finding the latest checkpoint inside
         if path.is_dir():
             checkpoint_file = _find_latest_checkpoint_in_dir(path)
             if checkpoint_file and is_valid_checkpoint_filename(checkpoint_file.name):
-                return parse_checkpoint_filename(checkpoint_file.name)[:2]
+                return parse_checkpoint_filename(checkpoint_file.name)
             elif checkpoint_file:
                 return checkpoint_file.stem, 0
+
+        if is_valid_checkpoint_filename(path.name):
+            return parse_checkpoint_filename(path.name)
+
 
         return path.stem if path.suffix else path.name, 0
 
@@ -73,7 +88,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
     if uri.startswith("s3://"):
         filename = uri.split("/")[-1]
         if filename.endswith(".pt") and is_valid_checkpoint_filename(filename):
-            return parse_checkpoint_filename(filename)[:2]
+            return parse_checkpoint_filename(filename)
         path = Path(filename)
         return path.stem if path.suffix else path.name, 0
 
@@ -84,29 +99,20 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
 
 def is_valid_checkpoint_filename(filename: str) -> bool:
-    """Check if filename matches expected checkpoint format."""
-    if not filename.endswith(".pt"):
-        return False
-    parts = filename[:-3].split("__")
+    parts = filename.split("__")
     return (
-        len(parts) == 5
+        len(parts) == 2
         and parts[1].startswith("e")
         and parts[1][1:].isdigit()
-        and parts[2].startswith("s")
-        and parts[2][1:].isdigit()
-        and parts[3].startswith("t")
-        and parts[3][1:].isdigit()
-        and parts[4].startswith("sc")
-        and parts[4][2:].isdigit()
     )
 
 
-def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
+def parse_checkpoint_filename(filename: str) -> tuple[str, int]:
     """Parse checkpoint metadata from filename."""
     if not is_valid_checkpoint_filename(filename):
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
-    parts = filename[:-3].split("__")
-    return (parts[0], int(parts[1][1:]), int(parts[2][1:]), int(parts[3][1:]), int(parts[4][2:]) / 10000.0)
+    parts = filename.split("__")
+    return (parts[0], int(parts[1][1:]))
 
 
 def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
@@ -119,7 +125,7 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
             search_dirs.append(checkpoints_subdir)
 
     for search_dir in search_dirs:
-        checkpoint_files = list(search_dir.glob("*.pt"))
+        checkpoint_files = list(search_dir.glob("*.safetensors"))
         if checkpoint_files:
             # Only return files with valid checkpoint format, sorted by epoch
             valid_checkpoints = [
@@ -156,7 +162,7 @@ class CheckpointManager:
         self._cache.clear()
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu"):
+    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> PolicyAgent:
         """Load a policy from a URI (file://, wandb://, s3://, or mock://)."""
         if uri.startswith("file://"):
             path = Path(_parse_uri_path(uri, "file"))
@@ -165,13 +171,15 @@ class CheckpointManager:
                 checkpoint_file = _find_latest_checkpoint_in_dir(path)
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
-                return torch.load(checkpoint_file, weights_only=False, map_location=device)
+                return from_path(checkpoint_file)
             # Load specific file
-            return torch.load(path, weights_only=False, map_location=device)
+            return from_path(path)
+            # ?? here change to safetensors
 
+        # ?? map_location=device
         if uri.startswith("s3://"):
             with local_copy(uri) as local_path:
-                return torch.load(local_path, weights_only=False, map_location=device)
+                return from_path(local_path)
 
         if uri.startswith("wandb://"):
             return load_policy_from_wandb_uri(uri, device=device)
@@ -190,24 +198,25 @@ class CheckpointManager:
         return f"file://{Path(uri).resolve()}"
 
     @staticmethod
-    def get_policy_metadata(uri: str) -> PolicyMetadata:
+    # ?? rename to get_policy_statistics
+    def get_policy_metadata(uri: str) -> PolicyTrainingRunStatistics:
         """Extract metadata from policy URI."""
         normalized_uri = CheckpointManager.normalize_uri(uri)
         run_name, epoch = key_and_version(normalized_uri)  # Use normalized URI for metadata extraction
-        metadata: PolicyMetadata = {"run_name": run_name, "epoch": epoch, "uri": normalized_uri, "original_uri": uri}
+        stats: PolicyTrainingRunStatistics = {"run_name": run_name, "epoch": epoch, "uri": normalized_uri, "original_uri": uri}
 
         # Add extra metadata for file:// URIs with valid checkpoint filenames
         if normalized_uri.startswith("file://"):
             path = Path(_parse_uri_path(normalized_uri, "file"))
             if path.is_file() and is_valid_checkpoint_filename(path.name):
-                _, _, agent_step, total_time, score = parse_checkpoint_filename(path.name)
-                metadata["agent_step"] = agent_step
-                metadata["total_time"] = total_time
-                metadata["score"] = score
-        return metadata
+                statistics = get_statistics_from_path(path.name)
+                stats["agent_step"] = statistics.get("agent_step", 0)
+                stats["total_time"] = statistics.get("total_time", 0)
+                stats["score"] = statistics.get("score", 0)
+        return stats
 
     def _find_checkpoint_files(self, epoch: Optional[int] = None) -> List[Path]:
-        pattern = f"{self.run_name}__e{epoch}__s*__t*__sc*.pt" if epoch else f"{self.run_name}__e*__s*__t*__sc*.pt"
+        pattern = f"{self.run_name}__e{epoch}.safetensors" if epoch else f"{self.run_name}__e*.safetensors"
         return list(self.checkpoint_dir.glob(pattern))
 
     def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
@@ -251,38 +260,45 @@ class CheckpointManager:
             result["stopwatch_state"] = state["stopwatch_state"]
         return result
 
-    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any], wandb_run=None) -> str:
+    def save_agent(self, agent: PolicyAgent, epoch: int, statistics: Dict[str, Any], wandb_run=None) -> str:
         """Save agent checkpoint to disk and optionally to wandb.
         Returns URI of saved checkpoint (file:// for local, wandb:// if uploaded to wandb).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        agent_step = metadata.get("agent_step", 0)
-        total_time = int(metadata.get("total_time", 0))
-        score = int(metadata.get("score", 0.0) * 10000)
-        filename = f"{self.run_name}__e{epoch}__s{agent_step}__t{total_time}__sc{score}.pt"
-        checkpoint_path = self.checkpoint_dir / filename
+        agent_step = statistics.get("agent_step", 0)
+        total_time = int(statistics.get("total_time", 0))
+        score = int(statistics.get("score", 0.0) * 10000)
 
         # Check if we're overwriting an existing checkpoint for this epoch
         existing_files = self._find_checkpoint_files(epoch)
 
-        torch.save(agent, checkpoint_path)
+        # Save as .pt file (agent methodology) using PolicyArtifact. ?? remove this code
+        # ?? what do we do about wandb?
+        pt_base_path = f"{self.run_name}__e{epoch}__s{agent_step}__t{total_time}__sc{score}"
+        write_agent_to_file(agent, write_to=pt_base_path)
+
+        # Save as .safetensors/.stats (safetensors methodology) using PolicyArtifact
+        savetensors_base_path = f"{self.run_name}__e{epoch}"
+        save_safetensors(agent.state_dict(), statistics, agent.env_config,
+            write_to=savetensors_base_path)
+        checkpoint_path = Path(savetensors_base_path)
 
         # Upload to wandb if run is provided
         wandb_uri = None
-        if wandb_run and metadata.get("upload_to_wandb", True):
+        if wandb_run and statistics.get("upload_to_wandb", True):
             # For final checkpoint, append "_final" to distinguish it
-            name = self.run_name + "_final" if metadata.get("is_final", False) else self.run_name
+            name = self.run_name + "_final" if statistics.get("is_final", False) else self.run_name
 
             wandb_metadata = {
                 "run_name": self.run_name,
                 "epoch": epoch,
                 "agent_step": agent_step,
                 "total_time": total_time,
-                "score": metadata.get("score", 0.0),
+                "score": statistics.get("score", 0.0),
             }
 
             wandb_uri = upload_checkpoint_as_artifact(
-                checkpoint_path=str(checkpoint_path),
+                checkpoint_path=pt_base_path,
                 artifact_name=name,
                 metadata=wandb_metadata,
                 wandb_run=wandb_run,
@@ -292,7 +308,7 @@ class CheckpointManager:
         if existing_files:
             keys_to_remove = []
             for cached_path in self._cache.keys():
-                if Path(cached_path).name.startswith(f"{self.run_name}__e{epoch}__"):
+                if Path(cached_path).name.startswith(f"{self.run_name}__e{epoch}."):
                     keys_to_remove.append(cached_path)
             for key in keys_to_remove:
                 self._cache.pop(key, None)

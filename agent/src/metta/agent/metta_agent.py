@@ -10,8 +10,9 @@ from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.agent_config import AgentConfig, create_agent
+from metta.agent.agent_env_config import AgentEnvConfig
 from metta.rl.experience import Experience
-from metta.rl.system_config import SystemConfig
+from metta.mettagrid import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
 
@@ -46,46 +47,53 @@ class DistributedMettaAgent(DistributedDataParallel):
 
 
 class MettaAgent(nn.Module):
+    policy: nn.Module
+    env_config: AgentEnvConfig
+
     def __init__(
         self,
-        env,
-        system_cfg: SystemConfig,
+        env: MettaGridEnv | AgentEnvConfig,
         policy_architecture_cfg: AgentConfig,
-        policy: Optional[nn.Module] = None,
+        policy: Optional[nn.Module] = None,  # ?? Note that policy param is only used in test code. can this be removed?
     ):
+
         super().__init__()
         self.cfg = policy_architecture_cfg
-        self.device = system_cfg.device
+
+        if isinstance(env, MettaGridEnv):
+            self.env_config = AgentEnvConfig.create(env, policy_architecture_cfg)
+        else:
+            self.env_config = env
+
 
         # Create observation space
         self.obs_space = gym.spaces.Dict(
             {
-                "grid_obs": env.single_observation_space,
+                "grid_obs": self.env_config.single_observation_space,
                 "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(0,), dtype=np.int32),
             }
         )
 
-        self.obs_width = env.obs_width
-        self.obs_height = env.obs_height
-        self.action_space = env.single_action_space
-        self.feature_normalizations = env.feature_normalizations
+        self.obs_width = self.env_config.obs_width
+        self.obs_height = self.env_config.obs_height
+        self.action_space = self.env_config.single_action_space
+        self.feature_normalizations = self.env_config.feature_normalizations
+
+
 
         # Create policy if not provided
         if policy is None:
-            policy = create_agent(
+            self.policy = create_agent(
                 config=policy_architecture_cfg,
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
                 feature_normalizations=self.feature_normalizations,
-                env=env,
+                env_config=self.env_config,
             )
             logger.info(f"Using agent: {policy_architecture_cfg.name}")
-
-        self.policy = policy
-        if self.policy is not None:
-            self.policy = self.policy.to(self.device)
-            self.policy.device = self.device
+        else:
+            self.policy = policy
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
@@ -99,6 +107,44 @@ class MettaAgent(nn.Module):
 
     def get_cfg(self) -> AgentConfig:
         return self.cfg
+
+
+    @classmethod
+    def from_weights(
+        cls,
+        weights: dict[str, torch.Tensor],
+        env: MettaGridEnv | AgentEnvConfig ,
+        cfg: "AgentConfig",
+    ) -> "MettaAgent":
+        """Create a MettaAgent instance from pre-trained weights.
+
+        Args:
+            weights: Dictionary mapping parameter names to tensors
+            env: The MettaGridEnv environment
+            cfg: The AgentConfig configuration
+
+        Returns:
+            A new MettaAgent instance with the loaded weights
+        """
+        # Create agent instance
+        agent = cls(env=env, policy_architecture_cfg=cfg)
+
+        agent.initialize_to_environment(
+            features=env.get_observation_features(),
+            action_names=env.action_names,
+            action_max_params=env.max_action_args,
+            device=torch.device("cpu"), # ??
+            is_training=True, # ??
+        )
+
+        # Load the weights into the policy
+        try:
+            agent.policy.load_state_dict(weights)
+        except Exception as e:
+            state_dict = {k.replace('policy.', ''): v for k, v in weights.items()}
+            agent.policy.load_state_dict(state_dict, strict=False)
+
+        return agent
 
     def on_new_training_run(self):
         if hasattr(self.policy, "on_new_training_run"):
@@ -144,7 +190,7 @@ class MettaAgent(nn.Module):
         features: dict[str, dict],
         action_names: list[str],
         action_max_params: list[int],
-        device,
+        device: torch.device,
         is_training: bool = None,
     ):
         """Initialize the agent to the current environment.
@@ -152,12 +198,15 @@ class MettaAgent(nn.Module):
         Handles feature remapping to allow agents trained on one environment to work
         on another environment where features may have different IDs but same names.
         """
-        self.device = device
 
         # Auto-detect training context if not explicitly provided
         if is_training is None:
             is_training = self.training
             log_on_master(f"Auto-detected {'training' if is_training else 'simulation'} context")
+
+        if self.policy is not None:
+            self.policy = self.policy.to(device)
+            self.policy.device = device
 
         # Build feature mappings
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
@@ -194,7 +243,7 @@ class MettaAgent(nn.Module):
                     f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
                 )
                 # Apply the remapping
-                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
+                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID, device)
 
         # Store action configuration
         self.action_names = action_names
@@ -229,10 +278,10 @@ class MettaAgent(nn.Module):
             f"{list(zip(action_names, action_max_params, strict=False))}"
         )
 
-    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
+    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int, device: torch.device):
         """Apply feature remapping to policy for agent portability across environments."""
         # Build complete remapping tensor
-        remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+        remap_tensor = torch.arange(256, dtype=torch.uint8, device=device)
 
         # Apply explicit remappings
         for new_id, original_id in self.feature_id_remap.items():
@@ -292,6 +341,7 @@ class MettaAgent(nn.Module):
         if hasattr(self.policy, "_convert_logit_index_to_action"):
             return self.policy._convert_logit_index_to_action(logit_indices)
         return self.action_index_tensor[logit_indices]
+
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent

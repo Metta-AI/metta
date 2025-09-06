@@ -19,10 +19,10 @@ class LSTMWrapper(nn.Module):
 
     All LSTM-based policies inherit these critical features automatically."""
 
-    def __init__(self, env, policy, input_size=128, hidden_size=128, num_layers=2):
+    def __init__(self, single_observation_space_shape, policy, input_size=128, hidden_size=128, num_layers=2):
         """Initialize LSTM wrapper with configurable number of layers."""
         super().__init__()
-        self.obs_shape = env.single_observation_space.shape
+        self.obs_shape = single_observation_space_shape
 
         self.policy = policy
         self.input_size = input_size
