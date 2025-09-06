@@ -183,9 +183,6 @@ exportProcs:
   defaultConfig
   getActionSpace
 
-# Generate the Python binding files
-when isMainModule:
-  writeFiles("bindings/generated", "Tribal")
-
-# Include the implementation when this is compiled as library
+# Generate the Python binding files and include implementation
+writeFiles("bindings/generated", "Tribal")
 include generated/internal
