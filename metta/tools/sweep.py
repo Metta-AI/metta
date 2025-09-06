@@ -113,6 +113,7 @@ class SweepTool(Tool):
     # Dispatcher configuration
     dispatcher_type: DispatcherType = DispatcherType.HYBRID_REMOTE_TRAIN  # Default: train on Skypilot, evaluate locally
     capture_output: bool = True  # Capture and stream subprocess output (local only)
+    git_ref: str | None = None
 
     consumed_args: list[str] = [
         "sweep_name",
@@ -229,6 +230,7 @@ class SweepTool(Tool):
             eval_entrypoint=self.eval_entrypoint,
             train_overrides=self.train_overrides,  # Pass train overrides to scheduler
             stats_server_uri=self.stats_server_uri,  # Pass stats server for remote evals
+            git_ref=self.git_ref,
             batch_size=self.max_parallel_jobs,
             gpus_per_job=self.gpus_per_job,  # Pass GPU configuration
         )
