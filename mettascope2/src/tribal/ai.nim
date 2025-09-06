@@ -79,10 +79,12 @@ proc applyDirectionOffset(offset: var IVec2, direction: int, distance: int32) =
   of 3: offset.x -= distance  # West
   else: discard
 
-proc resetWanderState(state: ControllerState, currentPos: IVec2) =
-  state.spiralArcsCompleted = 0
+proc resetWanderState(state: ControllerState) =
+  ## Reset wander state when breaking out to pursue a resource
+  # Keep the spiral progress to resume expanding search from where we left off
+  # Don't reset the arc length or arcs completed - this ensures continuous expansion
+  # Just reset the steps in current arc to start fresh from current position
   state.spiralStepsInArc = 0
-  state.basePosition = currentPos
 
 proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 =
   ## Get next point in expanding spiral pattern
@@ -241,22 +243,28 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   
   var state = controller.agentStates[agentId]
   
-  const StuckThreshold = 5
-  const EscapeSteps = 5
+  # Stuck detection: Check if we haven't moved
+  const StuckThreshold = 5  # Consider stuck after 5 steps in same position
+  const EscapeSteps = 5  # Escape for 5 steps when stuck
   
   if agent.pos == state.lastPosition:
     state.stuckCounter += 1
     if state.stuckCounter >= StuckThreshold and not state.escapeMode:
+      # We're stuck! Enter escape mode
       state.escapeMode = true
       state.escapeStepsRemaining = EscapeSteps
       
+      # Choose escape direction (opposite of where we were trying to go)
       if state.currentTarget != agent.pos:
         let targetDir = getDirectionTo(agent.pos, state.currentTarget)
+        # Go opposite direction
         state.escapeDirection = ivec2(-targetDir.x, -targetDir.y)
       else:
+        # Random escape direction
         let dirs = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
         state.escapeDirection = controller.rng.sample(dirs)
   else:
+    # We moved, reset stuck counter
     state.stuckCounter = 0
   
   # Update last position for next step
@@ -316,12 +324,12 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         # We can use the altar!
         let dir = state.currentTarget - agent.pos
         
-        # Determine orientation argument for use action
+        # Determine orientation argument for put action (action 5)
         let useOrientation = getOrientation(dir)
         let useArg = ord(useOrientation).uint8
         
-        # Use the altar
-        return [3'u8, useArg]  # Use action with direction
+        # Put battery into altar
+        return [5'u8, useArg]  # Put action with direction
       elif isAdjacent(agent.pos, state.currentTarget):
         # We're diagonally adjacent - move to cardinal position
         let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
@@ -354,24 +362,24 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       if nearestConverter != nil:
         state.currentTarget = nearestConverter.pos
         state.targetType = Converter
+        resetWanderState(state)  # Reset wander when we find a converter
       else:
-        if state.targetType != Wander:
-          resetWanderState(state, agent.pos)
+        # No converter found, wander away from current position to explore
         state.currentTarget = controller.getNextWanderPoint(state)
         state.targetType = Wander
     
     # Check if we're near the converter
     if state.targetType == Converter:
       if isCardinallyAdjacent(agent.pos, state.currentTarget):
-        # We can use the converter!
+        # We can get battery from converter (put ore in, get battery out)
         let dir = state.currentTarget - agent.pos
         
-        # Determine orientation argument for use action
+        # Determine orientation argument for get action (action 3)
         let useOrientation = getOrientation(dir)
         let useArg = ord(useOrientation).uint8
         
-        # Use the converter
-        return [3'u8, useArg]  # Use action with direction
+        # Get battery from converter (converts ore to battery)
+        return [3'u8, useArg]  # Get action with direction
       elif isAdjacent(agent.pos, state.currentTarget):
         # We're diagonally adjacent - move to cardinal position
         let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
@@ -411,24 +419,24 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       if nearestMine != nil:
         state.currentTarget = nearestMine.pos
         state.targetType = Mine
+        resetWanderState(state)  # Reset wander when we find a mine
       else:
-        if state.targetType != Wander:
-          resetWanderState(state, agent.pos)
+        # No active mine visible, wander in expanding circles to find one
         state.currentTarget = controller.getNextWanderPoint(state)
         state.targetType = Wander
     
     # Check if we're near the mine
     if state.targetType == Mine:
       if isCardinallyAdjacent(agent.pos, state.currentTarget):
-        # We can use the mine!
+        # We can get ore from mine
         let dir = state.currentTarget - agent.pos
         
-        # Determine orientation argument for use action
+        # Determine orientation argument for get action (action 3)
         let useOrientation = getOrientation(dir)
         let useArg = ord(useOrientation).uint8
         
-        # Use the mine
-        return [3'u8, useArg]  # Use action with direction
+        # Get ore from mine
+        return [3'u8, useArg]  # Get action with direction
       elif isAdjacent(agent.pos, state.currentTarget):
         # We're diagonally adjacent - move to cardinal position
         let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
@@ -490,17 +498,5 @@ proc updateController*(controller: Controller) =
   ## Update controller state (called each step)
   controller.stepCount += 1
   
-  # Periodically reset stuck agents to prevent endless loops
-  if controller.stepCount mod 100 == 0:
-    for state in controller.agentStates.mvalues:
-      # Reset agents that have been wandering too long or are stuck
-      if state.targetType == Wander:
-        # Reset spiral to start exploring from a different direction
-        state.spiralArcsCompleted = controller.rng.rand(0..3)
-        state.spiralStepsInArc = 0
-      
-      # Reset stuck agents that have been in escape mode too long
-      if state.escapeMode and state.escapeStepsRemaining <= 0:
-        state.escapeMode = false
-        state.targetType = NoTarget
-
+  # Periodically reset spiral patterns to prevent getting stuck
+  # (Spiral already resets itself after ~30 arcs, so this is handled)
