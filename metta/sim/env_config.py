@@ -1,49 +1,20 @@
 """
-Generic Environment Configuration Base Classes.
+Tribal Environment Configuration.
 
-This module provides a generic interface for different environment types
-to work with the Metta training infrastructure.
+This module provides configuration for the Nim-based tribal environment.
 """
 
-from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
 from metta.mettagrid.config import Config
 
 
-class EnvConfig(Config, ABC):
-    """
-    Base class for all environment configurations.
-    
-    This allows different environment types (MettaGrid, Tribal, etc.)
-    to work with the same training infrastructure.
-    """
-    
-    # Common environment parameters
-    environment_type: str
-    num_agents: int
-    max_steps: Optional[int] = None
-    
-    @abstractmethod
-    def get_observation_space(self) -> Dict[str, Any]:
-        """Get the observation space for this environment."""
-        pass
-        
-    @abstractmethod
-    def get_action_space(self) -> Dict[str, Any]:
-        """Get the action space for this environment."""
-        pass
-        
-    @abstractmethod
-    def create_environment(self, **kwargs) -> Any:
-        """Create the actual environment instance."""
-        pass
-
-
-class TribalEnvConfig(EnvConfig):
+class TribalEnvConfig(Config):
     """Configuration for Nim tribal environments."""
     
     environment_type: str = "tribal"
+    num_agents: int
+    max_steps: Optional[int] = None
     render_mode: Optional[str] = None
     bindings_path: Optional[str] = None
     

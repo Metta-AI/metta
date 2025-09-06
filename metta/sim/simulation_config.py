@@ -6,14 +6,14 @@ from pydantic import Field
 
 from metta.mettagrid import MettaGridConfig
 from metta.mettagrid.config import Config
-from metta.sim.env_config import EnvConfig
+from metta.sim.env_config import TribalEnvConfig
 
 
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
     name: str = Field(description="Name of the simulation")
-    env: Union[MettaGridConfig, EnvConfig]  # Accept both for backward compatibility
+    env: Union[MettaGridConfig, TribalEnvConfig]  # Accept both MettaGrid and Tribal configs
 
     # Core simulation config
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
