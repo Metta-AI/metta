@@ -96,6 +96,13 @@ class MapGen(MapBuilder):
             kwargs["instance_map"] = AsciiMapBuilder.Config.from_uri(ascii_map_uri)
             return cls(**kwargs)
 
+        @classmethod
+        def with_ascii_map(cls, ascii_map: str, **kwargs) -> "MapGen.Config":
+            """Create a MapGenConfig with an ASCII map as the instance_map."""
+            lines = ascii_map.strip().splitlines()
+            kwargs["instance_map"] = AsciiMapBuilder.Config(map_data=[list(line) for line in lines])
+            return cls(**kwargs)
+
     def __init__(self, config: Config):
         self.config = config
 
