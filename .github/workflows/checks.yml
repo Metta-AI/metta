@@ -389,20 +389,32 @@ jobs:
         with:
           install-mode: "testing"
 
-      - name: Clean Bazel directories
+      - name: Setup Bazel caching
         run: |
-          rm -rf ~/.cache/bazel
-          rm -rf ~/.cache/bazel-repo
+          # Configure Bazel to use specific cache directories
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
+
+          # Ensure directories exist
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
 
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
+        id: bazel-cache
         with:
           path: |
-            ~/.cache/bazel
-            ~/.cache/bazel-repo
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
           key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
+
+      - name: Clean Bazel output if no cache hit
+        if: steps.bazel-cache.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          bazel clean --expunge
 
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
@@ -474,20 +486,32 @@ jobs:
         with:
           install-mode: "testing"
 
-      - name: Clean Bazel directories
+      - name: Setup Bazel caching
         run: |
-          rm -rf ~/.cache/bazel
-          rm -rf ~/.cache/bazel-repo
+          # Configure Bazel to use specific cache directories
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
+
+          # Ensure directories exist
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
 
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
+        id: bazel-cache
         with:
           path: |
-            ~/.cache/bazel
-            ~/.cache/bazel-repo
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
           key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
+
+      - name: Clean Bazel output if no cache hit
+        if: steps.bazel-cache.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          bazel clean --expunge
 
       - name: Build C++ benchmarks
         id: benchmark_build_check
