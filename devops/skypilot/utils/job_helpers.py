@@ -329,3 +329,63 @@ def tail_job_log(job_id: str, lines: int = 100) -> str | None:
         return "Error: Timeout getting logs (job may still be provisioning)"
     except Exception as e:
         return f"Error: {str(e)}"
+
+
+def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
+    if not job_ids:
+        return {}
+
+    job_data = {}
+
+    try:
+        # Get all jobs in one command
+        cmd = ["sky", "jobs", "queue", "--all"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            # Parse the output
+            lines = result.stdout.strip().split("\n")
+
+            # Process each job ID
+            for job_id in job_ids:
+                job_info = {"status": "UNKNOWN", "raw_line": "", "name": "", "duration": "", "submitted": ""}
+
+                # Find the job in the output
+                for line in lines:
+                    # Match job ID at start of line
+                    if re.match(rf"^{job_id}\s+", line):
+                        job_info["raw_line"] = line
+
+                        # Look for known status values anywhere in the line
+                        status_values = ["RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "PENDING", "PROVISIONING"]
+                        for status in status_values:
+                            if status in line:
+                                job_info["status"] = status
+                                break
+
+                        # Extract other fields using more robust parsing
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            job_info["name"] = parts[2]
+
+                        # Find "ago" to locate submitted time
+                        for i, part in enumerate(parts):
+                            if part == "ago" and i >= 2:
+                                # Reconstruct submitted time (e.g., "26 mins ago")
+                                job_info["submitted"] = " ".join(parts[i - 2 : i + 1])
+                                break
+
+                        break
+
+                job_data[job_id] = job_info
+        else:
+            # If command failed, return error info
+            for job_id in job_ids:
+                job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": result.stderr}
+
+    except Exception as e:
+        # On exception, return error info
+        for job_id in job_ids:
+            job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": str(e)}
+
+    return job_data
