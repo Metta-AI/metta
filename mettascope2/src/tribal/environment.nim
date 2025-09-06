@@ -1,6 +1,6 @@
 import std/[strformat, random, strutils, tables, times, math], vmath, chroma
 import terrain, objects, common
-export terrain, objects
+export terrain, objects, common
 
 const
   # Map layout constants
@@ -49,16 +49,12 @@ const
   MapWidth* = MapLayoutRoomsX * (MapRoomWidth + MapRoomBorder) + MapBorder
   MapHeight* = MapLayoutRoomsY * (MapRoomHeight + MapRoomBorder) + MapBorder
 
-proc ivec2*(x, y: int): IVec2 =
-  result.x = x.int32
-  result.y = y.int32
 
 # Global village color management
 var agentVillageColors*: seq[Color] = @[]
 var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
 
 type
-  OrientationDelta* = tuple[x, y: int]
   ObservationName* = enum
     AgentLayer = 0
     AgentOrientationLayer = 1
@@ -80,15 +76,6 @@ type
     AltarHeartsLayer = 17  # Hearts for respawning
     AltarReadyLayer = 18
 
-  Orientation* = enum
-    N = 0  # North (Up)
-    S = 1  # South (Down) 
-    W = 2  # West (Left)
-    E = 3  # East (Right)
-    NW = 4 # Northwest (Up-Left)
-    NE = 5 # Northeast (Up-Right)
-    SW = 6 # Southwest (Down-Left)
-    SE = 7 # Southeast (Down-Right)
 
   ThingKind* = enum
     Agent
@@ -374,34 +361,6 @@ proc getThing*(env: Environment, pos: IVec2): Thing =
     return nil
   return env.grid[pos.x][pos.y]
 
-# Orientation deltas for each direction
-const OrientationDeltas*: array[8, OrientationDelta] = [
-  (x: 0, y: -1),   # N (North)
-  (x: 0, y: 1),    # S (South)
-  (x: -1, y: 0),   # W (West)
-  (x: 1, y: 0),    # E (East)
-  (x: -1, y: -1),  # NW (Northwest)
-  (x: 1, y: -1),   # NE (Northeast)
-  (x: -1, y: 1),   # SW (Southwest)
-  (x: 1, y: 1)     # SE (Southeast)
-]
-
-proc getOrientationDelta*(orient: Orientation): OrientationDelta =
-  OrientationDeltas[ord(orient)]
-
-proc isDiagonal*(orient: Orientation): bool =
-  ord(orient) >= ord(NW)
-
-proc getOpposite*(orient: Orientation): Orientation =
-  case orient
-  of N: S
-  of S: N
-  of W: E
-  of E: W
-  of NW: SE
-  of NE: SW
-  of SW: NE
-  of SE: NW
 
 proc isEmpty*(env: Environment, pos: IVec2): bool =
   if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
@@ -435,33 +394,24 @@ proc createClippy*(pos: IVec2, homeSpawner: IVec2, targetAltar: IVec2, r: var Ra
     wanderStepsRemaining: 0,  # Unused - we move every step
   )
 
-proc orientationToVec*(orientation: Orientation): IVec2 =
-  case orientation
-  of N: result = ivec2(0, -1)
-  of S: result = ivec2(0, 1)
-  of E: result = ivec2(1, 0)
-  of W: result = ivec2(-1, 0)
-  of NW: result = ivec2(-1, -1)
-  of NE: result = ivec2(1, -1)
-  of SW: result = ivec2(-1, 1)
-  of SE: result = ivec2(1, 1)
 
-proc relativeLocation*(orientation: Orientation, distance, offset: int): IVec2 =
-  case orientation
-  of N: ivec2(-offset, -distance)
-  of S: ivec2(offset, distance)
-  of E: ivec2(distance, -offset)
-  of W: ivec2(-distance, offset)
-  of NW: ivec2(-distance - offset, -distance + offset)
-  of NE: ivec2(distance - offset, -distance - offset)
-  of SW: ivec2(-distance + offset, distance + offset)
-  of SE: ivec2(distance + offset, distance - offset)
+
+
+
 
 proc noopAction(env: Environment, id: int, agent: Thing) =
   inc env.stats[id].actionNoop
 
+proc clearAgentObservations(env: Environment, pos: IVec2) =
+  env.updateObservations(AgentLayer, pos, 0)
+  env.updateObservations(AgentOrientationLayer, pos, 0)
+  env.updateObservations(AgentInventoryOreLayer, pos, 0)
+  env.updateObservations(AgentInventoryBatteryLayer, pos, 0)
+  env.updateObservations(AgentInventoryWaterLayer, pos, 0)
+  env.updateObservations(AgentInventoryWheatLayer, pos, 0)
+  env.updateObservations(AgentInventoryWoodLayer, pos, 0)
+
 proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
-  # Validate orientation argument
   if argument < 0 or argument > 7:
     inc env.stats[id].actionInvalid
     return
@@ -473,22 +423,14 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
   newPos.x += int32(delta.x)
   newPos.y += int32(delta.y)
   
-  # Update orientation to face movement direction
   let newOrientation = moveOrientation
   if env.isEmpty(newPos):
     env.grid[agent.pos.x][agent.pos.y] = nil
-    env.updateObservations(AgentLayer, agent.pos, 0)
-    env.updateObservations(AgentOrientationLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryOreLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryBatteryLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryWaterLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryWheatLayer, agent.pos, 0)
-    env.updateObservations(AgentInventoryWoodLayer, agent.pos, 0)
+    env.clearAgentObservations(agent.pos)
     agent.pos = newPos
     agent.orientation = newOrientation
     env.grid[agent.pos.x][agent.pos.y] = agent
     
-    # Heatmap is now updated in batch at end of step function
     env.updateObservations(AgentLayer, agent.pos, 1)
     env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
     env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
@@ -500,7 +442,6 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
     inc env.stats[id].actionMove
   else:
     inc env.stats[id].actionInvalid
-
 
 proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
   ## Attack with a spear if agent has one
@@ -768,62 +709,7 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
 # ============== CLIPPY AI ==============
 
 
-proc getDirectionToward*(fromPos, toPos: IVec2): IVec2 =
-  let dx = toPos.x - fromPos.x
-  let dy = toPos.y - fromPos.y
-  
-  if dx == 0 and dy == 0:
-    return ivec2(0, 0)
-  
-  result.x = 
-    if dx > 0: 1
-    elif dx < 0: -1
-    else: 0
-  
-  result.y = 
-    if dy > 0: 1
-    elif dy < 0: -1
-    else: 0
 
-proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[Thing], r: var Rand): IVec2 =
-  ## Clippy AI: 25% move toward nearest altar, 75% random movement for natural wandering
-  
-  # 75% chance for random movement, 25% chance to move toward altar
-  if r.rand(0.0..1.0) < 0.75:
-    # Random movement - pick a random direction
-    let randomDirections = [
-      ivec2(0, -1),  # North
-      ivec2(0, 1),   # South  
-      ivec2(-1, 0),  # West
-      ivec2(1, 0),   # East
-      ivec2(-1, -1), # Northwest
-      ivec2(1, -1),  # Northeast
-      ivec2(-1, 1),  # Southwest
-      ivec2(1, 1)    # Southeast
-    ]
-    return randomDirections[r.rand(0..<randomDirections.len)]
-  else:
-    # Move toward nearest altar
-    var nearestAltar = ivec2(-1, -1)
-    var minDist = int.high
-    
-    # Oracle knowledge: scan all entities to find closest altar
-    for thing in things:
-      if isNil(thing) or thing.kind != Altar:
-        continue
-      
-      let dist = manhattanDistance(clippyPos, thing.pos)
-      if dist < minDist:
-        minDist = dist
-        nearestAltar = thing.pos
-    
-    # Move toward nearest altar if found
-    if nearestAltar.x >= 0:
-      return getDirectionToward(clippyPos, nearestAltar)
-    
-    # No altar found - fallback to random movement
-    let randomDirections = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
-    return randomDirections[r.rand(0..<randomDirections.len)]
 
 proc isValidEmptyPosition(env: Environment, pos: IVec2): bool =
   ## Check if a position is within map bounds, empty, and not water
@@ -846,6 +732,34 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
       if env.isValidEmptyPosition(pos):
         result.add(pos)
 
+
+proc getClippyMoveDirection(clippyPos: IVec2, things: seq[Thing], r: var Rand): IVec2 =
+  if r.rand(0.0..1.0) < 0.75:
+    let randomDirections = [
+      ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0),
+      ivec2(-1, -1), ivec2(1, -1), ivec2(-1, 1), ivec2(1, 1)
+    ]
+    return randomDirections[r.rand(0..<randomDirections.len)]
+  else:
+    var nearestAltar = ivec2(-1, -1)
+    var minDist = int.high
+    
+    for thing in things:
+      if isNil(thing) or thing.kind != Altar:
+        continue
+      let dist = manhattanDistance(clippyPos, thing.pos)
+      if dist < minDist:
+        minDist = dist
+        nearestAltar = thing.pos
+    
+    if nearestAltar.x >= 0:
+      let dx = nearestAltar.x - clippyPos.x
+      let dy = nearestAltar.y - clippyPos.y
+      result.x = if dx > 0: 1 elif dx < 0: -1 else: 0
+      result.y = if dy > 0: 1 elif dy < 0: -1 else: 0
+    else:
+      let randomDirections = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+      return randomDirections[r.rand(0..<randomDirections.len)]
 
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
   # Try with moderate attempts first
