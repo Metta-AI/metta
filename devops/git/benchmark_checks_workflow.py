@@ -91,9 +91,14 @@ def trigger_workflow(branch: str) -> str:
 
 def find_workflow_run(branch: str, run_id: str) -> str:
     """Poll GitHub Actions to find the workflow run matching the given run_id echoed in logs."""
-    print(f"⏳ Searching for workflow run with run_id={run_id} on branch={branch}")
+    print(f"🔍 Searching for workflow run with run_id={run_id} on branch={branch}")
 
-    for attempt in range(10):
+    # Based on benchmarks: 20→50→100→200 provides good balance
+    # Most runs found in first 20-50 (1-1.5s)
+    limits = [20, 50, 100, 200]
+
+    for i, limit in enumerate(limits):
+        # Fetch list of recent runs
         result = subprocess.run(
             [
                 "gh",
@@ -104,7 +109,7 @@ def find_workflow_run(branch: str, run_id: str) -> str:
                 "--branch",
                 branch,
                 "--limit",
-                "10",
+                str(limit),
                 "--json",
                 "databaseId,createdAt",
             ],
@@ -113,17 +118,26 @@ def find_workflow_run(branch: str, run_id: str) -> str:
         )
 
         if result.returncode != 0:
-            print(f"⚠️ Failed to fetch run list (attempt {attempt + 1}/10): {result.stderr}")
-            time.sleep(2)
-            continue
+            print(f"⚠️  Failed to fetch run list: {result.stderr}")
+            if i < len(limits) - 1:
+                time.sleep(2)
+                continue
+            else:
+                raise RuntimeError(f"Failed to fetch workflow runs: {result.stderr}")
 
         try:
             runs = json.loads(result.stdout)
+            print(f"  Checking {len(runs)} runs...")
 
-            for run in runs:
+            # Check each run's logs for our run_id
+            for j, run in enumerate(runs):
                 run_db_id = str(run["databaseId"])
 
-                # Fetch logs and look for the echoed run ID
+                # Show progress for larger searches
+                if len(runs) >= 50 and (j + 1) % 25 == 0:
+                    print(f"    Checked {j + 1}/{len(runs)} runs...")
+
+                # Fetch logs for this run
                 log_result = subprocess.run(
                     ["gh", "run", "view", run_db_id, "--log"],
                     capture_output=True,
@@ -131,18 +145,30 @@ def find_workflow_run(branch: str, run_id: str) -> str:
                 )
 
                 if log_result.returncode != 0:
+                    # Skip runs where we can't fetch logs
                     continue
 
                 if f"RUN_ID={run_id}" in log_result.stdout:
-                    print(f"✅ Found run {run_db_id} for run_id={run_id} (via logs)")
+                    print(f"✅ Found run {run_db_id} for run_id={run_id}")
                     return run_db_id
 
+            # If not found and we have more limits to try
+            if i < len(limits) - 1:
+                print(f"  Not found in {limit} runs, expanding search...")
+                time.sleep(1)  # Brief pause before expanding
+
         except json.JSONDecodeError as e:
-            print(f"⚠️ JSON decode error: {e}")
+            print(f"⚠️  JSON decode error: {e}")
+            if i < len(limits) - 1:
+                time.sleep(2)
+                continue
+            else:
+                raise
 
-        time.sleep(5)
-
-    raise RuntimeError(f"❌ Could not find matching run for run_id={run_id} on branch={branch}")
+    raise RuntimeError(
+        f"❌ Could not find matching run for run_id={run_id} on branch={branch} "
+        f"after checking {limits[-1]} most recent runs"
+    )
 
 
 def get_job_details(run_id: str) -> dict[str, Any]:
