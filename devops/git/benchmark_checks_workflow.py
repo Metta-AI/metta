@@ -24,9 +24,16 @@ MAX_RETRIES = 10
 RETRY_DELAY = 5  # seconds
 POLL_INTERVAL = 10  # seconds
 
+
 # Matrix job patterns to aggregate
 MATRIX_JOB_PATTERNS = {
     "unit-tests": "Unit Tests - ",  # Matches "Unit Tests - agent", "Unit Tests - common", etc.
+}
+
+# Step name mappings for special cases
+TEST_STEP_NAMES = {
+    "All Packages": "Run all package tests",  # Single job uses different step name
+    # Matrix jobs use pattern: "Run {package} tests"
 }
 
 
@@ -399,7 +406,13 @@ def wait_for_run_completion(run_id: str) -> tuple[WorkflowRunDetails, str]:
                     job_id = worst_case["job_id"]
 
                     setup_env_time = get_step_timing(job_id, "Setup Environment")
-                    run_tests_time = get_step_timing(job_id, f"Run {worst_case['value']} tests")
+
+                    # Check if we have a special step name mapping
+                    if worst_case["value"] in TEST_STEP_NAMES:
+                        run_tests_time = get_step_timing(job_id, TEST_STEP_NAMES[worst_case["value"]])
+                    else:
+                        # Default pattern for matrix jobs
+                        run_tests_time = get_step_timing(job_id, f"Run {worst_case['value']} tests")
 
                     if setup_env_time is not None:
                         details.setup_env_duration = setup_env_time
@@ -719,10 +732,10 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
                 print(f"Average test time (single job):        {format_duration(single_mean)}")
                 print(f"Speedup factor:                        {speedup:.2f}x")
 
-                if speedup > 1:
-                    print(f"✅ Single job is {speedup:.2f}x faster than matrix worst-case")
-                else:
-                    print(f"⚠️  Matrix is {1 / speedup:.2f}x faster than single job")
+            if speedup > 1:
+                print(f"✅ Single job is {speedup:.2f}x faster than matrix worst-case")
+            else:
+                print(f"✅ Matrix worst-case is {1 / speedup:.2f}x slower than single job")
 
     # Detailed breakdown per branch
     print("\n📋 DETAILED STEP TIMINGS PER BRANCH:")
