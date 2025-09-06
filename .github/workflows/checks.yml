@@ -222,7 +222,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-16core
+    runs-on: ubuntu-8core
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -256,7 +256,7 @@ jobs:
             local color=$2
 
             # packages run in parallel so we will start (packages)*(pytest_workers) processes
-            PYTEST_BASE_ARGS="-n 4 --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+            PYTEST_BASE_ARGS="-n 3 --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
             # Save raw output for duration parsing
             local raw_output="test-results/${package}_raw.log"
