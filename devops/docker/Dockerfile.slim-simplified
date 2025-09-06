@@ -32,6 +32,8 @@ COPY . .
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/bazel /usr/local/bin/bazel
 COPY --from=builder /root/.local/share/uv /root/.local/share/uv
+COPY --from=builder /root/.cache/uv /root/.cache/uv
+COPY --from=builder /workspace/metta/.venv /workspace/metta/.venv
 
 RUN bash ./devops/tools/install-system.sh
 
