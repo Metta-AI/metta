@@ -12,21 +12,39 @@ mkdir -p bindings/generated
 echo "Generating bindings..."
 nim r bindings/tribal_bindings.nim
 
-# Build the shared library
+# Build the shared library for the current platform
 echo "Building shared library..."
-nim c --app:lib --mm:arc --opt:speed \
-    --outdir:bindings/generated \
-    --out:libtribal.dylib \
-    bindings/tribal_bindings.nim
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    nim c --app:lib --mm:arc --opt:speed \
+        --outdir:bindings/generated \
+        --out:libtribal.dylib \
+        bindings/tribal_bindings.nim
+    LIBNAME="libtribal.dylib"
+elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    nim c --app:lib --mm:arc --opt:speed \
+        --outdir:bindings/generated \
+        --out:tribal.dll \
+        bindings/tribal_bindings.nim
+    LIBNAME="tribal.dll"
+else
+    nim c --app:lib --mm:arc --opt:speed \
+        --outdir:bindings/generated \
+        --out:libtribal.so \
+        bindings/tribal_bindings.nim
+    LIBNAME="libtribal.so"
+fi
 
-# Fix the generated Python file to use correct module name
-echo "Fixing generated Python file..."
-sed -i '' 's/sys.modules\["tribal"\]/sys.modules["Tribal"]/g' bindings/generated/Tribal.py
-
-echo "✅ Built bindings/generated/libtribal.dylib"
-echo "✅ Generated and fixed bindings/generated/Tribal.py"
+echo "✅ Built bindings/generated/$LIBNAME"
+echo "✅ Generated bindings/generated/tribal.py"
 echo ""
 echo "Python bindings are ready!"
-echo "You can now:"
-echo "1. Copy Tribal.py and libtribal.dylib to your Python project"
-echo "2. Import with: from Tribal import *"
+echo ""
+echo "Test with:"
+echo "  source /home/relh/Code/metta/.venv/bin/activate  # if using uv"
+echo "  python test_tribal_bindings.py"
+echo ""
+echo "Or use in your Python code:"
+echo "  import sys, os"
+echo "  sys.path.insert(0, 'bindings/generated')"
+echo "  import tribal"
+echo "  env = tribal.TribalEnv(1000)"
