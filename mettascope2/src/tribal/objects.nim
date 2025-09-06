@@ -125,9 +125,6 @@ proc createProductionBuilding*(kind: ProductionBuildingKind): ProductionBuilding
     result.wheatCostOven = ClayOvenWheatCost
     result.outputFood = Bread
 
-proc createWeavingLoom*(): ProductionBuilding = createProductionBuilding(WeavingLoom)
-proc createArmory*(): ProductionBuilding = createProductionBuilding(Armory)  
-proc createClayOven*(): ProductionBuilding = createProductionBuilding(ClayOven)
 
 proc createSpawner*(): Structure =
   result.width = 3
@@ -221,13 +218,9 @@ proc updateHunger*(hunger: var HungerState): tuple[isDying: bool] =
   
   return (isDying: false)
 
-proc isHungerCritical*(hunger: HungerState): bool =
-  ## Check if hunger is at critical level (80% of max)
-  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10)
-
 proc shouldAgentEatAutomatically*(hunger: HungerState): bool =
   ## Determine if agent should automatically eat (when close to starving)
-  return hunger.isHungerCritical() and hunger.foodInventory.len > 0
+  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10) and hunger.foodInventory.len > 0
 
 proc handleStarvation*(hunger: var HungerState, agentPos: var IVec2, homeAltar: IVec2): tuple[
   died: bool,
@@ -283,7 +276,7 @@ proc getHungerStatus*(hunger: HungerState): string =
 
 proc shouldShowHungerWarning*(hunger: HungerState): bool =
   ## Check if we should display a hunger warning to the player
-  return hunger.isHungerCritical()
+  return hunger.currentHunger >= (hunger.maxHunger * 8 div 10)
 
 # Integration helper for main game loop
 proc processAgentHunger*(hunger: var HungerState, agentPos: var IVec2, 

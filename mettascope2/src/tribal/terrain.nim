@@ -127,13 +127,6 @@ proc createTerrainCluster*(terrain: var TerrainGrid, centerX, centerY: int, size
             if r.rand(1.0) < chance:
               terrain[x][y] = terrainType
 
-proc createWheatField*(terrain: var TerrainGrid, centerX, centerY: int, size: int, mapWidth, mapHeight: int, r: var Rand) =
-  ## Create a wheat field cluster around a center point
-  terrain.createTerrainCluster(centerX, centerY, size, mapWidth, mapHeight, Wheat, 1.0, 0.3, r)
-
-proc createTreeGrove*(terrain: var TerrainGrid, centerX, centerY: int, size: int, mapWidth, mapHeight: int, r: var Rand) =
-  ## Create a tree grove cluster around a center point
-  terrain.createTerrainCluster(centerX, centerY, size, mapWidth, mapHeight, Tree, 0.8, 0.4, r)
 
 proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
   ## Generate 7-10 clustered wheat fields for 100x50 map
@@ -162,7 +155,7 @@ proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBord
       # Prefer locations near water, but accept any after some attempts
       if nearWater or attempt > 10:
         let fieldSize = r.rand(3..10)  # Each field has 5-20 wheat tiles
-        createWheatField(terrain, x, y, fieldSize, mapWidth, mapHeight, r)
+        terrain.createTerrainCluster(x, y, fieldSize, mapWidth, mapHeight, Wheat, 1.0, 0.3, r)
         placed = true
         break
     
@@ -171,7 +164,7 @@ proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBord
       let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
       let y = r.rand(mapBorder + 3 .. mapHeight - mapBorder - 3)
       let fieldSize = r.rand(3..10)
-      createWheatField(terrain, x, y, fieldSize, mapWidth, mapHeight, r)
+      terrain.createTerrainCluster(x, y, fieldSize, mapWidth, mapHeight, Wheat, 1.0, 0.3, r)
 
 proc generateTrees*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
   ## Generate 7-10 tree groves for 100x50 map
@@ -181,7 +174,7 @@ proc generateTrees*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
     let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
     let y = r.rand(mapBorder + 3 .. mapHeight - mapBorder - 3)
     let groveSize = r.rand(3..10)  # Each grove has 3-10 trees
-    createTreeGrove(terrain, x, y, groveSize, mapWidth, mapHeight, r)
+    terrain.createTerrainCluster(x, y, groveSize, mapWidth, mapHeight, Tree, 0.8, 0.4, r)
 
 proc initTerrain*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, seed: int = 2024) =
   ## Initialize terrain with all features
