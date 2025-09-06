@@ -40,7 +40,7 @@ const
   MapObjectMineCooldown* = 5
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
-  SpawnerCooldown* = 40  # Steps between Clippy spawns (much reduced spawn rate)
+  SpawnerCooldown* = 13  # Steps between Clippy spawns (1/3 of original 40)
   ObservationLayers* = 19
   ObservationWidth* = 11
   ObservationHeight* = 11
@@ -119,6 +119,10 @@ type
     wanderAngle*: float    # Current angle in the circle pattern
     targetPos*: IVec2      # Current target (agent or altar)
     wanderStepsRemaining*: int  # Steps to wander before checking for targets
+    
+    # Spawner:
+    altarLocations*: seq[IVec2]  # All altar positions on the map
+    currentAltarIndex*: int      # Index of next altar to target
 
   Stats* = ref object
     # Agent Stats - aligned with 6 core actions:
@@ -380,8 +384,15 @@ proc findNearestThingPos*(env: Environment, fromPos: IVec2, kind: ThingKind): IV
   
   return nearestPos
 
+proc getAllAltarPositions*(env: Environment): seq[IVec2] =
+  ## Collect positions of all altars in the environment
+  result = @[]
+  for thing in env.things:
+    if thing.kind == Altar:
+      result.add(thing.pos)
+
 proc createClippy*(pos: IVec2, homeSpawner: IVec2, targetAltar: IVec2, r: var Rand): Thing =
-  ## Create a new Clippy that moves toward the nearest altar
+  ## Create a new Clippy that moves toward a specific target altar
   Thing(
     kind: Clippy,
     pos: pos,
@@ -389,7 +400,7 @@ proc createClippy*(pos: IVec2, homeSpawner: IVec2, targetAltar: IVec2, r: var Ra
     homeSpawner: homeSpawner,
     wanderRadius: 0,  # Unused - we use direct movement now
     wanderAngle: 0.0,  # Unused - we use direct movement now
-    targetPos: ivec2(-1, -1),  # Unused - we find nearest altar dynamically
+    targetPos: targetAltar,  # Specific altar target instead of dynamic search
     wanderStepsRemaining: 0,  # Unused - we move every step
   )
 
@@ -732,30 +743,21 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
         result.add(pos)
 
 
-proc getClippyMoveDirection(clippyPos: IVec2, things: seq[Thing], r: var Rand): IVec2 =
-  if r.rand(0.0..1.0) < 0.75:
-    let randomDirections = [
-      ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0),
-      ivec2(-1, -1), ivec2(1, -1), ivec2(-1, 1), ivec2(1, 1)
-    ]
-    return randomDirections[r.rand(0..<randomDirections.len)]
-  else:
-    var nearestAltar = ivec2(-1, -1)
-    var minDist = int.high
-    
-    for thing in things:
-      if isNil(thing) or thing.kind != Altar:
-        continue
-      let dist = manhattanDistance(clippyPos, thing.pos)
-      if dist < minDist:
-        minDist = dist
-        nearestAltar = thing.pos
-    
-    if nearestAltar.x >= 0:
-      return getDirectionTo(clippyPos, nearestAltar)
-    else:
-      let randomDirections = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+proc getClippyMoveDirection(clippy: Thing, r: var Rand): IVec2 =
+  # If clippy has a specific target altar, move toward it
+  if clippy.targetPos.x >= 0 and clippy.targetPos.y >= 0:
+    if r.rand(0.0..1.0) < 0.85:  # 85% of the time move toward target
+      return getDirectionTo(clippy.pos, clippy.targetPos)
+    else:  # 15% of the time move randomly for some variation
+      let randomDirections = [
+        ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0),
+        ivec2(-1, -1), ivec2(1, -1), ivec2(-1, 1), ivec2(1, 1)
+      ]
       return randomDirections[r.rand(0..<randomDirections.len)]
+  else:
+    # Fallback to random movement if no target
+    let randomDirections = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+    return randomDirections[r.rand(0..<randomDirections.len)]
 
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
   # Try with moderate attempts first
@@ -1243,6 +1245,13 @@ proc init(env: Environment) =
       resources: MapObjectMineInitialResources,
     ))
 
+  # Initialize altar locations for all spawners
+  let allAltarPositions = env.getAllAltarPositions()
+  for thing in env.things:
+    if thing.kind == Spawner:
+      thing.altarLocations = allAltarPositions
+      thing.currentAltarIndex = 0  # Start with first altar
+
   for agentId in 0 ..< MapAgents:
     env.updateObservations(agentId)
 
@@ -1398,9 +1407,17 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             var r = initRand(env.currentStep)
             let spawnPos = r.sample(emptyPositions)
             
-            # Create new Clippy with nearest altar as target
-            let nearestAltar = env.findNearestThingPos(thing.pos, Altar)
-            let newClippy = createClippy(spawnPos, thing.pos, nearestAltar, r)
+            # Get target altar from rotation
+            var targetAltar = ivec2(-1, -1)  # Default fallback
+            if thing.altarLocations.len > 0:
+              targetAltar = thing.altarLocations[thing.currentAltarIndex]
+              # Advance to next altar in rotation
+              thing.currentAltarIndex = (thing.currentAltarIndex + 1) mod thing.altarLocations.len
+            else:
+              # Fallback to nearest altar if no altar locations stored
+              targetAltar = env.findNearestThingPos(thing.pos, Altar)
+            
+            let newClippy = createClippy(spawnPos, thing.pos, targetAltar, r)
             # Don't add immediately - collect for later
             newClippysToSpawn.add(newClippy)
             
@@ -1426,8 +1443,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
   var r = initRand(env.currentStep)
   
   for clippy in clippysToProcess:
-    # Get movement direction from clippy AI (pass things directly)
-    let moveDir = getClippyMoveDirection(clippy.pos, env.things, r)
+    # Get movement direction from clippy AI (pass clippy directly)
+    let moveDir = getClippyMoveDirection(clippy, r)
     let newPos = clippy.pos + moveDir
     
     # Update clippy orientation based on movement direction
