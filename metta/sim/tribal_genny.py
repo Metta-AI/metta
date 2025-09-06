@@ -21,13 +21,28 @@ for path in _BINDINGS_PATHS:
         break
 
 try:
-    # Import genny-generated bindings
-    from Tribal import (
-        TribalEnv, TribalConfig, SeqInt, SeqFloat, SeqBool,
-        MAP_AGENTS, OBSERVATION_LAYERS, OBSERVATION_WIDTH, OBSERVATION_HEIGHT
-    )
+    # Import genny-generated bindings (lowercase 'tribal', not 'Tribal')
+    import tribal
+    
+    # Extract classes and functions
+    TribalEnv = tribal.TribalEnv
+    TribalConfig = tribal.TribalConfig
+    SeqInt = tribal.SeqInt
+    SeqFloat = tribal.SeqFloat
+    SeqBool = tribal.SeqBool
+    
+    # Constants
+    MAP_AGENTS = tribal.MAP_AGENTS
+    OBSERVATION_LAYERS = tribal.OBSERVATION_LAYERS  
+    OBSERVATION_WIDTH = tribal.OBSERVATION_WIDTH
+    OBSERVATION_HEIGHT = tribal.OBSERVATION_HEIGHT
+    MAP_WIDTH = tribal.MAP_WIDTH
+    MAP_HEIGHT = tribal.MAP_HEIGHT
+    
     # Helper functions  
-    from Tribal import default_config, get_action_space
+    default_max_steps = tribal.default_max_steps
+    check_error = tribal.check_error
+    take_error = tribal.take_error
     
     # Constants mapping
     MapAgents = MAP_AGENTS
@@ -36,8 +51,8 @@ try:
     ObservationHeight = OBSERVATION_HEIGHT
 except ImportError as e:
     raise ImportError(
-        f"Could not import Tribal bindings: {e}\n"
-        f"Run 'cd mettascope2 && ./build_bindings.sh' to generate bindings."
+        f"Could not import tribal bindings: {e}\n"
+        f"Run 'cd mettascope2 && nimble bindings' to generate bindings."
     )
 
 class TribalGridEnv:
@@ -51,21 +66,15 @@ class TribalGridEnv:
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize tribal environment."""
-        # Create configuration
+        # Get max_steps from config or use default
         if config is None:
-            self._nim_config = default_config()
+            max_steps = default_max_steps()
         else:
-            default_cfg = default_config()
-            self._nim_config = TribalConfig(
-                config.get('num_agents', default_cfg.num_agents),
-                config.get('max_steps', default_cfg.max_steps),
-                config.get('map_width', default_cfg.map_width),
-                config.get('map_height', default_cfg.map_height),
-                config.get('seed', default_cfg.seed)
-            )
+            max_steps = config.get('max_steps', default_max_steps())
         
-        # Create Nim environment instance
-        self._nim_env = TribalEnv(self._nim_config)
+        # Create Nim environment instance (our binding only takes max_steps)
+        self._nim_env = TribalEnv(max_steps)
+        self.max_steps_config = max_steps
         
         # Cache dimensions
         self.num_agents = MapAgents
@@ -73,20 +82,14 @@ class TribalGridEnv:
         self.observation_width = ObservationWidth
         self.observation_height = ObservationHeight
         
-        # Action space info
-        action_space_seq = get_action_space()
-        # Convert SeqInt to Python list
-        action_space_info = [action_space_seq[i] for i in range(len(action_space_seq))]
-        self.num_action_types = action_space_info[0]
-        self.max_argument = action_space_info[1]
+        # Action space info (tribal has 6 action types, 8 directional arguments)
+        self.num_action_types = 6  # NOOP, MOVE, ATTACK, GET, SWAP, PUT
+        self.max_argument = 8      # 8-directional
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
-        # Reset the Nim environment
-        if seed is not None:
-            self._nim_env.reset_env(seed)
-        else:
-            self._nim_env.reset_env()
+        # Reset the Nim environment (our binding doesn't take seed parameter)
+        self._nim_env.reset_env()
         
         # Get observations and convert to numpy
         obs_data = self._nim_env.get_observations()
@@ -94,7 +97,7 @@ class TribalGridEnv:
         
         info = {
             "current_step": self._nim_env.get_current_step(),
-            "max_steps": self._nim_env.get_max_steps(),
+            "max_steps": self.max_steps_config,
         }
         
         return observations, info
@@ -149,7 +152,7 @@ class TribalGridEnv:
         
         info = {
             "current_step": self._nim_env.get_current_step(),
-            "max_steps": self._nim_env.get_max_steps(),
+            "max_steps": self.max_steps_config,
             "episode_done": self._nim_env.is_episode_done(),
         }
         
@@ -194,8 +197,12 @@ class TribalGridEnv:
 
     def get_episode_stats(self) -> Dict[str, Any]:
         """Get episode statistics."""
-        stats_text = self._nim_env.get_episode_stats()
-        return {"stats_text": stats_text}
+        # Our binding doesn't have get_episode_stats, return basic info
+        return {
+            "current_step": self._nim_env.get_current_step(),
+            "max_steps": self.max_steps_config,
+            "episode_done": self._nim_env.is_episode_done(),
+        }
 
     @property
     def current_step(self) -> int:
@@ -205,7 +212,7 @@ class TribalGridEnv:
     @property
     def max_steps(self) -> int:
         """Get max steps."""
-        return self._nim_env.get_max_steps()
+        return self.max_steps_config
 
     def close(self) -> None:
         """Clean up environment."""
