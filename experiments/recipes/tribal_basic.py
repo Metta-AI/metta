@@ -52,8 +52,8 @@ def train() -> TrainTool:
     
     Uses a minimal configuration similar to the working arena recipe.
     """
-    # Create environment - start with small number of agents
-    env = make_tribal_environment(num_agents=8)  # Smaller than default 15
+    # Create environment (uses compile-time constant: 15 agents)
+    env = make_tribal_environment()
     
     # Minimal trainer config like arena recipe
     trainer_config = TrainerConfig(

@@ -30,10 +30,10 @@ class TribalGameConfig(Config):
     clippy_spawn_rate: float = Field(default=0.05, ge=0, le=1, description="Rate of enemy spawning")
     clippy_damage: int = Field(default=1, description="Damage dealt by enemies")
     
-    # Reward configuration (aligned with arena_basic_easy_shaped)
-    heart_reward: float = Field(default=10.0, description="Reward for creating hearts")
-    ore_reward: float = Field(default=0.01, description="Reward for collecting ore")
-    battery_reward: float = Field(default=0.1, description="Reward for crafting batteries")
+    # Reward configuration (exact arena_basic_easy_shaped values)
+    heart_reward: float = Field(default=1.0, description="Reward for creating hearts")
+    ore_reward: float = Field(default=0.1, description="Reward for collecting ore")
+    battery_reward: float = Field(default=0.8, description="Reward for crafting batteries")
     survival_penalty: float = Field(default=-0.01, description="Per-step survival penalty")
     death_penalty: float = Field(default=-5.0, description="Penalty for agent death")
 

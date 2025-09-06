@@ -71,9 +71,9 @@ proc defaultTribalConfig*(): TribalConfig =
       enableCombat: true,
       clippySpawnRate: 0.05,
       clippyDamage: 1,
-      heartReward: 10.0,
-      oreReward: 0.003,  # Match original RewardMineOre
-      batteryReward: 0.01,  # Match original RewardConvertOreToBattery
+      heartReward: 1.0,
+      oreReward: 0.1,  # Exact arena_basic_easy_shaped value
+      batteryReward: 0.8,  # Exact arena_basic_easy_shaped value
       survivalPenalty: -0.01,
       deathPenalty: -5.0
     ),
