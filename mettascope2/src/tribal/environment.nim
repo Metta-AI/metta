@@ -374,7 +374,7 @@ proc findNearestAltar*(env: Environment, fromPos: IVec2): IVec2 =
   
   for thing in env.things:
     if thing.kind == Altar:
-      let dist = abs(thing.pos.x - fromPos.x) + abs(thing.pos.y - fromPos.y)
+      let dist = manhattanDistance(thing.pos, fromPos)
       if dist < minDist:
         minDist = dist
         nearestAltar = thing.pos
@@ -753,10 +753,7 @@ proc getClippyMoveDirection(clippyPos: IVec2, things: seq[Thing], r: var Rand): 
         nearestAltar = thing.pos
     
     if nearestAltar.x >= 0:
-      let dx = nearestAltar.x - clippyPos.x
-      let dy = nearestAltar.y - clippyPos.y
-      result.x = if dx > 0: 1 elif dx < 0: -1 else: 0
-      result.y = if dy > 0: 1 elif dy < 0: -1 else: 0
+      return getDirectionTo(clippyPos, nearestAltar)
     else:
       let randomDirections = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
       return randomDirections[r.rand(0..<randomDirections.len)]
@@ -1390,7 +1387,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         var nearbyClippyCount = 0
         for other in env.things:
           if other.kind == Clippy:
-            let dist = abs(other.pos.x - thing.pos.x) + abs(other.pos.y - thing.pos.y)
+            let dist = manhattanDistance(other.pos, thing.pos)
             if dist <= 5:  # Within 5 tiles of spawner
               nearbyClippyCount += 1
         

@@ -158,25 +158,6 @@ proc getMoveToCardinalPosition(agentPos, targetPos: IVec2, env: Environment): IV
     
   return ivec2(0, 0)
 
-proc getDirectionTo(fromPos, toPos: IVec2): IVec2 =
-  let dx = toPos.x - fromPos.x
-  let dy = toPos.y - fromPos.y
-  
-  # Support diagonal movement
-  var dirX = 0'i32
-  var dirY = 0'i32
-  
-  if dx > 0:
-    dirX = 1
-  elif dx < 0:
-    dirX = -1
-  
-  if dy > 0:
-    dirY = 1
-  elif dy < 0:
-    dirY = -1
-  
-  result = ivec2(dirX, dirY)
 
 proc getOrientation(dir: IVec2): Orientation =
   # Handle diagonal directions first
@@ -467,41 +448,6 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   # Default: do nothing
   return [0'u8, 0'u8]  # Noop
 
-proc getClippyMoveDirection*(clippyPos: IVec2, things: seq[Thing], r: var Rand): IVec2 =
-  if r.rand(0.0..1.0) < 0.75:
-    let randomDirections = [
-      ivec2(0, -1),  # North
-      ivec2(0, 1),   # South  
-      ivec2(-1, 0),  # West
-      ivec2(1, 0),   # East
-      ivec2(-1, -1), # Northwest
-      ivec2(1, -1),  # Northeast
-      ivec2(-1, 1),  # Southwest
-      ivec2(1, 1)    # Southeast
-    ]
-    return randomDirections[r.rand(0..<randomDirections.len)]
-  else:
-    var nearestAltar = ivec2(-1, -1)
-    var minDist = int.high
-    
-    for thing in things:
-      if isNil(thing) or thing.kind != Altar:
-        continue
-      
-      let dist = manhattanDistance(clippyPos, thing.pos)
-      if dist < minDist:
-        minDist = dist
-        nearestAltar = thing.pos
-    
-    if nearestAltar.x >= 0:
-      let dx = nearestAltar.x - clippyPos.x
-      let dy = nearestAltar.y - clippyPos.y
-      result.x = if dx > 0: 1 elif dx < 0: -1 else: 0
-      result.y = if dy > 0: 1 elif dy < 0: -1 else: 0
-      return result
-    
-    let randomDirections = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
-    return randomDirections[r.rand(0..<randomDirections.len)]
 
 
 proc updateController*(controller: Controller) =
