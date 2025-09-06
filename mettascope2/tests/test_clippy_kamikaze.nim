@@ -4,6 +4,7 @@ import std/[strformat, strutils]
 import vmath
 import ../src/tribal/environment
 import ../src/tribal/objects
+import ../src/tribal/common
 
 proc testClippyAltarKamikaze() =
   echo "Test: Clippy Kamikaze Attack on Altar"
@@ -106,10 +107,7 @@ proc testMultipleClippyAttacks() =
           pos: pos,
           orientation: N,
           homeSpawner: ivec2(0, 0),
-          targetPos: altar.pos,
-          wanderRadius: 0,
-          wanderAngle: 0.0,
-          wanderStepsRemaining: 0,
+          targetPos: altar.pos
         )
         env.things.add(testClippy)
         env.grid[pos.x][pos.y] = testClippy

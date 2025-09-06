@@ -3,6 +3,7 @@ import vmath
 import ../src/tribal/environment
 import ../src/tribal/ai
 import ../src/tribal/objects
+import ../src/tribal/common
 
 proc createTestEnvironment(): Environment =
   ## Use the actual newEnvironment which creates a full game
