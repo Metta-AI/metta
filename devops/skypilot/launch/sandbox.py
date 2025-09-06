@@ -200,7 +200,7 @@ def print_cost_info(hourly_cost, num_gpus):
         print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
 
 
-def check_cluster_status(cluster_name: str) -> str:
+def check_cluster_status(cluster_name: str) -> str | None:
     """Check the status of a specific cluster.
 
     Returns:
@@ -248,10 +248,11 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
     try:
         retry_function(
             check_and_validate_status,
-            max_retries=timeout_seconds // 5,
-            retry_delay=5.0,
+            max_retries=timeout_seconds // 10,
+            initial_delay=5.0,
+            max_delay=10.0,
+            backoff_factor=1.0,
             exceptions=(Exception,),
-            error_prefix="Cluster status check",
         )
         print(f"{green('✓')} Cluster is now UP and ready")
         return True
@@ -370,7 +371,7 @@ Common management commands:
     print(f"🔌 Git ref: {cyan(git_ref)}")
 
     # Load configuration
-    config_path = "./devops/skypilot/config/sandbox.yaml"
+    config_path = "./devops/skypilot/launch/sandbox.yaml"
     config = load_sandbox_config(config_path)
 
     # Extract cloud configuration
