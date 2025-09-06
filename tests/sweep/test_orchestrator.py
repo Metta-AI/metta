@@ -3,11 +3,7 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.sweep.protein_config import ProteinConfig
-from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
-from metta.sweep.store.wandb import WandbStore
-from metta.sweep.sweep_orchestrator import (
+from metta.sweep import (
     JobDefinition,
     JobStatus,
     JobTypes,
@@ -16,6 +12,10 @@ from metta.sweep.sweep_orchestrator import (
     RunInfo,
     SweepMetadata,
 )
+from metta.sweep.optimizer.protein import ProteinOptimizer
+from metta.sweep.protein_config import ProteinConfig
+from metta.sweep.schedulers.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
+from metta.sweep.stores.wandb import WandbStore
 
 
 class TestJobStatus:

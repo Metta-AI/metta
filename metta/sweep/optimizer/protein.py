@@ -3,9 +3,9 @@
 import logging
 from typing import Any
 
+from metta.sweep.models import Observation
 from metta.sweep.protein_config import ProteinConfig
 from metta.sweep.protein_metta import MettaProtein
-from metta.sweep.sweep_orchestrator import Observation
 
 logger = logging.getLogger(__name__)
 
