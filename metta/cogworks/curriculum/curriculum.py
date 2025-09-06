@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import abc
 import random
+import time
 from abc import ABC
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
+from collections import deque
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
@@ -15,6 +17,118 @@ from pydantic import ConfigDict, Field
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
 from metta.mettagrid.config import Config
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+
+
+class TaskTracker:
+    """Tracks task metadata, performance history, and completion statistics."""
+
+    def __init__(self, max_memory_tasks: int = 1000):
+        self.max_memory_tasks = max_memory_tasks
+
+        # Task memory: task_id -> (creation_time, completion_count, total_score, last_score)
+        self._task_memory: Dict[int, Tuple[float, int, float, float]] = {}
+
+        # Task creation order for efficient cleanup
+        self._task_creation_order = deque()  # (timestamp, task_id) pairs
+
+        # Performance tracking
+        self._completion_history = deque(maxlen=1000)  # Recent completion scores
+
+        # Cached values to avoid expensive recomputation
+        self._cached_total_completions = 0
+        self._cache_valid = False
+
+    def track_task_creation(self, task_id: int) -> None:
+        """Track when a task is created."""
+        timestamp = time.time()
+        self._task_memory[task_id] = (timestamp, 0, 0.0, 0.0)
+        self._task_creation_order.append((timestamp, task_id))
+
+        # Cleanup old tasks if we exceed memory limit
+        if len(self._task_memory) > self.max_memory_tasks:
+            self._cleanup_old_tasks()
+
+        # Invalidate cache when task structure changes
+        self._cache_valid = False
+
+    def update_task_performance(self, task_id: int, score: float) -> None:
+        """Update task performance statistics."""
+        if task_id not in self._task_memory:
+            self.track_task_creation(task_id)
+
+        creation_time, completion_count, total_score, _ = self._task_memory[task_id]
+        new_completion_count = completion_count + 1
+        new_total_score = total_score + score
+
+        self._task_memory[task_id] = (creation_time, new_completion_count, new_total_score, score)
+        self._completion_history.append(score)
+
+        # Update cached total completions incrementally
+        if self._cache_valid:
+            self._cached_total_completions += 1
+        else:
+            self._cache_valid = False
+
+    def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
+        """Get statistics for a specific task."""
+        if task_id not in self._task_memory:
+            return None
+
+        creation_time, completion_count, total_score, last_score = self._task_memory[task_id]
+
+        if completion_count == 0:
+            return {
+                "completion_count": 0,
+                "mean_score": 0.0,
+                "last_score": 0.0,
+                "age_seconds": time.time() - creation_time,
+            }
+
+        return {
+            "completion_count": completion_count,
+            "mean_score": total_score / completion_count,
+            "last_score": last_score,
+            "age_seconds": time.time() - creation_time,
+        }
+
+    def get_all_tracked_tasks(self) -> list[int]:
+        """Get all currently tracked task IDs."""
+        return list(self._task_memory.keys())
+
+    def remove_task(self, task_id: int) -> None:
+        """Remove a task from tracking."""
+        if task_id in self._task_memory:
+            self._task_memory.pop(task_id)
+            # Remove from creation order (expensive but infrequent)
+            self._task_creation_order = deque((ts, tid) for ts, tid in self._task_creation_order if tid != task_id)
+            self._cache_valid = False
+
+    def _cleanup_old_tasks(self) -> None:
+        """Remove oldest tasks to keep memory usage under control."""
+        while len(self._task_memory) > self.max_memory_tasks and self._task_creation_order:
+            _, old_task_id = self._task_creation_order.popleft()
+            if old_task_id in self._task_memory:
+                self._task_memory.pop(old_task_id)
+
+        # Cache may still be valid after cleanup if we tracked changes
+        self._cache_valid = False
+
+    def get_global_stats(self) -> Dict[str, float]:
+        """Get global task tracking statistics."""
+        if not self._cache_valid:
+            self._cached_total_completions = sum(
+                completion_count for _, completion_count, _, _ in self._task_memory.values()
+            )
+            self._cache_valid = True
+
+        return {
+            "total_tracked_tasks": float(len(self._task_memory)),
+            "total_completions": float(self._cached_total_completions),
+            "avg_completions_per_task": float(self._cached_total_completions / len(self._task_memory))
+            if self._task_memory
+            else 0.0,
+            "recent_completion_history_size": float(len(self._completion_history)),
+        }
 
 
 def get_algorithm_hypers_discriminator(v):
@@ -106,21 +220,28 @@ class CurriculumAlgorithm(ABC):
         """Recommend which task to evict. Return None for random selection."""
         pass
 
-    @abc.abstractmethod
     def on_task_evicted(self, task_id: int) -> None:
         """Notification that a task has been evicted from the pool."""
-        pass
+        # Default implementation removes from task tracker
+        if hasattr(self, "task_tracker"):
+            self.task_tracker.remove_task(task_id)
 
-    @abc.abstractmethod
+    def on_task_created(self, task: "CurriculumTask") -> None:
+        """Notification that a new task has been created."""
+        # Default implementation tracks task creation
+        if hasattr(self, "task_tracker"):
+            self.task_tracker.track_task_creation(task._task_id)
+
     def update_task_performance(self, task_id: int, score: float):
-        """Update task performance. Override in subclasses that track performance."""
-        pass
+        """Update task performance. Default implementation updates task tracker."""
+        if hasattr(self, "task_tracker"):
+            self.task_tracker.update_task_performance(task_id, score)
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
         """Check if a task should be evicted based on algorithm-specific criteria.
 
-        Default implementation returns False (no eviction). Subclasses should override
-        to implement their own eviction criteria.
+        Default implementation uses task_tracker to check minimum presentations.
+        Subclasses should override to implement their own eviction criteria.
 
         Args:
             task_id: The task to check
@@ -129,6 +250,12 @@ class CurriculumAlgorithm(ABC):
         Returns:
             True if task should be evicted
         """
+        if hasattr(self, "task_tracker"):
+            task_stats = self.task_tracker.get_task_stats(task_id)
+            if not task_stats:
+                return False
+            # Only evict tasks with sufficient presentations
+            return task_stats["completion_count"] >= min_presentations
         return False
 
     def __init__(
@@ -142,9 +269,17 @@ class CurriculumAlgorithm(ABC):
             hypers = DiscreteRandomConfig()
         self.hypers = hypers
 
+        # Initialize task tracker for algorithms that need it
+        # Can be overridden in subclasses
+        self.task_tracker = TaskTracker(max_memory_tasks=1000)
+
     def stats(self, prefix: str = "") -> dict[str, float]:
         """Return statistics for logging purposes. Add `prefix` to all keys."""
-        return {}
+        stats = {}
+        if hasattr(self, "task_tracker"):
+            tracker_stats = self.task_tracker.get_global_stats()
+            stats.update({f"{prefix}tracker/{k}": v for k, v in tracker_stats.items()})
+        return stats
 
     def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
         """Get a task from the pool. Default implementation creates a simple task."""
@@ -177,14 +312,6 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
     def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
         """No preference for eviction - let Curriculum choose randomly."""
         return None
-
-    def on_task_evicted(self, task_id: int) -> None:
-        """No action needed for random curriculum."""
-        pass
-
-    def update_task_performance(self, task_id: int, score: float):
-        """Update task performance - no-op for discrete random curriculum."""
-        pass
 
 
 class CurriculumConfig(Config):
