@@ -55,6 +55,7 @@ class TestNodejsInstallationFlow(BaseMettaSetupTest):
         nodejs_setup = NodejsSetup()
         self.assertTrue(nodejs_setup.is_enabled(), "nodejs should be enabled for external profile")
 
+    @pytest.mark.slow
     def test_nodejs_binaries_installation_flow(self):
         """Test that nodejs installation provides all required binaries."""
         # Make sure the base is there
