@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
 import json
+import os
 import statistics
 import subprocess
+import sys
 import time
 import uuid
 from datetime import datetime
@@ -258,6 +260,46 @@ def aggregate_matrix_jobs(jobs: dict[str, Any], details: WorkflowRunDetails) -> 
 
             # Also add the worst case to regular job durations with a special key
             details.job_durations[f"{matrix_name} (worst-case: {worst_case['value']})"] = worst_case["duration"]
+
+
+def save_run_ids(run_ids_by_branch: dict[str, list[str]], script_dir: str) -> str:
+    """Save run IDs to a JSON file with timestamp"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    script_name = os.path.basename(sys.argv[0]) if sys.argv else "benchmark_checks_workflow.py"
+
+    filename = f"runs_{timestamp}.json"
+    filepath = os.path.join(script_dir, filename)
+    with open(filepath, "w") as f:
+        json.dump(run_ids_by_branch, f, indent=2)
+
+    print(f"\n💾 Saved run IDs to: {filepath}")
+    print(f"   To re-analyze these runs later: python {script_name} -f {filename}")
+    return filepath
+
+
+def load_run_ids(filepath: str) -> dict[str, list[str]]:
+    """Load run IDs from a JSON file
+
+    Expected JSON format:
+    ```
+    {
+      "main": ["17507770748", "17507770859", "17507771006"],
+      "robb/0905-matrix": ["17507771120", "17507771263"]
+    }
+    ```
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Run file not found: {filepath}")
+
+    with open(filepath, "r") as f:
+        data = json.load(f)
+
+    # Ensure all run IDs are strings
+    result = {}
+    for branch, run_ids in data.items():
+        result[branch] = [str(run_id) for run_id in run_ids]
+
+    return result
 
 
 def wait_for_run_completion(run_id: str) -> tuple[WorkflowRunDetails, str]:
@@ -667,12 +709,68 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Benchmark GitHub workflow across branches.")
-    parser.add_argument("branches", nargs="+", help="Branches to benchmark")
-    parser.add_argument("-n", "--repeats", type=int, default=10, help="Number of runs per branch")
+    parser = argparse.ArgumentParser(
+        description="Benchmark GitHub workflow across branches.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run new benchmarks on branches:
+  %(prog)s main feature/branch -n 5
+
+  # Re-analyze existing runs from file:
+  %(prog)s -f runs_20240105_143022.json
+
+  # Run benchmarks without saving run IDs:
+  %(prog)s main dev --no-save
+
+Expected JSON format for -f/--file:
+{
+  "main": ["17507770748", "17507770859", "17507771006"],
+  "robb/0905-matrix": ["17507771120", "17507771263"]
+}
+        """,
+    )
+
+    # Create mutually exclusive group for branches vs loading from file
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("branches", nargs="*", default=[], help="Branches to benchmark")
+    input_group.add_argument("-f", "--file", type=str, help="Load run IDs from JSON file")
+
+    parser.add_argument("-n", "--repeats", type=int, default=10, help="Number of runs per branch (ignored with --file)")
+    parser.add_argument("--no-save", action="store_true", help="Don't save run IDs to file")
+
     args = parser.parse_args()
 
-    triggered = trigger_all_runs(args.branches, args.repeats)
-    resolved = resolve_run_numbers(triggered)
-    results = wait_for_all_runs(resolved)
-    summarize(results)
+    # Get script directory for saving run files
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    if args.file:
+        # Load and analyze existing runs
+        print(f"📂 Loading run IDs from: {args.file}")
+        try:
+            run_ids = load_run_ids(args.file)
+            print(f"✅ Loaded {sum(len(ids) for ids in run_ids.values())} runs across {len(run_ids)} branches")
+            for branch, ids in run_ids.items():
+                print(f"   • {branch}: {len(ids)} runs")
+
+            # Proceed directly to analysis
+            results = wait_for_all_runs(run_ids)
+            summarize(results)
+
+        except Exception as e:
+            print(f"❌ Failed to load run file: {e}")
+            exit(1)
+    else:
+        # Normal mode: trigger new runs
+        if not args.branches:
+            parser.error("Please provide branches to benchmark or use --file to load existing runs")
+
+        triggered = trigger_all_runs(args.branches, args.repeats)
+        resolved = resolve_run_numbers(triggered)
+
+        # Save run IDs unless --no-save is specified
+        if not args.no_save:
+            save_run_ids(resolved, script_dir)
+
+        results = wait_for_all_runs(resolved)
+        summarize(results)
