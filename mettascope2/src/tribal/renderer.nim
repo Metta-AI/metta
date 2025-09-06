@@ -322,7 +322,7 @@ spawn ready: {selection.cooldown == 0}
       info = &"""
 Clippy
 home: ({selection.homeSpawner.x}, {selection.homeSpawner.y})
-wander radius: {selection.wanderRadius}
+target: ({selection.targetPos.x}, {selection.targetPos.y})
       """
     of Armory:
       info = &"""
