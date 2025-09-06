@@ -27,6 +27,7 @@ src/tribal/terrain
 # Test executables
 tests/test_*
 !tests/test_*.nim
+!tests/test_*.py
 !tests/test_*.sh
 
 # General pattern for Nim binaries in src directories
