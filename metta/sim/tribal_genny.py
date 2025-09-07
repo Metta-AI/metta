@@ -13,7 +13,7 @@ import numpy as np
 
 # Add the genny-generated bindings to Python path
 _BINDINGS_PATHS = [
-    Path(__file__).parent.parent.parent / "mettascope2" / "bindings" / "generated",
+    Path(__file__).parent.parent.parent / "tribal" / "bindings" / "generated",
 ]
 
 for path in _BINDINGS_PATHS:
