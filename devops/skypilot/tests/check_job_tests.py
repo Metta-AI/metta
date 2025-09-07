@@ -78,7 +78,7 @@ def format_termination_reason(reason: str | None) -> str:
         return "-"
     elif reason == "job_completed":
         return green(reason)
-    elif reason in ["heartbeat_timeout", "runtime_timeout"]:
+    elif reason in ["heartbeat_timeout", "max_runtime_reached"]:
         return yellow(reason)
     else:
         return red(reason)
@@ -168,7 +168,7 @@ def print_detailed_table(jobs: list, job_statuses: dict, job_summaries: dict) ->
     print("─" * 120)
 
     # Header
-    headers = ["Job ID", "Status", "Exit", "Termination", "Nodes", "Condition", "CI"]
+    headers = ["Job ID", "Status", "Exit", "Termination", "Nodes", "Condition", "Running CI tests?"]
     col_widths = [8, 12, 6, 20, 6, 20, 4]
 
     # Print headers
