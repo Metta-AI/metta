@@ -5,6 +5,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
 
 import sky
 import sky.jobs
@@ -308,80 +310,6 @@ def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> st
     return None
 
 
-def tail_job_log(job_id: str, lines: int = 100, timeout: int = 8) -> str | None:
-    """Get the tail of job logs, handling timeouts gracefully for running jobs."""
-    try:
-        # Get the full logs with a timeout
-        cmd = ["sky", "jobs", "logs", job_id]
-
-        # Use Popen for better control over partial output
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,  # Line buffered
-        )
-
-        try:
-            # Wait for completion with timeout
-            stdout, stderr = process.communicate(timeout=timeout)
-
-            if process.returncode == 0:
-                # Process completed successfully
-                log_lines = stdout.strip().split("\n")
-                if len(log_lines) > lines:
-                    return "\n".join(log_lines[-lines:])
-                else:
-                    return stdout
-            else:
-                # Command failed
-                return f"Error getting logs: {stderr}"
-
-        except subprocess.TimeoutExpired:
-            # Timeout occurred - kill the process but try to get partial output
-            process.kill()
-
-            # Try to get any partial output that was captured
-            partial_stdout = ""
-
-            try:
-                # Non-blocking read of available output
-                partial_stdout, _partial_stderr = process.communicate(timeout=1)
-            except subprocess.TimeoutExpired:
-                # If even the cleanup times out, read directly from pipes
-                if process.stdout:
-                    try:
-                        partial_stdout = process.stdout.read()
-                    except Exception:
-                        pass
-                if process.stderr:
-                    try:
-                        _partial_stderr = process.stderr.read()
-                    except Exception:
-                        pass
-
-            if partial_stdout:
-                # We have some output - return the tail of it
-                log_lines = partial_stdout.strip().split("\n")
-                timeout_msg = (
-                    f"[Note: Log collection timed out after {timeout}s - showing partial output from running job]"
-                )
-
-                if len(log_lines) > lines:
-                    return f"{timeout_msg}\n\n" + "\n".join(log_lines[-lines:])
-                else:
-                    return f"{timeout_msg}\n\n" + partial_stdout
-            else:
-                # No output captured
-                return (
-                    f"Error: Timeout getting logs after {timeout}s (job may still be provisioning or producing output)"
-                )
-
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-
 def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
     if not job_ids:
         return {}
@@ -440,3 +368,118 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
             job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": str(e)}
 
     return job_data
+
+
+def tail_job_log(job_id: str, lines: int = 100, timeout: int = 8) -> str | None:
+    """Get the tail of job logs, handling timeouts gracefully for running jobs."""
+
+    try:
+        cmd = ["sky", "jobs", "logs", job_id]
+
+        # Queue to collect output lines
+        output_queue = Queue()
+
+        def reader_thread(pipe, queue, pipe_name):
+            """Read lines from pipe and put them in queue."""
+            try:
+                for line in iter(pipe.readline, ""):
+                    if line:
+                        queue.put((pipe_name, line.rstrip()))
+            except Exception:
+                pass
+            finally:
+                queue.put((pipe_name, None))  # Signal end of stream
+
+        # Start the process
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+
+        # Start reader threads for both stdout and stderr
+        stdout_thread = Thread(target=reader_thread, args=(process.stdout, output_queue, "stdout"))
+        stderr_thread = Thread(target=reader_thread, args=(process.stderr, output_queue, "stderr"))
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
+        stdout_thread.start()
+        stderr_thread.start()
+
+        # Collect output with timeout
+        collected_lines = []
+        collected_errors = []
+        start_time = time.time()
+        streams_done = {"stdout": False, "stderr": False}
+
+        while time.time() - start_time < timeout:
+            # Check if both streams are done
+            if all(streams_done.values()):
+                break
+
+            try:
+                pipe_name, line = output_queue.get(timeout=0.1)
+
+                if line is None:
+                    streams_done[pipe_name] = True
+                else:
+                    if pipe_name == "stdout":
+                        collected_lines.append(line)
+                    else:
+                        collected_errors.append(line)
+
+            except Empty:
+                # Check if process ended
+                if process.poll() is not None:
+                    # Give a bit more time to collect remaining output
+                    end_collection_time = time.time() + 0.5
+                    while time.time() < end_collection_time and not output_queue.empty():
+                        try:
+                            pipe_name, line = output_queue.get_nowait()
+                            if line is not None:
+                                if pipe_name == "stdout":
+                                    collected_lines.append(line)
+                                else:
+                                    collected_errors.append(line)
+                            else:
+                                streams_done[pipe_name] = True
+                        except Empty:
+                            break
+                    break
+
+        # Clean up
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+
+        stdout_thread.join(timeout=1)
+        stderr_thread.join(timeout=1)
+
+        # Check if we got any error messages
+        if collected_errors and not collected_lines:
+            # Only errors, no stdout
+            error_msg = "\n".join(collected_errors)
+            # Check for common error patterns
+            if "does not exist" in error_msg or "not found" in error_msg:
+                return f"Error: {error_msg}"
+            else:
+                return f"Error: {error_msg}"
+
+        # Return stdout content
+        if collected_lines:
+            tail_lines = collected_lines[-lines:] if len(collected_lines) > lines else collected_lines
+
+            if time.time() - start_time >= timeout:
+                return f"[Note: Collection stopped after {timeout}s - job still running]\n\n" + "\n".join(tail_lines)
+            else:
+                return "\n".join(tail_lines)
+        else:
+            # No stdout content
+            if process.returncode == 0:
+                # Command succeeded but no output - job might not have logs yet
+                return "Error: No logs available yet (job may still be provisioning)"
+            else:
+                # Command failed
+                return f"Error: No logs retrieved after {timeout}s (job may still be provisioning)"
+
+    except Exception as e:
+        return f"Error: {str(e)}"

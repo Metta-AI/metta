@@ -17,6 +17,7 @@ from devops.skypilot.utils.job_config import JobConfig
 from devops.skypilot.utils.job_latency import calculate_queue_latency
 from devops.skypilot.utils.nccl_tests import launch_nccl_tests
 from devops.skypilot.utils.runtime_monitors import HeartbeatMonitor, TimeoutMonitor
+from devops.skypilot.utils.subprocess_helpers import terminate_process_group
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
 
@@ -137,15 +138,7 @@ def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> s
             should_terminate, reason = monitor.check_condition()
             if should_terminate:
                 logger.info(f"{monitor.name} triggered: {reason}")
-
-                logger.info(f"Terminating training process (PID: {job.pid})")
-                job.terminate()
-                try:
-                    job.wait(timeout=30)
-                except subprocess.TimeoutExpired:
-                    logger.warning("Process didn't terminate gracefully, killing it")
-                    job.kill()
-                    job.wait()
+                terminate_process_group(job)
 
                 return reason
 
