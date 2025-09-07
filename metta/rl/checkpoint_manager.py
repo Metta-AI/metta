@@ -17,6 +17,84 @@ from metta.rl.wandb import (
 logger = logging.getLogger(__name__)
 
 
+def _is_state_dict(loaded_obj: Any) -> bool:
+    """
+    Check if the loaded object is a state_dict (PufferLib format) rather than a full agent.
+    A state_dict is typically a dict with tensor values and parameter names as keys.
+    """
+    if not isinstance(loaded_obj, dict):
+        return False
+
+    # Check if it looks like a state_dict by examining keys and values
+    if not loaded_obj:
+        return False
+
+    # State dicts typically have keys ending with .weight, .bias, etc.
+    # and values that are tensors
+    sample_items = list(loaded_obj.items())[:5]  # Check first 5 items
+    for key, value in sample_items:
+        if isinstance(key, str) and torch.is_tensor(value):
+            # This looks like a parameter name -> tensor mapping
+            continue
+        else:
+            return False
+
+    return True
+
+
+def _create_agent_from_state_dict(state_dict: Dict[str, torch.Tensor], device: str | torch.device = "cpu"):
+    """
+    Create a MettaAgent from a state_dict (PufferLib checkpoint format).
+    This requires creating the agent architecture and loading the weights.
+    """
+    # Import here to avoid circular imports
+    from metta.agent.agent_config import AgentConfig
+    from metta.agent.metta_agent import MettaAgent
+    from metta.mettagrid.builder.envs import make_arena
+    from metta.mettagrid.mettagrid_env import MettaGridEnv
+    from metta.rl.system_config import SystemConfig
+
+    logger.info("Loading PufferLib checkpoint format (state_dict) - creating MettaAgent")
+
+    # Create a minimal environment for agent initialization
+    # Using default arena configuration similar to what PufferLib would use
+    env_cfg = make_arena(num_agents=60)  # Default from PufferLib environment
+    temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
+
+    # Create system and agent configs with defaults
+    system_cfg = SystemConfig(device=str(device))
+    agent_cfg = AgentConfig()  # Use default agent configuration
+
+    # Create the agent
+    agent = MettaAgent(temp_env, system_cfg, agent_cfg)
+
+    try:
+        # Load the state dict into the agent
+        agent.load_state_dict(state_dict, strict=False)
+        logger.info("Successfully loaded PufferLib state_dict into MettaAgent")
+    except Exception as e:
+        logger.warning(f"Failed to load state_dict with strict=False: {e}")
+        logger.info("Attempting to load compatible parameters only")
+
+        # Try to load only compatible parameters
+        agent_state = agent.state_dict()
+        compatible_state = {}
+
+        for key, value in state_dict.items():
+            if key in agent_state and agent_state[key].shape == value.shape:
+                compatible_state[key] = value
+            else:
+                logger.debug(f"Skipping incompatible parameter: {key}")
+
+        if compatible_state:
+            agent.load_state_dict(compatible_state, strict=False)
+            logger.info(f"Loaded {len(compatible_state)}/{len(state_dict)} compatible parameters")
+        else:
+            logger.warning("No compatible parameters found - proceeding with random initialization")
+
+    return agent
+
+
 class PolicyMetadata(TypedDict, total=False):
     """Type definition for policy metadata returned by get_policy_metadata."""
 
@@ -157,7 +235,24 @@ class CheckpointManager:
 
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device = "cpu"):
-        """Load a policy from a URI (file://, wandb://, s3://, or mock://)."""
+        """Load a policy from a URI (file://, wandb://, s3://, or mock://).
+        Supports both Metta format (full agent) and PufferLib format (state_dict)."""
+
+        def _load_and_handle_format(checkpoint_path_or_obj):
+            """Helper to load checkpoint and handle both formats."""
+            if isinstance(checkpoint_path_or_obj, (str, Path)):
+                loaded_obj = torch.load(checkpoint_path_or_obj, weights_only=False, map_location=device)
+            else:
+                loaded_obj = checkpoint_path_or_obj
+
+            # Check if this is a PufferLib checkpoint (state_dict format)
+            if _is_state_dict(loaded_obj):
+                logger.info(f"Detected PufferLib checkpoint format in {uri}")
+                return _create_agent_from_state_dict(loaded_obj, device)
+            else:
+                # Standard Metta format (full agent object)
+                return loaded_obj
+
         if uri.startswith("file://"):
             path = Path(_parse_uri_path(uri, "file"))
             if path.is_dir():
@@ -165,16 +260,21 @@ class CheckpointManager:
                 checkpoint_file = _find_latest_checkpoint_in_dir(path)
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
-                return torch.load(checkpoint_file, weights_only=False, map_location=device)
+                return _load_and_handle_format(checkpoint_file)
             # Load specific file
-            return torch.load(path, weights_only=False, map_location=device)
+            return _load_and_handle_format(path)
 
         if uri.startswith("s3://"):
             with local_copy(uri) as local_path:
-                return torch.load(local_path, weights_only=False, map_location=device)
+                return _load_and_handle_format(local_path)
 
         if uri.startswith("wandb://"):
-            return load_policy_from_wandb_uri(uri, device=device)
+            # For wandb, we need to handle the result after loading
+            loaded_obj = load_policy_from_wandb_uri(uri, device=device)
+            if _is_state_dict(loaded_obj):
+                logger.info(f"Detected PufferLib checkpoint format in wandb URI {uri}")
+                return _create_agent_from_state_dict(loaded_obj, device)
+            return loaded_obj
 
         if uri.startswith("mock://"):
             return MockAgent()
