@@ -149,17 +149,15 @@ def find_workflow_runs_batch(branch: str, run_ids: list[str]) -> dict[str, str]:
 
         try:
             runs = json.loads(result.stdout)
-            new_runs_count = len([r for r in runs if str(r["databaseId"]) not in run_logs_cache])
+            new_runs = [r for r in runs if str(r["databaseId"]) not in run_logs_cache]
+            new_runs_count = len(new_runs)
+
             if new_runs_count > 0:
                 print(f"  Checking {new_runs_count} new runs (already cached: {len(run_logs_cache)})")
 
-            # Check each run's logs for our run_ids
-            for j, run in enumerate(runs):
+            # Check each NEW run's logs for our run_ids
+            for j, run in enumerate(new_runs):
                 run_db_id = str(run["databaseId"])
-
-                # Skip if we already checked this run
-                if run_db_id in run_logs_cache:
-                    continue
 
                 # Show progress for larger searches
                 if new_runs_count >= 50 and (j + 1) % 25 == 0:
@@ -732,10 +730,10 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
                 print(f"Average test time (single job):        {format_duration(single_mean)}")
                 print(f"Speedup factor:                        {speedup:.2f}x")
 
-            if speedup > 1:
-                print(f"✅ Single job is {speedup:.2f}x faster than matrix worst-case")
-            else:
-                print(f"✅ Matrix worst-case is {1 / speedup:.2f}x slower than single job")
+                if speedup > 1:
+                    print(f"✅ Single job is {speedup:.2f}x faster than matrix worst-case")
+                else:
+                    print(f"✅ Matrix worst-case is {1 / speedup:.2f}x slower than single job")
 
     # Detailed breakdown per branch
     print("\n📋 DETAILED STEP TIMINGS PER BRANCH:")
