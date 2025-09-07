@@ -12,9 +12,6 @@ on:
       - ".github/workflows/build-home-docker.yml"
   workflow_dispatch: {}
 
-env:
-  IMAGE_NAME: softmax-home
-
 jobs:
   build-and-push-image:
     runs-on: ubuntu-4core
@@ -26,38 +23,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Build Docker image
+        id: build-image
+        uses: ./.github/actions/docker-build
         with:
-          role-to-assume: ${{ vars.AWS_ROLE }}
-          aws-region: us-east-1
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,format=long,priority=1000
-            type=sha,priority=999
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push Docker image
-        id: push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: home/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          image_name: softmax-home
+          dockerfile: home/Dockerfile
 
       - name: Deploy helm chart
         if: github.ref == 'refs/heads/main'
@@ -66,4 +37,4 @@ jobs:
 
           aws eks update-kubeconfig --name main --region us-east-1
           helm upgrade -n default home ./devops/charts/home \
-            --set image.tag=${{ steps.meta.outputs.version }}
+            --set image.tag=${{ steps.build-image.outputs.tag }}
