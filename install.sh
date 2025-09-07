@@ -47,11 +47,15 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Assumes install.sh is in root of repo
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+err() {
+  echo "ERROR: $1" >&2
+  exit 1
+}
 
-# Source common functions
-. "$REPO_ROOT/devops/tools/common.sh"
+check_cmd() {
+  command -v "$1" > /dev/null 2>&1
+  return $?
+}
 
 echo "Welcome to Metta!"
 

@@ -256,7 +256,7 @@ jobs:
             local color=$2
 
             # packages run in parallel so we will start (packages)*(pytest_workers) processes
-            PYTEST_BASE_ARGS="-n 2 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+            PYTEST_BASE_ARGS="-n 4 --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
             # Save raw output for duration parsing
             local raw_output="test-results/${package}_raw.log"
@@ -380,13 +380,36 @@ jobs:
         with:
           install-mode: "testing"
 
+      - name: Setup Bazel caching
+        run: |
+          # Bazel's default ~/.cache/bazel contains internal state with symlinks,
+          # lock files, and files with future timestamps (2035) that cause
+          # "File exists" errors when actions/cache tries to extract them.
+          #
+          # Using --disk_cache and --repository_cache directories avoids these
+          # issues by caching only reusable artifacts:
+          # - Build outputs (disk_cache)
+          # - Downloaded external dependencies (repository_cache)
+          #
+          # Documentation:
+          # - https://bazel.build/reference/command-line-reference#flag--disk_cache
+          # - https://bazel.build/reference/command-line-reference#flag--repository_cache
+          # - https://bazel.build/remote/caching#disk-cache
+
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
+
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
+
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
+        id: bazel-cache
         with:
           path: |
-            ~/.cache/bazel
-            ~/.cache/bazel-repo
-          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/MODULE.bazel.lock', 'mettagrid/.bazelrc') }}
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
 
@@ -428,12 +451,15 @@ jobs:
         env:
           PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks
         run: |
+          PYTEST_BENCHMARK_ARGS="-n 0 --timeout=100 --timeout-method=thread  --benchmark-only -v"
+
           # Main benchmarks
-          pytest -n 0 --benchmark-only --benchmark-json=main_benchmark_results.json
+          pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
           cd mettagrid
-          pytest -n 0 --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
+          pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=../mettagrid_benchmark_results.json
+
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -460,13 +486,24 @@ jobs:
         with:
           install-mode: "testing"
 
+      - name: Setup Bazel caching
+        run: |
+          # Configure Bazel to use specific cache directories
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
+
+          # Ensure directories exist
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
+
       - name: Cache Bazel build artifacts
         uses: actions/cache@v4
+        id: bazel-cache
         with:
           path: |
-            ~/.cache/bazel
-            ~/.cache/bazel-repo
-          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/MODULE.bazel.lock', 'mettagrid/.bazelrc') }}
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
 
