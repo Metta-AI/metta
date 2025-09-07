@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 
 from devops.skypilot.notifications.config import NotificationConfig
 from devops.skypilot.notifications.discord import DiscordNotifier
@@ -52,6 +53,35 @@ class NotificationManager:
         logger.info("[SUMMARY] ======================")
         logger.info(f"Job complete with exit code: {exit_code} (reason: {termination_reason or 'unknown'})")
 
+    @staticmethod
+    def get_exit_code_description(exit_code: int) -> str:
+        """Get human-readable description for process exit codes."""
+        exit_code_descriptions = {
+            # Standard exit codes
+            1: "General error",
+            2: "Misuse of shell command",
+            126: "Command cannot execute",
+            127: "Command not found",
+            # Signal-based exit codes (128 + signal number)
+            129: "Process terminated (SIGHUP)",
+            130: "Script terminated by Ctrl-C (SIGINT)",
+            131: "Core dumped (SIGQUIT)",
+            134: "Assertion failed (SIGABRT)",
+            135: "Process terminated (SIGTRAP)",
+            136: "Floating point exception (SIGFPE)",
+            137: "Process killed (SIGKILL) - likely OOM",
+            139: "Segmentation fault (SIGSEGV)",
+            140: "Bad system call (SIGSYS)",
+            141: "Broken pipe (SIGPIPE)",
+            143: "Process terminated (SIGTERM)",
+            # Python/runtime errors
+            255: "Uncaught exception or runtime error",
+            # Special codes
+            -1: "Unknown termination",
+        }
+
+        return exit_code_descriptions.get(exit_code, f"Unknown exit code ({exit_code})")
+
     def send_notifications(self, termination_reason: str):
         """Send notifications based on termination reason."""
         if not self.job_config.is_master:
@@ -84,7 +114,32 @@ class NotificationManager:
                     f"Job terminated after {self.job_config.restart_count} restarts with average runtime < 3 minutes"
                 ),
             ),
+            "job_completed": NotificationConfig(
+                emoji="✅",
+                title="SkyPilot Job Completed",
+                description="Job ran to completion.",
+            ),
         }
+
+        # Parse exit code from termination reason if it matches the pattern
+        exit_code = None
+        if termination_reason.startswith("job_failed_"):
+            match = re.match(r"job_failed_(-?\d+)", termination_reason)
+            if match:
+                exit_code = int(match.group(1))
+                logger.info(f"Parsed exit code {exit_code} from termination reason")
+
+                notifications.update(
+                    {
+                        termination_reason: NotificationConfig(
+                            emoji="🚨",
+                            title="SkyPilot Job Failed",
+                            description=(
+                                f"Job failed with code {exit_code}: {self.get_exit_code_description(exit_code)}"
+                            ),
+                        ),
+                    }
+                )
 
         if termination_reason not in notifications:
             logger.warning(f"No notification configuration found for termination reason: {termination_reason}")

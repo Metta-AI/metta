@@ -75,8 +75,8 @@ def create_job_config_from_environment() -> JobConfig:
     )
 
 
-def run_training_in_background():
-    """Launch training process in the background and return immediately."""
+def run_job_in_background() -> subprocess.Popen:
+    """Launch training process in the background and return the process handle."""
     cmd = ["./devops/run.sh"]
 
     module_path = os.environ.get("METTA_MODULE_PATH")
@@ -96,17 +96,18 @@ def run_training_in_background():
 
     logger.info(f"Launching training in background: {' '.join(cmd)}")
 
-    subprocess.Popen(
+    process = subprocess.Popen(
         cmd,
         start_new_session=True,
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
 
-    logger.info("Training process launched in background")
+    logger.info(f"Training process launched in background (PID: {process.pid})")
+    return process
 
 
-def monitor_until_termination(job_config: JobConfig) -> str:
+def monitor_until_termination(job_config: JobConfig, subprocess: subprocess.Popen) -> str:
     monitors = []
 
     if job_config.heartbeat_timeout:
@@ -119,8 +120,19 @@ def monitor_until_termination(job_config: JobConfig) -> str:
 
     logger.info(f"Starting monitoring loop with {len(monitors)} monitor(s)")
 
-    # Main monitoring loop
+    # We don't explicitly terminate the subprocess when monitors trigger.
+    # Instead, we exit with an appropriate code and let SkyPilot handle cluster
+    # shutdown, which cleanly terminates all processes.
+
     while True:
+        exit_code = subprocess.poll()
+        if exit_code is not None:
+            logger.info(f"Subprocess exited with code {exit_code}")
+            if exit_code == 0:
+                return "job_completed"
+            else:
+                return f"job_failed_{exit_code}"
+
         for monitor in monitors:
             should_terminate, reason = monitor.check_condition()
             if should_terminate:
@@ -166,8 +178,8 @@ def main() -> int:
             termination_reason = "rapid_restarts"
 
     if not termination_reason:
-        run_training_in_background()
-        termination_reason = monitor_until_termination(job_config)
+        subprocess = run_job_in_background()
+        termination_reason = monitor_until_termination(job_config, subprocess)
 
     notifications_manager.log_final_summary(0, termination_reason)
     notifications_manager.send_notifications(termination_reason)
