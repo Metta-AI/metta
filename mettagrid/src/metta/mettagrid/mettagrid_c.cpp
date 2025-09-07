@@ -47,8 +47,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
-      _track_movement_metrics(game_config.track_movement_metrics),
-      _resource_loss_prob(game_config.resource_loss_prob) {
+      _track_movement_metrics(game_config.track_movement_metrics) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -482,27 +481,31 @@ void MettaGrid::_step(Actions actions) {
     }
   }
 
+  // ?? MH: do here
   // Handle resource loss
   for (auto& agent : _agents) {
-    if (_resource_loss_prob > 0.0f) {
-      // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
-      // Make a real copy of the agent's inventory map to avoid iterator invalidation
-      const auto inventory_copy = agent->inventory;
-      for (const auto& [item, qty] : inventory_copy) {
-        if (qty > 0) {
-          float loss = _resource_loss_prob * qty;
-          InventoryDelta lost = static_cast<InventoryDelta>(std::floor(loss));
-          // With probability equal to the fractional part, lose one more
-          if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
-            lost += 1;
-          }
-
-          if (lost > 0) {
-            agent->update_inventory(item, -lost);
-          }
-        }
-      }
-    }
+     // Make a real copy of the agent's inventory map to avoid iterator invalidation
+     const auto inventory_copy = agent->inventory;
+     for (const auto& [item, qty] : inventory_copy) {
+       if (qty <= 0) {
+         continue;
+       }
+       // Per-agent resource loss probability
+       float prob = 0.0f;
+       if (auto it = agent->resource_loss_probs.find(item); it != agent->resource_loss_probs.end()) {
+         prob = it->second;
+       }
+       if (prob <= 0.0f) {
+         continue;
+       }
+       double loss = static_cast<double>(prob) * qty;
+       int lost = static_cast<int>(std::floor(loss));
+       // With probability equal to the fractional part, lose one more
+       if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
+         lost += 1;
+       }
+       if (lost > 0) {
+         agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
   }
 
   // Compute observations for next step

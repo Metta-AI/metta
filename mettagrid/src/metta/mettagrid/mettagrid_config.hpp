@@ -74,8 +74,6 @@ inline void bind_game_config(py::module& m) {
                     const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
-                    float,
-
                     // FEATURE FLAGS
                     bool,
                     bool,
@@ -90,7 +88,6 @@ inline void bind_game_config(py::module& m) {
            py::arg("global_obs"),
            py::arg("actions"),
            py::arg("objects"),
-           py::arg("resource_loss_prob") = 0.0f,
 
            // FEATURE FLAGS
            py::arg("track_movement_metrics"),
@@ -105,13 +102,14 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
 
+      // MH ?? It is confusing what "these" are in this comment
+      //
       // We don't expose these since they're copied on read, and this means that mutations
       // to the dictionaries don't impact the underlying cpp objects. This is confusing!
       // This can be fixed, but until we do that, we're not exposing these.
       // .def_readwrite("actions", &GameConfig::actions)
       // .def_readwrite("objects", &GameConfig::objects);
 
-      .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
 
       // FEATURE FLAGS
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)

@@ -85,6 +85,7 @@ class AgentConfig(GridObjectConfig):
         stat_reward_max: dict[str, float] = {},
         group_reward_pct: float = 0,
         initial_inventory: dict[int, int] = {},
+        resource_loss_probs: dict[int, float] = {},
     ) -> None: ...
     type_id: int
     type_name: str
@@ -114,6 +115,7 @@ class ConverterConfig(GridObjectConfig):
         initial_resource_count: int = 0,
         color: int = 0,
         recipe_details_obs: bool = False,
+        resource_loss_probs: dict[int, float] = {},
     ) -> None: ...
     type_id: int
     type_name: str
@@ -182,7 +184,6 @@ class GameConfig:
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
-        resource_loss_prob: float = 0.0,
         track_movement_metrics: bool = False,
         recipe_details_obs: bool = False,
         allow_diagonals: bool = False,
@@ -195,7 +196,6 @@ class GameConfig:
     resource_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
-    resource_loss_prob: float
     # FEATURE FLAGS
     track_movement_metrics: bool
     recipe_details_obs: bool

@@ -112,8 +112,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_id": 0,
             "type_name": "agent",
             "initial_inventory": initial_inventory,
+            # MH ?? what is agent_group_props?
+            # Per-agent resource loss probs (name->id mapping)
+            "resource_loss_probs": {
+                resource_name_to_id[k]: float(v)
+                for k, v in (agent_group_props.get("resource_loss_probs") or {}).items()
+                if k in resource_name_to_id
+            },
         }
-
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
 
         # Also register team_X naming convention for maps that use it
@@ -240,9 +246,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
-
-    # Add resource_loss_prob
-    game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
 
     # Set feature flags
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
