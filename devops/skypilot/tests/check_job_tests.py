@@ -22,7 +22,6 @@ def parse_job_summary(log_content: str) -> Dict[str, Optional[str]]:
     summary = {
         "exit_code": None,
         "termination_reason": None,
-        "skypilot_status": None,
         "metta_run_id": None,
         "skypilot_task_id": None,
     }
@@ -48,25 +47,6 @@ def parse_job_summary(log_content: str) -> Dict[str, Optional[str]]:
             match = re.search(r"Skypilot Task ID: (.+?)(?:\s*\[|$)", line)
             if match:
                 summary["skypilot_task_id"] = match.group(1).strip()
-
-    # Parse skypilot final status
-    status_patterns = [
-        (r"✓ Job finished \(status: (\w+)\)", "match_group"),
-        (r"Job finished \(status: (\w+)\)", "match_group"),
-        (r"\[FAILED\]", "literal:FAILED"),
-        (r"\[CANCELLED\]", "literal:CANCELLED"),
-    ]
-
-    for pattern, pattern_type in status_patterns:
-        if pattern_type.startswith("literal:"):
-            if re.search(pattern, log_content):
-                summary["skypilot_status"] = pattern_type.split(":")[1]
-                break
-        else:
-            match = re.search(pattern, log_content)
-            if match:
-                summary["skypilot_status"] = match.group(1)
-                break
 
     return summary
 
@@ -105,8 +85,51 @@ def format_termination_reason(reason: Optional[str]) -> str:
         return red(reason)
 
 
-def print_summary_table(jobs: list, job_statuses: Dict, job_summaries: Dict) -> None:
-    """Print a detailed summary table of all jobs."""
+def print_quick_summary(jobs: list, job_statuses: Dict) -> Dict[str, int]:
+    """Print a quick status summary and return status counts."""
+    print(f"\n{bold('Job Status Summary:')}")
+    print("-" * 60)
+
+    status_counts = {}
+    for job in jobs:
+        if job.get("job_id"):
+            job_id = int(job["job_id"])
+            job_info = job_statuses.get(job_id, {})
+            status = job_info.get("status", "UNKNOWN")
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+            # Color code the status
+            status_colored = format_status(status)
+            print(f"  Job {yellow(job['job_id'])}: {status_colored} ({job['condition_name']})")
+
+    print("-" * 60)
+
+    # Display status counts
+    for status, count in sorted(status_counts.items()):
+        status_colored = format_status(status)
+        print(f"{status_colored}: {count}")
+
+    return status_counts
+
+
+def parse_all_job_summaries(jobs: list, tail_lines: int) -> Dict[int, Dict[str, Optional[str]]]:
+    """Parse job summaries from logs for all jobs."""
+    print(f"\n{cyan('Parsing job logs for detailed information...')}")
+    job_summaries = {}
+
+    for job in jobs:
+        job_id_str = job.get("job_id")
+        if job_id_str:
+            job_id = int(job_id_str)
+            # Get log content to parse summary info
+            log_content = tail_job_log(job_id_str, tail_lines)
+            job_summaries[job_id] = parse_job_summary(log_content)
+
+    return job_summaries
+
+
+def print_detailed_table(jobs: list, job_statuses: Dict, job_summaries: Dict) -> None:
+    """Print a detailed summary table of all jobs with parsed log information."""
     print(f"\n{bold('Detailed Job Status:')}")
     print("─" * 120)
 
@@ -194,35 +217,14 @@ def main():
     job_ids = [int(job["job_id"]) for job in launched_jobs if job.get("job_id")]
     job_statuses = check_job_statuses(job_ids)
 
-    # Parse job summaries from logs
-    job_summaries = {}
-    for job in launched_jobs:
-        job_id_str = job.get("job_id")
-        if job_id_str:
-            job_id = int(job_id_str)
-            # Get log content to parse summary info
-            log_content = tail_job_log(job_id_str, args.tail_lines)
-            job_summaries[job_id] = parse_job_summary(log_content)
+    # Quick status summary first - provide immediate feedback
+    print_quick_summary(launched_jobs, job_statuses)
 
-    # Quick status summary first
-    print(f"\n{bold('Status Summary:')}")
-    print("-" * 60)
-
-    status_counts = {}
-    for job in launched_jobs:
-        if job.get("job_id"):
-            job_id = int(job["job_id"])
-            job_info = job_statuses.get(job_id, {})
-            status = job_info.get("status", "UNKNOWN")
-            status_counts[status] = status_counts.get(status, 0) + 1
-
-    # Display status counts
-    for status, count in sorted(status_counts.items()):
-        status_colored = format_status(status)
-        print(f"{status_colored}: {count}")
+    # Parse job summaries from logs (this might take a moment)
+    job_summaries = parse_all_job_summaries(launched_jobs, args.tail_lines)
 
     # Print the detailed summary table
-    print_summary_table(launched_jobs, job_statuses, job_summaries)
+    print_detailed_table(launched_jobs, job_statuses, job_summaries)
 
     # If logs flag is set, show detailed logs
     if args.logs:
