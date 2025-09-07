@@ -6,17 +6,5 @@
   "reportMissingModuleSource": false,
   "pythonVersion": "3.11",
   "venvPath": ".",
-  "python.analysis.typeCheckingMode": "standard",
-  "python.analysis.diagnosticSeverityOverrides": {
-    "reportGeneralTypeIssues": "warning",
-    "reportArgumentType": "warning",
-    "reportReturnType": "warning",
-    "reportAttributeAccessIssue": "warning",
-    "reportCallIssue": "warning",
-    "reportAssignmentType": "warning",
-    "reportOptionalMemberAccess": "warning",
-    "reportOptionalCall": "warning",
-    "reportOptionalSubscript": "warning",
-    "reportOptionalIterable": "warning"
-  }
+  "venv": ".venv"
 }
