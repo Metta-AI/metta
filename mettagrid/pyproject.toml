@@ -4,8 +4,8 @@ build-backend = "bazel_build"
 backend-path = ["."]
 
 [project]
-name = "metta-mettagrid"
-version = "0.2.0.3"
+name = "mettagrid"
+version = "0.2"
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = "==3.11.7"
