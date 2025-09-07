@@ -256,7 +256,7 @@ jobs:
             local color=$2
 
             # packages run in parallel so we will start (packages)*(pytest_workers) processes
-            PYTEST_BASE_ARGS="-n 2 --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+            PYTEST_BASE_ARGS="-n 4 --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
             # Save raw output for duration parsing
             local raw_output="test-results/${package}_raw.log"
@@ -451,12 +451,15 @@ jobs:
         env:
           PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks
         run: |
+          PYTEST_BENCHMARK_ARGS="-n 0 --timeout=100 --timeout-method=thread  --benchmark-only -v"
+
           # Main benchmarks
-          pytest -n 0 --benchmark-only --benchmark-json=main_benchmark_results.json
+          pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
           cd mettagrid
-          pytest -n 0 --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
+          pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=../mettagrid_benchmark_results.json
+
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
