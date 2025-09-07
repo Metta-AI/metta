@@ -107,7 +107,7 @@ def run_job_in_background() -> subprocess.Popen:
     return process
 
 
-def monitor_until_termination(job_config: JobConfig, subprocess: subprocess.Popen) -> str:
+def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> str:
     monitors = []
 
     if job_config.heartbeat_timeout:
@@ -125,7 +125,7 @@ def monitor_until_termination(job_config: JobConfig, subprocess: subprocess.Pope
     # shutdown, which cleanly terminates all processes.
 
     while True:
-        exit_code = subprocess.poll()
+        exit_code = job.poll()
         if exit_code is not None:
             logger.info(f"Subprocess exited with code {exit_code}")
             if exit_code == 0:
@@ -137,7 +137,19 @@ def monitor_until_termination(job_config: JobConfig, subprocess: subprocess.Pope
             should_terminate, reason = monitor.check_condition()
             if should_terminate:
                 logger.info(f"{monitor.name} triggered: {reason}")
+
+                # Terminate the subprocess to avoid possible race condition
+                logger.info(f"Terminating training process (PID: {job.pid})")
+                job.terminate()
+                try:
+                    job.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    logger.warning("Process didn't terminate gracefully, killing it")
+                    job.kill()
+                    job.wait()
+
                 return reason
+
         time.sleep(10)
 
 

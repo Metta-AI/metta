@@ -11,15 +11,14 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Optional
 
 from devops.skypilot.utils.job_helpers import check_job_statuses, tail_job_log
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 
 
-def parse_job_summary(log_content: str) -> Dict[str, Optional[str]]:
+def parse_job_summary(log_content: str) -> dict[str, str | None]:
     """Parse job summary information from log content."""
-    summary = {
+    summary: dict[str, str | None] = {
         "exit_code": None,
         "termination_reason": None,
         "metta_run_id": None,
@@ -63,7 +62,7 @@ def format_status(status: str) -> str:
         return yellow(status)
 
 
-def format_exit_code(code: Optional[str]) -> str:
+def format_exit_code(code: str | None) -> str:
     """Format exit code with color coding."""
     if code is None:
         return "-"
@@ -73,7 +72,7 @@ def format_exit_code(code: Optional[str]) -> str:
         return red(code)
 
 
-def format_termination_reason(reason: Optional[str]) -> str:
+def format_termination_reason(reason: str | None) -> str:
     """Format termination reason with color coding."""
     if reason is None:
         return "-"
@@ -85,7 +84,7 @@ def format_termination_reason(reason: Optional[str]) -> str:
         return red(reason)
 
 
-def print_quick_summary(jobs: list, job_statuses: Dict) -> Dict[str, int]:
+def print_quick_summary(jobs: list, job_statuses: dict) -> dict[str, int]:
     """Print a quick status summary and return status counts."""
     print(f"\n{bold('Job Status Summary:')}")
     print("-" * 60)
@@ -112,30 +111,44 @@ def print_quick_summary(jobs: list, job_statuses: Dict) -> Dict[str, int]:
     return status_counts
 
 
-def parse_all_job_summaries(jobs: list, tail_lines: int) -> Dict[int, Dict[str, Optional[str]]]:
+def parse_all_job_summaries(jobs: list, tail_lines: int) -> dict[int, dict[str, str | None]]:
     """Parse job summaries from logs for all jobs."""
     print(f"\n{cyan('Parsing job logs for detailed information...')}")
     job_summaries = {}
 
+    total_jobs = len([job for job in jobs if job.get("job_id")])
+    processed = 0
+
     for job in jobs:
         job_id_str = job.get("job_id")
         if job_id_str:
+            processed += 1
+            print(
+                f"  [{processed}/{total_jobs}] Processing job {yellow(job_id_str)} ({job['condition_name']})...",
+                end="\r",
+            )
+
             job_id = int(job_id_str)
             # Get log content to parse summary info
             log_content = tail_job_log(job_id_str, tail_lines)
-            job_summaries[job_id] = parse_job_summary(log_content)
+            if not log_content:
+                print(f"\n{yellow('No job logs found for {job_id_str}')}")
+            job_summaries[job_id] = parse_job_summary(log_content) if log_content else None
+
+    # Clear the progress line and show completion
+    print(f"  {green('✓')} Parsed logs for {processed} jobs" + " " * 50)
 
     return job_summaries
 
 
-def print_detailed_table(jobs: list, job_statuses: Dict, job_summaries: Dict) -> None:
+def print_detailed_table(jobs: list, job_statuses: dict, job_summaries: dict) -> None:
     """Print a detailed summary table of all jobs with parsed log information."""
     print(f"\n{bold('Detailed Job Status:')}")
     print("─" * 120)
 
     # Header
-    headers = ["Job ID", "Status", "Exit", "Termination", "Nodes", "Condition", "CI", "Run Name"]
-    col_widths = [8, 12, 6, 20, 6, 20, 4, 40]
+    headers = ["Job ID", "Status", "Exit", "Termination", "Nodes", "Condition", "CI"]
+    col_widths = [8, 12, 6, 20, 6, 20, 4]
 
     # Print headers
     header_line = ""
@@ -163,10 +176,9 @@ def print_detailed_table(jobs: list, job_statuses: Dict, job_summaries: Dict) ->
         nodes_fmt = str(job["nodes"])
         condition_fmt = job["condition_name"][:20]
         ci_fmt = green("✓") if job.get("ci_tests_enabled") else ""
-        run_name_fmt = cyan(job["run_name"][:40])
 
         # Build row
-        row_values = [job_id_fmt, status_fmt, exit_fmt, term_fmt, nodes_fmt, condition_fmt, ci_fmt, run_name_fmt]
+        row_values = [job_id_fmt, status_fmt, exit_fmt, term_fmt, nodes_fmt, condition_fmt, ci_fmt]
 
         row = ""
         for value, width in zip(row_values, col_widths, strict=False):
@@ -270,7 +282,7 @@ def main():
     print(f"\n{bold('Hints:')}")
     print(f"  • Use {cyan('-l')} or {cyan('--logs')} to view detailed job logs")
     print(f"  • Use {cyan('-n <lines>')} to change the number of log lines to tail")
-    print("  • Jobs with exit code 0 and termination reason 'job_completed' are successful")
+    print(f"  • Use {cyan('sky jobs logs <job_id>')} to view a single job's full log")
 
 
 if __name__ == "__main__":
