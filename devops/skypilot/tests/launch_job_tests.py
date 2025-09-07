@@ -17,7 +17,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
+import gitta as git
 from devops.skypilot.utils.job_helpers import (
+    check_git_state,
     get_job_id_from_request_id,
     get_request_id_from_launch_output,
 )
@@ -56,7 +58,11 @@ def generate_run_name(base: str, nodes: int, condition: str, ci_test: bool = Fal
 
 
 def launch_job(
-    nodes: int, condition_config: dict, run_name: str, enable_ci_tests: bool = False
+    nodes: int,
+    condition_config: dict,
+    run_name: str,
+    enable_ci_tests: bool = False,
+    skip_git_check: bool = False,
 ) -> Tuple[Optional[str], Optional[str]]:
     # Build the command
     cmd = [
@@ -72,6 +78,9 @@ def launch_job(
 
     if enable_ci_tests:
         cmd.append("--run-ci-tests")
+
+    if skip_git_check:
+        cmd.append("--skip-git-check")
 
     # Display launch info
     print(f"\n{bold('Launching job:')} {yellow(run_name)}")
@@ -140,11 +149,23 @@ def main():
     parser = argparse.ArgumentParser(description="Launch skypilot test matrix")
     parser.add_argument("--base-name", default="skypilot_test", help="Base name for the test runs")
     parser.add_argument("--output-file", default="skypilot_test_jobs.json", help="Output file for job information")
+    parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
 
     args = parser.parse_args()
 
+    # Check git state before launching any jobs
+    if not args.skip_git_check:
+        print(f"\n{bold('Checking git state...')}")
+        commit_hash = git.get_current_commit()
+        error_message = check_git_state(commit_hash)
+        if error_message:
+            print(error_message)
+            print("  - Skip check: add --skip-git-check flag")
+            sys.exit(1)
+        print(f"{green('✅ Git state is clean')}")
+
     # Show test matrix
-    print(bold("=== Skypilot Test Matrix ==="))
+    print(f"\n{bold('=== Skypilot Test Matrix ===')}")
     print(f"{cyan('Node configurations:')} {NODE_CONFIGS}")
     print(f"{cyan('Test conditions:')}")
     for _key, config in TEST_CONDITIONS.items():
@@ -165,7 +186,11 @@ def main():
             run_name = generate_run_name(args.base_name, nodes, condition_key, ci_test=enable_ci_tests)
 
             job_id, request_id = launch_job(
-                nodes=nodes, condition_config=condition_config, run_name=run_name, enable_ci_tests=enable_ci_tests
+                nodes=nodes,
+                condition_config=condition_config,
+                run_name=run_name,
+                enable_ci_tests=enable_ci_tests,
+                skip_git_check=args.skip_git_check,
             )
 
             job_info = {
