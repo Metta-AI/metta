@@ -198,16 +198,17 @@ def print_detailed_table(jobs: list, job_statuses: dict, job_summaries: dict) ->
         condition_fmt = job["condition_name"][:20]
         ci_fmt = green("✓") if job.get("ci_tests_enabled") else ""
 
-        # Build row
         row_values = [job_id_fmt, status_fmt, exit_fmt, term_fmt, nodes_fmt, condition_fmt, ci_fmt]
 
-        row = ""
+        formatted_values = []
         for value, width in zip(row_values, col_widths, strict=False):
             # Account for ANSI color codes when calculating padding
             visible_len = len(re.sub(r"\x1b\[[0-9;]+m", "", str(value)))
             padding = width - visible_len
-            row += f"{value}{' ' * max(0, padding)} │ "
-        print(row.rstrip())
+            formatted_values.append(f"{value}{' ' * max(0, padding)}")
+
+        row = " │ ".join(formatted_values)
+        print(row)
 
     print("─" * 120)
 
