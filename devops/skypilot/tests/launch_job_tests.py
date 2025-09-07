@@ -207,8 +207,10 @@ def main():
 
     # Print summary
     print(f"\n{bold('=== Launch Summary ===')}")
-    print(f"{green('Successfully launched:')} {len(launched_jobs)} jobs")
-    print(f"{red('Failed to launch:')} {len(failed_launches)} jobs")
+    if len(launched_jobs) > 0:
+        print(f"{green('Successfully launched:')} {len(launched_jobs)} jobs")
+    if len(failed_launches) > 0:
+        print(f"{red('Failed to launch:')} {len(failed_launches)} jobs")
     print(f"{cyan('Results saved to:')} {output_path.absolute()}")
 
     # Print nice summary table
