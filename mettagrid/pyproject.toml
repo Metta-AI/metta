@@ -4,7 +4,7 @@ build-backend = "bazel_build"
 backend-path = ["."]
 
 [project]
-name = "mettagrid"
+name = "mettagrid" # Do not change! Has to be 'mettagrid' for our PyPi package
 version = "0.2"
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
