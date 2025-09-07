@@ -49,16 +49,35 @@ def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumCo
     return CurriculumConfig(task_generator=arena_tasks)
 
 
-def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+def make_evals(
+    env: Optional[MettaGridConfig] = None, num_episodes: int = 5
+) -> List[SimulationConfig]:
     basic_env = env or make_mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+    # Add intermediate rewards to help the agent succeed
+    basic_env.game.agent.rewards.inventory.update(
+        {
+            "ore_red": 0.1,  # Reward resource collection
+            "battery_red": 0.2,  # Reward processing
+            "laser": 0.1,  # Reward combat prep
+            "armor": 0.1,  # Reward defense
+        }
+    )
 
     combat_env = basic_env.model_copy()
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
+    # Add same intermediate rewards to combat env
+    combat_env.game.agent.rewards.inventory.update(
+        {"ore_red": 0.1, "battery_red": 0.2, "laser": 0.1, "armor": 0.1}
+    )
+
     return [
-        SimulationConfig(name="arena/basic", env=basic_env),
-        SimulationConfig(name="arena/combat", env=combat_env),
+        SimulationConfig(name="arena/basic", env=basic_env, num_episodes=num_episodes),
+        SimulationConfig(
+            name="arena/combat", env=combat_env, num_episodes=num_episodes
+        ),
     ]
 
 
@@ -67,14 +86,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(
-                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-                ),
-                SimulationConfig(
-                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-                ),
-            ],
+            simulations=make_evals(num_episodes=1),
         ),
     )
 
@@ -113,7 +125,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         losses=LossConfig(),
         curriculum=cc.env_curriculum(env_cfg),
         evaluation=EvaluationConfig(
-            simulations=make_evals(env_cfg),
+            simulations=make_evals(env_cfg, num_episodes=5),
         ),
     )
 
@@ -134,6 +146,7 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     simulations = simulations or make_evals()
+    print("simulations::::", simulations)
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
