@@ -1,0 +1,47 @@
+src/tmp/
+src/mettascope.out
+bindings/generated/
+mettascope2/dist/
+mettascope2/data/fidget/
+data/fidget/
+
+# Dynamic libraries (platform-specific compiled binaries)
+*.dylib
+*.dll
+*.so
+
+# Nim compilation artifacts
+*.out
+*.exe
+src/tribal.out
+src/tribal/tribal
+
+# Nim compiled binaries (executables without extension)
+src/tribal/environment
+src/tribal/renderer
+src/tribal/controller
+src/tribal/clippy
+src/tribal/placement
+src/tribal/terrain
+
+# Test executables
+tests/test_*
+!tests/test_*.nim
+!tests/test_*.py
+!tests/test_*.sh
+
+# General pattern for Nim binaries in src directories
+# (Nim compiles to extensionless executables on Unix)
+src/**/*
+!src/**/*.nim
+!src/**/*.py
+!src/**/*.sh
+!src/**/*.md
+!src/**/*.txt
+!src/**/*.json
+!src/**/*.yaml
+!src/**/*.yml
+!src/**/*.html
+!src/**/*.css
+!src/**/*.js
+!src/**/*/

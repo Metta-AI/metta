@@ -1,7 +1,7 @@
 from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sim.env_config import TribalEnvConfig
+from metta.sim.tribal_genny import TribalEnvConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool

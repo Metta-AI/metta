@@ -6,7 +6,7 @@ from pydantic import Field
 
 from metta.mettagrid import MettaGridConfig
 from metta.mettagrid.config import Config
-from metta.sim.env_config import TribalEnvConfig
+from metta.sim.tribal_genny import TribalEnvConfig
 
 
 class SimulationConfig(Config):
