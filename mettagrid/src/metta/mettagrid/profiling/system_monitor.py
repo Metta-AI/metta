@@ -21,23 +21,10 @@ class SystemMonitor:
         auto_start: bool = True,
         external_timer: Any | None = None,
     ):
-        # Create logger for this instance
         self.logger = logging.getLogger(f"SystemMonitor.{id(self)}")
-
-        # Configure logger based on log_level
         if log_level is None:
             self.logger.disabled = True
         else:
-            root_logger = logging.getLogger()
-            has_stream_handler = any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers)
-            if not has_stream_handler:
-                handler = logging.StreamHandler()
-                handler.setLevel(logging.DEBUG)
-                self.logger.addHandler(handler)
-                self.logger.warning(
-                    "No handlers found on logger - added StreamHandler. This should only happen during testing."
-                )
-
             self.logger.setLevel(log_level)
 
         self.sampling_interval_sec = sampling_interval_sec
