@@ -1375,18 +1375,18 @@ proc defaultEnvironmentConfig*(): EnvironmentConfig =
     clippySpawnRate: 0.05,
     clippyDamage: 1,
     
-    # Reward configuration
-    heartReward: 1.0,
-    oreReward: 0.1,
-    batteryReward: 0.8,
-    woodReward: 0.002,
-    waterReward: 0.001,
-    wheatReward: 0.001,
-    spearReward: 0.01,
-    armorReward: 0.015,
-    foodReward: 0.012,
-    clothReward: 0.012,
-    clippyKillReward: 0.1,
+    # Reward configuration (only arena_basic_easy_shaped rewards active)
+    heartReward: 1.0,      # Arena: heart reward
+    oreReward: 0.1,        # Arena: ore mining reward  
+    batteryReward: 0.8,    # Arena: battery crafting reward
+    woodReward: 0.0,       # Disabled - not in arena
+    waterReward: 0.0,      # Disabled - not in arena
+    wheatReward: 0.0,      # Disabled - not in arena
+    spearReward: 0.0,      # Disabled - not in arena
+    armorReward: 0.0,      # Disabled - not in arena
+    foodReward: 0.0,       # Disabled - not in arena
+    clothReward: 0.0,      # Disabled - not in arena
+    clippyKillReward: 0.0, # Disabled - not in arena
     survivalPenalty: -0.01,
     deathPenalty: -5.0
   )

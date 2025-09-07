@@ -1,6 +1,4 @@
-from typing import Optional
-
-from metta.rl.trainer_config import TrainerConfig, EvaluationConfig, CheckpointConfig
+from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.env_config import TribalEnvConfig
@@ -11,50 +9,44 @@ from metta.tools.train import TrainTool
 
 
 def make_tribal_environment(
-    max_steps: int = 2000,
-    enable_combat: bool = True,
-    **kwargs
+    max_steps: int = 2000, enable_combat: bool = True, **kwargs
 ) -> TribalEnvConfig:
     """
     Create tribal environment configuration for training.
-    
+
     The tribal environment features:
     - Village-based agent tribes with shared altars (15 agents, compile-time constant)
     - Multi-step resource chains (ore → battery → hearts)
     - Crafting system (wood → spears, wheat → hats/food, ore → armor)
     - Defensive gameplay against Clippy enemies
     - Terrain interaction (water, wheat fields, forests)
-    
+
     NOTE: Agent count, map dimensions, and observation space are compile-time constants
     for performance. Only gameplay parameters are configurable.
     """
-    config = TribalEnvConfig(
-        label="tribal_basic",
-        desync_episodes=True,
-        **kwargs
-    )
-    
+    config = TribalEnvConfig(label="tribal_basic", desync_episodes=True, **kwargs)
+
     # Configure game mechanics (only runtime-configurable parameters)
     config.game.max_steps = max_steps
     config.game.enable_combat = enable_combat
-    
+
     # Set up resource chain rewards (arena_basic_easy_shaped values)
-    config.game.heart_reward = 1.0   # Creating heart reward 
+    config.game.heart_reward = 1.0  # Creating heart reward
     config.game.battery_reward = 0.8  # Crafting battery reward
-    config.game.ore_reward = 0.1      # Mining ore reward
-    
+    config.game.ore_reward = 0.1  # Mining ore reward
+
     return config
 
 
 def train() -> TrainTool:
     """
     Train agents on the tribal environment.
-    
+
     Uses a minimal configuration similar to the working arena recipe.
     """
     # Create environment (uses compile-time constant: 15 agents)
     env = make_tribal_environment()
-    
+
     # Minimal trainer config like arena recipe
     trainer_config = TrainerConfig(
         losses=LossConfig(),
@@ -65,70 +57,49 @@ def train() -> TrainTool:
             skip_git_check=True,  # Skip git check for development
         ),
     )
-    
+
     return TrainTool(trainer=trainer_config)
 
 
 def evaluate(
-    policy_uri: str,
-    run: str = "tribal_eval",
-    num_episodes: int = 10,
-    **overrides
+    policy_uri: str, run: str = "tribal_eval", num_episodes: int = 10, **overrides
 ) -> SimTool:
     """
     Evaluate a trained policy on the tribal environment.
-    
+
     Args:
         policy_uri: URI to trained policy (file:// or wandb://)
-        run: Name for this evaluation run  
+        run: Name for this evaluation run
         num_episodes: Number of episodes to evaluate
         **overrides: Additional configuration overrides
     """
     env = make_tribal_environment()
-    
+
     return SimTool(
-        env=env,
-        policy_uri=policy_uri,
-        num_episodes=num_episodes,
-        run=run,
-        **overrides
+        env=env, policy_uri=policy_uri, num_episodes=num_episodes, run=run, **overrides
     )
 
 
-def play(
-    policy_uri: str,
-    render_mode: str = "human",
-    **overrides
-) -> PlayTool:
+def play(policy_uri: str, render_mode: str = "human", **overrides) -> PlayTool:
     """
     Interactive play with a trained policy.
-    
+
     Args:
         policy_uri: URI to trained policy
         render_mode: Rendering mode for visualization
         **overrides: Additional configuration overrides
     """
     env = make_tribal_environment(render_mode=render_mode)
-    
-    return PlayTool(
-        env=env,
-        policy_uri=policy_uri,
-        **overrides
-    )
+
+    return PlayTool(env=env, policy_uri=policy_uri, **overrides)
 
 
-def replay(
-    policy_uri: str,
-    **overrides
-) -> ReplayTool:
+def replay(policy_uri: str, **overrides) -> ReplayTool:
     """
     Replay recorded tribal episodes.
-    
+
     Args:
         policy_uri: URI to policy that generated replays
         **overrides: Additional configuration overrides
     """
-    return ReplayTool(
-        policy_uri=policy_uri,
-        **overrides
-    )
+    return ReplayTool(policy_uri=policy_uri, **overrides)
