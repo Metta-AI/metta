@@ -245,7 +245,7 @@ def main():
         sys.exit(0)
 
     # Summary header
-    print(bold(f"\n=== Checking {len(launched_jobs)} Jobs from {input_path}==="))
+    print(bold(f"\n=== Checking {len(launched_jobs)} Jobs from {input_path} ==="))
 
     # Get all job IDs and check their statuses
     job_ids = [int(job["job_id"]) for job in launched_jobs if job.get("job_id")]

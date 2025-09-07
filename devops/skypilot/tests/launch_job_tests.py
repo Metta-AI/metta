@@ -179,9 +179,9 @@ def main():
 
     # Launch jobs
     for nodes in NODE_CONFIGS:
-        for condition_idx, (condition_key, condition_config) in enumerate(TEST_CONDITIONS.items()):
+        for condition_key, condition_config in TEST_CONDITIONS.items():
             # Enable CI tests for the first condition of each node configuration
-            enable_ci_tests = condition_idx == 0
+            enable_ci_tests = condition_key == "runtime_timeout"
 
             run_name = generate_run_name(args.base_name, nodes, condition_key, ci_test=enable_ci_tests)
 
