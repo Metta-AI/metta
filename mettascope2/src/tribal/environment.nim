@@ -599,7 +599,9 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
           env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
           thing.cooldown = MapObjectMineCooldown
           env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
-          agent.reward += env.config.oreReward
+          # Inventory-based reward shaping: only reward if this was their first ore
+          if agent.inventoryOre == 1:
+            agent.reward += env.config.oreReward
           inc env.stats[id].actionGet
         else:
           inc env.stats[id].actionInvalid
@@ -612,7 +614,9 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
           env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
           thing.cooldown = 0  # Instant conversion
           env.updateObservations(ConverterReadyLayer, thing.pos, 1)
-          agent.reward += env.config.batteryReward
+          # Inventory-based reward shaping: only reward if this was their first battery
+          if agent.inventoryBattery == 1:
+            agent.reward += env.config.batteryReward
           inc env.stats[id].actionGet
         else:
           inc env.stats[id].actionInvalid
@@ -1371,20 +1375,20 @@ proc defaultEnvironmentConfig*(): EnvironmentConfig =
     clippySpawnRate: 0.05,
     clippyDamage: 1,
     
-    # Reward configuration (exact arena_basic_easy_shaped values)
-    heartReward: 1.0,                   # Creating heart reward
-    oreReward: 0.1,                     # Mining ore reward  
-    batteryReward: 0.8,                 # Crafting battery reward
-    woodReward: 0.002,                  # RewardGetWood
-    waterReward: 0.001,                 # RewardGetWater
-    wheatReward: 0.001,                 # RewardGetWheat
-    spearReward: 0.01,                  # RewardCraftSpear
-    armorReward: 0.015,                 # RewardCraftArmor
-    foodReward: 0.012,                  # RewardCraftFood
-    clothReward: 0.012,                 # RewardCraftCloth
-    clippyKillReward: 0.1,             # RewardDestroyClippy
-    survivalPenalty: -0.01,            # Small per-step penalty
-    deathPenalty: -5.0                 # Penalty for agent death
+    # Reward configuration
+    heartReward: 1.0,
+    oreReward: 0.1,
+    batteryReward: 0.8,
+    woodReward: 0.002,
+    waterReward: 0.001,
+    wheatReward: 0.001,
+    spearReward: 0.01,
+    armorReward: 0.015,
+    foodReward: 0.012,
+    clothReward: 0.012,
+    clippyKillReward: 0.1,
+    survivalPenalty: -0.01,
+    deathPenalty: -5.0
   )
 
 proc newEnvironment*(): Environment =

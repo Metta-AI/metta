@@ -38,10 +38,10 @@ def make_tribal_environment(
     config.game.max_steps = max_steps
     config.game.enable_combat = enable_combat
     
-    # Set up resource chain rewards
-    config.game.heart_reward = 10.0  # High reward for completing the chain
-    config.game.battery_reward = 0.01  # Medium reward for intermediate product (match original)
-    config.game.ore_reward = 0.003     # Small reward for raw materials (match original)
+    # Set up resource chain rewards (arena_basic_easy_shaped values)
+    config.game.heart_reward = 1.0   # Creating heart reward 
+    config.game.battery_reward = 0.8  # Crafting battery reward
+    config.game.ore_reward = 0.1      # Mining ore reward
     
     return config
 

@@ -4,7 +4,7 @@
 import genny
 import ../src/tribal/environment
 
-# Global error handling (following pixie pattern)
+# Global error handling
 var lastError: ref Exception
 
 proc takeError(): string =
@@ -72,8 +72,8 @@ proc defaultTribalConfig*(): TribalConfig =
       clippySpawnRate: 0.05,
       clippyDamage: 1,
       heartReward: 1.0,
-      oreReward: 0.1,  # Exact arena_basic_easy_shaped value
-      batteryReward: 0.8,  # Exact arena_basic_easy_shaped value
+      oreReward: 0.1,
+      batteryReward: 0.8,
       survivalPenalty: -0.01,
       deathPenalty: -5.0
     ),
@@ -84,28 +84,19 @@ proc defaultTribalConfig*(): TribalConfig =
 proc newTribalEnv*(config: TribalConfig): TribalEnv =
   ## Create a new tribal environment with full configuration
   try:
-    # Convert TribalConfig to EnvironmentConfig (only configurable parameters)
-    var envConfig = EnvironmentConfig(
-      maxSteps: config.game.maxSteps,
-      orePerBattery: config.game.orePerBattery,
-      batteriesPerHeart: config.game.batteriesPerHeart,
-      enableCombat: config.game.enableCombat,
-      clippySpawnRate: config.game.clippySpawnRate,
-      clippyDamage: config.game.clippyDamage,
-      heartReward: config.game.heartReward,
-      oreReward: config.game.oreReward,
-      batteryReward: config.game.batteryReward,
-      woodReward: 0.002,  # Default values for rewards not exposed in Python yet
-      waterReward: 0.001,
-      wheatReward: 0.001,
-      spearReward: 0.01,
-      armorReward: 0.015,
-      foodReward: 0.012,
-      clothReward: 0.012,
-      clippyKillReward: 0.1,
-      survivalPenalty: config.game.survivalPenalty,
-      deathPenalty: config.game.deathPenalty
-    )
+    # Start with default config and override with configurable parameters
+    var envConfig = defaultEnvironmentConfig()
+    envConfig.maxSteps = config.game.maxSteps
+    envConfig.orePerBattery = config.game.orePerBattery
+    envConfig.batteriesPerHeart = config.game.batteriesPerHeart
+    envConfig.enableCombat = config.game.enableCombat
+    envConfig.clippySpawnRate = config.game.clippySpawnRate
+    envConfig.clippyDamage = config.game.clippyDamage
+    envConfig.heartReward = config.game.heartReward
+    envConfig.oreReward = config.game.oreReward
+    envConfig.batteryReward = config.game.batteryReward
+    envConfig.survivalPenalty = config.game.survivalPenalty
+    envConfig.deathPenalty = config.game.deathPenalty
     
     result = TribalEnv(
       env: newEnvironment(envConfig),
@@ -221,7 +212,7 @@ proc defaultMaxSteps*(): int =
   ## Get default max steps value
   1000
 
-# Export sequences first (following pixie pattern)
+# Export sequences
 exportSeq seq[int]:
   discard
 
