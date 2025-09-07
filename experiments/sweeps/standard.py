@@ -11,7 +11,7 @@ def ppo(
     eval: str = "evaluate",
     max_trials: int = 10,
     max_parallel_jobs: int = 1,
-    gpus_per_job: int = 1,
+    gpus: int = 1,
 ) -> SweepTool:
     """Create PPO hyperparameter sweep."""
 
@@ -77,7 +77,7 @@ def ppo(
         eval_entrypoint=eval,
         monitoring_interval=60,
         max_parallel_jobs=max_parallel_jobs,
-        gpus_per_job=gpus_per_job,
+        gpus=gpus,
         train_overrides={
             "trainer.total_timesteps": "1000000000",  # 1B timesteps default for PPO sweep
         },
