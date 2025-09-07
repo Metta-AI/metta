@@ -146,7 +146,6 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     simulations = simulations or make_evals()
-    print("simulations::::", simulations)
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
