@@ -41,7 +41,7 @@ def ppo(
             # 3. Entropy coefficient - log scale from 0.0001 to 0.01
             "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
                 min=0.0001,
-                max=0.01,
+                max=0.035,
                 distribution="log_normal",
                 mean=0.001,  # Geometric mean
                 scale="auto",
