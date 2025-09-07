@@ -3,7 +3,7 @@ name = "experiments"
 version = "0.1.0"
 description = "Metta experiments and notebooks"
 readme = "README.md"
-requires-python = "==3.11.7"
+requires-python = ">=3.11.7"
 dependencies = [
   "basedpyright>=1.31.3",
   "jupytext>=1.17.2",
