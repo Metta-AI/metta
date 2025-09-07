@@ -2,29 +2,170 @@
 """
 Check logs for skypilot test jobs launched by launch_job_tests.py.
 
-This script reads the JSON output file and displays the tail of each job's log.
+This script reads the JSON output file and displays a summary table of jobs with parsed log information.
 """
 
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
+from typing import Dict, Optional
 
 from devops.skypilot.utils.job_helpers import check_job_statuses, tail_job_log
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 
 
+def parse_job_summary(log_content: str) -> Dict[str, Optional[str]]:
+    """Parse job summary information from log content."""
+    summary = {
+        "exit_code": None,
+        "termination_reason": None,
+        "skypilot_status": None,
+        "metta_run_id": None,
+        "skypilot_task_id": None,
+    }
+
+    if not log_content:
+        return summary
+
+    # Parse [SUMMARY] lines
+    for line in log_content.split("\n"):
+        if "[SUMMARY] Exit code:" in line:
+            match = re.search(r"Exit code: (\d+)", line)
+            if match:
+                summary["exit_code"] = match.group(1)
+        elif "[SUMMARY] Termination reason:" in line:
+            match = re.search(r"Termination reason: (.+?)(?:\s*\[|$)", line)
+            if match:
+                summary["termination_reason"] = match.group(1).strip()
+        elif "[SUMMARY] Metta Run ID:" in line:
+            match = re.search(r"Metta Run ID: (.+?)(?:\s*\[|$)", line)
+            if match:
+                summary["metta_run_id"] = match.group(1).strip()
+        elif "[SUMMARY] Skypilot Task ID:" in line:
+            match = re.search(r"Skypilot Task ID: (.+?)(?:\s*\[|$)", line)
+            if match:
+                summary["skypilot_task_id"] = match.group(1).strip()
+
+    # Parse skypilot final status
+    status_patterns = [
+        (r"✓ Job finished \(status: (\w+)\)", "match_group"),
+        (r"Job finished \(status: (\w+)\)", "match_group"),
+        (r"\[FAILED\]", "literal:FAILED"),
+        (r"\[CANCELLED\]", "literal:CANCELLED"),
+    ]
+
+    for pattern, pattern_type in status_patterns:
+        if pattern_type.startswith("literal:"):
+            if re.search(pattern, log_content):
+                summary["skypilot_status"] = pattern_type.split(":")[1]
+                break
+        else:
+            match = re.search(pattern, log_content)
+            if match:
+                summary["skypilot_status"] = match.group(1)
+                break
+
+    return summary
+
+
+def format_status(status: str) -> str:
+    """Format status with color coding."""
+    if status in ["RUNNING", "PROVISIONING"]:
+        return cyan(status)
+    elif status == "SUCCEEDED":
+        return green(status)
+    elif status in ["FAILED", "CANCELLED", "FAILED_SETUP"]:
+        return red(status)
+    else:
+        return yellow(status)
+
+
+def format_exit_code(code: Optional[str]) -> str:
+    """Format exit code with color coding."""
+    if code is None:
+        return "-"
+    elif code == "0":
+        return green(code)
+    else:
+        return red(code)
+
+
+def format_termination_reason(reason: Optional[str]) -> str:
+    """Format termination reason with color coding."""
+    if reason is None:
+        return "-"
+    elif reason == "job_completed":
+        return green(reason)
+    elif reason in ["heartbeat_timeout", "runtime_timeout"]:
+        return yellow(reason)
+    else:
+        return red(reason)
+
+
+def print_summary_table(jobs: list, job_statuses: Dict, job_summaries: Dict) -> None:
+    """Print a detailed summary table of all jobs."""
+    print(f"\n{bold('Detailed Job Status:')}")
+    print("─" * 120)
+
+    # Header
+    headers = ["Job ID", "Status", "Exit", "Termination", "Nodes", "Condition", "CI", "Run Name"]
+    col_widths = [8, 12, 6, 20, 6, 20, 4, 40]
+
+    # Print headers
+    header_line = ""
+    for header, width in zip(headers, col_widths, strict=False):
+        header_line += f"{header:^{width}} │ "
+    print(header_line.rstrip(" │"))
+    print("─" * 120)
+
+    # Print job rows
+    for job in jobs:
+        job_id_str = job.get("job_id")
+        if not job_id_str:
+            continue
+
+        job_id = int(job_id_str)
+        job_info = job_statuses.get(job_id, {})
+        status = job_info.get("status", "UNKNOWN")
+        summary = job_summaries.get(job_id, {})
+
+        # Format values
+        job_id_fmt = yellow(job_id_str)
+        status_fmt = format_status(status)
+        exit_fmt = format_exit_code(summary.get("exit_code"))
+        term_fmt = format_termination_reason(summary.get("termination_reason"))
+        nodes_fmt = str(job["nodes"])
+        condition_fmt = job["condition_name"][:20]
+        ci_fmt = green("✓") if job.get("ci_tests_enabled") else ""
+        run_name_fmt = cyan(job["run_name"][:40])
+
+        # Build row
+        row_values = [job_id_fmt, status_fmt, exit_fmt, term_fmt, nodes_fmt, condition_fmt, ci_fmt, run_name_fmt]
+
+        row = ""
+        for value, width in zip(row_values, col_widths, strict=False):
+            # Account for ANSI color codes when calculating padding
+            visible_len = len(re.sub(r"\x1b\[[0-9;]+m", "", str(value)))
+            padding = width - visible_len
+            row += f"{value}{' ' * max(0, padding)} │ "
+        print(row.rstrip(" │"))
+
+    print("─" * 120)
+
+
 def main():
     """Main execution function."""
-    parser = argparse.ArgumentParser(description="Check logs for skypilot test jobs")
+    parser = argparse.ArgumentParser(description="Check status for skypilot test jobs")
     parser.add_argument(
         "-f", "--input-file", default="skypilot_test_jobs.json", help="Input JSON file with job information"
     )
+    parser.add_argument("-l", "--logs", action="store_true", help="Show detailed logs for each job")
     parser.add_argument(
-        "-n", "--tail-lines", type=int, default=100, help="Number of lines to tail from each log (default: 100)"
+        "-n", "--tail-lines", type=int, default=200, help="Number of lines to tail from each log (default: 200)"
     )
-    parser.add_argument("-s", "--status-only", action="store_true", help="Only show job status, not logs")
 
     args = parser.parse_args()
 
@@ -47,14 +188,24 @@ def main():
         sys.exit(0)
 
     # Summary header
-    print(bold(f"\n=== Checking {len(launched_jobs)} Job Logs from {input_path}==="))
+    print(bold(f"\n=== Checking {len(launched_jobs)} Jobs from {input_path}==="))
 
     # Get all job IDs and check their statuses
     job_ids = [int(job["job_id"]) for job in launched_jobs if job.get("job_id")]
     job_statuses = check_job_statuses(job_ids)
 
+    # Parse job summaries from logs
+    job_summaries = {}
+    for job in launched_jobs:
+        job_id_str = job.get("job_id")
+        if job_id_str:
+            job_id = int(job_id_str)
+            # Get log content to parse summary info
+            log_content = tail_job_log(job_id_str, args.tail_lines)
+            job_summaries[job_id] = parse_job_summary(log_content)
+
     # Quick status summary first
-    print(f"\n{bold('Job Status Summary:')}")
+    print(f"\n{bold('Status Summary:')}")
     print("-" * 60)
 
     status_counts = {}
@@ -65,58 +216,59 @@ def main():
             status = job_info.get("status", "UNKNOWN")
             status_counts[status] = status_counts.get(status, 0) + 1
 
-            # Color code the status
-            if status in ["RUNNING", "PROVISIONING"]:
-                status_colored = cyan(status)
-            elif status == "SUCCEEDED":
-                status_colored = green(status)
-            elif status in ["FAILED", "CANCELLED"]:
-                status_colored = red(status)
-            else:
-                status_colored = yellow(status)
-
-            print(f"  Job {yellow(job['job_id'])}: {status_colored} ({job['condition_name']})")
-
-    print("-" * 60)
-
-    # Status summary
+    # Display status counts
     for status, count in sorted(status_counts.items()):
-        print(f"{status}: {count}")
+        status_colored = format_status(status)
+        print(f"{status_colored}: {count}")
 
-    if args.status_only:
-        return
+    # Print the detailed summary table
+    print_summary_table(launched_jobs, job_statuses, job_summaries)
 
-    # Check each job's logs
-    print(f"\n{bold('Detailed Logs:')}")
+    # If logs flag is set, show detailed logs
+    if args.logs:
+        print(f"\n{bold('Detailed Logs:')}")
 
-    for job in launched_jobs:
-        job_id_str = job.get("job_id")
+        for job in launched_jobs:
+            job_id_str = job.get("job_id")
 
-        if not job_id_str:
-            print(f"\n{yellow('Skipping job without ID:')} {job['run_name']}")
-            continue
+            if not job_id_str:
+                print(f"\n{yellow('Skipping job without ID:')} {job['run_name']}")
+                continue
 
-        job_id = int(job_id_str)
-        job_info = job_statuses.get(job_id, {})
-        status = job_info.get("status", "UNKNOWN")
+            job_id = int(job_id_str)
+            job_info = job_statuses.get(job_id, {})
+            status = job_info.get("status", "UNKNOWN")
+            summary = job_summaries.get(job_id, {})
 
-        # Display job header
-        print("\n" + "=" * 80)
-        print(f"{bold('Job ID:')} {yellow(job_id_str)} ({status})")
-        print(f"{bold('Run Name:')} {cyan(job['run_name'])}")
-        print(f"{bold('Nodes:')} {job['nodes']} | {bold('Condition:')} {job['condition_name']}")
-        if job.get("ci_tests_enabled"):
-            print(f"{bold('CI Tests:')} {green('Enabled')}")
-        print("=" * 80)
+            # Display job header
+            print("\n" + "=" * 80)
+            print(f"{bold('Job ID:')} {yellow(job_id_str)} ({format_status(status)})")
+            print(f"{bold('Run Name:')} {cyan(job['run_name'])}")
+            print(f"{bold('Nodes:')} {job['nodes']} | {bold('Condition:')} {job['condition_name']}")
+            if job.get("ci_tests_enabled"):
+                print(f"{bold('CI Tests:')} {green('Enabled')}")
 
-        # Get and display log content
-        log_content = tail_job_log(job_id_str, args.tail_lines)
-        if log_content:
-            print(log_content)
-        else:
-            print(yellow("No log content available"))
+            # Show parsed summary info
+            if any(summary.values()):
+                print(f"{bold('Exit Code:')} {format_exit_code(summary.get('exit_code'))}")
+                print(f"{bold('Termination:')} {format_termination_reason(summary.get('termination_reason'))}")
 
-        print("\n" + "-" * 80)
+            print("=" * 80)
+
+            # Get and display log content
+            log_content = tail_job_log(job_id_str, args.tail_lines)
+            if log_content:
+                print(log_content)
+            else:
+                print(yellow("No log content available"))
+
+            print("\n" + "-" * 80)
+
+    # Print hints
+    print(f"\n{bold('Hints:')}")
+    print(f"  • Use {cyan('-l')} or {cyan('--logs')} to view detailed job logs")
+    print(f"  • Use {cyan('-n <lines>')} to change the number of log lines to tail")
+    print("  • Jobs with exit code 0 and termination reason 'job_completed' are successful")
 
 
 if __name__ == "__main__":
