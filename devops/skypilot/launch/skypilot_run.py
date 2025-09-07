@@ -17,6 +17,7 @@ from devops.skypilot.utils.job_config import JobConfig
 from devops.skypilot.utils.job_latency import calculate_queue_latency
 from devops.skypilot.utils.nccl_tests import launch_nccl_tests
 from devops.skypilot.utils.runtime_monitors import ForceRestartTestMonitor, HeartbeatMonitor, TimeoutMonitor
+from devops.skypilot.utils.subprocess_helpers import terminate_process_group
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
 
@@ -109,7 +110,7 @@ def run_job_in_background() -> subprocess.Popen:
     return process
 
 
-def monitor_until_termination(job_config: JobConfig, subprocess: subprocess.Popen) -> str:
+def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> str:
     monitors = []
 
     if job_config.heartbeat_timeout:
@@ -131,7 +132,7 @@ def monitor_until_termination(job_config: JobConfig, subprocess: subprocess.Pope
     # shutdown, which cleanly terminates all processes.
 
     while True:
-        exit_code = subprocess.poll()
+        exit_code = job.poll()
         if exit_code is not None:
             logger.info(f"Subprocess exited with code {exit_code}")
             if exit_code == 0:
@@ -143,7 +144,10 @@ def monitor_until_termination(job_config: JobConfig, subprocess: subprocess.Pope
             should_terminate, reason = monitor.check_condition()
             if should_terminate:
                 logger.info(f"{monitor.name} triggered: {reason}")
+                terminate_process_group(job)
+
                 return reason
+
         time.sleep(10)
 
 
