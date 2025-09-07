@@ -40,7 +40,7 @@ TEST_CONDITIONS = {
     },
     "runtime_timeout": {
         "name": "Runtime Timeout",
-        "extra_args": ["-t", "0.03"],
+        "extra_args": ["-t", "0.1"],
         "description": "Exit based on timeout (0.03 hours = 1.8 minutes)",
     },
 }
