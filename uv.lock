@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -139,6 +139,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/d8/4f/f2b880cba1a76f3ac
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a9/b2/2d268bcd5d6441df9dc0ebebc67107657edb8b0150d3fda1a5b81d1bec45/anthropic-0.64.0-py3-none-any.whl", hash = "sha256:6f5f7d913a6a95eb7f8e1bda4e75f76670e8acd8d4cd965e02e2a256b0429dd1", size = 297244, upload-time = "2025-08-13T17:09:47.908Z" },
 ]
+
+[[package]]
+name = "antlr4-python3-runtime"
+version = "4.9.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d19459005ca000b6e7012f2f1ca597746cbcd1fbfe5e/antlr4-python3-runtime-4.9.3.tar.gz", hash = "sha256:f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b", size = 117034, upload-time = "2021-11-06T17:52:23.524Z" }
 
 [[package]]
 name = "anyio"
@@ -1964,7 +1970,7 @@ requires-dist = [
     { name = "mettagrid", editable = "mettagrid" },
     { name = "notebook", specifier = ">=7.4.4" },
     { name = "numpy", specifier = ">=1.26.4,<2" },
-    { name = "omegaconf", specifier = ">=2.4.0.dev3" },
+    { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pandas", specifier = ">=2.3.0" },
     { name = "pettingzoo", specifier = ">=1.24.1,<1.25" },
     { name = "pixie-python", specifier = ">=4.3.0" },
@@ -2167,7 +2173,7 @@ requires-dist = [
     { name = "gymnasium", specifier = "==0.29.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "numpy", specifier = ">=1.26.4,<2" },
-    { name = "omegaconf", specifier = ">=2.4.0.dev3" },
+    { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pettingzoo", specifier = ">=1.24.1,<1.25" },
     { name = "pufferlib", specifier = ">=3.0.0,<3.1.0" },
     { name = "pydantic", specifier = ">=2.11.5" },
@@ -2602,14 +2608,15 @@ wheels = [
 
 [[package]]
 name = "omegaconf"
-version = "2.4.0.dev3"
+version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "antlr4-python3-runtime" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/86/49/6368e41ec04eafc08895f5e56677914314a1bdf084376a7e392eb17905a7/omegaconf-2.4.0.dev3.tar.gz", hash = "sha256:9948b9bfb15074863883bb90c4bfc9f3878af392e77ef5d8c9b01fac834745b1", size = 3440280, upload-time = "2024-02-29T17:01:42.975Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/09/48/6388f1bb9da707110532cb70ec4d2822858ddfb44f1cdf1233c20a80ea4b/omegaconf-2.3.0.tar.gz", hash = "sha256:d5d4b6d29955cc50ad50c46dc269bcd92c6e00f5f90d23ab5fee7bfca4ba4cc7", size = 3298120, upload-time = "2022-12-08T20:59:22.753Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/08/29b30970ce5e22440e2bc1fd929a79de08feb3c6c054bc7e832228fc1a94/omegaconf-2.4.0.dev3-py3-none-any.whl", hash = "sha256:acffa42eab0d9cb09ccead6e80d1dfd20a625e21602353f267f3bc2cd131f7b2", size = 224417, upload-time = "2024-02-29T17:01:39.557Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/94/1843518e420fa3ed6919835845df698c7e27e183cb997394e4a670973a65/omegaconf-2.3.0-py3-none-any.whl", hash = "sha256:7b4df175cdb08ba400f45cae3bdcae7ba8365db4d165fc65fd04b050ab63b46b", size = 79500, upload-time = "2022-12-08T20:59:19.686Z" },
 ]
 
 [[package]]
