@@ -207,7 +207,7 @@ def print_detailed_table(jobs: list, job_statuses: dict, job_summaries: dict) ->
             visible_len = len(re.sub(r"\x1b\[[0-9;]+m", "", str(value)))
             padding = width - visible_len
             row += f"{value}{' ' * max(0, padding)} │ "
-        print(row.rstrip(" │"))
+        print(row.rstrip())
 
     print("─" * 120)
 
