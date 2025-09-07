@@ -1,3 +1,19 @@
+"""
+Tribal Basic Recipe - Nim Environment Integration
+
+SETUP REQUIREMENTS:
+1. Build tribal bindings: `cd tribal && ./build_bindings.sh`
+2. Set library path: `export LD_LIBRARY_PATH="/path/to/metta/.venv/lib/python3.11/site-packages/torch/lib:$LD_LIBRARY_PATH"`
+3. Run training: `uv run ./tools/run.py experiments.recipes.tribal_basic.train`
+
+TECHNICAL NOTES:
+- Uses genny-generated Nim bindings for high performance (10-100x faster than JSON IPC)
+- Agent count (15), map size (100x50), observation shape (19 layers, 11x11) are compile-time constants
+- GPU compatibility: Works with RTX 5080 using PufferLib rebuilt with TORCH_CUDA_ARCH_LIST="8.0" 
+- LD_LIBRARY_PATH required for PyTorch library discovery in uv environment
+- Configuration consolidated in metta.sim.tribal_genny module
+"""
+
 from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
