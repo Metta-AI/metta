@@ -24,3 +24,4 @@ jobs:
         with:
           image_name: metta
           dockerfile: devops/docker/Dockerfile
+          aws_role: ${{ vars.AWS_ROLE }}

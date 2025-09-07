@@ -27,3 +27,4 @@ jobs:
           image_name: metta
           dockerfile: devops/docker/Dockerfile.slim
           suffix: -slim
+          aws_role: ${{ vars.AWS_ROLE }}

@@ -29,6 +29,7 @@ jobs:
         with:
           image_name: softmax-home
           dockerfile: home/Dockerfile
+          aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Deploy helm chart
         if: github.ref == 'refs/heads/main'

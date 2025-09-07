@@ -29,6 +29,7 @@ jobs:
         with:
           image_name: metta-policy-evaluator
           dockerfile: ./devops/docker/Dockerfile.policy_evaluator
+          aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Deploy helm chart
         if: github.ref == 'refs/heads/main'

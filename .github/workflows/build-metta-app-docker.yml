@@ -29,6 +29,7 @@ jobs:
         with:
           image_name: metta-app-backend
           dockerfile: ./app_backend/Dockerfile
+          aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Deploy helm chart
         if: github.ref == 'refs/heads/main'
