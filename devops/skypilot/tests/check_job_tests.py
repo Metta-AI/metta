@@ -131,12 +131,33 @@ def parse_all_job_summaries(jobs: list, tail_lines: int) -> dict[int, dict[str, 
             job_id = int(job_id_str)
             # Get log content to parse summary info
             log_content = tail_job_log(job_id_str, tail_lines)
-            if not log_content:
-                print(f"\n{yellow('No job logs found for {job_id_str}')}")
-            job_summaries[job_id] = parse_job_summary(log_content) if log_content else None
 
-    # Clear the progress line and show completion
-    print(f"  {green('✓')} Parsed logs for {processed} jobs" + " " * 50)
+            # Clear the progress line before printing job details
+            print(" " * 100, end="\r")
+
+            if not log_content:
+                print(
+                    f"{yellow(f'[{processed}/{total_jobs}]')} Job {yellow(job_id_str)}: {yellow('No job logs found')}"
+                )
+                job_summaries[job_id] = {}
+            else:
+                job_summaries[job_id] = parse_job_summary(log_content)
+
+                # Get the last 5 lines from the log
+                log_lines = log_content.strip().split("\n")
+                last_lines = log_lines[-5:] if len(log_lines) > 5 else log_lines
+
+                # Print job header with last few lines
+                print(f"{green(f'[{processed}/{total_jobs}]')} Job {yellow(job_id_str)} ({job['condition_name']}):")
+                print(f"  {bold('Last log lines:')}")
+                for line in last_lines:
+                    # Truncate long lines and add indentation
+                    truncated_line = line[:100] + "..." if len(line) > 100 else line
+                    print(f"    {truncated_line}")
+                print()  # Add spacing between jobs
+
+    # Show completion message
+    print(f"{green('✓')} Parsed logs for {processed} jobs\n")
 
     return job_summaries
 

@@ -308,25 +308,76 @@ def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> st
     return None
 
 
-def tail_job_log(job_id: str, lines: int = 100) -> str | None:
+def tail_job_log(job_id: str, lines: int = 100, timeout: int = 8) -> str | None:
+    """Get the tail of job logs, handling timeouts gracefully for running jobs."""
     try:
-        # Get the full logs
+        # Get the full logs with a timeout
         cmd = ["sky", "jobs", "logs", job_id]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
-        if result.returncode == 0:
-            # Split into lines and get the tail
-            log_lines = result.stdout.strip().split("\n")
-            if len(log_lines) > lines:
-                # Return only the last N lines
-                return "\n".join(log_lines[-lines:])
+        # Use Popen for better control over partial output
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,  # Line buffered
+        )
+
+        try:
+            # Wait for completion with timeout
+            stdout, stderr = process.communicate(timeout=timeout)
+
+            if process.returncode == 0:
+                # Process completed successfully
+                log_lines = stdout.strip().split("\n")
+                if len(log_lines) > lines:
+                    return "\n".join(log_lines[-lines:])
+                else:
+                    return stdout
             else:
-                # Return all lines if less than requested
-                return result.stdout
-        else:
-            return f"Error getting logs: {result.stderr}"
-    except subprocess.TimeoutExpired:
-        return "Error: Timeout getting logs (job may still be provisioning)"
+                # Command failed
+                return f"Error getting logs: {stderr}"
+
+        except subprocess.TimeoutExpired:
+            # Timeout occurred - kill the process but try to get partial output
+            process.kill()
+
+            # Try to get any partial output that was captured
+            partial_stdout = ""
+
+            try:
+                # Non-blocking read of available output
+                partial_stdout, _partial_stderr = process.communicate(timeout=1)
+            except subprocess.TimeoutExpired:
+                # If even the cleanup times out, read directly from pipes
+                if process.stdout:
+                    try:
+                        partial_stdout = process.stdout.read()
+                    except Exception:
+                        pass
+                if process.stderr:
+                    try:
+                        _partial_stderr = process.stderr.read()
+                    except Exception:
+                        pass
+
+            if partial_stdout:
+                # We have some output - return the tail of it
+                log_lines = partial_stdout.strip().split("\n")
+                timeout_msg = (
+                    f"[Note: Log collection timed out after {timeout}s - showing partial output from running job]"
+                )
+
+                if len(log_lines) > lines:
+                    return f"{timeout_msg}\n\n" + "\n".join(log_lines[-lines:])
+                else:
+                    return f"{timeout_msg}\n\n" + partial_stdout
+            else:
+                # No output captured
+                return (
+                    f"Error: Timeout getting logs after {timeout}s (job may still be provisioning or producing output)"
+                )
+
     except Exception as e:
         return f"Error: {str(e)}"
 

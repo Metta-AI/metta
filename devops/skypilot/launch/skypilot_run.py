@@ -138,7 +138,6 @@ def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> s
             if should_terminate:
                 logger.info(f"{monitor.name} triggered: {reason}")
 
-                # Terminate the subprocess to avoid possible race condition
                 logger.info(f"Terminating training process (PID: {job.pid})")
                 job.terminate()
                 try:
