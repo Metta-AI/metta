@@ -7,6 +7,7 @@ This script reads the JSON output file and displays the tail of each job's log.
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -27,8 +28,9 @@ def main():
 
     args = parser.parse_args()
 
-    # Load job data
-    input_path = Path(args.input_file)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    input_filename = os.path.basename(args.input_file)
+    input_path = Path(script_dir) / input_filename
     if not input_path.exists():
         print(red(f"Error: Input file '{input_path}' not found"))
         print("Run launch_job_tests.py first to create the job file")

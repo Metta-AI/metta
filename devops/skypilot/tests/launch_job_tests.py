@@ -10,6 +10,7 @@ This script launches 9 test jobs:
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -198,7 +199,9 @@ def main():
         "failed_launches": failed_launches,
     }
 
-    output_path = Path(args.output_file)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_filename = os.path.basename(args.output_file)
+    output_path = Path(script_dir) / output_filename
     with open(output_path, "w") as f:
         json.dump(output_data, f, indent=2)
 
