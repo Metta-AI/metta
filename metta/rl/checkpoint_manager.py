@@ -25,7 +25,6 @@ def _is_state_dict(loaded_obj: Any) -> bool:
     if not isinstance(loaded_obj, dict):
         return False
 
-    # Check if it looks like a state_dict by examining keys and values
     if not loaded_obj:
         return False
 
@@ -38,7 +37,6 @@ def _is_state_dict(loaded_obj: Any) -> bool:
             continue
         else:
             return False
-
     return True
 
 
@@ -47,7 +45,6 @@ def _create_agent_from_state_dict(state_dict: Dict[str, torch.Tensor], device: s
     Create a MettaAgent from a state_dict (PufferLib checkpoint format).
     This requires creating the agent architecture and loading the weights.
     """
-    # Import here to avoid circular imports
     from metta.agent.agent_config import AgentConfig
     from metta.agent.metta_agent import MettaAgent
     from metta.mettagrid.builder.envs import make_arena
@@ -57,14 +54,11 @@ def _create_agent_from_state_dict(state_dict: Dict[str, torch.Tensor], device: s
     logger.info("Loading PufferLib checkpoint format (state_dict) - creating MettaAgent")
 
     # Create a minimal environment for agent initialization
-    # Using default arena configuration similar to what PufferLib would use
-    env_cfg = make_arena(num_agents=60)  # Default from PufferLib environment
+    env_cfg = make_arena(num_agents=60)
     temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
-    # Create system and agent configs with defaults
     system_cfg = SystemConfig(device=str(device))
-    agent_cfg = AgentConfig()  # Use default agent configuration
-
+    agent_cfg = AgentConfig()
     # Create the agent
     agent = MettaAgent(temp_env, system_cfg, agent_cfg)
 
