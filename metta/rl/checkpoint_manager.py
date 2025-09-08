@@ -68,7 +68,7 @@ def _create_agent_from_state_dict(state_dict: Dict[str, torch.Tensor], device: s
     finally:
         # Ensure environment is properly closed
         temp_env.close()
-    
+
     # Create the agent
     agent = MettaAgent(temp_env, system_cfg, agent_cfg)
 
