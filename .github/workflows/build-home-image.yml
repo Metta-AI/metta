@@ -9,7 +9,7 @@ on:
       - main
     paths:
       - "home/**"
-      - ".github/workflows/build-home-docker.yml"
+      - ".github/workflows/build-home-image.yml"
   workflow_dispatch: {}
 
 jobs:
