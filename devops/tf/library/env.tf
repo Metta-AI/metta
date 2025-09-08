@@ -19,6 +19,11 @@ resource "random_password" "auth_secret" {
   special = true
 }
 
+resource "random_password" "redis_password" {
+  length  = 32
+  special = false
+}
+
 locals {
   common_env_vars = {
     S3_BUCKET    = var.main_s3_bucket
@@ -34,6 +39,10 @@ locals {
     USE_LLM_ADOBE_SELECTION = "true"
 
     ANTHROPIC_API_KEY = jsondecode(data.aws_secretsmanager_secret_version.library_secrets.secret_string)["ANTHROPIC_API_KEY"]
+
+    REDIS_HOST     = aws_elasticache_replication_group.main.primary_endpoint_address
+    REDIS_PORT     = "6379"
+    REDIS_PASSWORD = random_password.redis_password.result
   }
 
   frontend_env_vars = {
