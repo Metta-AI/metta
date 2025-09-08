@@ -118,11 +118,24 @@ fi
 
 echo "Creating/updating job secrets..."
 
+echo "Secrets setup:"
+if [ -n "${OBSERVATORY_TOKEN:-}" ]; then
+  echo "  - OBSERVATORY_TOKEN: ${OBSERVATORY_TOKEN:0:4}..."
+else
+  echo "  - OBSERVATORY_TOKEN: NOT SET"
+fi
+if [ -n "${WANDB_PASSWORD:-}" ]; then
+  echo "  - WANDB_PASSWORD: ${WANDB_PASSWORD:0:4}..."
+else
+  echo "  - WANDB_PASSWORD: NOT SET"
+fi
+
 # Build command - wandb-password is always included
 CMD="uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile softmax-docker --wandb-password \"$WANDB_PASSWORD\""
 
-# Add observatory-token only if it's set
-if [ -n "$OBSERVATORY_TOKEN" ]; then
+# Add observatory-token only if it's set and non-empty (after trimming whitespace)
+OBSERVATORY_TOKEN_TRIMMED="$(echo -n "${OBSERVATORY_TOKEN:-}" | xargs)"
+if [ -n "$OBSERVATORY_TOKEN_TRIMMED" ]; then
   CMD="$CMD --observatory-token \"$OBSERVATORY_TOKEN\""
 fi
 
