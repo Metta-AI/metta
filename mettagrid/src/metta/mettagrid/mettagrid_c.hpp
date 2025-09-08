@@ -27,6 +27,7 @@
 // Forward declarations of existing C++ classes
 class Grid;
 class EventManager;
+class ResourceManager;
 class StatsTracker;
 class ActionHandler;
 class Agent;
@@ -121,6 +122,7 @@ private:
 
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
+  std::unique_ptr<ResourceManager> _resource_manager;
 
   Actions _actions;
   ActionHandlers _action_handlers;

@@ -31,6 +31,7 @@
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
+#include "resource_manager.hpp"
 #include "packed_coordinate.hpp"
 #include "renderer/hermes.hpp"
 #include "stats_tracker.hpp"
@@ -71,6 +72,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.recipe_details_obs);
 
   _event_manager = std::make_unique<EventManager>();
+  _resource_manager = std::make_unique<ResourceManager>(_grid.get());
   _stats = std::make_unique<StatsTracker>();
   _stats->set_environment(this);
 
@@ -187,6 +189,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
+        _resource_manager->register_converter(converter);
         continue;
       }
 
@@ -213,6 +216,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
+        _resource_manager->register_agent(agent);
         continue;
       }
 
@@ -444,6 +448,9 @@ void MettaGrid::_step(Actions actions) {
   current_step++;
   _event_manager->process_events(current_step);
 
+  // Process resources after events
+  _resource_manager->step();
+
   // Create and shuffle agent indices for randomized action order
   std::vector<size_t> agent_indices(_agents.size());
   std::iota(agent_indices.begin(), agent_indices.end(), 0);
@@ -509,6 +516,7 @@ void MettaGrid::_step(Actions actions) {
       }
     }
   }
+
 
   // Compute observations for next step
   _compute_observations(actions);

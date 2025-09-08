@@ -157,6 +157,11 @@ public:
     // Update resource rewards incrementally
     this->_update_resource_reward(item, initial_amount, new_amount);
 
+    // Call callback if inventory actually changed
+    if (delta != 0 && inventory_callback) {
+      inventory_callback(this->id, item, delta);
+    }
+
     return delta;
   }
 

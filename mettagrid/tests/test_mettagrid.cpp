@@ -390,7 +390,6 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
 
   grid.add_object(agent);
 
-  // ?? MH is this constructor okay?
   // Create a generator that takes red ore and outputs batteries
   ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
                                 "generator",              // type_name
