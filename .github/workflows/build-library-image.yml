@@ -28,7 +28,7 @@ jobs:
         id: build-image
         uses: ./.github/actions/docker-build
         with:
-          image_name: softmax-library
+          image_name: softmax-library/worker
           dockerfile: library/Dockerfile
           aws_role: ${{ vars.AWS_ROLE }}
 
