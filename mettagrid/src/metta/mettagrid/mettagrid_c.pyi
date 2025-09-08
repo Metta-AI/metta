@@ -129,6 +129,7 @@ class ConverterConfig(GridObjectConfig):
     initial_resource_count: int
     color: int
     recipe_details_obs: bool
+    resource_loss_prob: dict[int, float]
 
 class ActionConfig:
     def __init__(

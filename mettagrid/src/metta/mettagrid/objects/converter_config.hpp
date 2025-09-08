@@ -22,7 +22,8 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count = 0,
                   ObservationType color = 0,
-                  bool recipe_details_obs = false)
+                  bool recipe_details_obs = false,
+                  const std::map<InventoryItem, float>& resource_loss_prob = {})
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
@@ -34,10 +35,12 @@ struct ConverterConfig : public GridObjectConfig {
         color(color),
         recipe_details_obs(recipe_details_obs),
         input_recipe_offset(0),
-        output_recipe_offset(0) {}
+        output_recipe_offset(0),
+        resource_loss_prob(resource_loss_prob) {}
 
   std::map<InventoryItem, InventoryQuantity> input_resources;
   std::map<InventoryItem, InventoryQuantity> output_resources;
+  std::map<InventoryItem, float> resource_loss_prob;
   short max_output;
   short max_conversions;
   unsigned short conversion_ticks;
@@ -63,7 +66,8 @@ inline void bind_converter_config(py::module& m) {
                     unsigned short,
                     unsigned char,
                     ObservationType,
-                    bool>(),
+                    bool,
+                    const std::map<InventoryItem, float>&>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("input_resources"),
@@ -74,7 +78,8 @@ inline void bind_converter_config(py::module& m) {
            py::arg("cooldown"),
            py::arg("initial_resource_count") = 0,
            py::arg("color") = 0,
-           py::arg("recipe_details_obs") = false)
+           py::arg("recipe_details_obs") = false,
+           py::arg("resource_loss_prob") = std::map<InventoryItem, float>())
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
@@ -85,7 +90,8 @@ inline void bind_converter_config(py::module& m) {
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
       .def_readwrite("color", &ConverterConfig::color)
-      .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs);
+      .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs)
+      .def_readwrite("resource_loss_prob", &ConverterConfig::resource_loss_prob);
 }
 
 #endif  // OBJECTS_CONVERTER_CONFIG_HPP_

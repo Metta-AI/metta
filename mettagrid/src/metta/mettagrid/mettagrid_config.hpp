@@ -102,7 +102,7 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
 
-      // MH ?? It is confusing what "these" are in this comment
+      // MH ?? this comment is confusing: what are "these" are in this comment
       //
       // We don't expose these since they're copied on read, and this means that mutations
       // to the dictionaries don't impact the underlying cpp objects. This is confusing!

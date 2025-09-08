@@ -24,7 +24,7 @@ def base_agent_config():
             type_id=1,
             type_name="agent",
             group_id=0,
-            group_name="test_group",
+        group_name="test_group",
             freeze_duration=0,
             action_failure_penalty=0.0,
             resource_limits={i: 100 for i in range(len(resource_names))},

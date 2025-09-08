@@ -481,6 +481,7 @@ void MettaGrid::_step(Actions actions) {
     }
   }
 
+  // ?? MH handle resource loss from converters here!
   // Handle resource loss
   for (auto& agent : _agents) {
      // Make a real copy of the agent's inventory map to avoid iterator invalidation
@@ -715,6 +716,13 @@ py::dict MettaGrid::grid_objects() {
         inventory_dict[py::int_(resource)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
+
+      py::dict resource_loss_prob_dict;
+      for (const auto& [resource, probability] : agent->resource_loss_prob) {
+        inventory_dict[py::int_(resource)] = probability;
+      }
+      obj_dict["resource_loss_prob"] = resource_loss_prob_dict;
+
       py::dict resource_limits_dict;
       for (const auto& [resource, quantity] : agent->resource_limits) {
         resource_limits_dict[py::int_(resource)] = quantity;
@@ -735,16 +743,25 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["cooldown_duration"] = converter->cooldown;
       obj_dict["output_limit"] = converter->max_output;
       obj_dict["color"] = converter->color;
+
       py::dict input_resources_dict;
       for (const auto& [resource, quantity] : converter->input_resources) {
         input_resources_dict[py::int_(resource)] = quantity;
       }
       obj_dict["input_resources"] = input_resources_dict;
+
       py::dict output_resources_dict;
       for (const auto& [resource, quantity] : converter->output_resources) {
         output_resources_dict[py::int_(resource)] = quantity;
       }
       obj_dict["output_resources"] = output_resources_dict;
+
+      py::dict resource_loss_prob_dict;
+      for (const auto& [resource, probability] : converter->resource_loss_prob) {
+        inventory_dict[py::int_(resource)] = probability;
+      }
+      obj_dict["resource_loss_prob"] = resource_loss_prob_dict;
+
     }
 
     objects[py::int_(obj_id)] = obj_dict;

@@ -87,12 +87,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 stat_name = k[:-4]
                 stat_reward_max[stat_name] = v
 
-        # Process potential initial inventory
+        # Process initial inventory
         initial_inventory = {}
         for k, v in agent_props["initial_inventory"].items():
             initial_inventory[resource_name_to_id[k]] = v
 
-        # Process potential resource loss probability
+        # Process resource loss probability
         resource_loss_prob = {}
         for k, v in agent_props["resource_loss_prob"].items():
             resource_loss_prob[resource_name_to_id[k]] = v
@@ -144,6 +144,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 output_resources={
                     resource_name_to_id[k]: v
                     for k, v in object_config.output_resources.items()
+                    if v > 0 and k in resource_name_to_id
+                },
+                resource_loss_prob={
+                    resource_name_to_id[k]: v
+                    for k, v in object_config.resource_loss_prob.items()
                     if v > 0 and k in resource_name_to_id
                 },
                 max_output=object_config.max_output,

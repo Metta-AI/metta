@@ -93,6 +93,7 @@ public:
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
   unsigned short conversions_completed;
+  std::map<InventoryItem, float> resource_loss_prob;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
@@ -108,7 +109,8 @@ public:
         event_manager(nullptr),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
-        conversions_completed(0) {
+        conversions_completed(0),
+        resource_loss_prob(cfg.resource_loss_prob) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
     // Initialize inventory with initial_resource_count for all output types
