@@ -48,3 +48,9 @@ variable "domain" {
   type    = string
   default = "library.softmax-research.net"
 }
+
+variable "worker_secret_name" {
+  type = string
+  # must match the library helm chart
+  default = "softmax-library-worker-secrets"
+}
