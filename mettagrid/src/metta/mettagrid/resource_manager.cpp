@@ -317,3 +317,17 @@ void ResourceManager::_update_team_maps() {
     }
   }
 }
+
+void ResourceManager::on_inventory_changed(GridObjectId object_id, InventoryItem item, InventoryDelta delta) {
+  // This method is called whenever an object's inventory changes
+  // You can implement any logic here that needs to respond to inventory changes
+
+  // Example: Log inventory changes, update team totals, trigger events, etc.
+  // For now, this is a placeholder that can be extended
+
+  // You could add logic like:
+  // - Update team resource totals
+  // - Trigger resource sharing between team members
+  // - Log inventory changes for debugging
+  // - Update statistics or metrics
+}

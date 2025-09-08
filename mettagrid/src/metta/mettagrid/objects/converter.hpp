@@ -60,10 +60,18 @@ private:
     for (const auto& [item, amount] : amounts_to_consume) {
       // Don't call update_inventory here, because it will call maybe_start_converting again,
       // which will cause an infinite loop.
+      InventoryQuantity initial_amount = this->inventory[item];
       this->inventory[item] -= amount;
       if (this->inventory[item] == 0) {
         this->inventory.erase(item);
       }
+      InventoryDelta delta = this->inventory[item] - initial_amount;
+
+      // Call callback manually since we're bypassing update_inventory
+      if (delta != 0 && inventory_callback) {
+        inventory_callback(this->id, item, delta);
+      }
+
       stats.add(stats.resource_name(item) + ".consumed", amount);
     }
     // All the previous returns were "we don't start converting".

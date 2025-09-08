@@ -55,6 +55,9 @@ public:
   InventoryQuantity get_team_total_inventory(unsigned int team_id, InventoryItem item) const;
   void distribute_resources_to_team(unsigned int team_id, InventoryItem item, InventoryQuantity total_amount);
 
+  // Inventory change callback
+  void on_inventory_changed(GridObjectId object_id, InventoryItem item, InventoryDelta delta);
+
 private:
   Grid* _grid;
 

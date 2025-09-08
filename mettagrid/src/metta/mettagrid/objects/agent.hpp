@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,9 @@ public:
   std::map<std::string, RewardType> stat_rewards;
   std::map<std::string, RewardType> stat_reward_max;
   std::map<InventoryItem, InventoryQuantity> resource_limits;
+
+  // Callback function type for inventory changes
+  using InventoryChangeCallback = std::function<void(GridObjectId, InventoryItem, InventoryDelta)>;
   float action_failure_penalty;
   std::string group_name;
   ObservationType color;
@@ -78,6 +82,11 @@ public:
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
+  }
+
+  // Set callback for inventory changes
+  void set_inventory_callback(InventoryChangeCallback callback) {
+    inventory_callback = callback;
   }
 
   void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
@@ -254,6 +263,9 @@ private:
     }
     return visitation_grid[r][c];
   }
+
+private:
+  InventoryChangeCallback inventory_callback;
 };
 
 #endif  // OBJECTS_AGENT_HPP_

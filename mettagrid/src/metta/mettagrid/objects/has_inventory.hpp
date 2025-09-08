@@ -12,7 +12,7 @@
 class HasInventory : public GridObject {
 public:
   std::map<InventoryItem, InventoryQuantity> inventory;
-  
+
   // Callback function type for inventory changes
   using InventoryChangeCallback = std::function<void(GridObjectId, InventoryItem, InventoryDelta)>;
 
@@ -20,7 +20,7 @@ public:
   virtual bool inventory_is_accessible() {
     return true;
   }
-  
+
   // Set callback for inventory changes
   void set_inventory_callback(InventoryChangeCallback callback) {
     inventory_callback = callback;
@@ -41,16 +41,16 @@ public:
     }
 
     InventoryDelta clamped_delta = clamped_amount - initial_amount;
-    
+
     // Call callback if inventory actually changed
     if (clamped_delta != 0 && inventory_callback) {
       inventory_callback(this->id, item, clamped_delta);
     }
-    
+
     return clamped_delta;
   }
 
-private:
+protected:
   InventoryChangeCallback inventory_callback;
 };
 
