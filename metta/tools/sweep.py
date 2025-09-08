@@ -232,7 +232,7 @@ class SweepTool(Tool):
             stats_server_uri=self.stats_server_uri,  # Pass stats server for remote evals
             gpus=self.gpus,  # Pass GPU configuration
             nodes=self.nodes,
-            batch_size = self.max_parallel_jobs,
+            batch_size=self.max_parallel_jobs,
         )
         scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 

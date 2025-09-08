@@ -4,9 +4,8 @@ import hashlib
 import logging
 import time
 from typing import Any, Dict, List, Optional
-from metta.sweep.models import JobDefinition, RunInfo
 
-
+from metta.sweep.models import JobDefinition, JobTypes, RunInfo
 
 logger = logging.getLogger(__name__)
 
