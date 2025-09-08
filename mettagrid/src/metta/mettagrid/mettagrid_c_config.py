@@ -57,20 +57,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             team_groups[team_id] = []
         team_groups[team_id].append((agent_idx, agent_config))
 
-    # MH - this is the old code for groups
-    """
-    for group_name, group_config in game_config.groups.items():
-        agent_group_props = copy.deepcopy(default_agent_config_dict)
-
-        # Update, but in a nested way
-        if group_config.props:
-            for key, value in group_config.props.model_dump(exclude_unset=True).items():
-                if isinstance(value, dict):
-                    agent_group_props[key].update(value)
-                else:
-                    agent_group_props[key] = value
-    """
-
     # Create a group for each team
     for team_id, team_agents in team_groups.items():
         # Use the first agent in the team as the template for the group
@@ -106,6 +92,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for k, v in agent_props["initial_inventory"].items():
             initial_inventory[resource_name_to_id[k]] = v
 
+        # Process potential resource loss probability
+        resource_loss_prob = {}
+        for k, v in agent_props["resource_loss_prob"].items():
+            resource_loss_prob[resource_name_to_id[k]] = v
+
         # Map team IDs to conventional group names
         team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
         group_name = team_names.get(team_id, f"team_{team_id}")
@@ -126,15 +117,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_id": 0,
             "type_name": "agent",
             "initial_inventory": initial_inventory,
+            "resource_loss_prob": resource_loss_prob,
         }
-
-        """
-        "resource_loss_prob": {
-                resource_name_to_id[k]: float(v)
-                for k, v in (agent_group_props.get("resource_loss_prob") or {}).items()
-                if k in resource_name_to_id
-            },
-        """
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
 

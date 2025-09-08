@@ -481,7 +481,6 @@ void MettaGrid::_step(Actions actions) {
     }
   }
 
-  // ?? MH: do here
   // Handle resource loss
   for (auto& agent : _agents) {
      // Make a real copy of the agent's inventory map to avoid iterator invalidation
@@ -506,6 +505,8 @@ void MettaGrid::_step(Actions actions) {
        }
        if (lost > 0) {
          agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
+      }
+    }
   }
 
   // Compute observations for next step

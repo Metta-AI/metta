@@ -24,7 +24,8 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<std::string, RewardType>& stat_rewards = {},
               const std::map<std::string, RewardType>& stat_reward_max = {},
               float group_reward_pct = 0,
-              const std::map<InventoryItem, InventoryQuantity>& initial_inventory = {})
+              const std::map<InventoryItem, InventoryQuantity>& initial_inventory = {},
+              const std::map<InventoryItem, float>& resource_loss_prob = {})
       : GridObjectConfig(type_id, type_name),
         group_id(group_id),
         group_name(group_name),
@@ -36,7 +37,8 @@ struct AgentConfig : public GridObjectConfig {
         stat_rewards(stat_rewards),
         stat_reward_max(stat_reward_max),
         group_reward_pct(group_reward_pct),
-        initial_inventory(initial_inventory) {}
+        initial_inventory(initial_inventory),
+        resource_loss_prob(resource_loss_prob) {}
 
   unsigned char group_id;
   std::string group_name;
@@ -49,6 +51,7 @@ struct AgentConfig : public GridObjectConfig {
   std::map<std::string, RewardType> stat_reward_max;
   float group_reward_pct;
   std::map<InventoryItem, InventoryQuantity> initial_inventory;
+  std::map<InventoryItem, float> resource_loss_prob;
 };
 
 namespace py = pybind11;
@@ -67,7 +70,7 @@ inline void bind_agent_config(py::module& m) {
                     const std::map<std::string, RewardType>&,
                     const std::map<std::string, RewardType>&,
                     float,
-                    const std::map<InventoryItem, InventoryQuantity>&>(),
+                    const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, float>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",

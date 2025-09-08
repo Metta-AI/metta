@@ -100,6 +100,7 @@ class AgentConfig(GridObjectConfig):
     stat_reward_max: dict[str, float]  # Added this
     group_reward_pct: float
     initial_inventory: dict[int, int]
+    resource_loss_prob: dict[int, float]
 
 class ConverterConfig(GridObjectConfig):
     def __init__(
