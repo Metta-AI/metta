@@ -4,6 +4,7 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  workflow_dispatch: {}
   push:
     branches:
       - main
@@ -11,7 +12,6 @@ on:
     paths:
       - "library/**"
       - ".github/workflows/build-library-image.yml"
-  workflow_dispatch: {}
 
 jobs:
   build-and-push-image:
