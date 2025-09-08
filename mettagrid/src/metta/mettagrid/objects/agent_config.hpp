@@ -82,7 +82,7 @@ inline void bind_agent_config(py::module& m) {
            py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
            py::arg("group_reward_pct") = 0,
            py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("resource_loss_probs") = std::map<InventoryItem, float>())
+           py::arg("resource_loss_prob") = std::map<InventoryItem, float>())
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("group_name", &AgentConfig::group_name)
@@ -96,7 +96,7 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)
       .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct)
       .def_readwrite("initial_inventory", &AgentConfig::initial_inventory)
-      .def_readwrite("resource_loss_probs", &AgentConfig::resource_loss_probs);
+      .def_readwrite("resource_loss_prob", &AgentConfig::resource_loss_prob);
 }
 
 #endif  // OBJECTS_AGENT_CONFIG_HPP_

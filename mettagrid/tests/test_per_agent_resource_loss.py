@@ -1,4 +1,4 @@
-mport numpy as np
+import numpy as np
 
 from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
@@ -40,7 +40,7 @@ class TestPerAgentResourceLoss:
                     "sprite": 0,
                     "props": {
                         "initial_inventory": {"heart": 5, "battery_blue": 3},
-                        "resource_loss_probs": {"heart": 1.0, "battery_blue": 1.0},  # Complete loss for player1 agents
+                        "resource_loss_prob": {"heart": 1.0, "battery_blue": 1.0},  # Complete loss for player1 agents
                     },
                 },
                 "player2": {
@@ -48,7 +48,7 @@ class TestPerAgentResourceLoss:
                     "sprite": 0,
                     "props": {
                         "initial_inventory": {"heart": 5, "battery_blue": 3},
-                        "resource_loss_probs": {"heart": 0.0, "battery_blue": 0.0},  # No loss for player2 agents
+                        "resource_loss_prob": {"heart": 0.0, "battery_blue": 0.0},  # No loss for player2 agents
                     },
                 },
             },
@@ -57,7 +57,7 @@ class TestPerAgentResourceLoss:
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},
-                "resource_loss_probs": {
+                "resource_loss_prob": {
                     "heart": 0.0,
                     "battery_blue": 0.0,
                 },  # No loss for default agent
@@ -152,7 +152,7 @@ class TestPerAgentResourceLoss:
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},
-                "resource_loss_probs": {},  # No resource loss configured
+                "resource_loss_prob": {},  # No resource loss configured
             },
         }
 

@@ -32,7 +32,7 @@ def base_agent_config():
             resource_reward_max={i: 100 for i in range(len(resource_names))},
             group_reward_pct=0.0,
             initial_inventory={},
-            resource_loss_probs={},
+            resource_loss_prob={},
         )
 
     return _create

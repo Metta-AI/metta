@@ -79,7 +79,7 @@ protected:
                        {},                                 // stat_reward_max
                        0.0f,                               // group_reward_pct
                        {},                                 // initial_inventory
-                       {});                                // resource_loss_probs
+                       {});                                // resource_loss_prob
   }
 };
 

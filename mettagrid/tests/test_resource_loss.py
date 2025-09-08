@@ -46,7 +46,7 @@ class TestResourceLoss:
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},
-                "resource_loss_probs": {"heart": 1.0, "battery_blue": 1.0},
+                "resource_loss_prob": {"heart": 1.0, "battery_blue": 1.0},
             },
         }
 
@@ -129,7 +129,7 @@ class TestResourceLoss:
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},
-                "resource_loss_probs": {"heart": 0.0, "battery_blue": 0.0},
+                "resource_loss_prob": {"heart": 0.0, "battery_blue": 0.0},
             },
         }
 
@@ -213,7 +213,7 @@ class TestResourceLoss:
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},
-                "resource_loss_probs": {"heart": 1.0, "battery_blue": 1.0},
+                "resource_loss_prob": {"heart": 1.0, "battery_blue": 1.0},
             },
         }
 

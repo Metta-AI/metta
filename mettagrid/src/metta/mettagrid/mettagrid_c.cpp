@@ -492,7 +492,7 @@ void MettaGrid::_step(Actions actions) {
        }
        // Per-agent resource loss probability
        float prob = 0.0f;
-       if (auto it = agent->resource_loss_probs.find(item); it != agent->resource_loss_probs.end()) {
+       if (auto it = agent->resource_loss_prob.find(item); it != agent->resource_loss_prob.end()) {
          prob = it->second;
        }
        if (prob <= 0.0f) {
