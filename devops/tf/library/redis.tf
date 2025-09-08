@@ -37,12 +37,15 @@ resource "aws_security_group" "redis_public" {
 
 resource "aws_elasticache_replication_group" "main" {
   replication_group_id = "softmax-library-redis"
-  description          = "Redis for softmax-library job job queue"
+  description          = "Redis for softmax-library job queue"
   engine               = "redis"
   node_type            = "cache.t4g.micro"
   num_cache_clusters   = 1
 
-  auth_token = random_password.redis_password.result
+  # encryption is required when using auth token
+  at_rest_encryption_enabled = true
+  transit_encryption_enabled = true
+  auth_token                 = random_password.redis_password.result
 
   security_group_ids = [aws_security_group.redis_public.id]
   subnet_group_name  = aws_elasticache_subnet_group.redis.name
