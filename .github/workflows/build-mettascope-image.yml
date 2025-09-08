@@ -6,11 +6,11 @@ on:
       - main
     paths:
       - "mettascope/Dockerfile"
-      - ".github/workflows/build-mettascope-docker.yml"
+      - ".github/workflows/build-mettascope-image.yml"
   pull_request:
     paths:
       - "mettascope/Dockerfile"
-      - ".github/workflows/build-mettascope-docker.yml"
+      - ".github/workflows/build-mettascope-image.yml"
   workflow_dispatch:
 
 env:
