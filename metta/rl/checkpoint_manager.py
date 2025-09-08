@@ -54,8 +54,17 @@ def _create_agent_from_state_dict(state_dict: Dict[str, torch.Tensor], device: s
     logger.info("Loading PufferLib checkpoint format (state_dict) - creating MettaAgent")
 
     # Create a minimal environment for agent initialization
+
     env_cfg = make_arena(num_agents=60)
     temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
+    try:
+        # Use the environment
+        agent = MettaAgent(temp_env, system_cfg, agent_cfg)
+        # Rest of the agent setup...
+    finally:
+        # Ensure environment is properly closed
+        temp_env.close()
+
 
     system_cfg = SystemConfig(device=str(device))
     agent_cfg = AgentConfig()
