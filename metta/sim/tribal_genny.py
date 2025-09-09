@@ -149,12 +149,21 @@ class TribalGridEnv:
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
+        print(f"[DEBUG] TribalGridEnv.reset() called with seed={seed}")
+        
         # Reset the Nim environment (our binding doesn't take seed parameter)
+        print(f"[DEBUG] Calling _nim_env.reset_env()...")
         self._nim_env.reset_env()
+        print(f"[DEBUG] _nim_env.reset_env() completed")
 
         # Get token observations directly from Nim
+        print(f"[DEBUG] Getting token observations...")
         obs_data = self._nim_env.get_token_observations()
+        print(f"[DEBUG] Got {len(obs_data)} token observations")
+        
+        print(f"[DEBUG] Converting observations...")
         observations = self._convert_observations(obs_data)
+        print(f"[DEBUG] Converted observations shape: {observations.shape}")
 
         info = {
             "current_step": self._nim_env.get_current_step(),
@@ -351,108 +360,51 @@ class TribalGridEnv:
 
 
 # Configuration Classes - Minimal pass-through to Nim
-class TribalGameConfig:
-    """Minimal pass-through wrapper for Nim TribalGameConfig.
-    
-    All configuration values come directly from Nim - no Python-side duplication.
-    This is just a thin compatibility layer for the existing Python API.
+class TribalGameConfig(Config):
+    """Configuration for tribal game mechanics.
+
+    NOTE: Structural parameters (num_agents, map dimensions, observation space)
+    are kept as compile-time constants for performance. Only gameplay parameters
+    are configurable at runtime.
     """
-    
-    def __init__(self, _nim_config=None, **overrides):
-        # Store the Nim config object directly - no Python fields
-        self._nim_config = _nim_config or default_tribal_config().game
-        
-        # Apply any overrides directly to the Nim object
-        for key, value in overrides.items():
-            if hasattr(self._nim_config, key):
-                setattr(self._nim_config, key, value)
-            else:
-                raise AttributeError(f"Unknown config parameter: {key}")
-    
-    def __getattr__(self, name: str):
-        """Delegate all attribute access to the Nim config object."""
-        return getattr(self._nim_config, name)
-    
-    def __setattr__(self, name: str, value):
-        """Delegate all attribute setting to the Nim config object."""
-        if name.startswith('_'):
-            # Private attributes stay on Python object
-            super().__setattr__(name, value)
-        else:
-            # Everything else goes to Nim
-            setattr(self._nim_config, name, value)
-    
+
+    # Core game parameters
+    max_steps: int = Field(default=2000, ge=0, description="Maximum steps per episode")
+
+    # Resource configuration
+    ore_per_battery: int = Field(default=3, description="Ore required to craft battery")
+    batteries_per_heart: int = Field(default=2, description="Batteries required at altar for hearts")
+
+    # Combat configuration
+    enable_combat: bool = Field(default=True, description="Enable agent combat")
+    clippy_spawn_rate: float = Field(default=1.0, ge=0, le=1, description="Rate of enemy spawning")
+    clippy_damage: int = Field(default=1, description="Damage dealt by enemies")
+
+    # Reward configuration
+    heart_reward: float = Field(default=1.0, description="Reward for creating hearts")
+    ore_reward: float = Field(default=0.1, description="Reward for collecting ore")
+    battery_reward: float = Field(default=0.8, description="Reward for crafting batteries")
+    survival_penalty: float = Field(default=-0.01, description="Per-step survival penalty")
+    death_penalty: float = Field(default=-5.0, description="Penalty for agent death")
+
     @property
     def num_agents(self) -> int:
         """Number of agents (compile-time constant)."""
         return MAP_AGENTS
-    
-    @classmethod
-    def from_nim_defaults(cls) -> "TribalGameConfig":
-        """Create config with defaults from Nim environment."""
-        return cls()  # That's it! No field-by-field copying needed
 
 
-class TribalEnvConfig:
-    """Minimal pass-through configuration for tribal environments.
-    
-    Contains only Python-specific concerns (label, render mode).
-    All game configuration passes through directly to Nim.
-    """
-    
-    def __init__(self, label: str = "tribal", desync_episodes: bool = True, 
-                 render_mode: Optional[str] = None, game: Optional[TribalGameConfig] = None, **game_overrides):
-        self.environment_type = "tribal"
-        self.label = label
-        self.desync_episodes = desync_episodes
-        self.render_mode = render_mode
-        
-        # Game config is just a pass-through to Nim
-        if game is not None:
-            self.game = game
-        else:
-            self.game = TribalGameConfig(**game_overrides)
-    
-    @classmethod
-    def __get_pydantic_core_schema__(cls, source_type, handler):
-        """Provide Pydantic schema for compatibility with TaskGeneratorConfig."""
-        from pydantic_core import core_schema
-        return core_schema.no_info_after_validator_function(
-            cls._pydantic_validator,
-            core_schema.dict_schema(),
-        )
-    
-    @classmethod  
-    def _pydantic_validator(cls, value):
-        """Convert dict to TribalEnvConfig instance for Pydantic compatibility."""
-        if isinstance(value, cls):
-            return value
-        if isinstance(value, dict):
-            return cls(**value)
-        return value
-    
-    def model_copy(self, *, deep: bool = False) -> "TribalEnvConfig":
-        """Create a copy of this config (for Pydantic compatibility)."""
-        # Create a new game config (deep copy the Nim config if needed)
-        if deep:
-            # Create a new game config with the same values
-            new_game = TribalGameConfig()
-            for attr_name in ['max_steps', 'ore_per_battery', 'batteries_per_heart', 
-                             'enable_combat', 'clippy_spawn_rate', 'clippy_damage',
-                             'heart_reward', 'ore_reward', 'battery_reward', 
-                             'survival_penalty', 'death_penalty']:
-                if hasattr(self.game, attr_name):
-                    setattr(new_game, attr_name, getattr(self.game, attr_name))
-        else:
-            new_game = self.game
-            
-        # Create new instance with copied values
-        return TribalEnvConfig(
-            label=self.label,
-            desync_episodes=self.desync_episodes,
-            render_mode=self.render_mode,
-            game=new_game
-        )
+class TribalEnvConfig(Config):
+    """Configuration for Nim tribal environments."""
+
+    environment_type: str = "tribal"
+    label: str = Field(default="tribal", description="Environment label")
+
+    # Game configuration
+    game: TribalGameConfig = Field(default_factory=TribalGameConfig)
+
+    # Environment settings
+    desync_episodes: bool = Field(default=True, description="Desynchronize episode resets")
+    render_mode: Optional[str] = Field(default=None, description="Rendering mode (human, rgb_array)")
 
     def get_observation_space(self) -> Dict[str, Any]:
         """Get tribal environment observation space."""
@@ -471,16 +423,6 @@ class TribalEnvConfig:
             "nvec": [6, 8],  # 6 action types, 8 max argument value (0-7 for directions)
         }
 
-    @classmethod
-    def with_nim_defaults(cls, **overrides) -> "TribalEnvConfig":
-        """Create config with defaults from Nim environment."""
-        game_config = TribalGameConfig.from_nim_defaults()
-        return cls(
-            game=game_config,
-            label=overrides.get("label", "tribal"),
-            desync_episodes=overrides.get("desync_episodes", True),
-            render_mode=overrides.get("render_mode"),
-        )
 
     def create_environment(self, **kwargs) -> Any:
         """Create tribal environment instance."""

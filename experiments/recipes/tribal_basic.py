@@ -123,8 +123,8 @@ def make_tribal_environment(
         enable_combat: Enable combat with Clippys (uses Nim default if None)
         **kwargs: Additional configuration overrides
     """
-    # Start with Nim defaults
-    config = TribalEnvConfig.with_nim_defaults(
+    # Create with default factory 
+    config = TribalEnvConfig(
         label="tribal_basic", 
         desync_episodes=True, 
         **kwargs
