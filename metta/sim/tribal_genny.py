@@ -134,6 +134,14 @@ class TribalGridEnv:
         # Cache for compatibility
         self.obs_width = self.observation_width
         self.obs_height = self.observation_height
+        
+        # Add height and width properties for replay system compatibility
+        self.height = MAP_HEIGHT
+        self.width = MAP_WIDTH
+        
+        # Add grid_objects property for MettaScope visualization compatibility
+        # Return empty dict since tribal uses a different object system
+        self.grid_objects = {}
 
         # Feature normalizations from Nim
         feature_norms_seq = get_feature_normalizations()

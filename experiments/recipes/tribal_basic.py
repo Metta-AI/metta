@@ -185,7 +185,7 @@ def evaluate(
     )
 
 
-def play(env: TribalEnvConfig | None = None, **overrides) -> PlayTool:
+def play(env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides) -> PlayTool:
     """
     Interactive play with the tribal environment.
 
@@ -194,7 +194,8 @@ def play(env: TribalEnvConfig | None = None, **overrides) -> PlayTool:
 
     Args:
         env: Optional tribal environment config, defaults to basic config
-        **overrides: Additional configuration overrides (can include policy_uri)
+        policy_uri: Optional URI to trained policy
+        **overrides: Additional configuration overrides
     """
     # Ensure tribal bindings are built
     _ensure_tribal_bindings_built()
@@ -203,6 +204,7 @@ def play(env: TribalEnvConfig | None = None, **overrides) -> PlayTool:
 
     return PlayTool(
         sim=SimulationConfig(name="tribal/play", env=eval_env),
+        policy_uri=policy_uri,
         **overrides,
     )
 
