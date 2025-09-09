@@ -13,6 +13,7 @@ TECHNICAL NOTES:
 
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -25,6 +26,87 @@ from metta.sim.tribal_genny import TribalEnvConfig
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+
+
+class DirectGennyTribalEnv:
+    """
+    Wrapper that allows direct genny binding calls with simple Python data structures.
+    
+    Instead of numpy arrays, this accepts simple Python lists and calls genny bindings directly.
+    This avoids the numpy → SeqInt conversion layer for better performance.
+    """
+    
+    def __init__(self, tribal_grid_env):
+        self.tribal_env = tribal_grid_env
+        self.num_agents = tribal_grid_env.num_agents
+        self.max_steps = tribal_grid_env.max_steps
+        
+        # Get direct access to the underlying Nim environment via genny bindings
+        self._nim_env = tribal_grid_env._nim_env
+    
+    def reset(self, seed=None):
+        """Reset and return observations."""
+        return self.tribal_env.reset(seed)
+    
+    def step(self, actions):
+        """
+        Step with actions - accepts either:
+        - Python list of lists: [[0,0], [1,2], [0,0], ...] (preferred for genny)
+        - Numpy array: np.array([[0,0], [1,2], [0,0], ...])
+        """
+        # Handle both Python lists and numpy arrays
+        if isinstance(actions, list):
+            # Direct genny path - flatten list of lists to flat list
+            flat_actions = []
+            for action_pair in actions:
+                flat_actions.extend([int(action_pair[0]), int(action_pair[1])])
+            
+            # Convert to SeqInt as required by genny bindings
+            from tribal import SeqInt
+            actions_seq = SeqInt()
+            for action in flat_actions:
+                actions_seq.append(action)
+            
+            # Call genny binding directly
+            print(f"🎯 Using direct genny bindings: step({len(flat_actions)} actions)")
+            success = self._nim_env.step(actions_seq)
+            if not success:
+                raise RuntimeError("Direct genny step failed")
+        else:
+            # Fallback to numpy path through TribalGridEnv
+            print(f"🔄 Using numpy fallback path")
+            return self.tribal_env.step(actions)
+        
+        # Get results directly from genny bindings
+        obs_data = self._nim_env.get_token_observations()
+        observations = self.tribal_env._convert_observations(obs_data)
+        
+        rewards_seq = self._nim_env.get_rewards()
+        rewards = [rewards_seq[i] for i in range(len(rewards_seq))]
+        
+        terminated_seq = self._nim_env.get_terminated()
+        terminals = [terminated_seq[i] for i in range(len(terminated_seq))]
+        
+        truncated_seq = self._nim_env.get_truncated()
+        truncations = [truncated_seq[i] for i in range(len(truncated_seq))]
+        
+        # Convert to numpy for compatibility
+        import numpy as np
+        rewards = np.array(rewards, dtype=np.float32)
+        terminals = np.array(terminals, dtype=bool)
+        truncations = np.array(truncations, dtype=bool)
+        
+        # Check for episode end
+        if self._nim_env.is_episode_done():
+            truncations[:] = True
+        
+        info = {
+            "current_step": self._nim_env.get_current_step(),
+            "max_steps": self.max_steps,
+            "episode_done": self._nim_env.is_episode_done(),
+        }
+        
+        return observations, rewards, terminals, truncations, info
 
 
 def _ensure_tribal_bindings_built():
@@ -155,19 +237,18 @@ class TribalNimPlayTool(Tool):
                 self.test_mode = test_mode
             
             def forward(self, observations):
-                """Generate test actions based on test mode."""
-                import numpy as np
+                """Generate test actions based on test mode using direct genny-compatible format."""
                 num_agents = 15
-                actions = np.zeros((num_agents, 2), dtype=np.int32)
                 
                 if self.test_mode == "test_noop":
-                    # All noop actions
-                    actions[:, 0] = 0  # NOOP
-                    actions[:, 1] = 0
+                    # All noop actions - return as simple Python list for direct genny use
+                    actions = [[0, 0] for _ in range(num_agents)]
                 elif self.test_mode == "test_move":
-                    # All move actions with random directions
-                    actions[:, 0] = 1  # MOVE
-                    actions[:, 1] = np.random.randint(0, 4, size=num_agents)  # Random directions
+                    # All move actions with random directions - direct Python list
+                    import random
+                    actions = [[1, random.randint(0, 3)] for _ in range(num_agents)]  # MOVE with random directions
+                else:
+                    actions = [[0, 0] for _ in range(num_agents)]
                 
                 return {"actions": actions}
         
@@ -177,7 +258,7 @@ class TribalNimPlayTool(Tool):
     def _run_environment_with_policy(self, policy) -> int:
         """Run the environment with the given policy controlling all agents."""
         try:
-            print("🎮 Creating in-process tribal environment...")
+            print("🎮 Creating in-process tribal environment with direct genny bindings...")
             from metta.sim.tribal_genny import TribalGridEnv
             
             # Create environment directly
@@ -195,9 +276,12 @@ class TribalNimPlayTool(Tool):
                 "death_penalty": self.env_config.game.death_penalty,
             }
             
-            env = TribalGridEnv(config_dict)
-            print(f"✅ Environment created with {env.num_agents} agents")
-            print("🎯 Neural network will control agents directly via environment stepping")
+            base_env = TribalGridEnv(config_dict)
+            print(f"✅ Base environment created with {base_env.num_agents} agents")
+            
+            # Wrap with direct genny interface for optimal performance
+            env = DirectGennyTribalEnv(base_env)
+            print("🎯 Using direct genny bindings for neural network control (no numpy conversion)")
             
             # Run the interactive loop with neural network control
             return self._run_interactive_loop(env, policy, None)

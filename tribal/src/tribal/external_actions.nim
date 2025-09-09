@@ -2,7 +2,7 @@
 ## Supports both external neural network control and built-in AI control
 ## Controller type is specified when creating the environment
 
-import std/times
+import std/times, std/os, std/strutils
 import environment, ai, common
 
 type
