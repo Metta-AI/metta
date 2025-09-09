@@ -7,6 +7,7 @@ import uuid
 
 from metta.sweep.models import JobDefinition, JobTypes
 from metta.sweep.protocols import Dispatcher
+from metta.sweep.utils import get_display_id
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +80,7 @@ class SkypilotDispatcher(Dispatcher):
             cmd_parts.extend(all_overrides)
 
         # Extract trial portion for cleaner display (like LocalDispatcher)
-        display_id = job.run_id.split("_trial_")[-1] if "_trial_" in job.run_id else job.run_id
-        display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
+        display_id = get_display_id(job.run_id)
 
         logger.info(f"Dispatching {display_id}: {' '.join(cmd_parts)}")
 
