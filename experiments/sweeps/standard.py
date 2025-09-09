@@ -9,6 +9,7 @@ def ppo(
     recipe: str = "experiments.recipes.arena_basic_easy_shaped",
     train: str = "train",
     eval: str = "evaluate_in_sweep",
+    git_ref: str | None = None,
     max_trials: int = 300,
     max_parallel_jobs: int = 6,
     gpus: int = 1,
@@ -40,7 +41,7 @@ def ppo(
             # 3. Entropy coefficient - log scale from 0.0001 to 0.01
             "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
                 min=0.0001,
-                max=0.01,
+                max=0.035,
                 distribution="log_normal",
                 mean=0.001,  # Geometric mean
                 scale="auto",
@@ -83,6 +84,7 @@ def ppo(
         recipe_module=recipe,
         train_entrypoint=train,
         eval_entrypoint=eval,
+        git_ref = git_ref,
         monitoring_interval=60,
         max_parallel_jobs=max_parallel_jobs,
         gpus=gpus,

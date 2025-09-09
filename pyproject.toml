@@ -72,6 +72,7 @@ dependencies = [
   "altair>=5.5.0",
   "pyarrow>=21.0.0",
   "typer>=0.16.0",
+  "mypy>=1.17.1",
 ]
 name = "metta"
 version = "0.1"
