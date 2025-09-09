@@ -117,11 +117,33 @@ proc display() =
   inc frame
 
 
-# Build the atlas.
+# Build the atlas with progress feedback and error handling.
+echo "🎨 Loading tribal assets..."
+var loadedCount = 0
+var totalFiles = 0
+
+# Count total PNG files first
 for path in walkDirRec("data/"):
   if path.endsWith(".png"):
-    echo path
-    bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
+    inc totalFiles
+
+echo "📁 Found ", totalFiles, " PNG files to load"
+
+for path in walkDirRec("data/"):
+  if path.endsWith(".png"):
+    inc loadedCount
+    echo "Loading ", loadedCount, "/", totalFiles, ": ", path
+    
+    try:
+      bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
+    except Exception as e:
+      echo "⚠️  Skipping ", path, ": ", e.msg
+    
+    # Show progress every 50 files
+    if loadedCount mod 50 == 0:
+      echo "✅ Loaded ", loadedCount, "/", totalFiles, " assets..."
+
+echo "🎨 Asset loading complete! Loaded ", loadedCount, "/", totalFiles, " files"
 
 when defined(emscripten):
   proc main() {.cdecl.} =
