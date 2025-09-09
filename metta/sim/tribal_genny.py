@@ -393,14 +393,58 @@ class TribalEnvConfig:
     """
     
     def __init__(self, label: str = "tribal", desync_episodes: bool = True, 
-                 render_mode: Optional[str] = None, **game_overrides):
+                 render_mode: Optional[str] = None, game: Optional[TribalGameConfig] = None, **game_overrides):
         self.environment_type = "tribal"
         self.label = label
         self.desync_episodes = desync_episodes
         self.render_mode = render_mode
         
         # Game config is just a pass-through to Nim
-        self.game = TribalGameConfig(**game_overrides)
+        if game is not None:
+            self.game = game
+        else:
+            self.game = TribalGameConfig(**game_overrides)
+    
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
+        """Provide Pydantic schema for compatibility with TaskGeneratorConfig."""
+        from pydantic_core import core_schema
+        return core_schema.no_info_after_validator_function(
+            cls._pydantic_validator,
+            core_schema.dict_schema(),
+        )
+    
+    @classmethod  
+    def _pydantic_validator(cls, value):
+        """Convert dict to TribalEnvConfig instance for Pydantic compatibility."""
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, dict):
+            return cls(**value)
+        return value
+    
+    def model_copy(self, *, deep: bool = False) -> "TribalEnvConfig":
+        """Create a copy of this config (for Pydantic compatibility)."""
+        # Create a new game config (deep copy the Nim config if needed)
+        if deep:
+            # Create a new game config with the same values
+            new_game = TribalGameConfig()
+            for attr_name in ['max_steps', 'ore_per_battery', 'batteries_per_heart', 
+                             'enable_combat', 'clippy_spawn_rate', 'clippy_damage',
+                             'heart_reward', 'ore_reward', 'battery_reward', 
+                             'survival_penalty', 'death_penalty']:
+                if hasattr(self.game, attr_name):
+                    setattr(new_game, attr_name, getattr(self.game, attr_name))
+        else:
+            new_game = self.game
+            
+        # Create new instance with copied values
+        return TribalEnvConfig(
+            label=self.label,
+            desync_episodes=self.desync_episodes,
+            render_mode=self.render_mode,
+            game=new_game
+        )
 
     def get_observation_space(self) -> Dict[str, Any]:
         """Get tribal environment observation space."""
