@@ -186,23 +186,24 @@ def evaluate(
     )
 
 
-def play(policy_uri: str, render_mode: str = "human", **overrides) -> PlayTool:
+def play(env: TribalEnvConfig | None = None, **overrides) -> PlayTool:
     """
-    Interactive play with a trained policy.
+    Interactive play with the tribal environment.
+    
+    Can be used with or without a trained policy - if no policy is provided,
+    agents will act randomly which is useful for environment testing.
 
     Args:
-        policy_uri: URI to trained policy
-        render_mode: Rendering mode for visualization
-        **overrides: Additional configuration overrides
+        env: Optional tribal environment config, defaults to basic config
+        **overrides: Additional configuration overrides (can include policy_uri)
     """
     # Ensure tribal bindings are built
     _ensure_tribal_bindings_built()
 
-    env = make_tribal_environment(render_mode=render_mode)
+    eval_env = env or make_tribal_environment()
 
     return PlayTool(
-        sim=SimulationConfig(name="tribal/play", env=env),
-        policy_uri=policy_uri,
+        sim=SimulationConfig(name="tribal/play", env=eval_env),
         **overrides,
     )
 

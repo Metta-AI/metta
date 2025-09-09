@@ -120,10 +120,11 @@ class TribalGridEnv:
         # Add gym spaces for pufferlib compatibility
         import gymnasium as gym
         
-        # Observation space: [layers, height, width]
+        # Token observation space: [num_tokens, 3] where each token is [coord_byte, layer, value]
+        max_tokens = 256
         self.single_observation_space = gym.spaces.Box(
             low=0, high=255, 
-            shape=(self.observation_layers, self.observation_height, self.observation_width), 
+            shape=(max_tokens, 3), 
             dtype=np.uint8
         )
         
@@ -133,21 +134,12 @@ class TribalGridEnv:
         # Cache for compatibility
         self.obs_width = self.observation_width
         self.obs_height = self.observation_height
-        
-        # Feature normalizations (create entries for each observation layer)
-        # Tribal observations are raw pixel-like data, normalize to 0-255 range
-        self.feature_normalizations = {i: 255.0 for i in range(self.observation_layers)}
-        
-        # Episode tracking for curriculum
-        self._episode_rewards = np.array([0.0])
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
         # Reset the Nim environment (our binding doesn't take seed parameter)
         self._nim_env.reset_env()
         
-        # Reset episode tracking
-        self._episode_rewards[0] = 0.0
 
         # Get observations and convert to numpy
         obs_data = self._nim_env.get_observations()
@@ -204,8 +196,6 @@ class TribalGridEnv:
         truncated_seq = self._nim_env.get_truncated()
         truncations = np.array([truncated_seq[i] for i in range(len(truncated_seq))], dtype=bool)
 
-        # Track episode rewards for curriculum
-        self._episode_rewards[0] += rewards.sum()
 
         # Check for episode end
         if self._nim_env.is_episode_done():
@@ -220,8 +210,8 @@ class TribalGridEnv:
         return observations, rewards, terminals, truncations, info
 
     def _convert_observations(self, obs_seq: SeqInt) -> np.ndarray:
-        """Convert genny observation data to numpy array."""
-        # obs_seq is flattened: [agents * layers * height * width]
+        """Convert genny observation data to token format for MettaAgent compatibility."""
+        # First convert to grid format
         obs_array = np.zeros(
             (self.num_agents, self.observation_layers, self.observation_height, self.observation_width), dtype=np.uint8
         )
@@ -247,7 +237,43 @@ class TribalGridEnv:
                                 obs_array[agent_id, layer, y, x] = obs_seq[index]
                                 index += 1
 
-        return obs_array
+        # Convert grid observations to token format like MettaGrid
+        return self._grid_to_tokens(obs_array)
+    
+    def _grid_to_tokens(self, grid_obs: np.ndarray) -> np.ndarray:
+        """Convert grid observations [agents, layers, height, width] to token format [agents, num_tokens, 3]."""
+        agents, layers, height, width = grid_obs.shape
+        max_tokens = 256  # Reasonable limit for token sequence length
+        
+        # Initialize token arrays for all agents
+        token_obs = np.full((agents, max_tokens, 3), 0xFF, dtype=np.uint8)
+        
+        for agent_id in range(agents):
+            tokens = []
+            
+            # Convert non-zero observations to tokens
+            for layer in range(layers):
+                for y in range(height):
+                    for x in range(width):
+                        value = grid_obs[agent_id, layer, y, x]
+                        if value > 0:  # Only include non-zero observations
+                            # Pack x,y coordinates into single byte (4 bits each)
+                            coord_byte = (x << 4) | y
+                            tokens.append([coord_byte, layer, value])
+                            
+                            if len(tokens) >= max_tokens:
+                                break
+                    if len(tokens) >= max_tokens:
+                        break
+                if len(tokens) >= max_tokens:
+                    break
+            
+            # Fill token array for this agent
+            for i, token in enumerate(tokens):
+                if i < max_tokens:
+                    token_obs[agent_id, i] = token
+        
+        return token_obs
 
     def render(self, mode: str = "human") -> Optional[str]:
         """Render the environment."""
@@ -273,33 +299,6 @@ class TribalGridEnv:
     def max_steps(self) -> int:
         """Get max steps."""
         return self._config.game.max_steps
-    
-    def set_mg_config(self, config) -> None:
-        """Set new MettaGrid configuration (for curriculum compatibility)."""
-        # For tribal environments, we don't need to change configuration during curriculum
-        # as the environment configuration is compile-time
-        pass
-    
-    def get_episode_rewards(self) -> np.ndarray:
-        """Get episode rewards (for curriculum compatibility)."""
-        return self._episode_rewards
-    
-    def get_observation_features(self):
-        """Get observation features (for compatibility with MettaGrid interface)."""
-        # Return empty dict as tribal observations don't use the same feature system
-        return {}
-    
-    @property
-    def action_names(self) -> list[str]:
-        """Get action names for tribal environment."""
-        return ["NOOP", "MOVE", "ATTACK", "GET", "SWAP", "PUT"]
-    
-    @property
-    def max_action_args(self) -> list[int]:
-        """Get maximum action arguments for each action type."""
-        # For tribal actions: NOOP=0, MOVE=8, ATTACK=8, GET=8, SWAP=8, PUT=8
-        # All directional actions use 8 directions, NOOP uses 0
-        return [0, 8, 8, 8, 8, 8]
 
     def close(self) -> None:
         """Clean up environment."""
