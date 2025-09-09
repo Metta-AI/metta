@@ -67,6 +67,18 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "test_resource_manager_bin",
+    srcs = ["test_resource_manager.cpp"],
+    copts = COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
+    linkstatic = False,
+    deps = [
+        "//:mettagrid_lib",
+        "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
 # Python test wrappers
 py_test(
     name = "test_stats_tracker",

@@ -20,6 +20,9 @@ ResourceManager::ResourceManager(Grid* grid, std::mt19937& rng) : _grid(grid), _
 
 void ResourceManager::step() {
   // Process resource loss for each cached bin - no iteration needed!
+  
+  // Collect updates to apply after iteration to avoid iterator invalidation
+  std::vector<std::tuple<HasInventory*, InventoryItem, InventoryDelta>> updates;
 
   for (auto& [bin_key, objects_with_quantities] : _bins) {
     const InventoryItem& item = bin_key.second;
@@ -46,21 +49,25 @@ void ResourceManager::step() {
       continue;
     }
 
-    // Calculate expected loss using normal distribution
-    float expected_loss = total_resources * loss_probability;
-
-    // Use normal distribution around the expectation
-    std::normal_distribution<float> normal_dist(expected_loss, expected_loss * 0.1f); // 10% std dev
-    float raw_loss = normal_dist(_rng);
-
-    // Clamp to valid range
-    InventoryQuantity resources_to_lose = std::max(static_cast<InventoryQuantity>(0), std::min(static_cast<InventoryQuantity>(raw_loss), total_resources));
+    // Use Bernoulli distribution for each resource (coin flip)
+    InventoryQuantity resources_to_lose = 0;
+    std::bernoulli_distribution bernoulli_dist(loss_probability);
+    
+    for (InventoryQuantity i = 0; i < total_resources; ++i) {
+      if (bernoulli_dist(_rng)) {
+        resources_to_lose++;
+      }
+    }
 
     if (resources_to_lose == 0) {
       continue;
     }
 
     // Randomly assign losses to individual objects using uniform distribution
+    if (objects_with_quantities.empty()) {
+      continue;  // Safety check
+    }
+    
     std::vector<InventoryQuantity> losses_per_object(objects_with_quantities.size(), 0);
 
     for (InventoryQuantity i = 0; i < resources_to_lose; ++i) {
@@ -74,14 +81,19 @@ void ResourceManager::step() {
       }
     }
 
-    // Apply the losses
+    // Collect the losses to apply later
     for (size_t i = 0; i < objects_with_quantities.size(); ++i) {
       if (losses_per_object[i] > 0) {
         HasInventory* obj = objects_with_quantities[i].first;
         InventoryDelta decrease_amount = -static_cast<InventoryDelta>(losses_per_object[i]);
-        obj->update_inventory(item, decrease_amount);
+        updates.push_back({obj, item, decrease_amount});
       }
     }
+  }
+  
+  // Apply all updates after iteration to avoid iterator invalidation
+  for (const auto& [obj, item, delta] : updates) {
+    obj->update_inventory(item, delta);
   }
 }
 
