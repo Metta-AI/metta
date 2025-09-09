@@ -500,6 +500,7 @@ class Simulation:
                 "max_steps": env.max_steps,
                 "map_size": [env.height, env.width],
                 "file_name": "live_play",
+                "objects": [],  # Add empty objects for frontend validation
                 "steps": [],
             }
         if len(self._replay_writer.episodes) != 1:
