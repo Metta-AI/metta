@@ -101,103 +101,149 @@ class TribalTaskGeneratorConfig(TaskGeneratorConfig):
 
 class TribalNimPlayTool(Tool):
     """
-    Tool for playing tribal environment using native Nim visualization.
-    
-    This tool will eventually support:
-    1. Neural network control: Nim accepts external actions via IPC
-    2. Built-in AI fallback: When no external actions provided
-    
-    Currently demonstrates the concept with simulation runs.
+    Hybrid tool that uses standard Simulation for neural network integration
+    but routes visualization to native Nim instead of web-based mettascope.
     """
     
     env_config: TribalEnvConfig
     policy_uri: str | None = None
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        """Run tribal environment with optional neural network control."""
-        print("🎮 Tribal Play Tool")
-        print("📝 Note: This will be enhanced to support real-time neural network control")
+        """Run tribal environment with neural network control via standard pipeline + Nim visualization."""
+        print("🎮 Tribal Neural Network Play Tool")
+        print("🧠 Using standard Simulation pipeline + Native Nim visualization")
         
         if self.policy_uri:
-            print(f"🤖 Future: Neural network control from {self.policy_uri}")
-            print("🔧 Current: Running simulation to demonstrate concept")
-            return self._demonstrate_neural_control()
+            return self._run_neural_network_with_nim_viewer()
         else:
-            print("🎯 Future: Native Nim visualization with built-in AI")
-            print("🔧 Current: Launching basic Nim environment") 
-            return self._run_nim_environment()
+            return self._run_nim_builtin_ai()
 
-    def _demonstrate_neural_control(self) -> int:
+    def _run_neural_network_with_nim_viewer(self) -> int:
         """
-        Demonstrate neural network control using the new unified architecture.
+        Use standard Simulation class for neural network integration,
+        but extract actions and send to Nim visualization.
         """
         try:
-            print("🔄 Loading neural network...")
-            from metta.rl.checkpoint_manager import CheckpointManager
-            policy = CheckpointManager.load_from_uri(self.policy_uri)
-            print(f"✅ Neural network loaded: {type(policy).__name__}")
+            print("🔄 Setting up neural network pipeline...")
             
-            print("🎯 Unified Architecture Implementation:")
-            print("  1. Python loads neural network (✅ working)")
-            print("  2. Initialize Nim environment with ExternalNN controller")
-            print("  3. Run Nim viewer with neural network providing actions")
-            print("  4. Neural network controls ALL agents via nimpy interface")
-            print("  5. Native Nim visualization shows results")
-            print()
+            # Import required modules
+            import torch
+            from metta.sim.simulation import Simulation
+            from metta.sim.simulation_config import SimulationConfig
+            from metta.sim.tribal_genny import TribalGridEnv
+            import tribal
             
-            # Test the nimpy interface
-            print("🧪 Testing nimpy interface...")
-            import sys
-            import os
-            bindings_path = os.path.join(os.path.dirname(__file__), "..", "..", "tribal", "bindings", "generated")
-            sys.path.insert(0, bindings_path)
+            # Create SimulationConfig from tribal environment config
+            sim_config = SimulationConfig(
+                name="tribal/neural_play",
+                env=self.env_config,
+                num_episodes=1,  # Single long episode for interactive play
+                max_time_s=3600  # 1 hour max
+            )
             
-            try:
-                import tribal
-                print("✅ Nimpy bindings imported successfully")
-                
-                # Initialize external neural network controller
-                success = tribal.init_external_nncontroller()
-                if success:
-                    print("✅ External neural network controller initialized")
-                else:
-                    print("❌ Failed to initialize external controller")
-                    return 1
-                
-                controller_type = tribal.get_controller_type_string()
-                print(f"🤖 Controller type: {controller_type}")
-                
-                print("🎮 Launch Nim viewer to see neural network control in action!")
-                print("   The neural network will control all agents when you provide actions.")
-                
-            except ImportError as e:
-                print(f"❌ Failed to import nimpy bindings: {e}")
+            # Create simulation using standard pipeline
+            print("🏗️ Creating simulation with neural network...")
+            simulation = Simulation.create(
+                sim_config=sim_config,
+                device="cpu",  # Use CPU for interactive play
+                vectorization="serial",  # Single environment
+                policy_uri=self.policy_uri,
+                stats_dir="./train_dir/play_stats",
+                replay_dir="./train_dir/play_replays"
+            )
+            
+            print("✅ Neural network loaded via standard pipeline")
+            
+            # Initialize Nim external controller
+            print("🔧 Initializing Nim external controller...")
+            success = tribal.init_external_nncontroller()
+            if not success:
+                print("❌ Failed to initialize external controller")
                 return 1
             
-            return 0
+            print("✅ Nim external controller initialized")
+            print(f"🤖 Controller type: {tribal.get_controller_type_string()}")
+            
+            # Start the action bridge loop
+            print("🌉 Starting neural network → Nim action bridge...")
+            return self._run_action_bridge(simulation, tribal)
             
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"❌ Error setting up neural network pipeline: {e}")
             return 1
 
-    def _run_nim_environment(self) -> int:
+    def _run_action_bridge(self, simulation, tribal_module) -> int:
         """
-        Launch native Nim environment.
-        
-        Future: Nim will fall back to built-in AI when no external actions provided.
+        Bridge actions from standard Simulation neural network to Nim environment.
         """
-        print("🎯 Launching native Nim tribal environment...")
-        print("💡 Target: Built-in AI with nimpy control interface")
+        try:
+            print("🔄 Starting simulation...")
+            simulation.start_simulation()
+            simulation._policy.reset_memory()
+            
+            print("🎮 Action bridge active - neural network controlling Nim environment")
+            print("💡 Launch Nim viewer now to see neural network in action!")
+            
+            step_count = 0
+            max_steps = 1000  # Limit for interactive play
+            
+            while step_count < max_steps:
+                # Generate actions using standard simulation pipeline
+                actions_np = simulation.generate_actions()
+                
+                # Convert actions to format expected by Nim (SeqInt via genny bindings)
+                # actions_np shape: [num_agents, 2] - [action_type, argument]
+                actions_seq = tribal_module.SeqInt()
+                for agent_idx in range(actions_np.shape[0]):
+                    actions_seq.append(int(actions_np[agent_idx, 0]))  # action_type
+                    actions_seq.append(int(actions_np[agent_idx, 1]))  # argument
+                
+                # Send actions to Nim environment
+                success = tribal_module.set_external_actions_from_python(actions_seq)
+                if not success:
+                    print("⚠️ Failed to set actions in Nim environment")
+                
+                # Step the simulation (this updates observations for next iteration)
+                simulation.step_simulation(actions_np)
+                
+                step_count += 1
+                
+                # Brief pause to allow Nim visualization to update
+                import time
+                time.sleep(0.1)  # 10 FPS
+            
+            print(f"✅ Completed {step_count} steps of neural network control")
+            return 0
+            
+        except KeyboardInterrupt:
+            print("\n⏹️ Stopping neural network control...")
+            return 0
+        except Exception as e:
+            print(f"❌ Error in action bridge: {e}")
+            return 1
+
+    def _run_nim_builtin_ai(self) -> int:
+        """
+        Launch Nim environment with built-in AI (no neural network).
+        """
+        print("🎯 Launching Nim environment with built-in AI...")
+        print("💡 No neural network specified - using built-in Nim AI")
         
-        print("🔧 Target architecture:")
-        print("  1. Nim environment checks for external actions via nimpy")
-        print("  2. If available: Use external actions from neural network")
-        print("  3. If not available: Fall back to built-in Nim AI")
-        print("  4. Display results in native Nim visualization")
-        print()
-        print("💡 Current: Nim environment has built-in AI, needs external action interface")
-        
-        return 0
+        try:
+            import tribal
+            # Initialize built-in AI controller
+            success = tribal.init_builtin_aicontroller()
+            if success:
+                print("✅ Built-in AI controller initialized")
+                print(f"🤖 Controller type: {tribal.get_controller_type_string()}")
+                print("🎮 Launch Nim viewer to see built-in AI in action!")
+                return 0
+            else:
+                print("❌ Failed to initialize built-in AI controller")
+                return 1
+        except Exception as e:
+            print(f"❌ Error initializing built-in AI: {e}")
+            return 1
 
 
 def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
