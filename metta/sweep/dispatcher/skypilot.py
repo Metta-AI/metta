@@ -5,6 +5,7 @@ import os
 import subprocess
 import uuid
 
+from metta.common.util.constants import SKYPILOT_LAUNCH_PATH
 from metta.sweep.models import JobDefinition, JobTypes
 from metta.sweep.protocols import Dispatcher
 from metta.sweep.utils import get_display_id
@@ -23,11 +24,7 @@ class SkypilotDispatcher(Dispatcher):
         """Dispatch job using Skypilot launcher"""
 
         # Build command parts starting with the launcher script
-        cmd_parts = [
-            os.path.abspath(
-                os.path.join(os.path.dirname(__file__), "..", "..", "..", "devops", "skypilot", "launch.py")
-            )
-        ]
+        cmd_parts = [SKYPILOT_LAUNCH_PATH]
 
         # Add Skypilot flags (in order)
         # 1. Always add --no-spot
