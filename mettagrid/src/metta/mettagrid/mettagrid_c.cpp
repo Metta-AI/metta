@@ -454,7 +454,7 @@ void MettaGrid::_initialize_environment_from_int_map(const GameConfig& game_conf
 
   // Process int-based grid (optimized path)
   std::string grid_hash_data;
-  grid_hash_data.reserve(static_cast<size_t>(height * width * 10)); // Smaller reserve for ints
+  grid_hash_data.reserve(static_cast<size_t>(height * width * 10));  // Smaller reserve for ints
 
   auto map_ptr = static_cast<const uint8_t*>(map_info.ptr);
 
