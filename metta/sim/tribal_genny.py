@@ -317,7 +317,15 @@ class TribalGridEnv:
     # Pufferlib async interface methods
     def async_reset(self, seed: int | None = None) -> np.ndarray:
         """Async reset method for pufferlib compatibility."""
-        obs, _ = self.reset(seed)
+        obs, info = self.reset(seed)
+        
+        # Set up results for recv() to use during reset flow
+        # Create dummy rewards/terminals/truncations for initial reset
+        rewards = np.zeros(self.num_agents, dtype=np.float32)
+        terminals = np.zeros(self.num_agents, dtype=bool)
+        truncations = np.zeros(self.num_agents, dtype=bool)
+        
+        self._step_results = (obs, rewards, terminals, truncations, info)
         return obs
 
     def send(self, actions: np.ndarray) -> None:
