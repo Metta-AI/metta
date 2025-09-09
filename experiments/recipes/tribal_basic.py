@@ -116,7 +116,12 @@ class TribalNimPlayTool(Tool):
         print("🎯 Running native Nim environment with nimpy interface")
 
         if self.policy_uri:
-            return self._setup_neural_network_control()
+            # Support test modes that don't require actual policy files
+            if self.policy_uri in ["test_noop", "test_move"]:
+                print(f"🧪 Test mode: {self.policy_uri}")
+                return self._setup_test_neural_network_control()
+            else:
+                return self._setup_neural_network_control()
         else:
             return self._run_nim_builtin_ai()
 
@@ -299,6 +304,111 @@ class TribalNimPlayTool(Tool):
             # Clean up
             service_running.clear()
             print("🧹 Neural network service stopped")
+
+    def _setup_test_neural_network_control(self) -> int:
+        """
+        Set up test neural network control without requiring a real policy file.
+        Sends no-op or test actions to verify the nimpy interface works.
+        """
+        service_running = None
+        try:
+            print("🧪 Setting up test neural network control (no real policy needed)")
+            
+            # Import tribal bindings
+            import sys
+            import threading
+            import time
+            sys.path.append('/Users/relh/Code/workspace/metta/tribal/bindings/generated')
+            import tribal as tribal_module
+            
+            # Initialize external NN controller in Nim
+            success = tribal_module.init_external_nncontroller()
+            if not success:
+                print("❌ Failed to initialize external NN controller in Nim")
+                error = tribal_module.take_error()
+                if error:
+                    print(f"   Error: {error}")
+                return 1
+            
+            print("  ✅ External NN controller initialized in Nim for testing")
+            
+            # Flag to control the action service
+            service_running = threading.Event()
+            service_running.set()
+            
+            def test_action_service():
+                """Test service that sends simple actions directly to Nim."""
+                step = 0
+                while service_running.is_set():
+                    try:
+                        actions_list = []
+                        
+                        if self.policy_uri == "test_noop":
+                            # Send no-op actions for all agents
+                            for agent_id in range(15):
+                                actions_list.extend([0, 0])  # NOOP action
+                            if step == 0:
+                                print(f"  🎯 Debug: Sending NOOP actions - agents should stay still")
+                        
+                        elif self.policy_uri == "test_move":
+                            # Send move actions in different directions  
+                            for agent_id in range(15):
+                                action_type = 1  # MOVE action
+                                action_arg = agent_id % 8  # Different direction for each agent (0-7)
+                                actions_list.extend([action_type, action_arg])
+                            if step == 0:
+                                print(f"  🎯 Debug: Sending test MOVE actions - agents should move in different directions")
+                                print(f"  🎯 Actions sample: agent 0 -> MOVE dir {actions_list[1]}, agent 1 -> MOVE dir {actions_list[3]}")
+                        
+                        if step % 50 == 0 and step > 0:
+                            action_type = "NOOP" if self.policy_uri == "test_noop" else "MOVE"
+                            print(f"  📡 Step {step}: Still sending {action_type} actions to Nim")
+                        
+                        # Create SeqInt and populate it
+                        actions = tribal_module.SeqInt()
+                        for action in actions_list:
+                            actions.append(action)
+                        
+                        # Send actions directly to Nim
+                        result = tribal_module.set_external_actions_from_python(actions)
+                        if not result:
+                            print(f"⚠️  Failed to set actions in Nim at step {step}")
+                            error = tribal_module.take_error()
+                            if error:
+                                print(f"   Error: {error}")
+                        
+                        step += 1
+                        time.sleep(0.1)  # 10 Hz action generation
+                        
+                    except Exception as e:
+                        print(f"❌ Test action service error: {e}")
+                        time.sleep(1)
+            
+            # Start the test action service in background
+            action_thread = threading.Thread(target=test_action_service, daemon=True)
+            action_thread.start()
+            print("  📡 Test neural network action service started")
+            
+            # Launch Nim tribal environment
+            print("🚀 Launching Nim tribal environment with test neural network control...")
+            
+            tribal_dir = Path("/Users/relh/Code/workspace/metta/tribal")
+            result = subprocess.run(
+                ["nim", "r", "-d:release", "src/tribal"], 
+                cwd=tribal_dir,
+                check=False
+            )
+            
+            return result.returncode
+            
+        except Exception as e:
+            print(f"❌ Error setting up test neural network: {e}")
+            return 1
+        finally:
+            # Clean up
+            if service_running:
+                service_running.clear()
+            print("🧹 Test neural network service stopped")
 
     def _run_nim_builtin_ai(self) -> int:
         """

@@ -145,9 +145,12 @@ for path in walkDirRec("data/"):
 
 echo "🎨 Asset loading complete! Loaded ", loadedCount, "/", totalFiles, " files"
 
-# Initialize controller to use built-in AI by default
-initGlobalController(BuiltinAI)
-echo "🤖 Initialized with built-in AI controller"
+# Initialize controller - check if external controller already set, otherwise use built-in AI
+if globalController == nil:
+  initGlobalController(BuiltinAI)
+  echo "🤖 Initialized with built-in AI controller"
+else:
+  echo "🔗 Keeping existing controller: ", getControllerType()
 
 # Check if external controller is active and start playing if so
 if isExternalControllerActive():
