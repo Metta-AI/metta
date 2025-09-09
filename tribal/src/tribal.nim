@@ -149,6 +149,11 @@ echo "🎨 Asset loading complete! Loaded ", loadedCount, "/", totalFiles, " fil
 initGlobalController(BuiltinAI)
 echo "🤖 Initialized with built-in AI controller"
 
+# Check if external controller is active and start playing if so
+if isExternalControllerActive():
+  play = true
+  echo "🎮 External controller detected - starting automatic play mode"
+
 when defined(emscripten):
   proc main() {.cdecl.} =
     echo "draw frame"

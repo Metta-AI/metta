@@ -213,34 +213,12 @@ class TribalNimPlayTool(Tool):
         service_running = threading.Event()
         service_running.set()
         
-        # Create a simple Nim environment to get observations from
-        print("  🔧 Creating Nim environment for observations...")
-        nim_config = tribal_module.default_tribal_config()
-        nim_env = tribal_module.TribalEnv(nim_config)
-        print("  ✅ Nim observation environment created")
-
         def neural_network_action_service():
             """Background service that generates actions from neural network and sends directly to Nim."""
             step = 0
             while service_running.is_set():
                 try:
-                    # Get current observations from Nim environment
-                    # Note: This is a separate environment instance just for getting observations
-                    # The actual game state is in the main Nim process
-                    nim_env.reset_env()  # Reset to get fresh observations
-                    obs_tokens = nim_env.get_token_observations()
-                    
-                    # Convert to tensor format expected by policy
-                    import torch
-                    import numpy as np
-                    
-                    # Debug observation size
-                    if step == 0:
-                        print(f"  🔍 Debug: Got {len(obs_tokens)} observation tokens")
-                        print(f"  🔍 Expected: {15 * 200 * 3} = {15} agents * {200} tokens * {3} values")
-                    
-                    # For now, let's send simple MOVE actions to test if the external controller is working
-                    # This will help debug the connection before dealing with policy inference
+                    # For debugging, send simple test actions first to verify connection
                     actions_list = []
                     for agent_id in range(15):
                         # Send MOVE actions with different directions to see if they're being used
@@ -249,49 +227,14 @@ class TribalNimPlayTool(Tool):
                         actions_list.extend([action_type, action_arg])
                         
                     if step == 0:
-                        print(f"  🎯 Debug: Sending test actions - agents should move in different directions")
+                        print(f"  🎯 Debug: Sending test MOVE actions - agents should move in different directions")
                         print(f"  🎯 Actions sample: agent 0 -> MOVE dir {actions_list[1]}, agent 1 -> MOVE dir {actions_list[3]}")
+                    elif step % 50 == 0:
+                        print(f"  📡 Step {step}: Still sending MOVE actions to Nim")
                         
-                    # TODO: Later we'll use the actual policy once we confirm external actions work:
-                    # Check if we got the expected size
-                    # expected_size = 15 * 200 * 3  # 9000
-                    # if len(obs_tokens) != expected_size:
-                    #     Handle incorrect size - use default observations for now
-                    #     print(f"  ⚠️  Warning: Got {len(obs_tokens)} tokens, expected {expected_size}. Using zeros.")
-                    #     obs_array = np.zeros((15, 200, 3), dtype=np.int32)
-                    # else:
-                    #     Reshape observations to match expected format: (num_agents, max_tokens, 3)
-                    #     obs_array = np.array(obs_tokens).reshape(15, 200, 3)  # 15 agents, 200 tokens, 3 values per token
-                    # 
-                    # obs_tensor = torch.tensor(obs_array, dtype=torch.int32)
-                    # 
-                    # Prepare batch of observations for all agents
-                    # obs_batch = obs_tensor.unsqueeze(0)  # Add batch dimension: (1, 15, 200, 3)
-                    # 
-                    # Use policy to generate actions
-                    # with torch.no_grad():
-                    #     from tensordict import TensorDict
-                    #     
-                    #     Create TensorDict with observations
-                    #     batch = TensorDict({
-                    #         "agents": {
-                    #             "observation": obs_batch
-                    #         }
-                    #     }, batch_size=[1])
-                    #     
-                    #     Get actions from policy
-                    #     policy_output = policy.forward(batch)
-                    #     
-                    #     Extract actions for all agents
-                    #     agent_actions = policy_output["agents"]["action"]  # Shape: (1, 15, 2)
-                    #     agent_actions = agent_actions.squeeze(0)  # Remove batch dim: (15, 2)
-                    #     
-                    #     Convert to flat list for Nim
-                    #     actions_list = []
-                    #     for agent_id in range(15):
-                    #         action_type = int(agent_actions[agent_id, 0].item())
-                    #         action_arg = int(agent_actions[agent_id, 1].item())
-                    #         actions_list.extend([action_type, action_arg])
+                    # TODO: Later we'll get real observations and use the actual policy:
+                    # Get current observations from Nim environment
+                    # Use policy to generate actions based on observations
                     
                     # Create SeqInt and populate it
                     actions = tribal_module.SeqInt()

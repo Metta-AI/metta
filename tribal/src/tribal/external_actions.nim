@@ -3,7 +3,7 @@
 ## Controller type is specified when creating the environment
 
 import std/times
-import environment, ai
+import environment, ai, common
 
 type
   ControllerType* = enum
@@ -41,6 +41,7 @@ proc initGlobalController*(controllerType: ControllerType, seed: int = int(epoch
   case controllerType:
   of BuiltinAI:
     globalController = newBuiltinAIController(seed)
+    echo "🤖 Debug: Initialized BuiltinAI controller"
   of ExternalNN:
     # External callback will be set later via setExternalActionCallback
     globalController = AgentController(
@@ -48,6 +49,10 @@ proc initGlobalController*(controllerType: ControllerType, seed: int = int(epoch
       aiController: nil,
       externalActionCallback: nil
     )
+    echo "🔗 Debug: Initialized ExternalNN controller"
+    # Start automatic play mode for external controller
+    play = true
+    echo "🎮 Debug: Enabled automatic play mode for external controller"
 
 proc setExternalActionCallback*(callback: proc(): array[MapAgents, array[2, uint8]]) =
   ## Set the external action callback for neural network control
@@ -59,6 +64,7 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
   if globalController == nil:
     # Default to built-in AI if not initialized
     initGlobalController(BuiltinAI)
+    echo "🔧 Debug: Initialized default BuiltinAI controller"
   
   case globalController.controllerType:
   of BuiltinAI:
@@ -71,9 +77,15 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
     
   of ExternalNN:
     # Use external neural network callback
+    echo "🎯 Debug: Using ExternalNN controller"
     if globalController.externalActionCallback != nil:
-      return globalController.externalActionCallback()
+      echo "📡 Debug: Calling external callback"
+      let actions = globalController.externalActionCallback()
+      # Log sample actions
+      echo "🎮 Debug: Got external actions - Agent 0: [", actions[0][0], ",", actions[0][1], "], Agent 1: [", actions[1][0], ",", actions[1][1], "]"
+      return actions
     else:
+      echo "⚠️ Debug: No external callback available, using NOOP"
       # Try to read actions from file (for Python neural network control)
       # Note: This requires the readActionsFromFile function to be available
       # For now, fallback to noop actions
