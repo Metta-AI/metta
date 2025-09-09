@@ -113,15 +113,15 @@ class TribalGridEnv:
         self.observation_width = ObservationWidth
         self.observation_height = ObservationHeight
 
-        # Action space info (tribal has 6 action types, 8 directional arguments)
+        # Action space info (tribal has 6 action types, max 7 directional arguments)
         self.num_action_types = 6  # NOOP, MOVE, ATTACK, GET, SWAP, PUT
-        self.max_argument = 8  # 8-directional
+        self.max_argument = 8  # Max argument value (0-7 for directions)
 
         # Add gym spaces for pufferlib compatibility
         import gymnasium as gym
 
         # Token observation space: [num_tokens, 3] where each token is [coord_byte, layer, value]
-        max_tokens = 256
+        max_tokens = 200  # Match agent expectations
         self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(max_tokens, 3), dtype=np.uint8)
 
         # Action space: [action_type, argument]
@@ -131,16 +131,17 @@ class TribalGridEnv:
         self.obs_width = self.observation_width
         self.obs_height = self.observation_height
 
-        # Feature normalizations - empty since we use token format
-        self.feature_normalizations = {}
+        # Feature normalizations - map observation layer indices to normalization values
+        # Tribal has 19 observation layers (0-18), use 1.0 as default normalization
+        self.feature_normalizations = {i: 1.0 for i in range(OBSERVATION_LAYERS)}
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
         # Reset the Nim environment (our binding doesn't take seed parameter)
         self._nim_env.reset_env()
 
-        # Get observations and convert to numpy
-        obs_data = self._nim_env.get_observations()
+        # Get token observations directly from Nim
+        obs_data = self._nim_env.get_token_observations()
         observations = self._convert_observations(obs_data)
 
         info = {
@@ -182,7 +183,7 @@ class TribalGridEnv:
             raise RuntimeError("Environment step failed")
 
         # Get results
-        obs_data = self._nim_env.get_observations()
+        obs_data = self._nim_env.get_token_observations()
         observations = self._convert_observations(obs_data)
 
         rewards_seq = self._nim_env.get_rewards()
@@ -206,71 +207,37 @@ class TribalGridEnv:
 
         return observations, rewards, terminals, truncations, info
 
-    def _convert_observations(self, obs_seq: SeqInt) -> np.ndarray:
-        """Convert genny observation data to token format for MettaAgent compatibility."""
-        # First convert to grid format
-        obs_array = np.zeros(
-            (self.num_agents, self.observation_layers, self.observation_height, self.observation_width), dtype=np.uint8
-        )
-
-        expected_size = self.num_agents * self.observation_layers * self.observation_height * self.observation_width
-
-        # Convert SeqInt to numpy array and reshape
-        if len(obs_seq) == expected_size:
+    def _convert_observations(self, token_seq: SeqInt) -> np.ndarray:
+        """Convert genny token observation data directly to numpy format."""
+        max_tokens = 200
+        token_size = 3  # [coord_byte, layer, value]
+        expected_size = self.num_agents * max_tokens * token_size
+        
+        # Convert SeqInt directly to token format
+        if len(token_seq) == expected_size:
             # Convert to python list then numpy and reshape
-            obs_data = [obs_seq[i] for i in range(len(obs_seq))]
-            flat_array = np.array(obs_data, dtype=np.uint8)
-            obs_array = flat_array.reshape(
-                (self.num_agents, self.observation_layers, self.observation_height, self.observation_width)
-            )
+            token_data = [token_seq[i] for i in range(len(token_seq))]
+            token_array = np.array(token_data, dtype=np.uint8)
+            token_obs = token_array.reshape((self.num_agents, max_tokens, token_size))
         else:
-            # Fallback: fill array element by element (slower)
+            # Fallback: create empty tokens and fill what we have
+            token_obs = np.full((self.num_agents, max_tokens, token_size), 0xFF, dtype=np.uint8)
             index = 0
             for agent_id in range(self.num_agents):
-                for layer in range(self.observation_layers):
-                    for y in range(self.observation_height):
-                        for x in range(self.observation_width):
-                            if index < len(obs_seq):
-                                obs_array[agent_id, layer, y, x] = obs_seq[index]
-                                index += 1
-
-        # Convert grid observations to token format like MettaGrid
-        return self._grid_to_tokens(obs_array)
-
-    def _grid_to_tokens(self, grid_obs: np.ndarray) -> np.ndarray:
-        """Convert grid observations [agents, layers, height, width] to token format [agents, num_tokens, 3]."""
-        agents, layers, height, width = grid_obs.shape
-        max_tokens = 256  # Reasonable limit for token sequence length
-
-        # Initialize token arrays for all agents
-        token_obs = np.full((agents, max_tokens, 3), 0xFF, dtype=np.uint8)
-
-        for agent_id in range(agents):
-            tokens = []
-
-            # Convert non-zero observations to tokens
-            for layer in range(layers):
-                for y in range(height):
-                    for x in range(width):
-                        value = grid_obs[agent_id, layer, y, x]
-                        if value > 0:  # Only include non-zero observations
-                            # Pack x,y coordinates into single byte (4 bits each)
-                            coord_byte = (x << 4) | y
-                            tokens.append([coord_byte, layer, value])
-
-                            if len(tokens) >= max_tokens:
-                                break
-                    if len(tokens) >= max_tokens:
+                for token_idx in range(max_tokens):
+                    for dim in range(token_size):
+                        if index < len(token_seq):
+                            token_obs[agent_id, token_idx, dim] = token_seq[index]
+                            index += 1
+                        else:
+                            break
+                    if index >= len(token_seq):
                         break
-                if len(tokens) >= max_tokens:
+                if index >= len(token_seq):
                     break
-
-            # Fill token array for this agent
-            for i, token in enumerate(tokens):
-                if i < max_tokens:
-                    token_obs[agent_id, i] = token
-
+        
         return token_obs
+
 
     def render(self, mode: str = "human") -> Optional[str]:
         """Render the environment."""
@@ -311,6 +278,27 @@ class TribalGridEnv:
         """Clean up environment."""
         # Nim's GC will handle cleanup
         pass
+
+    @property
+    def action_names(self) -> list[str]:
+        """Return the names of all available actions."""
+        return ["NOOP", "MOVE", "ATTACK", "GET", "SWAP", "PUT"]
+
+    @property  
+    def max_action_args(self) -> list[int]:
+        """Return the maximum argument values for each action type."""
+        return [0, 7, 7, 7, 1, 7]  # NOOP=0, MOVE/ATTACK/GET/PUT=0-7, SWAP=0-1
+
+    def get_observation_features(self) -> dict[str, dict]:
+        """Build the features dictionary for initialize_to_environment."""
+        # Return feature spec for each observation layer
+        features = {}
+        for layer_id in range(OBSERVATION_LAYERS):
+            features[f"layer_{layer_id}"] = {
+                "id": layer_id,
+                "normalization": 1.0,
+            }
+        return features
 
 
 # Configuration Classes
@@ -374,7 +362,7 @@ class TribalEnvConfig(Config):
             "shape": (2,),  # [action_type, argument]
             "dtype": "int32",
             "type": "MultiDiscrete",
-            "nvec": [6, 8],  # 6 action types, 8 directions/targets
+            "nvec": [6, 8],  # 6 action types, 8 max argument value (0-7 for directions)
         }
 
     def create_environment(self, **kwargs) -> Any:

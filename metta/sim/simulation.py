@@ -117,8 +117,11 @@ class Simulation:
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
         driver_env = self._vecenv.driver_env  # type: ignore
-        metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
-        assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
+        grid_env = getattr(driver_env, "_env", driver_env)
+        # Accept both MettaGridEnv and TribalGridEnv (both have compatible interfaces)
+        from metta.sim.tribal_genny import TribalGridEnv
+        assert isinstance(grid_env, (MettaGridEnv, TribalGridEnv)), f"Expected MettaGridEnv or TribalGridEnv, got {type(grid_env)}"
+        metta_grid_env = grid_env  # Keep the same variable name for compatibility
 
         # Initialize policy to environment
         self._policy.eval()  # Set to evaluation mode for simulation

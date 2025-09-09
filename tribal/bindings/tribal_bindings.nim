@@ -145,7 +145,7 @@ proc step*(tribal: TribalEnv, actions: seq[int]): bool =
 
 # Observation access
 proc getObservations*(tribal: TribalEnv): seq[int] =
-  ## Get current observations as flat sequence
+  ## Get current observations as flat sequence (deprecated, use getTokenObservations)
   try:
     let totalSize = MapAgents * ObservationLayers * ObservationHeight * ObservationWidth
     result = newSeq[int](totalSize)
@@ -157,6 +157,46 @@ proc getObservations*(tribal: TribalEnv): seq[int] =
           for x in 0..<ObservationWidth:
             result[index] = tribal.env.observations[agentId][layer][x][y].int
             inc index
+  except:
+    lastError = getCurrentException()
+
+proc getTokenObservations*(tribal: TribalEnv): seq[int] =
+  ## Get current observations as token sequence compatible with MettaGrid format
+  ## Returns flattened array of [agent0_tokens..., agent1_tokens..., ...]
+  ## where each agent has 200 tokens of 3 values: [coord_byte, layer, value]
+  try:
+    const MaxTokensPerAgent = 200
+    const TokenSize = 3  # [coord_byte, layer, value]
+    
+    result = newSeq[int](MapAgents * MaxTokensPerAgent * TokenSize)
+    
+    for agentId in 0..<MapAgents:
+      var tokenCount = 0
+      let baseIndex = agentId * MaxTokensPerAgent * TokenSize
+      
+      # Convert observations to tokens for this agent
+      for layer in 0..<ObservationLayers:
+        for y in 0..<ObservationHeight:
+          for x in 0..<ObservationWidth:
+            let value = tribal.env.observations[agentId][layer][x][y]
+            if value > 0 and tokenCount < MaxTokensPerAgent:
+              # Pack coordinates into single byte (4 bits each, max 15)
+              let coordByte = (x shl 4) or y
+              let tokenIndex = baseIndex + tokenCount * TokenSize
+              
+              result[tokenIndex] = coordByte
+              result[tokenIndex + 1] = layer
+              result[tokenIndex + 2] = value.int
+              
+              inc tokenCount
+      
+      # Fill remaining tokens with 0xFF (invalid marker)
+      for i in tokenCount..<MaxTokensPerAgent:
+        let tokenIndex = baseIndex + i * TokenSize
+        result[tokenIndex] = 0xFF
+        result[tokenIndex + 1] = 0xFF
+        result[tokenIndex + 2] = 0xFF
+        
   except:
     lastError = getCurrentException()
 
@@ -243,6 +283,7 @@ exportRefObject TribalEnv:
     resetEnv(TribalEnv)
     step(TribalEnv, seq[int])
     getObservations(TribalEnv)
+    getTokenObservations(TribalEnv)
     getRewards(TribalEnv)
     getTerminated(TribalEnv)
     getTruncated(TribalEnv)
