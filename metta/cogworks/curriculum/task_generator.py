@@ -18,6 +18,7 @@ from typing_extensions import Generic
 from metta.mettagrid.config import Config
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.util.module import load_symbol
+from metta.sim.tribal_genny import TribalEnvConfig
 
 if TYPE_CHECKING:
     pass
@@ -147,6 +148,23 @@ class SingleTaskGenerator(TaskGenerator):
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         """Always return the same MettaGridConfig."""
+        return self._config.env.model_copy(deep=True)
+
+
+class TribalSingleTaskGenerator(TaskGenerator):
+    """TaskGenerator that always returns the same TribalEnvConfig."""
+
+    class Config(TaskGeneratorConfig["TribalSingleTaskGenerator"]):
+        """Configuration for TribalSingleTaskGenerator."""
+
+        env: TribalEnvConfig = Field(description="The tribal environment configuration to always return")
+
+    def __init__(self, config: "TribalSingleTaskGenerator.Config"):
+        super().__init__(config)
+        self._config = config
+
+    def _generate_task(self, task_id: int, rng: random.Random) -> TribalEnvConfig:
+        """Always return the same TribalEnvConfig."""
         return self._config.env.model_copy(deep=True)
 
 
@@ -345,5 +363,6 @@ AnyTaskGeneratorConfig = SerializeAsAny[
 
 # Create aliases for backward compatibility
 SingleTaskGeneratorConfig = SingleTaskGenerator.Config
+TribalSingleTaskGeneratorConfig = TribalSingleTaskGenerator.Config
 TaskGeneratorSetConfig = TaskGeneratorSet.Config
 BucketedTaskGeneratorConfig = BucketedTaskGenerator.Config

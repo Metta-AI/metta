@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.task_generator import TribalSingleTaskGenerator
 from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -118,9 +120,15 @@ def train() -> TrainTool:
     # Create environment (uses compile-time constant: 15 agents)
     env = make_tribal_environment()
 
+    # Create curriculum with tribal task generator
+    curriculum = CurriculumConfig(
+        task_generator=TribalSingleTaskGenerator.Config(env=env)
+    )
+    
     # Minimal trainer config like arena recipe
     trainer_config = TrainerConfig(
         losses=LossConfig(),
+        curriculum=curriculum,
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(name="tribal/basic", env=env),
