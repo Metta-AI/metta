@@ -26,6 +26,14 @@ exportConsts:
   MapWidth
   MapHeight
 
+# Additional constants for Python interface
+const MaxTokensPerAgent* = 200
+const NumActionTypes* = 6
+
+exportConsts:
+  MaxTokensPerAgent
+  NumActionTypes
+
 # Configuration objects matching Python TribalEnvConfig structure
 # NOTE: Structural parameters (numAgents, obsWidth, etc.) are kept as compile-time constants
 type
@@ -163,9 +171,8 @@ proc getObservations*(tribal: TribalEnv): seq[int] =
 proc getTokenObservations*(tribal: TribalEnv): seq[int] =
   ## Get current observations as token sequence compatible with MettaGrid format
   ## Returns flattened array of [agent0_tokens..., agent1_tokens..., ...]
-  ## where each agent has 200 tokens of 3 values: [coord_byte, layer, value]
+  ## where each agent has MaxTokensPerAgent tokens of 3 values: [coord_byte, layer, value]
   try:
-    const MaxTokensPerAgent = 200
     const TokenSize = 3  # [coord_byte, layer, value]
     
     result = newSeq[int](MapAgents * MaxTokensPerAgent * TokenSize)
@@ -248,6 +255,22 @@ proc renderText*(tribal: TribalEnv): string =
     lastError = getCurrentException()
     result = ""
 
+# Action metadata functions
+proc getActionNames*(): seq[string] =
+  ## Get the names of all available actions
+  @["NOOP", "MOVE", "ATTACK", "GET", "SWAP", "PUT"]
+
+proc getMaxActionArgs*(): seq[int] =
+  ## Get maximum argument values for each action type
+  ## NOOP=0, MOVE/ATTACK/GET/PUT=0-7 (8 directions), SWAP=0-1 (inventory positions)
+  @[0, 7, 7, 7, 1, 7]
+
+proc getFeatureNormalizations*(): seq[float] =
+  ## Get normalization values for each observation layer
+  result = newSeq[float](ObservationLayers)
+  for i in 0..<ObservationLayers:
+    result[i] = 1.0  # Default normalization for all layers
+
 # Helper procedures
 proc defaultMaxSteps*(): int =
   ## Get default max steps value
@@ -261,6 +284,9 @@ exportSeq seq[float]:
   discard
 
 exportSeq seq[bool]:
+  discard
+
+exportSeq seq[string]:
   discard
 
 # Export error handling procedures
@@ -295,6 +321,9 @@ exportRefObject TribalEnv:
 exportProcs:
   defaultMaxSteps
   defaultTribalConfig
+  getActionNames
+  getMaxActionArgs
+  getFeatureNormalizations
 
 # Generate the Python binding files and include implementation (must be at the end)
 writeFiles("bindings/generated", "Tribal")

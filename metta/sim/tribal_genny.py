@@ -43,12 +43,17 @@ try:
     OBSERVATION_HEIGHT = tribal.OBSERVATION_HEIGHT
     MAP_WIDTH = tribal.MAP_WIDTH
     MAP_HEIGHT = tribal.MAP_HEIGHT
+    MAX_TOKENS_PER_AGENT = tribal.MAX_TOKENS_PER_AGENT
+    NUM_ACTION_TYPES = tribal.NUM_ACTION_TYPES
 
     # Helper functions
     default_max_steps = tribal.default_max_steps
     default_tribal_config = tribal.default_tribal_config
     check_error = tribal.check_error
     take_error = tribal.take_error
+    get_action_names = tribal.get_action_names
+    get_max_action_args = tribal.get_max_action_args
+    get_feature_normalizations = tribal.get_feature_normalizations
 
     # Constants mapping
     MapAgents = MAP_AGENTS
@@ -107,22 +112,21 @@ class TribalGridEnv:
         self._nim_env = TribalEnv(nim_config)
         self._config = nim_config
 
-        # Cache dimensions (compile-time constants)
-        self.num_agents = MapAgents
-        self.observation_layers = ObservationLayers
-        self.observation_width = ObservationWidth
-        self.observation_height = ObservationHeight
+        # Cache dimensions (compile-time constants from Nim)
+        self.num_agents = MAP_AGENTS
+        self.observation_layers = OBSERVATION_LAYERS
+        self.observation_width = OBSERVATION_WIDTH
+        self.observation_height = OBSERVATION_HEIGHT
 
-        # Action space info (tribal has 6 action types, max 7 directional arguments)
-        self.num_action_types = 6  # NOOP, MOVE, ATTACK, GET, SWAP, PUT
+        # Action space info (from Nim)
+        self.num_action_types = NUM_ACTION_TYPES
         self.max_argument = 8  # Max argument value (0-7 for directions)
 
         # Add gym spaces for pufferlib compatibility
         import gymnasium as gym
 
         # Token observation space: [num_tokens, 3] where each token is [coord_byte, layer, value]
-        max_tokens = 200  # Match agent expectations
-        self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(max_tokens, 3), dtype=np.uint8)
+        self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
 
         # Action space: [action_type, argument]
         self.single_action_space = gym.spaces.MultiDiscrete([self.num_action_types, self.max_argument])
@@ -131,9 +135,9 @@ class TribalGridEnv:
         self.obs_width = self.observation_width
         self.obs_height = self.observation_height
 
-        # Feature normalizations - map observation layer indices to normalization values
-        # Tribal has 19 observation layers (0-18), use 1.0 as default normalization
-        self.feature_normalizations = {i: 1.0 for i in range(OBSERVATION_LAYERS)}
+        # Feature normalizations from Nim
+        feature_norms_seq = get_feature_normalizations()
+        self.feature_normalizations = {i: feature_norms_seq[i] for i in range(len(feature_norms_seq))}
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
@@ -209,22 +213,21 @@ class TribalGridEnv:
 
     def _convert_observations(self, token_seq: SeqInt) -> np.ndarray:
         """Convert genny token observation data directly to numpy format."""
-        max_tokens = 200
         token_size = 3  # [coord_byte, layer, value]
-        expected_size = self.num_agents * max_tokens * token_size
+        expected_size = self.num_agents * MAX_TOKENS_PER_AGENT * token_size
         
         # Convert SeqInt directly to token format
         if len(token_seq) == expected_size:
             # Convert to python list then numpy and reshape
             token_data = [token_seq[i] for i in range(len(token_seq))]
             token_array = np.array(token_data, dtype=np.uint8)
-            token_obs = token_array.reshape((self.num_agents, max_tokens, token_size))
+            token_obs = token_array.reshape((self.num_agents, MAX_TOKENS_PER_AGENT, token_size))
         else:
             # Fallback: create empty tokens and fill what we have
-            token_obs = np.full((self.num_agents, max_tokens, token_size), 0xFF, dtype=np.uint8)
+            token_obs = np.full((self.num_agents, MAX_TOKENS_PER_AGENT, token_size), 0xFF, dtype=np.uint8)
             index = 0
             for agent_id in range(self.num_agents):
-                for token_idx in range(max_tokens):
+                for token_idx in range(MAX_TOKENS_PER_AGENT):
                     for dim in range(token_size):
                         if index < len(token_seq):
                             token_obs[agent_id, token_idx, dim] = token_seq[index]
@@ -282,21 +285,24 @@ class TribalGridEnv:
     @property
     def action_names(self) -> list[str]:
         """Return the names of all available actions."""
-        return ["NOOP", "MOVE", "ATTACK", "GET", "SWAP", "PUT"]
+        names_seq = get_action_names()
+        return [names_seq[i] for i in range(len(names_seq))]
 
     @property  
     def max_action_args(self) -> list[int]:
         """Return the maximum argument values for each action type."""
-        return [0, 7, 7, 7, 1, 7]  # NOOP=0, MOVE/ATTACK/GET/PUT=0-7, SWAP=0-1
+        args_seq = get_max_action_args()
+        return [args_seq[i] for i in range(len(args_seq))]
 
     def get_observation_features(self) -> dict[str, dict]:
         """Build the features dictionary for initialize_to_environment."""
-        # Return feature spec for each observation layer
+        # Return feature spec for each observation layer using Nim data
         features = {}
-        for layer_id in range(OBSERVATION_LAYERS):
+        feature_norms_seq = get_feature_normalizations()
+        for layer_id in range(len(feature_norms_seq)):
             features[f"layer_{layer_id}"] = {
                 "id": layer_id,
-                "normalization": 1.0,
+                "normalization": feature_norms_seq[layer_id],
             }
         return features
 
