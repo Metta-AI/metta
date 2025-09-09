@@ -116,6 +116,23 @@ class TribalGridEnv:
         # Action space info (tribal has 6 action types, 8 directional arguments)
         self.num_action_types = 6  # NOOP, MOVE, ATTACK, GET, SWAP, PUT
         self.max_argument = 8  # 8-directional
+        
+        # Add gym spaces for pufferlib compatibility
+        import gymnasium as gym
+        
+        # Observation space: [layers, height, width]
+        self.single_observation_space = gym.spaces.Box(
+            low=0, high=255, 
+            shape=(self.observation_layers, self.observation_height, self.observation_width), 
+            dtype=np.uint8
+        )
+        
+        # Action space: [action_type, argument]  
+        self.single_action_space = gym.spaces.MultiDiscrete([self.num_action_types, self.max_argument])
+        
+        # Cache for compatibility
+        self.obs_width = self.observation_width
+        self.obs_height = self.observation_height
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
@@ -277,6 +294,11 @@ class TribalGameConfig(Config):
     battery_reward: float = Field(default=0.8, description="Reward for crafting batteries")
     survival_penalty: float = Field(default=-0.01, description="Per-step survival penalty")
     death_penalty: float = Field(default=-5.0, description="Penalty for agent death")
+
+    @property
+    def num_agents(self) -> int:
+        """Number of agents (compile-time constant)."""
+        return MAP_AGENTS
 
 
 class TribalEnvConfig(Config):

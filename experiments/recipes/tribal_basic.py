@@ -79,7 +79,7 @@ class TribalTaskGeneratorConfig(TaskGeneratorConfig):
     """Simple tribal-specific task generator config - recipe-local only"""
     env: TribalEnvConfig
     
-    def create_task_generator(self):
+    def create(self):
         """Create a simple task generator that always returns the same tribal env"""
         from metta.cogworks.curriculum.task_generator import TaskGenerator
         import random
@@ -99,6 +99,8 @@ def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
     """Create a curriculum configuration from a TribalEnvConfig - like cc.env_curriculum but for tribal"""
     task_gen_config = TribalTaskGeneratorConfig(env=tribal_config)
     return CurriculumConfig(task_generator=task_gen_config)
+
+
 
 
 def make_tribal_environment(
