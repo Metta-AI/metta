@@ -118,16 +118,16 @@ fi
 
 echo "Creating/updating job secrets..."
 
-# Build command - wandb-password is always included
-CMD="uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile softmax-docker --wandb-password \"$WANDB_PASSWORD\""
+# Build command as an array for safe arg passing
+CMD=(uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile softmax-docker --wandb-password "$WANDB_PASSWORD")
 
 # Add observatory-token only if it's set
 if [ -n "$OBSERVATORY_TOKEN" ]; then
-  CMD="$CMD --observatory-token \"$OBSERVATORY_TOKEN\""
+  CMD+=(--observatory-token "$OBSERVATORY_TOKEN")
 fi
 
 # Execute the command
-eval $CMD || {
+"${CMD[@]}" || {
   echo "ERROR: Failed to create job secrets"
   exit 1
 }
