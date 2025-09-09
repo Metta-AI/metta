@@ -116,30 +116,28 @@ class TribalGridEnv:
         # Action space info (tribal has 6 action types, 8 directional arguments)
         self.num_action_types = 6  # NOOP, MOVE, ATTACK, GET, SWAP, PUT
         self.max_argument = 8  # 8-directional
-        
+
         # Add gym spaces for pufferlib compatibility
         import gymnasium as gym
-        
+
         # Token observation space: [num_tokens, 3] where each token is [coord_byte, layer, value]
         max_tokens = 256
-        self.single_observation_space = gym.spaces.Box(
-            low=0, high=255, 
-            shape=(max_tokens, 3), 
-            dtype=np.uint8
-        )
-        
-        # Action space: [action_type, argument]  
+        self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(max_tokens, 3), dtype=np.uint8)
+
+        # Action space: [action_type, argument]
         self.single_action_space = gym.spaces.MultiDiscrete([self.num_action_types, self.max_argument])
-        
+
         # Cache for compatibility
         self.obs_width = self.observation_width
         self.obs_height = self.observation_height
+
+        # Feature normalizations - empty since we use token format
+        self.feature_normalizations = {}
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
         # Reset the Nim environment (our binding doesn't take seed parameter)
         self._nim_env.reset_env()
-        
 
         # Get observations and convert to numpy
         obs_data = self._nim_env.get_observations()
@@ -196,7 +194,6 @@ class TribalGridEnv:
         truncated_seq = self._nim_env.get_truncated()
         truncations = np.array([truncated_seq[i] for i in range(len(truncated_seq))], dtype=bool)
 
-
         # Check for episode end
         if self._nim_env.is_episode_done():
             truncations[:] = True
@@ -239,18 +236,18 @@ class TribalGridEnv:
 
         # Convert grid observations to token format like MettaGrid
         return self._grid_to_tokens(obs_array)
-    
+
     def _grid_to_tokens(self, grid_obs: np.ndarray) -> np.ndarray:
         """Convert grid observations [agents, layers, height, width] to token format [agents, num_tokens, 3]."""
         agents, layers, height, width = grid_obs.shape
         max_tokens = 256  # Reasonable limit for token sequence length
-        
+
         # Initialize token arrays for all agents
         token_obs = np.full((agents, max_tokens, 3), 0xFF, dtype=np.uint8)
-        
+
         for agent_id in range(agents):
             tokens = []
-            
+
             # Convert non-zero observations to tokens
             for layer in range(layers):
                 for y in range(height):
@@ -260,19 +257,19 @@ class TribalGridEnv:
                             # Pack x,y coordinates into single byte (4 bits each)
                             coord_byte = (x << 4) | y
                             tokens.append([coord_byte, layer, value])
-                            
+
                             if len(tokens) >= max_tokens:
                                 break
                     if len(tokens) >= max_tokens:
                         break
                 if len(tokens) >= max_tokens:
                     break
-            
+
             # Fill token array for this agent
             for i, token in enumerate(tokens):
                 if i < max_tokens:
                     token_obs[agent_id, i] = token
-        
+
         return token_obs
 
     def render(self, mode: str = "human") -> Optional[str]:
@@ -299,6 +296,16 @@ class TribalGridEnv:
     def max_steps(self) -> int:
         """Get max steps."""
         return self._config.game.max_steps
+
+    def set_mg_config(self, config) -> None:
+        """Set new MettaGrid configuration (for curriculum compatibility)."""
+        # Tribal environments use compile-time constants, so no dynamic reconfiguration needed
+        pass
+
+    def get_episode_rewards(self) -> np.ndarray:
+        """Get episode rewards (for curriculum compatibility)."""
+        # Return dummy rewards array for compatibility
+        return np.array([0.0])
 
     def close(self) -> None:
         """Clean up environment."""

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar, Union
 
 from pydantic import (
     ConfigDict,
@@ -134,19 +134,19 @@ class TaskGenerator(ABC):
 # SingleTaskGenerator
 ################################################################################
 class SingleTaskGenerator(TaskGenerator):
-    """TaskGenerator that always returns the same MettaGridConfig."""
+    """TaskGenerator that always returns the same environment config."""
 
     class Config(TaskGeneratorConfig["SingleTaskGenerator"]):
         """Configuration for SingleTaskGenerator."""
 
-        env: MettaGridConfig = Field(description="The environment configuration to always return")
+        env: Union[MettaGridConfig, Any] = Field(description="The environment configuration to always return")
 
     def __init__(self, config: "SingleTaskGenerator.Config"):
         super().__init__(config)
         self._config = config
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        """Always return the same MettaGridConfig."""
+    def _generate_task(self, task_id: int, rng: random.Random) -> Union[MettaGridConfig, Any]:
+        """Always return the same environment config."""
         return self._config.env.model_copy(deep=True)
 
 

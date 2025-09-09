@@ -77,21 +77,22 @@ def _ensure_tribal_bindings_built():
 
 class TribalTaskGeneratorConfig(TaskGeneratorConfig):
     """Simple tribal-specific task generator config - recipe-local only"""
+
     env: TribalEnvConfig
-    
+
     def create(self):
         """Create a simple task generator that always returns the same tribal env"""
         from metta.cogworks.curriculum.task_generator import TaskGenerator
         import random
-        
+
         class SimpleTribalTaskGenerator(TaskGenerator):
             def __init__(self, config):
                 super().__init__(config)
                 self._env = config.env
-                
+
             def _generate_task(self, task_id: int, rng: random.Random):
                 return self._env.model_copy(deep=True)
-        
+
         return SimpleTribalTaskGenerator(self)
 
 
@@ -99,8 +100,6 @@ def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
     """Create a curriculum configuration from a TribalEnvConfig - like cc.env_curriculum but for tribal"""
     task_gen_config = TribalTaskGeneratorConfig(env=tribal_config)
     return CurriculumConfig(task_generator=task_gen_config)
-
-
 
 
 def make_tribal_environment(
@@ -189,7 +188,7 @@ def evaluate(
 def play(env: TribalEnvConfig | None = None, **overrides) -> PlayTool:
     """
     Interactive play with the tribal environment.
-    
+
     Can be used with or without a trained policy - if no policy is provided,
     agents will act randomly which is useful for environment testing.
 

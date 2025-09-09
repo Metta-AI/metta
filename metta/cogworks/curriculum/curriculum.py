@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import ClassVar
+from typing import ClassVar, Union
 
 from pydantic import ConfigDict, Field, field_validator
 
@@ -51,7 +51,8 @@ class CurriculumConfig(Config):
     )
 
     @classmethod
-    def from_mg(cls, mg_config: MettaGridConfig) -> CurriculumConfig:
+    def from_mg(cls, mg_config: Union[MettaGridConfig, Config]) -> CurriculumConfig:
+        """Create curriculum from any environment config (MettaGrid, Tribal, etc.)."""
         return cls(
             task_generator=SingleTaskGeneratorConfig(env=mg_config),
         )
