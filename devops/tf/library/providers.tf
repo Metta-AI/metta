@@ -11,16 +11,12 @@ provider "aws" {
   region = var.region
 }
 
-locals {
-  cluster_name = "main"
-}
-
 data "aws_eks_cluster" "main" {
-  name = local.cluster_name
+  name = var.eks_cluster_name
 }
 
 data "aws_eks_cluster_auth" "main" {
-  name = local.cluster_name
+  name = var.eks_cluster_name
 }
 
 provider "kubernetes" {
@@ -29,6 +25,6 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", local.cluster_name]
+    args        = ["eks", "get-token", "--cluster-name", var.eks_cluster_name]
   }
 }

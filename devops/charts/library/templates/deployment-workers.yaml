@@ -1,20 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ .Release.Name }}-workers
 spec:
+  replicas: {{ .Values.worker.replicas }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app: {{ .Release.Name }}-workers
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}
+        app: {{ .Release.Name }}-workers
     spec:
       containers:
         - name: worker
           image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
           imagePullPolicy: Always
+          command: ["pnpm", "run", "workers"]
           envFrom:
           - secretRef:
               name: {{ .Values.worker.secret_name }}

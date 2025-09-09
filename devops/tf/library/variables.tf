@@ -3,6 +3,11 @@ variable "region" {
   default = "us-east-1"
 }
 
+variable "eks_cluster_name" {
+  type    = string
+  default = "main"
+}
+
 variable "db_instance_class" {
   type    = string
   default = "db.t3.micro"

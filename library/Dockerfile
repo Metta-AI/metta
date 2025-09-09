@@ -43,4 +43,7 @@ RUN apt-get update -y && apt-get install -y openssl
 
 RUN pnpm run db:generate
 
-CMD ["pnpm", "run", "workers"]
+ENV NODE_ENV=production
+
+# TODO - minimize image size? https://github.com/vercel/next.js/blob/canary/examples/with-docker/Dockerfile
+# TODO - separate next.js and workers images?

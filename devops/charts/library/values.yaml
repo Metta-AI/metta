@@ -1,9 +1,14 @@
 image:
   registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-  name: softmax-library/worker
+  name: softmax-library
   tag: "" # will be set by CI/CD pipeline
 
 # This chart only includes the background worker.
 # The frontend is deployed to AWS Amplify (see devops/tf/library/amplify.tf).
 worker:
   secret_name: softmax-library-worker-secrets
+  replicas: 1
+
+frontend:
+  secret_name: softmax-library-frontend-secrets
+  replicas: 1
