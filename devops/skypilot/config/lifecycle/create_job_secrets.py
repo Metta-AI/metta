@@ -28,14 +28,17 @@ def main():
                 f.write(f"machine api.wandb.ai\n  login user\n  password {args.wandb_password}\n")
             os.chmod(os.path.expanduser("~/.netrc"), 0o600)  # Restrict to owner read/write only
 
-    if args.observatory_token:
+    # Fallback to ENV if CLI arg missing
+    observatory_token = args.observatory_token or os.environ.get("OBSERVATORY_TOKEN")
+
+    if observatory_token:
         if os.path.exists(os.path.expanduser("~/.metta/observatory_tokens.yaml")):
             print("~/.metta/observatory_tokens.yaml already exists")
         else:
             os.makedirs(os.path.expanduser("~/.metta"), exist_ok=True)
             with open(os.path.expanduser("~/.metta/observatory_tokens.yaml"), "w") as f:
-                f.write(f"https://api.observatory.softmax-research.net: {args.observatory_token}\n")
-                f.write(f"https://observatory.softmax-research.net/api: {args.observatory_token}\n")
+                f.write(f"https://api.observatory.softmax-research.net: {observatory_token}\n")
+                f.write(f"https://observatory.softmax-research.net/api: {observatory_token}\n")
             print("~/.metta/observatory_tokens.yaml created")
 
 
