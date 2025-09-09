@@ -7,6 +7,7 @@ from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.random.int import IntConstantDistribution, IntDistribution
 from metta.mettagrid.mapgen.scene import Scene
 from metta.mettagrid.mapgen.types import MapGrid
+from metta.mettagrid.object_types import ObjectTypes
 
 Anchor = Union[
     Literal["top-left"],
@@ -53,6 +54,11 @@ class MazeGrid:
         self.cols = (self.width + self.wall_size) // (self.room_size + self.wall_size)
         self.rows = (self.height + self.wall_size) // (self.room_size + self.wall_size)
 
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+        self._wall_value = ObjectTypes.WALL if self._grid_is_int else "wall"
+
     def cell_top_left(self, i: int, j: int) -> tuple[int, int]:
         """
         Returns the top-left corner of the cell at (i, j).
@@ -81,23 +87,23 @@ class MazeGrid:
             self.grid[y2 + rs : y2 + rs + ws, x2 : x2 + rs] = value
 
     def remove_wall_in_direction(self, i1: int, j1: int, d: Direction):
-        self._set_cell_border_in_direction(i1, j1, d, "empty")
+        self._set_cell_border_in_direction(i1, j1, d, self._empty_value)
 
     def carve_cell(self, i: int, j: int):
         x, y = self.cell_top_left(i, j)
         rs = self.room_size
-        self.grid[y : y + rs, x : x + rs] = "empty"
+        self.grid[y : y + rs, x : x + rs] = self._empty_value
 
     def clear_and_carve_all_cells(self):
-        self.grid[:] = "empty"
+        self.grid[:] = self._empty_value
         rw_size = self.room_size + self.wall_size
 
         for col in range(self.cols - 1):
             x = rw_size * col + self.room_size
-            self.grid[:, x : x + self.wall_size] = "wall"
+            self.grid[:, x : x + self.wall_size] = self._wall_value
         for row in range(self.rows - 1):
             y = rw_size * row + self.room_size
-            self.grid[y : y + self.wall_size, :] = "wall"
+            self.grid[y : y + self.wall_size, :] = self._wall_value
 
 
 class MazeParams(Config):
@@ -132,7 +138,12 @@ class Maze(Scene[MazeParams]):
     └─────────┘
     """
 
-    EMPTY, WALL = "empty", "wall"
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+        self._wall_value = ObjectTypes.WALL if self._grid_is_int else "wall"
 
     def post_init(self):
         # Calculate number of maze cells and adjust overall dimensions.
@@ -180,7 +191,7 @@ class Maze(Scene[MazeParams]):
 
     def _render_dfs(self):
         # Initialize grid with walls and visited flags for maze cells.
-        self.grid[:] = "wall"
+        self.grid[:] = self._wall_value
         visited = np.zeros((self.maze.rows, self.maze.cols), dtype=bool)
 
         def carve_passages_from(i: int, j: int):

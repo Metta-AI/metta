@@ -1,7 +1,13 @@
+from typing import TYPE_CHECKING, Optional
+
 import numpy as np
 
 from metta.mettagrid.char_encoder import char_to_grid_object
 from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from metta.mettagrid.object_types import ObjectTypes
+
+if TYPE_CHECKING:
+    from metta.mettagrid.mettagrid_config import GameConfig
 
 
 class AsciiMapBuilder(MapBuilder):
@@ -19,8 +25,19 @@ class AsciiMapBuilder(MapBuilder):
             lines = ascii_map.strip().splitlines()
             return cls(map_data=[list(line) for line in lines])
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, game_config: Optional["GameConfig"] = None):
         self.config = config
+        self._game_config = game_config
+
+        # Initialize type mapping for int-based format support
+        if game_config:
+            from metta.mettagrid.type_mapping import TypeMapping
+
+            self._type_mapping = TypeMapping(game_config)
+        else:
+            from metta.mettagrid.type_mapping import TypeMapping
+
+            self._type_mapping = TypeMapping()
 
         # Assert all lines are the same length
         if config.map_data:
@@ -34,5 +51,29 @@ class AsciiMapBuilder(MapBuilder):
         self._level = np.array([list(line) for line in config.map_data], dtype="U6")
         self._level = np.vectorize(char_to_grid_object)(self._level)
 
+    def supports_int_format(self) -> bool:
+        """Indicate support for int-based map format."""
+        return True
+
+    def supports_game_config_param(self) -> bool:
+        """Indicate support for GameConfig parameterization."""
+        return True
+
     def build(self) -> GameMap:
+        """Build map in legacy string format."""
         return GameMap(self._level)
+
+    def build_int_format(self) -> GameMap:
+        """Build map in int-based format."""
+        # Convert char-encoded level to int format
+        int_grid = np.zeros_like(self._level, dtype=np.uint8)
+
+        for i in range(self._level.shape[0]):
+            for j in range(self._level.shape[1]):
+                obj_name = self._level[i, j]
+                if self._type_mapping.has_name(obj_name):
+                    int_grid[i, j] = self._type_mapping.get_type_id(obj_name)
+                else:
+                    int_grid[i, j] = ObjectTypes.EMPTY
+
+        return GameMap(int_grid, self._type_mapping.get_decoder_key())

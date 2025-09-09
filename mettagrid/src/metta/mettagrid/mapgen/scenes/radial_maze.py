@@ -1,10 +1,12 @@
 import math
 
+import numpy as np
 from pydantic import Field
 
 from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
 from metta.mettagrid.mapgen.utils.draw import bresenham_line
+from metta.mettagrid.object_types import ObjectTypes
 
 
 class RadialMazeParams(Config):
@@ -14,12 +16,24 @@ class RadialMazeParams(Config):
 
 
 class RadialMaze(Scene[RadialMazeParams]):
-    """A radial maze with a central starting position."""
+    """
+    A radial maze with a central starting position.
+
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+        self._wall_value = ObjectTypes.WALL if self._grid_is_int else "wall"
 
     def render(self):
         arm_length = self.params.arm_length or min(self.width, self.height) // 2 - 1
         arm_width = self.params.arm_width
-        self.grid[:] = "wall"
+        self.grid[:] = self._wall_value
 
         cx, cy = self.width // 2, self.height // 2
 
@@ -34,7 +48,7 @@ class RadialMaze(Scene[RadialMazeParams]):
                     for dy in offsets:
                         nx, ny = x + dx, y + dy
                         if 0 <= nx < self.width and 0 <= ny < self.height:
-                            self.grid[ny, nx] = "empty"
+                            self.grid[ny, nx] = self._empty_value
 
             # Choose the last in-bound point from the arm's path.
             special_point = None

@@ -19,6 +19,11 @@ class InnerMirrorParams(Config):
 
 
 class Mirror(Scene[MirrorParams]):
+    """
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    Since it delegates to child scenes, no format-specific handling is needed at this level.
+    """
+
     def get_children(self) -> list[ChildrenAction]:
         symmetry_to_child_class = {
             "horizontal": HorizontalMirror,

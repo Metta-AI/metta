@@ -29,6 +29,7 @@ import numpy as np
 from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
 from metta.mettagrid.mapgen.utils.pattern import Pattern, Symmetry, ascii_to_weights_of_all_patterns
+from metta.mettagrid.object_types import ObjectTypes
 
 
 class ConvChainParams(Config):
@@ -48,7 +49,17 @@ class ConvChain(Scene[ConvChainParams]):
     This algorithm generates patterns similar to a given sample pattern.
     It uses a statistical model to capture local features of the sample
     and then generates new patterns with similar local characteristics.
+
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+        self._wall_value = ObjectTypes.WALL if self._grid_is_int else "wall"
 
     def post_init(self):
         self._weights = ascii_to_weights_of_all_patterns(
@@ -121,7 +132,7 @@ class ConvChain(Scene[ConvChainParams]):
         # Apply the generated field to the scene grid
         for y in range(self.height):
             for x in range(self.width):
-                self.grid[y, x] = "wall" if field[y][x] else "empty"
+                self.grid[y, x] = self._wall_value if field[y][x] else self._empty_value
 
 
 class ConvChainSlow(Scene[ConvChainParams]):
@@ -129,7 +140,17 @@ class ConvChainSlow(Scene[ConvChainParams]):
     ConvChain scene generator, naive & slow implementation.
 
     Committed to the repo for the sake of comparison, usually shouldn't be used and can be removed later.
+
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+        self._wall_value = ObjectTypes.WALL if self._grid_is_int else "wall"
 
     def post_init(self):
         self._weights = ascii_to_weights_of_all_patterns(
@@ -177,4 +198,4 @@ class ConvChainSlow(Scene[ConvChainParams]):
         # Apply the generated field to the scene grid
         for y in range(self.height):
             for x in range(self.width):
-                self.grid[y, x] = "wall" if field[y, x] else "empty"
+                self.grid[y, x] = self._wall_value if field[y, x] else self._empty_value

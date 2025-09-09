@@ -1,23 +1,52 @@
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 
-from metta.mettagrid.map_builder.map_builder import MapGrid, map_grid_dtype
+from metta.mettagrid.map_builder.map_builder import (
+    MapGrid,
+    MapGridInt,
+    MapGridLegacy,
+    map_grid_int_dtype,
+    map_grid_legacy_dtype,
+)
+from metta.mettagrid.object_types import ObjectTypes
 
 
-def create_grid(height: int, width: int, fill_value: str = "empty") -> MapGrid:
+def create_grid(height: int, width: int, fill_value: str = "empty") -> MapGridLegacy:
     """
-    Creates a NumPy grid with the given height and width, pre-filled with the specified fill_value.
+    Creates a legacy string-based NumPy grid with the given height and width, pre-filled with the specified fill_value.
+
+    Note: This creates legacy format. Use create_int_grid() from map_builder.py for new int-based format.
     """
-    return np.full((height, width), fill_value, dtype=map_grid_dtype)
+    return np.full((height, width), fill_value, dtype=map_grid_legacy_dtype)
 
 
-def draw_border(grid: MapGrid, border_width: int, border_object: str) -> None:
+def create_int_grid(height: int, width: int, fill_type_id: int = ObjectTypes.EMPTY) -> MapGridInt:
+    """
+    Creates an int-based NumPy grid with the given height and width, pre-filled with the specified type_id.
+    """
+    return np.full((height, width), fill_type_id, dtype=map_grid_int_dtype)
+
+
+def draw_border(grid: MapGrid, border_width: int, border_object: Union[str, int]) -> None:
     """
     Draws a border on the given grid in-place. The border (of thickness border_width) is set to border_object.
+
+    Args:
+        grid: Either legacy string grid or int-based grid
+        border_width: Width of the border
+        border_object: For legacy grids: object name string. For int grids: type_id
     """
     if border_width == 0:
         return
+
+    # Validate border_object type matches grid type
+    is_int_grid = grid.dtype == np.uint8
+    if is_int_grid and not isinstance(border_object, int):
+        raise TypeError(f"Int grid requires int border_object, got {type(border_object)}")
+    if not is_int_grid and not isinstance(border_object, str):
+        raise TypeError(f"String grid requires str border_object, got {type(border_object)}")
+
     grid[:border_width, :] = border_object
     grid[-border_width:, :] = border_object
     grid[:, :border_width] = border_object

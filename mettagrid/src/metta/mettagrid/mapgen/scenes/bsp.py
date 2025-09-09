@@ -6,6 +6,7 @@ import numpy as np
 from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
 from metta.mettagrid.mapgen.types import MapGrid
+from metta.mettagrid.object_types import ObjectTypes
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +48,23 @@ class BSP(Scene[BSPParams]):
     Binary Space Partitioning. (Roguelike dungeon generator)
 
     This scene creates a grid of rooms, and then connects them with corridors.
+
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+        self._wall_value = ObjectTypes.WALL if self._grid_is_int else "wall"
 
     def render(self):
         grid = self.grid
         params = self.params
 
-        grid[:] = "wall"
+        grid[:] = self._wall_value
 
         bsp_tree = BSPTree(
             width=grid.shape[1],
@@ -72,7 +83,7 @@ class BSP(Scene[BSPParams]):
             )
             rooms.append(room)
 
-            grid[room.y : room.y + room.height, room.x : room.x + room.width] = "empty"
+            grid[room.y : room.y + room.height, room.x : room.x + room.width] = self._empty_value
             self.make_area(room.x, room.y, room.width, room.height, tags=["room"])
 
         # Make corridors
@@ -103,9 +114,9 @@ class BSP(Scene[BSPParams]):
             # draw lines on the original grid
             for line in lines:
                 if line.direction == "vertical":
-                    grid[line.start[1] : line.start[1] + line.length, line.start[0]] = "empty"
+                    grid[line.start[1] : line.start[1] + line.length, line.start[0]] = self._empty_value
                 else:
-                    grid[line.start[1], line.start[0] : line.start[0] + line.length] = "empty"
+                    grid[line.start[1], line.start[0] : line.start[0] + line.length] = self._empty_value
 
 
 class Zone:

@@ -32,6 +32,7 @@ import numpy as np
 from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
 from metta.mettagrid.mapgen.utils.pattern import Symmetry, ascii_to_patterns_with_counts
+from metta.mettagrid.object_types import ObjectTypes
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,18 @@ class WFCParams(Config):
 
 
 class WFC(Scene[WFCParams]):
+    """
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+        self._wall_value = ObjectTypes.WALL if self._grid_is_int else "wall"
+
     def post_init(self):
         patterns_with_counts = ascii_to_patterns_with_counts(
             self.params.pattern,
@@ -190,7 +203,9 @@ class WFCRenderSession:
             for x in range(self.width):
                 for t in range(self.pattern_count):
                     if self.wave[y, x, t]:
-                        self.scene.grid[y, x] = "wall" if self.scene._patterns[t].data[0][0] else "empty"
+                        self.scene.grid[y, x] = (
+                            self.scene._wall_value if self.scene._patterns[t].data[0][0] else self.scene._empty_value
+                        )
 
     def pick_next_node(self):
         # non-periodic

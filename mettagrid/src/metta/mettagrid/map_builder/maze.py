@@ -1,8 +1,12 @@
 import random
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from metta.mettagrid.map_builder.utils import create_grid, set_position
+from metta.mettagrid.object_types import ObjectTypes
+
+if TYPE_CHECKING:
+    from metta.mettagrid.mettagrid_config import GameConfig
 
 
 class MazeConfigMapBuilderConfig(MapBuilderConfig):
@@ -26,8 +30,9 @@ class MazePrimMapBuilder(MapBuilder):
     START, END = "agent.agent", "altar"
     DIRECTIONS = [(2, 0), (-2, 0), (0, 2), (0, -2)]
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, game_config: Optional["GameConfig"] = None):
         self.config = config
+        self._game_config = game_config
         self._rng = random.Random(config.seed)
         self._width = config.width if config.width % 2 == 1 else config.width - 1
         self._height = config.height if config.height % 2 == 1 else config.height - 1
@@ -36,6 +41,16 @@ class MazePrimMapBuilder(MapBuilder):
             set_position(config.start_pos[1], self._height),
         )
         self._end_pos = (set_position(config.end_pos[0], self._width), set_position(config.end_pos[1], self._height))
+
+        # Initialize type mapping for int-based format support
+        if game_config:
+            from metta.mettagrid.type_mapping import TypeMapping
+
+            self._type_mapping = TypeMapping(game_config)
+        else:
+            from metta.mettagrid.type_mapping import TypeMapping
+
+            self._type_mapping = TypeMapping()
 
     def build(self) -> GameMap:
         final_maze = create_grid(self._height, self._width, fill_value=self.WALL)
@@ -64,6 +79,43 @@ class MazePrimMapBuilder(MapBuilder):
         final_maze[: self._height, : self._width] = maze
         return GameMap(final_maze)
 
+    def supports_int_format(self) -> bool:
+        """Indicate support for int-based map format."""
+        return True
+
+    def supports_game_config_param(self) -> bool:
+        """Indicate support for GameConfig parameterization."""
+        return True
+
+    def build_int_format(self) -> GameMap:
+        """Build map in int-based format."""
+        # Create maze using same logic but with int types
+        final_maze = create_grid(self._height, self._width, fill_value=ObjectTypes.WALL)
+        maze = create_grid(self._height, self._width, fill_value=ObjectTypes.WALL)
+        sx, sy = self._start_pos
+        maze[sy, sx] = ObjectTypes.EMPTY
+        walls = []
+        for dx, dy in MazePrimMapBuilder.DIRECTIONS:
+            wx, wy = sx + dx // 2, sy + dy // 2
+            nx, ny = sx + dx, sy + dy
+            if 0 <= nx < self._width and 0 <= ny < self._height:
+                walls.append((wx, wy, nx, ny))
+        while walls:
+            idx = self._rng.randrange(len(walls))
+            wx, wy, nx, ny = walls.pop(idx)
+            if maze[ny, nx] == ObjectTypes.WALL:
+                maze[wy, wx] = ObjectTypes.EMPTY
+                maze[ny, nx] = ObjectTypes.EMPTY
+                for dx, dy in MazePrimMapBuilder.DIRECTIONS:
+                    nwx, nwy = nx + dx // 2, ny + dy // 2
+                    nnx, nny = nx + dx, ny + dy
+                    if 0 <= nnx < self._width and 0 <= nny < self._height and maze[nny, nnx] == ObjectTypes.WALL:
+                        walls.append((nwx, nwy, nnx, nny))
+        maze[self._start_pos[1], self._start_pos[0]] = ObjectTypes.AGENT_DEFAULT
+        maze[self._end_pos[1], self._end_pos[0]] = self._type_mapping.get_type_id("altar")
+        final_maze[: self._height, : self._width] = maze
+        return GameMap(final_maze, self._type_mapping.get_decoder_key())
+
 
 # Maze generation using Randomized Kruskal's algorithm
 class MazeKruskalMapBuilder(MapBuilder):
@@ -73,8 +125,9 @@ class MazeKruskalMapBuilder(MapBuilder):
     EMPTY, WALL = "empty", "wall"
     START, END = "agent.agent", "altar"
 
-    def __init__(self, config: MazeConfigMapBuilderConfig):
+    def __init__(self, config: MazeConfigMapBuilderConfig, game_config: Optional["GameConfig"] = None):
         self.config = config
+        self._game_config = game_config
         self._rng = random.Random(config.seed)
         self._width = config.width if config.width % 2 == 1 else config.width - 1
         self._height = config.height if config.height % 2 == 1 else config.height - 1
@@ -83,6 +136,16 @@ class MazeKruskalMapBuilder(MapBuilder):
             set_position(config.start_pos[1], self._height),
         )
         self._end_pos = (set_position(config.end_pos[0], self._width), set_position(config.end_pos[1], self._height))
+
+        # Initialize type mapping for int-based format support
+        if game_config:
+            from metta.mettagrid.type_mapping import TypeMapping
+
+            self._type_mapping = TypeMapping(game_config)
+        else:
+            from metta.mettagrid.type_mapping import TypeMapping
+
+            self._type_mapping = TypeMapping()
 
     def build(self) -> GameMap:
         final_maze = create_grid(self._height, self._width, fill_value=self.WALL)
@@ -120,3 +183,49 @@ class MazeKruskalMapBuilder(MapBuilder):
         maze[ey, ex] = self.END
         final_maze[: self._height, : self._width] = maze
         return GameMap(final_maze)
+
+    def supports_int_format(self) -> bool:
+        """Indicate support for int-based map format."""
+        return True
+
+    def supports_game_config_param(self) -> bool:
+        """Indicate support for GameConfig parameterization."""
+        return True
+
+    def build_int_format(self) -> GameMap:
+        """Build map in int-based format."""
+        # Create maze using same logic but with int types
+        final_maze = create_grid(self._height, self._width, fill_value=ObjectTypes.WALL)
+        maze = create_grid(self._height, self._width, fill_value=ObjectTypes.WALL)
+        cells = [(x, y) for y in range(1, self._height, 2) for x in range(1, self._width, 2)]
+        for x, y in cells:
+            maze[y, x] = ObjectTypes.EMPTY
+
+        parent = {cell: cell for cell in cells}
+
+        def find(cell):
+            if parent[cell] != cell:
+                parent[cell] = find(parent[cell])
+            return parent[cell]
+
+        def union(cell1, cell2):
+            parent[find(cell1)] = find(cell2)
+
+        walls = []
+        for x, y in cells:
+            if x + 2 < self._width and (x + 2, y) in cells:
+                walls.append(((x, y), (x + 2, y), (x + 1, y)))
+            if y + 2 < self._height and (x, y + 2) in cells:
+                walls.append(((x, y), (x, y + 2), (x, y + 1)))
+        self._rng.shuffle(walls)
+        for cell1, cell2, wall in walls:
+            if find(cell1) != find(cell2):
+                wx, wy = wall
+                maze[wy, wx] = ObjectTypes.EMPTY
+                union(cell1, cell2)
+        sx, sy = self._start_pos
+        ex, ey = self._end_pos
+        maze[sy, sx] = ObjectTypes.AGENT_DEFAULT
+        maze[ey, ex] = self._type_mapping.get_type_id("altar")
+        final_maze[: self._height, : self._width] = maze
+        return GameMap(final_maze, self._type_mapping.get_decoder_key())

@@ -1,9 +1,13 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
 from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from metta.mettagrid.map_builder.utils import draw_border
+from metta.mettagrid.object_types import ObjectTypes
+
+if TYPE_CHECKING:
+    from metta.mettagrid.mettagrid_config import GameConfig
 
 
 class RandomMapBuilder(MapBuilder):
@@ -21,11 +25,38 @@ class RandomMapBuilder(MapBuilder):
         border_width: int = 0
         border_object: str = "wall"
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, game_config: Optional["GameConfig"] = None):
         self._config = config
+        self._game_config = game_config
         self._rng = np.random.default_rng(self._config.seed)
 
+        # Initialize type mapping for int-based format support
+        if game_config:
+            from metta.mettagrid.type_mapping import TypeMapping
+
+            self._type_mapping = TypeMapping(game_config)
+        else:
+            from metta.mettagrid.type_mapping import TypeMapping
+
+            self._type_mapping = TypeMapping()
+
+    def supports_int_format(self) -> bool:
+        """Indicate support for int-based map format."""
+        return True
+
+    def supports_game_config_param(self) -> bool:
+        """Indicate support for GameConfig parameterization."""
+        return True
+
     def build(self):
+        """Build map in legacy string format."""
+        return self._build_legacy_format()
+
+    def build_int_format(self) -> GameMap:
+        """Build map in int-based format."""
+        return self._build_int_format()
+
+    def _build_legacy_format(self) -> GameMap:
         # Reset RNG to ensure deterministic builds across multiple calls
         if self._config.seed is not None:
             self._rng = np.random.default_rng(self._config.seed)
@@ -93,3 +124,87 @@ class RandomMapBuilder(MapBuilder):
             grid = inner_grid
 
         return GameMap(grid)
+
+    def _build_int_format(self) -> GameMap:
+        """Build map using int-based format with type_ids."""
+        # Reset RNG to ensure deterministic builds across multiple calls
+        if self._config.seed is not None:
+            self._rng = np.random.default_rng(self._config.seed)
+
+        # Create empty grid with int format
+        grid = np.full((self._config.height, self._config.width), ObjectTypes.EMPTY, dtype=np.uint8)
+
+        # Draw border first if needed
+        if self._config.border_width > 0:
+            border_type_id = self._type_mapping.get_type_id(self._config.border_object)
+            draw_border(grid, self._config.border_width, border_type_id)
+
+        # Calculate inner area where objects can be placed
+        if self._config.border_width > 0:
+            inner_height = max(0, self._config.height - 2 * self._config.border_width)
+            inner_width = max(0, self._config.width - 2 * self._config.border_width)
+            inner_area = inner_height * inner_width
+        else:
+            inner_height = self._config.height
+            inner_width = self._config.width
+            inner_area = self._config.width * self._config.height
+
+        if inner_area <= 0:
+            return GameMap(grid, self._type_mapping.get_decoder_key())
+
+        # Prepare agent type_ids
+        if isinstance(self._config.agents, int):
+            agent_type_ids = [ObjectTypes.AGENT_DEFAULT] * self._config.agents
+        elif isinstance(self._config.agents, dict):
+            agent_type_ids = []
+            for agent, na in self._config.agents.items():
+                agent_name = f"agent.{agent}"
+                if self._type_mapping.has_name(agent_name):
+                    agent_type_id = self._type_mapping.get_type_id(agent_name)
+                else:
+                    agent_type_id = ObjectTypes.AGENT_DEFAULT
+                agent_type_ids.extend([agent_type_id] * na)
+        else:
+            raise ValueError(f"Invalid agents configuration: {self._config.agents}")
+
+        # Check if total objects exceed inner room size and halve counts if needed
+        config_objects = self._config.objects.copy()  # Work with copy to avoid modifying original
+        total_objects = sum(count for count in config_objects.values()) + len(agent_type_ids)
+        while total_objects > inner_area:
+            # If we can't reduce further, break to avoid infinite loop
+            all_ones = all(count <= 1 for count in config_objects.values()) and len(agent_type_ids) <= 1
+            if all_ones:
+                break
+            for obj_name in config_objects:
+                config_objects[obj_name] = max(1, config_objects[obj_name] // 2)
+            total_objects = sum(count for count in config_objects.values()) + len(agent_type_ids)
+
+        # Create type_ids array for inner area only
+        type_ids = []
+        for obj_name, count in config_objects.items():
+            if self._type_mapping.has_name(obj_name):
+                obj_type_id = self._type_mapping.get_type_id(obj_name)
+            else:
+                # Skip unknown objects or use empty
+                obj_type_id = ObjectTypes.EMPTY
+            type_ids.extend([obj_type_id] * count)
+        type_ids.extend(agent_type_ids)
+
+        # Fill remaining inner area with empty
+        type_ids.extend([ObjectTypes.EMPTY] * (inner_area - len(type_ids)))
+
+        # Shuffle and place in inner area
+        type_ids = np.array(type_ids, dtype=np.uint8)
+        self._rng.shuffle(type_ids)
+        inner_grid = type_ids.reshape(inner_height, inner_width)
+
+        # Place inner grid into main grid
+        if self._config.border_width > 0:
+            grid[
+                self._config.border_width : self._config.border_width + inner_height,
+                self._config.border_width : self._config.border_width + inner_width,
+            ] = inner_grid
+        else:
+            grid = inner_grid
+
+        return GameMap(grid, self._type_mapping.get_decoder_key())

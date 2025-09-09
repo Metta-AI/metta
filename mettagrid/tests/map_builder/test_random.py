@@ -2,6 +2,7 @@ import numpy as np
 
 from metta.mettagrid.map_builder.map_builder import GameMap
 from metta.mettagrid.map_builder.random import RandomMapBuilder
+from metta.mettagrid.object_types import ObjectTypes
 
 
 class TestRandomMapBuilderConfig:
@@ -194,3 +195,74 @@ class TestRandomMapBuilder:
         assert count_dict.get("agent.agent", 0) == 1
         assert count_dict.get("agent.prey", 0) == 1
         assert count_dict.get("agent.predator", 0) == 1
+
+
+class TestRandomMapBuilderIntFormat:
+    """Test RandomMapBuilder with int-based format."""
+
+    def test_build_int_format_basic(self):
+        objects = {"wall": 3, "altar": 2}
+        config = RandomMapBuilder.Config(width=4, height=4, objects=objects, agents=1, seed=42)
+        builder = config.create()
+
+        # Test int format build
+        game_map = builder.build_int_format()
+        assert isinstance(game_map.grid, np.ndarray)
+        assert game_map.grid.dtype == np.uint8
+        assert game_map.decoder_key is not None
+        assert game_map.is_int_based()
+
+        # Check content
+        unique, counts = np.unique(game_map.grid, return_counts=True)
+        count_dict = dict(zip(unique, counts, strict=False))
+
+        # Should have empty, wall, altar, and agent
+        assert ObjectTypes.EMPTY in count_dict  # empty cells
+        assert ObjectTypes.WALL in count_dict  # 3 walls
+        assert count_dict[ObjectTypes.WALL] == 3
+
+    def test_build_int_format_supports_methods(self):
+        config = RandomMapBuilder.Config(width=4, height=4, objects={"wall": 1}, seed=42)
+        builder = config.create()
+
+        assert builder.supports_int_format()
+        assert builder.supports_game_config_param()
+
+    def test_build_int_format_deterministic(self):
+        objects = {"wall": 2, "altar": 1}
+        config = RandomMapBuilder.Config(width=3, height=3, objects=objects, agents=1, seed=123)
+        builder = config.create()
+
+        map1 = builder.build_int_format()
+        map2 = builder.build_int_format()
+
+        # Should be identical
+        assert np.array_equal(map1.grid, map2.grid)
+        assert map1.decoder_key == map2.decoder_key
+
+    def test_int_format_conversion_consistency(self):
+        """Test that int and legacy formats are semantically equivalent."""
+        objects = {"wall": 2}
+        config = RandomMapBuilder.Config(width=3, height=3, objects=objects, agents=1, seed=456)
+        builder = config.create()
+
+        legacy_map = builder.build()
+        int_map = builder.build_int_format()
+
+        # Convert int map back to legacy for comparison
+        legacy_converted = int_map.to_legacy_format()
+
+        # Should have same dimensions
+        assert legacy_map.grid.shape == legacy_converted.grid.shape
+
+        # Should have same object counts (semantic equivalence)
+        legacy_unique, legacy_counts = np.unique(legacy_map.grid, return_counts=True)
+        converted_unique, converted_counts = np.unique(legacy_converted.grid, return_counts=True)
+
+        legacy_dict = dict(zip(legacy_unique, legacy_counts, strict=False))
+        converted_dict = dict(zip(converted_unique, converted_counts, strict=False))
+
+        # Check key objects exist in both
+        assert "wall" in legacy_dict and "wall" in converted_dict
+        assert "agent.agent" in legacy_dict and "agent.agent" in converted_dict
+        assert legacy_dict["wall"] == converted_dict["wall"]

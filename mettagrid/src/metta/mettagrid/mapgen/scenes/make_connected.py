@@ -4,6 +4,7 @@ import numpy as np
 
 from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
+from metta.mettagrid.object_types import ObjectTypes
 
 DIRECTIONS = [(-1, 0), (0, 1), (1, 0), (0, -1)]
 
@@ -26,11 +27,23 @@ class MakeConnected(Scene[MakeConnectedParams]):
     - Digging shortest tunnels from the largest component to all other components
 
     TODO: This can result in some extra tunnels being dug.
+
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
     """
 
-    def _is_empty(self, symbol: str) -> bool:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+
+    def _is_empty(self, symbol) -> bool:
         # TODO - treat agents as empty cells?
-        return symbol == "empty"
+        if self._grid_is_int:
+            return symbol == ObjectTypes.EMPTY
+        else:
+            return symbol == "empty"
 
     def render(self):
         height, width = self.grid.shape
@@ -87,7 +100,7 @@ class MakeConnected(Scene[MakeConnectedParams]):
                 next_cell = self.rng.choice(candidates)
                 current_cell = next_cell
                 current_distance -= 1
-                self.grid[*current_cell] = "empty"
+                self.grid[*current_cell] = self._empty_value
 
         assert len(self._make_components()) == 1, "Map must end up with a single connected component"
 

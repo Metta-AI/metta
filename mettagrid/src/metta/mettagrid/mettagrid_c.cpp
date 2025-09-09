@@ -263,7 +263,239 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   set_buffers(observations, terminals, truncations, rewards);
 }
 
+// Enhanced constructor for int-based maps
+MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> int_map, py::list decoder_key, unsigned int seed)
+    : obs_width(game_config.obs_width),
+      obs_height(game_config.obs_height),
+      max_steps(game_config.max_steps),
+      episode_truncates(game_config.episode_truncates),
+      resource_names(game_config.resource_names),
+      _global_obs_config(game_config.global_obs),
+      _game_config(game_config),
+      _num_observation_tokens(game_config.num_observation_tokens),
+      _track_movement_metrics(game_config.track_movement_metrics),
+      _resource_loss_prob(game_config.resource_loss_prob) {
+  _seed = seed;
+  _rng = std::mt19937(_seed);
+  _initialize_environment_from_int_map(game_config, int_map, decoder_key);
+}
+
+// Unified constructor with auto-detection
+MettaGrid::MettaGrid(const GameConfig& game_config, py::object map_data, unsigned int seed, bool force_format)
+    : obs_width(game_config.obs_width),
+      obs_height(game_config.obs_height),
+      max_steps(game_config.max_steps),
+      episode_truncates(game_config.episode_truncates),
+      resource_names(game_config.resource_names),
+      _global_obs_config(game_config.global_obs),
+      _game_config(game_config),
+      _num_observation_tokens(game_config.num_observation_tokens),
+      _track_movement_metrics(game_config.track_movement_metrics),
+      _resource_loss_prob(game_config.resource_loss_prob) {
+  _seed = seed;
+  _rng = std::mt19937(_seed);
+  // Auto-detect format and process accordingly
+  if (_is_int_based_map(map_data)) {
+    // For int-based maps, we need both the grid and decoder key
+    // This unified constructor is mainly for backward compatibility
+    // The preferred approach is to use the specific constructors
+    throw std::runtime_error("Unified constructor cannot process int-based maps without decoder key. Use specific int-based constructor instead.");
+  } else {
+    auto list_map = map_data.cast<py::list>();
+    _initialize_environment_from_string_map(game_config, list_map);
+  }
+}
+
 MettaGrid::~MettaGrid() = default;
+
+// Helper method to detect if map data is int-based
+bool MettaGrid::_is_int_based_map(const py::object& map_data) const {
+  try {
+    // Try to cast to numpy array of uint8
+    auto array = map_data.cast<py::array_t<uint8_t>>();
+    return true;
+  } catch (const py::cast_error&) {
+    // If cast fails, assume it's a list-based (string) map
+    return false;
+  }
+}
+
+// Common initialization logic shared by all constructors
+void MettaGrid::_initialize_common_environment(const GameConfig& game_config, GridCoord height, GridCoord width) {
+  unsigned int num_agents = static_cast<unsigned int>(game_config.num_agents);
+  current_step = 0;
+
+  // Validate observation window size
+  bool observation_size_is_packable =
+      obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
+  if (!observation_size_is_packable) {
+    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) + "x" +
+                             std::to_string(obs_height) + ") exceeds maximum packable size");
+  }
+
+  // Initialize core systems
+  _grid = std::make_unique<Grid>(height, width);
+  _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.recipe_details_obs);
+  _event_manager = std::make_unique<EventManager>();
+  _stats = std::make_unique<StatsTracker>();
+  _stats->set_environment(this);
+  _event_manager->init(_grid.get());
+
+  // Initialize event handlers
+  _event_manager->event_handlers.insert(
+      {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
+  _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
+
+  _action_success.resize(num_agents);
+
+  // Initialize action handlers
+  for (const auto& [action_name, action_config] : game_config.actions) {
+    if (action_name == "put_items") {
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
+    } else if (action_name == "place_box") {
+      _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config));
+    } else if (action_name == "get_items") {
+      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
+    } else if (action_name == "noop") {
+      _action_handlers.push_back(std::make_unique<Noop>(*action_config));
+    } else if (action_name == "move") {
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, &_game_config));
+    } else if (action_name == "rotate") {
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, &_game_config));
+    } else if (action_name == "attack") {
+      auto attack_config = std::static_pointer_cast<const AttackActionConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<Attack>(*attack_config, &_game_config));
+    } else if (action_name == "change_glyph") {
+      auto change_glyph_config = std::static_pointer_cast<const ChangeGlyphActionConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
+    } else if (action_name == "swap") {
+      _action_handlers.push_back(std::make_unique<Swap>(*action_config));
+    } else if (action_name == "change_color") {
+      _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
+    } else {
+      throw std::runtime_error("Unknown action: " + action_name);
+    }
+  }
+  init_action_handlers();
+
+  // Initialize object type names mapping
+  object_type_names.resize(game_config.objects.size());
+  for (const auto& [key, object_cfg] : game_config.objects) {
+    TypeId type_id = object_cfg->type_id;
+    if (type_id >= object_type_names.size()) {
+      object_type_names.resize(type_id + 1);
+    }
+    if (object_type_names[type_id] != "" && object_type_names[type_id] != object_cfg->type_name) {
+      throw std::runtime_error("Object type_id " + std::to_string(type_id) + " already exists with type_name " +
+                               object_type_names[type_id] + ". Trying to add " + object_cfg->type_name + ".");
+    }
+    object_type_names[type_id] = object_cfg->type_name;
+
+    const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg.get());
+    if (agent_config) {
+      unsigned int id = agent_config->group_id;
+      _group_sizes[id] = 0;
+      _group_reward_pct[id] = agent_config->group_reward_pct;
+    }
+  }
+}
+
+// Initialize environment from string-based map (legacy format)
+void MettaGrid::_initialize_environment_from_string_map(const GameConfig& game_config, const py::list& string_map) {
+  GridCoord height = static_cast<GridCoord>(py::len(string_map));
+  GridCoord width = static_cast<GridCoord>(py::len(string_map[0]));
+
+  // Initialize common systems
+  _initialize_common_environment(game_config, height, width);
+
+  // Process string-based grid (original logic)
+  std::string grid_hash_data;
+  grid_hash_data.reserve(static_cast<size_t>(height * width * 20));
+
+  for (GridCoord r = 0; r < height; r++) {
+    for (GridCoord c = 0; c < width; c++) {
+      auto py_cell = string_map[r].cast<py::list>()[c].cast<py::str>();
+      auto cell = py_cell.cast<std::string>();
+
+      // Add cell position and type to hash data
+      grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
+
+      // Skip empty cells
+      if (cell == "empty" || cell == "." || cell == " ") {
+        continue;
+      }
+
+      // Validate object exists in config
+      if (!game_config.objects.contains(cell)) {
+        throw std::runtime_error("Unknown object type: " + cell);
+      }
+
+      // Create object based on type
+      const GridObjectConfig* object_cfg = game_config.objects.at(cell).get();
+      _create_object_from_config(r, c, object_cfg, cell);
+    }
+  }
+
+  _finalize_environment_initialization(grid_hash_data);
+}
+
+// Initialize environment from int-based map (optimized new format)
+void MettaGrid::_initialize_environment_from_int_map(const GameConfig& game_config, py::array_t<uint8_t> int_map, const py::list& decoder_key) {
+  auto map_info = int_map.request();
+  if (map_info.ndim != 2) {
+    throw std::runtime_error("Int map must be 2-dimensional");
+  }
+
+  GridCoord height = static_cast<GridCoord>(map_info.shape[0]);
+  GridCoord width = static_cast<GridCoord>(map_info.shape[1]);
+
+  // Initialize common systems
+  _initialize_common_environment(game_config, height, width);
+
+  // Process int-based grid (optimized path)
+  std::string grid_hash_data;
+  grid_hash_data.reserve(static_cast<size_t>(height * width * 10)); // Smaller reserve for ints
+
+  auto map_ptr = static_cast<const uint8_t*>(map_info.ptr);
+
+  for (GridCoord r = 0; r < height; r++) {
+    for (GridCoord c = 0; c < width; c++) {
+      uint8_t type_id = map_ptr[r * width + c];
+
+      // Add cell position and type_id to hash data
+      grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + std::to_string(type_id) + ";";
+
+      // Skip empty cells (type_id 0)
+      if (type_id == 0) {
+        continue;
+      }
+
+      // Find object config using decoder key for proper name resolution
+      const GridObjectConfig* object_cfg = nullptr;
+      std::string object_name;
+
+      // Get canonical object name from decoder key
+      if (type_id >= py::len(decoder_key)) {
+        throw std::runtime_error("Type_id " + std::to_string(type_id) + " exceeds decoder key size " + std::to_string(py::len(decoder_key)));
+      }
+
+      object_name = py::str(decoder_key[type_id]).cast<std::string>();
+
+      // Look up config by canonical name
+      auto it = game_config.objects.find(object_name);
+      if (it != game_config.objects.end()) {
+        object_cfg = it->second.get();
+      } else {
+        throw std::runtime_error("Object name '" + object_name + "' from decoder key not found in game config");
+      }
+
+      // Create object based on config
+      _create_object_from_config(r, c, object_cfg, object_name);
+    }
+  }
+
+  _finalize_environment_initialization(grid_hash_data);
+}
 
 void MettaGrid::init_action_handlers() {
   _num_action_handlers = _action_handlers.size();
@@ -282,6 +514,121 @@ void MettaGrid::init_action_handlers() {
       _max_action_arg = _max_action_args[i];
     }
   }
+}
+
+// Helper method to create objects from config (extracted from original logic)
+void MettaGrid::_create_object_from_config(GridCoord r, GridCoord c, const GridObjectConfig* object_cfg, const std::string& object_name) {
+  // Wall objects
+  const WallConfig* wall_config = dynamic_cast<const WallConfig*>(object_cfg);
+  if (wall_config) {
+    Wall* wall = new Wall(r, c, *wall_config);
+    _grid->add_object(wall);
+    _stats->incr("objects." + object_name);
+    return;
+  }
+
+  // Box objects
+  const BoxConfig* box_config = dynamic_cast<const BoxConfig*>(object_cfg);
+  if (box_config) {
+    Box* box = new Box(r, c, *box_config, 255, 255);  // Default creator values
+    _grid->add_object(box);
+    _stats->incr("objects." + object_name);
+    return;
+  }
+
+  // Converter objects
+  const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
+  if (converter_config) {
+    // Create converter with recipe offsets from observation encoder
+    ConverterConfig config_with_offsets(*converter_config);
+    config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
+    config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
+
+    Converter* converter = new Converter(r, c, config_with_offsets);
+    _grid->add_object(converter);
+    _stats->incr("objects." + object_name);
+    converter->set_event_manager(_event_manager.get());
+    converter->stats.set_environment(this);
+    return;
+  }
+
+  // Agent objects
+  const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
+  if (agent_config) {
+    Agent* agent = new Agent(r, c, *agent_config);
+    _grid->add_object(agent);
+
+    if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
+      throw std::runtime_error("Too many agents for agent_id type");
+    }
+
+    agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
+    agent->stats.set_environment(this);
+
+    // Initialize visitation grid if enabled
+    if (_global_obs_config.visitation_counts) {
+      agent->init_visitation_grid(_grid->height, _grid->width);
+    }
+
+    // Add agent box if configured
+    if (_game_config.objects.contains("box")) {
+      const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(_game_config.objects.at("box").get());
+      if (local_box_cfg) {
+        agent->box = new Box(0, 0, *local_box_cfg, agent->id, static_cast<unsigned char>(agent->agent_id));
+        _grid->ghost_add_object(agent->box);
+      }
+    }
+
+    add_agent(agent);
+    _group_sizes[agent->group] += 1;
+    return;
+  }
+
+  // Unknown object type
+  throw std::runtime_error("Unknown object configuration for: " + object_name);
+}
+
+// Finalize environment initialization (common final steps)
+void MettaGrid::_finalize_environment_initialization(const std::string& grid_hash_data) {
+  unsigned int num_agents = static_cast<unsigned int>(_game_config.num_agents);
+
+  // Validate agent count
+  if (_agents.size() != num_agents) {
+    std::stringstream ss;
+    ss << "Expected " << num_agents << " agents, but found " << _agents.size() << " agents in map";
+    throw std::runtime_error(ss.str());
+  }
+
+  // Compute initial grid hash
+  std::hash<std::string> hasher;
+  initial_grid_hash = hasher(grid_hash_data);
+
+  // Initialize resource rewards (moved here for sharing between constructors)
+  _resource_rewards.resize(num_agents);
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+    const Agent& agent = *_agents[agent_idx];
+    const auto& resource_rewards = agent.resource_rewards;
+
+    // Pack resource rewards into a single byte
+    uint8_t packed = 0;
+    for (uint8_t item = 0; item < resource_rewards.size() && item < 8; ++item) {
+      if (resource_rewards.at(item) > 0) {
+        packed |= static_cast<uint8_t>(1 << (7 - item));
+      }
+    }
+
+    _resource_rewards[agent_idx] = packed;
+  }
+
+  // Initialize buffers
+  std::vector<ssize_t> shape;
+  shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
+  auto observations = py::array_t<ObservationType, py::array::c_style>(shape);
+  auto terminals = py::array_t<TerminalType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TerminalType)});
+  auto truncations = py::array_t<TruncationType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TruncationType)});
+  auto rewards = py::array_t<RewardType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
+
+  set_buffers(observations, terminals, truncations, rewards);
 }
 
 void MettaGrid::add_agent(Agent* agent) {

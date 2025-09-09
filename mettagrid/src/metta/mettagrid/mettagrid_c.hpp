@@ -48,6 +48,8 @@ namespace py = pybind11;
 class METTAGRID_API MettaGrid {
 public:
   MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
+  MettaGrid(const GameConfig& cfg, py::array_t<uint8_t> int_map, py::list decoder_key, unsigned int seed);
+  MettaGrid(const GameConfig& cfg, py::object map_data, unsigned int seed, bool force_format = false);
   ~MettaGrid();
 
   ObservationCoord obs_width;
@@ -174,6 +176,14 @@ private:
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
   BoxConfig _create_box_config(const py::dict& box_cfg_py);
+
+  // Helper methods for enhanced constructors
+  bool _is_int_based_map(const py::object& map_data) const;
+  void _initialize_common_environment(const GameConfig& game_config, GridCoord height, GridCoord width);
+  void _initialize_environment_from_string_map(const GameConfig& game_config, const py::list& string_map);
+  void _initialize_environment_from_int_map(const GameConfig& game_config, py::array_t<uint8_t> int_map, const py::list& decoder_key);
+  void _create_object_from_config(GridCoord r, GridCoord c, const GridObjectConfig* object_cfg, const std::string& object_name);
+  void _finalize_environment_initialization(const std::string& grid_hash_data);
 };
 
 #endif  // METTAGRID_C_HPP_

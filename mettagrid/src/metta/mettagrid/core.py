@@ -111,12 +111,21 @@ class MettaGridCore:
     def _create_c_env(self) -> MettaGridCpp:
         game_map = self._map_builder.build()
 
-        # Validate number of agents
-        level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
+        # Validate number of agents (format-aware)
+        if game_map.is_int_based():
+            # For int-based maps, count agent type IDs
+            from metta.mettagrid.object_types import ObjectTypes
+
+            agent_mask = ObjectTypes.is_agent(game_map.grid.astype(int))
+            level_agents = np.sum(agent_mask)
+        else:
+            # For legacy string-based maps
+            level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
+
         assert self.__mg_config.game.num_agents == level_agents, (
-            f"Number of agents {self.__mg_config.game.num_agents} "
-            f"does not match number  of agents in map {level_agents}"
+            f"Number of agents {self.__mg_config.game.num_agents} does not match number of agents in map {level_agents}"
         )
+
         game_config_dict = self.__mg_config.game.model_dump()
 
         # Create C++ config
@@ -127,8 +136,15 @@ class MettaGridCore:
             logger.error(f"Game config: {game_config_dict}")
             raise e
 
-        # Create C++ environment
-        c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
+        # Create C++ environment with format-appropriate constructor
+        if game_map.is_int_based():
+            # Use optimized int-based constructor with decoder key
+            if game_map.decoder_key is None:
+                raise ValueError("Int-based GameMap missing decoder_key")
+            c_env = MettaGridCpp(c_cfg, game_map.grid, game_map.decoder_key, self._current_seed)
+        else:
+            # Use legacy string-based constructor (backward compatibility)
+            c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
         self._update_core_buffers()
 
         # Initialize renderer if needed

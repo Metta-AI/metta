@@ -22,6 +22,7 @@ import numpy as np
 
 from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
+from metta.mettagrid.object_types import ObjectTypes
 
 
 class VariedTerrainParams(Config):
@@ -31,6 +32,20 @@ class VariedTerrainParams(Config):
 
 
 class VariedTerrain(Scene[VariedTerrainParams]):
+    """
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+        self._agent_value = ObjectTypes.AGENT_DEFAULT if self._grid_is_int else "agent.agent"
+        self._wall_value = ObjectTypes.WALL if self._grid_is_int else "wall"
+        self._altar_value = ObjectTypes.ALTAR if self._grid_is_int else "altar"
+
     # Base style parameters for a 60x60 (area=3600) grid.
     # These counts are intentionally moderate.
     STYLE_PARAMETERS = {
@@ -132,7 +147,7 @@ class VariedTerrain(Scene[VariedTerrainParams]):
             if pos is None:
                 break
             r, c = pos
-            self.grid[r, c] = "agent.agent"
+            self.grid[r, c] = self._agent_value
             self._occupancy[r, c] = True
 
         # Place objects.
@@ -156,7 +171,7 @@ class VariedTerrain(Scene[VariedTerrainParams]):
         """
         r, c = top_left
         p_h, p_w = pattern.shape
-        self._occupancy[r : r + p_h, c : c + p_w] |= pattern != "empty"
+        self._occupancy[r : r + p_h, c : c + p_w] |= pattern != self._empty_value
 
     def _find_candidates(self, region_shape: Tuple[int, int]) -> List[Tuple[int, int]]:
         """
@@ -251,7 +266,7 @@ class VariedTerrain(Scene[VariedTerrainParams]):
             return
         chosen_flat = self.rng.choice(empty_flat, size=num_to_place, replace=False)
         r_coords, c_coords = np.unravel_index(chosen_flat, self.grid.shape)
-        self.grid[r_coords, c_coords] = "wall"
+        self.grid[r_coords, c_coords] = self._wall_value
         self._occupancy[r_coords, c_coords] = True
 
     def _place_blocks(self):
@@ -268,8 +283,8 @@ class VariedTerrain(Scene[VariedTerrainParams]):
             candidates = self._find_candidates((block_h, block_w))
             if candidates:
                 r, c = candidates[self.rng.integers(0, len(candidates))]
-                self.grid[r : r + block_h, c : c + block_w] = "wall"
-                block_pattern = np.full((block_h, block_w), "wall", dtype=object)
+                self.grid[r : r + block_h, c : c + block_w] = self._wall_value
+                block_pattern = np.full((block_h, block_w), self._wall_value, dtype=object)
                 self._update_occupancy((r, c), block_pattern)
 
     # ---------------------------
@@ -292,19 +307,19 @@ class VariedTerrain(Scene[VariedTerrainParams]):
         min_c = min(c for _, c in shape_cells)
         max_r = max(r for r, _ in shape_cells)
         max_c = max(c for _, c in shape_cells)
-        pattern = np.full((max_r - min_r + 1, max_c - min_c + 1), "empty", dtype=object)
+        pattern = np.full((max_r - min_r + 1, max_c - min_c + 1), self._empty_value, dtype=object)
         for r, c in shape_cells:
-            pattern[r - min_r, c - min_c] = "wall"
+            pattern[r - min_r, c - min_c] = self._wall_value
         return pattern
 
     def _generate_cross_pattern(self) -> np.ndarray:
         cross_w = self.rng.integers(1, 9)
         cross_h = self.rng.integers(1, 9)
-        pattern = np.full((cross_h, cross_w), "empty", dtype=object)
+        pattern = np.full((cross_h, cross_w), self._empty_value, dtype=object)
         center_row = cross_h // 2
         center_col = cross_w // 2
-        pattern[center_row, :] = "wall"
-        pattern[:, center_col] = "wall"
+        pattern[center_row, :] = self._wall_value
+        pattern[:, center_col] = self._wall_value
         return pattern
 
     def _generate_labyrinth_pattern(self) -> np.ndarray:
@@ -316,9 +331,9 @@ class VariedTerrain(Scene[VariedTerrainParams]):
         if w % 2 == 0:
             w -= 1
 
-        maze = np.full((h, w), "wall", dtype=object)
+        maze = np.full((h, w), self._wall_value, dtype=object)
         start = (1, 1)
-        maze[start] = "empty"
+        maze[start] = self._empty_value
         stack = [start]
         directions = [(-2, 0), (2, 0), (0, -2), (0, 2)]
         while stack:
@@ -326,51 +341,51 @@ class VariedTerrain(Scene[VariedTerrainParams]):
             neighbors = []
             for dr, dc in directions:
                 nr, nc = r + dr, c + dc
-                if 0 <= nr < h and 0 <= nc < w and maze[nr, nc] == "wall":
+                if 0 <= nr < h and 0 <= nc < w and maze[nr, nc] == self._wall_value:
                     neighbors.append((nr, nc))
             if neighbors:
                 next_cell = neighbors[self.rng.integers(0, len(neighbors))]
                 nr, nc = next_cell
                 wall_r, wall_c = r + (nr - r) // 2, c + (nc - c) // 2
-                maze[wall_r, wall_c] = "empty"
-                maze[nr, nc] = "empty"
+                maze[wall_r, wall_c] = self._empty_value
+                maze[nr, nc] = self._empty_value
                 stack.append(next_cell)
             else:
                 stack.pop()
 
         # Ensure each border has at least two contiguous empty cells.
         if w > 3 and not self._has_gap(maze[0, 1 : w - 1]):
-            maze[0, 1:3] = "empty"
+            maze[0, 1:3] = self._empty_value
         if w > 3 and not self._has_gap(maze[h - 1, 1 : w - 1]):
-            maze[h - 1, 1:3] = "empty"
+            maze[h - 1, 1:3] = self._empty_value
         if h > 3 and not self._has_gap(maze[1 : h - 1, 0]):
-            maze[1:3, 0] = "empty"
+            maze[1:3, 0] = self._empty_value
         if h > 3 and not self._has_gap(maze[1 : h - 1, w - 1]):
-            maze[1:3, w - 1] = "empty"
+            maze[1:3, w - 1] = self._empty_value
 
         # Scatter hearts in empty cells with 1% probability.
         for i in range(h):
             for j in range(w):
-                if maze[i, j] == "empty" and self.rng.random() < 0.03:
-                    maze[i, j] = "altar"
+                if maze[i, j] == self._empty_value and self.rng.random() < 0.03:
+                    maze[i, j] = self._altar_value
 
             # Apply thickening based on a random probability between 0.3 and 1.0.
         thick_prob = 0.7 * self.rng.random()
         maze_thick = maze.copy()
         for i in range(1, h - 1):
             for j in range(1, w - 1):
-                if maze[i, j] == "empty":
+                if maze[i, j] == self._empty_value:
                     if self.rng.random() < thick_prob and j + 1 < w:
-                        maze_thick[i, j + 1] = "empty"
+                        maze_thick[i, j + 1] = self._empty_value
                     if self.rng.random() < thick_prob and i + 1 < h:
-                        maze_thick[i + 1, j] = "empty"
+                        maze_thick[i + 1, j] = self._empty_value
         maze = maze_thick
         return maze
 
     def _has_gap(self, line: np.ndarray) -> bool:
         contiguous = 0
         for cell in line:
-            contiguous = contiguous + 1 if cell == "empty" else 0
+            contiguous = contiguous + 1 if cell == self._empty_value else 0
             if contiguous >= 2:
                 return True
         return False

@@ -2,6 +2,7 @@ import numpy as np
 
 from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
+from metta.mettagrid.object_types import ObjectTypes
 
 
 class SpiralParams(Config):
@@ -22,7 +23,16 @@ class Spiral(Scene[SpiralParams]):
     This scene ensures proper spacing between objects so that agents with
     limited view distance can only see one object at a time when following
     the spiral path.
+
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
 
     def render(self):
         height, width, params = self.height, self.width, self.params
@@ -37,9 +47,26 @@ class Spiral(Scene[SpiralParams]):
 
         # Add agents
         if isinstance(params.agents, int):
-            agents = ["agent.agent"] * params.agents
+            if self._grid_is_int:
+                agents = [ObjectTypes.AGENT_DEFAULT] * params.agents
+            else:
+                agents = ["agent.agent"] * params.agents
         elif isinstance(params.agents, dict):
-            agents = ["agent." + str(agent) for agent, na in params.agents.items() for _ in range(na)]
+            agents = []
+            for agent, na in params.agents.items():
+                if self._grid_is_int:
+                    # Try to map agent group to type ID, fallback to default
+                    try:
+                        from metta.mettagrid.type_mapping import TypeMapping
+
+                        type_mapping = TypeMapping()
+                        agent_name = f"agent.{agent}"
+                        type_id = type_mapping.get_type_id(agent_name)
+                        agents.extend([type_id] * na)
+                    except KeyError:
+                        agents.extend([ObjectTypes.AGENT_DEFAULT] * na)
+                else:
+                    agents.extend([f"agent.{agent}"] * na)
         else:
             raise ValueError(f"Invalid agents: {params.agents}")
 
@@ -100,5 +127,5 @@ class Spiral(Scene[SpiralParams]):
             if i < len(positions):
                 x, y = positions[i]
                 # Only place if the cell is empty
-                if self.grid[y, x] == "empty":
+                if self.grid[y, x] == self._empty_value:
                     self.grid[y, x] = symbol

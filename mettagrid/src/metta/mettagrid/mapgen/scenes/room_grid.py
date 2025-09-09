@@ -1,7 +1,10 @@
 from typing import Optional
 
+import numpy as np
+
 from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
+from metta.mettagrid.object_types import ObjectTypes
 
 
 class RoomGridParams(Config):
@@ -38,7 +41,16 @@ class RoomGrid(Scene[RoomGridParams]):
     By default, each room will be tagged with "room" and "room_{row}_{col}". If layout is provided,
     the tags will be taken from the layout instead; and in this case rows and columns will
     be inferred from the layout.
+
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
 
     def post_init(self):
         params = self.params
@@ -66,12 +78,19 @@ class RoomGrid(Scene[RoomGridParams]):
         room_width = (self.width - params.border_width * (self._columns - 1)) // self._columns
         room_height = (self.height - params.border_width * (self._rows - 1)) // self._rows
 
-        # fill entire grid with walls
-        self.grid[:] = params.border_object
+        # fill entire grid with walls (handle border_object format-aware)
+        if self._grid_is_int:
+            from metta.mettagrid.type_mapping import TypeMapping
+
+            type_mapping = TypeMapping()
+            border_value = type_mapping.get_type_id(params.border_object)
+            self.grid[:] = border_value
+        else:
+            self.grid[:] = params.border_object
 
         for row in range(self._rows):
             for col in range(self._columns):
                 x = col * (room_width + params.border_width)
                 y = row * (room_height + params.border_width)
-                self.grid[y : y + room_height, x : x + room_width] = "empty"
+                self.grid[y : y + room_height, x : x + room_width] = self._empty_value
                 self.make_area(x, y, room_width, room_height, tags=self._tags(row, col))

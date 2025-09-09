@@ -2,6 +2,7 @@ import numpy as np
 
 from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import Scene
+from metta.mettagrid.object_types import ObjectTypes
 
 
 class GridAltarsParams(Config):
@@ -21,7 +22,17 @@ class GridAltars(Scene[GridAltarsParams]):
 
     This scene creates a regular grid of positions and places objects
     (typically altars) at grid nodes with optional randomization.
+
+    MIGRATION NOTE: This scene now supports both legacy string-based grids and new int-based grids.
+    The implementation automatically detects the grid format and uses appropriate operations.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Detect grid format for migration compatibility
+        self._grid_is_int = self.grid.dtype == np.uint8
+        self._empty_value = ObjectTypes.EMPTY if self._grid_is_int else "empty"
+        self._agent_value = ObjectTypes.AGENT_DEFAULT if self._grid_is_int else "agent.agent"
 
     def render(self):
         height, width, params = self.height, self.width, self.params
@@ -37,9 +48,26 @@ class GridAltars(Scene[GridAltarsParams]):
 
         # Add agents
         if isinstance(params.agents, int):
-            agents = ["agent.agent"] * params.agents
+            if self._grid_is_int:
+                agents = [ObjectTypes.AGENT_DEFAULT] * params.agents
+            else:
+                agents = ["agent.agent"] * params.agents
         elif isinstance(params.agents, dict):
-            agents = ["agent." + str(agent) for agent, na in params.agents.items() for _ in range(na)]
+            agents = []
+            for agent, na in params.agents.items():
+                if self._grid_is_int:
+                    # Try to map agent group to type ID, fallback to default
+                    try:
+                        from metta.mettagrid.type_mapping import TypeMapping
+
+                        type_mapping = TypeMapping()
+                        agent_name = f"agent.{agent}"
+                        type_id = type_mapping.get_type_id(agent_name)
+                        agents.extend([type_id] * na)
+                    except KeyError:
+                        agents.extend([ObjectTypes.AGENT_DEFAULT] * na)
+                else:
+                    agents.extend([f"agent.{agent}"] * na)
         else:
             raise ValueError(f"Invalid agents: {params.agents}")
 
@@ -95,7 +123,7 @@ class GridAltars(Scene[GridAltarsParams]):
         # Place agent at center if requested
         if params.place_agent_center and agents:
             cx, cy = width // 2, height // 2
-            if self.grid[cy, cx] == "empty":
+            if self.grid[cy, cx] == self._empty_value:
                 self.grid[cy, cx] = agents[0]
                 agents = agents[1:]
 
@@ -107,12 +135,12 @@ class GridAltars(Scene[GridAltarsParams]):
             for agent in agents:
                 if positions:
                     x, y = positions.pop(0)
-                    if self.grid[y, x] == "empty":
+                    if self.grid[y, x] == self._empty_value:
                         self.grid[y, x] = agent
 
         # Place objects at remaining positions
         for symbol in symbols:
             if positions:
                 x, y = positions.pop(0)
-                if self.grid[y, x] == "empty":
+                if self.grid[y, x] == self._empty_value:
                     self.grid[y, x] = symbol
