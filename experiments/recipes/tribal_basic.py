@@ -181,13 +181,35 @@ class TribalNimPlayTool(Tool):
                 print("  1. ✅ Neural network loaded in Python")
                 print("  2. ✅ Nim external controller initialized")
                 print("  3. ✅ Nimpy callback interface established")
-                print("  4. 🎯 Ready to launch Nim viewer with neural control")
+                print("  4. 🎯 Launching Nim viewer with neural control...")
                 print("")
-                print("🚀 Next: Launch Nim viewer to see neural network in action!")
-                print("   cd tribal && nim r -d:release src/tribal")
-                print("   (The neural network will control all agents)")
 
-                return 0
+                # Actually launch the Nim environment
+                print("🚀 Launching Nim environment...")
+                tribal_dir = os.path.join(os.path.dirname(__file__), "..", "..", "tribal")
+                
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ["nim", "r", "-d:release", "src/tribal"],
+                        cwd=tribal_dir,
+                        capture_output=False,  # Allow interactive output
+                        text=True
+                    )
+                    
+                    if result.returncode == 0:
+                        print("✅ Nim environment completed successfully")
+                        return 0
+                    else:
+                        print(f"❌ Nim environment exited with code: {result.returncode}")
+                        return result.returncode
+                        
+                except KeyboardInterrupt:
+                    print("\n⏹️ Nim environment interrupted by user")
+                    return 0
+                except Exception as e:
+                    print(f"❌ Error launching Nim environment: {e}")
+                    return 1
 
             except ImportError as e:
                 print(f"❌ Failed to import nimpy bindings: {e}")
@@ -221,10 +243,33 @@ class TribalNimPlayTool(Tool):
                 print("✅ Built-in AI controller initialized")
                 print(f"🤖 Controller type: {tribal.get_controller_type_string()}")
                 print("")
-                print("🚀 Ready to launch Nim viewer with built-in AI!")
-                print("   cd tribal && nim r -d:release src/tribal")
-                print("   (Built-in Nim AI will control all agents)")
-                return 0
+                print("🚀 Launching Nim environment with built-in AI...")
+                
+                # Actually launch the Nim environment
+                tribal_dir = os.path.join(os.path.dirname(__file__), "..", "..", "tribal")
+                
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ["nim", "r", "-d:release", "src/tribal"],
+                        cwd=tribal_dir,
+                        capture_output=False,  # Allow interactive output
+                        text=True
+                    )
+                    
+                    if result.returncode == 0:
+                        print("✅ Nim environment completed successfully")
+                        return 0
+                    else:
+                        print(f"❌ Nim environment exited with code: {result.returncode}")
+                        return result.returncode
+                        
+                except KeyboardInterrupt:
+                    print("\n⏹️ Nim environment interrupted by user")
+                    return 0
+                except Exception as e:
+                    print(f"❌ Error launching Nim environment: {e}")
+                    return 1
             else:
                 print("❌ Failed to initialize built-in AI controller")
                 return 1
