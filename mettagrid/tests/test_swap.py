@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.map_builder.map_builder import map_grid_dtype
+from metta.mettagrid.map_builder.map_builder import map_grid_legacy_dtype
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.test_support.actions import attack, move, rotate, swap
@@ -16,7 +16,8 @@ def test_swap():
     #   W A B    W=wall, A=agent, B=block (swappable)
     #   W W W
     game_map = np.array(
-        [["wall", "wall", "wall"], ["wall", "agent.red", "block"], ["wall", "wall", "wall"]], dtype=map_grid_dtype
+        [["wall", "wall", "wall"], ["wall", "agent.red", "block"], ["wall", "wall", "wall"]],
+        dtype=map_grid_legacy_dtype,
     )
 
     game_config = {
@@ -145,7 +146,7 @@ def test_swap_frozen_agent_preserves_layers():
             ["wall", "empty", "empty", "agent.blue", "wall"],
             ["wall", "wall", "wall", "wall", "wall"],
         ],
-        dtype=map_grid_dtype,
+        dtype=map_grid_legacy_dtype,
     )
 
     game_config = {

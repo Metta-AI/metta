@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.mettagrid.map_builder.map_builder import map_grid_dtype
+from metta.mettagrid.map_builder.map_builder import map_grid_legacy_dtype
 from metta.mettagrid.map_builder.utils import (
     compute_positions,
     create_grid,
@@ -14,18 +14,18 @@ from metta.mettagrid.map_builder.utils import (
 class TestCreateGrid:
     def test_create_grid_default(self):
         grid = create_grid(3, 4)
-        expected = np.full((3, 4), "empty", dtype=map_grid_dtype)
+        expected = np.full((3, 4), "empty", dtype=map_grid_legacy_dtype)
         assert np.array_equal(grid, expected)
-        assert grid.dtype == map_grid_dtype
+        assert grid.dtype == map_grid_legacy_dtype
 
     def test_create_grid_custom_fill(self):
         grid = create_grid(2, 3, "wall")
-        expected = np.full((2, 3), "wall", dtype=map_grid_dtype)
+        expected = np.full((2, 3), "wall", dtype=map_grid_legacy_dtype)
         assert np.array_equal(grid, expected)
 
     def test_create_grid_single_cell(self):
         grid = create_grid(1, 1, "agent.agent")
-        expected = np.array([["agent.agent"]], dtype=map_grid_dtype)
+        expected = np.array([["agent.agent"]], dtype=map_grid_legacy_dtype)
         assert np.array_equal(grid, expected)
 
     def test_create_grid_large(self):
@@ -47,7 +47,7 @@ class TestDrawBorder:
                 ["wall", "empty", "empty", "empty", "wall"],
                 ["wall", "wall", "wall", "wall", "wall"],
             ],
-            dtype=map_grid_dtype,
+            dtype=map_grid_legacy_dtype,
         )
 
         assert np.array_equal(grid, expected)
@@ -65,7 +65,7 @@ class TestDrawBorder:
                 ["wall", "wall", "wall", "wall", "wall", "wall"],
                 ["wall", "wall", "wall", "wall", "wall", "wall"],
             ],
-            dtype=map_grid_dtype,
+            dtype=map_grid_legacy_dtype,
         )
 
         assert np.array_equal(grid, expected)
@@ -83,7 +83,7 @@ class TestDrawBorder:
         draw_border(grid, 2, "wall")  # Border larger than half the grid
 
         # Entire grid should be walls
-        expected = np.full((3, 3), "wall", dtype=map_grid_dtype)
+        expected = np.full((3, 3), "wall", dtype=map_grid_legacy_dtype)
         assert np.array_equal(grid, expected)
 
     def test_draw_border_modifies_in_place(self):

@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from metta.mettagrid.map_builder.map_builder import map_grid_dtype
+from metta.mettagrid.map_builder.map_builder import map_grid_legacy_dtype
 from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
@@ -17,7 +17,7 @@ def debug_swap_frozen_agent():
             ["wall", "empty", "empty", "agent.blue", "wall"],
             ["wall", "wall", "wall", "wall", "wall"],
         ],
-        dtype=map_grid_dtype,
+        dtype=map_grid_legacy_dtype,
     )
 
     game_config = {
@@ -94,7 +94,7 @@ def debug_swap_frozen_agent():
             ["wall", "agent.red", "agent.blue", "wall"],
             ["wall", "wall", "wall", "wall"],
         ],
-        dtype=map_grid_dtype,
+        dtype=map_grid_legacy_dtype,
     )
 
     env2 = MettaGrid(from_mettagrid_config(game_config), simple_map.tolist(), 42)
@@ -203,7 +203,7 @@ def debug_swap_frozen_agent():
                 ["wall", "agent.red", "block", "wall"],
                 ["wall", "wall", "wall", "wall"],
             ],
-            dtype=map_grid_dtype,
+            dtype=map_grid_legacy_dtype,
         )
 
         config_with_block = game_config.copy()

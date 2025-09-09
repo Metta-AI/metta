@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-from metta.mettagrid.map_builder.map_builder import GameMap, map_grid_dtype
+from metta.mettagrid.map_builder.map_builder import GameMap, map_grid_legacy_dtype
 
 
 class TestAsciiMapBuilderConfig:
@@ -43,7 +43,7 @@ class TestAsciiMapBuilder:
             assert isinstance(game_map, GameMap)
             expected = np.array(
                 [["wall", "wall", "wall"], ["wall", "empty", "agent.agent"], ["wall", "wall", "wall"]],
-                dtype=map_grid_dtype,
+                dtype=map_grid_legacy_dtype,
             )
 
             assert np.array_equal(game_map.grid, expected)
@@ -73,7 +73,7 @@ class TestAsciiMapBuilder:
                     ["wall", "agent.prey", "empty", "agent.predator", "wall"],
                     ["wall", "wall", "wall", "wall", "wall"],
                 ],
-                dtype=map_grid_dtype,
+                dtype=map_grid_legacy_dtype,
             )
 
             assert np.array_equal(game_map.grid, expected)
@@ -92,7 +92,7 @@ class TestAsciiMapBuilder:
             builder = AsciiMapBuilder(config)
             game_map = builder.build()
 
-            expected = np.array([["wall", "agent.agent", "wall"]], dtype=map_grid_dtype)
+            expected = np.array([["wall", "agent.agent", "wall"]], dtype=map_grid_legacy_dtype)
             assert np.array_equal(game_map.grid, expected)
         finally:
             os.unlink(temp_file)
@@ -109,7 +109,7 @@ class TestAsciiMapBuilder:
             builder = AsciiMapBuilder(config)
             game_map = builder.build()
 
-            expected = np.array([["empty"]], dtype=map_grid_dtype)
+            expected = np.array([["empty"]], dtype=map_grid_legacy_dtype)
             assert np.array_equal(game_map.grid, expected)
         finally:
             os.unlink(temp_file)
@@ -136,7 +136,7 @@ WWW"""
 
             expected = np.array(
                 [["wall", "wall", "wall"], ["wall", "agent.agent", "empty"], ["wall", "wall", "wall"]],
-                dtype=map_grid_dtype,
+                dtype=map_grid_legacy_dtype,
             )
 
             assert np.array_equal(game_map.grid, expected)
@@ -160,7 +160,7 @@ WWW"""
 
             expected = np.array(
                 [["wall", "wall", "wall"], ["wall", "empty", "agent.agent"], ["wall", "wall", "wall"]],
-                dtype=map_grid_dtype,
+                dtype=map_grid_legacy_dtype,
             )
 
             assert np.array_equal(game_map.grid, expected)
@@ -200,7 +200,7 @@ WWW"""
 
             expected = np.array(
                 [["wall", "wall", "wall"], ["wall", "agent.agent", "empty"], ["wall", "wall", "wall"]],
-                dtype=map_grid_dtype,
+                dtype=map_grid_legacy_dtype,
             )
 
             assert np.array_equal(game_map.grid, expected)
