@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import TribalSingleTaskGenerator
+from metta.cogworks.curriculum.task_generator import TaskGeneratorConfig
 from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -75,6 +75,32 @@ def _ensure_tribal_bindings_built():
         sys.path.insert(0, bindings_path)
 
 
+class TribalTaskGeneratorConfig(TaskGeneratorConfig):
+    """Simple tribal-specific task generator config - recipe-local only"""
+    env: TribalEnvConfig
+    
+    def create_task_generator(self):
+        """Create a simple task generator that always returns the same tribal env"""
+        from metta.cogworks.curriculum.task_generator import TaskGenerator
+        import random
+        
+        class SimpleTribalTaskGenerator(TaskGenerator):
+            def __init__(self, config):
+                super().__init__(config)
+                self._env = config.env
+                
+            def _generate_task(self, task_id: int, rng: random.Random):
+                return self._env.model_copy(deep=True)
+        
+        return SimpleTribalTaskGenerator(self)
+
+
+def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
+    """Create a curriculum configuration from a TribalEnvConfig - like cc.env_curriculum but for tribal"""
+    task_gen_config = TribalTaskGeneratorConfig(env=tribal_config)
+    return CurriculumConfig(task_generator=task_gen_config)
+
+
 def make_tribal_environment(
     max_steps: int = 2000, enable_combat: bool = True, **kwargs
 ) -> TribalEnvConfig:
@@ -118,10 +144,8 @@ def train() -> TrainTool:
     # Create environment (uses compile-time constant: 15 agents)
     env = make_tribal_environment()
 
-    # Create curriculum with tribal task generator
-    curriculum = CurriculumConfig(
-        task_generator=TribalSingleTaskGenerator.Config(env=env)
-    )
+    # Create curriculum with tribal environment (like cc.env_curriculum but for tribal)
+    curriculum = tribal_env_curriculum(env)
 
     # Minimal trainer config like arena recipe
     trainer_config = TrainerConfig(
