@@ -43,7 +43,7 @@ class TestTribalBindings(unittest.TestCase):
             ore_reward=0.1,
             battery_reward=0.8,
             survival_penalty=0.0,
-            death_penalty=0.0
+            death_penalty=0.0,
         )
         config = tribal.TribalConfig(game_config, False)
         self.env = tribal.TribalEnv(config)
@@ -72,7 +72,7 @@ class TestTribalBindings(unittest.TestCase):
         game_config1 = tribal.TribalGameConfig(50, 5, 3, True, 0.01, 1, 1.0, 0.1, 0.8, 0.0, 0.0)
         config1 = tribal.TribalConfig(game_config1, False)
         env1 = tribal.TribalEnv(config1)
-        
+
         game_config2 = tribal.TribalGameConfig(200, 5, 3, True, 0.01, 1, 1.0, 0.1, 0.8, 0.0, 0.0)
         config2 = tribal.TribalConfig(game_config2, False)
         env2 = tribal.TribalEnv(config2)

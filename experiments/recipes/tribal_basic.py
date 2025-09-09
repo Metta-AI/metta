@@ -7,11 +7,10 @@ Bindings are built automatically when the recipe runs!
 TECHNICAL NOTES:
 - Uses genny-generated Nim bindings for high performance (10-100x faster than JSON IPC)
 - Agent count (15), map size (100x50), observation shape (19 layers, 11x11) are compile-time constants
-- GPU compatibility: Works with RTX 5080 using PufferLib rebuilt with TORCH_CUDA_ARCH_LIST="8.0" 
+- GPU compatibility: Works with RTX 5080 using PufferLib rebuilt with TORCH_CUDA_ARCH_LIST="8.0"
 - Bindings are built automatically and configuration uses updated clippy spawn rate (1.0)
 """
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -36,45 +35,44 @@ def _ensure_tribal_bindings_built():
     metta_root = Path(__file__).parent.parent.parent
     tribal_dir = metta_root / "tribal"
     bindings_dir = tribal_dir / "bindings" / "generated"
-    
+
     # Check if bindings exist
     library_files = list(bindings_dir.glob("libtribal.*"))
     python_binding = bindings_dir / "tribal.py"
-    
+
     needs_build = (
-        not bindings_dir.exists() or
-        not python_binding.exists() or 
-        len(library_files) == 0
+        not bindings_dir.exists()
+        or not python_binding.exists()
+        or len(library_files) == 0
     )
-    
+
     if needs_build:
         print("🔧 Building tribal bindings...")
         build_script = tribal_dir / "build_bindings.sh"
-        
+
         if not build_script.exists():
             raise FileNotFoundError(f"Tribal build script not found at {build_script}")
-        
+
         # Run the build script
         result = subprocess.run(
-            ["bash", str(build_script)], 
+            ["bash", str(build_script)],
             cwd=str(tribal_dir),
             capture_output=True,
-            text=True
+            text=True,
         )
-        
+
         if result.returncode != 0:
-            print(f"❌ Failed to build tribal bindings:")
+            print("❌ Failed to build tribal bindings:")
             print(f"stdout: {result.stdout}")
             print(f"stderr: {result.stderr}")
             raise RuntimeError("Tribal bindings build failed")
-        
+
         print("✅ Tribal bindings built successfully")
-    
+
     # Add bindings to Python path if not already there
     bindings_path = str(bindings_dir)
     if bindings_path not in sys.path:
         sys.path.insert(0, bindings_path)
-
 
 
 def make_tribal_environment(
@@ -116,7 +114,7 @@ def train() -> TrainTool:
     """
     # Ensure tribal bindings are built
     _ensure_tribal_bindings_built()
-    
+
     # Create environment (uses compile-time constant: 15 agents)
     env = make_tribal_environment()
 
@@ -124,7 +122,7 @@ def train() -> TrainTool:
     curriculum = CurriculumConfig(
         task_generator=TribalSingleTaskGenerator.Config(env=env)
     )
-    
+
     # Minimal trainer config like arena recipe
     trainer_config = TrainerConfig(
         losses=LossConfig(),
@@ -154,7 +152,7 @@ def evaluate(
     """
     # Ensure tribal bindings are built
     _ensure_tribal_bindings_built()
-    
+
     env = make_tribal_environment()
 
     return SimTool(
@@ -173,13 +171,13 @@ def play(policy_uri: str, render_mode: str = "human", **overrides) -> PlayTool:
     """
     # Ensure tribal bindings are built
     _ensure_tribal_bindings_built()
-    
+
     env = make_tribal_environment(render_mode=render_mode)
 
     return PlayTool(
-        sim=SimulationConfig(name="tribal/play", env=env), 
-        policy_uri=policy_uri, 
-        **overrides
+        sim=SimulationConfig(name="tribal/play", env=env),
+        policy_uri=policy_uri,
+        **overrides,
     )
 
 
@@ -193,11 +191,11 @@ def replay(policy_uri: str, **overrides) -> ReplayTool:
     """
     # Ensure tribal bindings are built
     _ensure_tribal_bindings_built()
-    
+
     env = make_tribal_environment()
-    
+
     return ReplayTool(
         sim=SimulationConfig(name="tribal/replay", env=env),
-        policy_uri=policy_uri, 
-        **overrides
+        policy_uri=policy_uri,
+        **overrides,
     )
