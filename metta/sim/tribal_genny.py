@@ -268,7 +268,7 @@ class TribalGameConfig(Config):
 
     # Combat configuration
     enable_combat: bool = Field(default=True, description="Enable agent combat")
-    clippy_spawn_rate: float = Field(default=0.05, ge=0, le=1, description="Rate of enemy spawning")
+    clippy_spawn_rate: float = Field(default=1.0, ge=0, le=1, description="Rate of enemy spawning")
     clippy_damage: int = Field(default=1, description="Damage dealt by enemies")
 
     # Reward configuration

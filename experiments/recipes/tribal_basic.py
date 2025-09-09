@@ -2,17 +2,19 @@
 Tribal Basic Recipe - Nim Environment Integration
 
 SETUP REQUIREMENTS:
-1. Build tribal bindings: `cd tribal && ./build_bindings.sh`
-2. Set library path: `export LD_LIBRARY_PATH="/path/to/metta/.venv/lib/python3.11/site-packages/torch/lib:$LD_LIBRARY_PATH"`
-3. Run training: `uv run ./tools/run.py experiments.recipes.tribal_basic.train`
+Bindings are built automatically when the recipe runs!
 
 TECHNICAL NOTES:
 - Uses genny-generated Nim bindings for high performance (10-100x faster than JSON IPC)
 - Agent count (15), map size (100x50), observation shape (19 layers, 11x11) are compile-time constants
 - GPU compatibility: Works with RTX 5080 using PufferLib rebuilt with TORCH_CUDA_ARCH_LIST="8.0" 
-- LD_LIBRARY_PATH required for PyTorch library discovery in uv environment
-- Configuration consolidated in metta.sim.tribal_genny module
+- Bindings are built automatically and configuration uses updated clippy spawn rate (1.0)
 """
+
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
 from metta.rl.loss.loss_config import LossConfig
@@ -22,6 +24,55 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+
+
+def _ensure_tribal_bindings_built():
+    """
+    Automatically build tribal bindings if they don't exist or are outdated.
+    """
+    # Find the metta project root and tribal directory
+    metta_root = Path(__file__).parent.parent.parent
+    tribal_dir = metta_root / "tribal"
+    bindings_dir = tribal_dir / "bindings" / "generated"
+    
+    # Check if bindings exist
+    library_files = list(bindings_dir.glob("libtribal.*"))
+    python_binding = bindings_dir / "tribal.py"
+    
+    needs_build = (
+        not bindings_dir.exists() or
+        not python_binding.exists() or 
+        len(library_files) == 0
+    )
+    
+    if needs_build:
+        print("🔧 Building tribal bindings...")
+        build_script = tribal_dir / "build_bindings.sh"
+        
+        if not build_script.exists():
+            raise FileNotFoundError(f"Tribal build script not found at {build_script}")
+        
+        # Run the build script
+        result = subprocess.run(
+            ["bash", str(build_script)], 
+            cwd=str(tribal_dir),
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            print(f"❌ Failed to build tribal bindings:")
+            print(f"stdout: {result.stdout}")
+            print(f"stderr: {result.stderr}")
+            raise RuntimeError("Tribal bindings build failed")
+        
+        print("✅ Tribal bindings built successfully")
+    
+    # Add bindings to Python path if not already there
+    bindings_path = str(bindings_dir)
+    if bindings_path not in sys.path:
+        sys.path.insert(0, bindings_path)
+
 
 
 def make_tribal_environment(
@@ -59,7 +110,11 @@ def train() -> TrainTool:
     Train agents on the tribal environment.
 
     Uses a minimal configuration similar to the working arena recipe.
+    Automatically builds tribal bindings if needed.
     """
+    # Ensure tribal bindings are built
+    _ensure_tribal_bindings_built()
+    
     # Create environment (uses compile-time constant: 15 agents)
     env = make_tribal_environment()
 
@@ -89,6 +144,9 @@ def evaluate(
         num_episodes: Number of episodes to evaluate
         **overrides: Additional configuration overrides
     """
+    # Ensure tribal bindings are built
+    _ensure_tribal_bindings_built()
+    
     env = make_tribal_environment()
 
     return SimTool(
@@ -105,9 +163,16 @@ def play(policy_uri: str, render_mode: str = "human", **overrides) -> PlayTool:
         render_mode: Rendering mode for visualization
         **overrides: Additional configuration overrides
     """
+    # Ensure tribal bindings are built
+    _ensure_tribal_bindings_built()
+    
     env = make_tribal_environment(render_mode=render_mode)
 
-    return PlayTool(env=env, policy_uri=policy_uri, **overrides)
+    return PlayTool(
+        sim=SimulationConfig(name="tribal/play", env=env), 
+        policy_uri=policy_uri, 
+        **overrides
+    )
 
 
 def replay(policy_uri: str, **overrides) -> ReplayTool:
@@ -118,4 +183,13 @@ def replay(policy_uri: str, **overrides) -> ReplayTool:
         policy_uri: URI to policy that generated replays
         **overrides: Additional configuration overrides
     """
-    return ReplayTool(policy_uri=policy_uri, **overrides)
+    # Ensure tribal bindings are built
+    _ensure_tribal_bindings_built()
+    
+    env = make_tribal_environment()
+    
+    return ReplayTool(
+        sim=SimulationConfig(name="tribal/replay", env=env),
+        policy_uri=policy_uri, 
+        **overrides
+    )
