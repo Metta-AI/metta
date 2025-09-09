@@ -10,6 +10,8 @@ requires "genny >= 0.1.0"
 requires "pixie >= 5.0.0"
 requires "vmath >= 2.0.0"
 requires "chroma >= 0.2.7"
+requires "boxy >= 0.1.4"
+requires "windy >= 0.1.2"
 
 task bindings, "Generate Python bindings for tribal environment":
   # Generate the bindings
