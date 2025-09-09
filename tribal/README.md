@@ -5,11 +5,26 @@ A high-performance multi-agent environment implemented in Nim with Python bindin
 ## Overview
 
 The tribal environment is a multi-agent gridworld featuring:
-- Village-based agent tribes with shared altars (15 agents, compile-time constant)  
+- **15 agents** distributed across **3 villages** with shared altars 
 - Multi-step resource chains (ore → battery → hearts)
 - Crafting system (wood → spears, wheat → hats/food, ore → armor)
-- Defensive gameplay against Clippy enemies
+- **High-frequency Clippy adversaries** with mixed behavior (spawn every ~20 steps!)
 - Terrain interaction (water, wheat fields, forests)
+
+## Quick Start
+
+### 1. Build the Environment
+```bash
+cd tribal/
+./build_bindings.sh
+```
+
+### 2. Test Everything Works
+```bash
+python test_tribal_bindings.py
+```
+
+This self-contained test will verify clippy spawning, agent behavior, and environment functionality.
 
 ## Architecture
 
