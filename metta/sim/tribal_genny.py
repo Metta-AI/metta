@@ -422,34 +422,16 @@ class TribalEnvConfig:
     @classmethod
     def with_nim_defaults(cls, **overrides) -> "TribalEnvConfig":
         """Create config with defaults from Nim environment."""
-        game_config = TribalGameConfig.from_nim_defaults()
-        return cls(
-            game=game_config,
-            label=overrides.get("label", "tribal"),
-            desync_episodes=overrides.get("desync_episodes", True),
-            render_mode=overrides.get("render_mode"),
-        )
+        # Much simpler - just pass everything through
+        return cls(**overrides)
 
     def create_environment(self, **kwargs) -> Any:
         """Create tribal environment instance."""
-        # Convert configuration to dictionary format expected by make_tribal_env
-        config = {
-            "max_steps": self.game.max_steps,
-            "ore_per_battery": self.game.ore_per_battery,
-            "batteries_per_heart": self.game.batteries_per_heart,
-            "enable_combat": self.game.enable_combat,
-            "clippy_spawn_rate": self.game.clippy_spawn_rate,
-            "clippy_damage": self.game.clippy_damage,
-            "heart_reward": self.game.heart_reward,
-            "battery_reward": self.game.battery_reward,
-            "ore_reward": self.game.ore_reward,
-            "survival_penalty": self.game.survival_penalty,
-            "death_penalty": self.game.death_penalty,
+        # Pass the Nim config directly - much cleaner!
+        return TribalGridEnv(config={
             "render_mode": self.render_mode,
-            **kwargs,
-        }
-
-        return make_tribal_env(**config)
+            **kwargs
+        }, _nim_config=self.game._nim_config)
 
 
 def make_tribal_env(**config) -> TribalGridEnv:
