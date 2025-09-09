@@ -2,6 +2,7 @@
 ## Using genny to create clean Python API for tribal environment
 
 import genny
+import json, os
 import ../src/tribal/environment
 import ../src/tribal/external_actions
 
@@ -331,12 +332,42 @@ proc setExternalActionsFromPython*(actions: seq[int]): bool =
         storedExternalActions[i][1] = 0
     
     hasStoredActions = true
-    
-    # Set callback if not already set
-    setExternalActionCallback(externalActionCallback)
     return true
   except:
-    lastError = getCurrentException()
+    return false
+
+# File-based action communication
+var actionFilePath: string = ""
+
+proc setActionFilePath*(filePath: string): bool =
+  ## Set the path to the file where Python writes actions
+  try:
+    actionFilePath = filePath
+    return true
+  except:
+    return false
+
+proc readActionsFromFile*(): bool =
+  ## Read actions from the Python action file and set them
+  if actionFilePath == "":
+    return false
+    
+  try:
+    if not fileExists(actionFilePath):
+      return false
+      
+    let content = readFile(actionFilePath)
+    let data = parseJson(content)
+    
+    if data.hasKey("actions") and data["actions"].kind == JArray:
+      var actions: seq[int] = @[]
+      for item in data["actions"]:
+        actions.add(item.getInt())
+      
+      return setExternalActionsFromPython(actions)
+    
+    return false
+  except:
     return false
 
 proc hasActiveController*(): bool =
@@ -400,6 +431,8 @@ exportProcs:
   initBuiltinAIController
   initExternalNNController
   setExternalActionsFromPython
+  setActionFilePath
+  readActionsFromFile
   hasActiveController
   getControllerTypeString
 

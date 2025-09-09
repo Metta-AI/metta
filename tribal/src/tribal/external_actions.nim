@@ -74,7 +74,9 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
     if globalController.externalActionCallback != nil:
       return globalController.externalActionCallback()
     else:
-      # Fallback to noop actions if no callback set
+      # Try to read actions from file (for Python neural network control)
+      # Note: This requires the readActionsFromFile function to be available
+      # For now, fallback to noop actions
       var noopActions: array[MapAgents, array[2, uint8]]
       for i in 0..<MapAgents:
         noopActions[i] = [0'u8, 0'u8]  # noop
