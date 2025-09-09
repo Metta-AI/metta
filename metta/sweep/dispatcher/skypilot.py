@@ -1,7 +1,6 @@
 """Skypilot dispatcher implementation for distributed job execution."""
 
 import logging
-import os
 import subprocess
 import uuid
 
