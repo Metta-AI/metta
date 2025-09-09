@@ -23,6 +23,51 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def get_grid_objects_universal(env) -> dict:
+    """
+    Universal grid_objects retrieval that works with any environment type.
+
+    This function handles:
+    - MettagGrid environments: grid_objects() method
+    - Tribal environments: grid_objects property (empty dict)
+    - Any environment: Creates synthetic agent objects if needed
+    """
+    # Try to get grid objects from environment
+    env_grid_objects = {}
+
+    if hasattr(env, "grid_objects"):
+        if callable(env.grid_objects):
+            # MettagGrid environments: grid_objects() method
+            env_grid_objects = env.grid_objects()
+        else:
+            # Other environments: grid_objects property
+            env_grid_objects = env.grid_objects
+
+    # If no grid objects exist, create synthetic agent objects for visualization
+    if not env_grid_objects and hasattr(env, "num_agents"):
+        logger.info(f"No grid objects found, creating {env.num_agents} synthetic agent objects for visualization")
+        for agent_id in range(env.num_agents):
+            row = 10 + (agent_id // 5)  # 5 agents per row
+            col = 10 + (agent_id % 5)   # Column based on agent ID
+            env_grid_objects[agent_id] = {
+                "id": agent_id,
+                "agent_id": agent_id,
+                "type_id": 0,  # Agent type (fixed name)
+                "location": [col, row, 0],  # [x, y, z] format expected by formatter
+                "group_id": 0,  # Default group for agents
+                "is_agent": True,
+                "name": f"Agent {agent_id}",
+                "health": 100,  # Default health
+                "inventory": {},  # Empty inventory
+                "orientation": 0,  # Default orientation
+                "color": 0,  # Default color
+                "is_swappable": False,  # Not swappable
+                "inventory_max": 10,  # Default inventory limit
+            }
+
+    return env_grid_objects
+
+
 class CustomStaticFiles(StaticFiles):
     """StaticFiles that disables caching for specific file extensions or filenames and sets custom content types."""
 
@@ -173,7 +218,11 @@ def make_app(cfg: "PlayTool"):
 
         async def send_replay_step():
             grid_objects = []
-            for i, grid_object in enumerate(env.grid_objects.values()):
+
+            # Get grid objects from environment using universal approach
+            env_grid_objects = get_grid_objects_universal(env)
+
+            for i, grid_object in enumerate(env_grid_objects.values()):
                 if len(grid_objects) <= i:
                     grid_objects.append({})
 
@@ -181,7 +230,9 @@ def make_app(cfg: "PlayTool"):
                     agent_id = grid_object["agent_id"]
                     total_rewards[agent_id] += env.rewards[agent_id]
 
-                update_object = format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+                # Handle environments that may not have action_success attribute
+                action_success = getattr(env, 'action_success', np.ones(env.num_agents, dtype=bool))
+                update_object = format_grid_object(grid_object, actions, action_success, env.rewards, total_rewards)
 
                 grid_objects[i] = update_object
 

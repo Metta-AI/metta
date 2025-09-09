@@ -78,13 +78,13 @@ class TribalGridEnv:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize tribal environment."""
         print(f"[DEBUG] TribalGridEnv.__init__() called with config: {config}")
-        
+
         # Create Nim configuration object
         if config is None:
-            print(f"[DEBUG] Using default tribal config")
+            print("[DEBUG] Using default tribal config")
             nim_config = default_tribal_config()
         else:
-            print(f"[DEBUG] Using provided config")
+            print("[DEBUG] Using provided config")
             # Start with default configuration
             nim_config = default_tribal_config()
 
@@ -113,9 +113,9 @@ class TribalGridEnv:
                 nim_config.game.death_penalty = config["death_penalty"]
 
         # Create Nim environment instance with full configuration
-        print(f"[DEBUG] Creating Nim TribalEnv instance...")
+        print("[DEBUG] Creating Nim TribalEnv instance...")
         self._nim_env = TribalEnv(nim_config)
-        print(f"[DEBUG] Nim TribalEnv created successfully")
+        print("[DEBUG] Nim TribalEnv created successfully")
         self._config = nim_config
 
         # Cache dimensions (compile-time constants from Nim)
@@ -140,46 +140,46 @@ class TribalGridEnv:
         # Cache for compatibility
         self.obs_width = self.observation_width
         self.obs_height = self.observation_height
-        
+
         # Add height and width properties for replay system compatibility
         self.height = MAP_HEIGHT
         self.width = MAP_WIDTH
-        
+
         # Add grid_objects property for MettaScope visualization compatibility
         # Return empty dict since tribal uses a different object system
         self.grid_objects = {}
 
         # Feature normalizations from Nim
-        print(f"[DEBUG] Getting feature normalizations...")
+        print("[DEBUG] Getting feature normalizations...")
         feature_norms_seq = get_feature_normalizations()
         self.feature_normalizations = {i: feature_norms_seq[i] for i in range(len(feature_norms_seq))}
-        
-        print(f"[DEBUG] TribalGridEnv.__init__() complete!")
+
+        print("[DEBUG] TribalGridEnv.__init__() complete!")
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
         print(f"[DEBUG] TribalGridEnv.reset() called with seed={seed}")
-        
+
         # Reset the Nim environment (our binding doesn't take seed parameter)
-        print(f"[DEBUG] Calling _nim_env.reset_env()...")
+        print("[DEBUG] Calling _nim_env.reset_env()...")
         self._nim_env.reset_env()
-        print(f"[DEBUG] _nim_env.reset_env() completed")
+        print("[DEBUG] _nim_env.reset_env() completed")
 
         # Get token observations directly from Nim
-        print(f"[DEBUG] Getting token observations...")
+        print("[DEBUG] Getting token observations...")
         obs_data = self._nim_env.get_token_observations()
         print(f"[DEBUG] Got {len(obs_data)} token observations")
-        
-        print(f"[DEBUG] Converting observations...")
+
+        print("[DEBUG] Converting observations...")
         observations = self._convert_observations(obs_data)
         print(f"[DEBUG] Converted observations shape: {observations.shape}")
 
-        print(f"[DEBUG] Creating info dict...")
+        print("[DEBUG] Creating info dict...")
         info = {
             "current_step": self._nim_env.get_current_step(),
             "max_steps": self._config.game.max_steps,
         }
-        print(f"[DEBUG] TribalGridEnv.reset() complete, returning observations and info")
+        print("[DEBUG] TribalGridEnv.reset() complete, returning observations and info")
 
         return observations, info
 
@@ -243,7 +243,7 @@ class TribalGridEnv:
         """Convert genny token observation data directly to numpy format."""
         token_size = 3  # [coord_byte, layer, value]
         expected_size = self.num_agents * MAX_TOKENS_PER_AGENT * token_size
-        
+
         # Convert SeqInt directly to token format
         if len(token_seq) == expected_size:
             # Convert to python list then numpy and reshape
@@ -266,9 +266,8 @@ class TribalGridEnv:
                         break
                 if index >= len(token_seq):
                     break
-        
-        return token_obs
 
+        return token_obs
 
     def render(self, mode: str = "human") -> Optional[str]:
         """Render the environment."""
@@ -316,7 +315,7 @@ class TribalGridEnv:
         names_seq = get_action_names()
         return [names_seq[i] for i in range(len(names_seq))]
 
-    @property  
+    @property
     def max_action_args(self) -> list[int]:
         """Return the maximum argument values for each action type."""
         args_seq = get_max_action_args()
@@ -340,15 +339,15 @@ class TribalGridEnv:
         print(f"[DEBUG] TribalGridEnv.async_reset() called with seed={seed}")
         obs, info = self.reset(seed)
         print(f"[DEBUG] async_reset got obs shape: {obs.shape}")
-        
+
         # Set up results for recv() to use during reset flow
         # Create dummy rewards/terminals/truncations for initial reset
         rewards = np.zeros(self.num_agents, dtype=np.float32)
         terminals = np.zeros(self.num_agents, dtype=bool)
         truncations = np.zeros(self.num_agents, dtype=bool)
-        
+
         self._step_results = (obs, rewards, terminals, truncations, info)
-        print(f"[DEBUG] async_reset complete, set up _step_results")
+        print("[DEBUG] async_reset complete, set up _step_results")
         return obs
 
     def send(self, actions: np.ndarray) -> None:
@@ -356,26 +355,26 @@ class TribalGridEnv:
         print(f"[DEBUG] TribalGridEnv.send() called with actions shape: {actions.shape}")
         # Store the step results for recv() to return
         self._step_results = self.step(actions)
-        print(f"[DEBUG] send() complete, step results stored")
+        print("[DEBUG] send() complete, step results stored")
 
     def recv(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[dict], np.ndarray, np.ndarray]:
         """Receive step results (pufferlib async interface)."""
-        print(f"[DEBUG] TribalGridEnv.recv() called")
-        if not hasattr(self, '_step_results'):
-            print(f"[DEBUG] ERROR: recv() called but no _step_results!")
+        print("[DEBUG] TribalGridEnv.recv() called")
+        if not hasattr(self, "_step_results"):
+            print("[DEBUG] ERROR: recv() called but no _step_results!")
             raise RuntimeError("Must call send() before recv()")
-        
+
         obs, rewards, terminals, truncations, info = self._step_results
         print(f"[DEBUG] recv() unpacked step results: obs {obs.shape}, rewards {rewards.shape}")
-        
-        # Convert info dict to list of dicts (one per agent) 
+
+        # Convert info dict to list of dicts (one per agent)
         info_list = [info.copy() for _ in range(self.num_agents)]
-        
+
         # Add lives and scores arrays (dummy values for tribal env)
         lives = np.ones(self.num_agents, dtype=np.float32)  # All agents alive
         scores = rewards.copy()  # Use rewards as scores
-        
-        print(f"[DEBUG] recv() complete, returning results")
+
+        print("[DEBUG] recv() complete, returning results")
         return obs, rewards, terminals, truncations, info_list, lives, scores
 
 
@@ -442,7 +441,6 @@ class TribalEnvConfig(Config):
             "type": "MultiDiscrete",
             "nvec": [6, 8],  # 6 action types, 8 max argument value (0-7 for directions)
         }
-
 
     def create_environment(self, **kwargs) -> Any:
         """Create tribal environment instance."""

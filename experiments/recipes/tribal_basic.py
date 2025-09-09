@@ -117,18 +117,14 @@ def make_tribal_environment(
 
     NOTE: Agent count, map dimensions, and observation space are compile-time constants
     for performance. Only gameplay parameters are configurable.
-    
+
     Args:
         max_steps: Maximum steps per episode (uses Nim default if None)
         enable_combat: Enable combat with Clippys (uses Nim default if None)
         **kwargs: Additional configuration overrides
     """
-    # Create with default factory 
-    config = TribalEnvConfig(
-        label="tribal_basic", 
-        desync_episodes=True, 
-        **kwargs
-    )
+    # Create with default factory
+    config = TribalEnvConfig(label="tribal_basic", desync_episodes=True, **kwargs)
 
     # Override only specified parameters
     if max_steps is not None:
@@ -195,7 +191,9 @@ def evaluate(
     )
 
 
-def play(env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides) -> PlayTool:
+def play(
+    env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
+) -> PlayTool:
     """
     Interactive play with the tribal environment.
 

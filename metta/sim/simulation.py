@@ -120,7 +120,10 @@ class Simulation:
         grid_env = getattr(driver_env, "_env", driver_env)
         # Accept both MettaGridEnv and TribalGridEnv (both have compatible interfaces)
         from metta.sim.tribal_genny import TribalGridEnv
-        assert isinstance(grid_env, (MettaGridEnv, TribalGridEnv)), f"Expected MettaGridEnv or TribalGridEnv, got {type(grid_env)}"
+
+        assert isinstance(grid_env, (MettaGridEnv, TribalGridEnv)), (
+            f"Expected MettaGridEnv or TribalGridEnv, got {type(grid_env)}"
+        )
         metta_grid_env = grid_env  # Keep the same variable name for compatibility
 
         # Initialize policy to environment
