@@ -13,9 +13,11 @@ TECHNICAL NOTES:
 
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.common.tool import Tool
 from metta.cogworks.curriculum.task_generator import TaskGeneratorConfig
 from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
 from metta.rl.loss.loss_config import LossConfig
@@ -94,6 +96,55 @@ class TribalTaskGeneratorConfig(TaskGeneratorConfig):
                 return self._env.model_copy(deep=True)
 
         return SimpleTribalTaskGenerator(self)
+
+
+class NimPlayTool(Tool):
+    """Tool for launching the Nim-based tribal viewer directly."""
+    
+    env_config: TribalEnvConfig
+    policy_uri: str | None = None
+
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+        """Launch the Nim tribal viewer."""
+        # Find the metta project root and tribal directory
+        metta_root = Path(__file__).parent.parent.parent
+        tribal_dir = metta_root / "tribal"
+        
+        # Ensure we're in the right directory
+        if not tribal_dir.exists():
+            print(f"❌ Tribal directory not found at {tribal_dir}")
+            return 1
+        
+        print("🎮 Launching Nim tribal viewer...")
+        print(f"📁 Working directory: {tribal_dir}")
+        
+        # Build and run the Nim visualization
+        try:
+            # Change to tribal directory
+            original_dir = os.getcwd()
+            os.chdir(tribal_dir)
+            
+            # Run the Nim viewer using nimble
+            result = subprocess.run(
+                ["nimble", "visualize"],
+                capture_output=False,  # Let output show directly
+                text=True
+            )
+            
+            return result.returncode
+        
+        except KeyboardInterrupt:
+            print("\n🛑 Nim viewer stopped by user")
+            return 0
+        except Exception as e:
+            print(f"❌ Error launching Nim viewer: {e}")
+            return 1
+        finally:
+            # Restore original directory
+            try:
+                os.chdir(original_dir)
+            except:
+                pass
 
 
 def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
@@ -193,25 +244,20 @@ def evaluate(
 
 def play(
     env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
-) -> PlayTool:
+) -> "NimPlayTool":
     """
-    Interactive play with the tribal environment.
+    Interactive play with the tribal environment using direct Nim execution.
 
-    Can be used with or without a trained policy - if no policy is provided,
-    agents will act randomly which is useful for environment testing.
+    This version launches the Nim-based tribal viewer directly, bypassing the Python
+    play infrastructure for better performance and native Nim rendering.
 
     Args:
-        env: Optional tribal environment config, defaults to basic config
-        policy_uri: Optional URI to trained policy
+        env: Optional tribal environment config (unused in Nim version)
+        policy_uri: Optional URI to trained policy (future feature)
         **overrides: Additional configuration overrides
     """
-    # Ensure tribal bindings are built
-    _ensure_tribal_bindings_built()
-
-    eval_env = env or make_tribal_environment()
-
-    return PlayTool(
-        sim=SimulationConfig(name="tribal/play", env=eval_env),
+    return NimPlayTool(
+        env_config=env or make_tribal_environment(),
         policy_uri=policy_uri,
         **overrides,
     )

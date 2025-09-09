@@ -7,6 +7,7 @@ srcDir = "src"
 
 requires "nim >= 2.2.4"
 requires "genny >= 0.1.0"
+requires "nimpy >= 0.2.0"
 requires "pixie >= 5.0.0"
 requires "vmath >= 2.0.0"
 requires "chroma >= 0.2.7"
@@ -45,6 +46,9 @@ task run, "Run the tribal environment":
 
 task visualize, "Run the tribal visualization":
   exec "nim c -r src/tribal.nim"
+
+task play_nim, "Run tribal play interface from Nim":
+  exec "nim c -r src/tribal_play.nim"
 
 task test, "Run tribal environment tests":
   exec "nim c -r tests/test_python_bindings.nim"
