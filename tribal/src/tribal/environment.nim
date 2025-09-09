@@ -768,10 +768,10 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
 
 proc getClippyMoveDirection(clippy: Thing, r: var Rand): IVec2 =
   # Move toward target altar if available, otherwise random
-  if clippy.targetPos.x >= 0 and r.rand(0.0..1.0) < 0.8:
+  if clippy.targetPos.x >= 0 and r.rand(0.0..1.0) < 0.5:
     getDirectionTo(clippy.pos, clippy.targetPos)
   else:
-    # Random movement (20% of the time, or always if no target)
+    # Random movement (50% of the time, or always if no target)
     const dirs = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
     dirs[r.rand(0..<4)]
 
@@ -1372,7 +1372,7 @@ proc defaultEnvironmentConfig*(): EnvironmentConfig =
     
     # Combat configuration
     enableCombat: true,
-    clippySpawnRate: 0.05,
+    clippySpawnRate: 0.25,
     clippyDamage: 1,
     
     # Reward configuration (only arena_basic_easy_shaped rewards active)

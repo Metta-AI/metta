@@ -69,7 +69,7 @@ proc defaultTribalConfig*(): TribalConfig =
       orePerBattery: 3,
       batteriesPerHeart: 2,
       enableCombat: true,
-      clippySpawnRate: 0.05,
+      clippySpawnRate: 0.25,
       clippyDamage: 1,
       heartReward: 1.0,
       oreReward: 0.1,
