@@ -24,7 +24,7 @@ protected:
     target_loc.layer = GridLayer::ObjectLayer;
     // get_output only works on Converters, since only Converters have an output.
     // Once we generalize this to `get`, we should be able to get from any HasInventory object, which
-    // should include agents. That's (e.g.) why we're checking inventory_is_accessible.
+    // should include agents.
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
     Box* box = dynamic_cast<Box*>(_grid->object_at(target_loc));
     if (!converter && !box) {
@@ -32,9 +32,6 @@ protected:
     }
     // If converter, get output from converter
     if (converter) {
-      if (!converter->inventory_is_accessible()) {
-        return false;
-      }
 
       // Actions is only successful if we take at least one item.
       bool resources_taken = false;
@@ -43,7 +40,8 @@ protected:
         if (converter->get_inventory().count(item) == 0) {
           continue;
         }
-        InventoryDelta resources_available = converter->get_inventory()[item];
+        auto it = converter->get_inventory().find(item);
+        InventoryDelta resources_available = (it != converter->get_inventory().end()) ? it->second : 0;
 
         InventoryDelta taken = actor->update_inventory(item, resources_available);
 

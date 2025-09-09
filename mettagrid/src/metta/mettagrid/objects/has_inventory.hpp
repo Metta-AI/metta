@@ -18,11 +18,12 @@ public:
   using InventoryChangeCallback = std::function<void(GridObjectId, InventoryItem, InventoryDelta)>;
 
   // Pure virtual methods
-  virtual std::map<InventoryItem, InventoryQuantity>& get_inventory() = 0;
   virtual const std::map<InventoryItem, InventoryQuantity>& get_inventory() const = 0;
   virtual InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) = 0;
-  virtual bool inventory_is_accessible() const = 0;
   virtual void set_inventory_callback(InventoryChangeCallback callback) = 0;
+
+  // Resource loss probability method
+  virtual const std::map<InventoryItem, float>& get_resource_loss_prob() const = 0;
 };
 
 #endif  // OBJECTS_HAS_INVENTORY_HPP_

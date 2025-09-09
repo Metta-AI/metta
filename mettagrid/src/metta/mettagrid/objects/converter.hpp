@@ -138,20 +138,18 @@ public:
   }
 
   // HasInventory interface implementation
-  std::map<InventoryItem, InventoryQuantity>& get_inventory() override {
-    return inventory;
-  }
-
   const std::map<InventoryItem, InventoryQuantity>& get_inventory() const override {
     return inventory;
   }
 
-  bool inventory_is_accessible() const override {
-    return true;
-  }
 
   void set_inventory_callback(HasInventory::InventoryChangeCallback callback) override {
     inventory_callback = callback;
+  }
+
+  // Resource loss probability method
+  const std::map<InventoryItem, float>& get_resource_loss_prob() const override {
+    return resource_loss_prob;
   }
 
   void finish_converting() {
