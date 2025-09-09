@@ -189,7 +189,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
-        _resource_manager->register_converter(converter);
+        _resource_manager->register_inventory_object(converter);
 
         // Set up inventory change callback
         converter->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
@@ -221,7 +221,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
-        _resource_manager->register_agent(agent);
+        _resource_manager->register_inventory_object(agent);
 
         // Set up inventory change callback
         agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {

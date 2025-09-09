@@ -11,27 +11,26 @@
 #include "../stats_tracker.hpp"
 #include "agent_config.hpp"
 #include "constants.hpp"
+#include "grid_object.hpp"
+#include "has_inventory.hpp"
 #include "objects/box.hpp"
 #include "types.hpp"
 
-class Agent : public GridObject {
+class Agent : public GridObject, public virtual HasInventory {
 public:
   ObservationType group;
   short frozen;
   short freeze_duration;
   Orientation orientation;
-  // inventory is a map of item to amount.
-  // keys should be deleted when the amount is 0, to keep iteration faster.
-  // however, this should not be relied on for correctness.
+  // Inventory implementation for HasInventory interface
   std::map<InventoryItem, InventoryQuantity> inventory;
+  HasInventory::InventoryChangeCallback inventory_callback;
+
   std::map<InventoryItem, RewardType> resource_rewards;
   std::map<InventoryItem, RewardType> resource_reward_max;
   std::map<std::string, RewardType> stat_rewards;
   std::map<std::string, RewardType> stat_reward_max;
   std::map<InventoryItem, InventoryQuantity> resource_limits;
-
-  // Callback function type for inventory changes
-  using InventoryChangeCallback = std::function<void(GridObjectId, InventoryItem, InventoryDelta)>;
   float action_failure_penalty;
   std::string group_name;
   ObservationType color;
@@ -57,7 +56,6 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::North),
-        inventory(),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
@@ -84,8 +82,20 @@ public:
     this->reward = reward_ptr;
   }
 
-  // Set callback for inventory changes
-  void set_inventory_callback(InventoryChangeCallback callback) {
+  // HasInventory interface implementation
+  std::map<InventoryItem, InventoryQuantity>& get_inventory() override {
+    return inventory;
+  }
+
+  const std::map<InventoryItem, InventoryQuantity>& get_inventory() const override {
+    return inventory;
+  }
+
+  bool inventory_is_accessible() const override {
+    return true;
+  }
+
+  void set_inventory_callback(HasInventory::InventoryChangeCallback callback) override {
     inventory_callback = callback;
   }
 
@@ -135,7 +145,7 @@ public:
     return counts;
   }
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
     // Get the initial amount (0 if item doesn't exist)
     InventoryQuantity initial_amount = 0;
     auto inv_it = this->inventory.find(item);
@@ -166,7 +176,7 @@ public:
     // Update resource rewards incrementally
     this->_update_resource_reward(item, initial_amount, new_amount);
 
-    // Call callback if inventory actually changed
+    // Call callback if inventory actually changed (inherited from HasInventory)
     if (delta != 0 && inventory_callback) {
       inventory_callback(this->id, item, delta);
     }
@@ -263,9 +273,6 @@ private:
     }
     return visitation_grid[r][c];
   }
-
-private:
-  InventoryChangeCallback inventory_callback;
 };
 
 #endif  // OBJECTS_AGENT_HPP_

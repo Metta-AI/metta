@@ -1,9 +1,11 @@
 #ifndef OBJECTS_BOX_HPP_
 #define OBJECTS_BOX_HPP_
 
+#include <algorithm>
 #include <string>
 
 #include "constants.hpp"
+#include "grid_object.hpp"
 #include "has_inventory.hpp"
 #include "types.hpp"
 
@@ -16,11 +18,15 @@ struct BoxConfig : public GridObjectConfig {
   std::map<InventoryItem, InventoryQuantity> returned_resources;
 };
 
-class Box : public HasInventory {
+class Box : public GridObject, public virtual HasInventory {
 public:
   GridObjectId creator_agent_object_id;
   unsigned char creator_agent_id;
   std::map<InventoryItem, InventoryQuantity> returned_resources;
+
+  // HasInventory interface implementation
+  std::map<InventoryItem, InventoryQuantity> inventory;
+  HasInventory::InventoryChangeCallback inventory_callback;
 
   Box(GridCoord r,
       GridCoord c,
@@ -37,6 +43,47 @@ public:
 
   bool is_creator(unsigned char agent_id) const {
     return agent_id == creator_agent_id;
+  }
+
+  // HasInventory interface implementation
+  std::map<InventoryItem, InventoryQuantity>& get_inventory() override {
+    return inventory;
+  }
+
+  const std::map<InventoryItem, InventoryQuantity>& get_inventory() const override {
+    return inventory;
+  }
+
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) override {
+    InventoryQuantity initial_amount = this->inventory[item];
+    int new_amount = static_cast<int>(initial_amount + delta);
+
+    constexpr int min = std::numeric_limits<InventoryQuantity>::min();
+    constexpr int max = std::numeric_limits<InventoryQuantity>::max();
+    InventoryQuantity clamped_amount = static_cast<InventoryQuantity>(std::clamp(new_amount, min, max));
+
+    if (clamped_amount == 0) {
+      this->inventory.erase(item);
+    } else {
+      this->inventory[item] = clamped_amount;
+    }
+
+    InventoryDelta clamped_delta = clamped_amount - initial_amount;
+
+    // Call callback if inventory actually changed
+    if (clamped_delta != 0 && inventory_callback) {
+      inventory_callback(this->id, item, clamped_delta);
+    }
+
+    return clamped_delta;
+  }
+
+  bool inventory_is_accessible() const override {
+    return true;
+  }
+
+  void set_inventory_callback(HasInventory::InventoryChangeCallback callback) override {
+    inventory_callback = callback;
   }
 
   std::vector<PartialObservationToken> obs_features() const override {

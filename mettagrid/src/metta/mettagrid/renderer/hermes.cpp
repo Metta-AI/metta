@@ -413,7 +413,7 @@ static void DrawInventory(Hermes& ctx) {
     }
 
     for (auto node : bucket) {
-      const auto& inv = static_cast<HasInventory*>(ctx.grid->object(node.index))->inventory;
+      const auto& inv = static_cast<HasInventory*>(ctx.grid->object(node.index))->get_inventory();
       if (inv.size() == 0) {
         continue;
       }
@@ -435,7 +435,7 @@ static void DrawInventory(Hermes& ctx) {
 
   if (ctx.show(ctx.types.agent)) {
     for (const auto node : ctx.buckets[ctx.types.agent]) {
-      const auto& inv = ctx.self->agent(node.index)->inventory;
+      const auto& inv = ctx.self->agent(node.index)->get_inventory();
       if (inv.size() != 0) {
         set_position(node);
         multi_draw(inv);

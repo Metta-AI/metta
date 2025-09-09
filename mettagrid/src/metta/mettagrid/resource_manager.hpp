@@ -5,14 +5,12 @@
 #include <vector>
 
 #include "grid.hpp"
-#include "objects/agent.hpp"
-#include "objects/converter.hpp"
+#include "objects/has_inventory.hpp"
 #include "types.hpp"
 
 // Forward declarations
 class Grid;
-class Agent;
-class Converter;
+class HasInventory;
 
 class ResourceManager {
 public:
@@ -21,39 +19,32 @@ public:
   // Main processing method called once per step
   void step();
 
-  // Team-based object tracking
-  void register_agent(Agent* agent);
-  void register_converter(Converter* converter);
-  void unregister_agent(GridObjectId agent_id);
-  void unregister_converter(GridObjectId converter_id);
+  // Object registration and tracking
+  void register_inventory_object(HasInventory* obj);
+  void unregister_inventory_object(GridObjectId object_id);
 
-  // Team-based access methods
-  const std::vector<Agent*>& get_agents_by_team(unsigned int team_id) const;
-  const std::vector<Converter*>& get_converters_by_team(unsigned int team_id) const;
-  std::vector<unsigned int> get_all_teams() const;
+  // Group-based access methods (using group_name for agents, "" for converters)
+  const std::vector<HasInventory*>& get_objects_by_group(const std::string& group_name) const;
+  std::vector<std::string> get_all_groups() const;
 
-  // Agent inventory management
-  InventoryDelta modify_agent_inventory(GridObjectId agent_id, InventoryItem item, InventoryDelta delta);
-  InventoryQuantity get_agent_inventory(GridObjectId agent_id, InventoryItem item) const;
-  const std::map<InventoryItem, InventoryQuantity>& get_agent_inventory(GridObjectId agent_id) const;
-
-  // Converter inventory management
-  InventoryDelta modify_converter_inventory(GridObjectId converter_id, InventoryItem item, InventoryDelta delta);
-  InventoryQuantity get_converter_inventory(GridObjectId converter_id, InventoryItem item) const;
-  const std::map<InventoryItem, InventoryQuantity>& get_converter_inventory(GridObjectId converter_id) const;
+  // Inventory management (works with any HasInventory object)
+  InventoryDelta modify_inventory(GridObjectId object_id, InventoryItem item, InventoryDelta delta);
+  InventoryQuantity get_inventory(GridObjectId object_id, InventoryItem item) const;
+  const std::map<InventoryItem, InventoryQuantity>& get_inventory(GridObjectId object_id) const;
 
   // Utility methods
-  std::vector<GridObjectId> get_all_agent_ids() const;
-  std::vector<GridObjectId> get_all_converter_ids() const;
-  bool is_agent(GridObjectId id) const;
-  bool is_converter(GridObjectId id) const;
+  std::vector<GridObjectId> get_all_inventory_object_ids() const;
+  bool is_inventory_object(GridObjectId id) const;
 
   // Resource transfer between objects
   InventoryDelta transfer_resource(GridObjectId from_id, GridObjectId to_id, InventoryItem item, InventoryQuantity amount);
 
-  // Team-based resource operations
-  InventoryQuantity get_team_total_inventory(unsigned int team_id, InventoryItem item) const;
-  void distribute_resources_to_team(unsigned int team_id, InventoryItem item, InventoryQuantity total_amount);
+  // Group-based resource operations
+  InventoryQuantity get_group_total_inventory(const std::string& group_name, InventoryItem item) const;
+  void distribute_resources_to_group(const std::string& group_name, InventoryItem item, InventoryQuantity total_amount);
+
+  // Weighted random selection methods
+  GridObjectId select_random_object_by_resource(const std::string& group_name, InventoryItem item) const;
 
   // Inventory change callback
   void on_inventory_changed(GridObjectId object_id, InventoryItem item, InventoryDelta delta);
@@ -61,15 +52,19 @@ public:
 private:
   Grid* _grid;
 
-  // Team-based tracking maps
-  std::map<unsigned int, std::vector<Agent*>> _agents_by_team;
-  std::map<unsigned int, std::vector<Converter*>> _converters_by_team;
+  // Group-based tracking maps (group_name -> list of HasInventory objects)
+  std::map<std::string, std::vector<HasInventory*>> _objects_by_group;
+
+  // Group-based inventory tracking maps
+  // Maps: group_name -> (item_type -> total_quantity)
+  std::map<std::string, std::map<InventoryItem, InventoryQuantity>> _group_inventory_totals;
 
   // Helper methods
-  Agent* _get_agent(GridObjectId agent_id) const;
-  Converter* _get_converter(GridObjectId converter_id) const;
+  HasInventory* _get_inventory_object(GridObjectId object_id) const;
+  std::string _get_group_name(HasInventory* obj) const;
   void _validate_object_id(GridObjectId id) const;
-  void _update_team_maps();
+  void _update_group_maps();
+  void _update_inventory_totals();
 };
 
 #endif  // RESOURCE_MANAGER_HPP_

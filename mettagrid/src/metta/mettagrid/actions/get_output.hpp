@@ -40,10 +40,10 @@ protected:
       bool resources_taken = false;
 
       for (const auto& [item, _] : converter->output_resources) {
-        if (converter->inventory.count(item) == 0) {
+        if (converter->get_inventory().count(item) == 0) {
           continue;
         }
-        InventoryDelta resources_available = converter->inventory[item];
+        InventoryDelta resources_available = converter->get_inventory()[item];
 
         InventoryDelta taken = actor->update_inventory(item, resources_available);
 

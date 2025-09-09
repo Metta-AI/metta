@@ -64,7 +64,7 @@ public:
 
     bool has_needed_resources = true;
     for (const auto& [item, amount] : _required_resources) {
-      if (actor->inventory[item] < amount) {
+      if (actor->get_inventory()[item] < amount) {
         has_needed_resources = false;
         break;
       }

@@ -10,9 +10,10 @@
 #include "agent.hpp"
 #include "constants.hpp"
 #include "converter_config.hpp"
+#include "grid_object.hpp"
 #include "has_inventory.hpp"
 
-class Converter : public HasInventory {
+class Converter : public GridObject, public virtual HasInventory {
 private:
   // This should be called any time the converter could start converting. E.g.,
   // when things are added to its input, and when it finishes converting.
@@ -103,6 +104,10 @@ public:
   unsigned short conversions_completed;
   std::map<InventoryItem, float> resource_loss_prob;
 
+  // HasInventory interface implementation
+  std::map<InventoryItem, InventoryQuantity> inventory;
+  HasInventory::InventoryChangeCallback inventory_callback;
+
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
         output_resources(cfg.output_resources),
@@ -123,13 +128,30 @@ public:
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
-      HasInventory::update_inventory(item, cfg.initial_resource_count);
+      this->inventory[item] = cfg.initial_resource_count;
     }
   }
 
   void set_event_manager(EventManager* event_manager_ptr) {
     this->event_manager = event_manager_ptr;
     this->maybe_start_converting();
+  }
+
+  // HasInventory interface implementation
+  std::map<InventoryItem, InventoryQuantity>& get_inventory() override {
+    return inventory;
+  }
+
+  const std::map<InventoryItem, InventoryQuantity>& get_inventory() const override {
+    return inventory;
+  }
+
+  bool inventory_is_accessible() const override {
+    return true;
+  }
+
+  void set_inventory_callback(HasInventory::InventoryChangeCallback callback) override {
+    inventory_callback = callback;
   }
 
   void finish_converting() {
@@ -144,7 +166,7 @@ public:
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
-      HasInventory::update_inventory(item, amount);
+      update_inventory(item, amount);
       stats.add(stats.resource_name(item) + ".produced", amount);
     }
 
@@ -166,14 +188,34 @@ public:
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
-    InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);
+    InventoryQuantity initial_amount = this->inventory[item];
+    int new_amount = static_cast<int>(initial_amount + attempted_delta);
+
+    constexpr int min = std::numeric_limits<InventoryQuantity>::min();
+    constexpr int max = std::numeric_limits<InventoryQuantity>::max();
+    InventoryQuantity clamped_amount = static_cast<InventoryQuantity>(std::clamp(new_amount, min, max));
+
+    if (clamped_amount == 0) {
+      this->inventory.erase(item);
+    } else {
+      this->inventory[item] = clamped_amount;
+    }
+
+    InventoryDelta delta = clamped_amount - initial_amount;
+
     if (delta != 0) {
       if (delta > 0) {
         stats.add(stats.resource_name(item) + ".added", delta);
       } else {
         stats.add(stats.resource_name(item) + ".removed", -delta);
       }
+
+      // Call callback if inventory actually changed
+      if (inventory_callback) {
+        inventory_callback(this->id, item, delta);
+      }
     }
+
     this->maybe_start_converting();
     return delta;
   }

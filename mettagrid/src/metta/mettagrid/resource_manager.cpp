@@ -2,12 +2,18 @@
 
 #include <algorithm>
 #include <cassert>
+#include <random>
 #include <stdexcept>
+
+#include "objects/agent.hpp"
+#include "objects/converter.hpp"
 
 ResourceManager::ResourceManager(Grid* grid) : _grid(grid) {
   assert(_grid != nullptr);
-  // Initialize team maps with existing objects
-  _update_team_maps();
+  // Initialize group maps with existing objects
+  _update_group_maps();
+  // Initialize inventory totals
+  _update_inventory_totals();
 }
 
 void ResourceManager::step() {
@@ -21,313 +27,265 @@ void ResourceManager::step() {
   // For now, this is a placeholder that can be extended
 }
 
-// Team-based object tracking methods
-void ResourceManager::register_agent(Agent* agent) {
-  if (!agent) return;
+// Object registration and tracking methods
+void ResourceManager::register_inventory_object(HasInventory* obj) {
+  if (!obj) return;
 
-  unsigned int team_id = agent->group;
-  _agents_by_team[team_id].push_back(agent);
+  std::string group_name = _get_group_name(obj);
+  _objects_by_group[group_name].push_back(obj);
 }
 
-void ResourceManager::register_converter(Converter* converter) {
-  if (!converter) return;
+void ResourceManager::unregister_inventory_object(GridObjectId object_id) {
+  HasInventory* obj = _get_inventory_object(object_id);
+  if (!obj) return;
 
-  // Converters are neutral objects, assign them to team 0 (neutral team)
-  unsigned int team_id = 0;
-  _converters_by_team[team_id].push_back(converter);
-}
+  std::string group_name = _get_group_name(obj);
+  auto& group_objects = _objects_by_group[group_name];
+  group_objects.erase(
+    std::remove(group_objects.begin(), group_objects.end(), obj),
+    group_objects.end());
 
-void ResourceManager::unregister_agent(GridObjectId agent_id) {
-  Agent* agent = _get_agent(agent_id);
-  if (!agent) return;
-
-  unsigned int team_id = agent->group;
-  auto& team_agents = _agents_by_team[team_id];
-  team_agents.erase(
-    std::remove(team_agents.begin(), team_agents.end(), agent),
-    team_agents.end()
-  );
-
-  // Remove empty team entry
-  if (team_agents.empty()) {
-    _agents_by_team.erase(team_id);
+  // Remove empty group entry
+  if (group_objects.empty()) {
+    _objects_by_group.erase(group_name);
   }
 }
 
-void ResourceManager::unregister_converter(GridObjectId converter_id) {
-  Converter* converter = _get_converter(converter_id);
-  if (!converter) return;
+// Group-based access methods
+const std::vector<HasInventory*>& ResourceManager::get_objects_by_group(const std::string& group_name) const {
+  static const std::vector<HasInventory*> empty_vector;
+  auto it = _objects_by_group.find(group_name);
+  return (it != _objects_by_group.end()) ? it->second : empty_vector;
+}
 
-  // Converters are neutral objects, assigned to team 0
-  unsigned int team_id = 0;
-  auto& team_converters = _converters_by_team[team_id];
-  team_converters.erase(
-    std::remove(team_converters.begin(), team_converters.end(), converter),
-    team_converters.end()
-  );
-
-  // Remove empty team entry
-  if (team_converters.empty()) {
-    _converters_by_team.erase(team_id);
+std::vector<std::string> ResourceManager::get_all_groups() const {
+  std::vector<std::string> groups;
+  for (const auto& [group_name, _] : _objects_by_group) {
+    groups.push_back(group_name);
   }
+  return groups;
 }
 
-// Team-based access methods
-const std::vector<Agent*>& ResourceManager::get_agents_by_team(unsigned int team_id) const {
-  static const std::vector<Agent*> empty_vector;
-  auto it = _agents_by_team.find(team_id);
-  return (it != _agents_by_team.end()) ? it->second : empty_vector;
-}
-
-const std::vector<Converter*>& ResourceManager::get_converters_by_team(unsigned int team_id) const {
-  static const std::vector<Converter*> empty_vector;
-  auto it = _converters_by_team.find(team_id);
-  return (it != _converters_by_team.end()) ? it->second : empty_vector;
-}
-
-std::vector<unsigned int> ResourceManager::get_all_teams() const {
-  std::vector<unsigned int> teams;
-  for (const auto& [team_id, _] : _agents_by_team) {
-    teams.push_back(team_id);
+// Inventory management methods
+InventoryDelta ResourceManager::modify_inventory(GridObjectId object_id, InventoryItem item, InventoryDelta delta) {
+  HasInventory* obj = _get_inventory_object(object_id);
+  if (!obj) {
+    throw std::runtime_error("Object not found: " + std::to_string(object_id));
   }
-  for (const auto& [team_id, _] : _converters_by_team) {
-    if (std::find(teams.begin(), teams.end(), team_id) == teams.end()) {
-      teams.push_back(team_id);
+  return obj->update_inventory(item, delta);
+}
+
+InventoryQuantity ResourceManager::get_inventory(GridObjectId object_id, InventoryItem item) const {
+  const HasInventory* obj = _get_inventory_object(object_id);
+  if (!obj) {
+    return 0;
+  }
+  const auto& inventory = obj->get_inventory();
+  auto it = inventory.find(item);
+  return (it != inventory.end()) ? it->second : 0;
+}
+
+const std::map<InventoryItem, InventoryQuantity>& ResourceManager::get_inventory(GridObjectId object_id) const {
+  const HasInventory* obj = _get_inventory_object(object_id);
+  if (!obj) {
+    static const std::map<InventoryItem, InventoryQuantity> empty_inventory;
+    return empty_inventory;
+  }
+  return obj->get_inventory();
+}
+
+// Utility methods
+std::vector<GridObjectId> ResourceManager::get_all_inventory_object_ids() const {
+  std::vector<GridObjectId> ids;
+  for (const auto& [_, objects] : _objects_by_group) {
+    for (const auto* obj : objects) {
+      // We need to cast to GridObject to get the id
+      const GridObject* grid_obj = dynamic_cast<const GridObject*>(obj);
+      if (grid_obj) {
+        ids.push_back(grid_obj->id);
+      }
     }
   }
-  return teams;
+  return ids;
 }
 
-InventoryDelta ResourceManager::modify_agent_inventory(GridObjectId agent_id, InventoryItem item, InventoryDelta delta) {
-  Agent* agent = _get_agent(agent_id);
-  if (!agent) {
-    throw std::runtime_error("Agent with id " + std::to_string(agent_id) + " not found");
-  }
-
-  return agent->update_inventory(item, delta);
+bool ResourceManager::is_inventory_object(GridObjectId id) const {
+  return _get_inventory_object(id) != nullptr;
 }
 
-InventoryQuantity ResourceManager::get_agent_inventory(GridObjectId agent_id, InventoryItem item) const {
-  const Agent* agent = _get_agent(agent_id);
-  if (!agent) {
-    throw std::runtime_error("Agent with id " + std::to_string(agent_id) + " not found");
-  }
-
-  auto it = agent->inventory.find(item);
-  return (it != agent->inventory.end()) ? it->second : 0;
-}
-
-const std::map<InventoryItem, InventoryQuantity>& ResourceManager::get_agent_inventory(GridObjectId agent_id) const {
-  const Agent* agent = _get_agent(agent_id);
-  if (!agent) {
-    throw std::runtime_error("Agent with id " + std::to_string(agent_id) + " not found");
-  }
-
-  return agent->inventory;
-}
-
-InventoryDelta ResourceManager::modify_converter_inventory(GridObjectId converter_id, InventoryItem item, InventoryDelta delta) {
-  Converter* converter = _get_converter(converter_id);
-  if (!converter) {
-    throw std::runtime_error("Converter with id " + std::to_string(converter_id) + " not found");
-  }
-
-  return converter->update_inventory(item, delta);
-}
-
-InventoryQuantity ResourceManager::get_converter_inventory(GridObjectId converter_id, InventoryItem item) const {
-  const Converter* converter = _get_converter(converter_id);
-  if (!converter) {
-    throw std::runtime_error("Converter with id " + std::to_string(converter_id) + " not found");
-  }
-
-  auto it = converter->inventory.find(item);
-  return (it != converter->inventory.end()) ? it->second : 0;
-}
-
-const std::map<InventoryItem, InventoryQuantity>& ResourceManager::get_converter_inventory(GridObjectId converter_id) const {
-  const Converter* converter = _get_converter(converter_id);
-  if (!converter) {
-    throw std::runtime_error("Converter with id " + std::to_string(converter_id) + " not found");
-  }
-
-  return converter->inventory;
-}
-
-std::vector<GridObjectId> ResourceManager::get_all_agent_ids() const {
-  std::vector<GridObjectId> agent_ids;
-
-  for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
-    auto obj = _grid->object(obj_id);
-    if (obj && dynamic_cast<Agent*>(obj)) {
-      agent_ids.push_back(obj_id);
-    }
-  }
-
-  return agent_ids;
-}
-
-std::vector<GridObjectId> ResourceManager::get_all_converter_ids() const {
-  std::vector<GridObjectId> converter_ids;
-
-  for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
-    auto obj = _grid->object(obj_id);
-    if (obj && dynamic_cast<Converter*>(obj)) {
-      converter_ids.push_back(obj_id);
-    }
-  }
-
-  return converter_ids;
-}
-
-bool ResourceManager::is_agent(GridObjectId id) const {
-  auto obj = _grid->object(id);
-  return obj && dynamic_cast<Agent*>(obj) != nullptr;
-}
-
-bool ResourceManager::is_converter(GridObjectId id) const {
-  auto obj = _grid->object(id);
-  return obj && dynamic_cast<Converter*>(obj) != nullptr;
-}
-
+// Resource transfer between objects
 InventoryDelta ResourceManager::transfer_resource(GridObjectId from_id, GridObjectId to_id, InventoryItem item, InventoryQuantity amount) {
-  // Get the source object
-  auto from_obj = _grid->object(from_id);
-  auto to_obj = _grid->object(to_id);
+  HasInventory* from_obj = _get_inventory_object(from_id);
+  HasInventory* to_obj = _get_inventory_object(to_id);
 
   if (!from_obj || !to_obj) {
-    throw std::runtime_error("Invalid object IDs for resource transfer");
+    return 0;
   }
 
-  // Check if both objects have inventories
-  Agent* from_agent = dynamic_cast<Agent*>(from_obj);
-  Converter* from_converter = dynamic_cast<Converter*>(from_obj);
-  Agent* to_agent = dynamic_cast<Agent*>(to_obj);
-  Converter* to_converter = dynamic_cast<Converter*>(to_obj);
-
-  if ((!from_agent && !from_converter) || (!to_agent && !to_converter)) {
-    throw std::runtime_error("One or both objects do not have inventories");
+  // Check if source has enough resources
+  InventoryQuantity available = get_inventory(from_id, item);
+  if (available < amount) {
+    amount = available;  // Transfer what's available
   }
 
-  // Get available amount from source
-  InventoryQuantity available = 0;
-  if (from_agent) {
-    available = get_agent_inventory(from_id, item);
-  } else if (from_converter) {
-    available = get_converter_inventory(from_id, item);
-  }
-
-  // Calculate actual transfer amount
-  InventoryQuantity transfer_amount = std::min(amount, available);
-  if (transfer_amount == 0) {
+  if (amount == 0) {
     return 0;
   }
 
   // Remove from source
-  InventoryDelta removed = 0;
-  if (from_agent) {
-    removed = modify_agent_inventory(from_id, item, -static_cast<InventoryDelta>(transfer_amount));
-  } else if (from_converter) {
-    removed = modify_converter_inventory(from_id, item, -static_cast<InventoryDelta>(transfer_amount));
-  }
+  from_obj->update_inventory(item, -static_cast<InventoryDelta>(amount));
 
   // Add to destination
-  if (to_agent) {
-    modify_agent_inventory(to_id, item, static_cast<InventoryDelta>(transfer_amount));
-  } else if (to_converter) {
-    modify_converter_inventory(to_id, item, static_cast<InventoryDelta>(transfer_amount));
+  InventoryDelta added = to_obj->update_inventory(item, static_cast<InventoryDelta>(amount));
+
+  return added;  // Return actual amount transferred
+}
+
+// Group-based resource operations
+InventoryQuantity ResourceManager::get_group_total_inventory(const std::string& group_name, InventoryItem item) const {
+  auto it = _group_inventory_totals.find(group_name);
+  if (it == _group_inventory_totals.end()) {
+    return 0;
   }
 
-  // Return the actual amount transferred (should be the same as removed)
-  return removed;
+  const auto& group_totals = it->second;
+  auto item_it = group_totals.find(item);
+  return (item_it != group_totals.end()) ? item_it->second : 0;
 }
 
-Agent* ResourceManager::_get_agent(GridObjectId agent_id) const {
-  auto obj = _grid->object(agent_id);
-  return dynamic_cast<Agent*>(obj);
+void ResourceManager::distribute_resources_to_group(const std::string& group_name, InventoryItem item, InventoryQuantity total_amount) {
+  const auto& objects = get_objects_by_group(group_name);
+  if (objects.empty()) {
+    return;
+  }
+
+  // Simple equal distribution
+  InventoryQuantity per_object = total_amount / objects.size();
+  InventoryQuantity remainder = total_amount % objects.size();
+
+  for (size_t i = 0; i < objects.size(); ++i) {
+    InventoryQuantity amount = per_object + (i < remainder ? 1 : 0);
+    objects[i]->update_inventory(item, static_cast<InventoryDelta>(amount));
+  }
 }
 
-Converter* ResourceManager::_get_converter(GridObjectId converter_id) const {
-  auto obj = _grid->object(converter_id);
-  return dynamic_cast<Converter*>(obj);
+// Weighted random selection methods
+GridObjectId ResourceManager::select_random_object_by_resource(const std::string& group_name, InventoryItem item) const {
+  const auto& objects = get_objects_by_group(group_name);
+  if (objects.empty()) {
+    return 0;  // Invalid ID
+  }
+
+  // Calculate total weight (total quantity of the item in the group)
+  InventoryQuantity total_weight = 0;
+  for (const auto* obj : objects) {
+    total_weight += get_inventory(dynamic_cast<const GridObject*>(obj)->id, item);
+  }
+
+  if (total_weight == 0) {
+    // No objects have this resource, return random object
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, objects.size() - 1);
+    return dynamic_cast<const GridObject*>(objects[dis(gen)])->id;
+  }
+
+  // Weighted random selection
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(1, total_weight);
+  InventoryQuantity target_weight = dis(gen);
+
+  InventoryQuantity current_weight = 0;
+  for (const auto* obj : objects) {
+    current_weight += get_inventory(dynamic_cast<const GridObject*>(obj)->id, item);
+    if (current_weight >= target_weight) {
+      return dynamic_cast<const GridObject*>(obj)->id;
+    }
+  }
+
+  // Fallback (shouldn't happen)
+  return dynamic_cast<const GridObject*>(objects.back())->id;
+}
+
+// Inventory change callback
+void ResourceManager::on_inventory_changed(GridObjectId object_id, InventoryItem item, InventoryDelta delta) {
+  HasInventory* obj = _get_inventory_object(object_id);
+  if (!obj) {
+    return;
+  }
+
+  std::string group_name = _get_group_name(obj);
+
+  // Update group inventory totals
+  auto& group_totals = _group_inventory_totals[group_name];
+  group_totals[item] += delta;
+
+  // Remove zero entries
+  if (group_totals[item] == 0) {
+    group_totals.erase(item);
+  }
+
+  // Remove empty group entries
+  if (group_totals.empty()) {
+    _group_inventory_totals.erase(group_name);
+  }
+}
+
+// Private helper methods
+HasInventory* ResourceManager::_get_inventory_object(GridObjectId object_id) const {
+  GridObject* grid_obj = _grid->object(object_id);
+  if (!grid_obj) {
+    return nullptr;
+  }
+
+  return dynamic_cast<HasInventory*>(grid_obj);
+}
+
+std::string ResourceManager::_get_group_name(HasInventory* obj) const {
+  // Try to cast to Agent first to get group_name
+  Agent* agent = dynamic_cast<Agent*>(obj);
+  if (agent) {
+    return agent->group_name;
+  }
+
+  // For converters and other objects, use empty string
+  return "";
 }
 
 void ResourceManager::_validate_object_id(GridObjectId id) const {
-  if (id == 0 || id >= _grid->objects.size()) {
+  if (!_get_inventory_object(id)) {
     throw std::runtime_error("Invalid object ID: " + std::to_string(id));
   }
 }
 
-// Team-based resource operations
-InventoryQuantity ResourceManager::get_team_total_inventory(unsigned int team_id, InventoryItem item) const {
-  InventoryQuantity total = 0;
+void ResourceManager::_update_group_maps() {
+  _objects_by_group.clear();
 
-  // Sum from agents
-  const auto& agents = get_agents_by_team(team_id);
-  for (const Agent* agent : agents) {
-    auto it = agent->inventory.find(item);
-    if (it != agent->inventory.end()) {
-      total += it->second;
-    }
-  }
-
-  // Sum from converters
-  const auto& converters = get_converters_by_team(team_id);
-  for (const Converter* converter : converters) {
-    auto it = converter->inventory.find(item);
-    if (it != converter->inventory.end()) {
-      total += it->second;
-    }
-  }
-
-  return total;
-}
-
-void ResourceManager::distribute_resources_to_team(unsigned int team_id, InventoryItem item, InventoryQuantity total_amount) {
-  const auto& agents = get_agents_by_team(team_id);
-  if (agents.empty()) return;
-
-  // Distribute evenly among agents
-  InventoryQuantity per_agent = total_amount / agents.size();
-  InventoryQuantity remainder = total_amount % agents.size();
-
-  for (size_t i = 0; i < agents.size(); ++i) {
-    InventoryQuantity amount = per_agent + (i < remainder ? 1 : 0);
-    if (amount > 0) {
-      modify_agent_inventory(agents[i]->id, item, static_cast<InventoryDelta>(amount));
-    }
-  }
-}
-
-void ResourceManager::_update_team_maps() {
-  // Clear existing maps
-  _agents_by_team.clear();
-  _converters_by_team.clear();
-
-  // Rebuild maps from current grid state
+  // Iterate through all objects in the grid
   for (size_t i = 0; i < _grid->objects.size(); ++i) {
-    GridObject* obj = _grid->objects[i].get();
-    if (!obj) continue;
+    GridObject* grid_obj = _grid->objects[i].get();
+    HasInventory* inventory_obj = dynamic_cast<HasInventory*>(grid_obj);
 
-    if (Agent* agent = dynamic_cast<Agent*>(obj)) {
-      _agents_by_team[agent->group].push_back(agent);
-    } else if (Converter* converter = dynamic_cast<Converter*>(obj)) {
-      // Converters are neutral objects, assign them to team 0
-      _converters_by_team[0].push_back(converter);
+    if (inventory_obj) {
+      std::string group_name = _get_group_name(inventory_obj);
+      _objects_by_group[group_name].push_back(inventory_obj);
     }
   }
 }
 
-void ResourceManager::on_inventory_changed(GridObjectId object_id, InventoryItem item, InventoryDelta delta) {
-  // This method is called whenever an object's inventory changes
-  // You can implement any logic here that needs to respond to inventory changes
+void ResourceManager::_update_inventory_totals() {
+  _group_inventory_totals.clear();
 
-  // Example: Log inventory changes, update team totals, trigger events, etc.
-  // For now, this is a placeholder that can be extended
+  // Recalculate all group inventory totals
+  for (const auto& [group_name, objects] : _objects_by_group) {
+    auto& group_totals = _group_inventory_totals[group_name];
 
-  // You could add logic like:
-  // - Update team resource totals
-  // - Trigger resource sharing between team members
-  // - Log inventory changes for debugging
-  // - Update statistics or metrics
+    for (const auto* obj : objects) {
+      const auto& inventory = obj->get_inventory();
+      for (const auto& [item, quantity] : inventory) {
+        group_totals[item] += quantity;
+      }
+    }
+  }
 }
