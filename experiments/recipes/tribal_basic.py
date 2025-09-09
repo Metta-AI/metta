@@ -286,10 +286,6 @@ class TribalNimPlayTool(Tool):
             service_running.clear()
             print("🧹 Neural network service stopped")
 
-        except Exception as e:
-            print(f"❌ Error setting up neural network: {e}")
-            return 1
-
     def _run_nim_builtin_ai(self) -> int:
         """
         Launch Nim environment with built-in AI (no neural network).
