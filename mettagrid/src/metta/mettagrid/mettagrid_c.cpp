@@ -74,10 +74,11 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _stats = std::make_unique<StatsTracker>();
   _stats->set_environment(this);
 
-  _event_manager->init(_grid.get());
+  _event_manager->init(_grid.get(), this);
   _event_manager->event_handlers.insert(
       {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
   _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
+  _event_manager->event_handlers.insert({EventType::StochasticResourceLoss, std::make_unique<StochasticResourceLossHandler>(_event_manager.get())});
 
   _action_success.resize(num_agents);
 
@@ -285,6 +286,8 @@ void MettaGrid::init_action_handlers() {
 
 void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
+  agent->set_event_manager(_event_manager.get());
+  agent->set_rng(&_rng);
   _agents.push_back(agent);
 }
 
@@ -478,35 +481,6 @@ void MettaGrid::_step(Actions actions) {
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       // note that handle_action will assign a penalty for attempting invalid actions as a side effect
       _action_success[agent_idx] = handler->handle_action(agent->id, arg);
-    }
-  }
-
-  // ?? MH handle resource loss from converters here!
-  // Handle resource loss
-  for (auto& agent : _agents) {
-     // Make a real copy of the agent's inventory map to avoid iterator invalidation
-     const auto inventory_copy = agent->inventory;
-     for (const auto& [item, qty] : inventory_copy) {
-       if (qty <= 0) {
-         continue;
-       }
-       // Per-agent resource loss probability
-       float prob = 0.0f;
-       if (auto it = agent->resource_loss_prob.find(item); it != agent->resource_loss_prob.end()) {
-         prob = it->second;
-       }
-       if (prob <= 0.0f) {
-         continue;
-       }
-       double loss = static_cast<double>(prob) * qty;
-       int lost = static_cast<int>(std::floor(loss));
-       // With probability equal to the fractional part, lose one more
-       if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
-         lost += 1;
-       }
-       if (lost > 0) {
-         agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
-      }
     }
   }
 
@@ -908,6 +882,12 @@ const std::string& StatsTracker::resource_name(InventoryItem item) const {
   return _env->resource_names[item];
 }
 
+void MettaGrid::schedule_inventory_reduction(unsigned int agent_id, unsigned int delay) {
+  // Schedule a stochastic resource loss event for the specified agent
+  // The agent_id is passed as the EventArg since we need to identify which agent to affect
+  _event_manager->schedule_event(EventType::StochasticResourceLoss, delay, 0, agent_id);
+}
+
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
@@ -938,6 +918,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)
+      .def("schedule_inventory_reduction", &MettaGrid::schedule_inventory_reduction,
+           py::arg("agent_id"), py::arg("delay"))
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)

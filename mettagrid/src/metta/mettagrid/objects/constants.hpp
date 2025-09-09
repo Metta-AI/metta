@@ -10,6 +10,7 @@
 enum EventType {
   FinishConverting = 0,
   CoolDown = 1,
+  StochasticResourceLoss = 2,
   EventTypeCount
 };
 

@@ -86,6 +86,9 @@ public:
   py::list object_type_names_py();
   py::list resource_names_py();
 
+  // Schedule inventory reduction event for a specific agent
+  void schedule_inventory_reduction(unsigned int agent_id, unsigned int delay);
+
   uint64_t initial_grid_hash;
 
   using Actions = py::array_t<ActionType, py::array::c_style>;
