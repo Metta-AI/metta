@@ -26,28 +26,6 @@ public:
   void register_object(HasInventory* obj);
   void unregister_inventory_object(GridObjectId object_id);
 
-  // Group-based access methods (using group_name for agents, "" for converters)
-  const std::vector<HasInventory*>& get_objects_by_group(const std::string& group_name) const;
-  std::vector<std::string> get_all_groups() const;
-
-  // Inventory management (works with any HasInventory object)
-  InventoryDelta modify_inventory(GridObjectId object_id, InventoryItem item, InventoryDelta delta);
-  InventoryQuantity get_inventory(GridObjectId object_id, InventoryItem item) const;
-  const std::map<InventoryItem, InventoryQuantity>& get_inventory(GridObjectId object_id) const;
-
-  // Utility methods
-  std::vector<GridObjectId> get_all_inventory_object_ids() const;
-  bool is_inventory_object(GridObjectId id) const;
-
-  // Resource transfer between objects
-  InventoryDelta transfer_resource(GridObjectId from_id, GridObjectId to_id, InventoryItem item, InventoryQuantity amount);
-
-  // Group-based resource operations
-  InventoryQuantity get_group_total_inventory(const std::string& group_name, InventoryItem item) const;
-  void distribute_resources_to_group(const std::string& group_name, InventoryItem item, InventoryQuantity total_amount);
-
-  // Weighted random selection methods
-  GridObjectId select_random_object_by_resource(const std::string& group_name, InventoryItem item);
 
   // Inventory change callback
   void on_inventory_changed(GridObjectId object_id, InventoryItem item, InventoryDelta delta);
