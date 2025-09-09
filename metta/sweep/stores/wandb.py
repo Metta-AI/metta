@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, List
+from typing import Any, List, Optional
 
 import wandb
 
@@ -57,27 +57,42 @@ class WandbStore:
             # Re-raise to prevent dispatch - critical for resource management
             raise RuntimeError(f"Failed to initialize WandB run {run_id}: {e}") from e
 
-    def fetch_runs(self, filters: dict) -> List[RunInfo]:
-        """Fetch runs matching filter criteria."""
+    def fetch_runs(self, filters: dict, limit: Optional[int] = None) -> List[RunInfo]:
+        """Fetch runs matching filter criteria.
+
+        Args:
+            filters: Dictionary of filter criteria
+            limit: Maximum number of runs to fetch (None for no limit)
+        """
         # Create fresh API instance to avoid caching
         api = wandb.Api()
 
-        # Convert sweep_id filter to group filter for WandB
+        # Convert filters to WandB format
         wandb_filters = {}
         if "sweep_id" in filters:
             wandb_filters["group"] = filters["sweep_id"]
         elif "group" in filters:
             wandb_filters["group"] = filters["group"]
+        
+        # Handle name filter (regex pattern)
+        if "name" in filters and "regex" in filters["name"]:
+            wandb_filters["name"] = {"$regex": filters["name"]["regex"]}
 
         logger.debug(f"[WandbStore] Fetching runs with filters: {wandb_filters}")
 
         try:
-            runs = api.runs(f"{self.entity}/{self.project}", filters=wandb_filters)
+            # Fetch runs ordered by creation time (newest first)
+            runs = api.runs(f"{self.entity}/{self.project}", filters=wandb_filters, order="-created_at")
+            
             run_infos = []
+            count = 0
             for run in runs:
+                if limit is not None and count >= limit:
+                    break
                 try:
                     info = self._convert_run_to_info(run)
                     run_infos.append(info)
+                    count += 1
                     logger.debug(f"[WandbStore] Converted run {run.id}: state={run.state}, status={info.status}")
                 except Exception as e:
                     logger.warning(f"[WandbStore] Failed to convert run {run.id}: {e}")

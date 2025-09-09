@@ -13,13 +13,13 @@ class TestConstants:
         """Test that SKYPILOT_LAUNCH_PATH points to an existing file."""
         # Convert to Path for easier testing
         launch_path = Path(SKYPILOT_LAUNCH_PATH)
-        
+
         # Check that the path exists
         assert launch_path.exists(), f"SKYPILOT_LAUNCH_PATH does not exist: {SKYPILOT_LAUNCH_PATH}"
-        
+
         # Check that it's a file (not a directory)
         assert launch_path.is_file(), f"SKYPILOT_LAUNCH_PATH is not a file: {SKYPILOT_LAUNCH_PATH}"
-        
+
         # Check that the file is readable
         assert os.access(launch_path, os.R_OK), f"SKYPILOT_LAUNCH_PATH is not readable: {SKYPILOT_LAUNCH_PATH}"
 

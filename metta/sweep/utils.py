@@ -3,21 +3,18 @@
 import argparse
 import hashlib
 import logging
-import os
 import sys
 import time
 from typing import Any, Dict, List, Optional
-<<<<<<< HEAD
 
 from metta.sweep.models import JobDefinition, JobTypes, RunInfo, SweepMetadata
-
-
 from datetime import datetime
 
 from rich.console import Console, Group
 from rich.live import Live
 from rich.table import Table
 from rich.text import Text
+
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +73,9 @@ def make_monitor_table(
         if include_score:
             score_str = f"{run.observation.score:.4f}" if run.observation else "N/A"
             cost_str = f"${run.observation.cost:.2f}" if run.observation else "N/A"
-            lines.append(f"{prefix}{display_id:<25} {str(run.status):<25} {progress_str:<30} {score_str:<15} {cost_str:<10}")
+            lines.append(
+                f"{prefix}{display_id:<25} {str(run.status):<25} {progress_str:<30} {score_str:<15} {cost_str:<10}"
+            )
         else:
             lines.append(f"{prefix}{display_id:<25} {str(run.status):<25} {progress_str:<30}")
 
@@ -321,13 +320,7 @@ def make_rich_monitor_table(runs: List["RunInfo"], sweep_metadata: Optional["Swe
         status_color = _get_status_color(str(run.status))
         status_text = Text(str(run.status), style=status_color)
 
-        table.add_row(
-            run_id_text,
-            status_text,
-            progress_str,
-            score_str,
-            cost_str
-        )
+        table.add_row(run_id_text, status_text, progress_str, score_str, cost_str)
 
     return table
 
@@ -343,6 +336,7 @@ def create_sweep_banner(sweep_id: str, runs: List["RunInfo"], start_time: Option
             created_at = run.created_at
             if isinstance(created_at, str):
                 from dateutil import parser
+
                 created_at = parser.parse(created_at)
 
             if earliest_created is None or created_at < earliest_created:
@@ -351,6 +345,7 @@ def create_sweep_banner(sweep_id: str, runs: List["RunInfo"], start_time: Option
     if earliest_created:
         # Use timezone-aware current time to match WandB timestamps
         from datetime import timezone
+
         current_time = datetime.now(timezone.utc) if earliest_created.tzinfo else datetime.now()
         runtime = current_time - earliest_created
         runtime_hours = runtime.total_seconds() / 3600.0
@@ -359,11 +354,11 @@ def create_sweep_banner(sweep_id: str, runs: List["RunInfo"], start_time: Option
         runtime_str = "Unknown"
 
     # Count runs by status - handle JobStatus enum
-    from metta.sweep.models import JobStatus
+
     status_counts = {}
     for run in runs:
         # Get the enum value name without the prefix
-        status = run.status.name if hasattr(run.status, 'name') else str(run.status)
+        status = run.status.name if hasattr(run.status, "name") else str(run.status)
         status_counts[status] = status_counts.get(status, 0) + 1
 
     total_runs = len(runs)
@@ -381,13 +376,19 @@ def create_sweep_banner(sweep_id: str, runs: List["RunInfo"], start_time: Option
         f"📊 Runs: {total_runs} total | ✅ {completed_runs} completed | 🔄 {in_training} training | ⏳ {pending} pending | ❌ {failed} failed",
         f"💰 Total Cost: ${total_cost:.2f}",
         f"🔄 Last Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "─" * 100
+        "─" * 100,
     ]
 
     return "\n".join(banner_lines)
 
 
-def live_monitor_sweep(sweep_id: str, refresh_interval: int = 30, entity: str = "metta-research", project: str = "metta", clear_screen: bool = True) -> None:
+def live_monitor_sweep(
+    sweep_id: str,
+    refresh_interval: int = 30,
+    entity: str = "metta-research",
+    project: str = "metta",
+    clear_screen: bool = True,
+) -> None:
     """Live monitor a sweep with rich terminal display."""
 
     try:
@@ -418,7 +419,7 @@ def live_monitor_sweep(sweep_id: str, refresh_interval: int = 30, entity: str = 
             display = Group(
                 Text(banner),
                 Text(""),  # Empty line
-                table
+                table,
             )
             return display
 
@@ -446,8 +447,9 @@ def live_monitor_sweep(sweep_id: str, refresh_interval: int = 30, entity: str = 
 
 def live_monitor_sweep_test(sweep_id: str, refresh_interval: int = 30, clear_screen: bool = True) -> None:
     """Test mode for live sweep monitoring with mock data."""
-    from datetime import datetime, timedelta
-    from metta.sweep.models import RunInfo, JobStatus, Observation
+    from datetime import datetime
+
+    from metta.sweep.models import Observation, RunInfo
 
     console = Console()
     start_time = datetime.now()
@@ -476,14 +478,14 @@ def live_monitor_sweep_test(sweep_id: str, refresh_interval: int = 30, clear_scr
                 current_steps=current_steps,
                 total_timesteps=total_steps,
                 cost=cost,
-                observation=observation
+                observation=observation,
             )
             # Manually set status since it's a property
-            run.has_failed = (status == "FAILED")
-            run.has_started_training = (status != "PENDING")
-            run.has_completed_training = (status in ["COMPLETED", "TRAINING_DONE_NO_EVAL", "IN_EVAL"])
-            run.has_started_eval = (status in ["IN_EVAL", "COMPLETED"])
-            run.has_been_evaluated = (status == "COMPLETED")
+            run.has_failed = status == "FAILED"
+            run.has_started_training = status != "PENDING"
+            run.has_completed_training = status in ["COMPLETED", "TRAINING_DONE_NO_EVAL", "IN_EVAL"]
+            run.has_started_eval = status in ["IN_EVAL", "COMPLETED"]
+            run.has_been_evaluated = status == "COMPLETED"
 
             mock_runs.append(run)
 
@@ -502,7 +504,7 @@ def live_monitor_sweep_test(sweep_id: str, refresh_interval: int = 30, clear_scr
                 progress_boost = int(elapsed * 1000000)  # 1M steps per second
                 training_run.current_steps = min(
                     training_run.current_steps + progress_boost,
-                    training_run.total_timesteps or training_run.current_steps + progress_boost
+                    training_run.total_timesteps or training_run.current_steps + progress_boost,
                 )
 
             # Create banner
@@ -516,7 +518,7 @@ def live_monitor_sweep_test(sweep_id: str, refresh_interval: int = 30, clear_scr
                 Text(banner),
                 Text(""),
                 table,
-                Text("\n[TEST MODE] This is mock data for testing purposes", style="bright_yellow")
+                Text("\n[TEST MODE] This is mock data for testing purposes", style="bright_yellow"),
             )
             return display
 
@@ -552,12 +554,7 @@ def main():
 
     args = parser.parse_args()
 
-    live_monitor_sweep(
-        sweep_id=args.sweep_id,
-        refresh_interval=args.refresh,
-        entity=args.entity,
-        project=args.project
-    )
+    live_monitor_sweep(sweep_id=args.sweep_id, refresh_interval=args.refresh, entity=args.entity, project=args.project)
 
 
 if __name__ == "__main__":

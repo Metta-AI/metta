@@ -19,8 +19,8 @@ def get_runtime_hours(run) -> Optional[float]:
     """Get runtime in hours from the run's summary _runtime attribute."""
     try:
         # Runtime is stored as _runtime in run.summary (in seconds)
-        if hasattr(run.summary, 'get'):
-            runtime_seconds = run.summary.get('_runtime', None)
+        if hasattr(run.summary, "get"):
+            runtime_seconds = run.summary.get("_runtime", None)
             if runtime_seconds is not None and runtime_seconds > 0:
                 runtime_hours = runtime_seconds / 3600.0
                 return runtime_hours
@@ -35,7 +35,7 @@ def fix_sweep_costs(
     entity: str = "metta-research",
     project: str = "metta",
     cost_per_hour: float = 4.6,
-    dry_run: bool = False
+    dry_run: bool = False,
 ) -> None:
     """Fix cost values for all runs in a sweep."""
 
@@ -49,10 +49,7 @@ def fix_sweep_costs(
 
     # Fetch runs for the sweep
     try:
-        runs = api.runs(
-            f"{entity}/{project}",
-            filters={"group": sweep_id}
-        )
+        runs = api.runs(f"{entity}/{project}", filters={"group": sweep_id})
     except Exception as e:
         console.print(f"[red]Error fetching runs: {e}[/red]")
         return
@@ -76,14 +73,7 @@ def fix_sweep_costs(
             runtime_hours = get_runtime_hours(run)
 
             if runtime_hours is None:
-                table.add_row(
-                    run.id,
-                    run.state,
-                    "N/A",
-                    "N/A",
-                    "N/A",
-                    "⚠️ No runtime"
-                )
+                table.add_row(run.id, run.state, "N/A", "N/A", "N/A", "⚠️ No runtime")
                 skipped_count += 1
                 continue
 
@@ -92,8 +82,8 @@ def fix_sweep_costs(
 
             # Get old cost if exists
             old_cost = None
-            if hasattr(run.summary, 'get'):
-                old_cost = run.summary.get('cost', 0.0)
+            if hasattr(run.summary, "get"):
+                old_cost = run.summary.get("cost", 0.0)
                 if old_cost is None:
                     old_cost = 0.0
 
@@ -103,15 +93,15 @@ def fix_sweep_costs(
                 "runtime_hours": runtime_hours,
                 "cost_per_hour": cost_per_hour,
                 "cost_fixed_by_script": True,
-                "cost_fixed_at": datetime.now().isoformat()
+                "cost_fixed_at": datetime.now().isoformat(),
             }
 
             # Also update observation if it exists
-            if hasattr(run.summary, 'get') and run.summary.get('observation'):
-                observation = run.summary.get('observation', {})
+            if hasattr(run.summary, "get") and run.summary.get("observation"):
+                observation = run.summary.get("observation", {})
                 if isinstance(observation, dict):
-                    observation['cost'] = new_cost
-                    update_dict['observation'] = observation
+                    observation["cost"] = new_cost
+                    update_dict["observation"] = observation
 
             # Apply update if not dry run
             if not dry_run:
@@ -128,7 +118,7 @@ def fix_sweep_costs(
                 f"{runtime_hours:.2f}",
                 f"${old_cost:.2f}" if old_cost else "$0.00",
                 f"${new_cost:.2f}",
-                status
+                status,
             )
 
         except Exception as e:
@@ -139,7 +129,7 @@ def fix_sweep_costs(
                 "ERROR",
                 "ERROR",
                 "ERROR",
-                f"❌ {str(e)[:20]}"
+                f"❌ {str(e)[:20]}",
             )
             error_count += 1
 
@@ -157,42 +147,24 @@ def fix_sweep_costs(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Fix cost values for runs in a sweep based on runtime"
-    )
+    parser = argparse.ArgumentParser(description="Fix cost values for runs in a sweep based on runtime")
     parser.add_argument(
         "sweep_id",
         nargs="?",
         default="axel.sweep.test_skypilot_1932",
-        help="Sweep ID to fix costs for (default: axel.sweep.test_skypilot_1932)"
+        help="Sweep ID to fix costs for (default: axel.sweep.test_skypilot_1932)",
     )
-    parser.add_argument(
-        "--entity", "-e",
-        default="metta-research",
-        help="WandB entity (default: metta-research)"
-    )
-    parser.add_argument(
-        "--project", "-p",
-        default="metta",
-        help="WandB project (default: metta)"
-    )
-    parser.add_argument(
-        "--cost-per-hour", "-c",
-        type=float,
-        default=4.6,
-        help="Cost per hour in USD (default: 4.6)"
-    )
-    parser.add_argument(
-        "--apply",
-        action="store_true",
-        help="Actually apply the changes (default is dry run)"
-    )
+    parser.add_argument("--entity", "-e", default="metta-research", help="WandB entity (default: metta-research)")
+    parser.add_argument("--project", "-p", default="metta", help="WandB project (default: metta)")
+    parser.add_argument("--cost-per-hour", "-c", type=float, default=4.6, help="Cost per hour in USD (default: 4.6)")
+    parser.add_argument("--apply", action="store_true", help="Actually apply the changes (default is dry run)")
 
     args = parser.parse_args()
 
     # Check WandB authentication
     try:
         import wandb
+
         if not wandb.api.api_key:
             console.print("[red]Error: WandB API key not found. Please run 'wandb login' first.[/red]")
             return 1
@@ -207,7 +179,7 @@ def main():
             entity=args.entity,
             project=args.project,
             cost_per_hour=args.cost_per_hour,
-            dry_run=not args.apply
+            dry_run=not args.apply,
         )
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted by user[/yellow]")
