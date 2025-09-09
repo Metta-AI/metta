@@ -14,6 +14,7 @@ TECHNICAL NOTES:
 import subprocess
 import sys
 import os
+import json
 from pathlib import Path
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -98,14 +99,17 @@ class TribalTaskGeneratorConfig(TaskGeneratorConfig):
         return SimpleTribalTaskGenerator(self)
 
 
-class NimPlayTool(Tool):
-    """Tool for launching the Nim-based tribal viewer directly."""
+class TribalNimPlayTool(Tool):
+    """Tool for playing tribal environment using Nim viewer with Python configuration."""
     
     env_config: TribalEnvConfig
     policy_uri: str | None = None
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        """Launch the Nim tribal viewer."""
+        """Launch Nim tribal viewer with Python-configured environment."""
+        # Ensure tribal bindings are built first
+        _ensure_tribal_bindings_built()
+        
         # Find the metta project root and tribal directory
         metta_root = Path(__file__).parent.parent.parent
         tribal_dir = metta_root / "tribal"
@@ -115,18 +119,43 @@ class NimPlayTool(Tool):
             print(f"❌ Tribal directory not found at {tribal_dir}")
             return 1
         
-        print("🎮 Launching Nim tribal viewer...")
+        print("🎮 Launching Nim tribal viewer with Python configuration...")
         print(f"📁 Working directory: {tribal_dir}")
+        print(f"🔧 Config: max_steps={self.env_config.game.max_steps}, enable_combat={self.env_config.game.enable_combat}")
+        print(f"⚙️  Config: ore_per_battery={self.env_config.game.ore_per_battery}, clippy_spawn_rate={self.env_config.game.clippy_spawn_rate}")
         
-        # Build and run the Nim visualization
+        # Create a temporary config file with the Python configuration
+        temp_config_file = tribal_dir / "temp_play_config.json"
+        
         try:
+            # Convert TribalEnvConfig to a format Nim can understand
+            nim_config = {
+                "max_steps": self.env_config.game.max_steps,
+                "ore_per_battery": self.env_config.game.ore_per_battery,
+                "batteries_per_heart": self.env_config.game.batteries_per_heart,
+                "enable_combat": self.env_config.game.enable_combat,
+                "clippy_spawn_rate": self.env_config.game.clippy_spawn_rate,
+                "clippy_damage": self.env_config.game.clippy_damage,
+                "heart_reward": self.env_config.game.heart_reward,
+                "ore_reward": self.env_config.game.ore_reward,
+                "battery_reward": self.env_config.game.battery_reward,
+                "survival_penalty": self.env_config.game.survival_penalty,
+                "death_penalty": self.env_config.game.death_penalty,
+            }
+            
+            # Write config to temp file
+            with open(temp_config_file, 'w') as f:
+                json.dump(nim_config, f, indent=2)
+            
+            print(f"📄 Created config file: {temp_config_file}")
+            
             # Change to tribal directory
             original_dir = os.getcwd()
             os.chdir(tribal_dir)
             
-            # Run the Nim viewer using nimble
+            # Run the Nim viewer with config file argument
             result = subprocess.run(
-                ["nimble", "visualize"],
+                ["nimble", "visualize", "--config", str(temp_config_file)],
                 capture_output=False,  # Let output show directly
                 text=True
             )
@@ -140,6 +169,11 @@ class NimPlayTool(Tool):
             print(f"❌ Error launching Nim viewer: {e}")
             return 1
         finally:
+            # Clean up temp config file
+            if temp_config_file.exists():
+                temp_config_file.unlink()
+                print(f"🗑️  Removed temp config file: {temp_config_file}")
+            
             # Restore original directory
             try:
                 os.chdir(original_dir)
@@ -154,7 +188,21 @@ def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
 
 
 def make_tribal_environment(
-    max_steps: int = None, enable_combat: bool = None, **kwargs
+    max_steps: int = None, 
+    enable_combat: bool = None,
+    # Resource configuration
+    ore_per_battery: int = None,
+    batteries_per_heart: int = None,
+    # Combat configuration  
+    clippy_spawn_rate: float = None,
+    clippy_damage: int = None,
+    # Reward configuration
+    heart_reward: float = None,
+    ore_reward: float = None,
+    battery_reward: float = None,
+    survival_penalty: float = None,
+    death_penalty: float = None,
+    **kwargs
 ) -> TribalEnvConfig:
     """
     Create tribal environment configuration for training.
@@ -172,19 +220,54 @@ def make_tribal_environment(
     Args:
         max_steps: Maximum steps per episode (uses Nim default if None)
         enable_combat: Enable combat with Clippys (uses Nim default if None)
-        **kwargs: Additional configuration overrides
+        ore_per_battery: Ore required to craft battery
+        batteries_per_heart: Batteries required at altar for hearts
+        clippy_spawn_rate: Rate of enemy spawning (0.0-1.0)
+        clippy_damage: Damage dealt by enemies
+        heart_reward: Reward for creating hearts
+        ore_reward: Reward for collecting ore
+        battery_reward: Reward for crafting batteries
+        survival_penalty: Per-step survival penalty
+        death_penalty: Penalty for agent death
+        **kwargs: Additional configuration overrides for TribalEnvConfig (not game config)
     """
-    # Create with default factory
-    config = TribalEnvConfig(label="tribal_basic", desync_episodes=True, **kwargs)
-
-    # Override only specified parameters
+    from metta.sim.tribal_genny import TribalGameConfig
+    
+    # Build game configuration with overrides
+    game_overrides = {}
     if max_steps is not None:
-        config.game.max_steps = max_steps
+        game_overrides["max_steps"] = max_steps
     if enable_combat is not None:
-        config.game.enable_combat = enable_combat
-
-    # Note: heart_reward, battery_reward, ore_reward now come from Nim defaults
-    # No longer hardcoded here - single source of truth in Nim
+        game_overrides["enable_combat"] = enable_combat
+    if ore_per_battery is not None:
+        game_overrides["ore_per_battery"] = ore_per_battery
+    if batteries_per_heart is not None:
+        game_overrides["batteries_per_heart"] = batteries_per_heart
+    if clippy_spawn_rate is not None:
+        game_overrides["clippy_spawn_rate"] = clippy_spawn_rate
+    if clippy_damage is not None:
+        game_overrides["clippy_damage"] = clippy_damage
+    if heart_reward is not None:
+        game_overrides["heart_reward"] = heart_reward
+    if ore_reward is not None:
+        game_overrides["ore_reward"] = ore_reward
+    if battery_reward is not None:
+        game_overrides["battery_reward"] = battery_reward
+    if survival_penalty is not None:
+        game_overrides["survival_penalty"] = survival_penalty
+    if death_penalty is not None:
+        game_overrides["death_penalty"] = death_penalty
+    
+    # Create game config with overrides
+    game_config = TribalGameConfig(**game_overrides)
+    
+    # Create environment config with custom game config
+    config = TribalEnvConfig(
+        label="tribal_basic", 
+        desync_episodes=True, 
+        game=game_config,
+        **kwargs
+    )
 
     return config
 
@@ -244,20 +327,23 @@ def evaluate(
 
 def play(
     env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
-) -> "NimPlayTool":
+) -> TribalNimPlayTool:
     """
-    Interactive play with the tribal environment using direct Nim execution.
+    Interactive play with the tribal environment using Nim viewer with Python configuration.
 
-    This version launches the Nim-based tribal viewer directly, bypassing the Python
-    play infrastructure for better performance and native Nim rendering.
+    This creates a TribalNimPlayTool that uses the Python-configured environment
+    and passes it to the native Nim viewer, allowing for custom configs to be used.
 
     Args:
-        env: Optional tribal environment config (unused in Nim version)
-        policy_uri: Optional URI to trained policy (future feature)
+        env: Optional tribal environment config
+        policy_uri: Optional URI to trained policy
         **overrides: Additional configuration overrides
     """
-    return NimPlayTool(
-        env_config=env or make_tribal_environment(),
+    # Use the configured tribal environment, or create default
+    play_env = env or make_tribal_environment()
+    
+    return TribalNimPlayTool(
+        env_config=play_env,
         policy_uri=policy_uri,
         **overrides,
     )
