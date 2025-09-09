@@ -1372,7 +1372,7 @@ proc defaultEnvironmentConfig*(): EnvironmentConfig =
     
     # Combat configuration
     enableCombat: true,
-    clippySpawnRate: 0.25,
+    clippySpawnRate: 1.0,
     clippyDamage: 1,
     
     # Reward configuration (only arena_basic_easy_shaped rewards active)

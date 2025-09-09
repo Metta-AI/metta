@@ -62,20 +62,21 @@ type
 
 # Helper procedure to create default config
 proc defaultTribalConfig*(): TribalConfig =
-  ## Create default tribal configuration
+  ## Create default tribal configuration by referencing environment defaults
+  let envDefaults = defaultEnvironmentConfig()
   TribalConfig(
     game: TribalGameConfig(
-      maxSteps: 2000,
-      orePerBattery: 3,
-      batteriesPerHeart: 2,
-      enableCombat: true,
-      clippySpawnRate: 0.25,
-      clippyDamage: 1,
-      heartReward: 1.0,
-      oreReward: 0.1,
-      batteryReward: 0.8,
-      survivalPenalty: -0.01,
-      deathPenalty: -5.0
+      maxSteps: envDefaults.maxSteps,
+      orePerBattery: envDefaults.orePerBattery,
+      batteriesPerHeart: envDefaults.batteriesPerHeart,
+      enableCombat: envDefaults.enableCombat,
+      clippySpawnRate: envDefaults.clippySpawnRate,
+      clippyDamage: envDefaults.clippyDamage,
+      heartReward: envDefaults.heartReward,
+      oreReward: envDefaults.oreReward,
+      batteryReward: envDefaults.batteryReward,
+      survivalPenalty: envDefaults.survivalPenalty,
+      deathPenalty: envDefaults.deathPenalty
     ),
     desyncEpisodes: true
   )
