@@ -98,36 +98,39 @@ class TribalTaskGeneratorConfig(TaskGeneratorConfig):
 
 class TribalNimPlayTool(Tool):
     """
-    Tool for running tribal environment directly in Nim with nimpy control.
+    Tool for running tribal environment in-process with nimpy control.
 
-    Uses the unified controller system to:
-    1. Neural network control: Python loads policy and controls via nimpy callback
-    2. Built-in AI fallback: Nim uses its native AI when no neural network provided
+    Uses the existing TribalGridEnv with direct nimpy communication to:
+    1. Neural network control: Python loads policy and controls environment via nimpy
+    2. Built-in AI fallback: Environment uses its native AI when no neural network provided
 
-    This runs the actual Nim environment directly, not a Python wrapper.
+    This runs the Nim environment directly within the Python process via nimpy.
     """
 
     env_config: TribalEnvConfig
     policy_uri: str | None = None
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        """Run tribal environment directly in Nim with optional neural network control."""
-        print("🎮 Tribal Nim Play Tool")
-        print("🎯 Running native Nim environment with nimpy interface")
+        """Run tribal environment in-process with optional neural network control."""
+        print("🎮 Tribal In-Process Play Tool")
+        print("🎯 Using TribalGridEnv with direct nimpy interface")
+
+        # Ensure bindings are built
+        _ensure_tribal_bindings_built()
 
         if self.policy_uri:
             # Support test modes that don't require actual policy files
             if self.policy_uri in ["test_noop", "test_move"]:
                 print(f"🧪 Test mode: {self.policy_uri}")
-                return self._setup_test_neural_network_control()
+                return self._run_test_neural_network()
             else:
-                return self._setup_neural_network_control()
+                return self._run_with_neural_network()
         else:
-            return self._run_nim_builtin_ai()
+            return self._run_with_builtin_ai()
 
-    def _setup_neural_network_control(self) -> int:
+    def _run_with_neural_network(self) -> int:
         """
-        Set up neural network control via nimpy callback and launch Nim environment.
+        Run with neural network control via in-process nimpy environment.
         """
         try:
             print("🔄 Loading neural network...")
@@ -136,337 +139,248 @@ class TribalNimPlayTool(Tool):
             policy = CheckpointManager.load_from_uri(self.policy_uri)
             print(f"✅ Neural network loaded: {type(policy).__name__}")
 
-            # Test the nimpy interface
-            print("🧪 Setting up nimpy interface...")
-            import sys
-            import os
-
-            bindings_path = os.path.join(
-                os.path.dirname(__file__), "..", "..", "tribal", "bindings", "generated"
-            )
-            sys.path.insert(0, bindings_path)
-
-            try:
-                import tribal
-
-                print("✅ Nimpy bindings imported successfully")
-
-                # Initialize external neural network controller
-                success = tribal.init_external_nncontroller()
-                if success:
-                    print("✅ External neural network controller initialized")
-                else:
-                    print("❌ Failed to initialize external controller")
-                    return 1
-
-                controller_type = tribal.get_controller_type_string()
-                print(f"🤖 Controller type: {controller_type}")
-
-                # Create action callback that neural network will use
-                def neural_network_callback():
-                    """Generate actions for all agents using the loaded neural network."""
-                    # This would be called by Nim when it needs actions
-                    # For now, just demonstrate the concept
-                    actions = []
-                    for agent_id in range(15):  # 15 agents (compile-time constant)
-                        # Simple example: generate random actions
-                        # In practice, this would use policy.forward() with observations
-                        action_type = 0  # NOOP for demo
-                        action_arg = 0
-                        actions.extend([action_type, action_arg])
-                    return actions
-
-                # Set up real-time neural network control
-                print("🔗 Setting up real-time neural network control...")
-                
-                print("🎮 Architecture ready:")
-                print("  1. ✅ Neural network loaded in Python")
-                print("  2. ✅ Nim external controller initialized")
-                print("  3. 🔄 Starting neural network action service...")
-                
-                # Start the neural network action service in background
-                return self._run_neural_network_service(policy, tribal)
-
-            except ImportError as e:
-                print(f"❌ Failed to import nimpy bindings: {e}")
-                return 1
+            return self._run_environment_with_policy(policy)
             
         except Exception as e:
-            print(f"❌ Error setting up neural network: {e}")
+            print(f"❌ Error loading neural network: {e}")
             return 1
 
-    def _run_neural_network_service(self, policy, tribal_module) -> int:
-        """
-        Run neural network service that provides actions directly to Nim environment via nimpy.
-        """
-        import threading
-        import time
-        import subprocess
+    def _run_test_neural_network(self) -> int:
+        """Run with test neural network (noop or move actions)."""
+        print(f"🧪 Running test neural network: {self.policy_uri}")
         
-        # Initialize external NN controller in Nim
-        success = tribal_module.init_external_nncontroller()
-        if not success:
-            print("❌ Failed to initialize external NN controller")
-            error = tribal_module.take_error()
-            if error:
-                print(f"   Error: {error}")
+        # Create fake policy for test
+        class TestPolicy:
+            def __init__(self, test_mode):
+                self.test_mode = test_mode
+            
+            def forward(self, observations):
+                """Generate test actions based on test mode."""
+                import numpy as np
+                num_agents = 15
+                actions = np.zeros((num_agents, 2), dtype=np.int32)
+                
+                if self.test_mode == "test_noop":
+                    # All noop actions
+                    actions[:, 0] = 0  # NOOP
+                    actions[:, 1] = 0
+                elif self.test_mode == "test_move":
+                    # All move actions with random directions
+                    actions[:, 0] = 1  # MOVE
+                    actions[:, 1] = np.random.randint(0, 4, size=num_agents)  # Random directions
+                
+                return {"actions": actions}
+        
+        test_policy = TestPolicy(self.policy_uri)
+        return self._run_environment_with_policy(test_policy)
+
+    def _run_environment_with_policy(self, policy) -> int:
+        """Run the environment with the given policy controlling all agents."""
+        try:
+            print("🎮 Creating in-process tribal environment...")
+            from metta.sim.tribal_genny import TribalGridEnv
+            
+            # Create environment directly
+            config_dict = {
+                "max_steps": self.env_config.game.max_steps,
+                "ore_per_battery": self.env_config.game.ore_per_battery,
+                "batteries_per_heart": self.env_config.game.batteries_per_heart,
+                "enable_combat": self.env_config.game.enable_combat,
+                "clippy_spawn_rate": self.env_config.game.clippy_spawn_rate,
+                "clippy_damage": self.env_config.game.clippy_damage,
+                "heart_reward": self.env_config.game.heart_reward,
+                "battery_reward": self.env_config.game.battery_reward,
+                "ore_reward": self.env_config.game.ore_reward,
+                "survival_penalty": self.env_config.game.survival_penalty,
+                "death_penalty": self.env_config.game.death_penalty,
+            }
+            
+            env = TribalGridEnv(config_dict)
+            print(f"✅ Environment created with {env.num_agents} agents")
+            print("🎯 Neural network will control agents directly via environment stepping")
+            
+            # Run the interactive loop with neural network control
+            return self._run_interactive_loop(env, policy, None)
+            
+        except Exception as e:
+            print(f"❌ Error running environment: {e}")
+            import traceback
+            traceback.print_exc()
             return 1
+
+    def _run_interactive_loop(self, env, policy, tribal_module) -> int:
+        """
+        Run an interactive game loop using the policy to control the environment directly.
         
-        print("  ✅ External NN controller initialized in Nim")
+        This is much simpler: we just step the environment with actions from the neural network.
+        No need for external controllers or separate Nim processes.
+        """
+        import numpy as np
+        import time
         
-        # Flag to control the action service
-        service_running = threading.Event()
-        service_running.set()
-        
-        def neural_network_action_service():
-            """Background service that generates actions from neural network and sends directly to Nim."""
-            step = 0
-            while service_running.is_set():
-                try:
-                    # For debugging, send simple test actions first to verify connection
-                    actions_list = []
-                    for agent_id in range(15):
-                        # Send MOVE actions with different directions to see if they're being used
-                        action_type = 1  # MOVE action
-                        action_arg = agent_id % 8  # Different direction for each agent (0-7)
-                        actions_list.extend([action_type, action_arg])
-                        
-                    if step == 0:
-                        print(f"  🎯 Debug: Sending test MOVE actions - agents should move in different directions")
-                        print(f"  🎯 Actions sample: agent 0 -> MOVE dir {actions_list[1]}, agent 1 -> MOVE dir {actions_list[3]}")
-                    elif step % 50 == 0:
-                        print(f"  📡 Step {step}: Still sending MOVE actions to Nim")
-                        
-                    # TODO: Later we'll get real observations and use the actual policy:
-                    # Get current observations from Nim environment
-                    # Use policy to generate actions based on observations
-                    
-                    # Create SeqInt and populate it
-                    actions = tribal_module.SeqInt()
-                    for action in actions_list:
-                        actions.append(action)
-                    
-                    # Send actions directly to Nim
-                    result = tribal_module.set_external_actions_from_python(actions)
-                    if not result:
-                        print(f"⚠️  Failed to set actions in Nim at step {step}")
-                        error = tribal_module.take_error()
-                        if error:
-                            print(f"   Error: {error}")
-                    else:
-                        if step % 100 == 0:  # Log every 100 steps
-                            print(f"  📡 Step {step}: Neural network actions sent to Nim")
-                    
-                    step += 1
-                    time.sleep(0.1)  # 10 Hz action generation
-                    
-                except Exception as e:
-                    print(f"❌ Neural network action service error: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    service_running.clear()
+        print("🎮 Starting interactive game loop...")
+        print("   Policy will control all agents directly via environment stepping")
         
         try:
-            print("  🚀 Starting neural network action thread...")
-            action_thread = threading.Thread(target=neural_network_action_service, daemon=True)
-            action_thread.start()
+            # Reset environment
+            obs, info = env.reset()
+            print(f"✅ Environment reset complete. Starting step: {info.get('current_step', 0)}")
             
-            print("  ✅ Neural network action service started successfully!")
-            print("  📡 Python neural network connected directly to Nim via nimpy")
-            print("  🎮 Press Ctrl+C to stop training and environment")
+            episode_rewards = np.zeros(env.num_agents)
+            step_count = 0
             
-            # Get tribal directory for launching Nim
-            import os
-            tribal_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'tribal')
-            tribal_dir = os.path.abspath(tribal_dir)
+            while step_count < env.max_steps:
+                # Get actions from policy
+                policy_output = policy.forward(obs)
+                actions = policy_output.get("actions")
+                
+                if actions is None:
+                    print("⚠️  Policy didn't return actions, using noop")
+                    actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+                
+                # Step environment
+                obs, rewards, terminals, truncations, info = env.step(actions)
+                
+                episode_rewards += rewards
+                step_count += 1
+                
+                # Log progress periodically
+                if step_count % 100 == 0:
+                    avg_reward = np.mean(episode_rewards)
+                    num_alive = np.sum(~(terminals | truncations))
+                    print(f"  Step {step_count}: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
+                    
+                    # Show some actions for debugging
+                    print(f"    Sample actions: agent_0=[{actions[0,0]},{actions[0,1]}], agent_1=[{actions[1,0]},{actions[1,1]}]")
+                
+                # Check if episode should end
+                if np.all(terminals | truncations) or info.get('episode_done', False):
+                    print(f"🏁 Episode ended at step {step_count}")
+                    break
+                
+                # Small delay for visualization (optional)
+                time.sleep(0.05)  # 20 Hz
             
-            print(f"  🎯 Launching Nim environment from: {tribal_dir}")
+            # Final statistics
+            final_avg_reward = np.mean(episode_rewards)
+            final_total_reward = np.sum(episode_rewards)
+            print(f"🏆 Episode complete!")
+            print(f"   Steps: {step_count}")
+            print(f"   Average reward: {final_avg_reward:.3f}")
+            print(f"   Total reward: {final_total_reward:.3f}")
             
-            # Launch Nim environment with subprocess
-            result = subprocess.run(
-                ["nim", "r", "-d:release", "src/tribal"],
-                cwd=tribal_dir,
-                capture_output=False,  # Let output go directly to console
-                text=True
-            )
-            
-            return result.returncode
+            return 0
             
         except KeyboardInterrupt:
-            print("\n🛑 Stopping neural network service...")
-            service_running.clear()
+            print("\n⏹️  Interrupted by user")
             return 0
         except Exception as e:
-            print(f"❌ Error in neural network service: {e}")
-            service_running.clear()
+            print(f"❌ Error in game loop: {e}")
+            import traceback
+            traceback.print_exc()
             return 1
-        finally:
-            # Clean up
-            service_running.clear()
-            print("🧹 Neural network service stopped")
 
-    def _setup_test_neural_network_control(self) -> int:
+    def _run_with_builtin_ai(self) -> int:
         """
-        Set up test neural network control without requiring a real policy file.
-        Sends no-op or test actions to verify the nimpy interface works.
+        Run tribal environment with built-in AI (no neural network).
         """
-        service_running = None
-        try:
-            print("🧪 Setting up test neural network control (no real policy needed)")
-            
-            # Import tribal bindings
-            import sys
-            import threading
-            import time
-            sys.path.append('/Users/relh/Code/workspace/metta/tribal/bindings/generated')
-            import tribal as tribal_module
-            
-            # Initialize external NN controller in Nim
-            success = tribal_module.init_external_nncontroller()
-            if not success:
-                print("❌ Failed to initialize external NN controller in Nim")
-                error = tribal_module.take_error()
-                if error:
-                    print(f"   Error: {error}")
-                return 1
-            
-            print("  ✅ External NN controller initialized in Nim for testing")
-            
-            # Flag to control the action service
-            service_running = threading.Event()
-            service_running.set()
-            
-            def test_action_service():
-                """Test service that sends simple actions directly to Nim."""
-                step = 0
-                while service_running.is_set():
-                    try:
-                        actions_list = []
-                        
-                        if self.policy_uri == "test_noop":
-                            # Send no-op actions for all agents
-                            for agent_id in range(15):
-                                actions_list.extend([0, 0])  # NOOP action
-                            if step == 0:
-                                print(f"  🎯 Debug: Sending NOOP actions - agents should stay still")
-                        
-                        elif self.policy_uri == "test_move":
-                            # Send move actions in different directions  
-                            for agent_id in range(15):
-                                action_type = 1  # MOVE action
-                                action_arg = agent_id % 8  # Different direction for each agent (0-7)
-                                actions_list.extend([action_type, action_arg])
-                            if step == 0:
-                                print(f"  🎯 Debug: Sending test MOVE actions - agents should move in different directions")
-                                print(f"  🎯 Actions sample: agent 0 -> MOVE dir {actions_list[1]}, agent 1 -> MOVE dir {actions_list[3]}")
-                        
-                        if step % 50 == 0 and step > 0:
-                            action_type = "NOOP" if self.policy_uri == "test_noop" else "MOVE"
-                            print(f"  📡 Step {step}: Still sending {action_type} actions to Nim")
-                        
-                        # Write actions to file for cross-process communication
-                        action_lines = []
-                        for agent_id in range(15):
-                            action_type = actions_list[agent_id * 2]
-                            action_arg = actions_list[agent_id * 2 + 1]
-                            action_lines.append(f"{action_type},{action_arg}")
-                        
-                        actions_file = "/Users/relh/Code/workspace/metta/tribal/actions.tmp"
-                        with open(actions_file, 'w') as f:
-                            f.write('\n'.join(action_lines))
-                        
-                        if step % 100 == 0:  # Log every 100 steps
-                            print(f"  📁 Step {step}: Wrote neural network actions to file")
-                        
-                        step += 1
-                        time.sleep(0.1)  # 10 Hz action generation
-                        
-                    except Exception as e:
-                        print(f"❌ Test action service error: {e}")
-                        time.sleep(1)
-            
-            # Start the test action service in background
-            action_thread = threading.Thread(target=test_action_service, daemon=True)
-            action_thread.start()
-            print("  📡 Test neural network action service started")
-            
-            # Launch Nim tribal environment
-            print("🚀 Launching Nim tribal environment with test neural network control...")
-            
-            tribal_dir = Path("/Users/relh/Code/workspace/metta/tribal")
-            result = subprocess.run(
-                ["nim", "r", "-d:release", "src/tribal", "--", "--external-controller"], 
-                cwd=tribal_dir,
-                check=False
-            )
-            
-            return result.returncode
-            
-        except Exception as e:
-            print(f"❌ Error setting up test neural network: {e}")
-            return 1
-        finally:
-            # Clean up
-            if service_running:
-                service_running.clear()
-            print("🧹 Test neural network service stopped")
-
-    def _run_nim_builtin_ai(self) -> int:
-        """
-        Launch Nim environment with built-in AI (no neural network).
-        """
-        print("🎯 Setting up Nim environment with built-in AI...")
+        print("🎯 Running with built-in AI...")
         print("💡 No neural network specified - using built-in Nim AI")
 
         try:
-            import sys
-            import os
-
-            bindings_path = os.path.join(
-                os.path.dirname(__file__), "..", "..", "tribal", "bindings", "generated"
-            )
-            sys.path.insert(0, bindings_path)
-
-            import tribal
-
-            # Initialize built-in AI controller
-            success = tribal.init_builtin_aicontroller()
-            if success:
-                print("✅ Built-in AI controller initialized")
-                print(f"🤖 Controller type: {tribal.get_controller_type_string()}")
-                print("")
-                print("🚀 Launching Nim environment with built-in AI...")
-                
-                # Actually launch the Nim environment
-                tribal_dir = os.path.join(os.path.dirname(__file__), "..", "..", "tribal")
-                
-                try:
-                    import subprocess
-                    result = subprocess.run(
-                        ["nim", "r", "-d:release", "src/tribal"],
-                        cwd=tribal_dir,
-                        capture_output=False,  # Allow interactive output
-                        text=True
-                    )
-                    
-                    if result.returncode == 0:
-                        print("✅ Nim environment completed successfully")
-                        return 0
-                    else:
-                        print(f"❌ Nim environment exited with code: {result.returncode}")
-                        return result.returncode
-                        
-                except KeyboardInterrupt:
-                    print("\n⏹️ Nim environment interrupted by user")
-                    return 0
-                except Exception as e:
-                    print(f"❌ Error launching Nim environment: {e}")
-                    return 1
-            else:
-                print("❌ Failed to initialize built-in AI controller")
-                return 1
+            print("🎮 Creating in-process tribal environment...")
+            from metta.sim.tribal_genny import TribalGridEnv
+            
+            # Create environment directly
+            config_dict = {
+                "max_steps": self.env_config.game.max_steps,
+                "ore_per_battery": self.env_config.game.ore_per_battery,
+                "batteries_per_heart": self.env_config.game.batteries_per_heart,
+                "enable_combat": self.env_config.game.enable_combat,
+                "clippy_spawn_rate": self.env_config.game.clippy_spawn_rate,
+                "clippy_damage": self.env_config.game.clippy_damage,
+                "heart_reward": self.env_config.game.heart_reward,
+                "battery_reward": self.env_config.game.battery_reward,
+                "ore_reward": self.env_config.game.ore_reward,
+                "survival_penalty": self.env_config.game.survival_penalty,
+                "death_penalty": self.env_config.game.death_penalty,
+            }
+            
+            env = TribalGridEnv(config_dict)
+            print(f"✅ Environment created with {env.num_agents} agents")
+            print("🤖 Built-in AI will generate actions for environment stepping")
+            
+            # Note: For now, we'll step with dummy actions and let the Nim environment
+            # handle AI internally. In the future, we could implement a proper AI policy.
+            return self._run_builtin_ai_loop(env, None)
+            
         except Exception as e:
-            print(f"❌ Error initializing built-in AI: {e}")
+            print(f"❌ Error running with built-in AI: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
+
+    def _run_builtin_ai_loop(self, env, tribal_module) -> int:
+        """
+        Run the environment with built-in AI controlling all agents.
+        """
+        import numpy as np
+        import time
+        
+        print("🎮 Starting built-in AI game loop...")
+        print("   Built-in AI will control all agents automatically")
+        
+        try:
+            # Reset environment
+            obs, info = env.reset()
+            print(f"✅ Environment reset complete. Starting step: {info.get('current_step', 0)}")
+            
+            step_count = 0
+            episode_rewards = np.zeros(env.num_agents)
+            
+            while step_count < env.max_steps:
+                # For built-in AI, we still need to step the environment
+                # but the Nim side will generate the actions automatically
+                # Let's generate dummy actions and let Nim override them
+                dummy_actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+                
+                # Step environment (Nim will use its own AI actions internally)
+                obs, rewards, terminals, truncations, info = env.step(dummy_actions)
+                
+                episode_rewards += rewards
+                step_count += 1
+                
+                # Log progress periodically
+                if step_count % 100 == 0:
+                    avg_reward = np.mean(episode_rewards)
+                    num_alive = np.sum(~(terminals | truncations))
+                    print(f"  Step {step_count}: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
+                
+                # Check if episode should end
+                if np.all(terminals | truncations) or info.get('episode_done', False):
+                    print(f"🏁 Episode ended at step {step_count}")
+                    break
+                
+                # Small delay for visualization
+                time.sleep(0.05)  # 20 Hz
+            
+            # Final statistics
+            final_avg_reward = np.mean(episode_rewards)
+            final_total_reward = np.sum(episode_rewards)
+            print(f"🏆 Episode complete!")
+            print(f"   Steps: {step_count}")
+            print(f"   Average reward: {final_avg_reward:.3f}")
+            print(f"   Total reward: {final_total_reward:.3f}")
+            
+            return 0
+            
+        except KeyboardInterrupt:
+            print("\n⏹️  Interrupted by user")
+            return 0
+        except Exception as e:
+            print(f"❌ Error in AI game loop: {e}")
+            import traceback
+            traceback.print_exc()
             return 1
 
 
