@@ -45,3 +45,13 @@ src/**/*
 !src/**/*.css
 !src/**/*.js
 !src/**/*/
+
+# Temporary files and outputs
+*.tmp
+*.tribal
+actions.tmp
+tribal_replay_*.tribal
+
+# Example outputs that shouldn't be committed
+examples/tribal_replay_*.tribal
+examples/*.tmp
