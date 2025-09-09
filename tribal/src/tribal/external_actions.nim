@@ -62,9 +62,9 @@ proc setExternalActionCallback*(callback: proc(): array[MapAgents, array[2, uint
 proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
   ## Get actions for all agents using the configured controller
   if globalController == nil:
-    # Default to built-in AI if not initialized
-    initGlobalController(BuiltinAI)
-    echo "🔧 Debug: Initialized default BuiltinAI controller"
+    # FAIL HARD: No controller initialized - this should never happen!
+    echo "❌ FATAL ERROR: No controller initialized! Python must call initExternalNNController() or initBuiltinAIController()!"
+    raise newException(ValueError, "No action controller initialized - Python environment setup failed!")
   
   case globalController.controllerType:
   of BuiltinAI:
@@ -113,12 +113,10 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
         except Exception as e:
           echo "⚠️ Debug: Error reading actions file: ", e.msg
       
-      # Fallback to noop actions if file reading fails
-      echo "⚠️ Debug: Using NOOP fallback actions"
-      var noopActions: array[MapAgents, array[2, uint8]]
-      for i in 0..<MapAgents:
-        noopActions[i] = [0'u8, 0'u8]  # noop
-      return noopActions
+      # FAIL HARD: ExternalNN controller configured but no actions available!
+      echo "❌ FATAL ERROR: ExternalNN controller configured but no callback or actions file found!"
+      echo "Python environment must call setExternalActionsFromPython() to provide actions!"
+      raise newException(ValueError, "ExternalNN controller has no actions - Python communication failed!")
 
 proc getControllerType*(): ControllerType =
   ## Get the current controller type

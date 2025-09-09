@@ -343,8 +343,11 @@ class TribalNimPlayTool(Tool):
                         num_alive = np.sum(~(terminals | truncations))
                         print(f"  Step {step_count}: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
                         
-                        # Show some actions for debugging
-                        print(f"    Sample actions: agent_0=[{actions[0,0]},{actions[0,1]}], agent_1=[{actions[1,0]},{actions[1,1]}]")
+                        # Show some actions for debugging (handle both list and array formats)
+                        if isinstance(actions, list):
+                            print(f"    Sample actions: agent_0={actions[0]}, agent_1={actions[1]}")
+                        else:
+                            print(f"    Sample actions: agent_0=[{actions[0,0]},{actions[0,1]}], agent_1=[{actions[1,0]},{actions[1,1]}]")
                     
                     # Check if episode should end
                     if np.all(terminals | truncations) or info.get('episode_done', False):
