@@ -38,7 +38,9 @@ COPY library ./library
 
 WORKDIR /metta/library
 
+# necessary for prisma
+RUN apt-get update -y && apt-get install -y openssl
+
 RUN pnpm run db:generate
 
-# Start Nginx in the foreground
 CMD ["pnpm", "run", "workers"]
