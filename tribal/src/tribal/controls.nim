@@ -1,20 +1,15 @@
 
 import std/times,
-  common, environment, windy, ai
+  common, environment, windy, ai, external_actions
 
 var
   actionsArray*: array[MapAgents, array[2, uint8]]
-  agentController* = newController(seed = int(epochTime() * 1000))
 
 proc simStep*() =
-  for j, agent in env.agents:
-    if selection != agent:
-      # Use the controller to decide actions
-      actionsArray[j] = agentController.decideAction(env, j)
+  # Get actions from the unified controller system
+  actionsArray = getActions(env)
   
   env.step(addr actionsArray)
-  
-  agentController.updateController()
 
 proc agentControls*() =
   if selection != nil and selection.kind == Agent:

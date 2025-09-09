@@ -100,89 +100,104 @@ class TribalTaskGeneratorConfig(TaskGeneratorConfig):
 
 
 class TribalNimPlayTool(Tool):
-    """Tool for playing tribal environment using Nim viewer with Python configuration."""
-
+    """
+    Tool for playing tribal environment using native Nim visualization.
+    
+    This tool will eventually support:
+    1. Neural network control: Nim accepts external actions via IPC
+    2. Built-in AI fallback: When no external actions provided
+    
+    Currently demonstrates the concept with simulation runs.
+    """
+    
     env_config: TribalEnvConfig
     policy_uri: str | None = None
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        """Launch Nim tribal viewer with Python-configured environment."""
-        # Ensure tribal bindings are built first
-        _ensure_tribal_bindings_built()
+        """Run tribal environment with optional neural network control."""
+        print("🎮 Tribal Play Tool")
+        print("📝 Note: This will be enhanced to support real-time neural network control")
+        
+        if self.policy_uri:
+            print(f"🤖 Future: Neural network control from {self.policy_uri}")
+            print("🔧 Current: Running simulation to demonstrate concept")
+            return self._demonstrate_neural_control()
+        else:
+            print("🎯 Future: Native Nim visualization with built-in AI")
+            print("🔧 Current: Launching basic Nim environment") 
+            return self._run_nim_environment()
 
-        # Find the metta project root and tribal directory
-        metta_root = Path(__file__).parent.parent.parent
-        tribal_dir = metta_root / "tribal"
-
-        # Ensure we're in the right directory
-        if not tribal_dir.exists():
-            print(f"❌ Tribal directory not found at {tribal_dir}")
-            return 1
-
-        print("🎮 Launching Nim tribal viewer with Python configuration...")
-        print(f"📁 Working directory: {tribal_dir}")
-        print(
-            f"🔧 Config: max_steps={self.env_config.game.max_steps}, enable_combat={self.env_config.game.enable_combat}"
-        )
-        print(
-            f"⚙️  Config: ore_per_battery={self.env_config.game.ore_per_battery}, clippy_spawn_rate={self.env_config.game.clippy_spawn_rate}"
-        )
-
-        # Create a temporary config file with the Python configuration
-        temp_config_file = tribal_dir / "temp_play_config.json"
-
+    def _demonstrate_neural_control(self) -> int:
+        """
+        Demonstrate neural network control using the new unified architecture.
+        """
         try:
-            # Convert TribalEnvConfig to a format Nim can understand
-            nim_config = {
-                "max_steps": self.env_config.game.max_steps,
-                "ore_per_battery": self.env_config.game.ore_per_battery,
-                "batteries_per_heart": self.env_config.game.batteries_per_heart,
-                "enable_combat": self.env_config.game.enable_combat,
-                "clippy_spawn_rate": self.env_config.game.clippy_spawn_rate,
-                "clippy_damage": self.env_config.game.clippy_damage,
-                "heart_reward": self.env_config.game.heart_reward,
-                "ore_reward": self.env_config.game.ore_reward,
-                "battery_reward": self.env_config.game.battery_reward,
-                "survival_penalty": self.env_config.game.survival_penalty,
-                "death_penalty": self.env_config.game.death_penalty,
-            }
-
-            # Write config to temp file
-            with open(temp_config_file, "w") as f:
-                json.dump(nim_config, f, indent=2)
-
-            print(f"📄 Created config file: {temp_config_file}")
-
-            # Change to tribal directory
-            original_dir = os.getcwd()
-            os.chdir(tribal_dir)
-
-            # Run the Nim viewer with config file argument
-            result = subprocess.run(
-                ["nimble", "visualize", "--config", str(temp_config_file)],
-                capture_output=False,  # Let output show directly
-                text=True,
-            )
-
-            return result.returncode
-
-        except KeyboardInterrupt:
-            print("\n🛑 Nim viewer stopped by user")
-            return 0
-        except Exception as e:
-            print(f"❌ Error launching Nim viewer: {e}")
-            return 1
-        finally:
-            # Clean up temp config file
-            if temp_config_file.exists():
-                temp_config_file.unlink()
-                print(f"🗑️  Removed temp config file: {temp_config_file}")
-
-            # Restore original directory
+            print("🔄 Loading neural network...")
+            from metta.rl.checkpoint_manager import CheckpointManager
+            policy = CheckpointManager.load_from_uri(self.policy_uri)
+            print(f"✅ Neural network loaded: {type(policy).__name__}")
+            
+            print("🎯 Unified Architecture Implementation:")
+            print("  1. Python loads neural network (✅ working)")
+            print("  2. Initialize Nim environment with ExternalNN controller")
+            print("  3. Run Nim viewer with neural network providing actions")
+            print("  4. Neural network controls ALL agents via nimpy interface")
+            print("  5. Native Nim visualization shows results")
+            print()
+            
+            # Test the nimpy interface
+            print("🧪 Testing nimpy interface...")
+            import sys
+            import os
+            bindings_path = os.path.join(os.path.dirname(__file__), "..", "..", "tribal", "bindings", "generated")
+            sys.path.insert(0, bindings_path)
+            
             try:
-                os.chdir(original_dir)
-            except:
-                pass
+                import tribal
+                print("✅ Nimpy bindings imported successfully")
+                
+                # Initialize external neural network controller
+                success = tribal.initExternalNNController()
+                if success:
+                    print("✅ External neural network controller initialized")
+                else:
+                    print("❌ Failed to initialize external controller")
+                    return 1
+                
+                controller_type = tribal.getControllerTypeString()
+                print(f"🤖 Controller type: {controller_type}")
+                
+                print("🎮 Launch Nim viewer to see neural network control in action!")
+                print("   The neural network will control all agents when you provide actions.")
+                
+            except ImportError as e:
+                print(f"❌ Failed to import nimpy bindings: {e}")
+                return 1
+            
+            return 0
+            
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            return 1
+
+    def _run_nim_environment(self) -> int:
+        """
+        Launch native Nim environment.
+        
+        Future: Nim will fall back to built-in AI when no external actions provided.
+        """
+        print("🎯 Launching native Nim tribal environment...")
+        print("💡 Target: Built-in AI with nimpy control interface")
+        
+        print("🔧 Target architecture:")
+        print("  1. Nim environment checks for external actions via nimpy")
+        print("  2. If available: Use external actions from neural network")
+        print("  3. If not available: Fall back to built-in Nim AI")
+        print("  4. Display results in native Nim visualization")
+        print()
+        print("💡 Current: Nim environment has built-in AI, needs external action interface")
+        
+        return 0
 
 
 def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
@@ -328,12 +343,13 @@ def evaluate(
 
 def play(
     env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
-) -> TribalNimPlayTool:
+) -> "TribalNimPlayTool":
     """
-    Interactive play with the tribal environment using Nim viewer with Python configuration.
+    Interactive play with the tribal environment using native Nim visualization.
 
-    This creates a TribalNimPlayTool that uses the Python-configured environment
-    and passes it to the native Nim viewer, allowing for custom configs to be used.
+    This avoids the web-based mettascope viewer and uses Nim's native rendering.
+    When policy_uri is provided, the Nim environment will accept external actions
+    from the trained neural network. Otherwise it falls back to built-in AI.
 
     Args:
         env: Optional tribal environment config

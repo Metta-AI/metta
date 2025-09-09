@@ -1,6 +1,6 @@
 import std/[os, times, strutils],
   boxy, opengl, windy, vmath,
-  tribal/[environment, controls, common, panels, renderer, ui]
+  tribal/[environment, controls, common, panels, renderer, ui, external_actions]
 
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
 makeContextCurrent(window)
@@ -144,6 +144,10 @@ for path in walkDirRec("data/"):
       echo "✅ Loaded ", loadedCount, "/", totalFiles, " assets..."
 
 echo "🎨 Asset loading complete! Loaded ", loadedCount, "/", totalFiles, " files"
+
+# Initialize controller to use built-in AI by default
+initGlobalController(BuiltinAI)
+echo "🤖 Initialized with built-in AI controller"
 
 when defined(emscripten):
   proc main() {.cdecl.} =

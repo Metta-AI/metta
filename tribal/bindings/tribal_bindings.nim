@@ -3,6 +3,7 @@
 
 import genny
 import ../src/tribal/environment
+import ../src/tribal/external_actions
 
 # Global error handling
 var lastError: ref Exception
@@ -276,6 +277,78 @@ proc defaultMaxSteps*(): int =
   ## Get default max steps value
   1000
 
+# Controller initialization and management
+proc initBuiltinAIController*(seed: int = 2024): bool =
+  ## Initialize controller to use built-in AI
+  try:
+    initGlobalController(BuiltinAI, seed)
+    return true
+  except:
+    lastError = getCurrentException()
+    return false
+
+proc initExternalNNController*(): bool =
+  ## Initialize controller to use external neural network
+  try:
+    initGlobalController(ExternalNN)
+    return true
+  except:
+    lastError = getCurrentException()
+    return false
+
+# Global storage for external actions (used by callback)
+var storedExternalActions: array[MapAgents, array[2, uint8]]
+var hasStoredActions = false
+
+proc externalActionCallback(): array[MapAgents, array[2, uint8]] =
+  ## Callback function that returns stored external actions
+  if hasStoredActions:
+    hasStoredActions = false  # Mark actions as consumed
+    return storedExternalActions
+  else:
+    # No actions available, return noop
+    var noopActions: array[MapAgents, array[2, uint8]]
+    for i in 0..<MapAgents:
+      noopActions[i] = [0'u8, 0'u8]  # noop
+    return noopActions
+
+proc setExternalActionsFromPython*(actions: seq[int]): bool =
+  ## Set external actions from Python neural network
+  ## actions: flat sequence of [action_type, argument] pairs for all agents
+  ## Length should be MapAgents * 2
+  try:
+    if actions.len != MapAgents * 2:
+      return false
+      
+    # Convert Python actions to Nim format
+    for i in 0..<MapAgents:
+      let actionIndex = i * 2
+      if actionIndex + 1 < actions.len:
+        storedExternalActions[i][0] = actions[actionIndex].uint8
+        storedExternalActions[i][1] = actions[actionIndex + 1].uint8
+      else:
+        storedExternalActions[i][0] = 0  # noop
+        storedExternalActions[i][1] = 0
+    
+    hasStoredActions = true
+    
+    # Set callback if not already set
+    setExternalActionCallback(externalActionCallback)
+    return true
+  except:
+    lastError = getCurrentException()
+    return false
+
+proc hasActiveController*(): bool =
+  ## Check if any controller is active
+  isExternalControllerActive() or getControllerType() == BuiltinAI
+
+proc getControllerTypeString*(): string =
+  ## Get current controller type as string
+  case getControllerType():
+  of BuiltinAI: "BuiltinAI"
+  of ExternalNN: "ExternalNN"
+
 # Export sequences
 exportSeq seq[int]:
   discard
@@ -324,6 +397,11 @@ exportProcs:
   getActionNames
   getMaxActionArgs
   getFeatureNormalizations
+  initBuiltinAIController
+  initExternalNNController
+  setExternalActionsFromPython
+  hasActiveController
+  getControllerTypeString
 
 # Generate the Python binding files and include implementation (must be at the end)
 writeFiles("bindings/generated", "Tribal")
