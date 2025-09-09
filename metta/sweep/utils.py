@@ -1,19 +1,12 @@
 """Utility functions for sweep orchestration."""
 
-import argparse
 import hashlib
 import logging
-import sys
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from rich.console import Console, Group
-from rich.live import Live
-from rich.table import Table
-from rich.text import Text
-
-from metta.sweep.models import JobDefinition, JobTypes, RunInfo, SweepMetadata
+from metta.sweep.models import JobDefinition, JobTypes, RunInfo
 
 logger = logging.getLogger(__name__)
 
@@ -277,20 +270,3 @@ def _sort_runs_for_display(runs: List["RunInfo"]) -> List["RunInfo"]:
     """Sort runs for display by created_at time, newest first."""
     # Sort by created_at time (descending), with None values at the end
     return sorted(runs, key=lambda r: r.created_at if r.created_at else datetime.max, reverse=True)
-
-
-def main():
-    """CLI entry point for live sweep monitoring."""
-    parser = argparse.ArgumentParser(description="Live monitor a sweep with rich terminal display")
-    parser.add_argument("sweep_id", help="Sweep ID to monitor")
-    parser.add_argument("--refresh", "-r", type=int, default=30, help="Refresh interval in seconds (default: 30)")
-    parser.add_argument("--entity", "-e", type=str, default="metta", help="WandB entity (default: metta)")
-    parser.add_argument("--project", "-p", type=str, default="metta", help="WandB project (default: metta)")
-
-    args = parser.parse_args()
-
-    live_monitor_sweep(sweep_id=args.sweep_id, refresh_interval=args.refresh, entity=args.entity, project=args.project)
-
-
-if __name__ == "__main__":
-    main()
