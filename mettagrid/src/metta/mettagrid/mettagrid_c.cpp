@@ -190,11 +190,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
         _resource_manager->register_object(converter);
-
-        // Set up inventory change callback
-        converter->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-            _resource_manager->on_inventory_changed(id, item, delta);
-        });
         continue;
       }
 
@@ -221,12 +216,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
+        // ResourceManager will automatically set up the callback during registration
         _resource_manager->register_agent(agent, agent->group_name);
-
-        // Set up inventory change callback
-        agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-            _resource_manager->on_inventory_changed(id, item, delta);
-        });
         continue;
       }
 

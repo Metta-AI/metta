@@ -74,10 +74,10 @@ protected:
   void SetUp() override {
     // Create a deterministic RNG for testing
     _rng = std::mt19937(42);  // Fixed seed for reproducible tests
-    
+
     // Create a test grid
     _grid = std::make_unique<Grid>(10, 10);  // 10x10 grid
-    
+
     // Create ResourceManager
     _resource_manager = std::make_unique<ResourceManager>(_grid.get(), _rng);
   }
@@ -168,9 +168,9 @@ TEST_F(ResourceManagerTest, RegisterAgent) {
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   float reward = 0.0f;
   agent->init(&reward);
-  
+
   _resource_manager->register_agent(agent.get(), "red_team");
-  
+
   // Agent should be registered and accessible
   // We can verify registration by checking that step() doesn't crash
   _resource_manager->step();
@@ -180,9 +180,9 @@ TEST_F(ResourceManagerTest, RegisterObject) {
   ConverterConfig converter_cfg = create_test_converter_config();
   std::unique_ptr<Converter> converter(new Converter(0, 0, converter_cfg));
   converter->init(1, "converter", GridLocation(0, 0));
-  
+
   _resource_manager->register_object(converter.get());
-  
+
   // Converter should be registered
   // We can verify registration by checking that step() doesn't crash
   _resource_manager->step();
@@ -193,14 +193,14 @@ TEST_F(ResourceManagerTest, UnregisterObject) {
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   float reward = 0.0f;
   agent->init(&reward);
-  
+
   _resource_manager->register_agent(agent.get(), "blue_team");
-  
+
   // Verify registration works by running step
   _resource_manager->step();
-  
+
   _resource_manager->unregister_inventory_object(agent->id);
-  
+
   // Verify unregistration works by running step again (should not crash)
   _resource_manager->step();
 }
@@ -212,32 +212,28 @@ TEST_F(ResourceManagerTest, InventoryChangeCallback) {
   Agent* agent = new Agent(0, 0, agent_cfg);
   float reward = 0.0f;
   agent->init(&reward);
-  
-  // Set up callback
-  agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-    _resource_manager->on_inventory_changed(id, item, delta);
-  });
-  
+
   // Add agent to grid (grid takes ownership)
   _grid->add_object(agent);
-  
+
+  // ResourceManager will automatically set up the callback during registration
   _resource_manager->register_agent(agent, "green_team");
-  
+
   // Add some inventory
   agent->update_inventory(TestItems::WOOD, 10);
   agent->update_inventory(TestItems::STONE, 5);
-  
+
   // The callback should have been triggered and bins should be updated
   // We can verify this by running step() and checking that losses occur
   int initial_wood = agent->get_inventory().find(TestItems::WOOD)->second;
   int initial_stone = agent->get_inventory().find(TestItems::STONE)->second;
-  
+
   _resource_manager->step();
-  
+
   // Should have lost some wood (10% loss rate) and some stone (5% loss rate)
   int final_wood = agent->get_inventory().find(TestItems::WOOD)->second;
   int final_stone = agent->get_inventory().find(TestItems::STONE)->second;
-  
+
   EXPECT_LT(final_wood, initial_wood);  // Wood should have been lost (10% loss rate)
   EXPECT_LT(final_stone, initial_stone); // Stone should have been lost (5% loss rate)
 }
@@ -247,39 +243,33 @@ TEST_F(ResourceManagerTest, InventoryChangeCallback) {
 TEST_F(ResourceManagerTest, ResourceLossWithMultipleObjects) {
   // Create two agents in the same group
   AgentConfig agent_cfg = create_test_agent_config("red_team");
-  
+
   Agent* agent1 = new Agent(0, 0, agent_cfg);
   float reward1 = 0.0f;
   agent1->init(&reward1);
-  agent1->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-    _resource_manager->on_inventory_changed(id, item, delta);
-  });
-  
   Agent* agent2 = new Agent(1, 0, agent_cfg);
   float reward2 = 0.0f;
   agent2->init(&reward2);
-  agent2->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-    _resource_manager->on_inventory_changed(id, item, delta);
-  });
-  
+
   // Add agents to grid (grid takes ownership)
   _grid->add_object(agent1);
   _grid->add_object(agent2);
-  
+
+  // ResourceManager will automatically set up callbacks during registration
   _resource_manager->register_agent(agent1, "red_team");
   _resource_manager->register_agent(agent2, "red_team");
-  
+
   // Give agents different amounts of wood
   agent1->update_inventory(TestItems::WOOD, 20);  // 20 wood
   agent2->update_inventory(TestItems::WOOD, 10);  // 10 wood
-  
+
   int initial_total = 30;
-  
+
   // Run multiple steps to see resource loss
   for (int i = 0; i < 10; ++i) {
     _resource_manager->step();
   }
-  
+
   int final_total = 0;
   if (agent1->get_inventory().find(TestItems::WOOD) != agent1->get_inventory().end()) {
     final_total += agent1->get_inventory().find(TestItems::WOOD)->second;
@@ -287,7 +277,7 @@ TEST_F(ResourceManagerTest, ResourceLossWithMultipleObjects) {
   if (agent2->get_inventory().find(TestItems::WOOD) != agent2->get_inventory().end()) {
     final_total += agent2->get_inventory().find(TestItems::WOOD)->second;
   }
-  
+
   // Should have lost some wood over 10 steps
   EXPECT_LT(final_total, initial_total);
 }
@@ -300,21 +290,21 @@ TEST_F(ResourceManagerTest, NoResourceLossForZeroProbability) {
   agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
     _resource_manager->on_inventory_changed(id, item, delta);
   });
-  
+
   _resource_manager->register_agent(agent.get(), "blue_team");
-  
+
   // Give agent iron (which has 0% loss rate)
   agent->update_inventory(TestItems::IRON, 100);
-  
+
   int initial_iron = agent->get_inventory().find(TestItems::IRON)->second;
-  
+
   // Run many steps
   for (int i = 0; i < 50; ++i) {
     _resource_manager->step();
   }
-  
+
   int final_iron = agent->get_inventory().find(TestItems::IRON)->second;
-  
+
   // Iron should remain unchanged (0% loss rate)
   EXPECT_EQ(final_iron, initial_iron);
 }
@@ -324,44 +314,41 @@ TEST_F(ResourceManagerTest, DifferentLossRatesForDifferentItems) {
   Agent* agent = new Agent(0, 0, agent_cfg);
   float reward = 0.0f;
   agent->init(&reward);
-  agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-    _resource_manager->on_inventory_changed(id, item, delta);
-  });
-  
   // Add agent to grid (grid takes ownership)
   _grid->add_object(agent);
-  
+
+  // ResourceManager will automatically set up the callback during registration
   _resource_manager->register_agent(agent, "green_team");
-  
+
   // Give agent equal amounts of different items with different loss rates
   agent->update_inventory(TestItems::WOOD, 100);   // 10% loss rate
   agent->update_inventory(TestItems::GOLD, 100);   // 20% loss rate
-  
+
   int initial_wood = 100;
   int initial_gold = 100;
-  
+
   // Run many steps
   for (int i = 0; i < 20; ++i) {
     _resource_manager->step();
   }
-  
+
   int final_wood = 0;
   int final_gold = 0;
-  
+
   auto wood_it = agent->get_inventory().find(TestItems::WOOD);
   if (wood_it != agent->get_inventory().end()) {
     final_wood = wood_it->second;
   }
-  
+
   auto gold_it = agent->get_inventory().find(TestItems::GOLD);
   if (gold_it != agent->get_inventory().end()) {
     final_gold = gold_it->second;
   }
-  
+
   // Gold should have lost more than wood (higher loss rate)
   int wood_loss = initial_wood - final_wood;
   int gold_loss = initial_gold - final_gold;
-  
+
   EXPECT_GT(gold_loss, wood_loss);
 }
 
@@ -371,57 +358,51 @@ TEST_F(ResourceManagerTest, SeparateGroupsHaveSeparateLosses) {
   // Create agents in different groups
   AgentConfig red_cfg = create_test_agent_config("red_team");
   AgentConfig blue_cfg = create_test_agent_config("blue_team");
-  
+
   Agent* red_agent = new Agent(0, 0, red_cfg);
   float red_reward = 0.0f;
   red_agent->init(&red_reward);
-  red_agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-    _resource_manager->on_inventory_changed(id, item, delta);
-  });
-  
   Agent* blue_agent = new Agent(1, 0, blue_cfg);
   float blue_reward = 0.0f;
   blue_agent->init(&blue_reward);
-  blue_agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-    _resource_manager->on_inventory_changed(id, item, delta);
-  });
-  
+
   // Add agents to grid (grid takes ownership)
   _grid->add_object(red_agent);
   _grid->add_object(blue_agent);
-  
+
+  // ResourceManager will automatically set up callbacks during registration
   _resource_manager->register_agent(red_agent, "red_team");
   _resource_manager->register_agent(blue_agent, "blue_team");
-  
+
   // Give both agents the same amount of wood
   red_agent->update_inventory(TestItems::WOOD, 50);
   blue_agent->update_inventory(TestItems::WOOD, 50);
-  
+
   int red_initial = 50;
   int blue_initial = 50;
-  
+
   // Run steps
   for (int i = 0; i < 10; ++i) {
     _resource_manager->step();
   }
-  
+
   int red_final = 0;
   int blue_final = 0;
-  
+
   auto red_it = red_agent->get_inventory().find(TestItems::WOOD);
   if (red_it != red_agent->get_inventory().end()) {
     red_final = red_it->second;
   }
-  
+
   auto blue_it = blue_agent->get_inventory().find(TestItems::WOOD);
   if (blue_it != blue_agent->get_inventory().end()) {
     blue_final = blue_it->second;
   }
-  
+
   // Both should have lost wood, but losses should be independent
   EXPECT_LT(red_final, red_initial);
   EXPECT_LT(blue_final, blue_initial);
-  
+
   // The exact amounts lost may differ due to randomness
   // but both should have lost some amount
   EXPECT_GT(red_initial - red_final, 0);
@@ -432,22 +413,22 @@ TEST_F(ResourceManagerTest, SeparateGroupsHaveSeparateLosses) {
 
 TEST_F(ResourceManagerTest, EmptyInventoryNoLoss) {
   AgentConfig agent_cfg = create_test_agent_config("empty_team");
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  Agent* agent = new Agent(0, 0, agent_cfg);
   float reward = 0.0f;
   agent->init(&reward);
-  agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-    _resource_manager->on_inventory_changed(id, item, delta);
-  });
-  
-  _resource_manager->register_agent(agent.get(), "empty_team");
-  
+  // Add agent to grid (grid takes ownership)
+  _grid->add_object(agent);
+
+  // ResourceManager will automatically set up the callback during registration
+  _resource_manager->register_agent(agent, "empty_team");
+
   // Don't give agent any inventory
-  
+
   // Run many steps - should not crash
   for (int i = 0; i < 100; ++i) {
     _resource_manager->step();
   }
-  
+
   // Agent should still have no inventory
   EXPECT_TRUE(agent->get_inventory().empty());
 }
@@ -457,33 +438,30 @@ TEST_F(ResourceManagerTest, DebugBins) {
   Agent* agent = new Agent(0, 0, agent_cfg);
   float reward = 0.0f;
   agent->init(&reward);
-  agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-    _resource_manager->on_inventory_changed(id, item, delta);
-  });
-  
   // Add agent to grid (grid takes ownership)
   _grid->add_object(agent);
-  
+
+  // ResourceManager will automatically set up the callback during registration
   _resource_manager->register_agent(agent, "debug_team");
-  
+
   // Give agent exactly 1 wood
   agent->update_inventory(TestItems::WOOD, 1);
-  
+
   // Check if agent has wood
   auto wood_it = agent->get_inventory().find(TestItems::WOOD);
   EXPECT_NE(wood_it, agent->get_inventory().end());
   EXPECT_EQ(wood_it->second, 1);
-  
+
   // Check resource loss probability
   const auto& loss_prob = agent->get_resource_loss_prob();
   auto loss_it = loss_prob.find(TestItems::WOOD);
   EXPECT_NE(loss_it, loss_prob.end());
   EXPECT_GT(loss_it->second, 0.0f);  // Should be 0.1f (10%)
-  
+
   // For now, just verify that the agent is properly set up
   // We'll debug the ResourceManager step() method separately
   EXPECT_TRUE(true);  // Placeholder - this test just verifies setup
-  
+
   // Let's try running step() once to see if it crashes
   try {
     _resource_manager->step();
@@ -500,29 +478,26 @@ TEST_F(ResourceManagerTest, SingleItemLoss) {
   Agent* agent = new Agent(0, 0, agent_cfg);
   float reward = 0.0f;
   agent->init(&reward);
-  agent->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
-    _resource_manager->on_inventory_changed(id, item, delta);
-  });
-  
   // Add agent to grid (grid takes ownership)
   _grid->add_object(agent);
-  
+
+  // ResourceManager will automatically set up the callback during registration
   _resource_manager->register_agent(agent, "single_team");
-  
+
   // Give agent exactly 1 wood
   agent->update_inventory(TestItems::WOOD, 1);
-  
+
   // Debug: Check if agent has wood
   auto wood_it = agent->get_inventory().find(TestItems::WOOD);
   EXPECT_NE(wood_it, agent->get_inventory().end());
   EXPECT_EQ(wood_it->second, 1);
-  
+
   // Debug: Check resource loss probability
   const auto& loss_prob = agent->get_resource_loss_prob();
   auto loss_it = loss_prob.find(TestItems::WOOD);
   EXPECT_NE(loss_it, loss_prob.end());
   EXPECT_GT(loss_it->second, 0.0f);  // Should be 0.1f (10%)
-  
+
   // Debug: Run one step and check if anything happens
   int initial_wood = agent->get_inventory().find(TestItems::WOOD)->second;
   _resource_manager->step();
@@ -531,25 +506,25 @@ TEST_F(ResourceManagerTest, SingleItemLoss) {
   if (wood_it_after != agent->get_inventory().end()) {
     after_one_step = wood_it_after->second;
   }
-  
+
   // For debugging - let's see if anything changed
   std::cout << "Initial wood: " << initial_wood << ", After one step: " << after_one_step << std::endl;
-  
+
   // Let's also check if the agent is properly registered by trying to access it through the grid
   GridObject* grid_obj = _grid->object(agent->id);
   std::cout << "Agent ID: " << agent->id << ", Grid object found: " << (grid_obj != nullptr) << std::endl;
-  
+
   // Run steps until wood is lost
   bool wood_lost = false;
   for (int i = 0; i < 50 && !wood_lost; ++i) {
     _resource_manager->step();
-    
+
     auto wood_it = agent->get_inventory().find(TestItems::WOOD);
     if (wood_it == agent->get_inventory().end()) {
       wood_lost = true;
     }
   }
-  
+
   // Should eventually lose the single wood item
   EXPECT_TRUE(wood_lost);
 }

@@ -20,7 +20,7 @@ ResourceManager::ResourceManager(Grid* grid, std::mt19937& rng) : _grid(grid), _
 
 void ResourceManager::step() {
   // Process resource loss for each cached bin - no iteration needed!
-  
+
   // Collect updates to apply after iteration to avoid iterator invalidation
   std::vector<std::tuple<HasInventory*, InventoryItem, InventoryDelta>> updates;
 
@@ -52,7 +52,7 @@ void ResourceManager::step() {
     // Use Bernoulli distribution for each resource (coin flip)
     InventoryQuantity resources_to_lose = 0;
     std::bernoulli_distribution bernoulli_dist(loss_probability);
-    
+
     for (InventoryQuantity i = 0; i < total_resources; ++i) {
       if (bernoulli_dist(_rng)) {
         resources_to_lose++;
@@ -67,7 +67,7 @@ void ResourceManager::step() {
     if (objects_with_quantities.empty()) {
       continue;  // Safety check
     }
-    
+
     std::vector<InventoryQuantity> losses_per_object(objects_with_quantities.size(), 0);
 
     for (InventoryQuantity i = 0; i < resources_to_lose; ++i) {
@@ -90,7 +90,7 @@ void ResourceManager::step() {
       }
     }
   }
-  
+
   // Apply all updates after iteration to avoid iterator invalidation
   for (const auto& [obj, item, delta] : updates) {
     obj->update_inventory(item, delta);
@@ -116,6 +116,11 @@ void ResourceManager::register_inventory_object(HasInventory* obj, const std::st
   }
 
   _objects_by_group[full_group_name].push_back(obj);
+
+  // Set up the inventory change callback automatically
+  obj->set_inventory_callback([this](GridObjectId id, InventoryItem item, InventoryDelta delta) {
+    this->on_inventory_changed(id, item, delta);
+  });
 
   // Add object to bins
   _add_object_to_bins(obj, full_group_name);
