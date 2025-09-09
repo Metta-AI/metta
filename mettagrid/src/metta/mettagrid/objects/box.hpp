@@ -85,6 +85,11 @@ public:
     return empty_map;
   }
 
+  // Type name method
+  const std::string& type_name() const override {
+    return GridObject::type_name;
+  }
+
   std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
     features.reserve(2);

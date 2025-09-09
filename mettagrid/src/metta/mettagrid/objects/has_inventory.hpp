@@ -24,6 +24,9 @@ public:
 
   // Resource loss probability method
   virtual const std::map<InventoryItem, float>& get_resource_loss_prob() const = 0;
+
+  // Type name method (since all HasInventory objects are also GridObjects)
+  virtual const std::string& type_name() const = 0;
 };
 
 #endif  // OBJECTS_HAS_INVENTORY_HPP_

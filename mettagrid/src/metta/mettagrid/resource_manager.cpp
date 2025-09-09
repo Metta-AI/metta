@@ -8,32 +8,115 @@
 #include "objects/agent.hpp"
 #include "objects/converter.hpp"
 
-ResourceManager::ResourceManager(Grid* grid) : _grid(grid) {
+ResourceManager::ResourceManager(Grid* grid, std::mt19937& rng) : _grid(grid), _rng(rng) {
   assert(_grid != nullptr);
   // Initialize group maps with existing objects
   _update_group_maps();
   // Initialize inventory totals
   _update_inventory_totals();
+  // Initialize bins
+  _update_bins();
 }
 
 void ResourceManager::step() {
-  // Main processing method called once per step
-  // This is where you would implement any resource-related logic
-  // that needs to run after event processing but before action processing
+  // Process resource loss for each cached bin - no iteration needed!
 
-  // Example: You could implement resource decay, resource generation,
-  // resource sharing between agents, etc. here
+  for (auto& [bin_key, objects_with_quantities] : _bins) {
+    const InventoryItem& item = bin_key.second;
 
-  // For now, this is a placeholder that can be extended
+    if (objects_with_quantities.empty()) {
+      continue;
+    }
+
+    // Get cached loss probability for this bin
+    auto loss_it = _bin_loss_probabilities.find(bin_key);
+    if (loss_it == _bin_loss_probabilities.end() || loss_it->second <= 0.0f) {
+      continue;  // No loss probability for this item
+    }
+
+    float loss_probability = loss_it->second;
+
+    // Calculate total resources in this bin
+    InventoryQuantity total_resources = 0;
+    for (const auto& [obj, quantity] : objects_with_quantities) {
+      total_resources += quantity;
+    }
+
+    if (total_resources == 0) {
+      continue;
+    }
+
+    // Calculate expected loss using normal distribution
+    float expected_loss = total_resources * loss_probability;
+
+    // Use normal distribution around the expectation
+    std::normal_distribution<float> normal_dist(expected_loss, expected_loss * 0.1f); // 10% std dev
+    float raw_loss = normal_dist(_rng);
+
+    // Clamp to valid range
+    InventoryQuantity resources_to_lose = std::max(static_cast<InventoryQuantity>(0), std::min(static_cast<InventoryQuantity>(raw_loss), total_resources));
+
+    if (resources_to_lose == 0) {
+      continue;
+    }
+
+    // Randomly assign losses to individual objects using uniform distribution
+    std::vector<InventoryQuantity> losses_per_object(objects_with_quantities.size(), 0);
+
+    for (InventoryQuantity i = 0; i < resources_to_lose; ++i) {
+      // Uniformly select an object to lose a resource
+      std::uniform_int_distribution<> obj_dis(0, objects_with_quantities.size() - 1);
+      size_t obj_index = obj_dis(_rng);
+
+      // Check if this object still has resources to lose
+      if (losses_per_object[obj_index] < objects_with_quantities[obj_index].second) {
+        losses_per_object[obj_index]++;
+      }
+    }
+
+    // Apply the losses
+    for (size_t i = 0; i < objects_with_quantities.size(); ++i) {
+      if (losses_per_object[i] > 0) {
+        HasInventory* obj = objects_with_quantities[i].first;
+        InventoryDelta decrease_amount = -static_cast<InventoryDelta>(losses_per_object[i]);
+        obj->update_inventory(item, decrease_amount);
+      }
+    }
+  }
 }
 
 // Object registration and tracking methods
-void ResourceManager::register_inventory_object(HasInventory* obj) {
+void ResourceManager::register_inventory_object(HasInventory* obj, const std::string& group_name) {
   if (!obj) return;
 
-  std::string group_name = _get_group_name(obj);
-  _objects_by_group[group_name].push_back(obj);
+  GridObject* grid_obj = dynamic_cast<GridObject*>(obj);
+  if (!grid_obj) return;
+
+  std::string full_group_name;
+  if (group_name.empty()) {
+    // Use the cached group name or construct from type
+    full_group_name = _get_group_name(obj);
+  } else {
+    // Use the provided group name with type prefix
+    full_group_name = obj->type_name() + ":" + group_name;
+    // Cache the group name
+    _object_group_names[grid_obj->id] = full_group_name;
+  }
+
+  _objects_by_group[full_group_name].push_back(obj);
+
+  // Add object to bins
+  _add_object_to_bins(obj, full_group_name);
 }
+
+void ResourceManager::register_agent(HasInventory* obj, const std::string& group_name) {
+  register_inventory_object(obj, group_name);
+}
+
+void ResourceManager::register_object(HasInventory* obj) {
+  register_inventory_object(obj, "");
+}
+
 
 void ResourceManager::unregister_inventory_object(GridObjectId object_id) {
   HasInventory* obj = _get_inventory_object(object_id);
@@ -49,6 +132,12 @@ void ResourceManager::unregister_inventory_object(GridObjectId object_id) {
   if (group_objects.empty()) {
     _objects_by_group.erase(group_name);
   }
+
+  // Clean up cached group name
+  _object_group_names.erase(object_id);
+
+  // Remove object from bins
+  _remove_object_from_bins(object_id, group_name);
 }
 
 // Group-based access methods
@@ -170,7 +259,7 @@ void ResourceManager::distribute_resources_to_group(const std::string& group_nam
 }
 
 // Weighted random selection methods
-GridObjectId ResourceManager::select_random_object_by_resource(const std::string& group_name, InventoryItem item) const {
+GridObjectId ResourceManager::select_random_object_by_resource(const std::string& group_name, InventoryItem item) {
   const auto& objects = get_objects_by_group(group_name);
   if (objects.empty()) {
     return 0;  // Invalid ID
@@ -184,17 +273,13 @@ GridObjectId ResourceManager::select_random_object_by_resource(const std::string
 
   if (total_weight == 0) {
     // No objects have this resource, return random object
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, objects.size() - 1);
-    return dynamic_cast<const GridObject*>(objects[dis(gen)])->id;
+    return dynamic_cast<const GridObject*>(objects[dis(_rng)])->id;
   }
 
   // Weighted random selection
-  static std::random_device rd;
-  static std::mt19937 gen(rd());
   std::uniform_int_distribution<> dis(1, total_weight);
-  InventoryQuantity target_weight = dis(gen);
+  InventoryQuantity target_weight = dis(_rng);
 
   InventoryQuantity current_weight = 0;
   for (const auto* obj : objects) {
@@ -230,6 +315,9 @@ void ResourceManager::on_inventory_changed(GridObjectId object_id, InventoryItem
   if (group_totals.empty()) {
     _group_inventory_totals.erase(group_name);
   }
+
+  // Update bins
+  _update_object_in_bins(obj, group_name, item, delta);
 }
 
 // Private helper methods
@@ -243,14 +331,20 @@ HasInventory* ResourceManager::_get_inventory_object(GridObjectId object_id) con
 }
 
 std::string ResourceManager::_get_group_name(HasInventory* obj) const {
-  // Try to cast to Agent first to get group_name
-  Agent* agent = dynamic_cast<Agent*>(obj);
-  if (agent) {
-    return agent->group_name;
+  // Cast to GridObject to get the ID
+  GridObject* grid_obj = dynamic_cast<GridObject*>(obj);
+  if (!grid_obj) {
+    return "unknown:";
   }
 
-  // For converters and other objects, use empty string
-  return "";
+  // Look up the cached group name
+  auto it = _object_group_names.find(grid_obj->id);
+  if (it != _object_group_names.end()) {
+    return it->second;
+  }
+
+  // Fallback: construct group name from type (shouldn't happen if registration is correct)
+  return obj->type_name() + ":";
 }
 
 void ResourceManager::_validate_object_id(GridObjectId id) const {
@@ -261,6 +355,7 @@ void ResourceManager::_validate_object_id(GridObjectId id) const {
 
 void ResourceManager::_update_group_maps() {
   _objects_by_group.clear();
+  _object_group_names.clear();
 
   // Iterate through all objects in the grid
   for (size_t i = 0; i < _grid->objects.size(); ++i) {
@@ -268,8 +363,9 @@ void ResourceManager::_update_group_maps() {
     HasInventory* inventory_obj = dynamic_cast<HasInventory*>(grid_obj);
 
     if (inventory_obj) {
-      std::string group_name = _get_group_name(inventory_obj);
-      _objects_by_group[group_name].push_back(inventory_obj);
+      // Use the generic registration method which will call _get_group_name
+      // This is for initialization only - in practice, use specific registration methods
+      register_inventory_object(inventory_obj);
     }
   }
 }
@@ -285,6 +381,99 @@ void ResourceManager::_update_inventory_totals() {
       const auto& inventory = obj->get_inventory();
       for (const auto& [item, quantity] : inventory) {
         group_totals[item] += quantity;
+      }
+    }
+  }
+}
+
+void ResourceManager::_update_bins() {
+  _bins.clear();
+  _bin_loss_probabilities.clear();
+
+  // Rebuild bins from scratch
+  for (const auto& [group_name, objects] : _objects_by_group) {
+    for (HasInventory* obj : objects) {
+      _add_object_to_bins(obj, group_name);
+    }
+  }
+}
+
+void ResourceManager::_add_object_to_bins(HasInventory* obj, const std::string& group_name) {
+  const auto& inventory = obj->get_inventory();
+  const auto& loss_probs = obj->get_resource_loss_prob();
+
+  for (const auto& [item, quantity] : inventory) {
+    if (quantity > 0) {
+      auto bin_key = std::make_pair(group_name, item);
+      _bins[bin_key].push_back({obj, quantity});
+
+      // Cache loss probability for this bin (from first object)
+      if (_bin_loss_probabilities.find(bin_key) == _bin_loss_probabilities.end()) {
+        auto loss_it = loss_probs.find(item);
+        if (loss_it != loss_probs.end()) {
+          _bin_loss_probabilities[bin_key] = loss_it->second;
+        }
+      }
+    }
+  }
+}
+
+void ResourceManager::_remove_object_from_bins(GridObjectId object_id, const std::string& group_name) {
+  // Remove all entries for this object from all bins
+  for (auto& [bin_key, objects_with_quantities] : _bins) {
+    if (bin_key.first == group_name) {
+      objects_with_quantities.erase(
+        std::remove_if(objects_with_quantities.begin(), objects_with_quantities.end(),
+          [object_id](const std::pair<HasInventory*, InventoryQuantity>& entry) {
+            GridObject* grid_obj = dynamic_cast<GridObject*>(entry.first);
+            return grid_obj && grid_obj->id == object_id;
+          }),
+        objects_with_quantities.end());
+
+      // Remove empty bins
+      if (objects_with_quantities.empty()) {
+        _bins.erase(bin_key);
+        _bin_loss_probabilities.erase(bin_key);
+      }
+    }
+  }
+}
+
+void ResourceManager::_update_object_in_bins(HasInventory* obj, const std::string& group_name, InventoryItem item, InventoryDelta delta) {
+  auto bin_key = std::make_pair(group_name, item);
+
+  // Find the object in the bin and update its quantity
+  auto& objects_with_quantities = _bins[bin_key];
+  for (auto& [bin_obj, quantity] : objects_with_quantities) {
+    if (bin_obj == obj) {
+      quantity += delta;
+
+      // Remove if quantity becomes zero or negative
+      if (quantity <= 0) {
+        objects_with_quantities.erase(
+          std::remove(objects_with_quantities.begin(), objects_with_quantities.end(), std::make_pair(obj, quantity)),
+          objects_with_quantities.end());
+
+        // Remove empty bins
+        if (objects_with_quantities.empty()) {
+          _bins.erase(bin_key);
+          _bin_loss_probabilities.erase(bin_key);
+        }
+      }
+      return;
+    }
+  }
+
+  // If object not found in bin and delta is positive, add it
+  if (delta > 0) {
+    objects_with_quantities.push_back({obj, static_cast<InventoryQuantity>(delta)});
+
+    // Cache loss probability if not already cached
+    if (_bin_loss_probabilities.find(bin_key) == _bin_loss_probabilities.end()) {
+      const auto& loss_probs = obj->get_resource_loss_prob();
+      auto loss_it = loss_probs.find(item);
+      if (loss_it != loss_probs.end()) {
+        _bin_loss_probabilities[bin_key] = loss_it->second;
       }
     }
   }

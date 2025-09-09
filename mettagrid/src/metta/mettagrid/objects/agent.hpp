@@ -97,6 +97,11 @@ public:
     return resource_loss_prob;
   }
 
+  // Type name method
+  const std::string& type_name() const override {
+    return GridObject::type_name;
+  }
+
   void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
     for (const auto& [item, amount] : initial_inventory) {
       if (amount > 0) {

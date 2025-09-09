@@ -152,6 +152,11 @@ public:
     return resource_loss_prob;
   }
 
+  // Type name method
+  const std::string& type_name() const override {
+    return GridObject::type_name;
+  }
+
   void finish_converting() {
     this->converting = false;
     // Increment the stat unconditionally
