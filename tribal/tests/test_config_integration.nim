@@ -52,4 +52,4 @@ suite "Configuration Integration Tests":
     check config.deathPenalty <= 0.0  # Should be penalty
 
 when isMainModule:
-  # The unittest framework automatically runs tests when compiled and run
+  discard  # The unittest framework automatically runs tests when compiled and run

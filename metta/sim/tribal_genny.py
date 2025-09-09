@@ -314,6 +314,33 @@ class TribalGridEnv:
             }
         return features
 
+    # Pufferlib async interface methods
+    def async_reset(self, seed: int | None = None) -> np.ndarray:
+        """Async reset method for pufferlib compatibility."""
+        obs, _ = self.reset(seed)
+        return obs
+
+    def send(self, actions: np.ndarray) -> None:
+        """Send actions to environment (pufferlib async interface)."""
+        # Store the step results for recv() to return
+        self._step_results = self.step(actions)
+
+    def recv(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[dict], np.ndarray, np.ndarray]:
+        """Receive step results (pufferlib async interface)."""
+        if not hasattr(self, '_step_results'):
+            raise RuntimeError("Must call send() before recv()")
+        
+        obs, rewards, terminals, truncations, info = self._step_results
+        
+        # Convert info dict to list of dicts (one per agent) 
+        info_list = [info.copy() for _ in range(self.num_agents)]
+        
+        # Add lives and scores arrays (dummy values for tribal env)
+        lives = np.ones(self.num_agents, dtype=np.float32)  # All agents alive
+        scores = rewards.copy()  # Use rewards as scores
+        
+        return obs, rewards, terminals, truncations, info_list, lives, scores
+
 
 # Configuration Classes
 class TribalGameConfig(Config):
