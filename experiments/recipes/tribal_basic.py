@@ -364,18 +364,19 @@ class TribalNimPlayTool(Tool):
                             action_type = "NOOP" if self.policy_uri == "test_noop" else "MOVE"
                             print(f"  📡 Step {step}: Still sending {action_type} actions to Nim")
                         
-                        # Create SeqInt and populate it
-                        actions = tribal_module.SeqInt()
-                        for action in actions_list:
-                            actions.append(action)
+                        # Write actions to file for cross-process communication
+                        action_lines = []
+                        for agent_id in range(15):
+                            action_type = actions_list[agent_id * 2]
+                            action_arg = actions_list[agent_id * 2 + 1]
+                            action_lines.append(f"{action_type},{action_arg}")
                         
-                        # Send actions directly to Nim
-                        result = tribal_module.set_external_actions_from_python(actions)
-                        if not result:
-                            print(f"⚠️  Failed to set actions in Nim at step {step}")
-                            error = tribal_module.take_error()
-                            if error:
-                                print(f"   Error: {error}")
+                        actions_file = "/Users/relh/Code/workspace/metta/tribal/actions.tmp"
+                        with open(actions_file, 'w') as f:
+                            f.write('\n'.join(action_lines))
+                        
+                        if step % 100 == 0:  # Log every 100 steps
+                            print(f"  📁 Step {step}: Wrote neural network actions to file")
                         
                         step += 1
                         time.sleep(0.1)  # 10 Hz action generation
@@ -394,7 +395,7 @@ class TribalNimPlayTool(Tool):
             
             tribal_dir = Path("/Users/relh/Code/workspace/metta/tribal")
             result = subprocess.run(
-                ["nim", "r", "-d:release", "src/tribal"], 
+                ["nim", "r", "-d:release", "src/tribal", "--", "--external-controller"], 
                 cwd=tribal_dir,
                 check=False
             )

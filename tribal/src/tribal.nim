@@ -145,8 +145,19 @@ for path in walkDirRec("data/"):
 
 echo "🎨 Asset loading complete! Loaded ", loadedCount, "/", totalFiles, " files"
 
-# Initialize controller - check if external controller already set, otherwise use built-in AI
-if globalController == nil:
+# Check for command line arguments to determine controller type
+var useExternalController = false
+for i in 1..paramCount():
+  let param = paramStr(i)
+  if param == "--external-controller":
+    useExternalController = true
+    echo "🔗 Command line: Requested external controller mode"
+
+# Initialize controller - check command line, existing controller, or default to built-in AI
+if useExternalController:
+  initGlobalController(ExternalNN)
+  echo "🔗 Initialized with external NN controller (from command line)"
+elif globalController == nil:
   initGlobalController(BuiltinAI)
   echo "🤖 Initialized with built-in AI controller"
 else:

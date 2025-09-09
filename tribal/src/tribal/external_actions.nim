@@ -85,10 +85,36 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
       echo "🎮 Debug: Got external actions - Agent 0: [", actions[0][0], ",", actions[0][1], "], Agent 1: [", actions[1][0], ",", actions[1][1], "]"
       return actions
     else:
-      echo "⚠️ Debug: No external callback available, using NOOP"
-      # Try to read actions from file (for Python neural network control)
-      # Note: This requires the readActionsFromFile function to be available
-      # For now, fallback to noop actions
+      echo "📁 Debug: No external callback, trying to read actions from file"
+      # Try to read actions from file (for Python neural network control across processes)
+      let actionsFile = "actions.tmp"
+      if fileExists(actionsFile):
+        try:
+          echo "📄 Debug: Found actions file, reading..."
+          let content = readFile(actionsFile)
+          let lines = content.strip().split('\n')
+          if lines.len >= MapAgents:
+            var fileActions: array[MapAgents, array[2, uint8]]
+            for i in 0..<MapAgents:
+              if i < lines.len:
+                let parts = lines[i].split(',')
+                if parts.len >= 2:
+                  fileActions[i][0] = parseInt(parts[0]).uint8
+                  fileActions[i][1] = parseInt(parts[1]).uint8
+                  
+            # Delete the file after reading to avoid stale actions
+            try:
+              removeFile(actionsFile)
+            except:
+              echo "⚠️ Debug: Could not remove actions file"
+              
+            echo "📄 Debug: Successfully read actions from file - Agent 0: [", fileActions[0][0], ",", fileActions[0][1], "]"
+            return fileActions
+        except Exception as e:
+          echo "⚠️ Debug: Error reading actions file: ", e.msg
+      
+      # Fallback to noop actions if file reading fails
+      echo "⚠️ Debug: Using NOOP fallback actions"
       var noopActions: array[MapAgents, array[2, uint8]]
       for i in 0..<MapAgents:
         noopActions[i] = [0'u8, 0'u8]  # noop
