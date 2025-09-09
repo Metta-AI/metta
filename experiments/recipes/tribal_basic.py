@@ -101,7 +101,7 @@ class TribalTaskGeneratorConfig(TaskGeneratorConfig):
 
 class TribalNimPlayTool(Tool):
     """Tool for playing tribal environment using Nim viewer with Python configuration."""
-    
+
     env_config: TribalEnvConfig
     policy_uri: str | None = None
 
@@ -109,24 +109,28 @@ class TribalNimPlayTool(Tool):
         """Launch Nim tribal viewer with Python-configured environment."""
         # Ensure tribal bindings are built first
         _ensure_tribal_bindings_built()
-        
+
         # Find the metta project root and tribal directory
         metta_root = Path(__file__).parent.parent.parent
         tribal_dir = metta_root / "tribal"
-        
+
         # Ensure we're in the right directory
         if not tribal_dir.exists():
             print(f"❌ Tribal directory not found at {tribal_dir}")
             return 1
-        
+
         print("🎮 Launching Nim tribal viewer with Python configuration...")
         print(f"📁 Working directory: {tribal_dir}")
-        print(f"🔧 Config: max_steps={self.env_config.game.max_steps}, enable_combat={self.env_config.game.enable_combat}")
-        print(f"⚙️  Config: ore_per_battery={self.env_config.game.ore_per_battery}, clippy_spawn_rate={self.env_config.game.clippy_spawn_rate}")
-        
+        print(
+            f"🔧 Config: max_steps={self.env_config.game.max_steps}, enable_combat={self.env_config.game.enable_combat}"
+        )
+        print(
+            f"⚙️  Config: ore_per_battery={self.env_config.game.ore_per_battery}, clippy_spawn_rate={self.env_config.game.clippy_spawn_rate}"
+        )
+
         # Create a temporary config file with the Python configuration
         temp_config_file = tribal_dir / "temp_play_config.json"
-        
+
         try:
             # Convert TribalEnvConfig to a format Nim can understand
             nim_config = {
@@ -142,26 +146,26 @@ class TribalNimPlayTool(Tool):
                 "survival_penalty": self.env_config.game.survival_penalty,
                 "death_penalty": self.env_config.game.death_penalty,
             }
-            
+
             # Write config to temp file
-            with open(temp_config_file, 'w') as f:
+            with open(temp_config_file, "w") as f:
                 json.dump(nim_config, f, indent=2)
-            
+
             print(f"📄 Created config file: {temp_config_file}")
-            
+
             # Change to tribal directory
             original_dir = os.getcwd()
             os.chdir(tribal_dir)
-            
+
             # Run the Nim viewer with config file argument
             result = subprocess.run(
                 ["nimble", "visualize", "--config", str(temp_config_file)],
                 capture_output=False,  # Let output show directly
-                text=True
+                text=True,
             )
-            
+
             return result.returncode
-        
+
         except KeyboardInterrupt:
             print("\n🛑 Nim viewer stopped by user")
             return 0
@@ -173,7 +177,7 @@ class TribalNimPlayTool(Tool):
             if temp_config_file.exists():
                 temp_config_file.unlink()
                 print(f"🗑️  Removed temp config file: {temp_config_file}")
-            
+
             # Restore original directory
             try:
                 os.chdir(original_dir)
@@ -188,12 +192,12 @@ def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
 
 
 def make_tribal_environment(
-    max_steps: int = None, 
+    max_steps: int = None,
     enable_combat: bool = None,
     # Resource configuration
     ore_per_battery: int = None,
     batteries_per_heart: int = None,
-    # Combat configuration  
+    # Combat configuration
     clippy_spawn_rate: float = None,
     clippy_damage: int = None,
     # Reward configuration
@@ -202,7 +206,7 @@ def make_tribal_environment(
     battery_reward: float = None,
     survival_penalty: float = None,
     death_penalty: float = None,
-    **kwargs
+    **kwargs,
 ) -> TribalEnvConfig:
     """
     Create tribal environment configuration for training.
@@ -232,7 +236,7 @@ def make_tribal_environment(
         **kwargs: Additional configuration overrides for TribalEnvConfig (not game config)
     """
     from metta.sim.tribal_genny import TribalGameConfig
-    
+
     # Build game configuration with overrides
     game_overrides = {}
     if max_steps is not None:
@@ -257,16 +261,13 @@ def make_tribal_environment(
         game_overrides["survival_penalty"] = survival_penalty
     if death_penalty is not None:
         game_overrides["death_penalty"] = death_penalty
-    
+
     # Create game config with overrides
     game_config = TribalGameConfig(**game_overrides)
-    
+
     # Create environment config with custom game config
     config = TribalEnvConfig(
-        label="tribal_basic", 
-        desync_episodes=True, 
-        game=game_config,
-        **kwargs
+        label="tribal_basic", desync_episodes=True, game=game_config, **kwargs
     )
 
     return config
@@ -341,7 +342,7 @@ def play(
     """
     # Use the configured tribal environment, or create default
     play_env = env or make_tribal_environment()
-    
+
     return TribalNimPlayTool(
         env_config=play_env,
         policy_uri=policy_uri,
