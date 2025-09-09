@@ -1,8 +1,8 @@
 """Scheduler implementations for sweep orchestration."""
 
-from metta.sweep.schedulers.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
+from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 
 __all__ = [
-    "OptimizingScheduler",
-    "OptimizingSchedulerConfig",
+    "BatchedSyncedOptimizingScheduler",
+    "BatchedSyncedSchedulerConfig",
 ]
