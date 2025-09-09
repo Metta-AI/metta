@@ -1,4 +1,4 @@
-import std/[math, random, tables]
+import std/[random, tables]
 import vmath
 import environment, common
 
@@ -76,7 +76,6 @@ proc getNextWanderPoint*(controller: Controller, state: ControllerState): IVec2 
   # Track current position in the spiral (accumulated from all steps)
   var totalOffset = ivec2(0, 0)
   var currentArcLength = 1
-  var stepsAccumulated = 0
   var direction = 0
   
   # Rebuild the position by simulating all steps up to current point

@@ -2,8 +2,8 @@
 ## Supports both external neural network control and built-in AI control
 ## Controller type is specified when creating the environment
 
-import std/[options, times]
-import common, environment, ai
+import std/times
+import environment, ai
 
 type
   ControllerType* = enum

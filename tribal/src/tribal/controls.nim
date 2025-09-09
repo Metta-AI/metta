@@ -1,6 +1,5 @@
 
-import std/times,
-  common, environment, windy, ai, external_actions
+import common, environment, windy, external_actions
 
 var
   actionsArray*: array[MapAgents, array[2, uint8]]
