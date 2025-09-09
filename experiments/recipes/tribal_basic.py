@@ -157,14 +157,14 @@ class TribalNimPlayTool(Tool):
                 print("✅ Nimpy bindings imported successfully")
                 
                 # Initialize external neural network controller
-                success = tribal.initExternalNNController()
+                success = tribal.init_external_nncontroller()
                 if success:
                     print("✅ External neural network controller initialized")
                 else:
                     print("❌ Failed to initialize external controller")
                     return 1
                 
-                controller_type = tribal.getControllerTypeString()
+                controller_type = tribal.get_controller_type_string()
                 print(f"🤖 Controller type: {controller_type}")
                 
                 print("🎮 Launch Nim viewer to see neural network control in action!")
