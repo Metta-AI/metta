@@ -103,7 +103,7 @@ def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
 
 
 def make_tribal_environment(
-    max_steps: int = 2000, enable_combat: bool = True, **kwargs
+    max_steps: int = None, enable_combat: bool = None, **kwargs
 ) -> TribalEnvConfig:
     """
     Create tribal environment configuration for training.
@@ -117,17 +117,27 @@ def make_tribal_environment(
 
     NOTE: Agent count, map dimensions, and observation space are compile-time constants
     for performance. Only gameplay parameters are configurable.
+    
+    Args:
+        max_steps: Maximum steps per episode (uses Nim default if None)
+        enable_combat: Enable combat with Clippys (uses Nim default if None)
+        **kwargs: Additional configuration overrides
     """
-    config = TribalEnvConfig(label="tribal_basic", desync_episodes=True, **kwargs)
+    # Start with Nim defaults
+    config = TribalEnvConfig.with_nim_defaults(
+        label="tribal_basic", 
+        desync_episodes=True, 
+        **kwargs
+    )
 
-    # Configure game mechanics (only runtime-configurable parameters)
-    config.game.max_steps = max_steps
-    config.game.enable_combat = enable_combat
+    # Override only specified parameters
+    if max_steps is not None:
+        config.game.max_steps = max_steps
+    if enable_combat is not None:
+        config.game.enable_combat = enable_combat
 
-    # Set up resource chain rewards (arena_basic_easy_shaped values)
-    config.game.heart_reward = 1.0  # Creating heart reward
-    config.game.battery_reward = 0.8  # Crafting battery reward
-    config.game.ore_reward = 0.1  # Mining ore reward
+    # Note: heart_reward, battery_reward, ore_reward now come from Nim defaults
+    # No longer hardcoded here - single source of truth in Nim
 
     return config
 

@@ -324,29 +324,43 @@ class TribalGameConfig(Config):
     are configurable at runtime.
     """
 
-    # Core game parameters
-    max_steps: int = Field(default=2000, ge=0, description="Maximum steps per episode")
-
-    # Resource configuration
-    ore_per_battery: int = Field(default=3, description="Ore required to craft battery")
-    batteries_per_heart: int = Field(default=2, description="Batteries required at altar for hearts")
-
-    # Combat configuration
-    enable_combat: bool = Field(default=True, description="Enable agent combat")
-    clippy_spawn_rate: float = Field(default=1.0, ge=0, le=1, description="Rate of enemy spawning")
-    clippy_damage: int = Field(default=1, description="Damage dealt by enemies")
-
-    # Reward configuration
-    heart_reward: float = Field(default=1.0, description="Reward for creating hearts")
-    ore_reward: float = Field(default=0.1, description="Reward for collecting ore")
-    battery_reward: float = Field(default=0.8, description="Reward for crafting batteries")
-    survival_penalty: float = Field(default=-0.01, description="Per-step survival penalty")
-    death_penalty: float = Field(default=-5.0, description="Penalty for agent death")
+    # NOTE: Default values come from Nim's defaultEnvironmentConfig() 
+    # Only specify types and validation here, not duplicate defaults
+    max_steps: int = Field(ge=0, description="Maximum steps per episode")
+    ore_per_battery: int = Field(description="Ore required to craft battery")
+    batteries_per_heart: int = Field(description="Batteries required at altar for hearts")
+    enable_combat: bool = Field(description="Enable agent combat")
+    clippy_spawn_rate: float = Field(ge=0, le=1, description="Rate of enemy spawning")
+    clippy_damage: int = Field(description="Damage dealt by enemies")
+    heart_reward: float = Field(description="Reward for creating hearts")
+    ore_reward: float = Field(description="Reward for collecting ore")
+    battery_reward: float = Field(description="Reward for crafting batteries")
+    survival_penalty: float = Field(description="Per-step survival penalty")
+    death_penalty: float = Field(description="Penalty for agent death")
 
     @property
     def num_agents(self) -> int:
         """Number of agents (compile-time constant)."""
         return MAP_AGENTS
+
+    @classmethod
+    def from_nim_defaults(cls) -> "TribalGameConfig":
+        """Create config with defaults from Nim environment."""
+        # Get defaults from Nim
+        nim_config = default_tribal_config()
+        return cls(
+            max_steps=nim_config.game.max_steps,
+            ore_per_battery=nim_config.game.ore_per_battery,
+            batteries_per_heart=nim_config.game.batteries_per_heart,
+            enable_combat=nim_config.game.enable_combat,
+            clippy_spawn_rate=nim_config.game.clippy_spawn_rate,
+            clippy_damage=nim_config.game.clippy_damage,
+            heart_reward=nim_config.game.heart_reward,
+            ore_reward=nim_config.game.ore_reward,
+            battery_reward=nim_config.game.battery_reward,
+            survival_penalty=nim_config.game.survival_penalty,
+            death_penalty=nim_config.game.death_penalty,
+        )
 
 
 class TribalEnvConfig(Config):
@@ -355,8 +369,8 @@ class TribalEnvConfig(Config):
     environment_type: str = "tribal"
     label: str = Field(default="tribal", description="Environment label")
 
-    # Game configuration
-    game: TribalGameConfig = Field(default_factory=TribalGameConfig)
+    # Game configuration - defaults come from Nim
+    game: TribalGameConfig
 
     # Environment settings
     desync_episodes: bool = Field(default=True, description="Desynchronize episode resets")
@@ -378,6 +392,17 @@ class TribalEnvConfig(Config):
             "type": "MultiDiscrete",
             "nvec": [6, 8],  # 6 action types, 8 max argument value (0-7 for directions)
         }
+
+    @classmethod
+    def with_nim_defaults(cls, **overrides) -> "TribalEnvConfig":
+        """Create config with defaults from Nim environment."""
+        game_config = TribalGameConfig.from_nim_defaults()
+        return cls(
+            game=game_config,
+            label=overrides.get("label", "tribal"),
+            desync_episodes=overrides.get("desync_episodes", True),
+            render_mode=overrides.get("render_mode"),
+        )
 
     def create_environment(self, **kwargs) -> Any:
         """Create tribal environment instance."""
