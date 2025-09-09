@@ -133,11 +133,21 @@ class TribalGridEnv:
         # Cache for compatibility
         self.obs_width = self.observation_width
         self.obs_height = self.observation_height
+        
+        # Feature normalizations (create entries for each observation layer)
+        # Tribal observations are raw pixel-like data, normalize to 0-255 range
+        self.feature_normalizations = {i: 255.0 for i in range(self.observation_layers)}
+        
+        # Episode tracking for curriculum
+        self._episode_rewards = np.array([0.0])
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
         # Reset the Nim environment (our binding doesn't take seed parameter)
         self._nim_env.reset_env()
+        
+        # Reset episode tracking
+        self._episode_rewards[0] = 0.0
 
         # Get observations and convert to numpy
         obs_data = self._nim_env.get_observations()
@@ -193,6 +203,9 @@ class TribalGridEnv:
 
         truncated_seq = self._nim_env.get_truncated()
         truncations = np.array([truncated_seq[i] for i in range(len(truncated_seq))], dtype=bool)
+
+        # Track episode rewards for curriculum
+        self._episode_rewards[0] += rewards.sum()
 
         # Check for episode end
         if self._nim_env.is_episode_done():
@@ -260,6 +273,33 @@ class TribalGridEnv:
     def max_steps(self) -> int:
         """Get max steps."""
         return self._config.game.max_steps
+    
+    def set_mg_config(self, config) -> None:
+        """Set new MettaGrid configuration (for curriculum compatibility)."""
+        # For tribal environments, we don't need to change configuration during curriculum
+        # as the environment configuration is compile-time
+        pass
+    
+    def get_episode_rewards(self) -> np.ndarray:
+        """Get episode rewards (for curriculum compatibility)."""
+        return self._episode_rewards
+    
+    def get_observation_features(self):
+        """Get observation features (for compatibility with MettaGrid interface)."""
+        # Return empty dict as tribal observations don't use the same feature system
+        return {}
+    
+    @property
+    def action_names(self) -> list[str]:
+        """Get action names for tribal environment."""
+        return ["NOOP", "MOVE", "ATTACK", "GET", "SWAP", "PUT"]
+    
+    @property
+    def max_action_args(self) -> list[int]:
+        """Get maximum action arguments for each action type."""
+        # For tribal actions: NOOP=0, MOVE=8, ATTACK=8, GET=8, SWAP=8, PUT=8
+        # All directional actions use 8 directions, NOOP uses 0
+        return [0, 8, 8, 8, 8, 8]
 
     def close(self) -> None:
         """Clean up environment."""
