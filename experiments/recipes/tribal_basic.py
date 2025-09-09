@@ -210,75 +210,112 @@ class TribalNimPlayTool(Tool):
 
     def _run_interactive_loop(self, env, policy, tribal_module) -> int:
         """
-        Run an interactive game loop using the policy to control the environment directly.
+        Run an interactive game loop with both policy control and native Nim visualization.
         
-        This is much simpler: we just step the environment with actions from the neural network.
-        No need for external controllers or separate Nim processes.
+        This launches the native Nim viewer while the Python policy controls the agents
+        through the in-process environment. Best of both worlds!
         """
         import numpy as np
         import time
+        import threading
+        import subprocess
         
-        print("🎮 Starting interactive game loop...")
-        print("   Policy will control all agents directly via environment stepping")
+        print("🎮 Starting interactive game loop with native Nim visualization...")
+        print("   Policy will control all agents via environment stepping")
+        print("   Native Nim viewer will show the visualization")
+        
+        # Flag to control the game loop
+        game_running = threading.Event()
+        game_running.set()
+        
+        def policy_control_loop():
+            """Run the policy control in a separate thread."""
+            try:
+                # Reset environment
+                obs, info = env.reset()
+                print(f"✅ Environment reset complete. Starting step: {info.get('current_step', 0)}")
+                
+                episode_rewards = np.zeros(env.num_agents)
+                step_count = 0
+                
+                while step_count < env.max_steps and game_running.is_set():
+                    # Get actions from policy
+                    policy_output = policy.forward(obs)
+                    actions = policy_output.get("actions")
+                    
+                    if actions is None:
+                        print("⚠️  Policy didn't return actions, using noop")
+                        actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+                    
+                    # Step environment
+                    obs, rewards, terminals, truncations, info = env.step(actions)
+                    
+                    episode_rewards += rewards
+                    step_count += 1
+                    
+                    # Log progress periodically
+                    if step_count % 100 == 0:
+                        avg_reward = np.mean(episode_rewards)
+                        num_alive = np.sum(~(terminals | truncations))
+                        print(f"  Step {step_count}: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
+                        
+                        # Show some actions for debugging
+                        print(f"    Sample actions: agent_0=[{actions[0,0]},{actions[0,1]}], agent_1=[{actions[1,0]},{actions[1,1]}]")
+                    
+                    # Check if episode should end
+                    if np.all(terminals | truncations) or info.get('episode_done', False):
+                        print(f"🏁 Episode ended at step {step_count}")
+                        break
+                    
+                    # Small delay for visualization
+                    time.sleep(0.05)  # 20 Hz
+                
+                # Final statistics
+                final_avg_reward = np.mean(episode_rewards)
+                final_total_reward = np.sum(episode_rewards)
+                print(f"🏆 Episode complete!")
+                print(f"   Steps: {step_count}")
+                print(f"   Average reward: {final_avg_reward:.3f}")
+                print(f"   Total reward: {final_total_reward:.3f}")
+                
+            except Exception as e:
+                print(f"❌ Error in policy control loop: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                game_running.clear()
         
         try:
-            # Reset environment
-            obs, info = env.reset()
-            print(f"✅ Environment reset complete. Starting step: {info.get('current_step', 0)}")
+            print("🚀 Starting policy control thread...")
+            policy_thread = threading.Thread(target=policy_control_loop, daemon=True)
+            policy_thread.start()
             
-            episode_rewards = np.zeros(env.num_agents)
-            step_count = 0
+            print("🎯 Launching native Nim visualization...")
+            print("   The Nim window will show the agents being controlled by your policy")
+            print("   Press Ctrl+C in terminal to stop, or close the Nim window")
             
-            while step_count < env.max_steps:
-                # Get actions from policy
-                policy_output = policy.forward(obs)
-                actions = policy_output.get("actions")
-                
-                if actions is None:
-                    print("⚠️  Policy didn't return actions, using noop")
-                    actions = np.zeros((env.num_agents, 2), dtype=np.int32)
-                
-                # Step environment
-                obs, rewards, terminals, truncations, info = env.step(actions)
-                
-                episode_rewards += rewards
-                step_count += 1
-                
-                # Log progress periodically
-                if step_count % 100 == 0:
-                    avg_reward = np.mean(episode_rewards)
-                    num_alive = np.sum(~(terminals | truncations))
-                    print(f"  Step {step_count}: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
-                    
-                    # Show some actions for debugging
-                    print(f"    Sample actions: agent_0=[{actions[0,0]},{actions[0,1]}], agent_1=[{actions[1,0]},{actions[1,1]}]")
-                
-                # Check if episode should end
-                if np.all(terminals | truncations) or info.get('episode_done', False):
-                    print(f"🏁 Episode ended at step {step_count}")
-                    break
-                
-                # Small delay for visualization (optional)
-                time.sleep(0.05)  # 20 Hz
+            # Launch native Nim viewer (this blocks until window closes)
+            tribal_dir = Path(__file__).parent.parent.parent / "tribal"
+            result = subprocess.run(
+                ["nim", "r", "-d:release", "src/tribal"],
+                cwd=tribal_dir,
+                capture_output=False  # Allow interactive output
+            )
             
-            # Final statistics
-            final_avg_reward = np.mean(episode_rewards)
-            final_total_reward = np.sum(episode_rewards)
-            print(f"🏆 Episode complete!")
-            print(f"   Steps: {step_count}")
-            print(f"   Average reward: {final_avg_reward:.3f}")
-            print(f"   Total reward: {final_total_reward:.3f}")
-            
-            return 0
+            return result.returncode
             
         except KeyboardInterrupt:
             print("\n⏹️  Interrupted by user")
+            game_running.clear()
             return 0
         except Exception as e:
-            print(f"❌ Error in game loop: {e}")
+            print(f"❌ Error launching visualization: {e}")
             import traceback
             traceback.print_exc()
             return 1
+        finally:
+            game_running.clear()
+            print("🧹 Game loop stopped")
 
     def _run_with_builtin_ai(self) -> int:
         """
