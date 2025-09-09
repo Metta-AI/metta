@@ -192,111 +192,99 @@ class TribalNimPlayTool(Tool):
 
     def _run_neural_network_service(self, policy, tribal_module) -> int:
         """
-        Run neural network service that provides actions to Nim environment.
+        Run neural network service that provides actions directly to Nim environment via nimpy.
         """
         import threading
         import time
-        import tempfile
-        import json
         import subprocess
         
-        # Create temporary file for action communication
-        action_file = tempfile.NamedTemporaryFile(mode='w+', suffix='.json', delete=False)
-        action_file_path = action_file.name
-        action_file.close()
+        # Initialize external NN controller in Nim
+        success = tribal_module.init_external_nncontroller()
+        if not success:
+            print("❌ Failed to initialize external NN controller")
+            error = tribal_module.take_error()
+            if error:
+                print(f"   Error: {error}")
+            return 1
         
-        print(f"💾 Action communication file: {action_file_path}")
+        print("  ✅ External NN controller initialized in Nim")
         
         # Flag to control the action service
         service_running = threading.Event()
         service_running.set()
         
         def neural_network_action_service():
-            """Background service that generates actions from neural network."""
+            """Background service that generates actions from neural network and sends directly to Nim."""
             step = 0
             while service_running.is_set():
                 try:
                     # Generate actions using policy (placeholder for now)
-                    # TODO: Get real observations from Nim environment
-                    actions = []
-                    for agent_id in range(15):  # 15 agents
+                    # TODO: Get real observations from Nim environment and use policy.forward()
+                    actions_list = []
+                    for agent_id in range(15):  # 15 agents (MapAgents constant)
                         # Simple example actions - in practice would use policy.forward()
                         action_type = 0  # NOOP for now
                         action_arg = 0
-                        actions.extend([action_type, action_arg])
+                        actions_list.extend([action_type, action_arg])
                     
-                    # Write actions to shared file
-                    with open(action_file_path, 'w') as f:
-                        json.dump({
-                            'step': step, 
-                            'actions': actions,
-                            'timestamp': time.time()
-                        }, f)
+                    # Create SeqInt and populate it
+                    actions = tribal_module.SeqInt()
+                    for action in actions_list:
+                        actions.append(action)
+                    
+                    # Send actions directly to Nim
+                    result = tribal_module.set_external_actions_from_python(actions)
+                    if not result:
+                        print(f"⚠️  Failed to set actions in Nim at step {step}")
+                        error = tribal_module.take_error()
+                        if error:
+                            print(f"   Error: {error}")
                     
                     step += 1
                     time.sleep(0.1)  # 10 Hz action generation
                     
                 except Exception as e:
-                    print(f"⚠️ Error in neural network service: {e}")
-                    time.sleep(1.0)
-        
-        # Start the action service thread
-        print("🧠 Starting neural network action service thread...")
-        action_thread = threading.Thread(target=neural_network_action_service, daemon=True)
-        action_thread.start()
-        
-        # Set up Nim environment to read from action file
-        print("🔧 Setting up Nim to read actions from file...")
-        success = tribal_module.set_action_file_path(action_file_path)
-        if not success:
-            print("❌ Failed to set action file path in Nim")
-            return 1
-        
-        # Launch Nim environment
-        print("🚀 Launching Nim environment with neural network control...")
-        import os as os_module
-        tribal_dir = os_module.path.join(os_module.path.dirname(__file__), "..", "..", "tribal")
+                    print(f"❌ Neural network action service error: {e}")
+                    service_running.clear()
         
         try:
+            print("  🚀 Starting neural network action thread...")
+            action_thread = threading.Thread(target=neural_network_action_service, daemon=True)
+            action_thread.start()
+            
+            print("  ✅ Neural network action service started successfully!")
+            print("  📡 Python neural network connected directly to Nim via nimpy")
+            print("  🎮 Press Ctrl+C to stop training and environment")
+            
+            # Get tribal directory for launching Nim
+            import os
+            tribal_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'tribal')
+            tribal_dir = os.path.abspath(tribal_dir)
+            
+            print(f"  🎯 Launching Nim environment from: {tribal_dir}")
+            
+            # Launch Nim environment with subprocess
             result = subprocess.run(
                 ["nim", "r", "-d:release", "src/tribal"],
                 cwd=tribal_dir,
-                capture_output=False,  # Allow interactive output
+                capture_output=False,  # Let output go directly to console
                 text=True
             )
             
-            # Clean up
-            service_running.clear()
-            action_thread.join(timeout=1.0)
+            return result.returncode
             
-            try:
-                os_module.unlink(action_file_path)
-            except:
-                pass
-            
-            if result.returncode == 0:
-                print("✅ Nim environment completed successfully")
-                return 0
-            else:
-                print(f"❌ Nim environment exited with code: {result.returncode}")
-                return result.returncode
-                
         except KeyboardInterrupt:
-            print("\n⏹️ Neural network control interrupted by user")
+            print("\n🛑 Stopping neural network service...")
             service_running.clear()
-            try:
-                os_module.unlink(action_file_path)
-            except:
-                pass
             return 0
         except Exception as e:
-            print(f"❌ Error running neural network control: {e}")
+            print(f"❌ Error in neural network service: {e}")
             service_running.clear()
-            try:
-                os_module.unlink(action_file_path)
-            except:
-                pass
             return 1
+        finally:
+            # Clean up
+            service_running.clear()
+            print("🧹 Neural network service stopped")
 
         except Exception as e:
             print(f"❌ Error setting up neural network: {e}")

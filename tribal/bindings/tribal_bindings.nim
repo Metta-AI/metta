@@ -2,7 +2,6 @@
 ## Using genny to create clean Python API for tribal environment
 
 import genny
-import json, os
 import ../src/tribal/environment
 import ../src/tribal/external_actions
 
@@ -288,15 +287,6 @@ proc initBuiltinAIController*(seed: int = 2024): bool =
     lastError = getCurrentException()
     return false
 
-proc initExternalNNController*(): bool =
-  ## Initialize controller to use external neural network
-  try:
-    initGlobalController(ExternalNN)
-    return true
-  except:
-    lastError = getCurrentException()
-    return false
-
 # Global storage for external actions (used by callback)
 var storedExternalActions: array[MapAgents, array[2, uint8]]
 var hasStoredActions = false
@@ -336,39 +326,18 @@ proc setExternalActionsFromPython*(actions: seq[int]): bool =
   except:
     return false
 
-# File-based action communication
-var actionFilePath: string = ""
-
-proc setActionFilePath*(filePath: string): bool =
-  ## Set the path to the file where Python writes actions
+proc initExternalNNController*(): bool =
+  ## Initialize controller to use external neural network
   try:
-    actionFilePath = filePath
+    initGlobalController(ExternalNN)
+    # Set the callback to use the stored external actions
+    setExternalActionCallback(externalActionCallback)
     return true
   except:
+    lastError = getCurrentException()
     return false
 
-proc readActionsFromFile*(): bool =
-  ## Read actions from the Python action file and set them
-  if actionFilePath == "":
-    return false
-    
-  try:
-    if not fileExists(actionFilePath):
-      return false
-      
-    let content = readFile(actionFilePath)
-    let data = parseJson(content)
-    
-    if data.hasKey("actions") and data["actions"].kind == JArray:
-      var actions: seq[int] = @[]
-      for item in data["actions"]:
-        actions.add(item.getInt())
-      
-      return setExternalActionsFromPython(actions)
-    
-    return false
-  except:
-    return false
+# Direct nimpy communication - file-based approach removed
 
 proc hasActiveController*(): bool =
   ## Check if any controller is active
@@ -431,8 +400,6 @@ exportProcs:
   initBuiltinAIController
   initExternalNNController
   setExternalActionsFromPython
-  setActionFilePath
-  readActionsFromFile
   hasActiveController
   getControllerTypeString
 
