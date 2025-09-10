@@ -137,16 +137,16 @@ class MapBuilder(ABC):
         """Build with validation against game config."""
         game_map = self.build()
 
-        # Validate if game config is available
+        # Always compress if possible (for memory efficiency)
         valid_objects = self.get_valid_objects()
-        if valid_objects:
-            try:
-                game_map.compress(valid_objects)
-            except ValueError as e:
-                # Log warning but don't fail (backward compatibility)
-                import logging
+        try:
+            # Compress with or without validation
+            game_map.compress(valid_objects)
+        except ValueError as e:
+            # Log warning but don't fail (backward compatibility)
+            import logging
 
-                logging.warning(f"Map validation warning: {e}")
+            logging.warning(f"Map validation warning: {e}")
 
         return game_map
 

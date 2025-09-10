@@ -48,6 +48,8 @@ namespace py = pybind11;
 class METTAGRID_API MettaGrid {
 public:
   MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
+  MettaGrid(const GameConfig& cfg, py::array_t<uint8_t> byte_grid,
+            std::vector<std::string> object_key, unsigned int seed);
   ~MettaGrid();
 
   ObservationCoord obs_width;

@@ -135,10 +135,13 @@ class MettaGridCore:
             logger.error(f"Game config: {game_config_dict}")
             raise e
 
-        # Create C++ environment
-        # NOTE: For now, we'll continue using the string grid format
-        # The C++ changes to support byte grid + key would be a separate PR
-        c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
+        # Create C++ environment using compressed format if available
+        if game_map.byte_grid is not None and game_map.object_key is not None:
+            # Use compressed format (memory efficient)
+            c_env = MettaGridCpp(c_cfg, game_map.byte_grid, game_map.object_key, self._current_seed)
+        else:
+            # Fallback to string format for backward compatibility
+            c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
         self._update_core_buffers()
 
         # Initialize renderer if needed

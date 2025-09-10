@@ -265,6 +265,209 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
 MettaGrid::~MettaGrid() = default;
 
+// New constructor that accepts compressed map format (byte grid + object key)
+MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_grid,
+                     std::vector<std::string> object_key, unsigned int seed)
+    : obs_width(game_config.obs_width),
+      obs_height(game_config.obs_height),
+      max_steps(game_config.max_steps),
+      episode_truncates(game_config.episode_truncates),
+      resource_names(game_config.resource_names),
+      _global_obs_config(game_config.global_obs),
+      _game_config(game_config),
+      _num_observation_tokens(game_config.num_observation_tokens),
+      _track_movement_metrics(game_config.track_movement_metrics),
+      _resource_loss_prob(game_config.resource_loss_prob) {
+  _seed = seed;
+  _rng = std::mt19937(seed);
+
+  // byte_grid is a 2D array of uint8_t indices, object_key maps indices to object names
+
+  unsigned int num_agents = static_cast<unsigned int>(game_config.num_agents);
+  current_step = 0;
+
+  bool observation_size_is_packable =
+      obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
+  if (!observation_size_is_packable) {
+    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) + "x" +
+                             std::to_string(obs_height) + ") exceeds maximum packable size");
+  }
+
+  // Get dimensions from numpy array
+  auto buffer = byte_grid.request();
+  if (buffer.ndim != 2) {
+    throw std::runtime_error("byte_grid must be a 2D array");
+  }
+  GridCoord height = static_cast<GridCoord>(buffer.shape[0]);
+  GridCoord width = static_cast<GridCoord>(buffer.shape[1]);
+
+  _grid = std::make_unique<Grid>(height, width);
+  _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.recipe_details_obs);
+
+  _event_manager = std::make_unique<EventManager>();
+  _stats = std::make_unique<StatsTracker>();
+  _stats->set_environment(this);
+
+  _event_manager->init(_grid.get());
+  _event_manager->event_handlers.insert(
+      {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
+  _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
+
+  _action_success.resize(num_agents);
+
+  // Set up action handlers (same as original constructor)
+  for (const auto& [action_name, action_config] : game_config.actions) {
+    if (action_name == "put_items") {
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
+    } else if (action_name == "place_box") {
+      _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config));
+    } else if (action_name == "get_items") {
+      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
+    } else if (action_name == "noop") {
+      _action_handlers.push_back(std::make_unique<Noop>(*action_config));
+    } else if (action_name == "move") {
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, &_game_config));
+    } else if (action_name == "rotate") {
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, &_game_config));
+    } else if (action_name == "attack") {
+      auto attack_config = std::static_pointer_cast<const AttackActionConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<Attack>(*attack_config, &_game_config));
+    } else if (action_name == "change_glyph") {
+      auto change_glyph_config = std::static_pointer_cast<const ChangeGlyphActionConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
+    } else if (action_name == "swap") {
+      _action_handlers.push_back(std::make_unique<Swap>(*action_config));
+    } else {
+      throw std::runtime_error("Unknown action " + action_name);
+    }
+  }
+
+  init_action_handlers();
+
+  // Initialize group rewards 
+  for (const auto& [obj_name, object_cfg] : game_config.objects) {
+    const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg.get());
+    if (agent_config) {
+      unsigned int id = agent_config->group_id;
+      _group_sizes[id] = 0;
+      _group_reward_pct[id] = agent_config->group_reward_pct;
+    }
+  }
+
+  // Initialize objects from compressed map
+  std::string grid_hash_data;
+  grid_hash_data.reserve(static_cast<size_t>(height * width * 20));
+
+  uint8_t* grid_data = static_cast<uint8_t*>(buffer.ptr);
+  
+  for (GridCoord r = 0; r < height; r++) {
+    for (GridCoord c = 0; c < width; c++) {
+      // Get the index from byte grid
+      size_t idx = static_cast<size_t>(r * width + c);
+      uint8_t object_idx = grid_data[idx];
+      
+      // Look up the object name from the key
+      if (object_idx >= object_key.size()) {
+        throw std::runtime_error("Invalid byte grid: index " + std::to_string(object_idx) + 
+                                " >= key length " + std::to_string(object_key.size()));
+      }
+      
+      std::string cell = object_key[object_idx];
+
+      // Add cell position and type to hash data
+      grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
+
+      // #HardCodedConfig
+      if (cell == "empty" || cell == "." || cell == " ") {
+        continue;
+      }
+
+      if (!game_config.objects.contains(cell)) {
+        throw std::runtime_error("Unknown object type: " + cell);
+      }
+
+      const GridObjectConfig* object_cfg = game_config.objects.at(cell).get();
+
+      // Create objects (same as original constructor)
+      const WallConfig* wall_config = dynamic_cast<const WallConfig*>(object_cfg);
+      if (wall_config) {
+        Wall* wall = new Wall(r, c, *wall_config);
+        _grid->add_object(wall);
+        _stats->incr("objects." + cell);
+        continue;
+      }
+
+      const BoxConfig* box_config = dynamic_cast<const BoxConfig*>(object_cfg);
+      if (box_config) {
+        Box* box = new Box(r, c, *box_config, 255, 255);  // Default creator values
+        _grid->add_object(box);
+        _stats->incr("objects." + cell);
+        continue;
+      }
+
+      const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
+      if (converter_config) {
+        Converter* converter = new Converter(r, c, *converter_config);
+        _grid->add_object(converter);
+        _stats->incr("objects." + cell);
+        continue;
+      }
+
+      const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
+      if (agent_config) {
+        Agent* agent = new Agent(r, c, *agent_config);
+        add_agent(agent);
+        _group_sizes[agent->group] += 1;
+        continue;
+      }
+
+      throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
+                               std::to_string(c) + ")");
+    }
+
+    _group_rewards.resize(_group_sizes.size());
+  }
+
+  // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
+  initial_grid_hash = wyhash::hash_string(grid_hash_data);
+
+  // Compute inventory rewards for each agent (same as original)
+  _resource_rewards.resize(_agents.size(), 0);
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    auto& agent = _agents[agent_idx];
+    uint8_t packed = 0;
+
+    size_t num_items = std::min(resource_names.size(), size_t(8));
+
+    for (size_t i = 0; i < num_items; i++) {
+      auto item = static_cast<InventoryItem>(i);
+      if (agent->resource_rewards.count(item) && agent->resource_rewards[item] > 0) {
+        packed |= static_cast<uint8_t>(1 << (7 - item));
+      }
+    }
+
+    _resource_rewards[agent_idx] = packed;
+  }
+
+  // Initialize buffers
+  std::vector<ssize_t> shape;
+  shape.push_back(num_agents);
+  shape.push_back(obs_width);
+  shape.push_back(obs_height);
+  shape.push_back(_num_observation_tokens);
+  std::vector<float> obs_data(static_cast<size_t>(num_agents * obs_width * obs_height * _num_observation_tokens));
+  py::array_t<float> observations(shape, obs_data.data());
+
+  shape.clear();
+  shape.push_back(num_agents);
+  std::vector<float> scalar_data(num_agents);
+  py::array_t<float> terminals(shape, scalar_data.data());
+  py::array_t<float> truncations(shape, scalar_data.data());
+  py::array_t<float> rewards(shape, scalar_data.data());
+  
+  set_buffers(observations, terminals, truncations, rewards);
+}
+
 void MettaGrid::init_action_handlers() {
   _num_action_handlers = _action_handlers.size();
   _max_action_priority = 0;
@@ -896,6 +1099,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<const GameConfig&, const py::list&, unsigned int>())
+      .def(py::init<const GameConfig&, py::array_t<uint8_t>, std::vector<std::string>, unsigned int>())
       .def("reset", &MettaGrid::reset)
       .def("step", &MettaGrid::step, py::arg("actions").noconvert())
       .def("set_buffers",
