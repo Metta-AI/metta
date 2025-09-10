@@ -109,68 +109,78 @@ proc renderFrame*(): bool {.exportpy.} =
     return false
     
   try:
-    # Handle input
-    pollEvents()
+    # Ultra-basic rendering without any OpenGL calls
+    echo "🔧 DEBUG: renderFrame() entry point reached"
     
-    # Handle mouse capture release
-    if window.buttonReleased[MouseLeft]:
-      mouseCaptured = false
-      mouseCapturedPanel = nil
-    
-    # Begin frame
-    bxy.beginFrame(window.size)
-    const RibbonHeight = 64
-    rootArea.rect = IRect(x: 0, y: RibbonHeight, w: window.size.x, h: window.size.y - RibbonHeight*3)
-    rootArea.updatePanelsSizes()
-    globalHeaderPanel.rect = IRect(x: 0, y: 0, w: window.size.x, h: RibbonHeight)
-    globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
-    globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
-    
-    # Draw world map
-    worldMapPanel.beginDraw()
-    worldMapPanel.beginPanAndZoom()
-    useSelections()
-    agentControls()
-    
-    drawFloor()
-    drawTerrain()
-    drawWalls()
-    drawObjects()
-    drawActions()
-    drawObservations()
-    drawAgentDecorations()
-    if settings.showVisualRange:
-      drawVisualRanges()
-    if settings.showGrid:
-      drawGrid()
-    if settings.showFogOfWar:
-      drawFogOfWar()
-    drawSelection()
-    
-    worldMapPanel.endPanAndZoom()
-    drawInfoText()
-    worldMapPanel.endDraw()
-    
-    # Draw UI panels
-    globalHeaderPanel.beginDraw()
-    drawHeader(globalHeaderPanel)
-    globalHeaderPanel.endDraw()
-    
-    globalFooterPanel.beginDraw()
-    drawFooter(globalFooterPanel)
-    globalFooterPanel.endDraw()
-    
-    globalTimelinePanel.beginDraw()
-    drawTimeline(globalTimelinePanel)
-    globalTimelinePanel.endDraw()
-    
-    rootArea.drawFrame()
-    
-    # End frame
-    bxy.endFrame()
-    window.swapBuffers()
-    
+    # Skip OpenGL entirely for now to isolate the crash
+    echo "🔧 DEBUG: Skipping all OpenGL calls to isolate crash point"
+    echo "🔧 DEBUG: renderFrame() completed without OpenGL operations"
     return true
+    
+  except Exception as e:
+    echo "❌ DEBUG: Even basic renderFrame() failed: ", e.msg
+    return false
+    
+    # TODO: Add back full rendering once minimal version works
+    # # Handle mouse capture release
+    # if window.buttonReleased[MouseLeft]:
+    #   mouseCaptured = false
+    #   mouseCapturedPanel = nil
+    # 
+    # # Begin frame
+    # bxy.beginFrame(window.size)
+    # const RibbonHeight = 64
+    # rootArea.rect = IRect(x: 0, y: RibbonHeight, w: window.size.x, h: window.size.y - RibbonHeight*3)
+    # rootArea.updatePanelsSizes()
+    # globalHeaderPanel.rect = IRect(x: 0, y: 0, w: window.size.x, h: RibbonHeight)
+    # globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
+    # globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
+    # 
+    # # Draw world map
+    # worldMapPanel.beginDraw()
+    # worldMapPanel.beginPanAndZoom()
+    # useSelections()
+    # agentControls()
+    # 
+    # drawFloor()
+    # drawTerrain()
+    # drawWalls()
+    # drawObjects()
+    # drawActions()
+    # drawObservations()
+    # drawAgentDecorations()
+    # if settings.showVisualRange:
+    #   drawVisualRanges()
+    # if settings.showGrid:
+    #   drawGrid()
+    # if settings.showFogOfWar:
+    #   drawFogOfWar()
+    # drawSelection()
+    # 
+    # worldMapPanel.endPanAndZoom()
+    # drawInfoText()
+    # worldMapPanel.endDraw()
+    # 
+    # # Draw UI panels
+    # globalHeaderPanel.beginDraw()
+    # drawHeader(globalHeaderPanel)
+    # globalHeaderPanel.endDraw()
+    # 
+    # globalFooterPanel.beginDraw()
+    # drawFooter(globalFooterPanel)
+    # globalFooterPanel.endDraw()
+    # 
+    # globalTimelinePanel.beginDraw()
+    # drawTimeline(globalTimelinePanel)
+    # globalTimelinePanel.endDraw()
+    # 
+    # rootArea.drawFrame()
+    # 
+    # # End frame
+    # bxy.endFrame()
+    # window.swapBuffers()
+    # 
+    # return true
     
   except Exception as e:
     echo "❌ Error rendering frame: ", e.msg

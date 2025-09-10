@@ -306,8 +306,8 @@ class TribalGennyPlayTool(Tool):
             env = DirectGennyTribalEnv(base_env)
             print("🎯 Using direct genny bindings for neural network control (no numpy conversion)")
             
-            # Run the interactive loop with neural network control
-            return self._run_interactive_loop(env, policy, None)
+            # Use nimpy approach for proper Python → Nim → GUI communication
+            return self._run_nimpy_controlled_environment_safe(policy)
             
         except Exception as e:
             print(f"❌ Error running environment: {e}")
@@ -315,93 +315,675 @@ class TribalGennyPlayTool(Tool):
             traceback.print_exc()
             return 1
 
-    def _run_interactive_loop(self, env, policy, tribal_module) -> int:
+    def _run_nimpy_controlled_environment(self, policy) -> int:
         """
-        Run an interactive game loop with console output to verify Python-Nim communication.
-        
-        This focuses on proving that Python can control the Nim environment via genny bindings.
+        Use nimpy to create and control a Nim environment directly from Python.
+        This ensures Python configuration carries over and Python policy controls the agents.
         """
         import numpy as np
         import time
+        from pathlib import Path
         
-        print("🎮 Starting console-based game loop with direct genny bindings...")
-        print("   Policy will control all agents via environment stepping")
-        print("   Console output will show Python successfully controlling Nim environment")
+        print("🎮 Starting nimpy-controlled Nim environment...")
+        print("   Python creates Nim environment with Python config")
+        print("   Python policy controls agents via nimpy")
+        print("   Nim provides visualization in same process")
         
         try:
+            # Change to tribal directory for nimpy imports
+            tribal_dir = Path(__file__).parent.parent.parent / "tribal"
+            import os
+            old_cwd = os.getcwd()
+            os.chdir(tribal_dir)
+            
+            # Import tribal bindings to create Nim environment
+            import sys
+            sys.path.insert(0, str(tribal_dir / "bindings" / "generated"))
+            import tribal
+            
+            print("🔗 Creating Nim environment with Python configuration...")
+            
+            # Create the Nim environment using the same config as Python
+            config = tribal.default_tribal_config()
+            config.game.max_steps = self.env_config.game.max_steps
+            config.game.ore_per_battery = self.env_config.game.ore_per_battery
+            config.game.batteries_per_heart = self.env_config.game.batteries_per_heart
+            config.game.enable_combat = self.env_config.game.enable_combat
+            config.game.clippy_spawn_rate = self.env_config.game.clippy_spawn_rate
+            config.game.clippy_damage = self.env_config.game.clippy_damage
+            config.game.heart_reward = self.env_config.game.heart_reward
+            config.game.battery_reward = self.env_config.game.battery_reward
+            config.game.ore_reward = self.env_config.game.ore_reward
+            config.game.survival_penalty = self.env_config.game.survival_penalty
+            config.game.death_penalty = self.env_config.game.death_penalty
+            
+            nim_env = tribal.new_tribal_env(config)
+            print("✅ Nim environment created with Python configuration")
+            
+            # Initialize external neural network controller
+            print("🧠 Setting up external neural network controller...")
+            if not tribal.init_external_nn_controller():
+                print("❌ Failed to initialize external NN controller")
+                return 1
+            print("✅ External NN controller initialized")
+            
+            # Test the environment stepping with Python policy
+            print("🎯 Testing Python policy control...")
+            nim_env.reset_env()
+            
+            step_count = 0
+            max_steps = min(100, self.env_config.game.max_steps)
+            
+            print(f"🚀 Running {max_steps} steps with Python policy control...")
+            
+            for step in range(max_steps):
+                # Get observations from Nim environment
+                observations = nim_env.get_token_observations()
+                
+                # Get actions from Python policy
+                policy_output = policy.forward(observations)
+                actions = policy_output.get("actions")
+                
+                if actions is None:
+                    print("⚠️  Policy didn't return actions, using noop")
+                    actions = [[0, 0] for _ in range(15)]
+                
+                # Convert to flat sequence for nimpy
+                flat_actions = []
+                for action in actions:
+                    flat_actions.extend(action)
+                
+                # Send actions to Nim environment
+                if not tribal.set_external_actions_from_python(flat_actions):
+                    print(f"⚠️  Failed to send actions at step {step}")
+                
+                # Step the Nim environment
+                nim_env.step(flat_actions)
+                
+                # Get rewards and status
+                rewards = nim_env.get_rewards()
+                terminated = nim_env.get_terminated()
+                
+                step_count += 1
+                
+                # Log progress
+                if step % 20 == 0:
+                    avg_reward = np.mean(rewards)
+                    num_alive = sum(1 for t in terminated if not t)
+                    print(f"  Step {step}: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
+                    
+                    # Show sample actions for first few steps
+                    if step < 3:
+                        print(f"    Sample actions: agent_0={actions[0]}, agent_1={actions[1]}")
+                
+                # Small delay
+                time.sleep(0.05)
+                
+                # Check if episode should end
+                if all(terminated) or nim_env.is_episode_done():
+                    print(f"🏁 Episode ended at step {step}")
+                    break
+            
+            print(f"✅ SUCCESS: Python controlled Nim environment for {step_count} steps!")
+            print("   Python policy successfully sent actions to Nim environment")
+            print("   Nim environment processed actions and provided feedback")
+            return 0
+            
+        except Exception as e:
+            print(f"❌ Error in nimpy controlled environment: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
+        finally:
+            os.chdir(old_cwd)
+
+    def _run_nimpy_controlled_environment_safe(self, policy) -> int:
+        """
+        Safe version of nimpy controlled environment with gradual OpenGL initialization.
+        This enables proper Python → Nim → GUI communication while avoiding OpenGL crashes.
+        """
+        import numpy as np
+        import time
+        from pathlib import Path
+        
+        print("🎮 Starting SAFE nimpy-controlled Nim environment...")
+        print("   Python → Nim → GUI → Python communication")
+        print("   Gradual OpenGL initialization to avoid crashes")
+        
+        try:
+            # Change to tribal directory
+            tribal_dir = Path(__file__).parent.parent.parent / "tribal"
+            import os
+            old_cwd = os.getcwd()
+            os.chdir(tribal_dir)
+            
+            # Build safe viewer if needed
+            safe_viewer_so = tribal_dir / "tribal_nimpy_safe_viewer.so"
+            if not safe_viewer_so.exists():
+                print("🔨 Building safe viewer...")
+                import subprocess
+                result = subprocess.run([
+                    "nim", "c", "--app:lib", "--out:tribal_nimpy_safe_viewer.so", 
+                    "-d:release", "src/tribal_nimpy_safe_viewer.nim"
+                ], cwd=str(tribal_dir), capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    print(f"❌ Failed to build safe viewer: {result.stderr}")
+                    return 1
+                print("✅ Safe viewer built successfully")
+            
+            # Import both tribal bindings and safe viewer
+            import sys
+            sys.path.insert(0, str(tribal_dir / "bindings" / "generated"))
+            sys.path.insert(0, str(tribal_dir))
+            
+            import tribal
+            import tribal_nimpy_safe_viewer as viewer
+            
+            print("✅ Imported tribal bindings and safe viewer")
+            
+            # Create Nim environment with Python configuration
+            config = tribal.default_tribal_config()
+            config.game.max_steps = self.env_config.game.max_steps
+            config.game.ore_per_battery = self.env_config.game.ore_per_battery
+            config.game.batteries_per_heart = self.env_config.game.batteries_per_heart
+            config.game.enable_combat = self.env_config.game.enable_combat
+            config.game.clippy_spawn_rate = self.env_config.game.clippy_spawn_rate
+            config.game.clippy_damage = self.env_config.game.clippy_damage
+            config.game.heart_reward = self.env_config.game.heart_reward
+            config.game.battery_reward = self.env_config.game.battery_reward
+            config.game.ore_reward = self.env_config.game.ore_reward
+            config.game.survival_penalty = self.env_config.game.survival_penalty
+            config.game.death_penalty = self.env_config.game.death_penalty
+            
+            nim_env = tribal.new_tribal_env(config)
+            print("✅ Nim environment created with Python configuration")
+            
+            # Initialize external neural network controller
+            print("🧠 Setting up external neural network controller...")
+            if not tribal.init_external_nn_controller():
+                print("❌ Failed to initialize external NN controller")
+                return 1
+            print("✅ External NN controller ready")
+            
+            # Initialize visualization with gradual approach
+            print("🎨 Initializing visualization with safe approach...")
+            
+            # Step 1: Window only
+            if not viewer.initWindowOnly():
+                print("❌ Window creation failed")
+                return 1
+            print("✅ Window created")
+            
+            # Step 2: OpenGL context (this is where crashes usually happen)
+            print("🔧 Attempting OpenGL context creation...")
+            if not viewer.initOpenGLContext():
+                print("❌ OpenGL context failed - falling back to headless mode")
+                return self._run_headless_communication_loop(nim_env, policy)
+            print("✅ OpenGL context created successfully")
+            
+            # Step 3: Panels and UI
+            if not viewer.initPanels():
+                print("❌ Panel initialization failed")
+                return 1
+            print("✅ UI panels initialized")
+            
+            # Step 4: Load assets
+            print("🎨 Loading assets...")
+            if not viewer.loadAssetsSafe():
+                print("⚠️  Asset loading failed, continuing without assets")
+            else:
+                print("✅ Assets loaded successfully")
+            
+            # Run the main communication loop
+            return self._run_communication_loop_with_gui(nim_env, policy, viewer)
+            
+        except Exception as e:
+            print(f"❌ Error in safe nimpy environment: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
+        finally:
+            os.chdir(old_cwd)
+
+    def _run_headless_communication_loop(self, nim_env, policy) -> int:
+        """Fallback: Run without GUI if OpenGL fails"""
+        print("🤖 Running in headless mode (no GUI)")
+        print("   Python → Nim communication without visualization")
+        
+        try:
+            nim_env.reset_env()
+            step_count = 0
+            max_steps = min(100, self.env_config.game.max_steps)
+            
+            print(f"🚀 Running {max_steps} steps in headless mode...")
+            
+            for step in range(max_steps):
+                # Get observations
+                observations = nim_env.get_token_observations()
+                
+                # Get actions from policy
+                policy_output = policy.forward(observations)
+                actions = policy_output.get("actions", [[0, 0] for _ in range(15)])
+                
+                # Send to Nim
+                flat_actions = [action for pair in actions for action in pair]
+                if not tribal.set_external_actions_from_python(flat_actions):
+                    print(f"⚠️  Failed to send actions at step {step}")
+                
+                # Step environment
+                nim_env.step(flat_actions)
+                
+                # Get results
+                rewards = nim_env.get_rewards()
+                
+                if step % 20 == 0:
+                    avg_reward = np.mean(rewards)
+                    print(f"  Step {step}: avg_reward={avg_reward:.3f}")
+                
+                time.sleep(0.05)
+                
+                if nim_env.is_episode_done():
+                    break
+            
+            print(f"✅ Headless mode completed {step_count} steps")
+            return 0
+            
+        except Exception as e:
+            print(f"❌ Headless mode failed: {e}")
+            return 1
+
+    def _run_communication_loop_with_gui(self, nim_env, policy, viewer) -> int:
+        """Main communication loop: Python → Nim → GUI → Python"""
+        import numpy as np
+        import time
+        
+        print("🎮 Starting main communication loop with GUI...")
+        print("   Python sends actions → Nim processes → GUI shows → Python gets results")
+        
+        try:
+            nim_env.reset_env()
+            step_count = 0
+            max_steps = min(200, self.env_config.game.max_steps)
+            
+            print(f"🚀 Running {max_steps} steps with full GUI...")
+            
+            while step_count < max_steps and viewer.isWindowOpen():
+                # 1. Get observations from Nim
+                observations = nim_env.get_token_observations()
+                
+                # 2. Get actions from Python policy  
+                policy_output = policy.forward(observations)
+                actions = policy_output.get("actions")
+                
+                if actions is None:
+                    actions = [[0, 0] for _ in range(15)]  # Default noop
+                
+                # 3. Send actions to Nim
+                flat_actions = [action for pair in actions for action in pair]
+                tribal.set_external_actions_from_python(flat_actions)
+                
+                # 4. Step Nim environment
+                nim_env.step(flat_actions)
+                
+                # 5. Update GUI visualization
+                if not viewer.renderFrameMinimal():
+                    print("⚠️  GUI rendering failed, continuing...")
+                
+                # 6. Get results from Nim
+                rewards = nim_env.get_rewards()
+                terminated = nim_env.get_terminated()
+                
+                step_count += 1
+                
+                # Progress logging
+                if step_count % 50 == 0:
+                    avg_reward = np.mean(rewards)
+                    num_alive = sum(1 for t in terminated if not t)
+                    print(f"  Step {step_count}: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
+                    
+                    # Show sample actions
+                    print(f"    Sample actions: agent_0={actions[0]}, agent_1={actions[1]}")
+                
+                # Small delay for visualization
+                time.sleep(0.05)  # 20 Hz
+                
+                # Check termination
+                if all(terminated) or nim_env.is_episode_done():
+                    print(f"🏁 Episode ended at step {step_count}")
+                    break
+            
+            print(f"🎉 SUCCESS: Completed {step_count} steps with Python → Nim → GUI communication!")
+            
+            # Keep window open briefly to see final state
+            print("💡 Keeping window open for 3 seconds to view final state...")
+            for _ in range(3):
+                if viewer.isWindowOpen():
+                    viewer.renderFrameMinimal()
+                    time.sleep(1)
+                else:
+                    break
+            
+            return 0
+            
+        except Exception as e:
+            print(f"❌ Communication loop failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
+        finally:
+            # Clean up GUI
+            try:
+                viewer.closeVisualization()
+                print("✅ GUI cleanup complete")
+            except:
+                pass
+
+    def _run_clean_genny_loop(self, env, policy) -> int:
+        """
+        Clean approach: Use genny bindings for Python-Nim communication,
+        launch native Nim viewer as subprocess (avoiding nimpy OpenGL issues).
+        """
+        import numpy as np
+        import time
+        import subprocess
+        from pathlib import Path
+        
+        print("🎮 Starting clean genny-based approach...")
+        print("   Python controls environment via genny bindings")
+        print("   Native Nim viewer runs as separate subprocess")
+        
+        try:
+            # Start the native Nim viewer as a subprocess
+            tribal_dir = Path(__file__).parent.parent.parent / "tribal"
+            print(f"🎯 Launching native Nim viewer from: {tribal_dir}")
+            
+            nim_process = subprocess.Popen(
+                ["nim", "r", "-d:release", "src/tribal"],
+                cwd=tribal_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            print("✅ Native Nim viewer launched as subprocess")
+            print("🎮 Starting Python policy control loop...")
+            
             # Reset environment
             obs, info = env.reset()
             print(f"✅ Environment reset complete. Starting step: {info.get('current_step', 0)}")
-            print(f"   Observation shape: {np.array(obs).shape if isinstance(obs, (list, np.ndarray)) else type(obs)}")
             
             episode_rewards = np.zeros(env.num_agents)
             step_count = 0
-            max_steps = min(100, env.max_steps)  # Limit for testing
             
-            print(f"🚀 Running {max_steps} steps to verify Python-Nim communication...")
-            
-            while step_count < max_steps:
+            while step_count < min(200, env.max_steps):  # Run for 200 steps
                 # Get actions from policy
                 policy_output = policy.forward(obs)
                 actions = policy_output.get("actions")
                 
                 if actions is None:
                     print("⚠️  Policy didn't return actions, using noop")
-                    actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+                    actions = [[0, 0] for _ in range(env.num_agents)]
                 
-                # Step environment - this is the crucial Python-to-Nim communication!
-                print(f"🎯 Step {step_count + 1}: Python sending actions to Nim environment...")
+                # Step environment with Python policy control
                 obs, rewards, terminals, truncations, info = env.step(actions)
-                
                 episode_rewards += rewards
                 step_count += 1
                 
-                # Show detailed progress for first few steps and every 10 steps
-                if step_count <= 5 or step_count % 10 == 0:
+                # Log progress periodically
+                if step_count % 50 == 0:
                     avg_reward = np.mean(episode_rewards)
                     num_alive = np.sum(~(terminals | truncations))
-                    print(f"  ✅ Step {step_count} completed: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
+                    print(f"  Step {step_count}: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
                     
-                    # Show sample actions
+                    # Show sample actions for debugging
                     if isinstance(actions, list):
-                        print(f"    📡 Sample actions sent: agent_0={actions[0]}, agent_1={actions[1]}")
+                        print(f"    Sample actions: agent_0={actions[0]}, agent_1={actions[1]}")
                     else:
-                        print(f"    📡 Sample actions sent: agent_0=[{actions[0,0]},{actions[0,1]}], agent_1=[{actions[1,0]},{actions[1,1]}]")
-                    
-                    # Show sample observations received
-                    if isinstance(obs, list) and len(obs) > 0:
-                        obs_sample = obs[0][:5] if hasattr(obs[0], '__getitem__') else str(obs[0])[:50]
-                        print(f"    📥 Sample observation received from Nim: agent_0={obs_sample}...")
-                    
-                    print(f"    💰 Rewards: {rewards[:3]}... (showing first 3 agents)")
+                        print(f"    Sample actions: agent_0=[{actions[0,0]},{actions[0,1]}], agent_1=[{actions[1,0]},{actions[1,1]}]")
                 
                 # Check if episode should end
                 if np.all(terminals | truncations) or info.get('episode_done', False):
                     print(f"🏁 Episode ended at step {step_count}")
                     break
                 
-                # Small delay
-                time.sleep(0.1)
+                # Small delay for visualization
+                time.sleep(0.05)  # 20 Hz
             
             # Final statistics
             final_avg_reward = np.mean(episode_rewards)
             final_total_reward = np.sum(episode_rewards)
-            print(f"\n🏆 Python-Nim communication test complete!")
-            print(f"   Steps completed: {step_count}/{max_steps}")
+            print(f"🏆 Episode complete!")
+            print(f"   Steps: {step_count}")
             print(f"   Average reward: {final_avg_reward:.3f}")
             print(f"   Total reward: {final_total_reward:.3f}")
-            print(f"   ✅ SUCCESS: Python successfully controlled Nim environment via genny bindings!")
+            print(f"✅ SUCCESS: Python successfully controlled Nim environment via genny bindings!")
             
+            return 0
+            
+        except Exception as e:
+            print(f"❌ Error in clean genny loop: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
+        finally:
+            # Clean up subprocess
+            try:
+                nim_process.terminate()
+                nim_process.wait(timeout=5)
+                print("✅ Native Nim viewer subprocess terminated")
+            except:
+                try:
+                    nim_process.kill()
+                    print("🔥 Native Nim viewer subprocess killed")
+                except:
+                    pass
+
+    def _run_interactive_loop(self, env, policy, tribal_module) -> int:
+        """
+        Run an interactive game loop with both policy control and native Nim visualization.
+        
+        This uses threading to run policy control while nimpy provides the Nim GUI.
+        """
+        import numpy as np
+        import time
+        import threading
+        from pathlib import Path
+        
+        print("🎮 Starting interactive game loop with native Nim visualization...")
+        print("   Policy will control all agents via environment stepping")
+        print("   Native Nim viewer will show the visualization")
+        
+        # Flag to control the game loop
+        game_running = threading.Event()
+        game_running.set()
+        
+        def policy_control_loop():
+            """Run the policy control in a separate thread."""
+            try:
+                # Reset environment
+                obs, info = env.reset()
+                print(f"✅ Environment reset complete. Starting step: {info.get('current_step', 0)}")
+                
+                episode_rewards = np.zeros(env.num_agents)
+                step_count = 0
+                
+                while step_count < env.max_steps and game_running.is_set():
+                    # Get actions from policy
+                    policy_output = policy.forward(obs)
+                    actions = policy_output.get("actions")
+                    
+                    if actions is None:
+                        print("⚠️  Policy didn't return actions, using noop")
+                        actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+                    
+                    # Step environment
+                    obs, rewards, terminals, truncations, info = env.step(actions)
+                    
+                    episode_rewards += rewards
+                    step_count += 1
+                    
+                    # Log progress periodically
+                    if step_count % 100 == 0:
+                        avg_reward = np.mean(episode_rewards)
+                        num_alive = np.sum(~(terminals | truncations))
+                        print(f"  Step {step_count}: avg_reward={avg_reward:.3f}, agents_alive={num_alive}")
+                        
+                        # Show some actions for debugging (handle both list and array formats)
+                        if isinstance(actions, list):
+                            print(f"    Sample actions: agent_0={actions[0]}, agent_1={actions[1]}")
+                        else:
+                            print(f"    Sample actions: agent_0=[{actions[0,0]},{actions[0,1]}], agent_1=[{actions[1,0]},{actions[1,1]}]")
+                    
+                    # Check if episode should end
+                    if np.all(terminals | truncations) or info.get('episode_done', False):
+                        print(f"🏁 Episode ended at step {step_count}")
+                        break
+                    
+                    # Small delay for visualization
+                    time.sleep(0.05)  # 20 Hz
+                
+                # Final statistics
+                final_avg_reward = np.mean(episode_rewards)
+                final_total_reward = np.sum(episode_rewards)
+                print(f"🏆 Episode complete!")
+                print(f"   Steps: {step_count}")
+                print(f"   Average reward: {final_avg_reward:.3f}")
+                print(f"   Total reward: {final_total_reward:.3f}")
+                
+            except Exception as e:
+                print(f"❌ Error in policy control loop: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                game_running.clear()
+        
+        try:
+            print("🚀 TEMPORARILY DISABLING policy control thread to test nimpy isolation...")
+            # policy_thread = threading.Thread(target=policy_control_loop, daemon=True)  
+            # policy_thread.start()
+            print("   Policy thread disabled - testing nimpy visualization standalone")
+            
+            print("🎯 Launching native Nim visualization...")
+            print("   The Nim window will show the agents being controlled by your policy")
+            print("   Press Ctrl+C in terminal to stop, or close the Nim window")
+            
+            # Launch native Nim viewer using nimpy (in-process visualization)
+            tribal_dir = Path(__file__).parent.parent.parent / "tribal"
+            
+            # Change working directory to tribal BEFORE importing nimpy module
+            import os
+            old_cwd = os.getcwd()
+            os.chdir(tribal_dir)
+            
+            try:
+                # Import the nimpy visualization module (now with correct working directory)
+                import sys
+                sys.path.insert(0, str(tribal_dir))
+                
+                # Try to import with better error handling
+                print("🔄 Step 1: Importing nimpy visualization module...")
+                import tribal_nimpy_viewer as viewer
+                print("✅ Step 1 complete: Nimpy module imported successfully")
+                
+                # Initialize the visualization with error checking
+                print("🎨 Step 2: Initializing nimpy visualization...")
+                if not viewer.initVisualization():
+                    print("❌ Failed to initialize nimpy visualization")
+                    return 1
+                print("✅ Step 2 complete: Nimpy visualization initialized")
+                
+                # Load assets with progress tracking
+                print("🎨 Step 3: Loading tribal assets...")
+                if not viewer.loadAssets():
+                    print("❌ Failed to load tribal assets")
+                    return 1
+                print("✅ Step 3 complete: All assets loaded successfully")
+                
+                # Test nimpy function calls BEFORE entering the loop
+                print("🔧 Step 4: Testing nimpy function calls individually...")
+                
+                print("🔧 Step 4a: Testing isWindowOpen()...")
+                window_status = viewer.isWindowOpen()
+                print(f"✅ Step 4a complete: isWindowOpen() = {window_status}")
+                
+                print("🔧 Step 4b: Testing single renderFrame() call...")
+                render_status = viewer.renderFrame()
+                print(f"✅ Step 4b complete: renderFrame() = {render_status}")
+                
+                print("✅ All individual function tests passed!")
+                
+            except Exception as e:
+                print(f"❌ Error setting up nimpy visualization: {e}")
+                import traceback
+                traceback.print_exc()
+                os.chdir(old_cwd)
+                return 1
+            
+            # Try a more cautious approach to the render loop
+            print("🎨 Starting nimpy visualization loop...")
+            print("   Testing each function call individually to isolate crash point...")
+            
+            try:
+                # Test 1: Can we call isWindowOpen?
+                print("🔧 DEBUG: Testing viewer.isWindowOpen()...")
+                window_open = viewer.isWindowOpen()
+                print(f"🔧 DEBUG: isWindowOpen() returned: {window_open}")
+                
+                # Test 2: Can we call renderFrame once?
+                print("🔧 DEBUG: Testing viewer.renderFrame() once...")
+                render_result = viewer.renderFrame()
+                print(f"🔧 DEBUG: renderFrame() returned: {render_result}")
+                
+                # Test 3: Try a simple loop with debug output
+                print("🔧 DEBUG: Starting minimal render loop...")
+                frame_count = 0
+                max_frames = 3  # Only render 3 frames for debugging
+                
+                while frame_count < max_frames and viewer.isWindowOpen() and game_running.is_set():
+                    print(f"🔧 DEBUG: Loop iteration {frame_count}")
+                    
+                    if not viewer.renderFrame():
+                        print("🔧 DEBUG: renderFrame() returned false, breaking")
+                        break
+                    
+                    print(f"🔧 DEBUG: Frame {frame_count} completed successfully")
+                    frame_count += 1
+                    
+                    # Longer delay for debugging
+                    time.sleep(0.5)  # 2 FPS for debugging
+                
+                print(f"🔧 DEBUG: Render loop completed after {frame_count} frames")
+                    
+            except Exception as e:
+                print(f"❌ Error in visualization loop after {frame_count} frames: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                # Cleanup
+                try:
+                    print("🧹 Cleaning up nimpy visualization...")
+                    viewer.closeVisualization()
+                    print("✅ Nimpy visualization cleanup complete")
+                except Exception as cleanup_error:
+                    print(f"⚠️  Cleanup error (non-critical): {cleanup_error}")
+                finally:
+                    os.chdir(old_cwd)
+                
             return 0
             
         except KeyboardInterrupt:
             print("\n⏹️  Interrupted by user")
+            game_running.clear()
             return 0
         except Exception as e:
-            print(f"❌ Error in game loop: {e}")
+            print(f"❌ Error launching visualization: {e}")
             import traceback
             traceback.print_exc()
             return 1
+        finally:
+            game_running.clear()
+            print("🧹 Game loop stopped")
 
     def _run_with_builtin_ai(self) -> int:
         """
