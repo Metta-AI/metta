@@ -2,6 +2,8 @@
 #define OBJECTS_CONVERTER_HPP_
 
 #include <cassert>
+#include <climits>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -11,6 +13,7 @@
 #include "constants.hpp"
 #include "converter_config.hpp"
 #include "has_inventory.hpp"
+#include "inventory_list.hpp"
 
 class Converter : public HasInventory {
 private:
@@ -94,6 +97,15 @@ public:
   ObservationType output_recipe_offset;
   unsigned short conversions_completed;
   std::map<InventoryItem, float> resource_loss_prob;
+  std::mt19937* rng;
+
+  // Inventory management with resource tracking
+  InventoryList inventory_list;
+
+public:
+  // Expose inventory and resource_instances for backward compatibility
+  std::map<InventoryItem, InventoryQuantity>& inventory = inventory_list.inventory;
+  std::map<uint64_t, ResourceInstance>& resource_instances = inventory_list.resource_instances;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
@@ -110,19 +122,51 @@ public:
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
         conversions_completed(0),
-        resource_loss_prob(cfg.resource_loss_prob) {
+        resource_loss_prob(cfg.resource_loss_prob),
+        rng(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
-      HasInventory::update_inventory(item, cfg.initial_resource_count);
+      if (cfg.initial_resource_count > 0) {
+        this->inventory[item] = cfg.initial_resource_count;
+        // Note: Resource instances will be created when set_event_manager is called
+        // since we need the event manager and RNG to be set up first
+      }
     }
   }
 
   void set_event_manager(EventManager* event_manager_ptr) {
     this->event_manager = event_manager_ptr;
+    this->inventory_list.set_event_manager(event_manager_ptr);
+
+    // Initialize resource instances for existing inventory if RNG is available
+    if (this->rng) {
+      this->inventory_list.initialize_resource_instances(this->resource_loss_prob, this->id);
+    }
+
     this->maybe_start_converting();
   }
+
+  inline void set_rng(std::mt19937* rng_ptr) {
+    this->rng = rng_ptr;
+    this->inventory_list.set_rng(rng_ptr);
+  }
+
+  // Implement HasInventory interface
+  InventoryList& get_inventory_list() override {
+    return inventory_list;
+  }
+
+  const InventoryList& get_inventory_list() const override {
+    return inventory_list;
+  }
+
+  // Inventory access method (required by some action handlers)
+  bool inventory_is_accessible() const override {
+    return true;  // Converters always have accessible inventory
+  }
+
 
   void finish_converting() {
     this->converting = false;
@@ -136,7 +180,7 @@ public:
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
-      HasInventory::update_inventory(item, amount);
+      update_inventory(item, amount);
       stats.add(stats.resource_name(item) + ".produced", amount);
     }
 
@@ -157,20 +201,42 @@ public:
     this->maybe_start_converting();
   }
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
-    InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);
-    if (delta != 0) {
-      if (delta > 0) {
-        stats.add(stats.resource_name(item) + ".added", delta);
-      } else {
-        stats.add(stats.resource_name(item) + ".removed", -delta);
-      }
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) override {
+    // Get the initial amount (0 if item doesn't exist)
+    InventoryQuantity initial_amount = 0;
+    auto inv_it = this->inventory.find(item);
+    if (inv_it != this->inventory.end()) {
+      initial_amount = inv_it->second;
     }
+
+    // Calculate the new amount with clamping
+    int new_amount_int = static_cast<int>(initial_amount + delta);
+    InventoryQuantity new_amount = static_cast<InventoryQuantity>(std::clamp(
+        new_amount_int, 0, static_cast<int>(std::numeric_limits<InventoryQuantity>::max())));
+
+    InventoryDelta actual_delta = new_amount - initial_amount;
+
+    // Handle inventory changes using InventoryList
+    if (actual_delta != 0) {
+      // Use InventoryList to handle the update with stochastic resource loss
+      InventoryDelta inventory_delta = this->inventory_list.update_inventory(item, actual_delta, this->resource_loss_prob, this->id);
+
+      // Update stats
+      if (inventory_delta > 0) {
+        stats.add(stats.resource_name(item) + ".added", inventory_delta);
+      } else if (inventory_delta < 0) {
+        stats.add(stats.resource_name(item) + ".removed", -inventory_delta);
+      }
+
+      this->maybe_start_converting();
+      return inventory_delta;
+    }
+
     this->maybe_start_converting();
-    return delta;
+    return actual_delta;
   }
 
-  std::vector<PartialObservationToken> obs_features() const override {
+  std::vector<PartialObservationToken> obs_features() const {
     std::vector<PartialObservationToken> features;
 
     // Calculate the capacity needed

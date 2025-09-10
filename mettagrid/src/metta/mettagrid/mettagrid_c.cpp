@@ -187,6 +187,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
+        converter->set_rng(&_rng);
         converter->stats.set_environment(this);
         continue;
       }

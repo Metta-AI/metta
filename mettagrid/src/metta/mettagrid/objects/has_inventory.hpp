@@ -7,32 +7,30 @@
 
 #include "constants.hpp"
 #include "grid_object.hpp"
+#include "inventory_list.hpp"
 
 class HasInventory : public GridObject {
 public:
-  std::map<InventoryItem, InventoryQuantity> inventory;
-
   // Whether the inventory is accessible to an agent.
-  virtual bool inventory_is_accessible() {
+  virtual bool inventory_is_accessible() const {
     return true;
   }
 
+  // Get the inventory list - must be implemented by derived classes
+  virtual InventoryList& get_inventory_list() = 0;
+  virtual const InventoryList& get_inventory_list() const = 0;
+
+
   virtual InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) {
-    InventoryQuantity initial_amount = this->inventory[item];
-    int new_amount = static_cast<int>(initial_amount + delta);
+    // Default implementation delegates to InventoryList for advanced resource tracking
+    // Derived classes can override if they need special behavior
+    InventoryList& inventory_list = get_inventory_list();
 
-    constexpr int min = std::numeric_limits<InventoryQuantity>::min();
-    constexpr int max = std::numeric_limits<InventoryQuantity>::max();
-    InventoryQuantity clamped_amount = static_cast<InventoryQuantity>(std::clamp(new_amount, min, max));
+    // Use empty resource loss probability map for basic inventory management
+    // Derived classes can override to provide their own resource loss probabilities
+    std::map<InventoryItem, float> empty_resource_loss_prob;
 
-    if (clamped_amount == 0) {
-      this->inventory.erase(item);
-    } else {
-      this->inventory[item] = clamped_amount;
-    }
-
-    InventoryDelta clamped_delta = clamped_amount - initial_amount;
-    return clamped_delta;
+    return inventory_list.update_inventory(item, delta, empty_resource_loss_prob, this->id);
   }
 };
 

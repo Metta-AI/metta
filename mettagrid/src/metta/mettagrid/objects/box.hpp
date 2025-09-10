@@ -5,6 +5,7 @@
 
 #include "constants.hpp"
 #include "has_inventory.hpp"
+#include "inventory_list.hpp"
 #include "types.hpp"
 
 // #MettaGridConfig
@@ -17,10 +18,18 @@ struct BoxConfig : public GridObjectConfig {
 };
 
 class Box : public HasInventory {
+private:
+  // Inventory management with resource tracking
+  InventoryList inventory_list;
+
 public:
   GridObjectId creator_agent_object_id;
   unsigned char creator_agent_id;
   std::map<InventoryItem, InventoryQuantity> returned_resources;
+
+  // Expose inventory and resource_instances for backward compatibility
+  std::map<InventoryItem, InventoryQuantity>& inventory = inventory_list.inventory;
+  std::map<uint64_t, ResourceInstance>& resource_instances = inventory_list.resource_instances;
 
   Box(GridCoord r,
       GridCoord c,
@@ -34,6 +43,15 @@ public:
   }
 
   ~Box() {}
+
+  // Implement HasInventory interface
+  InventoryList& get_inventory_list() override {
+    return inventory_list;
+  }
+
+  const InventoryList& get_inventory_list() const override {
+    return inventory_list;
+  }
 
   bool is_creator(unsigned char agent_id) const {
     return agent_id == creator_agent_id;

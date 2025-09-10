@@ -60,13 +60,13 @@ public:
       InventoryItem item_type = it->second.item_type;
 
       // Remove the resource instance
-      agent->remove_resource_instance(resource_id);
+      agent->inventory_list.remove_resource_instance(resource_id);
 
       // Update the inventory count
-      if (agent->inventory.count(item_type) > 0) {
-        agent->inventory[item_type]--;
-        if (agent->inventory[item_type] == 0) {
-          agent->inventory.erase(item_type);
+      if (agent->inventory_list.inventory.count(item_type) > 0) {
+        agent->inventory_list.inventory[item_type]--;
+        if (agent->inventory_list.inventory[item_type] == 0) {
+          agent->inventory_list.inventory.erase(item_type);
         }
       }
 

@@ -12,6 +12,7 @@
 #include "../stats_tracker.hpp"
 #include "agent_config.hpp"
 #include "constants.hpp"
+#include "inventory_list.hpp"
 #include "objects/box.hpp"
 #include "types.hpp"
 
@@ -21,10 +22,6 @@ public:
   short frozen;
   short freeze_duration;
   Orientation orientation;
-  // inventory is a map of item to amount.
-  // keys should be deleted when the amount is 0, to keep iteration faster.
-  // however, this should not be relied on for correctness.
-  std::map<InventoryItem, InventoryQuantity> inventory;
   std::map<InventoryItem, RewardType> resource_rewards;
   std::map<InventoryItem, RewardType> resource_reward_max;
   std::map<std::string, RewardType> stat_rewards;
@@ -51,15 +48,13 @@ public:
   EventManager* event_manager;
   std::mt19937* rng;  // Pointer to the MettaGrid's RNG
 
-  // Resource identity tracking
-  struct ResourceInstance {
-    uint64_t id;  // Unique identifier for this resource instance
-    InventoryItem item_type;
-    unsigned int creation_timestep;
-  };
-  std::map<uint64_t, ResourceInstance> resource_instances;  // Map from resource ID to instance
-  std::map<InventoryItem, std::vector<uint64_t>> item_to_resources;  // Map from item type to resource IDs
-  uint64_t next_resource_id;
+  // Inventory management with resource tracking
+  InventoryList inventory_list;
+
+public:
+  // Expose inventory and resource_instances for backward compatibility
+  std::map<InventoryItem, InventoryQuantity>& inventory = inventory_list.inventory;
+  std::map<uint64_t, ResourceInstance>& resource_instances = inventory_list.resource_instances;
 
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
@@ -67,7 +62,6 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::North),
-        inventory(),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
@@ -87,8 +81,7 @@ public:
         box(nullptr),
         resource_loss_prob(config.resource_loss_prob),
         event_manager(nullptr),
-        rng(nullptr),
-        next_resource_id(1) {
+        rng(nullptr) {
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
@@ -99,95 +92,27 @@ public:
 
   void set_event_manager(EventManager* event_manager_ptr) {
     this->event_manager = event_manager_ptr;
+    this->inventory_list.set_event_manager(event_manager_ptr);
+
+    // Initialize resource instances for existing inventory if RNG is available
+    if (this->rng) {
+      this->inventory_list.initialize_resource_instances(this->resource_loss_prob, this->id);
+    }
   }
 
   void set_rng(std::mt19937* rng_ptr) {
     this->rng = rng_ptr;
+    this->inventory_list.set_rng(rng_ptr);
   }
 
-  // Resource instance management
-  uint64_t create_resource_instance(InventoryItem item_type, unsigned int current_timestep) {
-    uint64_t resource_id = next_resource_id++;
-    resource_instances[resource_id] = {resource_id, item_type, current_timestep};
-    item_to_resources[item_type].push_back(resource_id);
-    return resource_id;
-  }
 
-  void remove_resource_instance(uint64_t resource_id) {
-    auto it = resource_instances.find(resource_id);
-    if (it != resource_instances.end()) {
-      InventoryItem item_type = it->second.item_type;
-      resource_instances.erase(it);
 
-      // Remove from item_to_resources
-      auto& resources = item_to_resources[item_type];
-      resources.erase(std::remove(resources.begin(), resources.end(), resource_id), resources.end());
-      if (resources.empty()) {
-        item_to_resources.erase(item_type);
-      }
-    }
-  }
 
-  uint64_t get_random_resource_id(InventoryItem item_type) {
-    auto it = item_to_resources.find(item_type);
-    if (it == item_to_resources.end() || it->second.empty()) {
-      return 0;  // No resources of this type
-    }
-
-    // Use proper RNG if available, otherwise fall back to rand()
-    if (this->rng) {
-      std::uniform_int_distribution<size_t> dist(0, it->second.size() - 1);
-      size_t index = dist(*this->rng);
-      return it->second[index];
-    } else {
-      size_t index = rand() % it->second.size();
-      return it->second[index];
-    }
-  }
-
-  // Helper method to create resource instances and schedule loss events
-  void create_and_schedule_resources(InventoryItem item_type, int count, unsigned int current_timestep) {
-    if (!this->event_manager || !this->rng) {
-      return;
-    }
-
-    // Check if this item type has a loss probability
-    auto prob_it = this->resource_loss_prob.find(item_type);
-    if (prob_it == this->resource_loss_prob.end() || prob_it->second <= 0.0f) {
-      // No loss probability, just create resource instances without scheduling events
-      for (int i = 0; i < count; i++) {
-        create_resource_instance(item_type, current_timestep);
-      }
-      return;
-    }
-
-    // Create resource instances and schedule loss events
-    for (int i = 0; i < count; i++) {
-      uint64_t resource_id = create_resource_instance(item_type, current_timestep);
-
-      // Use exponential distribution to determine lifetime
-      std::exponential_distribution<float> exp_dist(prob_it->second);
-      float lifetime = exp_dist(*this->rng);
-      unsigned int loss_timestep = current_timestep + static_cast<unsigned int>(std::ceil(lifetime));
-
-      // Schedule the loss event with the resource ID as the argument
-      this->event_manager->schedule_event(EventType::StochasticResourceLoss,
-                                        loss_timestep - current_timestep,
-                                        this->id,
-                                        static_cast<EventArg>(resource_id));
-    }
-  }
 
   void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
     for (const auto& [item, amount] : initial_inventory) {
       if (amount > 0) {
         this->inventory[item] = amount;
-
-        // Create resource instances for initial inventory
-        if (this->event_manager && this->rng) {
-          unsigned int current_timestep = this->event_manager->get_current_timestep();
-          create_and_schedule_resources(item, amount, current_timestep);
-        }
       }
     }
   }
@@ -244,40 +169,23 @@ public:
 
     InventoryDelta delta = new_amount - initial_amount;
 
-    // Handle inventory changes
-    if (delta > 0) {
-      // Adding inventory - create resource instances and schedule loss events
-      this->stats.add(this->stats.resource_name(item) + ".gained", delta);
+    // Handle inventory changes using InventoryList
+    if (delta != 0) {
+      // Use InventoryList to handle the update with stochastic resource loss
+      InventoryDelta actual_delta = this->inventory_list.update_inventory(item, delta, this->resource_loss_prob, this->id);
 
-      if (this->event_manager && this->agent_id != 0 && this->rng) {
-        unsigned int current_timestep = this->event_manager->get_current_timestep();
-        create_and_schedule_resources(item, delta, current_timestep);
+      // Update stats
+      if (actual_delta > 0) {
+        this->stats.add(this->stats.resource_name(item) + ".gained", actual_delta);
+      } else if (actual_delta < 0) {
+        this->stats.add(this->stats.resource_name(item) + ".lost", -actual_delta);
       }
 
-      // Update inventory
-      this->inventory[item] = new_amount;
-    } else if (delta < 0) {
-      // Removing inventory - remove random resource instances
-      this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
+      // Update resource rewards incrementally
+      this->_update_resource_reward(item, initial_amount, initial_amount + actual_delta);
 
-      // Remove random resource instances
-      for (int i = 0; i < -delta; i++) {
-        uint64_t resource_id = get_random_resource_id(item);
-        if (resource_id != 0) {
-          remove_resource_instance(resource_id);
-        }
-      }
-
-      // Update inventory
-      if (new_amount > 0) {
-        this->inventory[item] = new_amount;
-      } else {
-        this->inventory.erase(item);
-      }
+      return actual_delta;
     }
-
-    // Update resource rewards incrementally
-    this->_update_resource_reward(item, initial_amount, new_amount);
 
     return delta;
   }

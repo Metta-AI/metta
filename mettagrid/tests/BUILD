@@ -12,11 +12,11 @@ COPTS = [
 
 # C++ test binaries that link with Python
 cc_binary(
-    name = "test_stats_tracker_bin",
-    srcs = ["test_stats_tracker.cpp"],
-    copts = COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
-    linkstatic = False,
-    deps = [
+    name="test_stats_tracker_bin",
+    srcs=["test_stats_tracker.cpp"],
+    copts=COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
         "@rules_python//python/cc:current_py_cc_libs",
@@ -24,11 +24,11 @@ cc_binary(
 )
 
 cc_binary(
-    name = "test_grid_object_bin",
-    srcs = ["test_grid_object.cpp"],
-    copts = COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
-    linkstatic = False,
-    deps = [
+    name="test_grid_object_bin",
+    srcs=["test_grid_object.cpp"],
+    copts=COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
         "@rules_python//python/cc:current_py_cc_libs",
@@ -36,19 +36,19 @@ cc_binary(
 )
 
 filegroup(
-    name = "mettagrid_sources",
-    srcs = [
+    name="mettagrid_sources",
+    srcs=[
         "//:src/metta/mettagrid/mettagrid_c.cpp",
         "//:src/metta/mettagrid/renderer/hermes.cpp",
     ],
 )
 
 cc_binary(
-    name = "test_mettagrid_bin",
-    srcs = ["test_mettagrid.cpp"] + [":mettagrid_sources"],
-    copts = COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
-    linkstatic = False,
-    deps = [
+    name="test_mettagrid_bin",
+    srcs=["test_mettagrid.cpp"] + [":mettagrid_sources"],
+    copts=COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
         "//:mettagrid_lib",  # For pybind11 headers
         "@googletest//:gtest_main",
         "@rules_python//python/cc:current_py_cc_libs",
@@ -56,61 +56,107 @@ cc_binary(
 )
 
 cc_binary(
-    name = "test_observations_bin",
-    srcs = ["test_observations.cpp"],
-    copts = COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
-    linkstatic = False,
-    deps = [
+    name="test_observations_bin",
+    srcs=["test_observations.cpp"],
+    copts=COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
         "@rules_python//python/cc:current_py_cc_libs",
     ],
 )
 
+cc_binary(
+    name="test_inventory_list_bin",
+    srcs=["test_inventory_list.cpp"],
+    copts=COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
+        "//:mettagrid_lib",
+        "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
+cc_binary(
+    name="test_has_inventory_bin",
+    srcs=["test_has_inventory.cpp"],
+    copts=COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
+        "//:mettagrid_lib",
+        "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
+
 # Python test wrappers
 py_test(
-    name = "test_stats_tracker",
-    srcs = ["run_test.py"],
-    main = "run_test.py",
-    args = ["--bin=test_stats_tracker_bin"],
-    data = [":test_stats_tracker_bin"],
-    size = "small",
+    name="test_stats_tracker",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_stats_tracker_bin"],
+    data=[":test_stats_tracker_bin"],
+    size="small",
 )
 
 py_test(
-    name = "test_grid_object",
-    srcs = ["run_test.py"],
-    main = "run_test.py",
-    args = ["--bin=test_grid_object_bin"],
-    data = [":test_grid_object_bin"],
-    size = "small",
+    name="test_grid_object",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_grid_object_bin"],
+    data=[":test_grid_object_bin"],
+    size="small",
 )
 
 py_test(
-    name = "test_mettagrid",
-    srcs = ["run_test.py"],
-    main = "run_test.py",
-    args = ["--bin=test_mettagrid_bin"],
-    data = [":test_mettagrid_bin"],
-    size = "small",
+    name="test_mettagrid",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_mettagrid_bin"],
+    data=[":test_mettagrid_bin"],
+    size="small",
 )
 
 py_test(
-    name = "test_observations",
-    srcs = ["run_test.py"],
-    main = "run_test.py",
-    args = ["--bin=test_observations_bin"],
-    data = [":test_observations_bin"],
-    size = "small",
+    name="test_observations",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_observations_bin"],
+    data=[":test_observations_bin"],
+    size="small",
 )
+
+py_test(
+    name="test_inventory_list",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_inventory_list_bin"],
+    data=[":test_inventory_list_bin"],
+    size="small",
+)
+
+py_test(
+    name="test_has_inventory",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_has_inventory_bin"],
+    data=[":test_has_inventory_bin"],
+    size="small",
+)
+
 
 # Test suite that runs all tests
 test_suite(
-    name = "tests_all",
-    tests = [
+    name="tests_all",
+    tests=[
         ":test_stats_tracker",
         ":test_grid_object",
         ":test_mettagrid",
         ":test_observations",
+        ":test_inventory_list",
+        ":test_has_inventory",
     ],
 )
