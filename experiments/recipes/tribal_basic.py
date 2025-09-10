@@ -84,14 +84,14 @@ class DirectGennyTribalEnv:
             for action in flat_actions:
                 actions_seq.append(action)
             
-            # First send the actions to the external controller
+            # Send actions to the in-process environment controller (now using nimpy in same process!)
             import tribal
             actions_sent = tribal.set_external_actions_from_python(actions_seq)
             if not actions_sent:
-                raise RuntimeError("Failed to send actions to ExternalNN controller")
+                print("⚠️ Warning: Failed to send actions to ExternalNN controller")
             
-            # Then call environment step - this will use the external controller
-            print(f"🎯 Using direct genny bindings: step({len(flat_actions)} actions)")
+            # Then call environment step - this will use the external controller in the same process
+            print(f"🎯 Using in-process nimpy communication: step({len(flat_actions)} actions)")
             success = self._nim_env.step(actions_seq)
             if not success:
                 raise RuntimeError("Direct genny step failed")
@@ -404,15 +404,47 @@ class TribalNimPlayTool(Tool):
             print("   The Nim window will show the agents being controlled by your policy")
             print("   Press Ctrl+C in terminal to stop, or close the Nim window")
             
-            # Launch native Nim viewer (this blocks until window closes)
+            # Launch native Nim viewer using nimpy (in-process visualization)
             tribal_dir = Path(__file__).parent.parent.parent / "tribal"
-            result = subprocess.run(
-                ["nim", "r", "-d:release", "src/tribal"],
-                cwd=tribal_dir,
-                capture_output=False  # Allow interactive output
-            )
             
-            return result.returncode
+            # Change working directory to tribal BEFORE importing nimpy module
+            import os
+            old_cwd = os.getcwd()
+            os.chdir(tribal_dir)
+            
+            try:
+                # Import the nimpy visualization module (now with correct working directory)
+                import sys
+                sys.path.insert(0, str(tribal_dir))
+                import tribal_nimpy_viewer as viewer
+                
+                # Initialize the visualization
+                if not viewer.initVisualization():
+                    print("❌ Failed to initialize nimpy visualization")
+                    return 1
+                
+                # Load assets
+                if not viewer.loadAssets():
+                    print("❌ Failed to load tribal assets")
+                    return 1
+                
+            except Exception as e:
+                print(f"❌ Error setting up nimpy visualization: {e}")
+                os.chdir(old_cwd)
+                return 1
+            
+            # Run the visualization loop
+            print("🎨 Starting nimpy visualization loop...")
+            try:
+                while viewer.isWindowOpen():
+                    if not viewer.renderFrame():
+                        break
+            finally:
+                # Cleanup
+                viewer.closeVisualization()
+                os.chdir(old_cwd)
+                
+            return 0
             
         except KeyboardInterrupt:
             print("\n⏹️  Interrupted by user")
