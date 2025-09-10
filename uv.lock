@@ -2139,6 +2139,7 @@ source = { editable = "mettagrid" }
 dependencies = [
     { name = "boto3" },
     { name = "botocore" },
+    { name = "colorama" },
     { name = "duckdb" },
     { name = "google-api-python-client" },
     { name = "google-auth" },
@@ -2166,6 +2167,7 @@ dev = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.38.32" },
     { name = "botocore", specifier = ">=1.38.29" },
+    { name = "colorama" },
     { name = "duckdb", specifier = ">=1.3.0" },
     { name = "google-api-python-client", specifier = ">=2.0.0" },
     { name = "google-auth", specifier = ">=2.0.0" },
