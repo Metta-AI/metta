@@ -47,15 +47,15 @@ def _default_run_name() -> str:
         return f"navigation.{user}.{timestamp}"
 
 
-def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
-    nav = eb.make_navigation(num_agents=num_agents * num_instances)
+def make_mettagrid(num_agents: int = 4) -> MettaGridConfig:
+    nav = eb.make_navigation(num_agents=num_agents)
 
     nav.game.map_builder = MapGen.Config(
-        instances=num_instances,
+        instances=num_agents,  # Create one instance per agent
         border_width=6,
         instance_border_width=3,
         instance_map=TerrainFromNumpy.Config(
-            agents=num_agents,
+            agents=1,  # Each terrain map instance has 1 agent
             objects={"altar": 10},
             dir="varied_terrain/dense_large",
         ),
@@ -83,7 +83,7 @@ def make_curriculum(
     # sparse environments are just random maps
     sparse_nav_env = nav_env.model_copy()
     sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
-        agents=4,
+        agents=4,  # Total agents across all instances
         objects={"altar": 10},
     )
     sparse_tasks = cc.bucketed(sparse_nav_env)
@@ -106,6 +106,7 @@ def train(
     run: Optional[str] = None,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_logging: bool = False,
+    skip_git_check: bool = False,
 ) -> TrainTool:
     # Generate structured run name if not provided
     if run is None:
@@ -116,6 +117,7 @@ def train(
         or make_curriculum(enable_detailed_bucket_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
+            skip_git_check=skip_git_check,
         ),
     )
 

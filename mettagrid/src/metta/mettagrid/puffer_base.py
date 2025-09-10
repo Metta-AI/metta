@@ -141,3 +141,15 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
     def done(self) -> bool:
         """Check if environment is done."""
         return self._should_reset
+
+    def close(self) -> None:
+        """Close the environment."""
+        # Call MettaGridCore.close() by bypassing PufferEnv in the MRO
+        # Use MRO to find MettaGridCore and call its close method directly
+        for base_class in self.__class__.__mro__:
+            if base_class.__name__ == "MettaGridCore" and hasattr(base_class, "close"):
+                base_class.close(self)
+                return
+        # Fallback in case MettaGridCore is not found (shouldn't happen)
+        if hasattr(self, "_MettaGridCore__c_env_instance"):
+            del self._MettaGridCore__c_env_instance

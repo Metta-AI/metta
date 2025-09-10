@@ -122,6 +122,11 @@ class CurriculumEnv(PufferEnv):
         self._stats_update_counter = self._stats_update_frequency
         self._stats_cache_valid = False
 
+    def close(self) -> None:
+        """Close the wrapped environment."""
+        if hasattr(self._env, "close"):
+            self._env.close()
+
     def __getattr__(self, name: str):
         """Delegate attribute access to wrapped environment when attribute not found.
 

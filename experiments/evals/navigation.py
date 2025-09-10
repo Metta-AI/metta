@@ -68,10 +68,10 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
         SimulationConfig(
             name=f"navigation/{eval['name']}",
             env=make_nav_ascii_env(
-                eval["name"],
-                eval["max_steps"],
-                eval["num_agents"],
-                eval["num_instances"],
+                name=eval["name"],
+                max_steps=eval["max_steps"],
+                num_agents=eval["num_agents"],
+                num_instances=eval["num_instances"],
             ),
         )
         for eval in NAVIGATION_EVALS
