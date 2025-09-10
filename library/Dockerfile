@@ -41,6 +41,7 @@ WORKDIR /metta/library
 # necessary for prisma
 RUN apt-get update -y && apt-get install -y openssl
 
+RUN pnpm run build
 RUN pnpm run db:generate
 
 ENV NODE_ENV=production
