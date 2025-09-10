@@ -990,7 +990,7 @@ class MettaRepo:
     async def create_machine_token(self, user_id: str, name: str, expiration_days: int = 365) -> str:
         """Create a new machine token for a user."""
         # Generate a secure random token
-        token = f"obs-{secrets.token_urlsafe(32)}"
+        token = secrets.token_urlsafe(32)
         token_hash = self._hash_token(token)
 
         # Set expiration time
