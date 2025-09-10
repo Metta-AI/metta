@@ -20,6 +20,8 @@ class AdaptiveConfig:
     monitoring_interval: int = 60
     train_recipe: str = "experiments.recipes.arena.train"
     eval_recipe: str = "experiments.recipes.arena.evaluate"
+    resume: bool = False # Whether we are resuming from an existing experiment
+    #TODO: In future, this check should be automatic.
 
     # Optional settings
     base_overrides: dict[str, Any] = field(default_factory=dict)
