@@ -36,11 +36,15 @@ class AdaptiveController:
     def run(self) -> None:
         """Main adaptive experiment loop - everything inline."""
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
-
+        has_data = config.resume
         while len(self.dispatched_jobs) < self.config.max_trials:
             try:
                 # 1. Get current state
-                runs = self.store.fetch_runs(filters={"group": self.experiment_id})
+                if has_data:
+                    runs = self.store.fetch_runs(filters={"group": self.experiment_id})
+                else:
+                    runs = []
+                    has_data = True # Skip first fetch because WandB will just timeout.
 
                 # 2. Calculate available training slots
                 active_training_count = sum(
