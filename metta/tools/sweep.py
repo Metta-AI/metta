@@ -1,4 +1,4 @@
-"""SweepOrchestratorTool for hyperparameter optimization using the new orchestrator."""
+"""SweepTool for hyperparameter optimization using the new orchestrator."""
 
 import logging
 import os
@@ -6,24 +6,59 @@ import uuid
 from enum import StrEnum
 from typing import Any, Optional
 
+from cogweb.cogweb_client import CogwebClient
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
+from metta.sweep import JobTypes, LocalDispatcher, SweepController, SweepControllerConfig, SweepStatus
 from metta.sweep.dispatcher.routing import RoutingDispatcher
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
-from metta.sweep.store.wandb import WandbStore
-from metta.sweep.sweep_orchestrator import (
-    JobTypes,
-    LocalDispatcher,
-    SweepOrchestratorConfig,
-    orchestrate_sweep,
-)
-from metta.tools.utils.auto_config import auto_wandb_config
+from metta.sweep.protocols import Dispatcher, Optimizer, Scheduler, Store
+from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
+from metta.sweep.stores.wandb import WandbStore
+from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
+
+
+def orchestrate_sweep(
+    config: SweepControllerConfig,
+    scheduler: Scheduler,
+    optimizer: Optimizer,
+    dispatcher: Dispatcher,
+    store: Store,
+) -> None:
+    """Entry point for running a sweep."""
+    cogweb_client = CogwebClient.get_client(base_url=config.sweep_server_uri)
+    sweep_client = cogweb_client.sweep_client()
+
+    sweep_info = sweep_client.get_sweep(config.sweep_name)
+    if not sweep_info.exists:
+        logger.info(f"[Orchestrator] Registering sweep {config.sweep_name}")
+        sweep_client.create_sweep(config.sweep_name, config.wandb.project, config.wandb.entity, config.sweep_name)
+        sweep_status = SweepStatus.CREATED
+    else:
+        sweep_status = SweepStatus.RESUMED
+
+    # Create the sweep controller (stateless)
+    controller = SweepController(
+        sweep_id=config.sweep_name,
+        scheduler=scheduler,
+        optimizer=optimizer,
+        dispatcher=dispatcher,
+        store=store,
+        protein_config=config.protein_config,
+        sweep_status=sweep_status,
+        max_parallel_jobs=config.max_parallel_jobs,
+        monitoring_interval=config.monitoring_interval,
+    )
+
+    try:
+        controller.run()
+    finally:
+        logger.info("[Orchestrator] Sweep Completed")
 
 
 class DispatcherType(StrEnum):
@@ -34,7 +69,7 @@ class DispatcherType(StrEnum):
     HYBRID_REMOTE_TRAIN = "hybrid_remote_train"  # Train on Skypilot, evaluate locally
 
 
-class SweepOrchestratorTool(Tool):
+class SweepTool(Tool):
     """Tool for running hyperparameter sweeps."""
 
     # Sweep identity - optional, will be generated if not provided
@@ -45,7 +80,6 @@ class SweepOrchestratorTool(Tool):
     protein_config: ProteinConfig = ProteinConfig(
         metric="evaluator/eval_arena/score",
         goal="maximize",
-        method="random",
         parameters={
             "trainer.optimizer.learning_rate": ParameterConfig(
                 min=1e-5,
@@ -67,20 +101,28 @@ class SweepOrchestratorTool(Tool):
     max_parallel_jobs: int = 1
     monitoring_interval: int = 5
     sweep_server_uri: str = "https://api.observatory.softmax-research.net"
+    gpus: int = 1  # Number of GPUs per training job
+    nodes: int = 1  # Number of nodes per training job
 
     # Override configurations
     train_overrides: dict[str, Any] = {}  # Overrides to apply to all training jobs
 
     # Infrastructure configuration
     wandb: WandbConfig = WandbConfig.Unconfigured()
-    stats_server_uri: Optional[str] = None  # Stats server for remote evaluations
+    stats_server_uri: Optional[str] = auto_stats_server_uri()  # Stats server for remote evaluations
 
     # Dispatcher configuration
-    dispatcher_type: DispatcherType = DispatcherType.LOCAL  # LOCAL or SKYPILOT
+    dispatcher_type: DispatcherType = DispatcherType.HYBRID_REMOTE_TRAIN  # Default: train on Skypilot, evaluate locally
     capture_output: bool = True  # Capture and stream subprocess output (local only)
-    output_dir: Optional[str] = None  # Directory to save output logs (local only)
 
-    consumed_args: list[str] = ["sweep_name", "max_trials"]
+    consumed_args: list[str] = [
+        "sweep_name",
+        "max_trials",
+        "recipe_module",
+        "train_entrypoint",
+        "eval_entrypoint",
+        "run",
+    ]
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         """Execute the sweep."""
@@ -90,6 +132,12 @@ class SweepOrchestratorTool(Tool):
             assert self.sweep_name is None, "sweep_name cannot be set via args and config"
             self.sweep_name = args["sweep_name"]
 
+        # Handle run parameter from dispatcher (ignored - only consumed to prevent unused args error)
+        if "run" in args:
+            # The run parameter is added by dispatchers for training jobs
+            # We consume it here but don't use it for sweep orchestration
+            pass
+
         # Generate sweep name if not provided (similar to TrainTool's run name)
         if self.sweep_name is None:
             self.sweep_name = f"sweep.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())[:8]}"
@@ -97,6 +145,18 @@ class SweepOrchestratorTool(Tool):
         # Handle max_trials from args
         if "max_trials" in args:
             self.max_trials = int(args["max_trials"])
+
+        # Handle recipe_module from args
+        if "recipe_module" in args:
+            self.recipe_module = args["recipe_module"]
+
+        # Handle train_entrypoint from args
+        if "train_entrypoint" in args:
+            self.train_entrypoint = args["train_entrypoint"]
+
+        # Handle eval_entrypoint from args
+        if "eval_entrypoint" in args:
+            self.eval_entrypoint = args["eval_entrypoint"]
 
         # Set sweep_dir based on sweep name if not explicitly set
         if self.sweep_dir is None:
@@ -120,13 +180,10 @@ class SweepOrchestratorTool(Tool):
         logger.info(f"[SweepOrchestrator] Monitoring interval: {self.monitoring_interval}s")
         logger.info(f"[SweepOrchestrator] Dispatcher type: {self.dispatcher_type}")
         logger.info(f"[SweepOrchestrator] Output capture: {self.capture_output}")
-        if self.capture_output and self.dispatcher_type == DispatcherType.LOCAL:
-            output_dir = self.output_dir or os.path.join(self.sweep_dir, "job_logs")
-            logger.info(f"[SweepOrchestrator] Output logs directory: {output_dir}")
         logger.info("[SweepOrchestrator] " + "=" * 60)
 
         # Build the orchestrator config
-        orchestrator_config = SweepOrchestratorConfig(
+        sweep_controller_config = SweepControllerConfig(
             sweep_name=self.sweep_name,
             sweep_server_uri=self.sweep_server_uri,
             wandb=self.wandb,
@@ -140,12 +197,7 @@ class SweepOrchestratorTool(Tool):
 
         # Create dispatcher based on type
         if self.dispatcher_type == DispatcherType.LOCAL:
-            # Set default output_dir if not specified
-            output_dir = self.output_dir
-            if output_dir is None and self.capture_output:
-                output_dir = os.path.join(self.sweep_dir, "job_logs")
-
-            dispatcher = LocalDispatcher(capture_output=self.capture_output, output_dir=output_dir)
+            dispatcher = LocalDispatcher(capture_output=self.capture_output)
 
         elif self.dispatcher_type == DispatcherType.SKYPILOT:
             dispatcher = SkypilotDispatcher()
@@ -156,14 +208,10 @@ class SweepOrchestratorTool(Tool):
 
         elif self.dispatcher_type == DispatcherType.HYBRID_REMOTE_TRAIN:
             # Train on Skypilot, evaluate locally
-            output_dir = self.output_dir
-            if output_dir is None and self.capture_output:
-                output_dir = os.path.join(self.sweep_dir, "job_logs")
-
             dispatcher = RoutingDispatcher(
                 routes={
                     JobTypes.LAUNCH_TRAINING: SkypilotDispatcher(),
-                    JobTypes.LAUNCH_EVAL: LocalDispatcher(capture_output=self.capture_output, output_dir=output_dir),
+                    JobTypes.LAUNCH_EVAL: LocalDispatcher(capture_output=self.capture_output),
                 }
             )
             logger.info("[SweepOrchestrator] Using hybrid mode: training on Skypilot, evaluation locally")
@@ -175,15 +223,18 @@ class SweepOrchestratorTool(Tool):
         optimizer = ProteinOptimizer(self.protein_config)
 
         # Create scheduler with configuration
-        scheduler_config = OptimizingSchedulerConfig(
+        scheduler_config = BatchedSyncedSchedulerConfig(
             max_trials=self.max_trials,
             recipe_module=self.recipe_module,
             train_entrypoint=self.train_entrypoint,
             eval_entrypoint=self.eval_entrypoint,
             train_overrides=self.train_overrides,  # Pass train overrides to scheduler
             stats_server_uri=self.stats_server_uri,  # Pass stats server for remote evals
+            gpus=self.gpus,  # Pass GPU configuration
+            nodes=self.nodes,
+            batch_size=self.max_parallel_jobs,
         )
-        scheduler = OptimizingScheduler(scheduler_config, optimizer)
+        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 
         # Save configuration (similar to TrainTool saving config.json)
         config_path = os.path.join(self.sweep_dir, "sweep_config.json")
@@ -196,7 +247,7 @@ class SweepOrchestratorTool(Tool):
 
             # Use the orchestrate_sweep entry point
             orchestrate_sweep(
-                config=orchestrator_config,
+                config=sweep_controller_config,
                 scheduler=scheduler,
                 optimizer=optimizer,
                 dispatcher=dispatcher,

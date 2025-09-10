@@ -3,11 +3,7 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.sweep.protein_config import ProteinConfig
-from metta.sweep.scheduler.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
-from metta.sweep.store.wandb import WandbStore
-from metta.sweep.sweep_orchestrator import (
+from metta.sweep import (
     JobDefinition,
     JobStatus,
     JobTypes,
@@ -16,6 +12,7 @@ from metta.sweep.sweep_orchestrator import (
     RunInfo,
     SweepMetadata,
 )
+from metta.sweep.stores.wandb import WandbStore
 
 
 class TestJobStatus:
@@ -156,29 +153,6 @@ class TestLocalDispatcher:
 
 class TestProtocolCompliance:
     """Test that components comply with Protocol interfaces."""
-
-    def test_scheduler_protocol(self):
-        """Test that schedulers follow the Scheduler protocol."""
-        # Create a simple protein config
-        protein_config = ProteinConfig(
-            metric="test_metric",
-            goal="maximize",
-            method="random",
-            parameters={"test_param": {"min": 0, "max": 1}},
-        )
-
-        optimizer = ProteinOptimizer(protein_config)
-        scheduler_config = OptimizingSchedulerConfig(
-            max_trials=5,
-            recipe_module="experiments.recipes.arena",
-            train_entrypoint="train",
-            eval_entrypoint="evaluate",
-        )
-        scheduler = OptimizingScheduler(scheduler_config, optimizer)
-
-        # Verify protocol methods exist (Scheduler only requires schedule)
-        assert hasattr(scheduler, "schedule")
-        assert callable(scheduler.schedule)
 
     def test_store_protocol(self):
         """Test that stores follow the Store protocol."""
