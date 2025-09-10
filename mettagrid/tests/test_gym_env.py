@@ -25,7 +25,7 @@ def test_single_agent_gym_env():
             ),
             objects={"wall": WallConfig(type_id=1)},
             map_builder=AsciiMapBuilder.Config(
-            map_data=[
+                map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", "#"],
                     ["#", ".", "@", ".", "#"],
