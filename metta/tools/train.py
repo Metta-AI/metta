@@ -16,7 +16,13 @@ from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import (
+    auto_replay_dir,
+    auto_run_name,
+    auto_stats_server_uri,
+    auto_torch_profile_dir,
+    auto_wandb_config,
+)
 
 logger = getRankAwareLogger(__name__)
 
@@ -173,8 +179,10 @@ def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | N
         cfg.trainer.evaluation.replay_dir = auto_replay_dir()
         logger.info_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
 
-    if cfg.stats_server_uri is not None and stats_client is None:
-        stats_client = StatsClient.create(cfg.stats_server_uri)
+    # Auto-configure torch profiler directory if not set
+    if cfg.trainer.profiler.profile_dir is None:
+        cfg.trainer.profiler.profile_dir = auto_torch_profile_dir()
+        logger.info_master(f"Setting torch profile_dir to {cfg.trainer.profiler.profile_dir}")
 
     # Determine git hash for remote simulations
     if cfg.trainer.evaluation.evaluate_remote:
