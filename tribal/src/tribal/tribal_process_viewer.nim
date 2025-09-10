@@ -4,7 +4,7 @@
 
 import std/[os, times, strutils, json, strformat, random]
 import boxy, opengl, windy, vmath
-import tribal/[environment, renderer, common, panels, controls, ui, external_actions]
+import environment, renderer, common, panels, controls, ui, external_actions
 
 # Communication files
 const

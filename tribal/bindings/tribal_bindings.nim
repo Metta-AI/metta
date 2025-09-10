@@ -161,7 +161,7 @@ proc step*(tribal: TribalEnv, actions: seq[int]): bool =
 
 # Observation access
 proc getObservations*(tribal: TribalEnv): seq[int] =
-  ## Get current observations as flat sequence (deprecated, use getTokenObservations)
+  ## Get current observations as flat sequence
   try:
     let totalSize = MapAgents * ObservationLayers * ObservationHeight * ObservationWidth
     result = newSeq[int](totalSize)
@@ -344,7 +344,6 @@ proc initExternalNNController*(): bool =
     lastError = getCurrentException()
     return false
 
-# Direct nimpy communication - file-based approach removed
 
 proc hasActiveController*(): bool =
   ## Check if any controller is active

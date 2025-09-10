@@ -89,7 +89,7 @@ class DirectGennyTribalEnv:
             for action in flat_actions:
                 actions_seq.append(action)
             
-            # Send actions to the in-process environment controller (now using nimpy in same process!)
+            # Send actions to the in-process environment controller
             import tribal
             actions_sent = tribal.set_external_actions_from_python(actions_seq)
             if not actions_sent:
