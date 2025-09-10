@@ -26,9 +26,9 @@ class WandbStore:
         self.project = project
         # Don't store api instance - create fresh one each time to avoid caching
 
-    def init_run(self, run_id: str, sweep_id: str | None = None) -> None:
+    def init_run(self, run_id: str, group: str | None = None, tags: list[str] = []) -> None:
         """Initialize a new run in WandB."""
-        logger.info(f"[WandbStore] Initializing run {run_id} for sweep {sweep_id}")
+        logger.info(f"[WandbStore] Initializing run {run_id} for group {group}")
 
         try:
             # Create the run with specific metadata
@@ -38,8 +38,8 @@ class WandbStore:
                 project=self.project,
                 id=run_id,  # Use run_id as the WandB run ID
                 name=run_id,  # Also use run_id as the display name
-                group=sweep_id,  # Group by sweep_id for organization
-                tags=["sweep"] if sweep_id else [],  # Tag as sweep run if part of a sweep
+                group=group,  # Group by sweep_id for organization
+                tags=tags,  # Tag as sweep run if part of a sweep
                 reinit=True,  # Allow reinitializing if run exists
                 resume="allow",  # Allow resuming existing runs
             )
