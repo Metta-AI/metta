@@ -1,4 +1,5 @@
 import re
+
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
@@ -35,8 +36,9 @@ def parse_object_with_tags(object_name: str) -> tuple[str, list[str]]:
     MAX_TAGS_PER_OBJECT = 10
     if len(tags) > MAX_TAGS_PER_OBJECT:
         raise ValueError(
-            f"Object '{object_name}' has {len(tags)} tags, exceeding the maximum of {MAX_TAGS_PER_OBJECT} tags per object. "
-            f"Consider reducing the number of tags or combining them into composite tags."
+            f"Object '{object_name}' has {len(tags)} tags, exceeding the maximum of "
+            f"{MAX_TAGS_PER_OBJECT} tags per object. Consider reducing the number of "
+            f"tags or combining them into composite tags."
         )
 
     for tag in tags:

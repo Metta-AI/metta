@@ -18,32 +18,23 @@ from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 def test_parse_object_with_tags():
     """Test parsing object names with tags."""
-    game_config = GameConfig(
-        tags={
-            "red": TagConfig(overrides={"color": 1}),
-            "blue": TagConfig(overrides={"color": 2}),
-            "fast": TagConfig(overrides={"freeze_duration": 5}),
-            "no_override": TagConfig(overrides={}),  # Tag without overrides
-        }
-    )
-
     # Test agent tags with overrides - now allowed
-    base_type, tags = parse_object_with_tags("agent.red", game_config)
+    base_type, tags = parse_object_with_tags("agent.red")
     assert base_type == "agent"
     assert tags == ["red"]
 
     # Test agent with tag that has no overrides
-    base_type, tags = parse_object_with_tags("agent.no_override", game_config)
+    base_type, tags = parse_object_with_tags("agent.no_override")
     assert base_type == "agent"
     assert tags == ["no_override"]
 
     # Test non-agent tags with overrides
-    base_type, tags = parse_object_with_tags("converter.red.fast", game_config)
+    base_type, tags = parse_object_with_tags("converter.red.fast")
     assert base_type == "converter"
     assert tags == ["red", "fast"]
 
     # Test no tags
-    base_type, tags = parse_object_with_tags("wall", game_config)
+    base_type, tags = parse_object_with_tags("wall")
     assert base_type == "wall"
     assert tags == []
 
@@ -565,14 +556,8 @@ def test_tag_overrides_are_applied():
 
 def test_invalid_tag_name_error():
     """Test that invalid tag names raise clear errors."""
-    config = GameConfig(
-        tags={
-            "valid_tag": TagConfig(overrides={}),
-        }
-    )
-
     # Valid tag names should work
-    base_type, tags = parse_object_with_tags("converter.valid_tag", config)
+    base_type, tags = parse_object_with_tags("converter.valid_tag")
     assert base_type == "converter"
     assert tags == ["valid_tag"]
 
@@ -580,17 +565,17 @@ def test_invalid_tag_name_error():
     with pytest.raises(
         ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"
     ):
-        parse_object_with_tags("converter.red-hot", config)
+        parse_object_with_tags("converter.red-hot")
 
     with pytest.raises(
         ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"
     ):
-        parse_object_with_tags("wall.special!", config)
+        parse_object_with_tags("wall.special!")
 
     with pytest.raises(
         ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"
     ):
-        parse_object_with_tags("box.my@tag", config)
+        parse_object_with_tags("box.my@tag")
 
 
 def test_wall_tag_overrides_applied_at_runtime():
@@ -647,14 +632,19 @@ def test_wall_tag_overrides_applied_at_runtime():
         elif row == 0 and col == 2 and obj_type_id == 102:
             wall_at_0_2 = obj
 
+    row_0_objects = [
+        (obj['location'], obj['type'])
+        for obj in grid_objects.values()
+        if obj['location'][1] == 0
+    ]
     assert wall_at_0_0 is not None, (
-        f"Regular wall not found at (0,0). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+        f"Regular wall not found at (0,0). Objects at row 0: {row_0_objects}"
     )
     assert wall_at_0_1 is not None, (
-        f"wall.strong not found at (0,1). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+        f"wall.strong not found at (0,1). Objects at row 0: {row_0_objects}"
     )
     assert wall_at_0_2 is not None, (
-        f"wall.weak not found at (0,2). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+        f"wall.weak not found at (0,2). Objects at row 0: {row_0_objects}"
     )
 
     # Verify type_ids are different for tagged variants
@@ -664,7 +654,7 @@ def test_wall_tag_overrides_applied_at_runtime():
 
     # Get feature spec to find swappable feature ID
     feature_spec = c_env.feature_spec()
-    swappable_feature_id = feature_spec.get("swappable", {}).get("id")
+    _ = feature_spec.get("swappable", {}).get("id")
 
     env.close()
 
@@ -729,14 +719,19 @@ def test_converter_tag_overrides_applied_at_runtime():
         elif row == 0 and col == 2 and obj_type_id == 202:
             converter_at_0_2 = obj
 
+    row_0_objects = [
+        (obj['location'], obj['type'])
+        for obj in grid_objects.values()
+        if obj['location'][1] == 0
+    ]
     assert converter_at_0_0 is not None, (
-        f"Regular converter not found at (0,0). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+        f"Regular converter not found at (0,0). Objects at row 0: {row_0_objects}"
     )
     assert converter_at_0_1 is not None, (
-        f"converter.fast not found at (0,1). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+        f"converter.fast not found at (0,1). Objects at row 0: {row_0_objects}"
     )
     assert converter_at_0_2 is not None, (
-        f"converter.efficient not found at (0,2). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+        f"converter.efficient not found at (0,2). Objects at row 0: {row_0_objects}"
     )
 
     # Verify type_ids are different for tagged variants
