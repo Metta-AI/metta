@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-worker
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-worker
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+          imagePullPolicy: Always
+          command: ["pnpm", "run", "workers"]
+          envFrom:
+          - secretRef:
+              name: {{ .Values.worker.secret_name }}
+          resources:
+            requests:
+              memory: "1Gi"
+            limits:
+              memory: "4Gi"

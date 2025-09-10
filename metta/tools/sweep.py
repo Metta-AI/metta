@@ -16,7 +16,7 @@ from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.protocols import Dispatcher, Optimizer, Scheduler, Store
-from metta.sweep.schedulers.optimizing import OptimizingScheduler, OptimizingSchedulerConfig
+from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 from metta.sweep.stores.wandb import WandbStore
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
@@ -80,7 +80,6 @@ class SweepTool(Tool):
     protein_config: ProteinConfig = ProteinConfig(
         metric="evaluator/eval_arena/score",
         goal="maximize",
-        method="random",
         parameters={
             "trainer.optimizer.learning_rate": ParameterConfig(
                 min=1e-5,
@@ -224,7 +223,7 @@ class SweepTool(Tool):
         optimizer = ProteinOptimizer(self.protein_config)
 
         # Create scheduler with configuration
-        scheduler_config = OptimizingSchedulerConfig(
+        scheduler_config = BatchedSyncedSchedulerConfig(
             max_trials=self.max_trials,
             recipe_module=self.recipe_module,
             train_entrypoint=self.train_entrypoint,
@@ -233,8 +232,9 @@ class SweepTool(Tool):
             stats_server_uri=self.stats_server_uri,  # Pass stats server for remote evals
             gpus=self.gpus,  # Pass GPU configuration
             nodes=self.nodes,
+            batch_size=self.max_parallel_jobs,
         )
-        scheduler = OptimizingScheduler(scheduler_config, optimizer)
+        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 
         # Save configuration (similar to TrainTool saving config.json)
         config_path = os.path.join(self.sweep_dir, "sweep_config.json")
