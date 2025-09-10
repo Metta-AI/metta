@@ -2,6 +2,7 @@
 #define GRID_OBJECT_HPP_
 
 #include <cstdint>
+
 #include <span>
 #include <string>
 #include <vector>

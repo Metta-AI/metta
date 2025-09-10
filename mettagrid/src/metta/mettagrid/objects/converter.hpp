@@ -210,7 +210,7 @@ public:
         }
       }
     }
-    
+
     for (auto feature_id : tag_feature_ids) {
       features.push_back({feature_id, 1});
     }

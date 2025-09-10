@@ -213,7 +213,7 @@ public:
       auto item_observation_feature = static_cast<ObservationType>(InventoryFeatureOffset + item);
       features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
     }
-    
+
     for (auto feature_id : tag_feature_ids) {
       features.push_back({feature_id, 1});
     }

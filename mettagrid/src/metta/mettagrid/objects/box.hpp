@@ -44,12 +44,12 @@ public:
     features.reserve(2 + tag_feature_ids.size());
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
     features.push_back({ObservationFeature::Group, static_cast<ObservationType>(creator_agent_id)});
-    
+
     // Add tag features
     for (auto feature_id : tag_feature_ids) {
       features.push_back({feature_id, 1});
     }
-    
+
     return features;
   }
 };

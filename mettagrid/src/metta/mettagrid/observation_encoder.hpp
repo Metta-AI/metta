@@ -51,43 +51,43 @@ public:
         _feature_names.insert({output_feature, "output:" + resource_names[i]});
       }
     }
-    
+
     // Compute the first available ID for tags dynamically
     ObservationType first_free_id = InventoryFeatureOffset + static_cast<ObservationType>(resource_count);
     if (recipe_details_obs) {
       first_free_id += static_cast<ObservationType>(resource_count * 2);  // input and output recipes
     }
     _next_tag_feature_id = first_free_id;
-    
+
     // Calculate maximum number of tags we can support
     _max_tags = static_cast<size_t>(std::numeric_limits<ObservationType>::max()) - static_cast<size_t>(first_free_id);
   }
-  
+
   ObservationType register_tag(const std::string& tag) {
     if (tag.empty()) {
       throw std::invalid_argument("Tag cannot be empty");
     }
-    
+
     for (char c : tag) {
       if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') {
         throw std::invalid_argument("Invalid tag name '" + tag + "': tags must contain only alphanumeric characters and underscores");
       }
     }
-    
+
     // Check if tag already registered
     auto existing_it = _tag_feature_ids.find(tag);
     if (existing_it != _tag_feature_ids.end()) {
       return existing_it->second;
     }
-    
+
     if (_tag_feature_ids.size() >= _max_tags) {
       throw std::runtime_error("Maximum number of unique tags (" + std::to_string(_max_tags) + ") exceeded");
     }
-    
+
     if (_next_tag_feature_id >= std::numeric_limits<ObservationType>::max()) {
       throw std::runtime_error("Tag feature ID overflow: cannot allocate more tag feature IDs");
     }
-    
+
     ObservationType next_id = _next_tag_feature_id++;
     auto tag_feature_name = "tag:" + tag;
     _feature_normalizations.insert({next_id, 1.0});
@@ -95,7 +95,7 @@ public:
     _tag_feature_ids[tag] = next_id;
     return next_id;
   }
-  
+
   ObservationType lookup_tag(const std::string& tag) const {
     auto it = _tag_feature_ids.find(tag);
     if (it == _tag_feature_ids.end()) {

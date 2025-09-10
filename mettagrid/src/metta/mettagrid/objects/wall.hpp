@@ -36,7 +36,7 @@ public:
       // Only emit the swappable observation feature when True to reduce the number of tokens.
       features.push_back({ObservationFeature::Swappable, static_cast<ObservationType>(1)});
     }
-    
+
     // Add tag features
     for (auto feature_id : tag_feature_ids) {
       features.push_back({feature_id, 1});
