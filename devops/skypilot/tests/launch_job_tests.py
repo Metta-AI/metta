@@ -23,7 +23,7 @@ from devops.skypilot.utils.job_helpers import (
     get_job_id_from_request_id,
     get_request_id_from_launch_output,
 )
-from metta.common.util.text_styles import bold, cyan, green, red, yellow
+from metta.common.util.text_styles import bold, cyan, green, magenta, red, yellow
 
 # Test matrix configuration
 NODE_CONFIGS = [1, 2, 4]
@@ -86,7 +86,7 @@ def launch_job(
         cmd.append("--skip-git-check")
 
     # Display launch info
-    print(f"\n{bold('Launching job:')} {yellow(run_name)}")
+    print(f"\n{bold('Launching job:')} {magenta(run_name)}")
     print(f"  {cyan('Nodes:')} {nodes}")
     print(f"  {cyan('Condition:')} {condition_config['name']}")
     print(f"  {cyan('CI Tests:')} {'Yes' if enable_ci_tests else 'No'}")
