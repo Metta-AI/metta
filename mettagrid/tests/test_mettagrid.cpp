@@ -556,8 +556,7 @@ TEST_F(MettaGridCppTest, ResourceModBasicConsumption) {
                               {},                        // modifies
                               false,                     // scales
                               0,                         // agent_radius
-                              0                          // converter_radius
-  );
+                              0);                        // converter_radius
 
   ResourceMod action(cfg);
   action.init(&grid, &rng);
@@ -602,8 +601,7 @@ TEST_F(MettaGridCppTest, ResourceModNearbyAgents) {
                               {{TestItems::HEART, 1.0f}},  // adds 1 heart to nearby agents
                               false,                       // scales
                               2,                           // agent_radius - affects agents within distance 2
-                              0                            // converter_radius
-  );
+                              0);                           // converter_radius
 
   ResourceMod action(cfg);
   action.init(&grid, &rng);
@@ -650,8 +648,7 @@ TEST_F(MettaGridCppTest, ResourceModScaling) {
                               {{TestItems::HEART, 0.99f}},  // modifies - scaled by 3 targets = 0.33 each
                               true,                         // scales enabled
                               1,                            // agent_radius
-                              0                             // converter_radius
-  );
+                              0);                           // converter_radius
 
   ResourceMod action(cfg);
   action.init(&grid, &rng);
@@ -709,8 +706,7 @@ TEST_F(MettaGridCppTest, ResourceModFractionalAmounts) {
                               {{TestItems::HEART, 0.7f}},  // 70% chance to add 1
                               false,                       // scales
                               1,                           // agent_radius (includes self)
-                              0                            // converter_radius
-  );
+                              0);                          // converter_radius
 
   // Run multiple times to test probabilistic behavior
   int ore_consumed_count = 0;
@@ -773,8 +769,7 @@ TEST_F(MettaGridCppTest, ResourceModNegativeModifications) {
                               {{TestItems::HEART, -1.0f}},  // removes 1 heart from targets
                               false,                        // scales
                               1,                            // agent_radius
-                              0                             // converter_radius
-  );
+                              0);                           // converter_radius
 
   ResourceMod action(cfg);
   action.init(&grid, &rng);
@@ -817,8 +812,7 @@ TEST_F(MettaGridCppTest, ResourceModAtomicity) {
                               {},     // modifies
                               false,  // scales
                               0,      // agent_radius
-                              0       // converter_radius
-  );
+                              0);     // converter_radius
 
   ResourceMod action(cfg);
   action.init(&grid, &rng);
@@ -855,8 +849,7 @@ TEST_F(MettaGridCppTest, ResourceModConverters) {
                                 0,                     // cooldown
                                 0,                     // initial_items
                                 0,                     // color
-                                false                  // recipe_details_obs
-  );
+                                false);                // recipe_details_obs
 
   Converter* near_converter = new Converter(5, 7, converter_cfg);  // Distance 2
   Converter* far_converter = new Converter(5, 9, converter_cfg);   // Distance 4
@@ -876,8 +869,7 @@ TEST_F(MettaGridCppTest, ResourceModConverters) {
                               {{TestItems::HEART, 1.0f}},  // adds 1 heart to targets
                               false,                       // scales
                               0,                           // agent_radius - don't affect agents
-                              2                            // converter_radius - affect converters within distance 2
-  );
+                              2);                          // converter_radius - affect converters within distance 2
 
   ResourceMod action(cfg);
   action.init(&grid, &rng);
