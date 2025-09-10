@@ -44,7 +44,7 @@ class Store(Protocol):
     """
 
     # Run operations
-    def init_run(self, run_id: str, experiment_id: str | None = None) -> None:
+    def init_run(self, run_id: str, group: str | None = None, tags: list[str] = []) -> None:
         """Initialize a new run"""
         ...
 
