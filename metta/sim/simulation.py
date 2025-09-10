@@ -26,7 +26,7 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
-from metta.sim.tribal_genny import TribalGridEnv
+from tribal.src.tribal_genny import TribalGridEnv
 from metta.sim.utils import get_or_create_policy_ids
 
 SYNTHETIC_EVAL_PREFIX = "eval/"

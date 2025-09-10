@@ -11,7 +11,7 @@ from metta.common.util.log_config import init_logging
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.sim.tribal_genny import TribalGridEnv
+from tribal.src.tribal_genny import TribalGridEnv
 
 logger = logging.getLogger("vecenv")
 
