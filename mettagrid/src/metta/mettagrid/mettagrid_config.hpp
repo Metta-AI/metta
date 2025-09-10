@@ -36,7 +36,6 @@ struct GameConfig {
   GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
-  float resource_loss_prob = 0.0;
 
   // FEATURE FLAGS
   bool track_movement_metrics = false;

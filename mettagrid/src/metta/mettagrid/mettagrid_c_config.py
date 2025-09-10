@@ -252,10 +252,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
 
-    # Set feature flags
+    # Set feature flags (order must match C++ constructor: track_movement_metrics, recipe_details_obs, allow_diagonals)
+    game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
     game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
-    game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
 
     return CppGameConfig(**game_cpp_params)
 
