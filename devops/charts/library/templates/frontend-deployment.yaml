@@ -20,6 +20,8 @@ spec:
           env:
             - name: AUTH_TRUST_HOST
               value: "true"
+            - name: NEXTAUTH_URL
+              value: https://{{ required "host" .Values.host }}
           envFrom:
           - secretRef:
               name: {{ .Values.frontend.secret_name }}
