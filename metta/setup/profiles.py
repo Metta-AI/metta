@@ -101,7 +101,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
             "notebookwidgets": {"enabled": True},
             "experiments": {"enabled": True},
-            "helm": {"enabled": True},
+            # "helm": {"enabled": True},
         }
     },
 }
