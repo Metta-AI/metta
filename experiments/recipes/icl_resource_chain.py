@@ -166,13 +166,11 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         total_objects = num_resources + num_sinks + 1
         perimeter = 2 * (width + height) - 8
-        avg_hop = perimeter // total_objects #use this for cooldown
+        avg_hop = perimeter // total_objects  # use this for cooldown
 
         # optimal reward estimates for the task, to be used in evaluation
         most_efficient_optimal_reward, least_efficient_optimal_reward = (
-            self._estimate_max_rewards(
-                num_resources, num_sinks, max_steps, avg_hop
-            )
+            self._estimate_max_rewards(num_resources, num_sinks, max_steps, avg_hop)
         )
 
         icl_env = self._make_env_cfg(
@@ -184,7 +182,6 @@ class ConverterChainTaskGenerator(TaskGenerator):
             max_steps=max_steps,
             rng=rng,
         )
-
 
         icl_env.game.reward_estimates = {
             "most_efficient_optimal_reward": most_efficient_optimal_reward,
