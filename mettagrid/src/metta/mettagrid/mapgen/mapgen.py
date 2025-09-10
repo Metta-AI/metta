@@ -5,9 +5,10 @@ from pydantic import Field, model_validator
 
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+from metta.mettagrid.mapgen.utils.map_compression import MapCompressor
 
 if TYPE_CHECKING:
-    pass
+    from metta.mettagrid.mettagrid_config import GameConfig
 
 from metta.mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from metta.mettagrid.map_builder.utils import create_grid
@@ -78,6 +79,9 @@ class MapGen(MapBuilder):
         # Inner border width between instances. This value usually shouldn't be changed.
         instance_border_width: int = Field(default=5, ge=0)
 
+        # Optional flag to enable validation
+        validate_objects: bool = Field(default=True)
+
         @model_validator(mode="after")
         def validate_required_fields(self) -> "MapGen.Config":
             """Validate that either (root, width, height) are all set, or instance_map is set."""
@@ -103,13 +107,20 @@ class MapGen(MapBuilder):
             kwargs["instance_map"] = AsciiMapBuilder.Config(map_data=[list(line) for line in lines])
             return cls(**kwargs)
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, game_config: Optional["GameConfig"] = None):
         self.config = config
+        self._game_config = game_config
 
         self.root = self.config.root
 
         self.rng = np.random.default_rng(self.config.seed)
         self.grid = None
+
+        # NEW: Set up validator if game config provided
+        self.compressor = None
+        if game_config and config.validate_objects:
+            valid_objects = set(game_config.objects.keys())
+            self.compressor = MapCompressor(valid_objects)
 
     def prebuild_instances(self):
         """In some cases, we need to render individual instances in separate grids before we render the final grid.
@@ -172,7 +183,7 @@ class MapGen(MapBuilder):
                     TransplantScene.factory(
                         params=TransplantScene.Params(
                             scene=instance_scene,
-                            get_grid=lambda: self.grid,
+                            get_grid=lambda: self.grid if self.grid is not None else create_grid(0, 0),
                         )
                     )
                 )
@@ -235,7 +246,8 @@ class MapGen(MapBuilder):
 
         bw = self.config.border_width
 
-        self.grid = create_grid(self.inner_height + 2 * bw, self.inner_width + 2 * bw)
+        # Use legacy format for training compatibility
+        self.grid = create_grid(self.inner_height + 2 * bw, self.inner_width + 2 * bw, "empty")
 
         # draw outer walls
         # note that the inner walls when instances > 1 will be drawn by the RoomGrid scene
@@ -304,10 +316,35 @@ class MapGen(MapBuilder):
             children_actions=children_actions,
         )
 
-    def build(self):
-        if self.grid is not None:
-            return GameMap(self.grid)
+    def supports_int_format(self) -> bool:
+        """Indicate support for int-based map format."""
+        return False  # Not implemented in the simple approach
 
+    def supports_game_config_param(self) -> bool:
+        """Indicate support for GameConfig parameterization."""
+        return True
+
+    def build(self):
+        """Build map in legacy format for training compatibility."""
+        if self.grid is not None:
+            # Early return for pre-built grids
+            game_map = GameMap(self.grid)
+
+            # NEW: Validate and compress if enabled
+            if self.compressor:
+                try:
+                    byte_grid, object_key = self.compressor.compress(game_map.grid)
+                    game_map.byte_grid = byte_grid
+                    game_map.object_key = object_key
+                except ValueError as e:
+                    import logging
+
+                    logging.warning(f"Map validation failed: {e}")
+                    # Continue without compression for backward compatibility
+
+            return game_map
+
+        # Build the grid
         self.prebuild_instances()
         self.prepare_grid()
 
@@ -316,7 +353,23 @@ class MapGen(MapBuilder):
         self.root_scene = root_scene_cfg.create(self.inner_area, self.rng)
         self.root_scene.render_with_children()
 
-        return GameMap(self.grid)
+        # Now self.grid is guaranteed to be set by prepare_grid()
+        assert self.grid is not None, "Grid should be initialized by prepare_grid()"
+        game_map = GameMap(self.grid)
+
+        # NEW: Validate and compress if enabled
+        if self.compressor:
+            try:
+                byte_grid, object_key = self.compressor.compress(game_map.grid)
+                game_map.byte_grid = byte_grid
+                game_map.object_key = object_key
+            except ValueError as e:
+                import logging
+
+                logging.warning(f"Map validation failed: {e}")
+                # Continue without compression for backward compatibility
+
+        return game_map
 
     def get_scene_tree(self) -> dict:
         return self.root_scene.get_scene_tree()

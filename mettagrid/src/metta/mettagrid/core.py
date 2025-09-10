@@ -109,6 +109,10 @@ class MettaGridCore:
             self._renderer_class = MiniscopeRenderer
 
     def _create_c_env(self) -> MettaGridCpp:
+        # Pass game config to map builder if it accepts it
+        if hasattr(self._map_builder, "set_game_config"):
+            self._map_builder.set_game_config(self.__mg_config.game)
+
         game_map = self._map_builder.build()
 
         # Validate number of agents
@@ -128,6 +132,8 @@ class MettaGridCore:
             raise e
 
         # Create C++ environment
+        # NOTE: For now, we'll continue using the string grid format
+        # The C++ changes to support byte grid + key would be a separate PR
         c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
         self._update_core_buffers()
 

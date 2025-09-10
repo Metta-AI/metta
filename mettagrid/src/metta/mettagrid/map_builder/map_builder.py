@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Generic, Type, TypeAlias, TypeVar
+from typing import Annotated, Any, ClassVar, Generic, List, Optional, Set, Tuple, Type, TypeAlias, TypeVar
 
 import numpy as np
 import numpy.typing as npt
@@ -30,8 +30,25 @@ class GameMap:
     # For the full list, see `mettagrid_c.cpp`.
     grid: MapGrid
 
-    def __init__(self, grid: MapGrid):
+    # Optional compressed representation
+    byte_grid: Optional[np.ndarray] = None
+    object_key: Optional[List[str]] = None
+
+    def __init__(self, grid: MapGrid, byte_grid=None, object_key=None):
         self.grid = grid
+        self.byte_grid = byte_grid
+        self.object_key = object_key
+
+    def compress(self, valid_objects: Optional[Set[str]] = None) -> Tuple[np.ndarray, List[str]]:
+        """Compress the string grid to byte grid + key."""
+        if self.byte_grid is not None and self.object_key is not None:
+            return self.byte_grid, self.object_key
+
+        from metta.mettagrid.mapgen.utils.map_compression import MapCompressor
+
+        compressor = MapCompressor(valid_objects)
+        self.byte_grid, self.object_key = compressor.compress(self.grid)
+        return self.byte_grid, self.object_key
 
 
 TBuilder = TypeVar("TBuilder", bound="MapBuilder")
@@ -96,12 +113,42 @@ class MapBuilder(ABC):
 
     Config: ClassVar[type[MapBuilderConfig[Any]]]
 
+    # Optional game config for validation
+    game_config: Optional[Any] = None
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.Config._builder_cls = cls  # type: ignore[assignment]
 
+    def set_game_config(self, game_config) -> None:
+        """Set game config for validation (optional)."""
+        self.game_config = game_config
+
+    def get_valid_objects(self) -> Optional[Set[str]]:
+        """Get set of valid object names from game config."""
+        if self.game_config and hasattr(self.game_config, "objects"):
+            return set(self.game_config.objects.keys())
+        return None
+
     @abstractmethod
     def build(self) -> GameMap: ...
+
+    def build_validated(self) -> GameMap:
+        """Build with validation against game config."""
+        game_map = self.build()
+
+        # Validate if game config is available
+        valid_objects = self.get_valid_objects()
+        if valid_objects:
+            try:
+                game_map.compress(valid_objects)
+            except ValueError as e:
+                # Log warning but don't fail (backward compatibility)
+                import logging
+
+                logging.warning(f"Map validation warning: {e}")
+
+        return game_map
 
 
 def _validate_open_map_builder(v: Any, handler):
