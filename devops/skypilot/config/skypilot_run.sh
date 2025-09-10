@@ -134,7 +134,19 @@ shutdown() {
 
   echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
 
-  local termination_reason="$(cat "$TERMINATION_REASON_FILE" || true)"
+  # Read and preserve the termination reason if it exists
+  local termination_reason="$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || true)"
+
+  # If no termination reason was set, check cluster stop file
+  if [[ -z "$termination_reason" ]]; then
+    if [[ -f "$CLUSTER_STOP_FILE" ]]; then
+      termination_reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || echo "cluster_stop")"
+    else
+      termination_reason="cluster_stop"
+    fi
+    # Write it to the termination reason file for cleanup handler
+    echo "$termination_reason" > "$TERMINATION_REASON_FILE"
+  fi
 
   # Kill the entire process tree gracefully
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
@@ -260,10 +272,12 @@ run_cmd() {
   wait "$CMD_PID"
   CMD_EXIT=$?
 
-  if [[ "$IS_MASTER" == "true" ]]; then
-    echo "job_completed" > "$TERMINATION_REASON_FILE"
-    echo "job_completed" > "$CLUSTER_STOP_FILE"
-    echo "[INFO] Master wrote shutdown signal to cluster stop file"
+  if [[ ! -f "$TERMINATION_REASON_FILE" ]] || [[ ! -s "$TERMINATION_REASON_FILE" ]]; then
+    if [[ "$IS_MASTER" == "true" ]]; then
+      echo "job_completed" > "$TERMINATION_REASON_FILE"
+      echo "job_completed" > "$CLUSTER_STOP_FILE"
+      echo "[INFO] Master wrote shutdown signal to cluster stop file"
+    fi
   fi
 
   local END_TIME=$(date +%s)
