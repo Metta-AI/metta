@@ -397,6 +397,15 @@ exportRefObject TribalEnv:
     isEpisodeDone(TribalEnv)
     renderText(TribalEnv)
 
+# PufferLib compatibility functions
+proc isEmulated*(): bool =
+  ## Native environments are not emulated
+  false
+
+proc isDone*(tribal: TribalEnv): bool =
+  ## Check if environment needs reset
+  tribal.env.shouldReset
+
 # Export standalone procedures
 exportProcs:
   defaultMaxSteps
@@ -409,6 +418,8 @@ exportProcs:
   setExternalActionsFromPython
   hasActiveController
   getControllerTypeString
+  isEmulated
+  isDone
 
 # Generate the Python binding files and include implementation (must be at the end)
 writeFiles("bindings/generated", "Tribal")

@@ -178,6 +178,7 @@ type
   Environment* = ref object
     currentStep*: int
     config*: EnvironmentConfig  # Configuration for this environment
+    shouldReset*: bool  # Track if environment needs reset
     things*: seq[Thing]
     agents*: seq[Thing]
     grid*: array[MapWidth, array[MapHeight, Thing]]
@@ -1660,9 +1661,23 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
   # This is much more efficient than updating during each entity move
   env.updateTintModifications()  # Collect all entity contributions
   env.applyTintModifications()   # Apply them to the main color array in one pass
+  
+  # Check if episode should end
+  if env.currentStep >= env.config.maxSteps:
+    env.shouldReset = true
+  
+  # Check if all agents are terminated/truncated
+  var allDone = true
+  for i in 0..<MapAgents:
+    if env.terminated[i] == 0.0 and env.truncated[i] == 0.0:
+      allDone = false
+      break
+  if allDone:
+    env.shouldReset = true
 
 proc reset*(env: Environment) =
   env.currentStep = 0
+  env.shouldReset = false
   env.terminated.clear()
   env.truncated.clear()
   env.things.setLen(0)

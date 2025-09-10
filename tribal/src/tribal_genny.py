@@ -54,6 +54,8 @@ try:
     get_action_names = tribal.get_action_names
     get_max_action_args = tribal.get_max_action_args
     get_feature_normalizations = tribal.get_feature_normalizations
+    is_emulated = tribal.is_emulated
+    is_done = tribal.is_done
 
     # Constants mapping
     MapAgents = MAP_AGENTS
@@ -154,17 +156,14 @@ class TribalGridEnv:
         feature_norms_seq = get_feature_normalizations()
         self.feature_normalizations = {i: feature_norms_seq[i] for i in range(len(feature_norms_seq))}
 
-        # PufferLib compatibility
+        # PufferLib compatibility  
         self.render_mode = render_mode
-        self._should_reset = False
 
         print("[DEBUG] TribalGridEnv.__init__() complete!")
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
         print(f"[DEBUG] TribalGridEnv.reset() called with seed={seed}")
-        
-        self._should_reset = False
 
         # Reset the Nim environment (our binding doesn't take seed parameter)
         print("[DEBUG] Calling _nim_env.reset_env()...")
@@ -233,14 +232,9 @@ class TribalGridEnv:
         truncated_seq = self._nim_env.get_truncated()
         truncations = np.array([truncated_seq[i] for i in range(len(truncated_seq))], dtype=bool)
 
-        # Check for episode end
+        # Check for episode end  
         if self._nim_env.is_episode_done():
             truncations[:] = True
-            self._should_reset = True
-        
-        # Check if all agents are done
-        if terminals.all() or truncations.all():
-            self._should_reset = True
 
         info = {
             "current_step": self._nim_env.get_current_step(),
@@ -250,16 +244,16 @@ class TribalGridEnv:
 
         return observations, rewards, terminals, truncations, info
 
-    # PufferLib required properties
+    # PufferLib required properties  
     @property
     def emulated(self) -> bool:
         """Native envs do not use emulation (PufferLib compatibility)."""
-        return False
+        return is_emulated()
 
-    @property
+    @property  
     def done(self) -> bool:
         """Check if environment is done."""
-        return self._should_reset
+        return is_done(self._nim_env)
 
     def _get_initial_observations(self) -> np.ndarray:
         """Get initial observations after reset."""
