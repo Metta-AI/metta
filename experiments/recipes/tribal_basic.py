@@ -16,6 +16,11 @@ import sys
 import time
 from pathlib import Path
 
+# Add project root to Python path for tribal module imports
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.common.tool import Tool
 from metta.cogworks.curriculum.task_generator import TaskGeneratorConfig
@@ -218,11 +223,12 @@ class TribalProcessPlayTool(Tool):
         print("🎯 Using file-based IPC to eliminate SIGSEGV issues")
         
         # Import the process controller
-        tribal_dir = Path(__file__).parent.parent.parent / "tribal"
-        sys.path.insert(0, str(tribal_dir / "src"))
+        project_root = Path(__file__).parent.parent.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
         
         try:
-            from tribal_process_controller import TribalProcessController
+            from tribal.src.tribal_process_controller import TribalProcessController
         except ImportError as e:
             print(f"❌ Failed to import process controller: {e}")
             return 1

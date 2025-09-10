@@ -11,6 +11,7 @@ from metta.common.util.log_config import init_logging
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.sim.tribal_genny import TribalGridEnv
 
 logger = logging.getLogger("vecenv")
 
@@ -32,9 +33,6 @@ def make_env_func(
 
     # Check if this is a tribal environment
     if hasattr(env_cfg, "environment_type") and env_cfg.environment_type == "tribal":
-        # Import and create TribalGridEnv (now with PufferLib compatibility)
-        from metta.sim.tribal_genny import TribalGridEnv
-
         # Convert TribalEnvConfig to dict for TribalGridEnv
         tribal_config = {
             "max_steps": env_cfg.game.max_steps,

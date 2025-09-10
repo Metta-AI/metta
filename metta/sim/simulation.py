@@ -26,6 +26,7 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
+from metta.sim.tribal_genny import TribalGridEnv
 from metta.sim.utils import get_or_create_policy_ids
 
 SYNTHETIC_EVAL_PREFIX = "eval/"
@@ -119,8 +120,6 @@ class Simulation:
         driver_env = self._vecenv.driver_env  # type: ignore
         grid_env = getattr(driver_env, "_env", driver_env)
         # Accept MettaGridEnv and TribalGridEnv (both have compatible interfaces)
-        from metta.sim.tribal_genny import TribalGridEnv
-
         assert isinstance(grid_env, (MettaGridEnv, TribalGridEnv)), (
             f"Expected MettaGridEnv or TribalGridEnv, got {type(grid_env)}"
         )
