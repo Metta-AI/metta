@@ -65,43 +65,34 @@ def _create_agent_from_state_dict(state_dict: Dict[str, torch.Tensor], device: s
     agent = MettaAgent(temp_env, system_cfg, agent_cfg)
 
     temp_env.close()
+    # Try to load only compatible parameters
+    agent_state = agent.policy.state_dict()
+    compatible_state = {}
 
-    try:
-        # Load the state dict into the agent
-        agent.load_state_dict(state_dict, strict=True)
-        logger.info("Successfully loaded PufferLib state_dict into MettaAgent")
-    except Exception as e:
-        logger.warning(f"Failed to load state_dict with strict=False: {e}")
-        logger.info("Attempting to load compatible parameters only")
+    new_state_dict = {}
 
-        # Try to load only compatible parameters
-        agent_state = agent.policy.state_dict()
-        compatible_state = {}
-
-        new_state_dict = {}
-
-        for state_dict_key, state_dict_value in state_dict.items():
-            if state_dict_key.startswith("fast_policy."):
-                new_key = state_dict_key[len("fast_policy.") :]
-                new_state_dict[new_key] = state_dict_value
-            else:
-                new_state_dict[state_dict_key] = state_dict_value
-        
-        keys_matched = 0
-        for key, value in new_state_dict.items():
-            if key in agent_state:
-                agent_state[key] = value
-                keys_matched += 1
-            else:
-                logger.info(f"Skipping incompatible parameter: {key}")
-        
-        logger.info(f"Loaded {keys_matched}/{len(new_state_dict)} compatible parameters")
-
-        if compatible_state:
-            agent.load_state_dict(compatible_state, strict=False)
-            logger.info(f"Loaded {len(compatible_state)}/{len(state_dict)} compatible parameters")
+    for state_dict_key, state_dict_value in state_dict.items():
+        if state_dict_key.startswith("fast_policy."):
+            new_key = state_dict_key[len("fast_policy.") :]
+            new_state_dict[new_key] = state_dict_value
         else:
-            logger.warning("No compatible parameters found - proceeding with random initialization")
+            new_state_dict[state_dict_key] = state_dict_value
+    
+    keys_matched = 0
+    for key, value in new_state_dict.items():
+        if key in agent_state:
+            agent_state[key] = value
+            keys_matched += 1
+        else:
+            logger.info(f"Skipping incompatible parameter: {key}")
+    
+    logger.info(f"Loaded {keys_matched}/{len(new_state_dict)} compatible parameters")
+
+    if compatible_state:
+        agent.load_state_dict(compatible_state, strict=True)
+        logger.info(f"Loaded {len(compatible_state)}/{len(state_dict)} compatible parameters")
+    else:
+        logger.warning("No compatible parameters found - proceeding with random initialization")
 
     return agent
 
