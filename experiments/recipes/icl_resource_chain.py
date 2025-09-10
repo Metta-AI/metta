@@ -68,7 +68,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         height_range: tuple[int, int] = Field(
             default=(5, 12), description="Height range to sample from"
         )
-        max_steps: int = Field(default=256, description="Maximum steps to sample from")
+        max_steps: int = Field(default=256, description="Episode length")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
         super().__init__(config)
