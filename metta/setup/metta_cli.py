@@ -423,7 +423,7 @@ def cmd_run(
 # Clean command
 @app.command(name="clean", help="Clean build artifacts and temporary files")
 def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
-    """Clean build artifacts and temporary files."""
+    """Clean build artifacts, temporary files, and ~/.metta directory."""
 
     build_dir = cli.repo_root / "build"
     if build_dir.exists():
@@ -436,6 +436,11 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
         if build_path.exists():
             info(f"  Removing mettagrid/{build_name}...")
             shutil.rmtree(build_path)
+
+    home_metta_dir = Path.home() / ".metta"
+    if home_metta_dir.exists():
+        info("  Removing ~/.metta directory...")
+        shutil.rmtree(home_metta_dir)
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
     if cleanup_script.exists():
