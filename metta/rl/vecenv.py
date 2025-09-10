@@ -49,7 +49,7 @@ def make_env_func(
         }
 
         env = TribalGridEnv(tribal_config, render_mode=render_mode, buf=buf)
-        # TribalGridEnv now handles its own buffer setup with PufferLib compatibility
+        # TribalGridEnv handles PufferLib buffer setup internally
     else:
         # Standard MettaGrid environment
         env = MettaGridEnv(

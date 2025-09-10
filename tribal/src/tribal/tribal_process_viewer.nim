@@ -428,7 +428,7 @@ proc drawSafeRectangleEnvironment() =
         color = color(0.0, 0.0, 0.0, 1.0)  # Black directional dot
       )
   
-  # Commented out complex UI code - now using simple rectangle rendering
+  # Use simple rectangle rendering for stability
 
 proc runMainLoop() =
   ## Main game loop with file-based communication
@@ -578,7 +578,7 @@ proc main() =
     echo "❌ Failed to initialize viewer"
     quit(1)
   
-  # Now we know the crash is in panels, not assets - re-enable asset loading!
+  # Load assets for sprite rendering
   if loadAssets():
     assetsLoaded = true
     echo "✅ PNG assets loaded - using full sprite rendering"

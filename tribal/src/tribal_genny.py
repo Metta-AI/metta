@@ -16,7 +16,7 @@ from metta.mettagrid.config import Config
 
 # Add the genny-generated bindings to Python path
 _BINDINGS_PATHS = [
-    Path(__file__).parent.parent.parent / "tribal" / "bindings" / "generated",
+    Path(__file__).parent.parent / "bindings" / "generated",  # tribal/src/../bindings/generated = tribal/bindings/generated
 ]
 
 for path in _BINDINGS_PATHS:
@@ -26,7 +26,12 @@ for path in _BINDINGS_PATHS:
 
 try:
     # Import genny-generated bindings (lowercase 'tribal', not 'Tribal')
-    import tribal
+    # Use importlib to avoid conflict with local tribal directory
+    import importlib.util
+    bindings_file = Path(__file__).parent.parent / "bindings" / "generated" / "tribal.py"
+    spec = importlib.util.spec_from_file_location("tribal_bindings", bindings_file)
+    tribal = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tribal)
 
     # Extract classes and functions
     TribalEnv = tribal.TribalEnv
