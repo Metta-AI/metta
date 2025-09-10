@@ -90,6 +90,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "system": {"enabled": True},
             "core": {"enabled": True},
             "codeclip": {"enabled": True},
+            "apps": {"enabled": True},
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
@@ -100,6 +101,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
             "notebookwidgets": {"enabled": True},
             "experiments": {"enabled": True},
+            "helm": {"enabled": True},
         }
     },
 }
