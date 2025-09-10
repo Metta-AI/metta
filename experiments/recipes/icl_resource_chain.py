@@ -166,7 +166,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         total_objects = num_resources + num_sinks + 1
         perimeter = 2 * (width + height) - 8
-        avg_hop = perimeter // total_objects #use this for cooldown
+        avg_hop = max(1, perimeter // total_objects)
 
         # optimal reward estimates for the task, to be used in evaluation
         most_efficient_optimal_reward, least_efficient_optimal_reward = (
