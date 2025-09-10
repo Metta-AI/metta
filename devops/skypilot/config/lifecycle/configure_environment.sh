@@ -38,8 +38,9 @@ fi
 
 if [[ "$IS_MASTER" == "true" ]]; then
   echo "$RESTART_COUNT" > "$RESTART_COUNT_FILE"
-  # Clear any stale cluster stop flag at the beginning of a fresh attempt
+  # Clear any stale cluster stopping state at the beginning of a fresh attempt
   : > "$CLUSTER_STOP_FILE" 2> /dev/null || true
+  : > "$TERMINATION_REASON_FILE"
 else
   echo "[INFO] Skipping RESTART_COUNT_FILE and CLUSTER_STOP_FILE updates on non-master node"
 fi
