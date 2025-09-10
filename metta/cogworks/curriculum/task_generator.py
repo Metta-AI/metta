@@ -139,7 +139,7 @@ class TaskGenerator(ABC):
     def get_all_task_types(self) -> list[str]:
         """Get all possible task types this generator can produce."""
         return ["default"]  # Default implementation returns single type
-    
+
     def get_task_by_type(self, task_type: str, task_id: int) -> MettaGridConfig:
         """Generate a task of a specific type."""
         # Default implementation ignores task_type and uses regular generation
@@ -235,15 +235,15 @@ class TaskGeneratorSet(TaskGenerator):
             sub_types = sub_generator.get_all_task_types()
             if task_type in sub_types:
                 result = sub_generator.get_task_by_type(task_type, task_id)
-                
+
                 # Propagate bucket values
                 if hasattr(sub_generator, "_last_bucket_values"):
                     self._last_bucket_values = sub_generator._last_bucket_values.copy()
                 else:
                     self._last_bucket_values = {}
-                
+
                 return result
-        
+
         # Fallback to regular generation if task type not found
         return self.get_task(task_id)
 
@@ -346,12 +346,12 @@ class BucketedTaskGenerator(TaskGenerator):
         """Get all possible task types based on bucket combinations."""
         if not self._config.buckets:
             return ["default"]
-        
+
         # Create task type identifiers from bucket combinations
-        # For navigation, we'll create types like "terrain_maps_nohearts_sparse" 
+        # For navigation, we'll create types like "terrain_maps_nohearts_sparse"
         # based on map type and object density ranges
         task_types = set()
-        
+
         # For now, create types based on bucket keys to avoid combinatorial explosion
         for bucket_key in self._config.buckets.keys():
             if "dir" in bucket_key.lower() or "map" in bucket_key.lower():
@@ -359,7 +359,7 @@ class BucketedTaskGenerator(TaskGenerator):
                 for value in self._config.buckets[bucket_key]:
                     if isinstance(value, str):
                         # Extract meaningful type name from path
-                        type_name = value.split('/')[-1] if '/' in value else str(value)
+                        type_name = value.split("/")[-1] if "/" in value else str(value)
                         task_types.add(f"map_{type_name}")
             elif "object" in bucket_key.lower():
                 # Object density based types
@@ -368,15 +368,15 @@ class BucketedTaskGenerator(TaskGenerator):
                         if value.range_max <= 5:
                             task_types.add("sparse_objects")
                         elif value.range_max <= 20:
-                            task_types.add("medium_objects") 
+                            task_types.add("medium_objects")
                         else:
                             task_types.add("dense_objects")
                     else:
                         task_types.add(f"objects_{value}")
-        
+
         if not task_types:
             return ["bucketed_default"]
-        
+
         return sorted(list(task_types))
 
     def get_task_by_type(self, task_type: str, task_id: int) -> MettaGridConfig:

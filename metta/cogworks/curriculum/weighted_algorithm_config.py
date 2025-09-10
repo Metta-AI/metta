@@ -1,16 +1,17 @@
 """Configuration for weighted curriculum algorithm that uses task type sampling."""
 
 from __future__ import annotations
-from typing import Dict, TYPE_CHECKING
+
 import random
+from typing import TYPE_CHECKING, Dict
 
 if TYPE_CHECKING:
-    from .curriculum import CurriculumAlgorithm
+    pass
 
-from .curriculum import CurriculumAlgorithmConfig, Curriculum, CurriculumConfig
+from .curriculum import Curriculum, CurriculumAlgorithmConfig, CurriculumConfig, CurriculumTask
 from .learning_progress_algorithm import LearningProgressConfig
+from .task_type_learning_progress import TaskTypeLearningProgress
 from .weighted_task_generator import WeightedTaskGenerator
-from .curriculum import CurriculumTask
 
 
 class WeightedCurriculumAlgorithmConfig(CurriculumAlgorithmConfig):
@@ -34,7 +35,7 @@ class WeightedCurriculumAlgorithmConfig(CurriculumAlgorithmConfig):
             enable_detailed_bucket_logging=self.enable_detailed_bucket_logging,
         )
         return WeightedCurriculumAlgorithm(lp_config)
-    
+
     def make_curriculum(self, config: CurriculumConfig, seed: int = 0) -> "WeightedCurriculum":
         """Create a WeightedCurriculum instead of standard Curriculum."""
         return WeightedCurriculum(config, seed, self)
@@ -132,6 +133,12 @@ class WeightedCurriculumAlgorithm:
         # But our weighted approach bypasses stored task selection
         return {task_id: 1.0 for task_id in task_ids}
 
+    def should_evict_task(self, task_id: int, min_presentations: int) -> bool:
+        """Determine if a task should be evicted - not needed for weighted approach."""
+        # This method is required by CurriculumAlgorithm interface
+        # But our weighted approach doesn't store tasks so no evictions needed
+        return False
+
     def on_task_created(self, task: CurriculumTask) -> None:
         """Notification that a new task has been created."""
         pass  # No tracking needed for weighted approach
@@ -158,31 +165,33 @@ class WeightedCurriculumAlgorithm:
 
 class WeightedCurriculum(Curriculum):
     """Curriculum that uses weighted sampling over task types for O(1) performance."""
-    
-    def __init__(self, config: CurriculumConfig, seed: int = 0, weighted_config: WeightedCurriculumAlgorithmConfig = None):
+
+    def __init__(
+        self, config: CurriculumConfig, seed: int = 0, weighted_config: WeightedCurriculumAlgorithmConfig = None
+    ):
         # Create learning progress config
         lp_config = LearningProgressConfig(
             ema_timescale=weighted_config.ema_timescale if weighted_config else 0.001,
             exploration_bonus=weighted_config.exploration_bonus if weighted_config else 0.1,
             enable_detailed_bucket_logging=weighted_config.enable_detailed_bucket_logging if weighted_config else False,
         )
-        
+
         # Create base task generator
         base_generator = config.task_generator.create()
-        
+
         # Wrap with weighted generator
         self._weighted_generator = WeightedTaskGenerator(base_generator, lp_config, seed)
-        
+
         # Override the task generator in config temporarily
         original_generator = config.task_generator
-        
+
         # Create a dummy config that uses our weighted generator
         # We'll manually set the _task_generator after super().__init__
         super().__init__(config, seed)
-        
+
         # Replace the task generator with our weighted one
         self._task_generator = self._weighted_generator
-        
+
         # Restore original config
         config.task_generator = original_generator
 
@@ -190,7 +199,7 @@ class WeightedCurriculum(Curriculum):
         """Update task performance through both standard algorithm and weighted generator."""
         # Standard algorithm update
         super().update_task_performance(task_id, score)
-        
+
         # Weighted generator update for task type learning
         bucket_values = {}
         if task_id in self._tasks:

@@ -3,8 +3,8 @@
 import random
 from typing import Dict
 
-from .task_generator import TaskGenerator
 from .learning_progress_algorithm import LearningProgressConfig
+from .task_generator import TaskGenerator
 from .task_type_learning_progress import TaskTypeLearningProgress
 
 

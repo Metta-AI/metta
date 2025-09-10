@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+    from metta.cogworks.curriculum.weighted_algorithm_config import WeightedCurriculumAlgorithmConfig
 
 from pydantic import ConfigDict, Field
 
@@ -204,8 +205,8 @@ class CurriculumConfig(Config):
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
 
-    algorithm_config: Union["DiscreteRandomConfig", "LearningProgressConfig", "WeightedCurriculumAlgorithmConfig"] = Field(
-        default_factory=lambda: DiscreteRandomConfig(), description="Curriculum algorithm hyperparameters"
+    algorithm_config: Union["DiscreteRandomConfig", "LearningProgressConfig", "WeightedCurriculumAlgorithmConfig"] = (
+        Field(default_factory=lambda: DiscreteRandomConfig(), description="Curriculum algorithm hyperparameters")
     )
 
     @classmethod
@@ -233,7 +234,7 @@ class CurriculumConfig(Config):
     def make(self) -> "Curriculum":
         """Create a Curriculum from this configuration."""
         # Check if we should use WeightedCurriculum
-        if hasattr(self.algorithm_config, 'make_curriculum'):
+        if hasattr(self.algorithm_config, "make_curriculum"):
             return self.algorithm_config.make_curriculum(self)
         return Curriculum(self)
 

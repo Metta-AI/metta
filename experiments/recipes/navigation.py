@@ -6,7 +6,9 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.weighted_algorithm_config import WeightedCurriculumAlgorithmConfig, WeightedCurriculum
+from metta.cogworks.curriculum.weighted_algorithm_config import (
+    WeightedCurriculumAlgorithmConfig,
+)
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -176,11 +178,13 @@ def train_weighted(
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name().replace("navigation.", "navigation-weighted.")
-        
+
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum
-        or make_weighted_curriculum(enable_detailed_bucket_logging=enable_detailed_logging),
+        or make_weighted_curriculum(
+            enable_detailed_bucket_logging=enable_detailed_logging
+        ),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),

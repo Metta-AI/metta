@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 import random
-from typing import Dict, List
+from typing import Dict
 
-from .curriculum import CurriculumAlgorithm, CurriculumTask
-from .task_generator import TaskGenerator
+from .curriculum import CurriculumTask
 from .learning_progress_algorithm import LearningProgressConfig
+from .task_generator import TaskGenerator
 from .task_type_learning_progress import TaskTypeLearningProgress
 
 
 class WeightedCurriculum:
     """Fast curriculum using weighted sampling over task types (pre-dehydration style).
-    
+
     Instead of managing individual task instances, this curriculum:
     1. Maintains weights for different task types
     2. Uses O(1) weighted random sampling to select task types
@@ -25,17 +25,17 @@ class WeightedCurriculum:
         self._task_generator = task_generator
         self._config = config
         self._rng = random.Random(seed)
-        
+
         # Get all possible task types from the generator
         self._task_types = self._task_generator.get_all_task_types()
-        
+
         # Initialize simplified learning progress algorithm for task types
         self._algorithm = TaskTypeLearningProgress(config, self._task_types)
-        
+
         # Initialize uniform weights for all task types
         self._task_type_weights = {task_type: 1.0 for task_type in self._task_types}
         self._normalize_weights()
-        
+
         # Statistics
         self._num_created = 0
         self._task_type_counts = {task_type: 0 for task_type in self._task_types}
@@ -44,22 +44,21 @@ class WeightedCurriculum:
         """Sample a task using O(1) weighted sampling over task types."""
         # O(1) weighted sampling - the key performance optimization!
         task_type = self._rng.choices(
-            population=list(self._task_type_weights.keys()),
-            weights=list(self._task_type_weights.values())
+            population=list(self._task_type_weights.keys()), weights=list(self._task_type_weights.values())
         )[0]
-        
+
         # Generate fresh task instance from selected type
         task_id = self._rng.randint(0, 1000000)  # Unique ID for this instance
         env_cfg = self._task_generator.get_task_by_type(task_type, task_id)
         task = CurriculumTask(task_id, env_cfg)
-        
+
         # Register this task with the learning progress algorithm
         self._algorithm.register_task(task_id, task_type)
-        
+
         # Update statistics
         self._num_created += 1
         self._task_type_counts[task_type] += 1
-        
+
         return task
 
     def update_task_performance(self, task_id: int, score: float, bucket_values: Dict = None) -> None:
@@ -75,7 +74,7 @@ class WeightedCurriculum:
             if task_type in self._task_type_weights:
                 # Higher learning progress score = higher weight
                 self._task_type_weights[task_type] = max(0.001, score)  # Minimum weight
-        
+
         self._normalize_weights()
 
     def _normalize_weights(self) -> None:
@@ -96,13 +95,13 @@ class WeightedCurriculum:
             "num_created": float(self._num_created),
             "num_task_types": float(len(self._task_types)),
         }
-        
+
         # Add task type distribution stats
         for task_type, count in self._task_type_counts.items():
             stats[f"task_type_{task_type}_count"] = float(count)
             stats[f"task_type_{task_type}_weight"] = self._task_type_weights[task_type]
-        
+
         # Add learning progress algorithm stats
         stats.update(self._algorithm.get_stats())
-            
+
         return stats

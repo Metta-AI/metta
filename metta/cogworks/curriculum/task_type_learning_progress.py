@@ -5,8 +5,10 @@ Simplified learning progress that operates on task types instead of individual t
 This provides O(1) performance by maintaining EMA scores per task type.
 """
 
-from typing import Dict, Optional
+from typing import Dict
+
 import numpy as np
+
 from .learning_progress_algorithm import LearningProgressConfig
 
 
