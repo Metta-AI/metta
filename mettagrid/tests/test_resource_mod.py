@@ -1323,9 +1323,7 @@ def test_resource_mod_atomicity_multiple_consumes():
     assert final_health == initial_health, (
         f"Health should remain unchanged due to atomic failure, but went from {initial_health} to {final_health}"
     )
-    assert final_mana == initial_mana, (
-        f"Mana should remain unchanged, but went from {initial_mana} to {final_mana}"
-    )
+    assert final_mana == initial_mana, f"Mana should remain unchanged, but went from {initial_mana} to {final_mana}"
 
 
 def test_resource_mod_overlap_with_consumed_resources():
@@ -1561,7 +1559,7 @@ def test_resource_mod_determinism():
     first_result = results_same_seed[0]
     for i, result in enumerate(results_same_seed[1:], 1):
         assert result == first_result, (
-            f"Run {i+1} produced different result {result} than first run {first_result} with same seed"
+            f"Run {i + 1} produced different result {result} than first run {first_result} with same seed"
         )
 
     # Run with different seeds to verify we get different results
