@@ -3,7 +3,6 @@ from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
 from experiments.evals.cfg import NAVIGATION_EVALS
-from experiments.evals.navigation import make_emptyspace_sparse_env
 
 
 def make_nav_sequence_ascii_env(
@@ -37,5 +36,5 @@ def make_navigation_sequence_eval_suite() -> list[SimulationConfig]:
             ),
         )
         for eval in NAVIGATION_EVALS
-    ] + [SimulationConfig(name="emptyspace_sparse", env=make_emptyspace_sparse_env())]
+    ]
     return evals
