@@ -1,9 +1,13 @@
 #include <gtest/gtest.h>
 
+#include <memory>
+#include <random>
+
 #include "mettagrid/actions/attack.hpp"
 #include "mettagrid/actions/get_output.hpp"
 #include "mettagrid/actions/noop.hpp"
 #include "mettagrid/actions/put_recipe_items.hpp"
+#include "mettagrid/actions/resource_mod.hpp"
 #include "mettagrid/event.hpp"
 #include "mettagrid/grid.hpp"
 #include "mettagrid/mettagrid_config.hpp"
@@ -42,7 +46,7 @@ protected:
     resource_limits[TestItems::ORE] = 50;
     resource_limits[TestItems::LASER] = 50;
     resource_limits[TestItems::ARMOR] = 50;
-    resource_limits[TestItems::HEART] = 50;
+    resource_limits[TestItems::HEART] = 100;  // Increased to allow testing of fractional modifications
     return resource_limits;
   }
 
@@ -300,6 +304,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
 
 TEST_F(MettaGridCppTest, AttackAction) {
   Grid grid(10, 10);
+  std::mt19937 rng(42);
 
   // Create a minimal GameConfig for testing
   GameConfig game_config;
@@ -338,7 +343,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   // Create attack action handler
   AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, {{TestItems::ARMOR, 3}});
   Attack attack(attack_cfg, &game_config);
-  attack.init(&grid);
+  attack.init(&grid, &rng);
 
   // Perform attack (arg 5 targets directly in front)
   bool success = attack.handle_action(attacker->id, 5);
@@ -367,6 +372,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
 TEST_F(MettaGridCppTest, PutRecipeItems) {
   Grid grid(10, 10);
+  std::mt19937 rng(42);
 
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.group_name = "red";
@@ -401,7 +407,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   // Create put_items action handler
   ActionConfig put_cfg({}, {});
   PutRecipeItems put(put_cfg);
-  put.init(&grid);
+  put.init(&grid, &rng);
 
   // Test putting matching items
   bool success = put.handle_action(agent->id, 0);
@@ -419,6 +425,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
 
 TEST_F(MettaGridCppTest, GetOutput) {
   Grid grid(10, 10);
+  std::mt19937 rng(42);
 
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.group_name = "red";
@@ -452,7 +459,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   // Create get_output action handler
   ActionConfig get_cfg({}, {});
   GetOutput get(get_cfg);
-  get.init(&grid);
+  get.init(&grid, &rng);
 
   // Test getting output
   bool success = get.handle_action(agent->id, 0);
@@ -466,6 +473,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
 
 TEST_F(MettaGridCppTest, ActionTracking) {
   Grid grid(10, 10);
+  std::mt19937 rng(42);
 
   AgentConfig agent_cfg = create_test_agent_config();
   Agent* agent = new Agent(5, 5, agent_cfg);
@@ -475,7 +483,7 @@ TEST_F(MettaGridCppTest, ActionTracking) {
 
   ActionConfig noop_cfg({}, {});
   Noop noop(noop_cfg);
-  noop.init(&grid);
+  noop.init(&grid, &rng);
 
   EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 0.0f);
   noop.handle_action(agent->id, 0);  // count 1, max 1
@@ -522,4 +530,373 @@ TEST_F(MettaGridCppTest, EventManager) {
   // Test that event manager can be initialized
   // (This is a basic test - more complex event testing would require more setup)
   EXPECT_NO_THROW(event_manager.process_events(1));
+}
+
+// ==================== ResourceMod Tests ====================
+
+TEST_F(MettaGridCppTest, ResourceModBasicConsumption) {
+  Grid grid(10, 10);
+  std::mt19937 rng(42);
+
+  // Create agent with resources
+  AgentConfig agent_cfg = create_test_agent_config();
+  Agent* agent = new Agent(5, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+  
+  // Give agent some resources
+  agent->update_inventory(TestItems::ORE, 10);
+  agent->update_inventory(TestItems::HEART, 20);
+  
+  // Create ResourceModActionConfig that consumes resources deterministically
+  ResourceModActionConfig cfg(
+      {},  // required_resources
+      {},  // consumed_resources
+      {{TestItems::ORE, 1.0f}},  // consumes - 100% chance to consume 1 ore
+      {},  // modifies
+      false,  // scales
+      0,  // agent_radius
+      0   // converter_radius
+  );
+  
+  ResourceMod action(cfg);
+  action.init(&grid, &rng);
+  
+  // Execute action
+  bool success = action.handle_action(agent->id, 0);
+  EXPECT_TRUE(success);
+  
+  // Check that ore was consumed
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 9);
+  EXPECT_EQ(agent->inventory[TestItems::HEART], 20);  // Unchanged
+}
+
+TEST_F(MettaGridCppTest, ResourceModNearbyAgents) {
+  Grid grid(10, 10);
+  std::mt19937 rng(42);
+  
+  // Create multiple agents
+  AgentConfig agent_cfg = create_test_agent_config();
+  Agent* actor = new Agent(5, 5, agent_cfg);
+  Agent* nearby = new Agent(5, 6, agent_cfg);  // Distance 1
+  Agent* far = new Agent(5, 8, agent_cfg);     // Distance 3
+  
+  float reward1 = 0.0f, reward2 = 0.0f, reward3 = 0.0f;
+  actor->init(&reward1);
+  nearby->init(&reward2);
+  far->init(&reward3);
+  
+  grid.add_object(actor);
+  grid.add_object(nearby);
+  grid.add_object(far);
+  
+  // Give resources
+  actor->update_inventory(TestItems::ORE, 10);
+  nearby->update_inventory(TestItems::HEART, 10);
+  far->update_inventory(TestItems::HEART, 10);
+  
+  // Create ResourceMod that affects agents within radius 2
+  ResourceModActionConfig cfg(
+      {},  // required_resources
+      {},  // consumed_resources
+      {{TestItems::ORE, 1.0f}},  // consumes 1 ore from actor
+      {{TestItems::HEART, 1.0f}},  // adds 1 heart to nearby agents
+      false,  // scales
+      2,  // agent_radius - affects agents within distance 2
+      0   // converter_radius
+  );
+  
+  ResourceMod action(cfg);
+  action.init(&grid, &rng);
+  
+  // Execute action
+  bool success = action.handle_action(actor->id, 0);
+  EXPECT_TRUE(success);
+  
+  // Check consumption
+  EXPECT_EQ(actor->inventory[TestItems::ORE], 9);  // Consumed 1 ore
+  
+  // Check modifications
+  EXPECT_EQ(actor->inventory[TestItems::HEART], 1);   // Actor gets +1 (distance 0, within radius 2)
+  EXPECT_EQ(nearby->inventory[TestItems::HEART], 11);  // Nearby gets +1 (distance 1, within radius 2)
+  EXPECT_EQ(far->inventory[TestItems::HEART], 10);     // Far unchanged (distance 3, outside radius 2)
+}
+
+TEST_F(MettaGridCppTest, ResourceModScaling) {
+  Grid grid(10, 10);
+  std::mt19937 rng(42);
+  
+  // Create agents close together
+  AgentConfig agent_cfg = create_test_agent_config();
+  Agent* actor = new Agent(5, 5, agent_cfg);
+  Agent* target1 = new Agent(5, 6, agent_cfg);  // Distance 1
+  Agent* target2 = new Agent(6, 5, agent_cfg);  // Distance 1
+  
+  float reward1 = 0.0f, reward2 = 0.0f, reward3 = 0.0f;
+  actor->init(&reward1);
+  target1->init(&reward2);
+  target2->init(&reward3);
+  
+  grid.add_object(actor);
+  grid.add_object(target1);
+  grid.add_object(target2);
+  
+  actor->update_inventory(TestItems::ORE, 10);
+  
+  // Create ResourceMod with scaling enabled
+  // With 3 targets total, each has 0.99/3 = 0.33 probability
+  ResourceModActionConfig cfg(
+      {},  // required_resources
+      {},  // consumed_resources
+      {{TestItems::ORE, 1.0f}},  // consumes
+      {{TestItems::HEART, 0.99f}},  // modifies - scaled by 3 targets = 0.33 each
+      true,  // scales enabled
+      1,  // agent_radius
+      0   // converter_radius
+  );
+  
+  ResourceMod action(cfg);
+  action.init(&grid, &rng);
+  
+  // Execute action multiple times to test probabilistic behavior
+  int actor_gains = 0;
+  int target1_gains = 0;
+  int target2_gains = 0;
+  
+  // Run 100 iterations with different seeds
+  for (int i = 0; i < 100; i++) {
+    // Reset inventories
+    actor->inventory[TestItems::ORE] = 10;
+    actor->inventory[TestItems::HEART] = 0;
+    target1->inventory[TestItems::HEART] = 0;
+    target2->inventory[TestItems::HEART] = 0;
+    
+    // Use different seed each time
+    std::mt19937 test_rng(42 + i);
+    action.init(&grid, &test_rng);
+    
+    action.handle_action(actor->id, 0);
+    
+    actor_gains += actor->inventory[TestItems::HEART];
+    target1_gains += target1->inventory[TestItems::HEART];
+    target2_gains += target2->inventory[TestItems::HEART];
+  }
+  
+  // With 33% probability per target, expect around 33 gains per 100 runs
+  // Allow reasonable variance (20-45 range)
+  EXPECT_GE(actor_gains, 20);
+  EXPECT_LE(actor_gains, 45);
+  EXPECT_GE(target1_gains, 20);
+  EXPECT_LE(target1_gains, 45);
+  EXPECT_GE(target2_gains, 20);
+  EXPECT_LE(target2_gains, 45);
+}
+
+TEST_F(MettaGridCppTest, ResourceModFractionalAmounts) {
+  Grid grid(10, 10);
+  
+  AgentConfig agent_cfg = create_test_agent_config();
+  Agent* agent = new Agent(5, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+  
+  agent->update_inventory(TestItems::ORE, 100);
+  agent->update_inventory(TestItems::HEART, 50);
+  
+  // Test fractional consumption (30% chance)
+  ResourceModActionConfig cfg(
+      {},  // required_resources
+      {},  // consumed_resources
+      {{TestItems::ORE, 0.3f}},  // 30% chance to consume 1
+      {{TestItems::HEART, 0.7f}},  // 70% chance to add 1
+      false,  // scales
+      1,  // agent_radius (includes self)
+      0   // converter_radius
+  );
+  
+  // Run multiple times to test probabilistic behavior
+  int ore_consumed_count = 0;
+  int heart_gained_count = 0;
+  
+  // Store rngs and actions to keep them alive throughout the test
+  std::vector<std::unique_ptr<std::mt19937>> rngs;
+  std::vector<std::unique_ptr<ResourceMod>> actions;
+  
+  for (int i = 0; i < 100; i++) {
+    agent->inventory[TestItems::ORE] = 100;
+    agent->inventory[TestItems::HEART] = 50;
+    
+    // Create and store rng and action
+    rngs.push_back(std::make_unique<std::mt19937>(42 + i));
+    actions.push_back(std::make_unique<ResourceMod>(cfg));
+    actions.back()->init(&grid, rngs.back().get());
+    
+    actions.back()->handle_action(agent->id, 0);
+    
+    if (agent->inventory[TestItems::ORE] < 100) {
+      ore_consumed_count++;
+    }
+    if (agent->inventory[TestItems::HEART] > 50) {
+      heart_gained_count++;
+    }
+  }
+  
+  // Expect approximately 30% consumption rate and 70% gain rate
+  // Allow variance of ±15%
+  EXPECT_GE(ore_consumed_count, 15);  // At least 15%
+  EXPECT_LE(ore_consumed_count, 45);  // At most 45%
+  EXPECT_GE(heart_gained_count, 55);  // At least 55%
+  EXPECT_LE(heart_gained_count, 85);  // At most 85%
+}
+
+TEST_F(MettaGridCppTest, ResourceModNegativeModifications) {
+  Grid grid(10, 10);
+  std::mt19937 rng(42);
+  
+  AgentConfig agent_cfg = create_test_agent_config();
+  Agent* actor = new Agent(5, 5, agent_cfg);
+  Agent* target = new Agent(5, 6, agent_cfg);
+  
+  float reward1 = 0.0f, reward2 = 0.0f;
+  actor->init(&reward1);
+  target->init(&reward2);
+  
+  grid.add_object(actor);
+  grid.add_object(target);
+  
+  actor->update_inventory(TestItems::ORE, 10);
+  actor->update_inventory(TestItems::HEART, 20);
+  target->update_inventory(TestItems::HEART, 20);
+  
+  // Create ResourceMod that damages nearby agents
+  ResourceModActionConfig cfg(
+      {},  // required_resources
+      {},  // consumed_resources
+      {{TestItems::ORE, 1.0f}},  // consumes 1 ore to cast
+      {{TestItems::HEART, -1.0f}},  // removes 1 heart from targets
+      false,  // scales
+      1,  // agent_radius
+      0   // converter_radius
+  );
+  
+  ResourceMod action(cfg);
+  action.init(&grid, &rng);
+  
+  bool success = action.handle_action(actor->id, 0);
+  EXPECT_TRUE(success);
+  
+  // Check consumption
+  EXPECT_EQ(actor->inventory[TestItems::ORE], 9);
+  
+  // Check negative modifications (both actors lose 1 heart)
+  EXPECT_EQ(actor->inventory[TestItems::HEART], 19);
+  EXPECT_EQ(target->inventory[TestItems::HEART], 19);
+}
+
+TEST_F(MettaGridCppTest, ResourceModAtomicity) {
+  Grid grid(10, 10);
+  std::mt19937 rng(42);
+  
+  AgentConfig agent_cfg = create_test_agent_config();
+  Agent* agent = new Agent(5, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+  
+  // Give agent limited resources
+  agent->update_inventory(TestItems::ORE, 5);
+  agent->update_inventory(TestItems::HEART, 5);
+  // No ARMOR (TestItems::ARMOR)
+  
+  // Create ResourceMod that tries to consume multiple resources
+  // This should fail atomically since we don't have ARMOR
+  ResourceModActionConfig cfg(
+      {},  // required_resources
+      {},  // consumed_resources
+      {
+          {TestItems::ORE, 1.0f},    // have this
+          {TestItems::HEART, 1.0f},  // have this
+          {TestItems::ARMOR, 1.0f}   // DON'T have this - should cause atomic failure
+      },
+      {},  // modifies
+      false,  // scales
+      0,  // agent_radius
+      0   // converter_radius
+  );
+  
+  ResourceMod action(cfg);
+  action.init(&grid, &rng);
+  
+  bool success = action.handle_action(agent->id, 0);
+  EXPECT_FALSE(success);  // Should fail due to missing ARMOR
+  
+  // CRITICAL: Check that NO resources were consumed (atomicity)
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 5);    // Unchanged
+  EXPECT_EQ(agent->inventory[TestItems::HEART], 5);  // Unchanged
+  EXPECT_EQ(agent->inventory[TestItems::ARMOR], 0);  // Still 0
+}
+
+TEST_F(MettaGridCppTest, ResourceModConverters) {
+  Grid grid(10, 10);
+  std::mt19937 rng(42);
+  EventManager event_manager;
+  
+  // Create agent
+  AgentConfig agent_cfg = create_test_agent_config();
+  Agent* actor = new Agent(5, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  actor->init(&agent_reward);
+  grid.add_object(actor);
+  
+  // Create converters at different distances
+  ConverterConfig converter_cfg(
+      TestItems::CONVERTER,  // type_id
+      "converter",          // type_name
+      {},                   // input_resources (empty - just for storage)
+      {},                   // output_resources (empty)
+      -1,                   // max_output
+      -1,                   // max_conversions
+      0,                    // conversion_ticks
+      0,                    // cooldown
+      0,                    // initial_items
+      0,                    // color
+      false                 // recipe_details_obs
+  );
+  
+  Converter* near_converter = new Converter(5, 7, converter_cfg);  // Distance 2
+  Converter* far_converter = new Converter(5, 9, converter_cfg);   // Distance 4
+  
+  grid.add_object(near_converter);
+  grid.add_object(far_converter);
+  near_converter->set_event_manager(&event_manager);
+  far_converter->set_event_manager(&event_manager);
+  
+  // Give agent resources
+  actor->update_inventory(TestItems::ORE, 10);
+  
+  // Create ResourceMod that affects converters within radius 2
+  ResourceModActionConfig cfg(
+      {},  // required_resources
+      {},  // consumed_resources
+      {{TestItems::ORE, 1.0f}},  // consumes
+      {{TestItems::HEART, 1.0f}},  // adds 1 heart to targets
+      false,  // scales
+      0,  // agent_radius - don't affect agents
+      2   // converter_radius - affect converters within distance 2
+  );
+  
+  ResourceMod action(cfg);
+  action.init(&grid, &rng);
+  
+  bool success = action.handle_action(actor->id, 0);
+  EXPECT_TRUE(success);
+  
+  // Check consumption
+  EXPECT_EQ(actor->inventory[TestItems::ORE], 9);
+  
+  // Check modifications
+  EXPECT_EQ(near_converter->inventory[TestItems::HEART], 1);  // Distance 2, within radius
+  EXPECT_EQ(far_converter->inventory[TestItems::HEART], 0);   // Distance 4, outside radius
 }

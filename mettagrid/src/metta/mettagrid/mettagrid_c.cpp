@@ -18,6 +18,7 @@
 #include "actions/noop.hpp"
 #include "actions/place_box.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "actions/resource_mod.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
 #include "event.hpp"
@@ -105,6 +106,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name == "change_color") {
       _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
+    } else if (action_name == "resource_mod") {
+      auto resource_mod_config = std::static_pointer_cast<const ResourceModActionConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<ResourceMod>(*resource_mod_config));
     } else {
       throw std::runtime_error("Unknown action: " + action_name);
     }
@@ -273,7 +277,7 @@ void MettaGrid::init_action_handlers() {
 
   for (size_t i = 0; i < _action_handlers.size(); i++) {
     auto& handler = _action_handlers[i];
-    handler->init(_grid.get());
+    handler->init(_grid.get(), &_rng);
     if (handler->priority > _max_action_priority) {
       _max_action_priority = handler->priority;
     }
@@ -952,6 +956,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
+  bind_resource_mod_action_config(m);
   bind_global_obs_config(m);
   bind_game_config(m);
 
