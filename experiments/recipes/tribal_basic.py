@@ -43,6 +43,23 @@ class DirectGennyTribalEnv:
         
         # Get direct access to the underlying Nim environment via genny bindings
         self._nim_env = tribal_grid_env._nim_env
+        
+        # Initialize ExternalNN controller for Python neural network control
+        # Import the controller functions from the tribal bindings
+        import sys
+        from pathlib import Path
+        bindings_path = str(Path(__file__).parent.parent / "tribal" / "bindings" / "generated")
+        if bindings_path not in sys.path:
+            sys.path.insert(0, bindings_path)
+        
+        import tribal
+        print("🔧 Initializing ExternalNN controller for Python neural network control...")
+        success = tribal.init_external_nncontroller()
+        if success:
+            print("✅ ExternalNN controller initialized successfully")
+        else:
+            print("❌ Failed to initialize ExternalNN controller")
+            raise RuntimeError("Failed to initialize ExternalNN controller")
     
     def reset(self, seed=None):
         """Reset and return observations."""
@@ -67,7 +84,13 @@ class DirectGennyTribalEnv:
             for action in flat_actions:
                 actions_seq.append(action)
             
-            # Call genny binding directly
+            # First send the actions to the external controller
+            import tribal
+            actions_sent = tribal.set_external_actions_from_python(actions_seq)
+            if not actions_sent:
+                raise RuntimeError("Failed to send actions to ExternalNN controller")
+            
+            # Then call environment step - this will use the external controller
             print(f"🎯 Using direct genny bindings: step({len(flat_actions)} actions)")
             success = self._nim_env.step(actions_seq)
             if not success:

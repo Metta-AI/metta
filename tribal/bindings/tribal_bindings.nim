@@ -108,8 +108,15 @@ proc newTribalEnv*(config: TribalConfig): TribalEnv =
     envConfig.survivalPenalty = config.game.survivalPenalty
     envConfig.deathPenalty = config.game.deathPenalty
     
+    # Create the environment and make it the global environment for the viewer
+    let newEnv = newEnvironment(envConfig)
+    
+    # Update the global environment so the Nim viewer displays this environment
+    env = newEnv
+    echo "🔗 Updated global environment for Nim viewer integration"
+    
     result = TribalEnv(
-      env: newEnvironment(envConfig),
+      env: newEnv,
       config: config,
       stepCount: 0
     )

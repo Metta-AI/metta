@@ -153,15 +153,17 @@ for i in 1..paramCount():
     useExternalController = true
     echo "🔗 Command line: Requested external controller mode"
 
-# Initialize controller - check command line, existing controller, or default to built-in AI
+# Initialize controller - check command line, existing controller, or NO FALLBACK
 if useExternalController:
   initGlobalController(ExternalNN)
   echo "🔗 Initialized with external NN controller (from command line)"
-elif globalController == nil:
-  initGlobalController(BuiltinAI)
-  echo "🤖 Initialized with built-in AI controller"
-else:
+elif globalController != nil:
   echo "🔗 Keeping existing controller: ", getControllerType()
+else:
+  # NO AI FALLBACK - this ensures agents only move when controlled by Python
+  echo "🚫 NO CONTROLLER INITIALIZATION - Python environment must provide control"
+  echo "   Agents will not move unless Python provides actions"
+  echo "   This proves AI controls are fully disabled"
 
 # Check if external controller is active and start playing if so
 if isExternalControllerActive():

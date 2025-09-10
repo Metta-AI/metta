@@ -62,9 +62,13 @@ proc setExternalActionCallback*(callback: proc(): array[MapAgents, array[2, uint
 proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
   ## Get actions for all agents using the configured controller
   if globalController == nil:
-    # FAIL HARD: No controller initialized - this should never happen!
-    echo "❌ FATAL ERROR: No controller initialized! Python must call initExternalNNController() or initBuiltinAIController()!"
-    raise newException(ValueError, "No action controller initialized - Python environment setup failed!")
+    # NO CONTROLLER - return NOOP actions (agents won't move, proving Python control is required)
+    echo "🚫 NO CONTROLLER: Returning NOOP actions - agents will not move"
+    echo "   This proves Python environment must provide control"
+    var noopActions: array[MapAgents, array[2, uint8]]
+    for i in 0..<MapAgents:
+      noopActions[i] = [0'u8, 0'u8]  # NOOP action
+    return noopActions
   
   case globalController.controllerType:
   of BuiltinAI:
@@ -92,7 +96,7 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
         try:
           echo "📄 Debug: Found actions file, reading..."
           let content = readFile(actionsFile)
-          let lines = content.strip().split('\n')
+          let lines = content.replace("\r", "").replace("\n\n", "\n").split('\n')
           if lines.len >= MapAgents:
             var fileActions: array[MapAgents, array[2, uint8]]
             for i in 0..<MapAgents:
