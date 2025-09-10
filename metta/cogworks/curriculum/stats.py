@@ -1,3 +1,10 @@
+"""
+Bucket analysis component for curriculum systems.
+
+Handles bucket value extraction, completion density tracking, and bucket statistics
+without mixing in task management or learning progress calculations.
+"""
+
 from collections import defaultdict, deque
 from typing import Any, Dict, List, Optional
 
