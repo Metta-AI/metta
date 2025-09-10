@@ -3,12 +3,16 @@ image:
   name: softmax-library
   tag: "" # will be set by CI/CD pipeline
 
-worker:
-  secret_name: softmax-library-worker-secrets
-  replicas: 1
+host: library2.softmax-research.net
+
+cert_manager_issuer: letsencrypt
 
 frontend:
   secret_name: softmax-library-frontend-secrets
+  replicas: 1
+
+worker:
+  secret_name: softmax-library-worker-secrets
   replicas: 1
 
 redis:
