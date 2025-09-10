@@ -17,6 +17,9 @@ spec:
           image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "image.tag" .Values.image.tag }}"
           imagePullPolicy: Always
           command: ["pnpm", "run", "start"]
+          env:
+            - name: NEXTAUTH_URL
+              value: https://{{ required "host" .Values.host }}
           envFrom:
           - secretRef:
               name: {{ .Values.frontend.secret_name }}

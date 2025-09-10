@@ -3,7 +3,7 @@ image:
   name: softmax-library
   tag: "" # will be set by CI/CD pipeline
 
-host: library2.softmax-research.net
+host: library.softmax-research.net
 
 cert_manager_issuer: letsencrypt
 

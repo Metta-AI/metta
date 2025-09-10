@@ -41,16 +41,12 @@ locals {
     ANTHROPIC_API_KEY = jsondecode(data.aws_secretsmanager_secret_version.library_secrets.secret_string)["ANTHROPIC_API_KEY"]
 
     REDIS_HOST     = aws_elasticache_replication_group.main.primary_endpoint_address
-    REDIS_PORT     = "6379"
     REDIS_PASSWORD = random_password.redis_password.result
   }
 
   frontend_env_vars = {
-    DEV_MODE = "false"
-
     # Auth
     AUTH_SECRET          = random_password.auth_secret.result
-    NEXTAUTH_URL         = "https://${var.domain}"
     GOOGLE_CLIENT_ID     = jsondecode(data.aws_secretsmanager_secret_version.oauth_secret.secret_string)["client-id"]
     GOOGLE_CLIENT_SECRET = jsondecode(data.aws_secretsmanager_secret_version.oauth_secret.secret_string)["client-secret"]
   }

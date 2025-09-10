@@ -44,7 +44,10 @@ function buildAuthConfig(): NextAuthConfig {
     callbacks: {
       async signIn({ account, profile }) {
         // adapted from https://authjs.dev/getting-started/providers/google#email-verified
-        if (process.env.DEV_MODE === "true" && account?.provider === "google") {
+        if (
+          process.env.DEV_MODE !== "false" &&
+          account?.provider === "google"
+        ) {
           return Boolean(
             profile?.email_verified &&
               allowedEmailDomains.some((domain) =>
