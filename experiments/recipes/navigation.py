@@ -94,7 +94,7 @@ def make_curriculum(
 
     return CurriculumConfig(
         task_generator=nav_tasks,
-        num_active_tasks=1000,
+        num_active_tasks=1000,  # Smaller pool for navigation tasks
         algorithm_config=LearningProgressConfig(
             enable_detailed_bucket_logging=enable_detailed_bucket_logging,
         ),
