@@ -32,13 +32,16 @@ class SetupModule(ABC):
         return None
 
     def _is_applicable(self) -> bool:
+        """Check if this module applies to the current environment (OS)."""
         return True
 
     @abstractmethod
     def check_installed(self) -> bool:
+        """Check if this module is already installed and configured and no changes are needed."""
         pass
 
     def is_enabled(self) -> bool:
+        """Check if this module should be installed based on applicability and settings."""
         return self._is_applicable() and all(
             get_saved_settings().is_component_enabled(dep) for dep in ([self.name] + self.dependencies())
         )
