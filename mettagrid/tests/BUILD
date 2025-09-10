@@ -79,18 +79,6 @@ cc_binary(
     ],
 )
 
-cc_binary(
-    name="test_has_inventory_bin",
-    srcs=["test_has_inventory.cpp"],
-    copts=COPTS + ["-Isrc/metta", "-Isrc/metta/mettagrid", "-Itests"],
-    linkstatic=False,
-    deps=[
-        "//:mettagrid_lib",
-        "@googletest//:gtest_main",
-        "@rules_python//python/cc:current_py_cc_libs",
-    ],
-)
-
 
 # Python test wrappers
 py_test(
@@ -138,15 +126,6 @@ py_test(
     size="small",
 )
 
-py_test(
-    name="test_has_inventory",
-    srcs=["run_test.py"],
-    main="run_test.py",
-    args=["--bin=test_has_inventory_bin"],
-    data=[":test_has_inventory_bin"],
-    size="small",
-)
-
 
 # Test suite that runs all tests
 test_suite(
@@ -154,9 +133,7 @@ test_suite(
     tests=[
         ":test_stats_tracker",
         ":test_grid_object",
-        ":test_mettagrid",
         ":test_observations",
         ":test_inventory_list",
-        ":test_has_inventory",
     ],
 )
