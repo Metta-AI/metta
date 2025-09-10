@@ -632,20 +632,10 @@ def test_wall_tag_overrides_applied_at_runtime():
         elif row == 0 and col == 2 and obj_type_id == 102:
             wall_at_0_2 = obj
 
-    row_0_objects = [
-        (obj['location'], obj['type'])
-        for obj in grid_objects.values()
-        if obj['location'][1] == 0
-    ]
-    assert wall_at_0_0 is not None, (
-        f"Regular wall not found at (0,0). Objects at row 0: {row_0_objects}"
-    )
-    assert wall_at_0_1 is not None, (
-        f"wall.strong not found at (0,1). Objects at row 0: {row_0_objects}"
-    )
-    assert wall_at_0_2 is not None, (
-        f"wall.weak not found at (0,2). Objects at row 0: {row_0_objects}"
-    )
+    row_0_objects = [(obj["location"], obj["type"]) for obj in grid_objects.values() if obj["location"][1] == 0]
+    assert wall_at_0_0 is not None, f"Regular wall not found at (0,0). Objects at row 0: {row_0_objects}"
+    assert wall_at_0_1 is not None, f"wall.strong not found at (0,1). Objects at row 0: {row_0_objects}"
+    assert wall_at_0_2 is not None, f"wall.weak not found at (0,2). Objects at row 0: {row_0_objects}"
 
     # Verify type_ids are different for tagged variants
     assert wall_at_0_0["type"] == 1, f"Regular wall should have type_id=1, got {wall_at_0_0['type']}"
@@ -719,20 +709,10 @@ def test_converter_tag_overrides_applied_at_runtime():
         elif row == 0 and col == 2 and obj_type_id == 202:
             converter_at_0_2 = obj
 
-    row_0_objects = [
-        (obj['location'], obj['type'])
-        for obj in grid_objects.values()
-        if obj['location'][1] == 0
-    ]
-    assert converter_at_0_0 is not None, (
-        f"Regular converter not found at (0,0). Objects at row 0: {row_0_objects}"
-    )
-    assert converter_at_0_1 is not None, (
-        f"converter.fast not found at (0,1). Objects at row 0: {row_0_objects}"
-    )
-    assert converter_at_0_2 is not None, (
-        f"converter.efficient not found at (0,2). Objects at row 0: {row_0_objects}"
-    )
+    row_0_objects = [(obj["location"], obj["type"]) for obj in grid_objects.values() if obj["location"][1] == 0]
+    assert converter_at_0_0 is not None, f"Regular converter not found at (0,0). Objects at row 0: {row_0_objects}"
+    assert converter_at_0_1 is not None, f"converter.fast not found at (0,1). Objects at row 0: {row_0_objects}"
+    assert converter_at_0_2 is not None, f"converter.efficient not found at (0,2). Objects at row 0: {row_0_objects}"
 
     # Verify type_ids are different for tagged variants
     assert converter_at_0_0["type"] == 2, f"Regular converter should have type_id=2, got {converter_at_0_0['type']}"
