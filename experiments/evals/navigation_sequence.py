@@ -6,7 +6,12 @@ from experiments.evals.cfg import NAVIGATION_EVALS
 
 
 def make_nav_sequence_ascii_env(
-    name: str, max_steps: int,  num_agents=1, num_instances=4, border_width: int = 1, instance_border_width: int = 3,
+    name: str,
+    max_steps: int,
+    num_agents=1,
+    num_instances=4,
+    border_width: int = 1,
+    instance_border_width: int = 3,
 ) -> MettaGridConfig:
     ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
     env = make_navigation_sequence(num_agents=num_agents * num_instances)
