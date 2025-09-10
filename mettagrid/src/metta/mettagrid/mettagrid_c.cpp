@@ -344,7 +344,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
 
   init_action_handlers();
 
-  // Initialize group rewards 
+  // Initialize group rewards
   for (const auto& [obj_name, object_cfg] : game_config.objects) {
     const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg.get());
     if (agent_config) {
@@ -359,19 +359,19 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
   grid_hash_data.reserve(static_cast<size_t>(height * width * 20));
 
   uint8_t* grid_data = static_cast<uint8_t*>(buffer.ptr);
-  
+
   for (GridCoord r = 0; r < height; r++) {
     for (GridCoord c = 0; c < width; c++) {
       // Get the index from byte grid
       size_t idx = static_cast<size_t>(r * width + c);
       uint8_t object_idx = grid_data[idx];
-      
+
       // Look up the object name from the key
       if (object_idx >= object_key.size()) {
-        throw std::runtime_error("Invalid byte grid: index " + std::to_string(object_idx) + 
+        throw std::runtime_error("Invalid byte grid: index " + std::to_string(object_idx) +
                                 " >= key length " + std::to_string(object_key.size()));
       }
-      
+
       std::string cell = object_key[object_idx];
 
       // Add cell position and type to hash data
@@ -451,20 +451,25 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
 
   // Initialize buffers
   std::vector<ssize_t> shape;
-  shape.push_back(num_agents);
-  shape.push_back(obs_width);
-  shape.push_back(obs_height);
-  shape.push_back(_num_observation_tokens);
-  std::vector<float> obs_data(static_cast<size_t>(num_agents * obs_width * obs_height * _num_observation_tokens));
-  py::array_t<float> observations(shape, obs_data.data());
+  shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
+  py::array_t<uint8_t> observations(shape);
 
   shape.clear();
   shape.push_back(num_agents);
-  std::vector<float> scalar_data(num_agents);
-  py::array_t<float> terminals(shape, scalar_data.data());
-  py::array_t<float> truncations(shape, scalar_data.data());
-  py::array_t<float> rewards(shape, scalar_data.data());
-  
+  // Create numpy arrays directly - std::vector<bool> doesn't have .data()
+  py::array_t<bool> terminals(shape);
+  py::array_t<bool> truncations(shape);
+  py::array_t<float> rewards(shape);
+  // Initialize to zeros/false
+  auto terminals_ptr = static_cast<bool*>(terminals.mutable_unchecked<1>().mutable_data(0));
+  auto truncations_ptr = static_cast<bool*>(truncations.mutable_unchecked<1>().mutable_data(0));
+  auto rewards_ptr = static_cast<float*>(rewards.mutable_unchecked<1>().mutable_data(0));
+  for (unsigned int i = 0; i < num_agents; i++) {
+    terminals_ptr[i] = false;
+    truncations_ptr[i] = false;
+    rewards_ptr[i] = 0.0f;
+  }
+
   set_buffers(observations, terminals, truncations, rewards);
 }
 

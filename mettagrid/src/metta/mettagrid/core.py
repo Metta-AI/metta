@@ -109,6 +109,8 @@ class MettaGridCore:
             self._renderer_class = MiniscopeRenderer
 
     def _create_c_env(self) -> MettaGridCpp:
+        import numpy as np
+
         # Pass game config to map builder if it accepts it
         if hasattr(self._map_builder, "set_game_config"):
             self._map_builder.set_game_config(self.__mg_config.game)
@@ -135,16 +137,20 @@ class MettaGridCore:
             logger.error(f"Game config: {game_config_dict}")
             raise e
 
-        # Create C++ environment
-        # TODO: Fix C++ binding issue with compressed format (TypeError: float32 to bool)
-        # For now, compression happens but we pass string format to C++
+        # Create C++ environment using compressed format if available
         if game_map.byte_grid is not None and game_map.object_key is not None:
-            # Compression successful - saves ~44x memory in storage
-            # But C++ binding has type issue, so use string format for now
-            pass
-
-        # Use string format for C++ (compressed format has binding issue)
-        c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
+            # Use compressed format (memory efficient - 44x reduction)
+            byte_grid = np.ascontiguousarray(game_map.byte_grid, dtype=np.uint8)
+            try:
+                c_env = MettaGridCpp(c_cfg, byte_grid, game_map.object_key, self._current_seed)
+                logger.info("Using compressed map format (44x memory reduction)")
+            except Exception as e:
+                # Fallback to string format if compressed fails
+                logger.warning(f"Compressed format failed: {e}, using string format")
+                c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
+        else:
+            # Fallback to string format for backward compatibility
+            c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
         self._update_core_buffers()
 
         # Initialize renderer if needed
