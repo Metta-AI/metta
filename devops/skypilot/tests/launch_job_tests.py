@@ -5,7 +5,7 @@ Launch a matrix of skypilot test jobs for validation.
 This script launches 9 test jobs:
 - 3 node configurations: 1, 2, 4 nodes
 - 3 test conditions: normal completion, heartbeat timeout, runtime timeout
-- Each with CI tests enabled for one job per node configuration
+- CI tests are enabled for the runtime timeout job (one job per node configuration)
 """
 
 import argparse
@@ -32,16 +32,19 @@ TEST_CONDITIONS = {
         "name": "Normal Completion",
         "extra_args": ["--overrides", "trainer.total_timesteps=50000"],
         "description": "Exit normally after training completes",
+        "ci": False,
     },
     "heartbeat_timeout": {
         "name": "Heartbeat Timeout",
         "extra_args": ["-hb", "1"],
         "description": "Exit based on missing heartbeats (1 second timeout)",
+        "ci": False,
     },
     "runtime_timeout": {
         "name": "Runtime Timeout",
         "extra_args": ["-t", "0.03"],
         "description": "Exit based on timeout (0.03 hours = 1.8 minutes)",
+        "ci": True,
     },
 }
 
@@ -179,17 +182,16 @@ def main():
 
     # Launch jobs
     for nodes in NODE_CONFIGS:
-        for condition_idx, (condition_key, condition_config) in enumerate(TEST_CONDITIONS.items()):
-            # Enable CI tests for the first condition of each node configuration
-            enable_ci_tests = condition_idx == 0
+        for condition_key, condition_config in TEST_CONDITIONS.items():
+            enable_ci_tests = condition_config["ci"]
 
             run_name = generate_run_name(args.base_name, nodes, condition_key, ci_test=enable_ci_tests)
 
             job_id, request_id = launch_job(
-                nodes=nodes,
-                condition_config=condition_config,
-                run_name=run_name,
-                enable_ci_tests=enable_ci_tests,
+                nodes,
+                condition_config,
+                run_name,
+                enable_ci_tests,
                 skip_git_check=args.skip_git_check,
             )
 
