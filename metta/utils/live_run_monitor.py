@@ -35,7 +35,7 @@ from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from metta.sweep.models import RunInfo
+from metta.adaptive.models import RunInfo
 
 logger = logging.getLogger(__name__)
 
@@ -410,7 +410,7 @@ Examples:
   %(prog)s  # Monitor last 10 runs (fetch 50, display 10)
 
 The monitor will display a live table with color-coded statuses:
-  - Completed runs (blue) 
+  - Completed runs (blue)
   - In training runs (green)
   - Pending runs (gray)
   - Training done, no eval (orange)
