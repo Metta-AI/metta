@@ -444,7 +444,7 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
     if home_metta_dir.exists():
         info(f" Removing ~/.metta directory (keeping: {keep_paths})...")
         temp_dir = Path.home() / f".metta_temp_{uuid.uuid4().hex[:8]}"
-        temp_dir.mkdir()
+        temp_dir.mkdir(exist_ok=True)
         for item in home_metta_dir.glob(keep_paths):
             if item.is_file():
                 shutil.copy2(item, temp_dir / item.name)
