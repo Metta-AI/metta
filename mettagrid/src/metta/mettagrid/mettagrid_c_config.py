@@ -187,15 +187,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig, map_data: li
                 if obj_config.type_id > max_type_id:
                     max_type_id = obj_config.type_id
 
-        # Also collect from objects_cpp_params (already processed objects)
-        for obj_name, cpp_config in objects_cpp_params.items():
-            if hasattr(cpp_config, "type_id"):
-                # Only add if not already tracked (avoid duplicates)
-                if cpp_config.type_id not in used_type_ids:
-                    used_type_ids[cpp_config.type_id] = obj_name
-                if cpp_config.type_id > max_type_id:
-                    max_type_id = cpp_config.type_id
-
         # Create configs for tagged objects with overrides applied
         next_type_id = max_type_id + 1
         for tagged_obj in tagged_objects:
