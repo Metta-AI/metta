@@ -18,6 +18,7 @@ class TrainAndEvalConfig:
     max_trials: int = 3
     gpus_per_job: int = 1
     experiment_id: str = "train_eval_poc"
+    train_overrides: dict = {}
 
 
 class TrainAndEvalScheduler:
@@ -64,7 +65,8 @@ class TrainAndEvalScheduler:
                 experiment_id=self.config.experiment_id,
                 recipe_module=self.config.recipe_module,
                 train_entrypoint=self.config.train_entrypoint,
-                config={},  # No hyperparameter optimization for PoC
+                config = {},
+                train_overrides=self.config.train_overrides,
                 gpus=self.config.gpus_per_job,
             )
 
@@ -72,3 +74,19 @@ class TrainAndEvalScheduler:
             return [training_job]
 
         return []
+
+    def is_experiment_complete(self, runs: list[RunInfo]) -> bool:
+        """Check if train-and-eval experiment is complete."""
+        # Experiment is complete when:
+        # 1. We've reached max_trials
+        # 2. All runs have been fully completed (trained AND evaluated)
+        # Check that all runs are completed (not just training done)
+        completed_runs = [run for run in runs if run.status == JobStatus.COMPLETED]
+
+        # We're done when we have max_trials completed runs
+        is_complete = len(completed_runs) >= self.config.max_trials
+
+        if is_complete:
+            logger.info(f"[TrainAndEvalScheduler] Experiment complete! {len(completed_runs)}/{self.config.max_trials} trials finished")
+
+        return is_complete

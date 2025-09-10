@@ -44,6 +44,9 @@ def train_and_eval(
             "max_trials": max_trials,
             "gpus_per_job": gpus_per_job,
             "experiment_id": experiment_id,
+            "train_overrides": {
+                "total_timesteps": 15000
+            }
         },
         experiment_id=experiment_id,
     )
