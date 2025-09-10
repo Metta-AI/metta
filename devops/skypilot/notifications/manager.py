@@ -48,6 +48,7 @@ class NotificationManager:
         logger.info("[SUMMARY] ===== Job Summary =====")
         logger.info(f"[SUMMARY] Metta Run ID: {self.job_config.metta_run_id or 'N/A'}")
         logger.info(f"[SUMMARY] Skypilot Task ID: {self.job_config.skypilot_task_id or 'N/A'}")
+        logger.info(f"[SUMMARY] Restart Count: {self.job_config.restart_count or 'N/A'}")
         logger.info(f"[SUMMARY] Exit code: {exit_code}")
         logger.info(f"[SUMMARY] Termination reason: {termination_reason or 'unknown'}")
         logger.info("[SUMMARY] ======================")
