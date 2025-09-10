@@ -1,7 +1,12 @@
 import netrc
 import os
+import re
+import subprocess
 import sys
+import time
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
 
 import sky
 import sky.jobs
@@ -25,7 +30,7 @@ def get_jobs_controller_name() -> str:
     return job_clusters[0]["name"]
 
 
-def print_tip(text: str):
+def print_tip(text: str) -> None:
     print(blue(text), file=sys.stderr)
 
 
@@ -40,7 +45,7 @@ def launch_task(task: sky.Task) -> str:
     dashboard_url = sky.server.common.get_server_url() + "/dashboard/jobs"
     print(f"- Or, visit: {yellow(dashboard_url)}")
 
-    return short_request_id
+    return request_id
 
 
 def check_git_state(commit_hash: str) -> str | None:
@@ -85,7 +90,7 @@ def check_config_files(cmd_args: list[str]) -> bool:
                 value = task_arg.split("=", 1)[1]
                 config_path = path_template.format(value)
                 config_files_to_check.append((task_arg, config_path))
-                break  # Found a match, no need to check other prefixes
+                break
 
     missing_files = []
     for arg, config_path in config_files_to_check:
@@ -216,7 +221,6 @@ def display_job_summary(
 
 def set_task_secrets(task: sky.Task) -> None:
     """Write job secrets to task envs."""
-
     # Note: we can't mount these with `file_mounts` because of skypilot bug with service accounts.
     # Also, copying the entire `.netrc` is too much (it could contain other credentials).
 
@@ -238,3 +242,244 @@ def set_task_secrets(task: sky.Task) -> None:
             OBSERVATORY_TOKEN=observatory_token,
         )
     )
+
+
+def open_job_log_from_request_id(request_id: str, wait_seconds: float = 1.0) -> tuple[str | None, str]:
+    """Launch job log in a subprocess from a request ID."""
+
+    # Wait for the job to be registered
+    time.sleep(wait_seconds)
+
+    result = subprocess.run(["sky", "api", "logs", request_id], capture_output=True, text=True)
+
+    if result.returncode == 0:
+        output = result.stdout
+        job_id_match = re.search(r"ID:\s*(\d+)", output)
+
+        if job_id_match:
+            job_id = job_id_match.group(1)
+            print(green(f"Job submitted with ID: {job_id}"))
+
+            print(output)
+
+            print(f"\n{blue('Tailing job logs...')}")
+            try:
+                subprocess.run(["sky", "jobs", "logs", job_id])
+            except KeyboardInterrupt:
+                print("\n" + yellow("Stopped tailing logs"))
+
+            return job_id, output
+        else:
+            print(yellow("Job ID not found in output"))
+            return None, output
+    else:
+        error_msg = f"Error getting logs: {result.stderr}"
+        print(red(error_msg))
+        return None, error_msg
+
+
+def get_request_id_from_launch_output(output: str) -> str | None:
+    """looks for "Submitted sky.jobs.launch request: XXX" pattern in cli output"""
+    request_match = re.search(r"Submitted sky\.jobs\.launch request:\s*([a-f0-9-]+)", output)
+
+    if request_match:
+        return request_match.group(1)
+
+    # Fallback patterns
+    request_id_match = re.search(r"request[_-]?id[:\s]+([a-f0-9-]+)", output, re.IGNORECASE)
+    if request_id_match:
+        return request_id_match.group(1)
+
+    return None
+
+
+def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> str | None:
+    """Get job ID from a request ID by querying sky api logs."""
+    time.sleep(wait_seconds)  # Wait for job to be registered
+
+    try:
+        result = subprocess.run(["sky", "api", "logs", request_id], capture_output=True, text=True)
+
+        if result.returncode == 0:
+            job_id_match = re.search(r"ID:\s*(\d+)", result.stdout)
+            if job_id_match:
+                return job_id_match.group(1)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    return None
+
+
+def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
+    if not job_ids:
+        return {}
+
+    job_data = {}
+
+    try:
+        # Get all jobs in one command
+        cmd = ["sky", "jobs", "queue", "--all"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            # Parse the output
+            lines = result.stdout.strip().split("\n")
+
+            # Process each job ID
+            for job_id in job_ids:
+                job_info = {"status": "UNKNOWN", "raw_line": "", "name": "", "duration": "", "submitted": ""}
+
+                # Find the job in the output
+                for line in lines:
+                    # Match job ID at start of line
+                    if re.match(rf"^{job_id}\s+", line):
+                        job_info["raw_line"] = line
+
+                        # Look for known status values anywhere in the line
+                        status_values = ["RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "PENDING", "PROVISIONING"]
+                        for status in status_values:
+                            if status in line:
+                                job_info["status"] = status
+                                break
+
+                        # Extract other fields using more robust parsing
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            job_info["name"] = parts[2]
+
+                        # Find "ago" to locate submitted time
+                        for i, part in enumerate(parts):
+                            if part == "ago" and i >= 2:
+                                # Reconstruct submitted time (e.g., "26 mins ago")
+                                job_info["submitted"] = " ".join(parts[i - 2 : i + 1])
+                                break
+
+                        break
+
+                job_data[job_id] = job_info
+        else:
+            # If command failed, return error info
+            for job_id in job_ids:
+                job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": result.stderr}
+
+    except Exception as e:
+        # On exception, return error info
+        for job_id in job_ids:
+            job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": str(e)}
+
+    return job_data
+
+
+def tail_job_log(job_id: str, lines: int = 100, timeout: int = 8) -> str | None:
+    """Get the tail of job logs, handling timeouts gracefully for running jobs."""
+
+    try:
+        cmd = ["sky", "jobs", "logs", job_id]
+
+        # Queue to collect output lines
+        output_queue = Queue()
+
+        def reader_thread(pipe, queue, pipe_name):
+            """Read lines from pipe and put them in queue."""
+            try:
+                for line in iter(pipe.readline, ""):
+                    if line:
+                        queue.put((pipe_name, line.rstrip()))
+            except Exception:
+                pass
+            finally:
+                queue.put((pipe_name, None))  # Signal end of stream
+
+        # Start the process
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+
+        # Start reader threads for both stdout and stderr
+        stdout_thread = Thread(target=reader_thread, args=(process.stdout, output_queue, "stdout"))
+        stderr_thread = Thread(target=reader_thread, args=(process.stderr, output_queue, "stderr"))
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
+        stdout_thread.start()
+        stderr_thread.start()
+
+        # Collect output with timeout
+        collected_lines = []
+        collected_errors = []
+        start_time = time.time()
+        streams_done = {"stdout": False, "stderr": False}
+
+        while time.time() - start_time < timeout:
+            # Check if both streams are done
+            if all(streams_done.values()):
+                break
+
+            try:
+                pipe_name, line = output_queue.get(timeout=0.1)
+
+                if line is None:
+                    streams_done[pipe_name] = True
+                else:
+                    if pipe_name == "stdout":
+                        collected_lines.append(line)
+                    else:
+                        collected_errors.append(line)
+
+            except Empty:
+                # Check if process ended
+                if process.poll() is not None:
+                    # Give a bit more time to collect remaining output
+                    end_collection_time = time.time() + 0.5
+                    while time.time() < end_collection_time and not output_queue.empty():
+                        try:
+                            pipe_name, line = output_queue.get_nowait()
+                            if line is not None:
+                                if pipe_name == "stdout":
+                                    collected_lines.append(line)
+                                else:
+                                    collected_errors.append(line)
+                            else:
+                                streams_done[pipe_name] = True
+                        except Empty:
+                            break
+                    break
+
+        # Clean up
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+
+        stdout_thread.join(timeout=1)
+        stderr_thread.join(timeout=1)
+
+        # Check if we got any error messages
+        if collected_errors and not collected_lines:
+            # Only errors, no stdout
+            error_msg = "\n".join(collected_errors)
+            # Check for common error patterns
+            if "does not exist" in error_msg or "not found" in error_msg:
+                return f"Error: {error_msg}"
+            else:
+                return f"Error: {error_msg}"
+
+        # Return stdout content
+        if collected_lines:
+            tail_lines = collected_lines[-lines:] if len(collected_lines) > lines else collected_lines
+
+            if time.time() - start_time >= timeout:
+                return f"[Note: Collection stopped after {timeout}s - job still running]\n\n" + "\n".join(tail_lines)
+            else:
+                return "\n".join(tail_lines)
+        else:
+            # No stdout content
+            if process.returncode == 0:
+                # Command succeeded but no output - job might not have logs yet
+                return "Error: No logs available yet (job may still be provisioning)"
+            else:
+                # Command failed
+                return f"Error: No logs retrieved after {timeout}s (job may still be provisioning)"
+
+    except Exception as e:
+        return f"Error: {str(e)}"
