@@ -11,7 +11,7 @@ fi
 
 # Build the process viewer
 echo "🔧 Compiling process viewer..."
-nim c -d:release --out:tribal_process_viewer src/tribal_process_viewer.nim
+nim c -d:release --out:tribal_process_viewer src/tribal/tribal_process_viewer.nim
 
 if [[ -f "tribal_process_viewer" ]]; then
     echo "✅ Process viewer built successfully: tribal_process_viewer"
