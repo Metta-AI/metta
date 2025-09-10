@@ -177,6 +177,7 @@ def make_icl_resource_chain(
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
+        desync_episodes=False,
         game=GameConfig(
             max_steps=max_steps,
             num_agents=num_agents,
