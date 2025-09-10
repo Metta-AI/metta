@@ -68,6 +68,7 @@ class TrainTool(Tool):
     wandb: WandbConfig = WandbConfig.Unconfigured()
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+    group: Optional[str] = None
 
     context_checkpointer: ContextCheckpointerConfig = Field(default_factory=ContextCheckpointerConfig)
     stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)

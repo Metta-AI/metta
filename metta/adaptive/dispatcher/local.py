@@ -4,8 +4,8 @@ import logging
 import subprocess
 import threading
 
-from metta.sweep.models import JobDefinition, JobTypes
-from metta.sweep.utils import get_display_id
+from metta.adaptive.models import JobDefinition
+from metta.adaptive.utils import get_display_id
 
 logger = logging.getLogger(__name__)
 
@@ -80,32 +80,15 @@ class LocalDispatcher:
         # Build command
         cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
 
-        # Add positional arguments first (if any)
-        cmd_parts.extend(job.args)
+        # Add all arguments directly (no --args or --overrides flags)
+        # First add job args, then overrides
+        for k, v in job.args.items():
+            cmd_parts.append(f"{k}={v}")
 
-        # Collect all args
-        all_args = []
+        for k, v in job.overrides.items():
+            cmd_parts.append(f"{k}={v}")
 
-        # Add run_id for training jobs only (not for eval)
-        if job.type == JobTypes.LAUNCH_TRAINING:
-            all_args.append(f"run={job.run_id}")
-
-        # Add metadata fields as args (used for evaluation jobs)
-        for key, value in job.metadata.items():
-            all_args.append(f"{key}={value}")
-
-        # Add all collected args
-        if all_args:
-            cmd_parts.extend(all_args)
-
-        # Add explicit overrides (from job.overrides dict)
-        for key, value in job.overrides.items():
-            cmd_parts.append(f"{key}={value}")
-
-        # Add config from optimizer as additional args
-        for key, value in job.config.items():
-            cmd_parts.append(f"{key}={value}")
-
+        # Extract trial portion for cleaner display
         display_id = get_display_id(job.run_id)
 
         logger.info(f"Dispatching {display_id}: {' '.join(cmd_parts)}")
