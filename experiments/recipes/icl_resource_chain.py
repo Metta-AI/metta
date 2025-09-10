@@ -124,10 +124,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.map_builder_objects[sink_name] = 1
 
     def _make_env_cfg(
-        self, resource_chain, num_sinks, width, height, rng, max_steps=256
+        self, resources, num_sinks, width, height, avg_hop, rng, max_steps=256
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
-        resource_chain = ["nothing"] + list(resource_chain) + ["heart"]
+        resource_chain = ["nothing"] + list(resources) + ["heart"]
 
         chain_length = len(resource_chain)
 
@@ -142,7 +142,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         if len(cfg.used_objects) > 4:
             max_steps = self.config.max_steps * 2
 
-        cooldown = 6 * (chain_length - 1)
+        cooldown = avg_hop * (chain_length - 1)
 
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = cooldown
@@ -157,28 +157,34 @@ class ConverterChainTaskGenerator(TaskGenerator):
         )
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        chain_length = rng.choice(self.config.chain_lengths)
+        num_resources = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
-        resource_chain = rng.sample(self.resource_types, chain_length)
+        resources = rng.sample(self.resource_types, num_resources)
         width = rng.randint(self.config.width_range[0], self.config.width_range[1])
         height = rng.randint(self.config.height_range[0], self.config.height_range[1])
         max_steps = self.config.max_steps
 
-        icl_env = self._make_env_cfg(
-            resource_chain,
-            num_sinks,
-            width=width,
-            height=height,
-            max_steps=max_steps,
-            rng=rng,
-        )
+        total_objects = num_resources + num_sinks + 1
+        perimeter = 2 * (width + height) - 8
+        avg_hop = perimeter // total_objects #use this for cooldown
 
         # optimal reward estimates for the task, to be used in evaluation
         most_efficient_optimal_reward, least_efficient_optimal_reward = (
             self._estimate_max_rewards(
-                chain_length, num_sinks, width, height, max_steps
+                num_resources, num_sinks, max_steps, avg_hop
             )
         )
+
+        icl_env = self._make_env_cfg(
+            resources,
+            num_sinks,
+            width=width,
+            height=height,
+            avg_hop=avg_hop,
+            max_steps=max_steps,
+            rng=rng,
+        )
+
 
         icl_env.game.reward_estimates = {
             "most_efficient_optimal_reward": most_efficient_optimal_reward,
@@ -189,11 +195,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
     def _estimate_max_rewards(
         self,
-        chain_length: int,
+        num_resources: int,
         num_sinks: int,
-        width: int,
-        height: int,
         max_steps: int,
+        avg_hop: int,
     ) -> tuple[int, int]:
         """
         Returns (most_efficient_reward, least_efficient_reward).
@@ -210,21 +215,14 @@ class ConverterChainTaskGenerator(TaskGenerator):
           - cooldown = 6 * n_converters (as set in _make_env_cfg).
         """
         # Number of converters in the chain (nothing->r1, ..., r_k->heart)
-        n_converters = chain_length + 1
+        n_converters = num_resources + 1
         total_objects = n_converters + num_sinks
 
         # Mirror _make_env_cfg’s episode-length extension
         effective_max_steps = max_steps * 2 if total_objects > 4 else max_steps
 
         # Converter cooldown applied uniformly
-        cooldown = 6 * n_converters
-
-        # --- Perimeter travel heuristic ---
-        # All objects are on the perimeter; approximate average hop between distinct
-        # perimeter objects by distributing objects uniformly around the rim.
-        # minus 8 because converters cannot be placed on the corners
-        perimeter = 2 * (width + height) - 8
-        avg_hop = perimeter // total_objects
+        cooldown = avg_hop * n_converters
 
         # Cost per attempt at any object = move there + (put + get)
         step_per_attempt = avg_hop + 2
