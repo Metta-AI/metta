@@ -16,13 +16,6 @@ from metta.mettagrid.config import Config
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
-def get_algorithm_hypers_discriminator(v):
-    """Discriminator function for algorithm hypers types."""
-    if isinstance(v, dict) and "type" in v:
-        return v["type"]
-    return None
-
-
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 
@@ -243,10 +236,10 @@ class CurriculumConfig(Config):
 
 
 class Curriculum:
-    """Base curriculum class that uses TaskGenerator to generate EnvConfigs and returns Tasks.
+    """Base curriculum class that uses TaskGenerator to generate MettaGridConfigs and returns Tasks.
 
     Curriculum takes a CurriculumConfig, and supports get_task(). It uses the task generator
-    to generate the EnvConfig and then returns a Task(env_cfg). It always uses a
+    to generate the MettaGridConfig and then returns a Task(env_cfg). It always uses a
     CurriculumAlgorithm for task selection (defaults to DiscreteRandom if none specified).
     """
 
