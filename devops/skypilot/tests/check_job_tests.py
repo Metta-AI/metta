@@ -23,6 +23,7 @@ def parse_job_summary(log_content: str) -> dict[str, str | None]:
         "termination_reason": None,
         "metta_run_id": None,
         "skypilot_task_id": None,
+        "restart_count": None,
     }
 
     if not log_content:
@@ -46,6 +47,10 @@ def parse_job_summary(log_content: str) -> dict[str, str | None]:
             match = re.search(r"Skypilot Task ID: (.+?)(?:\s*\[|$)", line)
             if match:
                 summary["skypilot_task_id"] = match.group(1).strip()
+        elif "[SUMMARY] Restart Count:" in line:
+            match = re.search(r"Restart Count: (\d+)", line)
+            if match:
+                summary["restart_count"] = match.group(1)
 
     return summary
 
@@ -70,6 +75,16 @@ def format_exit_code(code: str | None) -> str:
         return green(code)
     else:
         return red(code)
+
+
+def format_restart_count(count: str | None) -> str:
+    """Format restart count with color coding."""
+    if count is None:
+        return "-"
+    elif count == "0":
+        return green(count)
+    else:
+        return yellow(count)  # Non-zero restarts shown in yellow
 
 
 def format_termination_reason(reason: str | None) -> str:
@@ -157,7 +172,7 @@ def parse_all_job_summaries(jobs: list, tail_lines: int) -> dict[int, dict[str, 
                 print()  # Add spacing between jobs
 
     # Show completion message
-    print(f"{green('✓')} Parsed logs for {processed} jobs\n")
+    print(f"{green('✔')} Parsed logs for {processed} jobs\n")
 
     return job_summaries
 
@@ -165,18 +180,18 @@ def parse_all_job_summaries(jobs: list, tail_lines: int) -> dict[int, dict[str, 
 def print_detailed_table(jobs: list, job_statuses: dict, job_summaries: dict) -> None:
     """Print a detailed summary table of all jobs with parsed log information."""
     print(f"\n{bold('Detailed Job Status:')}")
-    print("─" * 120)
+    print("─" * 130)
 
-    # Header
-    headers = ["Job ID", "Status", "Exit", "Termination", "Nodes", "Condition", "Running CI tests?"]
-    col_widths = [8, 12, 6, 20, 6, 20, 4]
+    # Header - Added "Restarts" column
+    headers = ["Job ID", "Status", "Exit", "Restarts", "Termination", "Nodes", "Condition", "Running CI tests?"]
+    col_widths = [8, 12, 6, 9, 20, 6, 20, 4]
 
     # Print headers
     header_line = ""
     for header, width in zip(headers, col_widths, strict=False):
         header_line += f"{header:^{width}} │ "
     print(header_line.rstrip(" │"))
-    print("─" * 120)
+    print("─" * 130)
 
     # Print job rows
     for job in jobs:
@@ -193,12 +208,13 @@ def print_detailed_table(jobs: list, job_statuses: dict, job_summaries: dict) ->
         job_id_fmt = yellow(job_id_str)
         status_fmt = format_status(status)
         exit_fmt = format_exit_code(summary.get("exit_code"))
+        restart_fmt = format_restart_count(summary.get("restart_count"))  # New
         term_fmt = format_termination_reason(summary.get("termination_reason"))
         nodes_fmt = str(job["nodes"])
         condition_fmt = job["condition_name"][:20]
-        ci_fmt = green("✓") if job.get("ci_tests_enabled") else ""
+        ci_fmt = green("✔") if job.get("ci_tests_enabled") else ""
 
-        row_values = [job_id_fmt, status_fmt, exit_fmt, term_fmt, nodes_fmt, condition_fmt, ci_fmt]
+        row_values = [job_id_fmt, status_fmt, exit_fmt, restart_fmt, term_fmt, nodes_fmt, condition_fmt, ci_fmt]
 
         formatted_values = []
         for value, width in zip(row_values, col_widths, strict=False):
@@ -210,7 +226,7 @@ def print_detailed_table(jobs: list, job_statuses: dict, job_summaries: dict) ->
         row = " │ ".join(formatted_values)
         print(row)
 
-    print("─" * 120)
+    print("─" * 130)
 
 
 def main():
@@ -284,9 +300,10 @@ def main():
             if job.get("ci_tests_enabled"):
                 print(f"{bold('CI Tests:')} {green('Enabled')}")
 
-            # Show parsed summary info
+            # Show parsed summary info - Added restart count
             if any(summary.values()):
                 print(f"{bold('Exit Code:')} {format_exit_code(summary.get('exit_code'))}")
+                print(f"{bold('Restart Count:')} {format_restart_count(summary.get('restart_count'))}")  # New
                 print(f"{bold('Termination:')} {format_termination_reason(summary.get('termination_reason'))}")
 
             print("=" * 80)
