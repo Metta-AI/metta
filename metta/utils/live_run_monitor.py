@@ -39,7 +39,7 @@ from rich.text import Text
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 if TYPE_CHECKING:
-    from metta.sweep.models import JobStatus, RunInfo
+    from metta.adaptive.models import JobStatus, RunInfo
 
 logger = logging.getLogger(__name__)
 
