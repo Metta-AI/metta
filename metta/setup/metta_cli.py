@@ -437,10 +437,16 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
             info(f"  Removing mettagrid/{build_name}...")
             shutil.rmtree(build_path)
 
+    keep_paths = "config*"
     home_metta_dir = Path.home() / ".metta"
     if home_metta_dir.exists():
-        info("  Removing ~/.metta directory...")
+        info(f" Removing ~/.metta directory (keeping: {keep_paths})...")
+        temp_dir = Path.home() / ".metta_temp"
+        temp_dir.mkdir(exist_ok=True)
+        for file in home_metta_dir.glob(keep_paths):
+            shutil.copy2(file, temp_dir)
         shutil.rmtree(home_metta_dir)
+        temp_dir.rename(home_metta_dir)
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
     if cleanup_script.exists():
