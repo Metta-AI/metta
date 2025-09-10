@@ -6,15 +6,15 @@ from experiments.evals.cfg import NAVIGATION_EVALS
 
 
 def make_nav_sequence_ascii_env(
-    name: str, max_steps: int, border_width: int = 1, num_agents=1, num_instances=4
+    name: str, max_steps: int,  num_agents=1, num_instances=4,border_width: int = 1, instance_border_width: int = 3,
 ) -> MettaGridConfig:
     ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
     env = make_navigation_sequence(num_agents=num_agents * num_instances)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGen.Config(
         instances=num_instances,
-        border_width=6,
-        instance_border_width=3,
+        border_width=border_width,
+        instance_border_width=instance_border_width,
         instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
     )
 
@@ -29,10 +29,10 @@ def make_navigation_sequence_eval_suite() -> list[SimulationConfig]:
         SimulationConfig(
             name=f"navigation_sequence/{eval['name']}",
             env=make_nav_sequence_ascii_env(
-                eval["name"],
-                eval["max_steps"],
-                eval["num_agents"],
-                eval["num_instances"],
+                name=eval["name"],
+                max_steps=eval["max_steps"],
+                num_agents=eval["num_agents"],
+                num_instances=eval["num_instances"],
             ),
         )
         for eval in NAVIGATION_EVALS
