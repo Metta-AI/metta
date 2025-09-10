@@ -96,8 +96,6 @@ public:
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
   unsigned short conversions_completed;
-  std::map<InventoryItem, float> resource_loss_prob;
-  std::mt19937* rng;
 
   // Inventory management with resource tracking
   InventoryList inventory_list;
@@ -121,10 +119,11 @@ public:
         event_manager(nullptr),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
-        conversions_completed(0),
-        resource_loss_prob(cfg.resource_loss_prob),
-        rng(nullptr) {
+        conversions_completed(0) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
+
+    // Initialize InventoryList with resource loss probabilities
+    this->inventory_list.set_resource_loss_prob(cfg.resource_loss_prob);
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
@@ -141,16 +140,20 @@ public:
     this->inventory_list.set_event_manager(event_manager_ptr);
 
     // Initialize resource instances for existing inventory if RNG is available
-    if (this->rng) {
-      this->inventory_list.initialize_resource_instances(this->resource_loss_prob, this->id);
+    if (this->inventory_list.rng) {
+      this->inventory_list.initialize_resource_instances(this->id);
     }
 
     this->maybe_start_converting();
   }
 
   inline void set_rng(std::mt19937* rng_ptr) {
-    this->rng = rng_ptr;
     this->inventory_list.set_rng(rng_ptr);
+
+    // Initialize resource instances for existing inventory if event manager is available
+    if (this->event_manager) {
+      this->inventory_list.initialize_resource_instances(this->id);
+    }
   }
 
   // Implement HasInventory interface
@@ -219,7 +222,7 @@ public:
     // Handle inventory changes using InventoryList
     if (actual_delta != 0) {
       // Use InventoryList to handle the update with stochastic resource loss
-      InventoryDelta inventory_delta = this->inventory_list.update_inventory(item, actual_delta, this->resource_loss_prob, this->id);
+      InventoryDelta inventory_delta = this->inventory_list.update_inventory(item, actual_delta, this->id);
 
       // Update stats
       if (inventory_delta > 0) {

@@ -45,14 +45,12 @@ private:
 
 public:
   Grid* grid;
-  void* metta_grid_ptr;  // Store pointer to MettaGrid for agent access
   map<EventType, unique_ptr<EventHandler>> event_handlers;
 
-  EventManager() : _event_queue(), _current_timestep(0), grid(nullptr), metta_grid_ptr(nullptr), event_handlers() {}
+  EventManager() : _event_queue(), _current_timestep(0), grid(nullptr), event_handlers() {}
 
-  void init(Grid* grid_ptr, void* metta_grid_ptr = nullptr) {
+  void init(Grid* grid_ptr) {
     this->grid = grid_ptr;
-    this->metta_grid_ptr = metta_grid_ptr;
   }
 
   void schedule_event(EventType event_type, unsigned int delay, GridObjectId object_id, EventArg arg) {

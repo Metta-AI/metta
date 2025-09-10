@@ -44,9 +44,7 @@ public:
   std::string prev_action_name;
   unsigned int steps_without_motion;
   Box* box;
-  std::map<InventoryItem, float> resource_loss_prob;
   EventManager* event_manager;
-  std::mt19937* rng;  // Pointer to the MettaGrid's RNG
 
   // Inventory management with resource tracking
   InventoryList inventory_list;
@@ -79,9 +77,10 @@ public:
         prev_action_name(""),
         steps_without_motion(0),
         box(nullptr),
-        resource_loss_prob(config.resource_loss_prob),
-        event_manager(nullptr),
-        rng(nullptr) {
+        event_manager(nullptr) {
+    // Initialize InventoryList with resource loss probabilities
+    this->inventory_list.set_resource_loss_prob(config.resource_loss_prob);
+
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
@@ -95,14 +94,18 @@ public:
     this->inventory_list.set_event_manager(event_manager_ptr);
 
     // Initialize resource instances for existing inventory if RNG is available
-    if (this->rng) {
-      this->inventory_list.initialize_resource_instances(this->resource_loss_prob, this->id);
+    if (this->inventory_list.rng) {
+      this->inventory_list.initialize_resource_instances(this->id);
     }
   }
 
   void set_rng(std::mt19937* rng_ptr) {
-    this->rng = rng_ptr;
     this->inventory_list.set_rng(rng_ptr);
+
+    // Initialize resource instances for existing inventory if event manager is available
+    if (this->event_manager) {
+      this->inventory_list.initialize_resource_instances(this->id);
+    }
   }
 
 
@@ -172,7 +175,7 @@ public:
     // Handle inventory changes using InventoryList
     if (delta != 0) {
       // Use InventoryList to handle the update with stochastic resource loss
-      InventoryDelta actual_delta = this->inventory_list.update_inventory(item, delta, this->resource_loss_prob, this->id);
+      InventoryDelta actual_delta = this->inventory_list.update_inventory(item, delta, this->id);
 
       // Update stats
       if (actual_delta > 0) {

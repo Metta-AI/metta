@@ -74,7 +74,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _stats = std::make_unique<StatsTracker>();
   _stats->set_environment(this);
 
-  _event_manager->init(_grid.get(), this);
+  _event_manager->init(_grid.get());
   _event_manager->event_handlers.insert(
       {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
   _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
@@ -693,8 +693,8 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["inventory"] = inventory_dict;
 
       py::dict resource_loss_prob_dict;
-      for (const auto& [resource, probability] : agent->resource_loss_prob) {
-        inventory_dict[py::int_(resource)] = probability;
+      for (const auto& [resource, probability] : agent->inventory_list.resource_loss_prob) {
+        resource_loss_prob_dict[py::int_(resource)] = probability;
       }
       obj_dict["resource_loss_prob"] = resource_loss_prob_dict;
 
@@ -732,8 +732,8 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["output_resources"] = output_resources_dict;
 
       py::dict resource_loss_prob_dict;
-      for (const auto& [resource, probability] : converter->resource_loss_prob) {
-        inventory_dict[py::int_(resource)] = probability;
+      for (const auto& [resource, probability] : converter->inventory_list.resource_loss_prob) {
+        resource_loss_prob_dict[py::int_(resource)] = probability;
       }
       obj_dict["resource_loss_prob"] = resource_loss_prob_dict;
 
@@ -883,11 +883,6 @@ const std::string& StatsTracker::resource_name(InventoryItem item) const {
   return _env->resource_names[item];
 }
 
-void MettaGrid::schedule_inventory_reduction(unsigned int agent_id, unsigned int delay) {
-  // Schedule a stochastic resource loss event for the specified agent
-  // The agent_id is passed as the EventArg since we need to identify which agent to affect
-  _event_manager->schedule_event(EventType::StochasticResourceLoss, delay, 0, agent_id);
-}
 
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
@@ -919,8 +914,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)
-      .def("schedule_inventory_reduction", &MettaGrid::schedule_inventory_reduction,
-           py::arg("agent_id"), py::arg("delay"))
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)

@@ -32,6 +32,9 @@ public:
   std::map<InventoryItem, std::vector<uint64_t>> item_to_resources;
   uint64_t next_resource_id;
 
+  // Resource loss configuration
+  std::map<InventoryItem, float> resource_loss_prob;
+
   // RNG and event manager (set by parent class)
   std::mt19937* rng = nullptr;
   EventManager* event_manager = nullptr;
@@ -43,6 +46,10 @@ public:
 
   inline void set_event_manager(EventManager* event_manager_ptr) {
     this->event_manager = event_manager_ptr;
+  }
+
+  inline void set_resource_loss_prob(const std::map<InventoryItem, float>& loss_prob) {
+    this->resource_loss_prob = loss_prob;
   }
 
   // Resource instance management
@@ -87,13 +94,12 @@ public:
 
   // Helper method to create resource instances and schedule loss events
   void create_and_schedule_resources(InventoryItem item_type, int count, unsigned int current_timestep,
-                                   const std::map<InventoryItem, float>& resource_loss_prob,
                                    GridObjectId object_id) {
     if (!this->event_manager || !this->rng) {
       return;
     }
-    auto prob_it = resource_loss_prob.find(item_type);
-    if (prob_it == resource_loss_prob.end() || prob_it->second <= 0.0f) {
+    auto prob_it = this->resource_loss_prob.find(item_type);
+    if (prob_it == this->resource_loss_prob.end() || prob_it->second <= 0.0f) {
       for (int i = 0; i < count; i++) {
         create_resource_instance(item_type, current_timestep);
       }
@@ -113,7 +119,6 @@ public:
 
   // Inventory update with stochastic resource loss support
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta,
-                                const std::map<InventoryItem, float>& resource_loss_prob,
                                 GridObjectId object_id) {
     InventoryQuantity initial_amount = this->inventory[item];
     int new_amount = static_cast<int>(initial_amount + attempted_delta);
@@ -135,7 +140,7 @@ public:
         // Create resource instances and schedule loss events for added items
         if (this->event_manager && this->rng) {
           unsigned int current_timestep = this->event_manager->get_current_timestep();
-          create_and_schedule_resources(item, delta, current_timestep, resource_loss_prob, object_id);
+          create_and_schedule_resources(item, delta, current_timestep, object_id);
         }
       } else {
         // Remove random resource instances for removed items
@@ -152,13 +157,12 @@ public:
   }
 
   // Initialize resource instances for existing inventory
-  void initialize_resource_instances(const std::map<InventoryItem, float>& resource_loss_prob,
-                                   GridObjectId object_id) {
+  void initialize_resource_instances(GridObjectId object_id) {
     if (this->event_manager && this->rng) {
       unsigned int current_timestep = this->event_manager->get_current_timestep();
       for (const auto& [item, amount] : this->inventory) {
         if (amount > 0) {
-          create_and_schedule_resources(item, amount, current_timestep, resource_loss_prob, object_id);
+          create_and_schedule_resources(item, amount, current_timestep, object_id);
         }
       }
     }
