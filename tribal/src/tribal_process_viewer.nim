@@ -496,10 +496,11 @@ proc drawSafeRectangleEnvironment() =
       let centerY = agentY + agentSize / 2
       
       let (dirX, dirY) = case agent.orientation:
-        of North: (centerX - dirSize/2, agentY + 1)
-        of South: (centerX - dirSize/2, agentY + agentSize - dirSize - 1) 
-        of East: (agentX + agentSize - dirSize - 1, centerY - dirSize/2)
-        of West: (agentX + 1, centerY - dirSize/2)
+        of N: (centerX - dirSize/2, agentY + 1)
+        of S: (centerX - dirSize/2, agentY + agentSize - dirSize - 1) 
+        of E: (agentX + agentSize - dirSize - 1, centerY - dirSize/2)
+        of W: (agentX + 1, centerY - dirSize/2)
+        else: (centerX - dirSize/2, centerY - dirSize/2)  # Default center for diagonal orientations
       
       bxy.drawRect(
         rect = rect(dirX, dirY, dirSize, dirSize),
