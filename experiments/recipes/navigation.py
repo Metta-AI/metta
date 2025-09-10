@@ -21,6 +21,12 @@ from metta.tools.train import TrainTool
 
 from experiments.evals.navigation import make_navigation_eval_suite
 
+# Navigation-specific configuration constants
+# Navigation tasks benefit from a smaller active task pool compared to the default (10000)
+# because navigation environments have simpler task spaces and benefit from more focused
+# exploration within a smaller set of tasks for better learning efficiency.
+NAVIGATION_NUM_ACTIVE_TASKS = 1000
+
 
 def _get_user_identifier() -> str:
     """Get user identifier from USER environment variable."""
@@ -94,7 +100,7 @@ def make_curriculum(
 
     return CurriculumConfig(
         task_generator=nav_tasks,
-        num_active_tasks=1000,  # Smaller pool for navigation tasks
+        num_active_tasks=NAVIGATION_NUM_ACTIVE_TASKS,
         algorithm_config=LearningProgressConfig(
             enable_detailed_bucket_logging=enable_detailed_bucket_logging,
         ),
@@ -137,7 +143,7 @@ def make_curriculum_random(
     # Return curriculum with NO algorithm_config -> defaults to DiscreteRandom
     return CurriculumConfig(
         task_generator=nav_tasks,
-        num_active_tasks=1000,  # Same pool size for fair comparison
+        num_active_tasks=NAVIGATION_NUM_ACTIVE_TASKS,  # Same pool size for fair comparison
     )
 
 

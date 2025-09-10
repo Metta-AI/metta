@@ -52,7 +52,6 @@ class CurriculumEnv(PufferEnv):
         and enables batching of expensive stats calculations.
         """
         # Only update curriculum stats periodically to reduce overhead
-        self._stats_update_counter += 1
         if self._stats_update_counter >= self._stats_update_frequency:
             if not self._stats_cache_valid:
                 self._cached_stats = self._curriculum.stats()
@@ -104,6 +103,7 @@ class CurriculumEnv(PufferEnv):
             self._stats_cache_valid = False
 
         # Add curriculum stats to info for logging (batched)
+        self._stats_update_counter += 1
         self._add_curriculum_stats_to_info(infos)
 
         return obs, rewards, terminals, truncations, infos
@@ -126,43 +126,6 @@ class CurriculumEnv(PufferEnv):
         """Delegate attribute access to wrapped environment when attribute not found.
 
         This is called only when the attribute is not found on CurriculumEnv itself,
-        providing a cleaner delegation mechanism than __getattribute__.
+        providing automatic delegation for all PufferEnv interface methods.
         """
         return getattr(self._env, name)
-
-    # Explicitly implement PufferEnv interface methods that need delegation
-    @property
-    def agent_per_batch(self):
-        """Number of agents per batch (delegated to wrapped environment)."""
-        return self._env.agent_per_batch
-
-    @property
-    def done(self):
-        """Check if environment is done (delegated to wrapped environment)."""
-        return self._env.done
-
-    @property
-    def emulated(self):
-        """Whether environment is emulated (delegated to wrapped environment)."""
-        return self._env.emulated
-
-    def close(self):
-        """Close the environment (delegated to wrapped environment)."""
-        return self._env.close()
-
-    def send(self, actions):
-        """Send actions to environment (delegated to wrapped environment)."""
-        return self._env.send(actions)
-
-    def recv(self):
-        """Receive observations from environment (delegated to wrapped environment)."""
-        return self._env.recv()
-
-    def async_reset(self, *args, **kwargs):
-        """Asynchronously reset environment (delegated to wrapped environment)."""
-        return self._env.async_reset(*args, **kwargs)
-
-    @property
-    def driver_env(self):
-        """Get driver environment (delegated to wrapped environment)."""
-        return self._env.driver_env
