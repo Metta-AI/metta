@@ -2,6 +2,7 @@
 #define OBJECTS_INVENTORY_LIST_HPP_
 
 #include <algorithm>
+#include <cassert>
 #include <map>
 #include <random>
 #include <vector>
@@ -93,15 +94,12 @@ public:
       return 0;  // No resources of this type
     }
 
-    // Use proper RNG if available, otherwise fall back to rand()
-    if (this->rng) {
-      std::uniform_int_distribution<size_t> dist(0, it->second.size() - 1);
-      size_t index = dist(*this->rng);
-      return it->second[index];
-    } else {
-      size_t index = rand() % it->second.size();
-      return it->second[index];
-    }
+    // Assert that RNG is available for proper random selection
+    assert(this->rng != nullptr && "RNG must be initialized for resource instance tracking");
+
+    std::uniform_int_distribution<size_t> dist(0, it->second.size() - 1);
+    size_t index = dist(*this->rng);
+    return it->second[index];
   }
 
   // Helper method to create resource instances and schedule loss events

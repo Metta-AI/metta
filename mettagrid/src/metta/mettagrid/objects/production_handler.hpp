@@ -48,7 +48,7 @@ public:
     uint64_t resource_id = static_cast<uint64_t>(arg);
 
     // Get the agent directly from the grid using the obj_id
-    Agent* agent = static_cast<Agent*>(this->event_manager->grid->object(obj_id));
+    Agent* agent = dynamic_cast<Agent*>(this->event_manager->grid->object(obj_id));
     if (!agent) {
       return;
     }
