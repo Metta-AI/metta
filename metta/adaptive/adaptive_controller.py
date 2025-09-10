@@ -4,6 +4,7 @@ import logging
 import time
 
 from .adaptive_config import AdaptiveConfig
+from .models import JobTypes
 from .protocols import Dispatcher, ExperimentScheduler, Store
 
 logger = logging.getLogger(__name__)
@@ -30,8 +31,8 @@ class AdaptiveController:
         self.store = store
         self.config = config
 
-        # Simple job tracking
-        self.dispatched_jobs = set[str]()
+        # Job tracking by (run_id, job_type) to handle train/eval jobs with same run_id
+        self.dispatched_jobs = set[tuple[str, str]]()
 
     def run(self) -> None:
         """Main adaptive experiment loop - everything inline."""
@@ -72,7 +73,6 @@ class AdaptiveController:
                     continue
 
                 # 5. Separate by job type and validate
-                from .models import JobTypes
                 training_jobs = [j for j in new_jobs if j.type == JobTypes.LAUNCH_TRAINING]
                 eval_jobs = [j for j in new_jobs if j.type == JobTypes.LAUNCH_EVAL]
 
@@ -87,26 +87,30 @@ class AdaptiveController:
                 # 7. Dispatch all jobs
                 all_jobs = training_jobs + eval_jobs
                 for job in all_jobs:
+                    # Create job key for tracking
+                    job_key = (job.run_id, job.type.value)
+
                     # Skip if already dispatched
-                    if job.run_id in self.dispatched_jobs:
-                        logger.debug(f"[AdaptiveController] Job {job.run_id} already dispatched")
+                    if job_key in self.dispatched_jobs:
+                        logger.debug(f"[AdaptiveController] Job {job.run_id} ({job.type}) already dispatched")
                         continue
 
                     try:
                         # Dispatch the job
                         dispatch_id = self.dispatcher.dispatch(job)
-                        self.dispatched_jobs.add(job.run_id)
+                        self.dispatched_jobs.add(job_key)
 
-                        # Initialize run in store
-                        self.store.init_run(job.run_id, group=self.experiment_id)
+                        # Initialize run in store (only for training jobs, eval reuses same run)
+                        if job.type == JobTypes.LAUNCH_TRAINING:
+                            self.store.init_run(job.run_id, group=self.experiment_id)
 
                         # Store job config
                         if job.config:
                             self.store.update_run_summary(job.run_id, {"config": job.config})
-                        logger.info(f"[AdaptiveController] Dispatched {job.run_id} (dispatch_id: {dispatch_id})")
+                        logger.info(f"[AdaptiveController] Dispatched {job.run_id} ({job.type}) (dispatch_id: {dispatch_id})")
 
                     except Exception as e:
-                        logger.error(f"[AdaptiveController] Failed to dispatch {job.run_id}: {e}")
+                        logger.error(f"[AdaptiveController] Failed to dispatch {job.run_id} ({job.type}): {e}")
 
             except KeyboardInterrupt:
                 logger.info("[AdaptiveController] Interrupted, stopping experiment")
