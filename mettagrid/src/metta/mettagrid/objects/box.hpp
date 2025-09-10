@@ -38,7 +38,8 @@ public:
       unsigned char creator_agent_id)
       : creator_agent_object_id(creator_agent_object_id),
         creator_agent_id(creator_agent_id),
-        returned_resources(config.returned_resources) {
+        returned_resources(config.returned_resources),
+        inventory_list(InventoryList()) {  // Box never has resource loss
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
   }
 
@@ -55,8 +56,7 @@ public:
 
   // Implement update_inventory using InventoryList with no resource loss
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) override {
-    std::map<InventoryItem, float> empty_resource_loss_prob;
-    return inventory_list.update_inventory(item, delta, empty_resource_loss_prob, this->id);
+    return inventory_list.update_inventory(item, delta, this->id);
   }
 
   bool is_creator(unsigned char agent_id) const {

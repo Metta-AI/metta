@@ -21,8 +21,14 @@ struct ResourceInstance {
 
 class InventoryList {
 public:
-  // Constructor
+  // Constructor without resource loss
   InventoryList() : next_resource_id(1) {}
+
+  // Constructor with resource loss
+  InventoryList(EventManager* event_manager, std::mt19937* rng,
+                const std::map<InventoryItem, float>& resource_loss_prob)
+      : next_resource_id(1), event_manager(event_manager), rng(rng),
+        resource_loss_prob(resource_loss_prob) {}
 
   // Core inventory management
   std::map<InventoryItem, InventoryQuantity> inventory;
@@ -39,17 +45,23 @@ public:
   std::mt19937* rng = nullptr;
   EventManager* event_manager = nullptr;
 
-  // Set external dependencies
-  inline void set_rng(std::mt19937* rng_ptr) {
-    this->rng = rng_ptr;
+  // Getter for resource loss probabilities
+  const std::map<InventoryItem, float>& get_resource_loss_prob() const {
+    return resource_loss_prob;
   }
 
-  inline void set_event_manager(EventManager* event_manager_ptr) {
-    this->event_manager = event_manager_ptr;
-  }
+  // Populate initial inventory and initialize resource instances
+  void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory, GridObjectId object_id) {
+    for (const auto& [item, amount] : initial_inventory) {
+      if (amount > 0) {
+        this->inventory[item] = amount;
+      }
+    }
 
-  inline void set_resource_loss_prob(const std::map<InventoryItem, float>& loss_prob) {
-    this->resource_loss_prob = loss_prob;
+    // Initialize resource instances if we have both event manager and RNG
+    if (this->event_manager && this->rng) {
+      this->initialize_resource_instances(object_id);
+    }
   }
 
   // Resource instance management

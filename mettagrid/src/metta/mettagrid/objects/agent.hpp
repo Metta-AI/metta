@@ -55,7 +55,7 @@ public:
   std::map<uint64_t, ResourceInstance>& resource_instances = inventory_list.resource_instances;
 
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config)
+  Agent(GridCoord r, GridCoord c, const AgentConfig& config, EventManager* event_manager_ptr = nullptr, std::mt19937* rng_ptr = nullptr)
       : group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
@@ -77,48 +77,22 @@ public:
         prev_action_name(""),
         steps_without_motion(0),
         box(nullptr),
-        event_manager(nullptr) {
-    // Initialize InventoryList with resource loss probabilities
-    this->inventory_list.set_resource_loss_prob(config.resource_loss_prob);
-
-    populate_initial_inventory(config.initial_inventory);
+        event_manager(event_manager_ptr),
+        inventory_list(config.resource_loss_prob.empty() ? InventoryList() : InventoryList(event_manager_ptr, rng_ptr, config.resource_loss_prob)) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
+
+    this->inventory_list.populate_initial_inventory(config.initial_inventory, this->id);
   }
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
   }
 
-  void set_event_manager(EventManager* event_manager_ptr) {
-    this->event_manager = event_manager_ptr;
-    this->inventory_list.set_event_manager(event_manager_ptr);
-
-    // Initialize resource instances for existing inventory if RNG is available
-    if (this->inventory_list.rng) {
-      this->inventory_list.initialize_resource_instances(this->id);
-    }
-  }
-
-  void set_rng(std::mt19937* rng_ptr) {
-    this->inventory_list.set_rng(rng_ptr);
-
-    // Initialize resource instances for existing inventory if event manager is available
-    if (this->event_manager) {
-      this->inventory_list.initialize_resource_instances(this->id);
-    }
-  }
 
 
 
 
 
-  void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
-    for (const auto& [item, amount] : initial_inventory) {
-      if (amount > 0) {
-        this->inventory[item] = amount;
-      }
-    }
-  }
 
   void init_visitation_grid(GridCoord height, GridCoord width) {
     visitation_grid.resize(height, std::vector<unsigned int>(width, 0));

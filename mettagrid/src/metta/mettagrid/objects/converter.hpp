@@ -105,7 +105,7 @@ public:
   std::map<InventoryItem, InventoryQuantity>& inventory = inventory_list.inventory;
   std::map<uint64_t, ResourceInstance>& resource_instances = inventory_list.resource_instances;
 
-  Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
+  Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg, EventManager* event_manager_ptr = nullptr, std::mt19937* rng_ptr = nullptr)
       : input_resources(cfg.input_resources),
         output_resources(cfg.output_resources),
         max_output(cfg.max_output),
@@ -116,45 +116,25 @@ public:
         cooling_down(false),
         color(cfg.color),
         recipe_details_obs(cfg.recipe_details_obs),
-        event_manager(nullptr),
+        event_manager(event_manager_ptr),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
-        conversions_completed(0) {
+        conversions_completed(0),
+        inventory_list(cfg.resource_loss_prob.empty() ? InventoryList() : InventoryList(event_manager_ptr, rng_ptr, cfg.resource_loss_prob)) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
-    // Initialize InventoryList with resource loss probabilities
-    this->inventory_list.set_resource_loss_prob(cfg.resource_loss_prob);
-
-    // Initialize inventory with initial_resource_count for all output types
+    // Create initial inventory map for output types
+    std::map<InventoryItem, InventoryQuantity> initial_inventory;
     for (const auto& [item, _] : this->output_resources) {
       if (cfg.initial_resource_count > 0) {
-        this->inventory[item] = cfg.initial_resource_count;
-        // Note: Resource instances will be created when set_event_manager is called
-        // since we need the event manager and RNG to be set up first
+        initial_inventory[item] = cfg.initial_resource_count;
       }
     }
+
+    // Populate initial inventory and initialize resource instances
+    this->inventory_list.populate_initial_inventory(initial_inventory, this->id);
   }
 
-  void set_event_manager(EventManager* event_manager_ptr) {
-    this->event_manager = event_manager_ptr;
-    this->inventory_list.set_event_manager(event_manager_ptr);
-
-    // Initialize resource instances for existing inventory if RNG is available
-    if (this->inventory_list.rng) {
-      this->inventory_list.initialize_resource_instances(this->id);
-    }
-
-    this->maybe_start_converting();
-  }
-
-  inline void set_rng(std::mt19937* rng_ptr) {
-    this->inventory_list.set_rng(rng_ptr);
-
-    // Initialize resource instances for existing inventory if event manager is available
-    if (this->event_manager) {
-      this->inventory_list.initialize_resource_instances(this->id);
-    }
-  }
 
   // Implement HasInventory interface
   InventoryList& get_inventory_list() override {

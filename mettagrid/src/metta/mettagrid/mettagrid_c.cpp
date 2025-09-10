@@ -183,18 +183,16 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
         config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
 
-        Converter* converter = new Converter(r, c, config_with_offsets);
+        Converter* converter = new Converter(r, c, config_with_offsets, _event_manager.get(), &_rng);
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
-        converter->set_event_manager(_event_manager.get());
-        converter->set_rng(&_rng);
         converter->stats.set_environment(this);
         continue;
       }
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config);
+        Agent* agent = new Agent(r, c, *agent_config, _event_manager.get(), &_rng);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
@@ -287,8 +285,6 @@ void MettaGrid::init_action_handlers() {
 
 void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
-  agent->set_event_manager(_event_manager.get());
-  agent->set_rng(&_rng);
   _agents.push_back(agent);
 }
 
@@ -693,7 +689,7 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["inventory"] = inventory_dict;
 
       py::dict resource_loss_prob_dict;
-      for (const auto& [resource, probability] : agent->inventory_list.resource_loss_prob) {
+      for (const auto& [resource, probability] : agent->inventory_list.get_resource_loss_prob()) {
         resource_loss_prob_dict[py::int_(resource)] = probability;
       }
       obj_dict["resource_loss_prob"] = resource_loss_prob_dict;
@@ -732,7 +728,7 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["output_resources"] = output_resources_dict;
 
       py::dict resource_loss_prob_dict;
-      for (const auto& [resource, probability] : converter->inventory_list.resource_loss_prob) {
+      for (const auto& [resource, probability] : converter->inventory_list.get_resource_loss_prob()) {
         resource_loss_prob_dict[py::int_(resource)] = probability;
       }
       obj_dict["resource_loss_prob"] = resource_loss_prob_dict;
