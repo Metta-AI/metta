@@ -106,7 +106,6 @@ def train(
     run: Optional[str] = None,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_logging: bool = False,
-    skip_git_check: bool = False,
 ) -> TrainTool:
     # Generate structured run name if not provided
     if run is None:
@@ -117,7 +116,6 @@ def train(
         or make_curriculum(enable_detailed_bucket_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
-            skip_git_check=skip_git_check,
         ),
     )
 
