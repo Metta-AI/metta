@@ -1,12 +1,12 @@
-"""Utility functions for sweep orchestration."""
+"""Utility functions for adaptive experiment orchestration."""
 
 import hashlib
 import logging
 import time
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from metta.sweep.models import JobDefinition, JobTypes, RunInfo
+from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
+from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +63,18 @@ def make_monitor_table(
 
         # Format score and cost
         if include_score:
-            score_str = f"{run.observation.score:.4f}" if run.observation else "N/A"
-            cost_str = f"${run.observation.cost:.2f}" if run.observation else "N/A"
+            # Try to get score/cost from sweep namespace first, then from observation field (backwards compat)
+            summary = run.summary if isinstance(run.summary, dict) else {}
+            score = summary.get("sweep/score")
+            cost = summary.get("sweep/cost")
+
+            # Backwards compatibility: check old observation field
+            if score is None and hasattr(run, "observation") and run.observation:
+                score = run.observation.score
+                cost = run.observation.cost
+
+            score_str = f"{float(score):.4f}" if score is not None else "N/A"
+            cost_str = f"${float(cost):.2f}" if cost is not None else "N/A"
             lines.append(
                 f"{prefix}{display_id:<25} {str(run.status):<25} {progress_str:<30} {score_str:<15} {cost_str:<10}"
             )
@@ -80,7 +90,7 @@ def get_display_id(run_id: str) -> str:
     """Extract clean display ID from run ID.
 
     Args:
-        run_id: Full run ID (e.g., "sweep_name_trial_0001_a1b2c3")
+        run_id: Full run ID (e.g., "experiment_name_trial_0001_a1b2c3")
 
     Returns:
         Cleaned display ID (e.g., "trial_0001")
@@ -94,7 +104,7 @@ def get_display_id(run_id: str) -> str:
 
 def build_eval_overrides(
     run_id: str,
-    sweep_id: str,
+    experiment_id: str,
     stats_server_uri: Optional[str] = None,
     additional_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -102,20 +112,20 @@ def build_eval_overrides(
 
     Args:
         run_id: The run ID for WandB tracking
-        sweep_id: The sweep ID for grouping
+        experiment_id: The experiment ID for grouping
         stats_server_uri: Optional stats server URI
         additional_overrides: Optional additional overrides to merge
 
     Returns:
         Dictionary of evaluation overrides
     """
-    eval_overrides = additional_overrides.copy() if additional_overrides else {}
+    eval_overrides = dict(additional_overrides) if additional_overrides else {}
 
     # WandB configuration
     eval_overrides["push_metrics_to_wandb"] = "True"
     eval_overrides["wandb.name"] = run_id
     eval_overrides["wandb.run_id"] = run_id
-    eval_overrides["wandb.group"] = sweep_id
+    eval_overrides["wandb.group"] = experiment_id
 
     # Stats server configuration
     if stats_server_uri:
@@ -137,31 +147,30 @@ def build_train_overrides(
     Returns:
         Dictionary of training overrides
     """
-    overrides = additional_overrides.copy() if additional_overrides else {}
+    overrides = dict(additional_overrides) if additional_overrides else {}
 
     if stats_server_uri:
         overrides["stats_server_uri"] = stats_server_uri
-        overrides["evaluator.evaluate_remote"] = "True"
-        overrides["evaluator.evaluate_local"] = "False"
-        overrides["evaluator.skip_git_check"] = "True"
+        overrides["trainer.evaluation.evaluate_remote"] = "True"
+        overrides["trainer.evaluation.evaluate_local"] = "False"
+        overrides["trainer.evaluation.skip_git_check"] = "True"
 
     return overrides
 
 
 def create_eval_job(
     run_id: str,
-    sweep_id: str,
+    experiment_id: str,
     recipe_module: str,
     eval_entrypoint: str,
     stats_server_uri: Optional[str] = None,
-    eval_args: Optional[List[str]] = None,
     eval_overrides: Optional[Dict[str, Any]] = None,
 ) -> "JobDefinition":
     """Create an evaluation job definition.
 
     Args:
         run_id: The run ID to evaluate
-        sweep_id: The sweep ID for grouping
+        experiment_id: The experiment ID for grouping
         recipe_module: Module containing the evaluation function
         eval_entrypoint: Name of the evaluation function
         stats_server_uri: Optional stats server URI
@@ -171,11 +180,11 @@ def create_eval_job(
     Returns:
         JobDefinition for evaluation
     """
-    from metta.sweep.models import JobDefinition, JobTypes
+    from metta.adaptive.models import JobDefinition, JobTypes
 
     overrides = build_eval_overrides(
         run_id=run_id,
-        sweep_id=sweep_id,
+        experiment_id=experiment_id,
         stats_server_uri=stats_server_uri,
         additional_overrides=eval_overrides,
     )
@@ -184,18 +193,17 @@ def create_eval_job(
         run_id=run_id,
         cmd=f"{recipe_module}.{eval_entrypoint}",
         type=JobTypes.LAUNCH_EVAL,
-        args=eval_args or [],
+        args={"policy_uri": f"{SOFTMAX_S3_POLICY_PREFIX}/{run_id}:latest"},
         overrides=overrides,
-        metadata={"policy_uri": f"s3://policies/{run_id}/latest.pt"},
+        metadata={},
     )
 
 
 def create_training_job(
     run_id: str,
-    sweep_id: str,
+    experiment_id: str,
     recipe_module: str,
     train_entrypoint: str,
-    config: Dict[str, Any],
     gpus: int = 1,
     nodes: int = 1,
     stats_server_uri: Optional[str] = None,
@@ -205,11 +213,11 @@ def create_training_job(
 
     Args:
         run_id: The unique run ID
-        sweep_id: The sweep ID for grouping
+        experiment_id: The experiment ID for grouping
         recipe_module: Module containing the training function
         train_entrypoint: Name of the training function
         config: Hyperparameter configuration from optimizer
-        gpus_per_job: Number of GPUs per job
+        gpus: Number of GPUs per job
         stats_server_uri: Optional stats server URI
         train_overrides: Optional additional overrides
 
@@ -228,45 +236,25 @@ def create_training_job(
         type=JobTypes.LAUNCH_TRAINING,
         gpus=gpus,
         nodes=nodes,
-        config=config,
+        args={"run": run_id, "group": experiment_id},
         overrides=overrides,
-        metadata={"group": sweep_id},
+        metadata={"group": experiment_id},
     )
 
 
-def generate_run_id(sweep_id: str, trial_num: int) -> str:
+def generate_run_id(experiment_id: str, trial_num: int) -> str:
     """Generate a standardized run ID with hash to avoid collisions.
 
     Args:
-        sweep_id: The sweep identifier
+        experiment_id: The experiment identifier
         trial_num: The trial number (1-based)
 
     Returns:
-        Formatted run ID like "sweep_id_trial_0001_a1b2c3"
+        Formatted run ID like "experiment_id_trial_0001_a1b2c3"
     """
     # Generate a short hash to avoid name collisions
-    # Use sweep_id, trial_num, and current time to ensure uniqueness
-    hash_input = f"{sweep_id}_{trial_num}_{time.time()}"
+    # Use experiment_id, trial_num, and current time to ensure uniqueness
+    hash_input = f"{experiment_id}_{trial_num}_{time.time()}"
     short_hash = hashlib.md5(hash_input.encode()).hexdigest()[:6]
 
-    return f"{sweep_id}_trial_{trial_num:04d}_{short_hash}"
-
-
-def _get_status_color(status: str) -> str:
-    """Get color for different run statuses."""
-    status_colors = {
-        "COMPLETED": "bright_blue",
-        "IN_TRAINING": "bright_green",
-        "PENDING": "bright_black",
-        "TRAINING_DONE_NO_EVAL": "bright_yellow",
-        "IN_EVAL": "bright_cyan",
-        "EVAL_DONE_NOT_COMPLETED": "bright_magenta",
-        "FAILED": "bright_red",
-    }
-    return status_colors.get(status, "white")
-
-
-def _sort_runs_for_display(runs: List["RunInfo"]) -> List["RunInfo"]:
-    """Sort runs for display by created_at time, newest first."""
-    # Sort by created_at time (descending), with None values at the end
-    return sorted(runs, key=lambda r: r.created_at if r.created_at else datetime.max, reverse=True)
+    return f"{experiment_id}_trial_{trial_num:04d}_{short_hash}"
