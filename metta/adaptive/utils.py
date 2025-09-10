@@ -1,11 +1,11 @@
-"""Utility functions for sweep orchestration."""
+"""Utility functions for adaptive experiment orchestration."""
 
 import hashlib
 import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from metta.sweep.models import JobDefinition, JobTypes, RunInfo
+from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ def get_display_id(run_id: str) -> str:
     """Extract clean display ID from run ID.
 
     Args:
-        run_id: Full run ID (e.g., "sweep_name_trial_0001_a1b2c3")
+        run_id: Full run ID (e.g., "experiment_name_trial_0001_a1b2c3")
 
     Returns:
         Cleaned display ID (e.g., "trial_0001")
@@ -93,7 +93,7 @@ def get_display_id(run_id: str) -> str:
 
 def build_eval_overrides(
     run_id: str,
-    sweep_id: str,
+    experiment_id: str,
     stats_server_uri: Optional[str] = None,
     additional_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -101,7 +101,7 @@ def build_eval_overrides(
 
     Args:
         run_id: The run ID for WandB tracking
-        sweep_id: The sweep ID for grouping
+        experiment_id: The experiment ID for grouping
         stats_server_uri: Optional stats server URI
         additional_overrides: Optional additional overrides to merge
 
@@ -114,7 +114,7 @@ def build_eval_overrides(
     eval_overrides["push_metrics_to_wandb"] = "True"
     eval_overrides["wandb.name"] = run_id
     eval_overrides["wandb.run_id"] = run_id
-    eval_overrides["wandb.group"] = sweep_id
+    eval_overrides["wandb.group"] = experiment_id
 
     # Stats server configuration
     if stats_server_uri:
@@ -149,7 +149,7 @@ def build_train_overrides(
 
 def create_eval_job(
     run_id: str,
-    sweep_id: str,
+    experiment_id: str,
     recipe_module: str,
     eval_entrypoint: str,
     stats_server_uri: Optional[str] = None,
@@ -160,7 +160,7 @@ def create_eval_job(
 
     Args:
         run_id: The run ID to evaluate
-        sweep_id: The sweep ID for grouping
+        experiment_id: The experiment ID for grouping
         recipe_module: Module containing the evaluation function
         eval_entrypoint: Name of the evaluation function
         stats_server_uri: Optional stats server URI
@@ -170,11 +170,11 @@ def create_eval_job(
     Returns:
         JobDefinition for evaluation
     """
-    from metta.sweep.models import JobDefinition, JobTypes
+    from metta.adaptive.models import JobDefinition, JobTypes
 
     overrides = build_eval_overrides(
         run_id=run_id,
-        sweep_id=sweep_id,
+        experiment_id=experiment_id,
         stats_server_uri=stats_server_uri,
         additional_overrides=eval_overrides,
     )
@@ -185,13 +185,13 @@ def create_eval_job(
         type=JobTypes.LAUNCH_EVAL,
         args=eval_args or [],
         overrides=overrides,
-        metadata={"policy_uri": f"s3://policies/{run_id}/latest.pt"},
+        metadata={"policy_uri": f"wandb://metta/{run_id}"},
     )
 
 
 def create_training_job(
     run_id: str,
-    sweep_id: str,
+    experiment_id: str,
     recipe_module: str,
     train_entrypoint: str,
     config: Dict[str, Any],
@@ -204,7 +204,7 @@ def create_training_job(
 
     Args:
         run_id: The unique run ID
-        sweep_id: The sweep ID for grouping
+        experiment_id: The experiment ID for grouping
         recipe_module: Module containing the training function
         train_entrypoint: Name of the training function
         config: Hyperparameter configuration from optimizer
@@ -229,23 +229,23 @@ def create_training_job(
         nodes=nodes,
         config=config,
         overrides=overrides,
-        metadata={"group": sweep_id},
+        metadata={"group": experiment_id},
     )
 
 
-def generate_run_id(sweep_id: str, trial_num: int) -> str:
+def generate_run_id(experiment_id: str, trial_num: int) -> str:
     """Generate a standardized run ID with hash to avoid collisions.
 
     Args:
-        sweep_id: The sweep identifier
+        experiment_id: The experiment identifier
         trial_num: The trial number (1-based)
 
     Returns:
-        Formatted run ID like "sweep_id_trial_0001_a1b2c3"
+        Formatted run ID like "experiment_id_trial_0001_a1b2c3"
     """
     # Generate a short hash to avoid name collisions
-    # Use sweep_id, trial_num, and current time to ensure uniqueness
-    hash_input = f"{sweep_id}_{trial_num}_{time.time()}"
+    # Use experiment_id, trial_num, and current time to ensure uniqueness
+    hash_input = f"{experiment_id}_{trial_num}_{time.time()}"
     short_hash = hashlib.md5(hash_input.encode()).hexdigest()[:6]
 
-    return f"{sweep_id}_trial_{trial_num:04d}_{short_hash}"
+    return f"{experiment_id}_trial_{trial_num:04d}_{short_hash}"
