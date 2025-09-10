@@ -190,7 +190,7 @@ def make_icl_resource_chain(
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                rotate=ActionConfig(),
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),
