@@ -1,10 +1,3 @@
-"""
-Task tracking component for curriculum systems.
-
-Provides general task performance tracking, completion statistics, memory management,
-and bucket analysis capabilities that can be used by any curriculum algorithm.
-"""
-
 import time
 from collections import defaultdict, deque
 from typing import Any, Dict, List, Optional, Tuple

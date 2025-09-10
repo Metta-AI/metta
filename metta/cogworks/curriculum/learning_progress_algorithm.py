@@ -1,9 +1,3 @@
-"""
-Learning Progress Algorithm using composition of focused components.
-
-This algorithm uses smaller, focused components that each handle a single responsibility.
-"""
-
 from typing import Any, Dict, List, Optional
 
 import numpy as np

@@ -1,5 +1,3 @@
-"""Core curriculum implementations and utilities."""
-
 from __future__ import annotations
 
 import abc
