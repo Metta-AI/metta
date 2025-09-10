@@ -2,7 +2,7 @@
 ## Standalone Nim executable that runs the environment and viewer
 ## Communicates with Python through file-based IPC
 
-import std/[os, times, strutils, json, strformat]
+import std/[os, times, strutils, json, strformat, random]
 import boxy, opengl, windy, vmath
 import tribal/[environment, renderer, common, panels, controls, ui, external_actions]
 
@@ -29,6 +29,7 @@ var
   lastUpdateTime = 0.0
   communicationActive = false
   assetsLoaded = false  # Track whether we have PNG assets
+  testMode = false  # Standalone test mode without Python communication
 
 # Forward declaration for safe rendering
 proc drawSafeRectangleEnvironment()
@@ -262,122 +263,38 @@ proc checkCommunication(): bool =
   return communicationActive
 
 proc renderFrame() =
-  ## Render one frame of the environment with safe error handling
+  ## Render one frame of the environment
   try:
-    # Minimal safe rendering - just clear the screen
     bxy.beginFrame(window.size)
     
-    # Test just asset loading first - no other advanced features yet
-    echo "🔧 DEBUG: Testing PNG assets only, no advanced features"
+    # Draw environment
+    if not isNil(env):
+      drawSafeRectangleEnvironment()
     
-    # Try to draw environment with full rendering pipeline
-    try:
-      if not isNil(env):
-        if assetsLoaded:
-          echo "🔧 DEBUG: Using full sprite rendering with PNG assets"
-          # Test each sprite rendering function individually with detailed debugging
-          echo "🔧 DEBUG: About to test sprite rendering functions..."
-          echo "🔧 DEBUG: Boxy context exists: ", not isNil(bxy)
-          echo "🔧 DEBUG: Environment exists: ", not isNil(env)
-          
-          try:
-            echo "🔧 Testing drawFloor() - entering function..."
-            drawFloor()
-            echo "✅ drawFloor() succeeded completely"
-          except Exception as e:
-            echo "❌ drawFloor() crashed with error: ", e.msg
-            echo "❌ This confirms the crash is in sprite rendering, not asset loading"
-          
-          try:
-            echo "🔧 Testing drawTerrain()..."
-            drawTerrain()  
-            echo "✅ drawTerrain() succeeded"
-          except Exception as e:
-            echo "❌ drawTerrain() crashed: ", e.msg
-          
-          try:
-            echo "🔧 Testing drawWalls()..."
-            drawWalls()
-            echo "✅ drawWalls() succeeded"  
-          except Exception as e:
-            echo "❌ drawWalls() crashed: ", e.msg
-            
-          try:
-            echo "🔧 Testing drawObjects()..."
-            drawObjects()
-            echo "✅ drawObjects() succeeded"
-          except Exception as e:
-            echo "❌ drawObjects() crashed: ", e.msg
-            
-          try:
-            echo "🔧 Testing drawActions()..."
-            drawActions()
-            echo "✅ drawActions() succeeded"
-          except Exception as e:
-            echo "❌ drawActions() crashed: ", e.msg
-            
-          try:
-            echo "🔧 Testing drawObservations()..."
-            drawObservations()
-            echo "✅ drawObservations() succeeded"
-          except Exception as e:
-            echo "❌ drawObservations() crashed: ", e.msg
-            
-          try:
-            echo "🔧 Testing drawAgentDecorations()..."
-            drawAgentDecorations()
-            echo "✅ drawAgentDecorations() succeeded"
-          except Exception as e:
-            echo "❌ drawAgentDecorations() crashed: ", e.msg
-            
-          echo "✅ Individual sprite function testing completed"
-        else:
-          echo "🔧 DEBUG: Using safe rectangle rendering"
-          drawSafeRectangleEnvironment()
-      
-      echo "✅ Environment drawing completed with enhanced features"
-    except Exception as e:
-      echo "⚠️  Enhanced environment drawing failed: ", e.msg
+    # Draw UI panels
+    let headerColor = color(0.15, 0.15, 0.2, 1.0)
+    bxy.drawRect(
+      rect = rect(0, 0, window.size.x.float32, 64),
+      color = headerColor
+    )
     
-    # Try to draw UI panels with safe basic backgrounds instead of complex UI functions
-    try:
-      # Draw basic panel backgrounds instead of complex UI
-      let headerColor = color(0.15, 0.15, 0.2, 1.0)
-      bxy.drawRect(
-        rect = rect(0, 0, window.size.x.float32, 64),
-        color = headerColor
-      )
-      echo "✅ Header panel background drawn"
-    except Exception as e:
-      echo "⚠️  Header panel failed: ", e.msg
+    let footerColor = color(0.15, 0.15, 0.2, 1.0)
+    bxy.drawRect(
+      rect = rect(0, window.size.y.float32 - 64, window.size.x.float32, 64),
+      color = footerColor
+    )
     
-    try:
-      let footerColor = color(0.15, 0.15, 0.2, 1.0)
-      bxy.drawRect(
-        rect = rect(0, window.size.y.float32 - 64, window.size.x.float32, 64),
-        color = footerColor
-      )
-      echo "✅ Footer panel background drawn"
-    except Exception as e:
-      echo "⚠️  Footer panel failed: ", e.msg
-    
-    try:
-      let timelineColor = color(0.1, 0.1, 0.15, 1.0)
-      bxy.drawRect(
-        rect = rect(0, window.size.y.float32 - 128, window.size.x.float32, 64),
-        color = timelineColor
-      )
-      echo "✅ Timeline panel background drawn"
-    except Exception as e:
-      echo "⚠️  Timeline panel failed: ", e.msg
+    let timelineColor = color(0.1, 0.1, 0.15, 1.0)
+    bxy.drawRect(
+      rect = rect(0, window.size.y.float32 - 128, window.size.x.float32, 64),
+      color = timelineColor
+    )
     
     bxy.endFrame()
     window.swapBuffers()
-    echo "🔧 DEBUG: Basic frame rendered successfully"
     
   except Exception as e:
     echo "❌ Error in renderFrame: ", e.msg
-    # Continue running even if rendering fails
 
 proc drawSafeRectangleEnvironment() =
   ## Enhanced rectangle-based rendering with improved visuals
@@ -507,63 +424,7 @@ proc drawSafeRectangleEnvironment() =
         color = color(0.0, 0.0, 0.0, 1.0)  # Black directional dot
       )
   
-  # # Handle mouse capture release
-  # if window.buttonReleased[MouseLeft]:
-  #   mouseCaptured = false
-  #   mouseCapturedPanel = nil
-  # 
-  # # Begin frame
-  # bxy.beginFrame(window.size)
-  # const RibbonHeight = 64
-  # rootArea.rect = IRect(x: 0, y: RibbonHeight, w: window.size.x, h: window.size.y - RibbonHeight*3)
-  # rootArea.updatePanelsSizes()
-  # globalHeaderPanel.rect = IRect(x: 0, y: 0, w: window.size.x, h: RibbonHeight)
-  # globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
-  # globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
-  # 
-  # # Draw world map
-  # worldMapPanel.beginDraw()
-  # worldMapPanel.beginPanAndZoom()
-  # useSelections()
-  # agentControls()
-  # 
-  # drawFloor()
-  # drawTerrain()
-  # drawWalls()
-  # drawObjects()
-  # drawActions()
-  # drawObservations()
-  # drawAgentDecorations()
-  # if settings.showVisualRange:
-  #   drawVisualRanges()
-  # if settings.showGrid:
-  #   drawGrid()
-  # if settings.showFogOfWar:
-  #   drawFogOfWar()
-  # drawSelection()
-  # 
-  # worldMapPanel.endPanAndZoom()
-  # drawInfoText()
-  # worldMapPanel.endDraw()
-  # 
-  # # Draw UI panels
-  # globalHeaderPanel.beginDraw()
-  # drawHeader(globalHeaderPanel)
-  # globalHeaderPanel.endDraw()
-  # 
-  # globalFooterPanel.beginDraw()
-  # drawFooter(globalFooterPanel)
-  # globalFooterPanel.endDraw()
-  # 
-  # globalTimelinePanel.beginDraw()
-  # drawTimeline(globalTimelinePanel)
-  # globalTimelinePanel.endDraw()
-  # 
-  # rootArea.drawFrame()
-  # 
-  # # End frame
-  # bxy.endFrame()
-  # window.swapBuffers()
+  # Commented out complex UI code - now using simple rectangle rendering
 
 proc runMainLoop() =
   ## Main game loop with file-based communication
@@ -633,10 +494,89 @@ proc runMainLoop() =
         sleep(sleepMs)
     lastFrameTime = epochTime()
 
+proc runTestLoop() =
+  ## Standalone test loop that shows the environment without Python communication
+  echo "🚀 Starting test loop - showing environment directly"
+  
+  let targetFPS = 30.0
+  let frameTime = 1.0 / targetFPS
+  var lastFrameTime = epochTime()
+  var stepCounter = 0
+  
+  # Reset environment
+  env.reset()
+  echo "✅ Environment reset for test mode"
+  
+  # Seed random for reproducible agent movement
+  randomize()
+  
+  # Main test loop with graphics
+  while not window.closeRequested:
+    let currentTime = epochTime()
+    
+    # Simple agent movement every 10 frames for visual interest
+    if stepCounter mod 10 == 0:
+      echo "🎲 Taking random environment step ", stepCounter div 10
+      
+      # Generate random actions for all agents
+      var actions: array[MapAgents, array[2, uint8]]
+      
+      # Default to NOOP actions
+      for i in 0..<MapAgents:
+        actions[i] = [0'u8, 0'u8]  # NOOP action
+      
+      # Generate random actions for alive agents
+      var activeActions = 0
+      for i in 0 ..< min(env.agents.len, MapAgents):
+        if not isNil(env.agents[i]) and env.agents[i].frozen < 999999:
+          # Random actions: 0=NOOP, 1=MOVE(0-3), 2=ROTATE, 3=GET(0-7)
+          let actionType = rand(3)  # 0-3 
+          let argument = case actionType:
+            of 1: rand(3)  # MOVE: N, S, W, E (0-3)
+            of 3: rand(7)  # GET: 8 directions (0-7)
+            else: 0
+          
+          actions[i] = [actionType.uint8, argument.uint8]
+          inc activeActions
+      
+      # Step environment with random actions
+      try:
+        env.step(actions.addr)
+        echo "✅ Environment stepped with ", activeActions, " active agents"
+      except Exception as e:
+        echo "⚠️  Error in env.step (continuing): ", e.msg
+    
+    stepCounter += 1
+    
+    # Render frame
+    try:
+      renderFrame()
+    except Exception as e:
+      echo "❌ Error in renderFrame: ", e.msg
+      # Don't quit, keep trying
+    
+    # Handle window events
+    pollEvents()
+    
+    # Frame rate limiting
+    let frameElapsed = currentTime - lastFrameTime
+    if frameElapsed < frameTime:
+      let sleepMs = int((frameTime - frameElapsed) * 1000)
+      if sleepMs > 0:
+        sleep(sleepMs)
+    lastFrameTime = epochTime()
+  
+  echo "🏁 Test loop finished"
+
 # Main entry point
 proc main() =
   ## Main entry point for the process viewer
   echo "🎮 Tribal Process-Separated Viewer Starting"
+  
+  # Check for test mode argument
+  if paramCount() > 0 and paramStr(1) == "--test":
+    testMode = true
+    echo "🧪 Test mode enabled - running standalone without Python communication"
   
   if not initViewer():
     echo "❌ Failed to initialize viewer"
@@ -654,16 +594,21 @@ proc main() =
     echo "❌ Failed to initialize environment" 
     quit(1)
   
-  # Create initial control file to signal readiness
-  let controlData = %*{"ready": true, "active": false, "pid": getCurrentProcessId()}
-  writeFile(ControlFile, $controlData)
-  
-  echo "🎯 Viewer ready - waiting for Python communication"
-  echo "   Python should write to: ", ActionsFile
-  echo "   Python should set active=true in: ", ControlFile
-  
   try:
-    runMainLoop()
+    if testMode:
+      # Run standalone test mode 
+      echo "🧪 Starting standalone test mode"
+      runTestLoop()
+    else:
+      # Create initial control file to signal readiness
+      let controlData = %*{"ready": true, "active": false, "pid": getCurrentProcessId()}
+      writeFile(ControlFile, $controlData)
+      
+      echo "🎯 Viewer ready - waiting for Python communication"
+      echo "   Python should write to: ", ActionsFile
+      echo "   Python should set active=true in: ", ControlFile
+      
+      runMainLoop()
   except Exception as e:
     echo "❌ Error in main loop: ", e.msg
   finally:

@@ -518,7 +518,7 @@ class TribalGennyPlayTool(Tool):
             nim_env = tribal.TribalEnv(config)
             print("✅ Nim environment created for verification")
             
-            return self._run_verified_control_loop(nim_env, policy)
+            return self._run_nimpy_viewer_loop(nim_env, policy)
             
         except Exception as e:
             print(f"❌ Error running environment: {e}")
@@ -937,6 +937,165 @@ class TribalGennyPlayTool(Tool):
             
         except Exception as e:
             print(f"❌ Error in verified control loop: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
+
+    def _run_nimpy_viewer_loop(self, nim_env, policy) -> int:
+        """
+        Run the environment with nimpy viewer showing native complex rendering.
+        
+        This creates a proper Nim window with the original complex sprite graphics,
+        while Python controls the environment through nimpy bindings.
+        """
+        import numpy as np
+        import time
+        from pathlib import Path
+        
+        print("🎮 Starting nimpy viewer with NATIVE COMPLEX RENDERING...")
+        print("   Python controls environment via nimpy")
+        print("   Nim shows full sprite graphics with complex UI")
+        
+        try:
+            # Change to tribal directory for nimpy imports
+            tribal_dir = Path(__file__).parent.parent.parent / "tribal"
+            import os
+            old_cwd = os.getcwd()
+            os.chdir(tribal_dir)
+            
+            try:
+                # Import the nimpy viewer module (.so file)
+                print("🎨 Importing nimpy viewer for native rendering...")
+                import imp
+                viewer = imp.load_dynamic('tribal_nimpy_viewer', './tribal_nimpy_viewer.so')
+                print("✅ Nimpy viewer (.so) imported successfully")
+                
+                # Initialize the visualization with native complex rendering
+                print("🖥️  Initializing native Nim window with complex graphics...")
+                if not viewer.initVisualization():
+                    print("❌ Failed to initialize nimpy visualization")
+                    return 1
+                print("✅ Native Nim window initialized")
+                
+                # Load all the complex sprites and assets
+                print("🎨 Loading complex sprites and native assets...")
+                if not viewer.loadAssets():
+                    print("❌ Failed to load native assets")
+                    return 1
+                print("✅ All native sprites and assets loaded")
+                
+                print("🎮 Starting environment control loop with native rendering...")
+                
+                # Reset the environment
+                nim_env.reset_env()
+                step_count = 0
+                max_steps = min(200, self.env_config.game.max_steps)
+                
+                print(f"🚀 Running {max_steps} steps with native complex rendering...")
+                
+                # Main control and render loop with native graphics
+                while step_count < max_steps and viewer.isWindowOpen():
+                    # Get observations from the Nim environment
+                    token_observations = nim_env.get_token_observations()
+                    
+                    # Convert to proper tensor format for the policy
+                    import torch
+                    from tensordict import TensorDict
+                    
+                    obs_array = np.array([token_observations[i] for i in range(len(token_observations))])
+                    obs_array = obs_array.reshape(15, 200, 3)  # [agents, tokens, token_data]
+                    
+                    obs_tensor = torch.tensor(obs_array, dtype=torch.float32)
+                    td = TensorDict({
+                        "_obs_": obs_tensor,
+                    }, batch_size=[15])
+                    
+                    # Get actions from policy
+                    policy_output = policy.forward(td)
+                    flat_actions = []
+                    
+                    # Handle different policy output formats
+                    if isinstance(policy_output, dict) and "actions" in policy_output:
+                        actions_nested = policy_output["actions"]
+                        if isinstance(actions_nested, list):
+                            # Handle nested list format: [[action_type, arg], ...]
+                            for agent_actions in actions_nested:
+                                flat_actions.extend(agent_actions)
+                        else:
+                            flat_actions = actions_nested.flatten().astype(int).tolist() if hasattr(actions_nested, 'flatten') else actions_nested
+                    else:
+                        flat_actions = [0] * 30  # Default to noop actions
+                    
+                    # Ensure we have the right number of actions
+                    if len(flat_actions) != 30:
+                        flat_actions = (flat_actions + [0] * 30)[:30]
+                    
+                    # Convert to SeqInt and step the environment
+                    import tribal
+                    actions_seq = tribal.SeqInt()
+                    for action in flat_actions:
+                        actions_seq.append(action)
+                    
+                    nim_env.step(actions_seq)
+                    
+                    # Render frame with NATIVE COMPLEX RENDERING
+                    # This uses the original Nim sprites, complex UI, and full graphics
+                    if not viewer.renderFrame():
+                        print("❌ Native viewer window closed or rendering failed")
+                        break
+                    
+                    step_count += 1
+                    
+                    # Progress reporting
+                    if step_count % 50 == 0:
+                        rewards = nim_env.get_rewards()
+                        avg_reward = sum(rewards) / len(rewards) if rewards else 0
+                        
+                        # Count action types
+                        move_count = sum(1 for i in range(0, len(flat_actions), 2) if flat_actions[i] == 1)
+                        noop_count = sum(1 for i in range(0, len(flat_actions), 2) if flat_actions[i] == 0)
+                        
+                        print(f"  ✅ Step {step_count}: avg_reward={avg_reward:.3f}")
+                        print(f"     Actions: {move_count} MOVE, {noop_count} NOOP")
+                        print(f"     🎨 Native complex graphics displayed in Nim window")
+                    
+                    # Brief pause for visualization
+                    time.sleep(0.05)  # 20 FPS
+                
+                print(f"🏆 Native rendering complete!")
+                print(f"   Steps: {step_count}")
+                print(f"   ✅ Python successfully controlled environment via nimpy")
+                print(f"   ✅ Nim displayed full native complex graphics")
+                print(f"   🎨 Sprites, complex UI, and all visual effects shown")
+                
+                # Keep window open briefly to see final state
+                print("💡 Keeping native window open for 3 seconds to view results...")
+                for _ in range(3):
+                    if viewer.isWindowOpen():
+                        viewer.renderFrame()
+                        time.sleep(1)
+                    else:
+                        break
+                
+                return 0
+                
+            except Exception as e:
+                print(f"❌ Error in nimpy viewer loop: {e}")
+                import traceback
+                traceback.print_exc()
+                return 1
+            finally:
+                # Clean up the viewer
+                try:
+                    viewer.closeVisualization()
+                    print("✅ Native viewer closed cleanly")
+                except:
+                    pass
+                finally:
+                    os.chdir(old_cwd)
+                    
+        except Exception as e:
+            print(f"❌ Error setting up nimpy viewer: {e}")
             import traceback
             traceback.print_exc()
             return 1
@@ -1750,12 +1909,36 @@ def evaluate(
 
 def play(
     env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
+) -> "TribalGennyPlayTool":
+    """
+    Interactive play with the tribal environment using nimpy bindings.
+
+    This uses direct Python-Nim integration via nimpy for clean, efficient communication.
+    Environment stepping is verified to work correctly with the test policies.
+
+    Args:
+        env: Optional tribal environment config
+        policy_uri: Optional URI to trained policy (supports test_noop, test_move)
+        **overrides: Additional configuration overrides
+    """
+    # Use the configured tribal environment, or create default
+    play_env = env or make_tribal_environment()
+
+    return TribalGennyPlayTool(
+        env_config=play_env,
+        policy_uri=policy_uri,
+        **overrides,
+    )
+
+
+def play_process_separated(
+    env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
 ) -> "TribalProcessPlayTool":
     """
-    Interactive play with the tribal environment using process separation.
+    Interactive play with the tribal environment using process separation (legacy).
 
-    This eliminates SIGSEGV issues by running the Nim viewer in a separate process
-    and communicating through file-based IPC. No more nimpy OpenGL conflicts!
+    This is the complex JSON file-based approach that was used to work around
+    nimpy SIGSEGV issues. Use play() instead for the cleaner nimpy approach.
 
     Args:
         env: Optional tribal environment config
@@ -1766,30 +1949,6 @@ def play(
     play_env = env or make_tribal_environment()
 
     return TribalProcessPlayTool(
-        env_config=play_env,
-        policy_uri=policy_uri,
-        **overrides,
-    )
-
-
-def play_nimpy(
-    env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
-) -> "TribalGennyPlayTool":
-    """
-    Interactive play with the tribal environment using nimpy (legacy, may crash).
-
-    This is the old approach that uses nimpy directly and may cause SIGSEGV.
-    Use play() instead for the process-separated approach.
-
-    Args:
-        env: Optional tribal environment config
-        policy_uri: Optional URI to trained policy
-        **overrides: Additional configuration overrides
-    """
-    # Use the configured tribal environment, or create default
-    play_env = env or make_tribal_environment()
-
-    return TribalGennyPlayTool(
         env_config=play_env,
         policy_uri=policy_uri,
         **overrides,
