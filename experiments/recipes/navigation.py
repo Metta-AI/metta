@@ -6,6 +6,7 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.weighted_algorithm_config import WeightedCurriculumAlgorithmConfig, WeightedCurriculum
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -102,6 +103,47 @@ def make_curriculum(
     )
 
 
+def make_weighted_curriculum(
+    nav_env: Optional[MettaGridConfig] = None,
+    enable_detailed_bucket_logging: bool = False,
+) -> CurriculumConfig:
+    """Create a weighted curriculum using O(1) task type sampling for better performance."""
+    nav_env = nav_env or make_mettagrid()
+
+    # make a set of training tasks for navigation - same as regular curriculum
+    dense_tasks = cc.bucketed(nav_env)
+
+    maps = ["terrain_maps_nohearts"]
+    for size in ["large", "medium", "small"]:
+        for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
+            maps.append(f"varied_terrain/{terrain}_{size}")
+
+    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(3, 50)])
+
+    # sparse environments are just random maps
+    sparse_nav_env = nav_env.model_copy()
+    sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
+        agents=4,  # Total agents across all instances
+        objects={"altar": 10},
+    )
+    sparse_tasks = cc.bucketed(sparse_nav_env)
+    sparse_tasks.add_bucket("game.map_builder.width", [Span(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
+
+    nav_tasks = cc.merge([dense_tasks, sparse_tasks])
+
+    # Create curriculum config that will use WeightedCurriculum via make_curriculum method
+    return CurriculumConfig(
+        task_generator=nav_tasks,
+        num_active_tasks=1,  # Always create new tasks instead of reusing stored ones
+        algorithm_config=WeightedCurriculumAlgorithmConfig(
+            enable_detailed_bucket_logging=enable_detailed_bucket_logging,
+        ),
+    )
+
+
 def train(
     run: Optional[str] = None,
     curriculum: Optional[CurriculumConfig] = None,
@@ -114,6 +156,31 @@ def train(
         losses=LossConfig(),
         curriculum=curriculum
         or make_curriculum(enable_detailed_bucket_logging=enable_detailed_logging),
+        evaluation=EvaluationConfig(
+            simulations=make_navigation_eval_suite(),
+        ),
+    )
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        run=run,
+    )
+
+
+def train_weighted(
+    run: Optional[str] = None,
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_logging: bool = False,
+) -> TrainTool:
+    """Training function using the weighted curriculum for improved performance."""
+    # Generate structured run name if not provided
+    if run is None:
+        run = _default_run_name().replace("navigation.", "navigation-weighted.")
+        
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+        curriculum=curriculum
+        or make_weighted_curriculum(enable_detailed_bucket_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),

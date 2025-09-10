@@ -204,7 +204,7 @@ class CurriculumConfig(Config):
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
 
-    algorithm_config: Union["DiscreteRandomConfig", "LearningProgressConfig"] = Field(
+    algorithm_config: Union["DiscreteRandomConfig", "LearningProgressConfig", "WeightedCurriculumAlgorithmConfig"] = Field(
         default_factory=lambda: DiscreteRandomConfig(), description="Curriculum algorithm hyperparameters"
     )
 
@@ -232,6 +232,9 @@ class CurriculumConfig(Config):
 
     def make(self) -> "Curriculum":
         """Create a Curriculum from this configuration."""
+        # Check if we should use WeightedCurriculum
+        if hasattr(self.algorithm_config, 'make_curriculum'):
+            return self.algorithm_config.make_curriculum(self)
         return Curriculum(self)
 
 

@@ -3,6 +3,7 @@ from metta.mettagrid.mettagrid_config import MettaGridConfig
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask, DiscreteRandomConfig
 from .curriculum_env import CurriculumEnv
 from .learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+from .weighted_algorithm_config import WeightedCurriculumAlgorithmConfig
 from .task_generator import (
     AnyTaskGeneratorConfig,
     BucketedTaskGenerator,
@@ -28,6 +29,7 @@ __all__ = [
     "DiscreteRandomConfig",
     "LearningProgressAlgorithm",
     "LearningProgressConfig",
+    "WeightedCurriculumAlgorithmConfig",
     "TaskTracker",
     "TaskGenerator",
     "TaskGeneratorConfig",
