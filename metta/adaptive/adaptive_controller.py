@@ -41,6 +41,7 @@ class AdaptiveController:
             try:
                 # 1. Get current state
                 if has_data:
+                    time.sleep(self.config.monitoring_interval)
                     runs = self.store.fetch_runs(filters={"group": self.experiment_id})
                 else:
                     runs = []
@@ -71,7 +72,6 @@ class AdaptiveController:
                         f"[AdaptiveController] Scheduler requested {len(training_jobs)} training jobs "
                         f"but only {available_training_slots} slots available. Skipping cycle."
                     )
-                    time.sleep(self.config.monitoring_interval)
                     continue
 
                 # 6. Dispatch all jobs
@@ -88,7 +88,7 @@ class AdaptiveController:
                         self.dispatched_jobs.add(job.run_id)
 
                         # Initialize run in store
-                        self.store.init_run(job.run_id, experiment_id=self.experiment_id)
+                        self.store.init_run(job.run_id, group=self.experiment_id)
 
                         # Store job config
                         if job.config:
@@ -97,9 +97,6 @@ class AdaptiveController:
 
                     except Exception as e:
                         logger.error(f"[AdaptiveController] Failed to dispatch {job.run_id}: {e}")
-
-                # 7. Wait before next cycle
-                time.sleep(self.config.monitoring_interval)
 
             except KeyboardInterrupt:
                 logger.info("[AdaptiveController] Interrupted, stopping experiment")
