@@ -136,7 +136,9 @@ def test_tag_feature_id_determinism():
     expected_tags = ["tag:blue", "tag:fast", "tag:red", "tag:slow"]
     for tag in expected_tags:
         assert tag in tag_features1, f"Expected tag '{tag}' not found in feature spec"
-        assert tag_features1[tag] == tag_features2[tag], f"Tag '{tag}' has different IDs: {tag_features1[tag]} != {tag_features2[tag]}"
+        assert tag_features1[tag] == tag_features2[tag], (
+            f"Tag '{tag}' has different IDs: {tag_features1[tag]} != {tag_features2[tag]}"
+        )
 
 
 def test_tagged_objects_in_environment():
@@ -237,8 +239,12 @@ def test_tag_features_in_observations():
             tag_feature_map[tag_name] = feature_info["id"]
 
     # We expect to find features for "red" and "special" tags
-    assert "red" in tag_feature_map, f"Tag 'red' not found in feature_spec. Available tags: {list(tag_feature_map.keys())}"
-    assert "special" in tag_feature_map, f"Tag 'special' not found in feature_spec. Available tags: {list(tag_feature_map.keys())}"
+    assert "red" in tag_feature_map, (
+        f"Tag 'red' not found in feature_spec. Available tags: {list(tag_feature_map.keys())}"
+    )
+    assert "special" in tag_feature_map, (
+        f"Tag 'special' not found in feature_spec. Available tags: {list(tag_feature_map.keys())}"
+    )
 
     # Look for these specific tag features in observations
     red_feature_id = tag_feature_map["red"]
@@ -252,7 +258,9 @@ def test_tag_features_in_observations():
 
     # Assert that both tag features appear in observations
     assert red_feature_id in tag_features_found, f"Tag feature 'red' (id={red_feature_id}) not found in observations"
-    assert special_feature_id in tag_features_found, f"Tag feature 'special' (id={special_feature_id}) not found in observations"
+    assert special_feature_id in tag_features_found, (
+        f"Tag feature 'special' (id={special_feature_id}) not found in observations"
+    )
 
     env.close()
 
@@ -569,13 +577,19 @@ def test_invalid_tag_name_error():
     assert tags == ["valid_tag"]
 
     # Invalid tag names with special characters should raise ValueError
-    with pytest.raises(ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"):
+    with pytest.raises(
+        ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"
+    ):
         parse_object_with_tags("converter.red-hot", config)
 
-    with pytest.raises(ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"):
+    with pytest.raises(
+        ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"
+    ):
         parse_object_with_tags("wall.special!", config)
 
-    with pytest.raises(ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"):
+    with pytest.raises(
+        ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"
+    ):
         parse_object_with_tags("box.my@tag", config)
 
 
@@ -622,9 +636,9 @@ def test_wall_tag_overrides_applied_at_runtime():
     wall_at_0_2 = None  # wall.weak (type_id=102)
 
     for obj in grid_objects.values():
-        obj_type_id = obj['type']
+        obj_type_id = obj["type"]
         # location is (col, row, layer) tuple
-        col, row, _ = obj['location']
+        col, row, _ = obj["location"]
         # Walls are at row 0, check by type_id since tagged walls have different IDs
         if row == 0 and col == 0 and obj_type_id == 1:
             wall_at_0_0 = obj
@@ -633,18 +647,24 @@ def test_wall_tag_overrides_applied_at_runtime():
         elif row == 0 and col == 2 and obj_type_id == 102:
             wall_at_0_2 = obj
 
-    assert wall_at_0_0 is not None, f"Regular wall not found at (0,0). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
-    assert wall_at_0_1 is not None, f"wall.strong not found at (0,1). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
-    assert wall_at_0_2 is not None, f"wall.weak not found at (0,2). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+    assert wall_at_0_0 is not None, (
+        f"Regular wall not found at (0,0). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+    )
+    assert wall_at_0_1 is not None, (
+        f"wall.strong not found at (0,1). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+    )
+    assert wall_at_0_2 is not None, (
+        f"wall.weak not found at (0,2). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+    )
 
     # Verify type_ids are different for tagged variants
-    assert wall_at_0_0['type'] == 1, f"Regular wall should have type_id=1, got {wall_at_0_0['type']}"
-    assert wall_at_0_1['type'] == 101, f"wall.strong should have type_id=101, got {wall_at_0_1['type']}"
-    assert wall_at_0_2['type'] == 102, f"wall.weak should have type_id=102, got {wall_at_0_2['type']}"
+    assert wall_at_0_0["type"] == 1, f"Regular wall should have type_id=1, got {wall_at_0_0['type']}"
+    assert wall_at_0_1["type"] == 101, f"wall.strong should have type_id=101, got {wall_at_0_1['type']}"
+    assert wall_at_0_2["type"] == 102, f"wall.weak should have type_id=102, got {wall_at_0_2['type']}"
 
     # Get feature spec to find swappable feature ID
     feature_spec = c_env.feature_spec()
-    swappable_feature_id = feature_spec.get('swappable', {}).get('id')
+    swappable_feature_id = feature_spec.get("swappable", {}).get("id")
 
     env.close()
 
@@ -698,9 +718,9 @@ def test_converter_tag_overrides_applied_at_runtime():
     converter_at_0_2 = None  # converter.efficient (type_id=202)
 
     for obj in grid_objects.values():
-        obj_type_id = obj['type']
+        obj_type_id = obj["type"]
         # location is (col, row, layer) tuple
-        col, row, _ = obj['location']
+        col, row, _ = obj["location"]
         # Converters are at row 0, check by type_id since tagged converters have different IDs
         if row == 0 and col == 0 and obj_type_id == 2:
             converter_at_0_0 = obj
@@ -709,14 +729,22 @@ def test_converter_tag_overrides_applied_at_runtime():
         elif row == 0 and col == 2 and obj_type_id == 202:
             converter_at_0_2 = obj
 
-    assert converter_at_0_0 is not None, f"Regular converter not found at (0,0). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
-    assert converter_at_0_1 is not None, f"converter.fast not found at (0,1). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
-    assert converter_at_0_2 is not None, f"converter.efficient not found at (0,2). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+    assert converter_at_0_0 is not None, (
+        f"Regular converter not found at (0,0). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+    )
+    assert converter_at_0_1 is not None, (
+        f"converter.fast not found at (0,1). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+    )
+    assert converter_at_0_2 is not None, (
+        f"converter.efficient not found at (0,2). Objects at row 0: {[(obj['location'], obj['type']) for obj in grid_objects.values() if obj['location'][1] == 0]}"
+    )
 
     # Verify type_ids are different for tagged variants
-    assert converter_at_0_0['type'] == 2, f"Regular converter should have type_id=2, got {converter_at_0_0['type']}"
-    assert converter_at_0_1['type'] == 201, f"converter.fast should have type_id=201, got {converter_at_0_1['type']}"
-    assert converter_at_0_2['type'] == 202, f"converter.efficient should have type_id=202, got {converter_at_0_2['type']}"
+    assert converter_at_0_0["type"] == 2, f"Regular converter should have type_id=2, got {converter_at_0_0['type']}"
+    assert converter_at_0_1["type"] == 201, f"converter.fast should have type_id=201, got {converter_at_0_1['type']}"
+    assert converter_at_0_2["type"] == 202, (
+        f"converter.efficient should have type_id=202, got {converter_at_0_2['type']}"
+    )
 
     env.close()
 
@@ -745,7 +773,9 @@ def test_max_tags_per_object_limit():
     map_data = [[wall_with_too_many_tags, "@", "."]]
     config_wall = config.with_ascii_map(map_data)
 
-    with pytest.raises((ValueError, RuntimeError), match="(exceeding the maximum of 10 tags per object|has too many tags)"):
+    with pytest.raises(
+        (ValueError, RuntimeError), match="(exceeding the maximum of 10 tags per object|has too many tags)"
+    ):
         env = MettaGridGymEnv(config_wall)
         env.reset()
         env.close()
@@ -769,7 +799,9 @@ def test_max_tags_per_object_limit():
     map_data = [["@", box_with_too_many_tags, "."]]
     config_box = config.with_ascii_map(map_data)
 
-    with pytest.raises((ValueError, RuntimeError), match="(exceeding the maximum of 10 tags per object|has too many tags)"):
+    with pytest.raises(
+        (ValueError, RuntimeError), match="(exceeding the maximum of 10 tags per object|has too many tags)"
+    ):
         env = MettaGridGymEnv(config_box)
         env.reset()
         env.close()
@@ -798,7 +830,9 @@ def test_max_tags_per_object_limit():
     map_data = [["@", ".", converter_with_too_many_tags]]
     config_converter = config.with_ascii_map(map_data)
 
-    with pytest.raises((ValueError, RuntimeError), match="(exceeding the maximum of 10 tags per object|has too many tags)"):
+    with pytest.raises(
+        (ValueError, RuntimeError), match="(exceeding the maximum of 10 tags per object|has too many tags)"
+    ):
         env = MettaGridGymEnv(config_converter)
         env.reset()
         env.close()
@@ -821,7 +855,9 @@ def test_max_tags_per_object_limit():
     config_agent = config.with_ascii_map(map_data)
 
     # For agents, the error comes from Python parsing or C++
-    with pytest.raises((ValueError, RuntimeError), match="(exceeding the maximum of 10 tags per object|has too many tags)"):
+    with pytest.raises(
+        (ValueError, RuntimeError), match="(exceeding the maximum of 10 tags per object|has too many tags)"
+    ):
         env = MettaGridGymEnv(config_agent)
         env.reset()
         env.close()
@@ -874,6 +910,7 @@ def test_agent_tag_overrides_not_supported():
     env.reset()
     env.close()
 
+
 def test_invalid_tag_characters_from_map():
     """Test that invalid tag characters discovered from map strings raise errors."""
     config = MettaGridConfig(
@@ -897,7 +934,9 @@ def test_invalid_tag_characters_from_map():
     config = config.with_ascii_map(map_data)
 
     # Should raise an error about invalid tag characters
-    with pytest.raises(ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"):
+    with pytest.raises(
+        ValueError, match="Invalid tag name.*tags must contain only alphanumeric characters and underscores"
+    ):
         env = MettaGridGymEnv(config)
         env.reset()
         env.close()

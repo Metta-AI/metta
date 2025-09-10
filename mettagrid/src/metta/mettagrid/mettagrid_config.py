@@ -139,9 +139,9 @@ class ConverterConfig(Config):
 
 class GameConfig(Config):
     """Game configuration.
-    
+
     Example of using tags with objects:
-    
+
     ```python
     config = GameConfig(
         tags={
@@ -154,13 +154,13 @@ class GameConfig(Config):
             "converter": ConverterConfig(type_id=2, ...),
         }
     )
-    
+
     # In maps, use dot notation to apply tags:
     # "wall.red" - wall with red tag
     # "converter.fast.red" - converter with fast and red tags (applied in order)
     # "agent.blue.strong" - agent with blue and strong tags
     ```
-    
+
     Notes on tagging:
     - Tags are registered deterministically (alphabetically sorted)
     - Each object can have a maximum of 10 tags
@@ -172,10 +172,10 @@ class GameConfig(Config):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     tags: dict[str, TagConfig] = Field(
-        default_factory=dict, 
+        default_factory=dict,
         description="Tag definitions with property overrides. Objects can have up to 10 tags applied. "
-                    "Tags are applied in order and can override any property of the base object type. "
-                    "Tag names must contain only alphanumeric characters and underscores."
+        "Tags are applied in order and can override any property of the base object type. "
+        "Tag names must contain only alphanumeric characters and underscores.",
     )
     resource_names: list[str] = Field(
         default=[

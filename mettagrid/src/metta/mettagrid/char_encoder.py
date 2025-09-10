@@ -55,19 +55,19 @@ def char_to_grid_object(char: str) -> str:
     """
     if not char:
         raise ValueError("Object name cannot be empty")
-    
+
     # Check for known single-character aliases first
     if char in CHAR_TO_NAME:
         return CHAR_TO_NAME[char]
 
     if char in NAME_TO_CHAR:
         return char
-    
+
     # Now check for invalid patterns in multi-character names
     # Reject trailing dots that would create empty tag segments
     if char.endswith("."):
         raise ValueError(f"Object name cannot end with a dot: '{char}'. This would create an empty tag segment.")
-    
+
     # Check for empty segments (consecutive dots)
     if ".." in char:
         raise ValueError(f"Object name cannot contain empty segments (consecutive dots): '{char}'")
@@ -79,7 +79,7 @@ def char_to_grid_object(char: str) -> str:
         parts = char.split(".", 2)
         if len(parts) >= 2:
             subtype = parts[1]
-            
+
             # Validate that no segment is empty
             for part in parts:
                 if not part:
@@ -87,7 +87,7 @@ def char_to_grid_object(char: str) -> str:
 
             if subtype not in VALID_AGENT_SUBTYPES:
                 return f"agent.agent.{char[6:]}"
-    
+
     # For single-character unknown glyphs, raise an error as they're likely typos
     if len(char) == 1 and char not in CHAR_TO_NAME and char not in NAME_TO_CHAR:
         raise ValueError(f"Unknown single character glyph: '{char}'. This is likely a typo in the ASCII map.")

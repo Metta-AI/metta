@@ -19,8 +19,10 @@ def recursive_update(d, u):
             d[k] = v
     return d
 
+
 # Validate tag names (alphanumeric and underscore only)
-_tag_pattern = re.compile(r'^[A-Za-z0-9_]+$')
+_tag_pattern = re.compile(r"^[A-Za-z0-9_]+$")
+
 
 def parse_object_with_tags(object_name: str) -> tuple[str, list[str]]:
     """Parse an object name that may include tags using dot notation."""
@@ -39,7 +41,9 @@ def parse_object_with_tags(object_name: str) -> tuple[str, list[str]]:
 
     for tag in tags:
         if not _tag_pattern.match(tag):
-            raise ValueError(f"Invalid tag name '{tag}': tags must contain only alphanumeric characters and underscores")
+            raise ValueError(
+                f"Invalid tag name '{tag}': tags must contain only alphanumeric characters and underscores"
+            )
 
     return base_type, tags
 
@@ -176,14 +180,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig, map_data: li
 
         # Collect type IDs from existing game config objects
         for obj_name, obj_config in game_config.objects.items():
-            if hasattr(obj_config, 'type_id'):
+            if hasattr(obj_config, "type_id"):
                 used_type_ids[obj_config.type_id] = obj_name
                 if obj_config.type_id > max_type_id:
                     max_type_id = obj_config.type_id
 
         # Also collect from objects_cpp_params (already processed objects)
         for obj_name, cpp_config in objects_cpp_params.items():
-            if hasattr(cpp_config, 'type_id'):
+            if hasattr(cpp_config, "type_id"):
                 # Only add if not already tracked (avoid duplicates)
                 if cpp_config.type_id not in used_type_ids:
                     used_type_ids[cpp_config.type_id] = obj_name
@@ -216,9 +220,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig, map_data: li
             overridden_dict = apply_tag_overrides(base_dict, tags, game_config, model_class)
 
             # Handle type_id: use override if provided, otherwise allocate next available
-            if 'type_id' in overridden_dict and overridden_dict['type_id'] != base_dict.get('type_id'):
+            if "type_id" in overridden_dict and overridden_dict["type_id"] != base_dict.get("type_id"):
                 # Tag override specifies a type_id
-                override_type_id = overridden_dict['type_id']
+                override_type_id = overridden_dict["type_id"]
 
                 # Validate it's in valid range
                 if not 0 <= override_type_id <= 255:
@@ -245,7 +249,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig, map_data: li
                         f"Consider reducing the number of unique object types or tagged variants."
                     )
 
-                overridden_dict['type_id'] = next_type_id
+                overridden_dict["type_id"] = next_type_id
                 used_type_ids[next_type_id] = tagged_obj
                 next_type_id += 1
 
