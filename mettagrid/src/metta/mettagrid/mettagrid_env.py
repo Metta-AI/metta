@@ -150,8 +150,13 @@ class MettaGridEnv(MettaGridPufferBase):
 
         infos["reward_estimates"] = {}
         if self.mg_config.game.reward_estimates:
-            infos["reward_estimates"]["diff_from_efficient_optimal"] = self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
-            infos["reward_estimates"]["diff_from_inefficient_optimal"] = self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
+            infos["reward_estimates"]["diff_from_efficient_optimal"] = (
+                self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
+            )
+            infos["reward_estimates"]["diff_from_inefficient_optimal"] = (
+                self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
+            )
+
         # Add attributes
         attributes: Dict[str, Any] = {
             "seed": self._current_seed,
