@@ -8,7 +8,8 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask, TaskTracker
+from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+from .task_tracker import TaskTracker
 from .stats import BucketAnalyzer
 
 

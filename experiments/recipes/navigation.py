@@ -96,11 +96,48 @@ def make_curriculum(
         task_generator=nav_tasks,
         num_active_tasks=1000,  # Smaller pool for navigation tasks
         algorithm_config=LearningProgressConfig(
-            ema_timescale=0.001,
-            exploration_bonus=0.1,
-            max_memory_tasks=1000,
             enable_detailed_bucket_logging=enable_detailed_bucket_logging,
         ),
+    )
+
+
+def make_curriculum_random(
+    nav_env: Optional[MettaGridConfig] = None,
+) -> CurriculumConfig:
+    """Create curriculum configuration with random sampling for comparison.
+    
+    Uses the same task buckets as Learning Progress curriculum but with
+    uniform random sampling instead of intelligent task selection.
+    """
+    nav_env = nav_env or make_mettagrid()
+
+    # Use same task configuration as Learning Progress version
+    dense_tasks = cc.bucketed(nav_env)
+
+    maps = ["terrain_maps_nohearts"]
+    for size in ["large", "medium", "small"]:
+        for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
+            maps.append(f"varied_terrain/{terrain}_{size}")
+
+    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(3, 50)])
+
+    sparse_nav_env = nav_env.model_copy()
+    sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
+        agents=4,
+        objects={"altar": 10},
+    )
+    sparse_tasks = cc.bucketed(sparse_nav_env)
+    sparse_tasks.add_bucket("game.map_builder.width", [Span(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
+
+    nav_tasks = cc.merge([dense_tasks, sparse_tasks])
+
+    # Return curriculum with NO algorithm_config -> defaults to DiscreteRandom
+    return CurriculumConfig(
+        task_generator=nav_tasks,
+        num_active_tasks=1000,  # Same pool size for fair comparison
     )
 
 
@@ -116,6 +153,38 @@ def train(
         losses=LossConfig(),
         curriculum=curriculum
         or make_curriculum(enable_detailed_bucket_logging=enable_detailed_logging),
+        evaluation=EvaluationConfig(
+            simulations=make_navigation_eval_suite(),
+        ),
+    )
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        run=run,
+    )
+
+
+def train_random(
+    run: Optional[str] = None,
+    curriculum: Optional[CurriculumConfig] = None,
+) -> TrainTool:
+    """Train with uniform random curriculum for comparison with Learning Progress.
+    
+    Uses the same task buckets as Learning Progress but with uniform random
+    sampling instead of intelligent task selection based on learning progress.
+    
+    Args:
+        run: Optional run name (uses default naming if not provided)
+        curriculum: Optional custom curriculum (uses make_curriculum_random by default)
+    """
+    # Generate structured run name with 'random' suffix if not provided
+    if run is None:
+        base_run = _default_run_name()
+        run = base_run.replace("navigation.", "navigation.random.")
+    
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+        curriculum=curriculum or make_curriculum_random(),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),

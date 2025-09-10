@@ -31,12 +31,15 @@ class CurriculumEnv(PufferEnv):
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
-        # Stats batching configuration - increased from 10 to 50 for better performance
+        # Stats batching configuration - updating stats too frequently is an SPS hit
         self._stats_update_counter = 0
-        self._stats_update_frequency = 50  # Update stats every 50 steps instead of 10
+        self._stats_update_frequency = 50  # Batch stats updates to reduce overhead
 
         # Pre-compute string prefix for performance
         self._CURRICULUM_STAT_PREFIX = "env_curriculum/"
+        
+        # Track first reset to avoid hasattr checks
+        self._first_reset_done = False
 
         # Cache for curriculum stats to avoid recomputation
         self._cached_stats = {}
@@ -72,7 +75,7 @@ class CurriculumEnv(PufferEnv):
         self._stats_cache_valid = False
 
         # Only log curriculum stats on reset if cache is invalid or this is first reset
-        if not hasattr(self, "_first_reset_done"):
+        if not self._first_reset_done:
             curriculum_stats = self._curriculum.stats()
             for key, value in curriculum_stats.items():
                 info[self._CURRICULUM_STAT_PREFIX + key] = value

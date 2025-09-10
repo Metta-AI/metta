@@ -3,6 +3,7 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
@@ -61,6 +62,45 @@ def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumCo
     return CurriculumConfig(task_generator=arena_tasks)
 
 
+def make_curriculum_lp(
+    arena_env: Optional[MettaGridConfig] = None,
+    enable_detailed_bucket_logging: bool = False,
+) -> CurriculumConfig:
+    """Create curriculum configuration with Learning Progress algorithm.
+    
+    Uses the same task buckets as the regular curriculum but with intelligent
+    task selection based on learning progress instead of uniform random sampling.
+    """
+    arena_env = arena_env or make_mettagrid()
+
+    arena_tasks = cc.bucketed(arena_env)
+
+    for item in ["ore_red", "battery_red", "laser", "armor"]:
+        arena_tasks.add_bucket(
+            f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
+        )
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+
+    # enable or disable attacks. we use cost instead of 'enabled'
+    # to maintain action space consistency.
+    arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
+
+    # sometimes add initial_items to the buildings
+    for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
+        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
+
+    return CurriculumConfig(
+        task_generator=arena_tasks,
+        num_active_tasks=1000,  # Smaller pool optimized for Learning Progress
+        algorithm_config=LearningProgressConfig(
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            enable_detailed_bucket_logging=enable_detailed_bucket_logging,
+        ),
+    )
+
+
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     basic_env = env or make_mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
@@ -78,6 +118,38 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
+        evaluation=EvaluationConfig(
+            simulations=[
+                SimulationConfig(
+                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
+                ),
+                SimulationConfig(
+                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
+                ),
+            ],
+        ),
+    )
+
+    return TrainTool(trainer=trainer_cfg)
+
+
+def train_lp(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_logging: bool = False,
+) -> TrainTool:
+    """Train with Learning Progress curriculum.
+    
+    Uses intelligent task selection based on learning progress scores
+    instead of uniform random sampling. Tasks with high performance
+    variance (indicating active learning) get priority.
+    
+    Args:
+        curriculum: Optional custom curriculum (uses make_curriculum_lp by default)
+        enable_detailed_logging: Enable expensive per-bucket density logging
+    """
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+        curriculum=curriculum or make_curriculum_lp(enable_detailed_bucket_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(

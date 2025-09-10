@@ -15,120 +15,9 @@ if TYPE_CHECKING:
 from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
+from metta.cogworks.curriculum.task_tracker import TaskTracker
 from metta.mettagrid.config import Config
 from metta.mettagrid.mettagrid_config import MettaGridConfig
-
-
-class TaskTracker:
-    """Tracks task metadata, performance history, and completion statistics."""
-
-    def __init__(self, max_memory_tasks: int = 1000):
-        self.max_memory_tasks = max_memory_tasks
-
-        # Task memory: task_id -> (creation_time, completion_count, total_score, last_score)
-        self._task_memory: Dict[int, Tuple[float, int, float, float]] = {}
-
-        # Task creation order for efficient cleanup
-        self._task_creation_order = deque()  # (timestamp, task_id) pairs
-
-        # Performance tracking
-        self._completion_history = deque(maxlen=1000)  # Recent completion scores
-
-        # Cached values to avoid expensive recomputation
-        self._cached_total_completions = 0
-        self._cache_valid = False
-
-    def track_task_creation(self, task_id: int) -> None:
-        """Track when a task is created."""
-        timestamp = time.time()
-        self._task_memory[task_id] = (timestamp, 0, 0.0, 0.0)
-        self._task_creation_order.append((timestamp, task_id))
-
-        # Cleanup old tasks if we exceed memory limit
-        if len(self._task_memory) > self.max_memory_tasks:
-            self._cleanup_old_tasks()
-
-        # Invalidate cache when task structure changes
-        self._cache_valid = False
-
-    def update_task_performance(self, task_id: int, score: float) -> None:
-        """Update task performance statistics."""
-        if task_id not in self._task_memory:
-            self.track_task_creation(task_id)
-
-        creation_time, completion_count, total_score, _ = self._task_memory[task_id]
-        new_completion_count = completion_count + 1
-        new_total_score = total_score + score
-
-        self._task_memory[task_id] = (creation_time, new_completion_count, new_total_score, score)
-        self._completion_history.append(score)
-
-        # Update cached total completions incrementally
-        if self._cache_valid:
-            self._cached_total_completions += 1
-        else:
-            self._cache_valid = False
-
-    def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
-        """Get statistics for a specific task."""
-        if task_id not in self._task_memory:
-            return None
-
-        creation_time, completion_count, total_score, last_score = self._task_memory[task_id]
-
-        if completion_count == 0:
-            return {
-                "completion_count": 0,
-                "mean_score": 0.0,
-                "last_score": 0.0,
-                "age_seconds": time.time() - creation_time,
-            }
-
-        return {
-            "completion_count": completion_count,
-            "mean_score": total_score / completion_count,
-            "last_score": last_score,
-            "age_seconds": time.time() - creation_time,
-        }
-
-    def get_all_tracked_tasks(self) -> list[int]:
-        """Get all currently tracked task IDs."""
-        return list(self._task_memory.keys())
-
-    def remove_task(self, task_id: int) -> None:
-        """Remove a task from tracking."""
-        if task_id in self._task_memory:
-            self._task_memory.pop(task_id)
-            # Remove from creation order (expensive but infrequent)
-            self._task_creation_order = deque((ts, tid) for ts, tid in self._task_creation_order if tid != task_id)
-            self._cache_valid = False
-
-    def _cleanup_old_tasks(self) -> None:
-        """Remove oldest tasks to keep memory usage under control."""
-        while len(self._task_memory) > self.max_memory_tasks and self._task_creation_order:
-            _, old_task_id = self._task_creation_order.popleft()
-            if old_task_id in self._task_memory:
-                self._task_memory.pop(old_task_id)
-
-        # Cache may still be valid after cleanup if we tracked changes
-        self._cache_valid = False
-
-    def get_global_stats(self) -> Dict[str, float]:
-        """Get global task tracking statistics."""
-        if not self._cache_valid:
-            self._cached_total_completions = sum(
-                completion_count for _, completion_count, _, _ in self._task_memory.values()
-            )
-            self._cache_valid = True
-
-        return {
-            "total_tracked_tasks": float(len(self._task_memory)),
-            "total_completions": float(self._cached_total_completions),
-            "avg_completions_per_task": float(self._cached_total_completions / len(self._task_memory))
-            if self._task_memory
-            else 0.0,
-            "recent_completion_history_size": float(len(self._completion_history)),
-        }
 
 
 def get_algorithm_hypers_discriminator(v):
@@ -326,8 +215,8 @@ class CurriculumConfig(Config):
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
 
-    algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
-        default=None, description="Curriculum algorithm hyperparameters"
+    algorithm_config: Union["DiscreteRandomConfig", "LearningProgressConfig"] = Field(
+        default_factory=lambda: DiscreteRandomConfig(), description="Curriculum algorithm hyperparameters"
     )
 
     @classmethod
@@ -373,9 +262,8 @@ class Curriculum:
         self._num_created = 0
         self._num_evicted = 0
 
-        # Always have an algorithm - default to DiscreteRandom
-        algorithm_config = config.algorithm_config or DiscreteRandomConfig()
-        self._algorithm = algorithm_config.create(config.num_active_tasks)
+        # Always have an algorithm (now guaranteed by config default)
+        self._algorithm = config.algorithm_config.create(config.num_active_tasks)
 
         # Pass curriculum reference to algorithm for stats updates
         if hasattr(self._algorithm, "set_curriculum_reference"):
@@ -393,9 +281,10 @@ class Curriculum:
             task = self._choose_task()
 
             # Use algorithm criteria for eviction
+            task_ids = list(self._tasks.keys())
             evictable_tasks = [
                 tid
-                for tid in self._tasks.keys()
+                for tid in task_ids
                 if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
             ]
             if evictable_tasks:
@@ -426,20 +315,23 @@ class Curriculum:
 
     def _choose_task(self) -> CurriculumTask:
         """Choose a task from the population using algorithm guidance."""
+        # Get current task IDs once to avoid repeated list() calls
+        task_ids = list(self._tasks.keys())
+        
         # Get algorithm's task selection preferences
-        task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
+        task_scores = self._algorithm.score_tasks(task_ids)
         if task_scores:
             # Convert scores to probabilities for sampling
-            task_ids = list(task_scores.keys())
+            scored_task_ids = list(task_scores.keys())
             scores = list(task_scores.values())
             total_score = sum(scores)
             if total_score > 0:
                 probabilities = [score / total_score for score in scores]
-                selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
+                selected_id = self._rng.choices(scored_task_ids, weights=probabilities)[0]
                 return self._tasks[selected_id]
 
         # Fallback to random selection if no scores provided
-        return self._tasks[self._rng.choice(list(self._tasks.keys()))]
+        return self._tasks[self._rng.choice(task_ids)]
 
     def _create_task(self) -> CurriculumTask:
         """Create a new task."""
