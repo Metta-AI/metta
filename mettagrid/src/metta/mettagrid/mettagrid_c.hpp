@@ -158,6 +158,9 @@ private:
   float _resource_loss_prob;
 
   void init_action_handlers();
+  void _create_and_add_agent(GridCoord r, GridCoord c, const AgentConfig& agent_config,
+                             const std::vector<std::string>& tags, const std::string& cell,
+                             const GameConfig& game_config, unsigned int height, unsigned int width);
   void add_agent(Agent* agent);
   void _compute_observation(GridCoord observer_r,
                             GridCoord observer_c,

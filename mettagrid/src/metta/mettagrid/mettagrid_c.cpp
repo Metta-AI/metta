@@ -38,6 +38,50 @@
 
 namespace py = pybind11;
 
+void MettaGrid::_create_and_add_agent(GridCoord r,
+                                      GridCoord c,
+                                      const AgentConfig& agent_config,
+                                      const std::vector<std::string>& tags,
+                                      const std::string& cell,
+                                      const GameConfig& game_config,
+                                      unsigned int height,
+                                      unsigned int width) {
+  Agent* agent = new Agent(r, c, agent_config);
+
+  std::vector<ObservationType> tag_feature_ids;
+  for (const auto& tag : tags) {
+    ObservationType feature_id = _obs_encoder->lookup_tag(tag);
+    tag_feature_ids.push_back(feature_id);
+  }
+  agent->set_tag_feature_ids(tag_feature_ids);
+
+  if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
+    throw std::runtime_error("Too many agents for agent_id type");
+  }
+
+  agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
+  agent->stats.set_environment(this);
+
+  if (_global_obs_config.visitation_counts) {
+    agent->init_visitation_grid(height, width);
+  }
+
+  _grid->add_object(agent);
+
+  if (game_config.objects.contains("box")) {
+    const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(game_config.objects.at("box").get());
+    if (local_box_cfg) {
+      Box* box = new Box(0, 0, *local_box_cfg, agent->id, static_cast<unsigned char>(agent->agent_id));
+      agent->box = box;
+      _grid->ghost_add_object(agent->box);
+    }
+  }
+
+  add_agent(agent);
+  _group_sizes[agent->group] += 1;
+  _stats->incr("objects." + cell);
+}
+
 MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned int seed)
     : obs_width(game_config.obs_width),
       obs_height(game_config.obs_height),
@@ -70,6 +114,11 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.recipe_details_obs);
+
+  // Pre-register all tags in deterministic order for consistent feature IDs
+  for (const auto& tag : game_config.tags) {
+    _obs_encoder->register_tag(tag);
+  }
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -152,17 +201,128 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         continue;
       }
 
-      if (!game_config.objects.contains(cell)) {
-        throw std::runtime_error("Unknown object type: " + cell);
+      constexpr size_t MAX_TAGS_PER_OBJECT = 10;
+      constexpr size_t MAX_TAG_NAME_LENGTH = 64;
+
+      std::string base_type = cell;
+      std::vector<std::string> tags;
+
+      // Special handling for agent.agent.xxx pattern (from Python char_to_grid_object)
+      if (cell.rfind("agent.agent.", 0) == 0) {
+        base_type = "agent.agent";
+        std::string tag_string = cell.substr(12);  // Skip "agent.agent."
+
+        size_t start = 0;
+        size_t dot_pos = tag_string.find('.');
+        while (dot_pos != std::string::npos && tags.size() < MAX_TAGS_PER_OBJECT) {
+          std::string tag = tag_string.substr(start, dot_pos - start);
+          if (tag.length() > MAX_TAG_NAME_LENGTH) {
+            throw std::runtime_error("Tag name '" + tag + "' exceeds maximum length of " +
+                                     std::to_string(MAX_TAG_NAME_LENGTH) + " characters");
+          }
+          tags.push_back(tag);
+          start = dot_pos + 1;
+          dot_pos = tag_string.find('.', start);
+        }
+        if (start < tag_string.length() && tags.size() < MAX_TAGS_PER_OBJECT) {
+          std::string tag = tag_string.substr(start);
+          if (tag.length() > MAX_TAG_NAME_LENGTH) {
+            throw std::runtime_error("Tag name '" + tag + "' exceeds maximum length of " +
+                                     std::to_string(MAX_TAG_NAME_LENGTH) + " characters");
+          }
+          tags.push_back(tag);
+        }
+      } else {
+        // Normal parsing for other patterns
+        size_t first_dot = cell.find('.');
+        if (first_dot != std::string::npos) {
+          base_type = cell.substr(0, first_dot);
+          std::string tag_string = cell.substr(first_dot + 1);
+
+          size_t start = 0;
+          size_t dot_pos = tag_string.find('.');
+          while (dot_pos != std::string::npos && tags.size() < MAX_TAGS_PER_OBJECT) {
+            std::string tag = tag_string.substr(start, dot_pos - start);
+            if (tag.length() > MAX_TAG_NAME_LENGTH) {
+              throw std::runtime_error("Tag name '" + tag + "' exceeds maximum length of " +
+                                       std::to_string(MAX_TAG_NAME_LENGTH) + " characters");
+            }
+            tags.push_back(tag);
+            start = dot_pos + 1;
+            dot_pos = tag_string.find('.', start);
+          }
+          if (start < tag_string.length() && tags.size() < MAX_TAGS_PER_OBJECT) {
+            std::string tag = tag_string.substr(start);
+            if (tag.length() > MAX_TAG_NAME_LENGTH) {
+              throw std::runtime_error("Tag name '" + tag + "' exceeds maximum length of " +
+                                       std::to_string(MAX_TAG_NAME_LENGTH) + " characters");
+            }
+            tags.push_back(tag);
+          }
+        }
       }
 
-      const GridObjectConfig* object_cfg = game_config.objects.at(cell).get();
+      if (tags.size() >= MAX_TAGS_PER_OBJECT) {
+        throw std::runtime_error("Object at (" + std::to_string(r) + ", " + std::to_string(c) +
+                                 ") has too many tags (max " + std::to_string(MAX_TAGS_PER_OBJECT) + ")");
+      }
+
+      bool is_agent = base_type == "agent" || base_type.rfind("agent.", 0) == 0;
+
+      if (is_agent) {
+        if (base_type == "agent") {
+          if (!tags.empty()) {
+            std::string potential_subtype = "agent." + tags[0];
+            if (game_config.objects.contains(potential_subtype)) {
+              base_type = potential_subtype;
+              tags.erase(tags.begin());
+            } else {
+              base_type = "agent.agent";
+              // Keep all tags - they are object tags, not subtype indicators
+            }
+          } else {
+            base_type = "agent.agent";
+          }
+        }
+
+        const AgentConfig* agent_config = nullptr;
+
+        if (game_config.objects.contains(base_type)) {
+          agent_config = dynamic_cast<const AgentConfig*>(game_config.objects.at(base_type).get());
+        }
+
+        if (!agent_config && game_config.objects.contains("agent.agent")) {
+          agent_config = dynamic_cast<const AgentConfig*>(game_config.objects.at("agent.agent").get());
+        }
+
+        if (agent_config) {
+          _create_and_add_agent(r, c, *agent_config, tags, cell, game_config, height, width);
+        } else {
+          throw std::runtime_error("No agent config found for: " + base_type + " (from: " + cell + ")");
+        }
+        continue;
+      }
+
+      // Prefer the tagged config if it exists, otherwise fall back to base type
+      const std::string& cfg_key = game_config.objects.contains(cell) ? cell : base_type;
+
+      if (!game_config.objects.contains(cfg_key)) {
+        throw std::runtime_error("Unknown object type: " + base_type + " (from: " + cell + ")");
+      }
+
+      const GridObjectConfig* object_cfg = game_config.objects.at(cfg_key).get();
 
       // TODO: replace the dynamic casts with virtual dispatch
 
       const WallConfig* wall_config = dynamic_cast<const WallConfig*>(object_cfg);
       if (wall_config) {
         Wall* wall = new Wall(r, c, *wall_config);
+        std::vector<ObservationType> tag_feature_ids;
+        tag_feature_ids.resize(tags.size());
+        for (const auto& tag : tags) {
+          tag_feature_ids.push_back(_obs_encoder->lookup_tag(tag));
+        }
+        wall->set_tag_feature_ids(tag_feature_ids);
         _grid->add_object(wall);
         _stats->incr("objects." + cell);
         continue;
@@ -170,7 +330,13 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const BoxConfig* box_config = dynamic_cast<const BoxConfig*>(object_cfg);
       if (box_config) {
-        Box* box = new Box(r, c, *box_config, 255, 255);  // Default creator values
+        Box* box = new Box(r, c, *box_config, 255, 255);
+        std::vector<ObservationType> tag_feature_ids;
+        tag_feature_ids.resize(tags.size());
+        for (const auto& tag : tags) {
+          tag_feature_ids.push_back(_obs_encoder->lookup_tag(tag));
+        }
+        box->set_tag_feature_ids(tag_feature_ids);
         _grid->add_object(box);
         _stats->incr("objects." + cell);
         continue;
@@ -178,42 +344,21 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
       if (converter_config) {
-        // Create a new ConverterConfig with the recipe offsets from the observation encoder
         ConverterConfig config_with_offsets(*converter_config);
         config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
         config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
 
         Converter* converter = new Converter(r, c, config_with_offsets);
+        std::vector<ObservationType> tag_feature_ids;
+        tag_feature_ids.resize(tags.size());
+        for (const auto& tag : tags) {
+          tag_feature_ids.push_back(_obs_encoder->lookup_tag(tag));
+        }
+        converter->set_tag_feature_ids(tag_feature_ids);
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
-        continue;
-      }
-
-      const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
-      if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config);
-        _grid->add_object(agent);
-        if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
-          throw std::runtime_error("Too many agents for agent_id type");
-        }
-        agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
-        agent->stats.set_environment(this);
-        // Only initialize visitation grid if visitation counts are enabled
-        if (_global_obs_config.visitation_counts) {
-          agent->init_visitation_grid(height, width);
-        }
-        // add agent box
-        if (game_config.objects.contains("box")) {
-          const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(game_config.objects.at("box").get());
-          if (local_box_cfg) {
-            agent->box = new Box(0, 0, *local_box_cfg, agent->id, static_cast<unsigned char>(agent->agent_id));
-            _grid->ghost_add_object(agent->box);
-          }
-        }
-        add_agent(agent);
-        _group_sizes[agent->group] += 1;
         continue;
       }
 

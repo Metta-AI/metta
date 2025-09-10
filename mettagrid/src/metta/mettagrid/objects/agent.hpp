@@ -73,6 +73,10 @@ public:
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 
+  ~Agent() {
+    delete box;
+  }
+
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
   }
@@ -191,7 +195,7 @@ public:
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
-    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0);
+    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0) + tag_feature_ids.size();
 
     std::vector<PartialObservationToken> features;
     features.reserve(num_tokens);
@@ -208,6 +212,10 @@ public:
       assert(amount > 0);
       auto item_observation_feature = static_cast<ObservationType>(InventoryFeatureOffset + item);
       features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
+    }
+    
+    for (auto feature_id : tag_feature_ids) {
+      features.push_back({feature_id, 1});
     }
 
     return features;

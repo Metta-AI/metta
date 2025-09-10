@@ -29,12 +29,17 @@ public:
 
   std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(2);
+    features.reserve(2 + tag_feature_ids.size());
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
 
     if (_swappable) {
       // Only emit the swappable observation feature when True to reduce the number of tokens.
       features.push_back({ObservationFeature::Swappable, static_cast<ObservationType>(1)});
+    }
+    
+    // Add tag features
+    for (auto feature_id : tag_feature_ids) {
+      features.push_back({feature_id, 1});
     }
 
     return features;

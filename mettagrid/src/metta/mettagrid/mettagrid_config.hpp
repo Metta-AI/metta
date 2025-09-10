@@ -37,6 +37,7 @@ struct GameConfig {
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   float resource_loss_prob = 0.0;
+  std::vector<std::string> tags;
 
   // FEATURE FLAGS
   bool track_movement_metrics = false;
@@ -75,6 +76,7 @@ inline void bind_game_config(py::module& m) {
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     float,
+                    const std::vector<std::string>&,
 
                     // FEATURE FLAGS
                     bool,
@@ -91,6 +93,7 @@ inline void bind_game_config(py::module& m) {
            py::arg("actions"),
            py::arg("objects"),
            py::arg("resource_loss_prob") = 0.0f,
+           py::arg("tags") = std::vector<std::string>(),
 
            // FEATURE FLAGS
            py::arg("track_movement_metrics"),
@@ -112,6 +115,7 @@ inline void bind_game_config(py::module& m) {
       // .def_readwrite("objects", &GameConfig::objects);
 
       .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
+      .def_readwrite("tags", &GameConfig::tags)
 
       // FEATURE FLAGS
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)

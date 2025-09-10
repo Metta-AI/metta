@@ -115,6 +115,14 @@ class BoxConfig(Config):
     # the consumed_resources by place_box.
 
 
+class TagConfig(Config):
+    """Configuration for object tags that can override properties."""
+
+    # Property overrides to apply when this tag is used
+    # Can override any property of the base object type
+    overrides: dict[str, Any] = Field(default_factory=dict)
+
+
 class ConverterConfig(Config):
     """Python converter configuration."""
 
@@ -130,10 +138,45 @@ class ConverterConfig(Config):
 
 
 class GameConfig(Config):
-    """Python game configuration."""
+    """Game configuration.
+    
+    Example of using tags with objects:
+    
+    ```python
+    config = GameConfig(
+        tags={
+            "red": TagConfig(overrides={"color": 1}),
+            "fast": TagConfig(overrides={"cooldown": 1, "conversion_ticks": 2}),
+            "strong": TagConfig(overrides={"swappable": False}),
+        },
+        objects={
+            "wall": WallConfig(type_id=1),
+            "converter": ConverterConfig(type_id=2, ...),
+        }
+    )
+    
+    # In maps, use dot notation to apply tags:
+    # "wall.red" - wall with red tag
+    # "converter.fast.red" - converter with fast and red tags (applied in order)
+    # "agent.blue.strong" - agent with blue and strong tags
+    ```
+    
+    Notes on tagging:
+    - Tags are registered deterministically (alphabetically sorted)
+    - Each object can have a maximum of 10 tags
+    - Tag features are emitted as observations (e.g., "tag:red" -> 1)
+    - Tag overrides can modify any property of the base object type
+    - For agents, tags emit features but do not override properties
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    tags: dict[str, TagConfig] = Field(
+        default_factory=dict, 
+        description="Tag definitions with property overrides. Objects can have up to 10 tags applied. "
+                    "Tags are applied in order and can override any property of the base object type. "
+                    "Tag names must contain only alphanumeric characters and underscores."
+    )
     resource_names: list[str] = Field(
         default=[
             "ore_red",

@@ -172,8 +172,8 @@ public:
     std::vector<PartialObservationToken> features;
 
     // Calculate the capacity needed
-    // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs
-    size_t capacity = 3 + this->inventory.size();
+    // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs + tags
+    size_t capacity = 3 + this->inventory.size() + this->tag_feature_ids.size();
     if (this->recipe_details_obs) {
       capacity += this->input_resources.size() + this->output_resources.size();
     }
@@ -209,6 +209,10 @@ public:
               {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
         }
       }
+    }
+    
+    for (auto feature_id : tag_feature_ids) {
+      features.push_back({feature_id, 1});
     }
 
     return features;

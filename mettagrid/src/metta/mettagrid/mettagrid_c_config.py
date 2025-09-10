@@ -1,3 +1,4 @@
+import re
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
@@ -18,8 +19,69 @@ def recursive_update(d, u):
             d[k] = v
     return d
 
+# Validate tag names (alphanumeric and underscore only)
+_tag_pattern = re.compile(r'^[A-Za-z0-9_]+$')
 
-def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
+def parse_object_with_tags(object_name: str) -> tuple[str, list[str]]:
+    """Parse an object name that may include tags using dot notation."""
+
+    parts = object_name.split(".")
+    base_type = parts[0]
+    tags = parts[1:] if len(parts) > 1 else []
+
+    # Check maximum tags per object limit
+    MAX_TAGS_PER_OBJECT = 10
+    if len(tags) > MAX_TAGS_PER_OBJECT:
+        raise ValueError(
+            f"Object '{object_name}' has {len(tags)} tags, exceeding the maximum of {MAX_TAGS_PER_OBJECT} tags per object. "
+            f"Consider reducing the number of tags or combining them into composite tags."
+        )
+
+    for tag in tags:
+        if not _tag_pattern.match(tag):
+            raise ValueError(f"Invalid tag name '{tag}': tags must contain only alphanumeric characters and underscores")
+
+    return base_type, tags
+
+
+def apply_tag_overrides(base_config: dict, tags: list[str], game_config: GameConfig, model_class=None) -> dict:
+    """Apply tag overrides to a base configuration."""
+    result_config = base_config.copy()
+
+    # Get allowed fields if model class is provided
+    allowed_fields = None
+    if model_class:
+        allowed_fields = set(model_class.model_fields.keys())
+
+    for tag in tags:
+        if tag in game_config.tags:
+            tag_config = game_config.tags[tag]
+            if tag_config.overrides:
+                # Filter overrides to allowed fields if model class provided
+                if allowed_fields:
+                    filtered_overrides = {}
+                    invalid_fields = []
+                    for key, value in tag_config.overrides.items():
+                        if key in allowed_fields:
+                            filtered_overrides[key] = value
+                        else:
+                            invalid_fields.append(key)
+
+                    if invalid_fields:
+                        model_name = model_class.__name__
+                        raise ValueError(
+                            f"Tag '{tag}' contains invalid fields for {model_name}: {', '.join(invalid_fields)}. "
+                            f"Allowed fields are: {', '.join(sorted(allowed_fields))}"
+                        )
+
+                    result_config = recursive_update(result_config, filtered_overrides)
+                else:
+                    result_config = recursive_update(result_config, tag_config.overrides)
+
+    return result_config
+
+
+def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig, map_data: list[list[str]] | None = None):
     """Convert a GameConfig to a CppGameConfig."""
     if isinstance(mettagrid_config, GameConfig):
         # If it's already a GameConfig instance, convert to dict
@@ -34,6 +96,166 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
     objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
+
+    # Collect all tags for deterministic pre-registration
+    all_tags = set()
+
+    # Add tags from config
+    all_tags.update(game_config.tags.keys())
+
+    # Add tags discovered from map data
+    if map_data:
+        for row in map_data:
+            for cell in row:
+                if "." in cell:
+                    # Parse tags from object names
+                    parts = cell.split(".")
+                    if cell.startswith("agent.agent."):
+                        # Special case for agent.agent.tag1.tag2
+                        agent_tags = parts[2:]
+                        # Validate tag names before adding
+                        for tag in agent_tags:
+                            if not _tag_pattern.match(tag):
+                                raise ValueError(
+                                    f"Invalid tag name '{tag}' in object '{cell}': "
+                                    f"tags must contain only alphanumeric characters and underscores"
+                                )
+                        all_tags.update(agent_tags)
+                    elif cell.startswith("agent."):
+                        # Could be agent.subtype or agent.subtype.tag1.tag2
+                        # Skip the first part (agent) and check if second is a subtype
+                        valid_subtypes = {"team_1", "team_2", "team_3", "team_4", "prey", "predator", "agent"}
+                        agent_tags = []
+                        if len(parts) > 1 and parts[1] not in valid_subtypes:
+                            # It's a tag, not a subtype
+                            agent_tags = parts[1:]
+                        elif len(parts) > 2:
+                            # Has subtype and tags
+                            agent_tags = parts[2:]
+
+                        # Validate tag names before adding
+                        for tag in agent_tags:
+                            if not _tag_pattern.match(tag):
+                                raise ValueError(
+                                    f"Invalid tag name '{tag}' in object '{cell}': "
+                                    f"tags must contain only alphanumeric characters and underscores"
+                                )
+                        all_tags.update(agent_tags)
+                    else:
+                        # Regular object with tags
+                        object_tags = parts[1:]
+                        # Validate tag names before adding
+                        for tag in object_tags:
+                            if not _tag_pattern.match(tag):
+                                raise ValueError(
+                                    f"Invalid tag name '{tag}' in object '{cell}': "
+                                    f"tags must contain only alphanumeric characters and underscores"
+                                )
+                        all_tags.update(object_tags)
+
+    # Sort tags deterministically for consistent feature ID assignment
+    sorted_tags = sorted(all_tags)
+
+    # Note: Feature space validation is handled by C++ ObservationEncoder::register_tag
+    # which knows the exact layout of feature IDs and can accurately detect overflow.
+    # We don't duplicate that logic here to avoid maintaining two sources of truth.
+
+    # If map data is provided, scan for tagged objects and create configs for them
+    if map_data:
+        tagged_objects = set()
+        for row in map_data:
+            for cell in row:
+                if "." in cell and not cell.startswith("agent"):
+                    # This is a tagged object like "converter.red.fast"
+                    tagged_objects.add(cell)
+
+        # Track all used type_ids to avoid conflicts
+        # Also track which object uses each ID for better error messages
+        used_type_ids = {}  # type_id -> object_name mapping
+        max_type_id = 0
+
+        # Collect type IDs from existing game config objects
+        for obj_name, obj_config in game_config.objects.items():
+            if hasattr(obj_config, 'type_id'):
+                used_type_ids[obj_config.type_id] = obj_name
+                if obj_config.type_id > max_type_id:
+                    max_type_id = obj_config.type_id
+
+        # Also collect from objects_cpp_params (already processed objects)
+        for obj_name, cpp_config in objects_cpp_params.items():
+            if hasattr(cpp_config, 'type_id'):
+                # Only add if not already tracked (avoid duplicates)
+                if cpp_config.type_id not in used_type_ids:
+                    used_type_ids[cpp_config.type_id] = obj_name
+                if cpp_config.type_id > max_type_id:
+                    max_type_id = cpp_config.type_id
+
+        # Create configs for tagged objects with overrides applied
+        next_type_id = max_type_id + 1
+        for tagged_obj in tagged_objects:
+            base_type, tags = parse_object_with_tags(tagged_obj)
+
+            # Skip if base type doesn't exist in objects
+            if base_type not in game_config.objects:
+                continue
+
+            # Get base config and apply tag overrides
+            base_config = game_config.objects[base_type]
+            base_dict = base_config.model_dump()
+
+            # Determine the model class for filtering
+            if isinstance(base_config, ConverterConfig):
+                model_class = ConverterConfig
+            elif isinstance(base_config, WallConfig):
+                model_class = WallConfig
+            elif isinstance(base_config, BoxConfig):
+                model_class = BoxConfig
+            else:
+                model_class = None
+
+            overridden_dict = apply_tag_overrides(base_dict, tags, game_config, model_class)
+
+            # Handle type_id: use override if provided, otherwise allocate next available
+            if 'type_id' in overridden_dict and overridden_dict['type_id'] != base_dict.get('type_id'):
+                # Tag override specifies a type_id
+                override_type_id = overridden_dict['type_id']
+
+                # Validate it's in valid range
+                if not 0 <= override_type_id <= 255:
+                    raise ValueError(
+                        f"Invalid type_id={override_type_id} for tagged object '{tagged_obj}'. "
+                        f"Type ID must be in range [0, 255] (ObservationType limit)."
+                    )
+
+                # Check for conflicts with all used type_ids
+                if override_type_id in used_type_ids:
+                    conflicting_obj = used_type_ids[override_type_id]
+                    raise ValueError(
+                        f"Type ID conflict: Tagged object '{tagged_obj}' tries to use type_id={override_type_id}, "
+                        f"but it's already used by '{conflicting_obj}'. Each object must have a unique type_id."
+                    )
+
+                used_type_ids[override_type_id] = tagged_obj
+            else:
+                # No override specified, allocate next available type_id
+                if next_type_id > 255:
+                    raise ValueError(
+                        f"Type ID overflow: Cannot create tagged object '{tagged_obj}' with type_id={next_type_id}. "
+                        f"Maximum allowed type_id is 255 (ObservationType limit). "
+                        f"Consider reducing the number of unique object types or tagged variants."
+                    )
+
+                overridden_dict['type_id'] = next_type_id
+                used_type_ids[next_type_id] = tagged_obj
+                next_type_id += 1
+
+            # Create new config object of the same type with overrides
+            if isinstance(base_config, ConverterConfig):
+                game_config.objects[tagged_obj] = ConverterConfig(**overridden_dict)
+            elif isinstance(base_config, WallConfig):
+                game_config.objects[tagged_obj] = WallConfig(**overridden_dict)
+            elif isinstance(base_config, BoxConfig):
+                game_config.objects[tagged_obj] = BoxConfig(**overridden_dict)
 
     # These are the baseline settings for all agents
     default_agent_config_dict = game_config.agent.model_dump()
@@ -124,8 +346,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             objects_cpp_params["agent.default"] = CppAgentConfig(**agent_cpp_params)
             objects_cpp_params["agent.agent"] = CppAgentConfig(**agent_cpp_params)
 
-    # Convert other objects
+    # Process all objects including those with tags (e.g., "converter.red.fast")
     for object_type, object_config in game_config.objects.items():
+        # For base objects, just convert them directly
+        # Tagged versions will be created dynamically when encountered in maps
         if isinstance(object_config, ConverterConfig):
             cpp_converter_config = CppConverterConfig(
                 type_id=object_config.type_id,
@@ -177,6 +401,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         del game_cpp_params["params"]
     if "map_builder" in game_cpp_params:
         del game_cpp_params["map_builder"]
+    if "tags" in game_cpp_params:
+        del game_cpp_params["tags"]
 
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
@@ -244,6 +470,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Add resource_loss_prob
     game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
 
+    # Add sorted tags for deterministic pre-registration
+    game_cpp_params["tags"] = sorted_tags
+
     # Set feature flags
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
     game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
@@ -253,4 +482,5 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
 
 # Alias for backward compatibility
-from_mettagrid_config = convert_to_cpp_game_config
+def from_mettagrid_config(mettagrid_config: dict | GameConfig, map_data: list[list[str]] | None = None):
+    return convert_to_cpp_game_config(mettagrid_config, map_data)
