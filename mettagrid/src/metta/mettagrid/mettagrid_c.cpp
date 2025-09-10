@@ -344,6 +344,24 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
 
   init_action_handlers();
 
+  // Initialize object_type_names (needed for renderer)
+  object_type_names.resize(game_config.objects.size());
+  
+  for (const auto& [key, object_cfg] : game_config.objects) {
+    TypeId type_id = object_cfg->type_id;
+    
+    if (type_id >= object_type_names.size()) {
+      // Sometimes the type_ids are not contiguous, so we need to resize the vector.
+      object_type_names.resize(type_id + 1);
+    }
+    
+    if (object_type_names[type_id] != "" && object_type_names[type_id] != object_cfg->type_name) {
+      throw std::runtime_error("Object type_id " + std::to_string(type_id) + " already exists with type_name " +
+                               object_type_names[type_id] + ". Trying to add " + object_cfg->type_name + ".");
+    }
+    object_type_names[type_id] = object_cfg->type_name;
+  }
+
   // Initialize group rewards
   for (const auto& [obj_name, object_cfg] : game_config.objects) {
     const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg.get());
@@ -493,7 +511,11 @@ void MettaGrid::init_action_handlers() {
 }
 
 void MettaGrid::add_agent(Agent* agent) {
-  agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
+  // Defer reward buffer initialization if buffers aren't set yet
+  // (happens in the new byte_grid constructor)
+  if (_rewards.size() > 0) {
+    agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
+  }
   _agents.push_back(agent);
 }
 
@@ -837,8 +859,13 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   _truncations = truncations;
   _rewards = rewards;
   _episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(_rewards.shape(0))}, {sizeof(float)});
+  
+  // Initialize agent reward pointers - important for the new constructor where
+  // agents are added before buffers are set
   for (size_t i = 0; i < _agents.size(); i++) {
-    _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
+    if (_agents[i]->reward == nullptr) {
+      _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
+    }
   }
 
   validate_buffers();
