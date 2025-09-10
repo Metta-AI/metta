@@ -59,7 +59,7 @@ def main():
         # Get initial inventory
         grid_objects = env.grid_objects()
         initial_inventory = None
-        for obj_id, obj_data in grid_objects.items():
+        for _obj_id, obj_data in grid_objects.items():
             if "agent" in obj_data.get("type_name", ""):
                 initial_inventory = obj_data.get("inventory", {})
                 print(f"Initial inventory: {initial_inventory}")
@@ -79,7 +79,7 @@ def main():
             # Check inventory every 5 steps
             if step % 5 == 0:
                 grid_objects = env.grid_objects()
-                for obj_id, obj_data in grid_objects.items():
+                for _obj_id, obj_data in grid_objects.items():
                     if "agent" in obj_data.get("type_name", ""):
                         current_inventory = obj_data.get("inventory", {})
                         print(f"  Step {step}: Agent inventory: {current_inventory}")

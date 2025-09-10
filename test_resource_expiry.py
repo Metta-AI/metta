@@ -325,9 +325,8 @@ def main():
         print("All tests completed successfully!")
         print("\nSummary:")
         print(f"- Agent resource expiry: {'PASS' if any(any(counts) for counts in agent_results.values()) else 'FAIL'}")
-        print(
-            f"- Converter resource expiry: {'PASS' if any(any(outputs) for outputs in converter_results.values()) else 'FAIL'}"
-        )
+        converter_pass = any(any(outputs) for outputs in converter_results.values())
+        print(f"- Converter resource expiry: {'PASS' if converter_pass else 'FAIL'}")
         print(f"- Resource loss events: {'PASS' if loss_events else 'FAIL'}")
 
     except Exception as e:
