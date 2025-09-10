@@ -24,18 +24,14 @@ function buildAuthConfig(): NextAuthConfig {
     });
   } else {
     // Google OAuth provider for production
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-      throw new Error(
-        "Missing Google OAuth credentials. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET when DEV_MODE is false."
+    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+      providers.push(
+        Google({
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        })
       );
     }
-
-    providers.push(
-      Google({
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      })
-    );
   }
 
   const allowedEmailDomains = process.env.ALLOWED_EMAIL_DOMAINS
@@ -48,7 +44,10 @@ function buildAuthConfig(): NextAuthConfig {
     callbacks: {
       async signIn({ account, profile }) {
         // adapted from https://authjs.dev/getting-started/providers/google#email-verified
-        if (process.env.DEV_MODE === "true" && account?.provider === "google") {
+        if (
+          process.env.DEV_MODE !== "false" &&
+          account?.provider === "google"
+        ) {
           return Boolean(
             profile?.email_verified &&
               allowedEmailDomains.some((domain) =>
