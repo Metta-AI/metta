@@ -18,8 +18,8 @@ spec:
           imagePullPolicy: Always
           command: ["pnpm", "run", "start"]
           env:
-            - name: NEXTAUTH_URL
-              value: https://{{ required "host" .Values.host }}
+            - name: AUTH_TRUST_HOST
+              value: "true"
           envFrom:
           - secretRef:
               name: {{ .Values.frontend.secret_name }}
