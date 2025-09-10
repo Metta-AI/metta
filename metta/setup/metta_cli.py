@@ -2,6 +2,7 @@
 import shutil
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -439,12 +440,16 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
 
     keep_paths = "config*"
     home_metta_dir = Path.home() / ".metta"
+
     if home_metta_dir.exists():
         info(f" Removing ~/.metta directory (keeping: {keep_paths})...")
-        temp_dir = Path.home() / ".metta_temp"
-        temp_dir.mkdir(exist_ok=True)
-        for file in home_metta_dir.glob(keep_paths):
-            shutil.copy2(file, temp_dir)
+        temp_dir = Path.home() / f".metta_temp_{uuid.uuid4().hex[:8]}"
+        temp_dir.mkdir()
+        for item in home_metta_dir.glob(keep_paths):
+            if item.is_file():
+                shutil.copy2(item, temp_dir / item.name)
+            elif item.is_dir():
+                shutil.copytree(item, temp_dir / item.name)
         shutil.rmtree(home_metta_dir)
         temp_dir.rename(home_metta_dir)
 
