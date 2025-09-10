@@ -298,9 +298,13 @@ proc renderFrame() =
 
 proc drawSafeRectangleEnvironment() =
   ## Enhanced rectangle-based rendering with improved visuals
-  let cellSize = 16.0  # Larger tiles for better visibility
-  let offsetX = 100.0  # More offset to center better
-  let offsetY = 80.0
+  # Calculate scale to fit full map in window (1280x800)
+  # Map is 100x50 tiles, so we need cellSize that fits within window bounds
+  let cellSize = 10.0  # Optimized to show full 100x50 map in 1280x800 window
+  let mapPixelWidth = 100.0 * cellSize   # 1000 pixels
+  let mapPixelHeight = 50.0 * cellSize   # 500 pixels
+  let offsetX = (1280.0 - mapPixelWidth) / 2.0   # Center horizontally: 140 pixels
+  let offsetY = (800.0 - mapPixelHeight) / 2.0   # Center vertically: 150 pixels
   
   # Draw terrain background first
   for x in 0 ..< MapWidth:
