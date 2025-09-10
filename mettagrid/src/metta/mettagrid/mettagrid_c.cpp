@@ -318,7 +318,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       if (wall_config) {
         Wall* wall = new Wall(r, c, *wall_config);
         std::vector<ObservationType> tag_feature_ids;
-        tag_feature_ids.resize(tags.size());
+        tag_feature_ids.reserve(tags.size());
         for (const auto& tag : tags) {
           tag_feature_ids.push_back(_obs_encoder->lookup_tag(tag));
         }
@@ -332,7 +332,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       if (box_config) {
         Box* box = new Box(r, c, *box_config, 255, 255);
         std::vector<ObservationType> tag_feature_ids;
-        tag_feature_ids.resize(tags.size());
+        tag_feature_ids.reserve(tags.size());
         for (const auto& tag : tags) {
           tag_feature_ids.push_back(_obs_encoder->lookup_tag(tag));
         }
@@ -350,7 +350,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
         Converter* converter = new Converter(r, c, config_with_offsets);
         std::vector<ObservationType> tag_feature_ids;
-        tag_feature_ids.resize(tags.size());
+        tag_feature_ids.reserve(tags.size());
         for (const auto& tag : tags) {
           tag_feature_ids.push_back(_obs_encoder->lookup_tag(tag));
         }
