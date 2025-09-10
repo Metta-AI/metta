@@ -33,7 +33,7 @@ jobs:
           aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Deploy helm chart
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/09-08-library_worker_on_eks'
         run: |
           aws eks update-kubeconfig --name main --region us-east-1
           helm upgrade -n library library ./devops/charts/library \
