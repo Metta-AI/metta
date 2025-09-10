@@ -12,7 +12,7 @@ class TestResourceLoss:
         # Create a simple 3x3 grid with one agent
         game_map = [
             ["wall", "wall", "wall"],
-            ["wall", "agent.player", "wall"],
+            ["wall", "agent.agent", "wall"],
             ["wall", "wall", "wall"],
         ]
 
@@ -23,7 +23,7 @@ class TestResourceLoss:
             "obs_width": 3,
             "obs_height": 3,
             "num_observation_tokens": 50,
-            "inventory_item_names": ["heart", "battery_blue", "laser", "armor"],
+            "resource_names": ["heart", "battery_blue", "laser", "armor"],
             "actions": {
                 "noop": {"enabled": True},
                 "move": {"enabled": True},
@@ -34,15 +34,8 @@ class TestResourceLoss:
                 "swap": {"enabled": True},
                 "change_color": {"enabled": True},
             },
-            "groups": {
-                "player": {
-                    "id": 0,
-                    "sprite": 0,
-                    "props": {},
-                }
-            },
             "objects": {
-                "wall": {"type_id": 1},
+                "wall": {"type_id": 1, "swappable": False},
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},
@@ -95,7 +88,7 @@ class TestResourceLoss:
         # Create a simple 3x3 grid with one agent
         game_map = [
             ["wall", "wall", "wall"],
-            ["wall", "agent.player", "wall"],
+            ["wall", "agent.agent", "wall"],
             ["wall", "wall", "wall"],
         ]
 
@@ -106,7 +99,7 @@ class TestResourceLoss:
             "obs_width": 3,
             "obs_height": 3,
             "num_observation_tokens": 50,
-            "inventory_item_names": ["heart", "battery_blue", "laser", "armor"],
+            "resource_names": ["heart", "battery_blue", "laser", "armor"],
             "actions": {
                 "noop": {"enabled": True},
                 "move": {"enabled": True},
@@ -117,15 +110,8 @@ class TestResourceLoss:
                 "swap": {"enabled": True},
                 "change_color": {"enabled": True},
             },
-            "groups": {
-                "player": {
-                    "id": 0,
-                    "sprite": 0,
-                    "props": {},
-                }
-            },
             "objects": {
-                "wall": {"type_id": 1},
+                "wall": {"type_id": 1, "swappable": False},
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},
@@ -179,7 +165,7 @@ class TestResourceLoss:
         # Create a simple 3x3 grid with one agent
         game_map = [
             ["wall", "wall", "wall"],
-            ["wall", "agent.player", "wall"],
+            ["wall", "agent.agent", "wall"],
             ["wall", "wall", "wall"],
         ]
 
@@ -190,7 +176,7 @@ class TestResourceLoss:
             "obs_width": 3,
             "obs_height": 3,
             "num_observation_tokens": 50,
-            "inventory_item_names": ["heart", "battery_blue", "laser", "armor"],
+            "resource_names": ["heart", "battery_blue", "laser", "armor"],
             "actions": {
                 "noop": {"enabled": True},
                 "move": {"enabled": True},
@@ -201,15 +187,8 @@ class TestResourceLoss:
                 "swap": {"enabled": True},
                 "change_color": {"enabled": True},
             },
-            "groups": {
-                "player": {
-                    "id": 0,
-                    "sprite": 0,
-                    "props": {},
-                }
-            },
             "objects": {
-                "wall": {"type_id": 1},
+                "wall": {"type_id": 1, "swappable": False},
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},

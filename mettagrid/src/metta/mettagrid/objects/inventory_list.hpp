@@ -27,8 +27,8 @@ public:
   // Constructor with resource loss
   InventoryList(EventManager* event_manager, std::mt19937* rng,
                 const std::map<InventoryItem, float>& resource_loss_prob)
-      : next_resource_id(1), event_manager(event_manager), rng(rng),
-        resource_loss_prob(resource_loss_prob) {}
+      : next_resource_id(1), resource_loss_prob(resource_loss_prob), rng(rng),
+        event_manager(event_manager) {}
 
   // Core inventory management
   std::map<InventoryItem, InventoryQuantity> inventory;
@@ -119,11 +119,12 @@ public:
     }
     for (int i = 0; i < count; i++) {
       uint64_t resource_id = create_resource_instance(item_type, current_timestep);
-      std::exponential_distribution<float> exp_dist(prob_it->second);
-      float lifetime = exp_dist(*this->rng);
-      unsigned int loss_timestep = current_timestep + static_cast<unsigned int>(std::ceil(lifetime));
+      // Use geometric distribution for discrete-time loss probability
+      // Each timestep has prob_it->second chance of loss
+      std::geometric_distribution<unsigned int> geom_dist(prob_it->second);
+      unsigned int timesteps_until_loss = geom_dist(*this->rng) + 1;  // +1 to ensure loss happens in the next timestep or later
       this->event_manager->schedule_event(EventType::StochasticResourceLoss,
-                                        loss_timestep - current_timestep,
+                                        timesteps_until_loss,
                                         object_id, // Use object's GridObjectId
                                         static_cast<EventArg>(resource_id));
     }

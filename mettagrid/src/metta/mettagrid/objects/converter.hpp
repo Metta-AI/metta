@@ -99,6 +99,7 @@ public:
 
   // Inventory management with resource tracking
   InventoryList inventory_list;
+  std::map<InventoryItem, InventoryQuantity> initial_inventory_config;
 
 public:
   // Expose inventory and resource_instances for backward compatibility
@@ -123,18 +124,19 @@ public:
         inventory_list(cfg.resource_loss_prob.empty() ? InventoryList() : InventoryList(event_manager_ptr, rng_ptr, cfg.resource_loss_prob)) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
-    // Create initial inventory map for output types
-    std::map<InventoryItem, InventoryQuantity> initial_inventory;
+    // Store the initial inventory config for later initialization
+    this->initial_inventory_config = std::map<InventoryItem, InventoryQuantity>();
     for (const auto& [item, _] : this->output_resources) {
       if (cfg.initial_resource_count > 0) {
-        initial_inventory[item] = cfg.initial_resource_count;
+        this->initial_inventory_config[item] = cfg.initial_resource_count;
       }
     }
-
-    // Populate initial inventory and initialize resource instances
-    this->inventory_list.populate_initial_inventory(initial_inventory, this->id);
   }
 
+  void init() {
+    // Initialize inventory and schedule resource loss events now that we have the correct ID
+    this->inventory_list.populate_initial_inventory(this->initial_inventory_config, this->id);
+  }
 
   // Implement HasInventory interface
   InventoryList& get_inventory_list() override {

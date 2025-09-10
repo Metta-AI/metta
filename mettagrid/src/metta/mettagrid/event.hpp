@@ -53,7 +53,7 @@ public:
     this->grid = grid_ptr;
   }
 
-  void schedule_event(EventType event_type, unsigned int delay, GridObjectId object_id, EventArg arg) {
+  virtual void schedule_event(EventType event_type, unsigned int delay, GridObjectId object_id, EventArg arg) {
     // If the object id is 0, the object has probably not been added to the grid yet. Given
     // our current usage of events, this is an error, since we won't be able to find the object
     // later when the event resolves.

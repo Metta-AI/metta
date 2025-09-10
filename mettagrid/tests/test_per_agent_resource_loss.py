@@ -12,7 +12,7 @@ class TestPerAgentResourceLoss:
         # Create a simple 3x3 grid with two agents from different groups
         game_map = [
             ["wall", "wall", "wall"],
-            ["wall", "agent.player1", "agent.player2"],
+            ["wall", "agent.red", "agent.blue"],
             ["wall", "wall", "wall"],
         ]
 
@@ -23,7 +23,7 @@ class TestPerAgentResourceLoss:
             "obs_width": 3,
             "obs_height": 3,
             "num_observation_tokens": 50,
-            "inventory_item_names": ["heart", "battery_blue", "laser", "armor"],
+            "resource_names": ["heart", "battery_blue", "laser", "armor"],
             "actions": {
                 "noop": {"enabled": True},
                 "move": {"enabled": True},
@@ -34,34 +34,27 @@ class TestPerAgentResourceLoss:
                 "swap": {"enabled": True},
                 "change_color": {"enabled": True},
             },
-            "groups": {
-                "player1": {
-                    "id": 0,
-                    "sprite": 0,
-                    "props": {
-                        "initial_inventory": {"heart": 5, "battery_blue": 3},
-                        "resource_loss_prob": {"heart": 1.0, "battery_blue": 1.0},  # Complete loss for player1 agents
-                    },
-                },
-                "player2": {
-                    "id": 1,
-                    "sprite": 0,
-                    "props": {
-                        "initial_inventory": {"heart": 5, "battery_blue": 3},
-                        "resource_loss_prob": {"heart": 0.0, "battery_blue": 0.0},  # No loss for player2 agents
-                    },
-                },
-            },
             "objects": {
-                "wall": {"type_id": 1},
+                "wall": {"type_id": 1, "swappable": False},
             },
-            "agent": {
-                "initial_inventory": {"heart": 5, "battery_blue": 3},
-                "resource_loss_prob": {
-                    "heart": 0.0,
-                    "battery_blue": 0.0,
-                },  # No loss for default agent
-            },
+            "agents": [
+                {
+                    "team_id": 0,  # Red team
+                    "initial_inventory": {"heart": 5, "battery_blue": 3},
+                    "resource_loss_prob": {
+                        "heart": 1.0,  # 100% loss for red team
+                        "battery_blue": 1.0,
+                    },
+                },
+                {
+                    "team_id": 1,  # Blue team
+                    "initial_inventory": {"heart": 5, "battery_blue": 3},
+                    "resource_loss_prob": {
+                        "heart": 0.0,  # No loss for blue team
+                        "battery_blue": 0.0,
+                    },
+                },
+            ],
         }
 
         env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
@@ -102,23 +95,23 @@ class TestPerAgentResourceLoss:
         # Sort agents by agent_id to ensure consistent testing
         agents_after.sort(key=lambda x: x["agent_id"])
 
-        # Player1 agent (agent_id=0) should have lost all items
+        # Player1 agent (agent_id=0, red team) should have lost all items due to 100% loss probability
         player1_inventory = agents_after[0]["inventory"]
-        assert 0 not in player1_inventory, "Player1 should have lost all hearts after one step"
-        assert 1 not in player1_inventory, "Player1 should have lost all battery_blue after one step"
-        assert len(player1_inventory) == 0, "Player1 should have no items left"
+        assert 0 not in player1_inventory, "Player1 (red team) should have lost all hearts after one step"
+        assert 1 not in player1_inventory, "Player1 (red team) should have lost all battery_blue after one step"
+        assert len(player1_inventory) == 0, "Player1 (red team) should have no items left"
 
-        # Player2 agent (agent_id=1) should have kept all items
+        # Player2 agent (agent_id=1, blue team) should have kept all items due to 0% loss probability
         player2_inventory = agents_after[1]["inventory"]
-        assert player2_inventory[0] == 5, "Player2 should still have 5 hearts after one step"
-        assert player2_inventory[1] == 3, "Player2 should still have 3 battery_blue after one step"
+        assert player2_inventory[0] == 5, "Player2 (blue team) should still have 5 hearts after one step"
+        assert player2_inventory[1] == 3, "Player2 (blue team) should still have 3 battery_blue after one step"
 
     def test_agent_with_no_loss_keeps_items(self):
         """Test that an agent with no resource loss keeps its items."""
         # Create a simple 3x3 grid with one agent
         game_map = [
             ["wall", "wall", "wall"],
-            ["wall", "agent.player", "wall"],
+            ["wall", "agent.agent", "wall"],
             ["wall", "wall", "wall"],
         ]
 
@@ -129,7 +122,7 @@ class TestPerAgentResourceLoss:
             "obs_width": 3,
             "obs_height": 3,
             "num_observation_tokens": 50,
-            "inventory_item_names": ["heart", "battery_blue", "laser", "armor"],
+            "resource_names": ["heart", "battery_blue", "laser", "armor"],
             "actions": {
                 "noop": {"enabled": True},
                 "move": {"enabled": True},
@@ -140,15 +133,8 @@ class TestPerAgentResourceLoss:
                 "swap": {"enabled": True},
                 "change_color": {"enabled": True},
             },
-            "groups": {
-                "player": {
-                    "id": 0,
-                    "sprite": 0,
-                    "props": {},
-                }
-            },
             "objects": {
-                "wall": {"type_id": 1},
+                "wall": {"type_id": 1, "swappable": False},
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},

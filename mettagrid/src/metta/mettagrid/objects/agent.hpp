@@ -48,6 +48,7 @@ public:
 
   // Inventory management with resource tracking
   InventoryList inventory_list;
+  std::map<InventoryItem, InventoryQuantity> initial_inventory_config;
 
 public:
   // Expose inventory and resource_instances for backward compatibility
@@ -81,11 +82,15 @@ public:
         inventory_list(config.resource_loss_prob.empty() ? InventoryList() : InventoryList(event_manager_ptr, rng_ptr, config.resource_loss_prob)) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
 
-    this->inventory_list.populate_initial_inventory(config.initial_inventory, this->id);
+    // Store the initial inventory config for later initialization
+    this->initial_inventory_config = config.initial_inventory;
   }
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
+
+    // Initialize inventory and schedule resource loss events now that we have the correct ID
+    this->inventory_list.populate_initial_inventory(this->initial_inventory_config, this->id);
   }
 
 

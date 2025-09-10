@@ -185,6 +185,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
         Converter* converter = new Converter(r, c, config_with_offsets, _event_manager.get(), &_rng);
         _grid->add_object(converter);
+        converter->init();  // Initialize inventory and schedule resource loss events
         _stats->incr("objects." + cell);
         converter->stats.set_environment(this);
         continue;
