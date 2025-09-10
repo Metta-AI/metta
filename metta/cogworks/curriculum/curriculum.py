@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import abc
 import random
-import time
 from abc import ABC
-from collections import deque
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
@@ -317,7 +315,7 @@ class Curriculum:
         """Choose a task from the population using algorithm guidance."""
         # Get current task IDs once to avoid repeated list() calls
         task_ids = list(self._tasks.keys())
-        
+
         # Get algorithm's task selection preferences
         task_scores = self._algorithm.score_tasks(task_ids)
         if task_scores:

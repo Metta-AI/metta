@@ -105,7 +105,7 @@ def make_curriculum_random(
     nav_env: Optional[MettaGridConfig] = None,
 ) -> CurriculumConfig:
     """Create curriculum configuration with random sampling for comparison.
-    
+
     Uses the same task buckets as Learning Progress curriculum but with
     uniform random sampling instead of intelligent task selection.
     """
@@ -169,10 +169,10 @@ def train_random(
     curriculum: Optional[CurriculumConfig] = None,
 ) -> TrainTool:
     """Train with uniform random curriculum for comparison with Learning Progress.
-    
+
     Uses the same task buckets as Learning Progress but with uniform random
     sampling instead of intelligent task selection based on learning progress.
-    
+
     Args:
         run: Optional run name (uses default naming if not provided)
         curriculum: Optional custom curriculum (uses make_curriculum_random by default)
@@ -181,7 +181,7 @@ def train_random(
     if run is None:
         base_run = _default_run_name()
         run = base_run.replace("navigation.", "navigation.random.")
-    
+
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum or make_curriculum_random(),

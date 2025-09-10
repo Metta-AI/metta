@@ -37,7 +37,7 @@ class CurriculumEnv(PufferEnv):
 
         # Pre-compute string prefix for performance
         self._CURRICULUM_STAT_PREFIX = "env_curriculum/"
-        
+
         # Track first reset to avoid hasattr checks
         self._first_reset_done = False
 
@@ -122,33 +122,47 @@ class CurriculumEnv(PufferEnv):
         self._stats_update_counter = self._stats_update_frequency
         self._stats_cache_valid = False
 
-    def __getattribute__(self, name: str):
-        """Intercept all attribute access and delegate to wrapped environment when appropriate.
+    def __getattr__(self, name: str):
+        """Delegate attribute access to wrapped environment when attribute not found.
 
-        This handles the case where PufferEnv defines methods that raise NotImplementedError,
-        ensuring they get properly delegated to the wrapped environment.
+        This is called only when the attribute is not found on CurriculumEnv itself,
+        providing a cleaner delegation mechanism than __getattribute__.
         """
-        # First, handle our own attributes to avoid infinite recursion
-        if name in (
-            "_env",
-            "_curriculum",
-            "_current_task",
-            "step",
-            "_add_curriculum_stats_to_info",
-            "_stats_update_counter",
-            "_stats_update_frequency",
-            "set_stats_update_frequency",
-            "force_stats_update",
-            "_cached_stats",
-            "_stats_cache_valid",
-            "_first_reset_done",
-        ):
-            return object.__getattribute__(self, name)
+        return getattr(self._env, name)
 
-        # Try to get the attribute from our wrapped environment
-        try:
-            env = object.__getattribute__(self, "_env")
-            return getattr(env, name)
-        except AttributeError:
-            # If not found in wrapped env, fall back to parent class
-            return object.__getattribute__(self, name)
+    # Explicitly implement PufferEnv interface methods that need delegation
+    @property
+    def agent_per_batch(self):
+        """Number of agents per batch (delegated to wrapped environment)."""
+        return self._env.agent_per_batch
+
+    @property
+    def done(self):
+        """Check if environment is done (delegated to wrapped environment)."""
+        return self._env.done
+
+    @property
+    def emulated(self):
+        """Whether environment is emulated (delegated to wrapped environment)."""
+        return self._env.emulated
+
+    def close(self):
+        """Close the environment (delegated to wrapped environment)."""
+        return self._env.close()
+
+    def send(self, actions):
+        """Send actions to environment (delegated to wrapped environment)."""
+        return self._env.send(actions)
+
+    def recv(self):
+        """Receive observations from environment (delegated to wrapped environment)."""
+        return self._env.recv()
+
+    def async_reset(self, *args, **kwargs):
+        """Asynchronously reset environment (delegated to wrapped environment)."""
+        return self._env.async_reset(*args, **kwargs)
+
+    @property
+    def driver_env(self):
+        """Get driver environment (delegated to wrapped environment)."""
+        return self._env.driver_env

@@ -67,7 +67,7 @@ def make_curriculum_lp(
     enable_detailed_bucket_logging: bool = False,
 ) -> CurriculumConfig:
     """Create curriculum configuration with Learning Progress algorithm.
-    
+
     Uses the same task buckets as the regular curriculum but with intelligent
     task selection based on learning progress instead of uniform random sampling.
     """
@@ -138,18 +138,19 @@ def train_lp(
     enable_detailed_logging: bool = False,
 ) -> TrainTool:
     """Train with Learning Progress curriculum.
-    
+
     Uses intelligent task selection based on learning progress scores
     instead of uniform random sampling. Tasks with high performance
     variance (indicating active learning) get priority.
-    
+
     Args:
         curriculum: Optional custom curriculum (uses make_curriculum_lp by default)
         enable_detailed_logging: Enable expensive per-bucket density logging
     """
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum_lp(enable_detailed_bucket_logging=enable_detailed_logging),
+        curriculum=curriculum
+        or make_curriculum_lp(enable_detailed_bucket_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(

@@ -71,7 +71,7 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
         """Create a CurriculumConfig from this TaskGeneratorConfig."""
         # Use dynamic import to avoid circular dependency
         from metta.cogworks.curriculum import CurriculumConfig
-        
+
         return CurriculumConfig(task_generator=self)
 
     @model_serializer(mode="wrap")
