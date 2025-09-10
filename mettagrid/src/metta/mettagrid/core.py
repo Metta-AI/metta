@@ -113,7 +113,11 @@ class MettaGridCore:
         if hasattr(self._map_builder, "set_game_config"):
             self._map_builder.set_game_config(self.__mg_config.game)
 
-        game_map = self._map_builder.build()
+        # Use build_validated if available for compression and validation
+        if hasattr(self._map_builder, "build_validated"):
+            game_map = self._map_builder.build_validated()
+        else:
+            game_map = self._map_builder.build()
 
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
