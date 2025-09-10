@@ -34,8 +34,14 @@ def _default_run_name() -> str:
     now = datetime.now()
     timestamp = now.strftime("%m%d-%H%M%S")
 
-    # Use timestamp for run name
-    return f"navigation_sequence.{user}.{timestamp}"
+    # Try to get git hash (7 chars like CI) for better tracking
+    try:
+        import gitta
+        git_hash = gitta.get_current_commit()[:7]
+        return f"navigation_sequence.{user}.{timestamp}.{git_hash}"
+    except Exception:
+        # Fallback: use timestamp
+        return f"navigation_sequence.{user}.{timestamp}"
 
 
 def make_env(num_agents: int = 4) -> MettaGridConfig:
