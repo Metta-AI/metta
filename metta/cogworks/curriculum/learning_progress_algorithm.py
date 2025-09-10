@@ -237,7 +237,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle new task creation."""
         task_id = task._task_id
-        
+
         # Track task creation directly
         self.task_tracker.track_task_creation(task_id)
 
@@ -281,7 +281,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stats_cache_valid = True
 
         return stats
-
 
     def _choose_task_from_list(self, task_ids: List[int]) -> int:
         """Choose a task from a specific list of task IDs using learning progress scores."""

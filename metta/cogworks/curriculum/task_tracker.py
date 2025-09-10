@@ -18,6 +18,7 @@ def _make_default_dict_int():
 
 
 def _make_deque_maxlen_100():
+    """Factory function for creating bounded deque - needed for pickling."""
     return deque(maxlen=100)
 
 
@@ -36,39 +37,20 @@ class TaskTracker:
         self.max_bucket_axes = max_bucket_axes
         self.enable_detailed_bucket_logging = enable_detailed_bucket_logging
 
-        # Task memory: task_id -> (creation_time, completion_count, total_score, last_score)
         self._task_memory: Dict[int, Tuple[float, int, float, float]] = {}
+        self._task_creation_order = deque()
+        self._completion_history = deque(maxlen=1000)
 
-        # Task creation order for efficient cleanup
-        self._task_creation_order = deque()  # (timestamp, task_id) pairs
-
-        # Performance tracking
-        self._completion_history = deque(maxlen=1000)  # Recent completion scores
-
-        # Cached values to avoid expensive recomputation
         self._cached_total_completions = 0
         self._cache_valid = False
 
-        # Integrated bucket analysis
-        # Bucket tracking: bucket_name -> task_id -> value
         self._bucket_tracking: Dict[str, Dict[int, Any]] = defaultdict(dict)
-
-        # Completion counts per bucket bin: bucket_name -> bin_index -> count
         self._bucket_completion_counts: Dict[str, Dict[int, int]] = defaultdict(_make_default_dict_int)
-
-        # Bucket binning configuration: bucket_name -> bin_edges
         self._bucket_bins: Dict[str, List[float]] = {}
-
-        # Track if bucket contains discrete vs continuous values
         self._bucket_is_discrete: Dict[str, bool] = {}
-
-        # Recent completion history for density analysis
         self._bucket_completion_history: Dict[str, deque] = defaultdict(_make_deque_maxlen_100)
-
-        # Monitored buckets (limited by max_bucket_axes)
         self._monitored_buckets: set = set()
 
-        # Cache for expensive density statistics
         self._density_stats_cache: Optional[Dict[str, Dict[str, float]]] = None
         self._density_cache_valid = False
 
@@ -78,11 +60,9 @@ class TaskTracker:
         self._task_memory[task_id] = (timestamp, 0, 0.0, 0.0)
         self._task_creation_order.append((timestamp, task_id))
 
-        # Cleanup old tasks if we exceed memory limit
         if len(self._task_memory) > self.max_memory_tasks:
             self._cleanup_old_tasks()
 
-        # Invalidate cache when task structure changes
         self._cache_valid = False
 
     def update_task_performance(self, task_id: int, score: float, bucket_values: Dict[str, Any] = None) -> None:
@@ -97,13 +77,11 @@ class TaskTracker:
         self._task_memory[task_id] = (creation_time, new_completion_count, new_total_score, score)
         self._completion_history.append(score)
 
-        # Update cached total completions incrementally
         if self._cache_valid:
             self._cached_total_completions += 1
         else:
             self._cache_valid = False
 
-        # Update bucket analysis if bucket values provided
         if bucket_values:
             self._update_bucket_tracking(task_id, bucket_values, score)
 
@@ -137,7 +115,6 @@ class TaskTracker:
         """Remove a task from tracking."""
         if task_id in self._task_memory:
             self._task_memory.pop(task_id)
-            # Remove from creation order (expensive but infrequent)
             self._task_creation_order = deque((ts, tid) for ts, tid in self._task_creation_order if tid != task_id)
             self._cache_valid = False
 
@@ -148,7 +125,6 @@ class TaskTracker:
             if old_task_id in self._task_memory:
                 self._task_memory.pop(old_task_id)
 
-        # Cache may still be valid after cleanup if we tracked changes
         self._cache_valid = False
 
     def get_global_stats(self) -> Dict[str, float]:
@@ -162,23 +138,25 @@ class TaskTracker:
         stats = {
             "total_tracked_tasks": float(len(self._task_memory)),
             "total_completions": float(self._cached_total_completions),
-            "avg_completions_per_task": float(self._cached_total_completions / len(self._task_memory))
-            if self._task_memory
-            else 0.0,
+            "avg_completions_per_task": (
+                float(self._cached_total_completions / len(self._task_memory)) if self._task_memory else 0.0
+            ),
             "recent_completion_history_size": float(len(self._completion_history)),
-            # Bucket analysis stats (inlined)
             "num_monitored_buckets": float(len(self._monitored_buckets)),
             "max_bucket_axes": float(self.max_bucket_axes),
         }
 
-        # Add detailed bucket stats
-        total_tasks = 0
-        total_bins = 0
-        for bucket_name in self._monitored_buckets:
-            if bucket_name in self._bucket_tracking:
-                total_tasks += len(self._bucket_tracking[bucket_name])
-            if bucket_name in self._bucket_completion_counts:
-                total_bins += len(self._bucket_completion_counts[bucket_name])
+        total_tasks = sum(
+            len(self._bucket_tracking[bucket_name])
+            for bucket_name in self._monitored_buckets
+            if bucket_name in self._bucket_tracking
+        )
+
+        total_bins = sum(
+            len(self._bucket_completion_counts[bucket_name])
+            for bucket_name in self._monitored_buckets
+            if bucket_name in self._bucket_completion_counts
+        )
 
         stats["total_tracked_tasks_buckets"] = float(total_tasks)
         stats["total_bucket_bins"] = float(total_bins)
@@ -188,61 +166,44 @@ class TaskTracker:
 
         return stats
 
-    # Integrated bucket analysis methods
-
     def extract_bucket_values(self, task) -> Dict[str, Any]:
         """Extract bucket values from a task's environment configuration."""
-        bucket_values = {}
-
-        # This is a placeholder - real implementation would extract from task.get_env_cfg()
-        # and match against known bucket paths like "game.map_builder.width"
         if hasattr(task, "get_bucket_values"):
-            bucket_values = task.get_bucket_values()
-
-        return bucket_values
+            return task.get_bucket_values()
+        return {}
 
     def _update_bucket_tracking(self, task_id: int, bucket_values: Dict[str, Any], score: float) -> None:
         """Update bucket tracking with task completion data."""
         if not bucket_values:
             return
 
-        # Update tracking for each bucket dimension
         for bucket_name, bucket_value in bucket_values.items():
-            # Only monitor if we haven't exceeded max axes
             if bucket_name not in self._monitored_buckets and len(self._monitored_buckets) >= self.max_bucket_axes:
                 continue
 
             self._monitored_buckets.add(bucket_name)
             self._bucket_tracking[bucket_name][task_id] = bucket_value
 
-            # Set up binning if not already configured
             if bucket_name not in self._bucket_bins:
                 self._setup_bucket_binning(bucket_name, bucket_value)
 
-            # Track completion in appropriate bin
             bin_index = self._get_bucket_bin_index(bucket_name, bucket_value)
             if bin_index is not None:
                 self._bucket_completion_counts[bucket_name][bin_index] += 1
                 self._bucket_completion_history[bucket_name].append((bin_index, score))
 
-        # Invalidate density cache when new data is added
         self._density_cache_valid = False
 
     def _setup_bucket_binning(self, bucket_name: str, sample_value: Any) -> None:
         """Set up binning configuration for a bucket based on its value type."""
         if isinstance(sample_value, (int, float)):
-            # For numeric values, assume continuous and set up 10 bins initially
-            # In a real implementation, you'd analyze value distributions
             self._bucket_is_discrete[bucket_name] = False
             if isinstance(sample_value, int) and sample_value < 20:
-                # Small integers are probably discrete
                 self._bucket_is_discrete[bucket_name] = True
                 self._bucket_bins[bucket_name] = list(range(0, 21))
             else:
-                # Continuous values get adaptive binning
-                self._bucket_bins[bucket_name] = [float(i) for i in range(11)]  # 0-10 initial range
+                self._bucket_bins[bucket_name] = [float(i) for i in range(11)]
         else:
-            # Non-numeric values are discrete
             self._bucket_is_discrete[bucket_name] = True
             self._bucket_bins[bucket_name] = [str(sample_value)]
 
@@ -255,15 +216,11 @@ class TaskTracker:
         is_discrete = self._bucket_is_discrete.get(bucket_name, False)
 
         if is_discrete:
-            # For discrete values, find exact match or add new bin
             if value in bins:
                 return bins.index(value)
-            else:
-                # Add new discrete value
-                bins.append(value)
-                return len(bins) - 1
+            bins.append(value)
+            return len(bins) - 1
         else:
-            # For continuous values, use numpy digitize
             if isinstance(value, (int, float)):
                 return int(np.digitize([value], bins)[0])
             return None
@@ -274,14 +231,12 @@ class TaskTracker:
             return self._density_stats_cache
 
         stats = {}
-
         if self.enable_detailed_bucket_logging:
             for bucket_name in self._monitored_buckets:
                 bucket_stats = self._compute_bucket_density_stats(bucket_name)
                 if bucket_stats:
                     stats[bucket_name] = bucket_stats
 
-            # Cache the results
             self._density_stats_cache = stats
             self._density_cache_valid = True
 
