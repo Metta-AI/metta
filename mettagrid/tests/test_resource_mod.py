@@ -685,7 +685,7 @@ def test_resource_mod_fractional_amounts():
     edge_gain_0_rate = edge_gained_counts[0] / num_iterations
     edge_gain_1_rate = edge_gained_counts[1] / num_iterations
 
-    print(f"\nEdge case (0.1 consume, 0.9 modify) distribution:")
+    print("\nEdge case (0.1 consume, 0.9 modify) distribution:")
     print(f"  Consumed 0: {edge_consumed_counts[0]} times ({edge_consume_0_rate:.1%})")
     print(f"  Consumed 1: {edge_consumed_counts[1]} times ({edge_consume_1_rate:.1%})")
     print(f"  Gained 0: {edge_gained_counts[0]} times ({edge_gain_0_rate:.1%})")
