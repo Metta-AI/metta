@@ -70,10 +70,10 @@ The orchestrator starts and creates the sweep configuration:
 The Protein optimizer suggests hyperparameters, and the orchestrator builds the training command:
 
 ```
-[OptimizingScheduler] 🚀 Scheduling trial 1/3: trial_0001
-[OptimizingScheduler]    trainer.optimizer.learning_rate: 0.0003421
-[OptimizingScheduler]    trainer.losses.loss_configs.ppo.clip_coef: 0.182
-[OptimizingScheduler]    trainer.losses.loss_configs.ppo.ent_coef: 0.0023
+[BatchedSyncedScheduler] 🚀 Scheduling trial 1/3: trial_0001
+[BatchedSyncedScheduler]    trainer.optimizer.learning_rate: 0.0003421
+[BatchedSyncedScheduler]    trainer.losses.loss_configs.ppo.clip_coef: 0.182
+[BatchedSyncedScheduler]    trainer.losses.loss_configs.ppo.ent_coef: 0.0023
 ```
 
 **Actual dispatched command (via SkypilotDispatcher for training):**
@@ -109,7 +109,7 @@ This launches the training job on cloud resources (Skypilot).
 After training completes, the orchestrator schedules evaluation:
 
 ```
-[OptimizingScheduler] Scheduling evaluation for trial_0001
+[BatchedSyncedScheduler] Scheduling evaluation for trial_0001
 ```
 
 **Actual dispatched command (via LocalDispatcher for evaluation):**
@@ -128,7 +128,7 @@ This command is executed locally (not sent to Skypilot). The evaluation command 
 ```
 [trial_0001] Running evaluation suite...
 [trial_0001] eval_arena: score=0.721, survival_rate=0.89
-[OptimizingScheduler] Trial trial_0001 completed with score: 0.721
+[BatchedSyncedScheduler] Trial trial_0001 completed with score: 0.721
 ```
 
 ### Step 3: Subsequent Trials
@@ -136,9 +136,9 @@ This command is executed locally (not sent to Skypilot). The evaluation command 
 The Protein optimizer uses Bayesian optimization to suggest better hyperparameters based on trial 1's results:
 
 ```
-[OptimizingScheduler] 🚀 Scheduling trial 2/3: trial_0002
-[OptimizingScheduler]    trainer.optimizer.learning_rate: 0.0008124  # Adjusted based on trial 1
-[OptimizingScheduler]    trainer.losses.loss_configs.ppo.clip_coef: 0.095  # Adjusted
+[BatchedSyncedScheduler] 🚀 Scheduling trial 2/3: trial_0002
+[BatchedSyncedScheduler]    trainer.optimizer.learning_rate: 0.0008124  # Adjusted based on trial 1
+[BatchedSyncedScheduler]    trainer.losses.loss_configs.ppo.clip_coef: 0.095  # Adjusted
 ```
 
 **Trial 2 Training Command:**
@@ -246,8 +246,7 @@ The sweep system consists of four main components:
 
 1. **Orchestrator** (`metta/sweep/controller.py`): Stateless controller that coordinates the sweep
 2. **Scheduler** (`metta/sweep/scheduler/`): Decides which jobs to run next
-   - `OptimizingScheduler`: Uses Protein optimizer for Bayesian optimization
-   - `SequentialScheduler`: Simple one-job-at-a-time scheduler
+   - `BatchedSyncedOptimizingScheduler`: Uses Protein optimizer for Bayesian optimization with batched synchronous execution
 3. **Store** (`metta/sweep/store/wandb.py`): Persistent state management via WandB
 4. **Dispatcher**: Executes jobs
    - `LocalDispatcher`: Local subprocess execution with output capture
@@ -368,9 +367,9 @@ The subprocess output (e.g., "57.6% complete") is more current than the monitor 
 The orchestrator provides detailed logging:
 ```
 [SweepOrchestrator] Starting sweep: my_sweep
-[OptimizingScheduler] 🚀 Scheduling trial 1/10: trial_0001
-[OptimizingScheduler]    trainer.optimizer.learning_rate: 0.001
-[OptimizingScheduler]    trainer.losses.loss_configs.ppo.clip_coef: 0.15
+[BatchedSyncedScheduler] 🚀 Scheduling trial 1/10: trial_0001
+[BatchedSyncedScheduler]    trainer.optimizer.learning_rate: 0.001
+[BatchedSyncedScheduler]    trainer.losses.loss_configs.ppo.clip_coef: 0.15
 [trial_0001] Epoch 40 [axel.test_sweep.2038_trial_0001] / 798 sps / 46.08% of 50.00 ksteps
 [SweepOrchestrator] Trial trial_0001 completed with score: 0.85
 ```
