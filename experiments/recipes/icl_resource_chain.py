@@ -85,7 +85,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         rng: random.Random,
     ):
         converter_name = self._choose_converter_name(
-            self.converter_types, cfg.used_objects, rng
+            self.converter_types, set(cfg.used_objects), rng
         )
         cfg.used_objects.append(converter_name)
         cfg.converters.append(converter_name)
@@ -105,7 +105,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
     def _add_sink(self, cfg: _BuildCfg, rng: random.Random):
         sink_name = self._choose_converter_name(
-            self.converter_types, cfg.used_objects, rng
+            self.converter_types, set(cfg.used_objects), rng
         )
         cfg.used_objects.append(sink_name)
         sink = self.converter_types[sink_name].copy()
