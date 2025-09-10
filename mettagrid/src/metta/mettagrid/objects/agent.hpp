@@ -4,9 +4,9 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <limits>
 #include <string>
 #include <vector>
-#include <limits>
 
 #include "../stats_tracker.hpp"
 #include "agent_config.hpp"
@@ -138,8 +138,8 @@ public:
     if (auto it = this->resource_limits.find(item); it != this->resource_limits.end()) {
       max_limit = static_cast<int>(it->second);
     }
-    InventoryQuantity new_amount = static_cast<InventoryQuantity>(
-        std::clamp(static_cast<int>(initial_amount + attempted_delta), 0, max_limit));
+    InventoryQuantity new_amount =
+        static_cast<InventoryQuantity>(std::clamp(static_cast<int>(initial_amount + attempted_delta), 0, max_limit));
 
     InventoryDelta delta = new_amount - initial_amount;
 

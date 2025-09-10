@@ -80,7 +80,7 @@ TEST_F(StatsTrackerTest, MinMaxTracking) {
   stats.set("temperature", 18.0f);
 
   auto result = stats.to_dict();
-  EXPECT_FLOAT_EQ(18.0f, result["temperature"]);      // Current value
+  EXPECT_FLOAT_EQ(18.0f, result["temperature"]);  // Current value
   // EXPECT_FLOAT_EQ(15.0f, result["temperature.min"]);  // Minimum
   // EXPECT_FLOAT_EQ(25.0f, result["temperature.max"]);  // Maximum
 }
@@ -215,7 +215,7 @@ TEST_F(StatsTrackerTest, CompleteMetadata) {
   auto result = stats.to_dict();
 
   // Check basic values
-  EXPECT_FLOAT_EQ(50.0f, result["resource"]);      // Total: 10+20+15+5
+  EXPECT_FLOAT_EQ(50.0f, result["resource"]);  // Total: 10+20+15+5
   // EXPECT_FLOAT_EQ(10.0f, result["resource.min"]);  // Min cumulative value
   // EXPECT_FLOAT_EQ(50.0f, result["resource.max"]);  // Max cumulative value
 
