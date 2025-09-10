@@ -92,6 +92,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for k, v in agent_props["initial_inventory"].items():
             initial_inventory[resource_name_to_id[k]] = v
 
+        for agent in team_agents:
+            if agent.props and agent.props.get(agent.props.get("resource_loss_prob")):
+                print("asdf")
+
+        #         print(agent_group_props)
+
         # Map team IDs to conventional group names
         team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
         group_name = team_names.get(team_id, f"team_{team_id}")
