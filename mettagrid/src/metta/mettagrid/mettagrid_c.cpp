@@ -434,10 +434,17 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
-        // Don't call add_agent here as buffers aren't set yet
-        // Just add to the vector, init will happen in set_buffers
+        // Add agent to the grid (critical for step() to work)
+        _grid->add_object(agent);
+        // Set agent ID before adding to vector
+        if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
+          throw std::runtime_error("Too many agents for agent_id type");
+        }
+        agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
+        // Add to agents vector (reward pointer will be initialized in set_buffers)
         _agents.push_back(agent);
         _group_sizes[agent->group] += 1;
+        _stats->incr("objects." + cell);
         continue;
       }
 
@@ -868,6 +875,7 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   _truncations = truncations;
   _rewards = rewards;
   _episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(_rewards.shape(0))}, {sizeof(float)});
+
   for (size_t i = 0; i < _agents.size(); i++) {
     _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
   }
