@@ -108,7 +108,3 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
 
         # Check they serialize to the same JSON
         self.assertEqual(original.model_dump_json(), restored.model_dump_json())
-
-
-if __name__ == "__main__":
-    unittest.main()
