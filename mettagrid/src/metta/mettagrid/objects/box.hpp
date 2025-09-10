@@ -53,6 +53,12 @@ public:
     return inventory_list;
   }
 
+  // Implement update_inventory using InventoryList with no resource loss
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) override {
+    std::map<InventoryItem, float> empty_resource_loss_prob;
+    return inventory_list.update_inventory(item, delta, empty_resource_loss_prob, this->id);
+  }
+
   bool is_creator(unsigned char agent_id) const {
     return agent_id == creator_agent_id;
   }
