@@ -251,6 +251,10 @@ class Curriculum:
         self._num_created = 0
         self._num_evicted = 0
 
+        # Performance optimization: reduce expensive eviction evaluation frequency
+        self._episodes_since_eviction = 0
+        self._eviction_frequency = 20  # Only evaluate evictions every 20 episodes
+
         # Always have an algorithm (now guaranteed by config default)
         self._algorithm = config.algorithm_config.create(config.num_active_tasks)
 
@@ -269,19 +273,24 @@ class Curriculum:
         else:
             task = self._choose_task()
 
-            # Use algorithm criteria for eviction
-            task_ids = list(self._tasks.keys())
-            evictable_tasks = [
-                tid
-                for tid in task_ids
-                if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
-            ]
-            if evictable_tasks:
-                # Evict a task that meets the criteria and create a new one
-                evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
-                if evict_candidate is not None:
-                    self._evict_specific_task(evict_candidate)
-                    task = self._create_task()
+            # Performance optimization: only evaluate evictions periodically
+            self._episodes_since_eviction += 1
+            if self._episodes_since_eviction >= self._eviction_frequency:
+                # Use algorithm criteria for eviction (expensive)
+                task_ids = list(self._tasks.keys())
+                evictable_tasks = [
+                    tid
+                    for tid in task_ids
+                    if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
+                ]
+                if evictable_tasks:
+                    # Evict a task that meets the criteria and create a new one
+                    evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
+                    if evict_candidate is not None:
+                        self._evict_specific_task(evict_candidate)
+                        task = self._create_task()
+
+                self._episodes_since_eviction = 0  # Reset counter
 
         task._num_scheduled += 1
         return task

@@ -225,8 +225,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Update learning progress EMA
         self._update_task_ema(task_id, score)
 
-        # Invalidate stats cache when performance updates
-        self._stats_cache_valid = False
+        # Reduce cache invalidation frequency for better performance
+        # Let stats cache expire naturally through periodic updates
 
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle new task creation."""
