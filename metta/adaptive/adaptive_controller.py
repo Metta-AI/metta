@@ -36,7 +36,7 @@ class AdaptiveController:
     def run(self) -> None:
         """Main adaptive experiment loop - everything inline."""
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
-        has_data = config.resume
+        has_data = self.config.resume
         while len(self.dispatched_jobs) < self.config.max_trials:
             try:
                 # 1. Get current state
