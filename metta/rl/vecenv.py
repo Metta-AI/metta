@@ -32,10 +32,10 @@ def make_env_func(
 
     # Check if this is a tribal environment
     if hasattr(env_cfg, "environment_type") and env_cfg.environment_type == "tribal":
-        # Import and create TribalPufferEnv (PufferLib-compatible wrapper)
-        from metta.sim.tribal_puffer import TribalPufferEnv
+        # Import and create TribalGridEnv (now with PufferLib compatibility)
+        from metta.sim.tribal_genny import TribalGridEnv
 
-        # Convert TribalEnvConfig to dict for TribalPufferEnv
+        # Convert TribalEnvConfig to dict for TribalGridEnv
         tribal_config = {
             "max_steps": env_cfg.game.max_steps,
             "ore_per_battery": env_cfg.game.ore_per_battery,
@@ -50,8 +50,8 @@ def make_env_func(
             "death_penalty": env_cfg.game.death_penalty,
         }
 
-        env = TribalPufferEnv(tribal_config, render_mode=render_mode, buf=buf)
-        # TribalPufferEnv handles its own buffer setup since it inherits from PufferEnv
+        env = TribalGridEnv(tribal_config, render_mode=render_mode, buf=buf)
+        # TribalGridEnv now handles its own buffer setup with PufferLib compatibility
     else:
         # Standard MettaGrid environment
         env = MettaGridEnv(

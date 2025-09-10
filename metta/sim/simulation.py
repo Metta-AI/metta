@@ -118,12 +118,11 @@ class Simulation:
 
         driver_env = self._vecenv.driver_env  # type: ignore
         grid_env = getattr(driver_env, "_env", driver_env)
-        # Accept MettaGridEnv, TribalGridEnv, and TribalPufferEnv (all have compatible interfaces)
+        # Accept MettaGridEnv and TribalGridEnv (both have compatible interfaces)
         from metta.sim.tribal_genny import TribalGridEnv
-        from metta.sim.tribal_puffer import TribalPufferEnv
 
-        assert isinstance(grid_env, (MettaGridEnv, TribalGridEnv, TribalPufferEnv)), (
-            f"Expected MettaGridEnv, TribalGridEnv, or TribalPufferEnv, got {type(grid_env)}"
+        assert isinstance(grid_env, (MettaGridEnv, TribalGridEnv)), (
+            f"Expected MettaGridEnv or TribalGridEnv, got {type(grid_env)}"
         )
         metta_grid_env = grid_env  # Keep the same variable name for compatibility
 

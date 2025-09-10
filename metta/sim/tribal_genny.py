@@ -75,7 +75,7 @@ class TribalGridEnv:
     genny-generated bindings underneath.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, render_mode: Optional[str] = None, buf: Optional[Any] = None):
         """Initialize tribal environment."""
         print(f"[DEBUG] TribalGridEnv.__init__() called with config: {config}")
 
@@ -154,11 +154,17 @@ class TribalGridEnv:
         feature_norms_seq = get_feature_normalizations()
         self.feature_normalizations = {i: feature_norms_seq[i] for i in range(len(feature_norms_seq))}
 
+        # PufferLib compatibility
+        self.render_mode = render_mode
+        self._should_reset = False
+
         print("[DEBUG] TribalGridEnv.__init__() complete!")
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment and return initial observations."""
         print(f"[DEBUG] TribalGridEnv.reset() called with seed={seed}")
+        
+        self._should_reset = False
 
         # Reset the Nim environment (our binding doesn't take seed parameter)
         print("[DEBUG] Calling _nim_env.reset_env()...")
@@ -230,6 +236,11 @@ class TribalGridEnv:
         # Check for episode end
         if self._nim_env.is_episode_done():
             truncations[:] = True
+            self._should_reset = True
+        
+        # Check if all agents are done
+        if terminals.all() or truncations.all():
+            self._should_reset = True
 
         info = {
             "current_step": self._nim_env.get_current_step(),
@@ -238,6 +249,22 @@ class TribalGridEnv:
         }
 
         return observations, rewards, terminals, truncations, info
+
+    # PufferLib required properties
+    @property
+    def emulated(self) -> bool:
+        """Native envs do not use emulation (PufferLib compatibility)."""
+        return False
+
+    @property
+    def done(self) -> bool:
+        """Check if environment is done."""
+        return self._should_reset
+
+    def _get_initial_observations(self) -> np.ndarray:
+        """Get initial observations after reset."""
+        observations, _ = self.reset()
+        return observations
 
     def _convert_observations(self, token_seq: SeqInt) -> np.ndarray:
         """Convert genny token observation data directly to numpy format."""
@@ -473,5 +500,21 @@ def make_tribal_env(**config) -> TribalGridEnv:
 
     Returns:
         TribalGridEnv instance
+    """
+    return TribalGridEnv(config)
+
+
+def make_tribal_puffer_env(**config) -> TribalGridEnv:
+    """
+    Create a tribal PufferLib environment instance.
+    
+    This is now an alias for make_tribal_env() since TribalGridEnv
+    has been enhanced with full PufferLib compatibility.
+
+    Args:
+        **config: Configuration parameters for the environment
+
+    Returns:
+        TribalGridEnv instance with PufferLib compatibility
     """
     return TribalGridEnv(config)
