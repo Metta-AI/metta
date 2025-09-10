@@ -50,7 +50,9 @@ class BrewInstaller(PackageInstaller[BrewPackageConfig]):
         return to_install, to_pin, to_tap
 
     def check_installed(self, packages: list[BrewPackageConfig]) -> bool:
-        return any(self._get_changes_to_apply(packages))
+        """Returns True when no changes are required."""
+        to_install, to_pin, to_tap = self._get_changes_to_apply(packages)
+        return not any([to_install, to_pin, to_tap])
 
     def install(self, packages: list[BrewPackageConfig]) -> None:
         to_install, to_pin, to_tap = self._get_changes_to_apply(packages)
