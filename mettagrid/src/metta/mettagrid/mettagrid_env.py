@@ -148,8 +148,9 @@ class MettaGridEnv(MettaGridPufferBase):
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self.num_agents
 
-        infos["reward_estimates"] = {}
+        # If reward estimates are set, plot them compared to the mean reward
         if self.mg_config.game.reward_estimates:
+            infos["reward_estimates"] = {}
             infos["reward_estimates"]["diff_from_efficient_optimal"] = (
                 self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
             )
