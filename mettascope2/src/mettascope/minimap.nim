@@ -1,5 +1,5 @@
 import
-  boxy, chroma,
+  boxy, chroma, fidget2/[common, hybridrender],
   common, panels, worldmap
 
 proc drawMinimap*(panel: Panel) =

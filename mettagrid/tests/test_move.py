@@ -41,7 +41,6 @@ def base_config():
             "move": {"enabled": True},
             "rotate": {"enabled": True},
         },
-        "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
             "wall": {"type_id": 1},
         },

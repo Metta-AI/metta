@@ -1,0 +1,60 @@
+# BUILD.bazel file for mettagrid C++ extension module
+load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
+
+# Basic compiler flags
+COPTS = [
+    "-std=c++20",
+    "-fvisibility=hidden",
+    "-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION",
+    "-O3",
+    "-DNDEBUG",
+]
+
+# Library for tests - use pybind_library without hidden visibility
+pybind_library(
+    name = "mettagrid_lib",
+    srcs = glob([
+        "src/metta/mettagrid/*.cpp",
+        "src/metta/mettagrid/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "src/metta/mettagrid/*.hpp",
+        "src/metta/mettagrid/**/*.hpp",
+    ]),
+    copts = [
+        "-std=c++20",
+        "-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION",
+        "-O3",
+        "-DNDEBUG",
+    ],  # Removed -fvisibility=hidden
+    includes = ["src/metta", "src/metta/mettagrid"],
+    visibility = ["//visibility:public"],
+)
+
+# Python extension module
+pybind_extension(
+    name = "mettagrid_c",
+    srcs = glob([
+        "src/metta/mettagrid/*.cpp",
+        "src/metta/mettagrid/**/*.cpp",
+        "src/metta/mettagrid/*.hpp",
+        "src/metta/mettagrid/**/*.hpp",
+    ]),
+    copts = COPTS,
+    includes = ["src/metta/mettagrid"],
+    visibility = ["//visibility:public"],
+)
+
+# Export the .clang-tidy config file for use by the linter
+exports_files([".clang-tidy"])
+
+# Export source files for test_mettagrid
+exports_files(
+    glob([
+        "src/metta/mettagrid/*.cpp",
+        "src/metta/mettagrid/**/*.cpp",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
+
