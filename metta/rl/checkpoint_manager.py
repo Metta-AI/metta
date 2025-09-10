@@ -59,7 +59,7 @@ def _create_agent_from_state_dict(state_dict: Dict[str, torch.Tensor], device: s
     temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
     system_cfg = SystemConfig(device=str(device))
-    agent_cfg = AgentConfig()
+    agent_cfg = AgentConfig(name="pytorch/fast")
 
     # Create the agent
     agent = MettaAgent(temp_env, system_cfg, agent_cfg)
@@ -68,21 +68,34 @@ def _create_agent_from_state_dict(state_dict: Dict[str, torch.Tensor], device: s
 
     try:
         # Load the state dict into the agent
-        agent.load_state_dict(state_dict, strict=False)
+        agent.load_state_dict(state_dict, strict=True)
         logger.info("Successfully loaded PufferLib state_dict into MettaAgent")
     except Exception as e:
         logger.warning(f"Failed to load state_dict with strict=False: {e}")
         logger.info("Attempting to load compatible parameters only")
 
         # Try to load only compatible parameters
-        agent_state = agent.state_dict()
+        agent_state = agent.policy.state_dict()
         compatible_state = {}
 
-        for key, value in state_dict.items():
-            if key in agent_state and agent_state[key].shape == value.shape:
-                compatible_state[key] = value
+        new_state_dict = {}
+
+        for state_dict_key, state_dict_value in state_dict.items():
+            if state_dict_key.startswith("fast_policy."):
+                new_key = state_dict_key[len("fast_policy.") :]
+                new_state_dict[new_key] = state_dict_value
             else:
-                logger.debug(f"Skipping incompatible parameter: {key}")
+                new_state_dict[state_dict_key] = state_dict_value
+        
+        keys_matched = 0
+        for key, value in new_state_dict.items():
+            if key in agent_state:
+                agent_state[key] = value
+                keys_matched += 1
+            else:
+                logger.info(f"Skipping incompatible parameter: {key}")
+        
+        logger.info(f"Loaded {keys_matched}/{len(new_state_dict)} compatible parameters")
 
         if compatible_state:
             agent.load_state_dict(compatible_state, strict=False)
