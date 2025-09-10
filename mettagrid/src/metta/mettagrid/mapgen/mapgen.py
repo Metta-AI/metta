@@ -322,9 +322,8 @@ class MapGen(MapBuilder):
         # Initialize compressor when game config is set
         if game_config and self.config.validate_objects and self.compressor is None:
             valid_objects = set(game_config.objects.keys())
-            from metta.mettagrid.mapgen.utils.map_compression import MapCompressor
             self.compressor = MapCompressor(valid_objects)
-    
+
     def supports_int_format(self) -> bool:
         """Indicate support for int-based map format."""
         return False  # Not implemented in the simple approach
