@@ -456,33 +456,25 @@ proc runMainLoop() =
       continue
     
     # Read actions from Python (if available)
-    echo "🔧 DEBUG: About to read actions"
     let actions = readActionsFromFile()
-    echo "🔧 DEBUG: Actions read successfully"
     
     # Step environment with error handling
-    echo "🔧 DEBUG: About to step environment"
     try:
       env.step(actions.addr)
-      echo "🔧 DEBUG: Environment stepped successfully"
     except Exception as e:
       echo "❌ CRASH in env.step: ", e.msg
       quit(1)
     
     # Write current state back to Python with error handling
-    echo "🔧 DEBUG: About to write state"
     try:
       writeStateToFile()
-      echo "🔧 DEBUG: State written successfully"
     except Exception as e:
       echo "❌ CRASH in writeStateToFile: ", e.msg
       quit(1)
     
-    # Test safer rendering
-    echo "🔧 DEBUG: About to test safer renderFrame"
+    # Render frame safely
     try:
       renderFrame()
-      echo "🔧 DEBUG: Safe renderFrame completed"
     except Exception as e:
       echo "❌ CRASH in renderFrame: ", e.msg
       quit(1)

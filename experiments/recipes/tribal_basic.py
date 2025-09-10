@@ -1909,12 +1909,36 @@ def evaluate(
 
 def play(
     env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
+) -> "TribalProcessPlayTool":
+    """
+    Interactive play with the tribal environment using process separation.
+
+    This uses the stable process-separated approach with our enhanced tribal_process_viewer
+    that displays the full map with rectangle rendering to avoid SIGSEGV issues.
+
+    Args:
+        env: Optional tribal environment config
+        policy_uri: Optional URI to trained policy (supports test_noop, test_move)
+        **overrides: Additional configuration overrides
+    """
+    # Use the configured tribal environment, or create default
+    play_env = env or make_tribal_environment()
+
+    return TribalProcessPlayTool(
+        env_config=play_env,
+        policy_uri=policy_uri,
+        **overrides,
+    )
+
+
+def play_nimpy(
+    env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
 ) -> "TribalGennyPlayTool":
     """
-    Interactive play with the tribal environment using nimpy bindings.
+    Interactive play with the tribal environment using nimpy bindings (EXPERIMENTAL - CRASHES).
 
-    This uses direct Python-Nim integration via nimpy for clean, efficient communication.
-    Environment stepping is verified to work correctly with the test policies.
+    WARNING: This approach causes SIGSEGV due to OpenGL conflicts with nimpy.
+    Use play() instead for the stable process-separated approach.
 
     Args:
         env: Optional tribal environment config
@@ -1935,24 +1959,16 @@ def play_process_separated(
     env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
 ) -> "TribalProcessPlayTool":
     """
-    Interactive play with the tribal environment using process separation (legacy).
+    Interactive play with the tribal environment using process separation.
 
-    This is the complex JSON file-based approach that was used to work around
-    nimpy SIGSEGV issues. Use play() instead for the cleaner nimpy approach.
+    This function is now identical to play() - both use the stable process-separated approach.
 
     Args:
         env: Optional tribal environment config
         policy_uri: Optional URI to trained policy (supports test_noop, test_move)
         **overrides: Additional configuration overrides
     """
-    # Use the configured tribal environment, or create default
-    play_env = env or make_tribal_environment()
-
-    return TribalProcessPlayTool(
-        env_config=play_env,
-        policy_uri=policy_uri,
-        **overrides,
-    )
+    return play(env, policy_uri, **overrides)
 
 
 def replay(policy_uri: str, **overrides) -> ReplayTool:

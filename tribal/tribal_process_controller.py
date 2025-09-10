@@ -210,8 +210,6 @@ class TribalProcessController:
             with open(self.actions_file, 'w') as f:
                 json.dump(actions_data, f)
             
-            print(f"🔧 DEBUG: Wrote actions to {self.actions_file}")
-            
             # Debug: check if Nim process is still running
             if self.nim_process.poll() is not None:
                 print(f"❌ Nim process exited with code: {self.nim_process.poll()}")
