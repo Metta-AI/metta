@@ -313,7 +313,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
       {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
   _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
 
-  _action_success.resize(num_agents);
+  // Note: _action_success will be resized after we know the actual agent count from the map
 
   // Set up action handlers (same as original constructor)
   for (const auto& [action_name, action_config] : game_config.actions) {
@@ -346,15 +346,15 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
 
   // Initialize object_type_names (needed for renderer)
   object_type_names.resize(game_config.objects.size());
-  
+
   for (const auto& [key, object_cfg] : game_config.objects) {
     TypeId type_id = object_cfg->type_id;
-    
+
     if (type_id >= object_type_names.size()) {
       // Sometimes the type_ids are not contiguous, so we need to resize the vector.
       object_type_names.resize(type_id + 1);
     }
-    
+
     if (object_type_names[type_id] != "" && object_type_names[type_id] != object_cfg->type_name) {
       throw std::runtime_error("Object type_id " + std::to_string(type_id) + " already exists with type_name " +
                                object_type_names[type_id] + ". Trying to add " + object_cfg->type_name + ".");
@@ -434,7 +434,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
-        add_agent(agent);
+        // Don't call add_agent here as buffers aren't set yet
+        // Just add to the vector, init will happen in set_buffers
+        _agents.push_back(agent);
         _group_sizes[agent->group] += 1;
         continue;
       }
@@ -467,13 +469,24 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
     _resource_rewards[agent_idx] = packed;
   }
 
-  // Initialize buffers
+  // Initialize buffers - use actual agent count from the map
+  unsigned int actual_num_agents = static_cast<unsigned int>(_agents.size());
+
+  // Verify agent count matches config
+  if (actual_num_agents != num_agents) {
+    throw std::runtime_error("Number of agents in map (" + std::to_string(actual_num_agents) +
+                             ") does not match config (" + std::to_string(num_agents) + ")");
+  }
+
+  // Now resize _action_success with the actual agent count
+  _action_success.resize(actual_num_agents);
+
   std::vector<ssize_t> shape;
-  shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
+  shape = {static_cast<ssize_t>(actual_num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
   py::array_t<uint8_t> observations(shape);
 
   shape.clear();
-  shape.push_back(num_agents);
+  shape.push_back(actual_num_agents);
   // Create numpy arrays directly - std::vector<bool> doesn't have .data()
   py::array_t<bool> terminals(shape);
   py::array_t<bool> truncations(shape);
@@ -482,7 +495,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, py::array_t<uint8_t> byte_gr
   auto terminals_ptr = static_cast<bool*>(terminals.mutable_unchecked<1>().mutable_data(0));
   auto truncations_ptr = static_cast<bool*>(truncations.mutable_unchecked<1>().mutable_data(0));
   auto rewards_ptr = static_cast<float*>(rewards.mutable_unchecked<1>().mutable_data(0));
-  for (unsigned int i = 0; i < num_agents; i++) {
+  for (unsigned int i = 0; i < actual_num_agents; i++) {
     terminals_ptr[i] = false;
     truncations_ptr[i] = false;
     rewards_ptr[i] = 0.0f;
@@ -511,11 +524,7 @@ void MettaGrid::init_action_handlers() {
 }
 
 void MettaGrid::add_agent(Agent* agent) {
-  // Defer reward buffer initialization if buffers aren't set yet
-  // (happens in the new byte_grid constructor)
-  if (_rewards.size() > 0) {
-    agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
-  }
+  agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
 }
 
@@ -859,13 +868,8 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   _truncations = truncations;
   _rewards = rewards;
   _episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(_rewards.shape(0))}, {sizeof(float)});
-  
-  // Initialize agent reward pointers - important for the new constructor where
-  // agents are added before buffers are set
   for (size_t i = 0; i < _agents.size(); i++) {
-    if (_agents[i]->reward == nullptr) {
-      _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
-    }
+    _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
   }
 
   validate_buffers();
