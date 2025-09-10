@@ -59,3 +59,9 @@ variable "worker_secret_name" {
   # must match the library helm chart
   default = "softmax-library-worker-secrets"
 }
+
+variable "frontend_secret_name" {
+  type = string
+  # must match the library helm chart
+  default = "softmax-library-frontend-secrets"
+}

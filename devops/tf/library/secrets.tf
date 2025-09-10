@@ -15,7 +15,7 @@ resource "kubernetes_secret" "worker" {
 
 resource "kubernetes_secret" "frontend" {
   metadata {
-    name      = var.worker_secret_name
+    name      = var.frontend_secret_name
     namespace = kubernetes_namespace.library.metadata[0].name
   }
 
