@@ -104,6 +104,10 @@ class AdaptiveController:
                         if job.type == JobTypes.LAUNCH_TRAINING:
                             self.store.init_run(job.run_id, group=self.experiment_id)
 
+                        # Mark eval jobs as started in store
+                        elif job.type == JobTypes.LAUNCH_EVAL:
+                            self.store.update_run_summary(job.run_id, {"has_started_eval": True})
+
                         # Store job config
                         if job.config:
                             self.store.update_run_summary(job.run_id, {"config": job.config})
