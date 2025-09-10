@@ -733,7 +733,6 @@ py::dict MettaGrid::grid_objects() {
         resource_loss_prob_dict[py::int_(resource)] = probability;
       }
       obj_dict["resource_loss_prob"] = resource_loss_prob_dict;
-
     }
 
     objects[py::int_(obj_id)] = obj_dict;

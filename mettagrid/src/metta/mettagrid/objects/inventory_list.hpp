@@ -123,7 +123,7 @@ public:
       unsigned int timesteps_until_loss = geom_dist(*this->rng) + 1;  // +1 to ensure loss happens in the next timestep or later
       this->event_manager->schedule_event(EventType::StochasticResourceLoss,
                                         timesteps_until_loss,
-                                        object_id, // Use object's GridObjectId
+                                        object_id,
                                         static_cast<EventArg>(resource_id));
     }
   }
