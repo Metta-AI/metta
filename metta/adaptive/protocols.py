@@ -35,6 +35,18 @@ class ExperimentScheduler(Protocol):
         """
         ...
 
+    def is_experiment_complete(self, runs: list["RunInfo"]) -> bool:
+        """
+        Check if the experiment is finished and no more work will be scheduled.
+
+        Args:
+            runs: All runs in the experiment (completed, running, failed)
+
+        Returns:
+            True if experiment is complete and controller should terminate
+        """
+        ...
+
 
 @runtime_checkable
 class Store(Protocol):

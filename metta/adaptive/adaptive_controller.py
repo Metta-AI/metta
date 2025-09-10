@@ -37,6 +37,7 @@ class AdaptiveController:
         """Main adaptive experiment loop - everything inline."""
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
         has_data = self.config.resume
+
         while len(self.dispatched_jobs) < self.config.max_trials:
             try:
                 # 1. Get current state
@@ -47,26 +48,35 @@ class AdaptiveController:
                     runs = []
                     has_data = True # Skip first fetch because WandB will just timeout.
 
-                # 2. Calculate available training slots
+                # 2. Check if scheduler says experiment is complete
+                if self.scheduler.is_experiment_complete(runs):
+                    logger.info("[AdaptiveController] Scheduler reports experiment complete")
+                    break
+
+                # 3. Calculate available training slots
                 active_training_count = sum(
                     1 for run in runs
                     if not (hasattr(run, 'status') and run.status.value in ('completed', 'failed'))
                 )
                 available_training_slots = max(0, self.config.max_parallel - active_training_count)
 
-                # 3. Let scheduler decide (with resource awareness)
+                # 4. Let scheduler decide (with resource awareness)
                 new_jobs = self.scheduler.schedule(runs, available_training_slots)
 
                 if not new_jobs:
+                    # No new jobs, but check if experiment is complete before waiting
+                    if self.scheduler.is_experiment_complete(runs):
+                        logger.info("[AdaptiveController] No new jobs and scheduler reports experiment complete")
+                        break
                     time.sleep(self.config.monitoring_interval)
                     continue
 
-                # 4. Separate by job type and validate
+                # 5. Separate by job type and validate
                 from .models import JobTypes
                 training_jobs = [j for j in new_jobs if j.type == JobTypes.LAUNCH_TRAINING]
                 eval_jobs = [j for j in new_jobs if j.type == JobTypes.LAUNCH_EVAL]
 
-                # 5. Validate training job constraint
+                # 6. Validate training job constraint
                 if len(training_jobs) > available_training_slots:
                     logger.error(
                         f"[AdaptiveController] Scheduler requested {len(training_jobs)} training jobs "
@@ -74,7 +84,7 @@ class AdaptiveController:
                     )
                     continue
 
-                # 6. Dispatch all jobs
+                # 7. Dispatch all jobs
                 all_jobs = training_jobs + eval_jobs
                 for job in all_jobs:
                     # Skip if already dispatched
