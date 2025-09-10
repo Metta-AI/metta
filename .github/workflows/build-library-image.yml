@@ -11,6 +11,7 @@ on:
       - 09-08-library_worker_on_eks
     paths:
       - "library/**"
+      - "devops/charts/library/**"
       - ".github/workflows/build-library-image.yml"
 
 jobs:
