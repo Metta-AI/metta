@@ -22,18 +22,11 @@ class PolicyArchitecture(Config):
     clip_range: float = 0
     analyze_weights_interval: int = 300
 
-    def make_policy(
-        self,
-        obs_space: gym.spaces.Space | gym.spaces.Dict,
-        action_space: gym.spaces.Space,
-        obs_width: int,
-        obs_height: int,
-        feature_normalizations: dict[int, float],
-    ) -> "Policy":
+    def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
         """Create an agent instance from configuration."""
 
         AgentClass = load_symbol(self.class_path)
-        return AgentClass(obs_space, action_space, obs_width, obs_height, feature_normalizations, self)
+        return AgentClass(env_metadata, self)
 
 
 class Policy(ABC):
