@@ -4,7 +4,7 @@ import logging
 import time
 
 from .adaptive_config import AdaptiveConfig
-from .models import JobTypes
+from .models import JobTypes, JobStatus
 from .protocols import Dispatcher, ExperimentScheduler, Store
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class AdaptiveController:
                 # 3. Calculate available training slots (only count runs actually using training resources)
                 active_training_count = sum(
                     1 for run in runs
-                    if hasattr(run, 'status') and run.status.value in ('pending', 'in_training')
+                    if run.status in (JobStatus.PENDING, JobStatus.IN_TRAINING)
                 )
                 available_training_slots = max(0, self.config.max_parallel - active_training_count)
 
