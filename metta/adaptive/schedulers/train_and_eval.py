@@ -1,9 +1,8 @@
 """Simple train-and-eval scheduler for PoC."""
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-from pydantic import Field
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
 
@@ -20,7 +19,7 @@ class TrainAndEvalConfig:
     max_trials: int = 3
     gpus_per_job: int = 1
     experiment_id: str = "train_eval_poc"
-    train_overrides: dict[str, Any] = Field(default_factory=dict)
+    train_overrides: dict[str, Any] = field(default_factory=dict)
 
 
 class TrainAndEvalScheduler:
