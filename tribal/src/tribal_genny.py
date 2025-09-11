@@ -56,28 +56,42 @@ def _build_bindings(tribal_dir: Path):
 # Auto-ensure bindings are available
 _ensure_bindings_available()
 
-# Now import the generated bindings
-import tribal
+# Use the same import pattern as the original but simplified
+try:
+    import importlib.util
 
+    bindings_file = Path(__file__).parent.parent / "bindings" / "generated" / "tribal.py"
+    spec = importlib.util.spec_from_file_location("tribal_bindings", bindings_file)
+    tribal = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tribal)
 
-class TribalBindingsDelegate:
-    """Smart delegation wrapper that forwards attribute access to the tribal module."""
+    # Extract key items at import time (like original)
+    default_tribal_config = tribal.default_tribal_config
+    TribalEnv = tribal.TribalEnv
+    MAP_AGENTS = tribal.MAP_AGENTS
+    MAX_TOKENS_PER_AGENT = tribal.MAX_TOKENS_PER_AGENT
+    MAP_HEIGHT = tribal.MAP_HEIGHT
+    MAP_WIDTH = tribal.MAP_WIDTH
+    NUM_ACTION_TYPES = tribal.NUM_ACTION_TYPES
+    OBSERVATION_WIDTH = tribal.OBSERVATION_WIDTH
+    OBSERVATION_HEIGHT = tribal.OBSERVATION_HEIGHT
     
-    def __init__(self):
-        self._tribal = tribal
+    # Functions
+    is_emulated = tribal.is_emulated
+    is_done = tribal.is_done
+    get_feature_normalizations = tribal.get_feature_normalizations
+    reset_and_get_obs_pointer = tribal.reset_and_get_obs_pointer
+    step_with_pointers = tribal.step_with_pointers
     
-    def __getattr__(self, name):
-        """Forward any attribute access to the tribal module."""
-        return getattr(self._tribal, name)
-
-
-# Create a single delegate instance for easy access
-_bindings = TribalBindingsDelegate()
+except ImportError as e:
+    raise ImportError(
+        f"Could not import tribal bindings: {e}\nRun 'cd tribal && ./build_bindings.sh' to generate bindings."
+    ) from e
 
 
 class TribalGridEnv:
     """
-    Clean tribal environment wrapper using smart delegation.
+    Clean tribal environment wrapper with auto-building and smart delegation.
     
     Uses direct pointer access for zero-copy performance with minimal boilerplate.
     """
@@ -90,49 +104,48 @@ class TribalGridEnv:
         os.environ["TRIBAL_PYTHON_CONTROL"] = "1"
 
         # Create Nim configuration with overrides  
-        nim_config = tribal.default_tribal_config()
+        nim_config = default_tribal_config()
         if config:
             for key, value in config.items():
                 if hasattr(nim_config.game, key):
                     setattr(nim_config.game, key, value)
 
         # Create Nim environment instance
-        self._nim_env = tribal.TribalEnv(nim_config)
+        self._nim_env = TribalEnv(nim_config)
         self._config = nim_config
-        self._bindings = _bindings  # Store reference for delegation
 
         # Pre-allocate numpy arrays for zero-copy communication
-        self.observations = np.zeros((tribal.MAP_AGENTS, tribal.MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
-        self.rewards = np.zeros(tribal.MAP_AGENTS, dtype=np.float32)
-        self.terminals = np.zeros(tribal.MAP_AGENTS, dtype=bool)
-        self.truncations = np.zeros(tribal.MAP_AGENTS, dtype=bool)
+        self.observations = np.zeros((MAP_AGENTS, MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
+        self.rewards = np.zeros(MAP_AGENTS, dtype=np.float32)
+        self.terminals = np.zeros(MAP_AGENTS, dtype=bool)
+        self.truncations = np.zeros(MAP_AGENTS, dtype=bool)
 
-        # Environment constants (delegation)
-        self.num_agents = tribal.MAP_AGENTS
+        # Environment constants
+        self.num_agents = MAP_AGENTS
         self.max_steps = nim_config.game.max_steps
-        self.height = tribal.MAP_HEIGHT
-        self.width = tribal.MAP_WIDTH
+        self.height = MAP_HEIGHT
+        self.width = MAP_WIDTH
         self.render_mode = render_mode
 
         # Gym spaces for compatibility
         import gymnasium as gym
-        self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(tribal.MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
-        self.single_action_space = gym.spaces.MultiDiscrete([tribal.NUM_ACTION_TYPES, 8])
+        self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
+        self.single_action_space = gym.spaces.MultiDiscrete([NUM_ACTION_TYPES, 8])
 
         # Additional compatibility properties
-        self.obs_width = tribal.OBSERVATION_WIDTH
-        self.obs_height = tribal.OBSERVATION_HEIGHT
+        self.obs_width = OBSERVATION_WIDTH
+        self.obs_height = OBSERVATION_HEIGHT
         self.grid_objects = {}
         
         # Feature normalizations
-        feature_norms = tribal.get_feature_normalizations()
+        feature_norms = get_feature_normalizations()
         self.feature_normalizations = {i: feature_norms[i] for i in range(len(feature_norms))}
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment using direct pointer access."""
         obs_ptr_int = self.observations.ctypes.data_as(ctypes.c_void_p).value or 0
         
-        success = tribal.reset_and_get_obs_pointer(self._nim_env, obs_ptr_int)
+        success = reset_and_get_obs_pointer(self._nim_env, obs_ptr_int)
         if not success:
             raise RuntimeError("Environment reset failed")
 
@@ -156,7 +169,7 @@ class TribalGridEnv:
         truncations_ptr = self.truncations.ctypes.data_as(ctypes.c_void_p).value or 0
 
         # Step environment with direct pointer access
-        success = tribal.step_with_pointers(self._nim_env, actions_ptr, obs_ptr, rewards_ptr, terminals_ptr, truncations_ptr)
+        success = step_with_pointers(self._nim_env, actions_ptr, obs_ptr, rewards_ptr, terminals_ptr, truncations_ptr)
         if not success:
             raise RuntimeError("Environment step failed")
 
@@ -167,47 +180,40 @@ class TribalGridEnv:
         }
         return self.observations, self.rewards, self.terminals, self.truncations, info
 
-    # Smart delegation for pass-through properties
+    # Smart delegation for unknown attributes  
     def __getattr__(self, name):
-        """
-        Delegate unknown attributes to either the Nim environment or bindings.
-        
-        This eliminates the need for manual pass-through properties.
-        """
-        # Try the Nim environment first (most common case)
+        """Delegate unknown attributes to the Nim environment."""
         if hasattr(self._nim_env, name):
-            attr = getattr(self._nim_env, name)
-            # If it's a method, wrap it for delegation
-            if callable(attr):
-                return attr
-            return attr
-        
-        # Try the bindings module
-        if hasattr(self._bindings, name):
-            attr = getattr(self._bindings, name)
-            # For functions like is_emulated(), call with appropriate args
-            if callable(attr) and name in {'is_emulated', 'is_done'}:
-                if name == 'is_emulated':
-                    return lambda: attr()
-                elif name == 'is_done':
-                    return lambda: attr(self._nim_env)
-            return attr
-        
+            return getattr(self._nim_env, name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
-    # Essential PufferLib compatibility methods (can't delegate these)
+    # Essential properties (can't delegate these due to PufferLib requirements)
     @property
     def emulated(self) -> bool:
-        return tribal.is_emulated()
+        return is_emulated()
 
     @property  
     def done(self) -> bool:
-        return tribal.is_done(self._nim_env)
+        return is_done(self._nim_env)
+
+    @property
+    def current_step(self) -> int:
+        return self._nim_env.get_current_step()
+
+    @property
+    def action_names(self) -> list[str]:
+        names_seq = tribal.get_action_names()
+        return [names_seq[i] for i in range(len(names_seq))]
+
+    @property
+    def max_action_args(self) -> list[int]:
+        args_seq = tribal.get_max_action_args()
+        return [args_seq[i] for i in range(len(args_seq))]
 
     def get_observation_features(self) -> Dict[str, Dict]:
         """Get observation layer features."""
         features = {}
-        feature_norms = tribal.get_feature_normalizations()
+        feature_norms = get_feature_normalizations()
         for layer_id in range(len(feature_norms)):
             features[f"layer_{layer_id}"] = {
                 "id": layer_id,
@@ -220,6 +226,13 @@ class TribalGridEnv:
         if mode == "human":
             return self._nim_env.render_text()
         return None
+
+    def get_episode_stats(self) -> Dict[str, Any]:
+        return {
+            "current_step": self._nim_env.get_current_step(),
+            "max_steps": self._config.game.max_steps,
+            "episode_done": self._nim_env.is_episode_done(),
+        }
 
     # Minimal compatibility stubs
     def set_mg_config(self, config) -> None: pass
@@ -249,7 +262,7 @@ class TribalGridEnv:
         return obs, rewards, terminals, truncations, info_list, lives, scores
 
 
-# Configuration Classes
+# Configuration Classes  
 class TribalGameConfig(Config):
     max_steps: int = Field(default=2000, ge=0)
     ore_per_battery: int = Field(default=3)
@@ -265,7 +278,7 @@ class TribalGameConfig(Config):
 
     @property
     def num_agents(self) -> int:
-        return tribal.MAP_AGENTS
+        return MAP_AGENTS
 
 
 class TribalEnvConfig(Config):
@@ -277,7 +290,7 @@ class TribalEnvConfig(Config):
 
     def get_observation_space(self) -> Dict[str, Any]:
         return {
-            "shape": (tribal.MAX_TOKENS_PER_AGENT, 3),
+            "shape": (MAX_TOKENS_PER_AGENT, 3),
             "dtype": "uint8",
             "type": "Box",
         }
