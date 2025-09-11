@@ -1,7 +1,7 @@
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.config.envs as eb
+import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
@@ -108,6 +108,43 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     simulations = simulations or make_evals()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
+    )
+
+
+def evaluate_in_sweep(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    """Evaluation function optimized for sweep runs.
+
+    Uses 10 episodes per simulation with a 4-minute time limit to get
+    reliable results quickly during hyperparameter sweeps.
+    """
+    if simulations is None:
+        # Create sweep-optimized versions of the standard evaluations
+        basic_env = make_mettagrid()
+        basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+        combat_env = basic_env.model_copy()
+        combat_env.game.actions.attack.consumed_resources["laser"] = 1
+
+        simulations = [
+            SimulationConfig(
+                name="arena/basic",
+                env=basic_env,
+                num_episodes=10,  # 10 episodes for statistical reliability
+                max_time_s=240,  # 4 minutes max per simulation
+            ),
+            SimulationConfig(
+                name="arena/combat",
+                env=combat_env,
+                num_episodes=10,
+                max_time_s=240,
+            ),
+        ]
+
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],

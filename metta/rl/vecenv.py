@@ -22,14 +22,11 @@ def make_env_func(
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayWriter] = None,
     is_training: bool = False,
-    is_serial: bool = False,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
     **kwargs,
 ):
-    if not is_serial:
-        # Running in a new process, so we need to reinitialize logging
-        init_logging(run_dir=run_dir)
+    init_logging(run_dir=run_dir)
 
     env = MettaGridEnv(
         curriculum.get_task().get_env_cfg(),
@@ -78,7 +75,6 @@ def make_vecenv(
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "is_training": is_training,
-        "is_serial": is_serial,
         "run_dir": run_dir,
     }
 

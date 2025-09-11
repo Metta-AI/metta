@@ -5,10 +5,10 @@ from typing import Any, Generic, Optional, Type, TypeVar, get_args, get_origin
 import numpy as np
 from pydantic import FieldSerializationInfo, ValidationInfo, field_serializer, field_validator
 
-from metta.common.config import Config
-from metta.common.util.module import load_symbol
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.random.int import MaybeSeed
 from metta.mettagrid.mapgen.types import Area, AreaQuery, MapGrid
+from metta.mettagrid.util.module import load_symbol
 
 ParamsT = TypeVar("ParamsT", bound=Config)
 

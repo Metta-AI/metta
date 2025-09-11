@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mapgen.scene import ChildrenAction, Scene
 from metta.mettagrid.mapgen.types import Area, AreaQuery, AreaWhere
 

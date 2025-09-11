@@ -12,12 +12,12 @@ import wandb
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
-from metta.common.profiling.memory_monitor import MemoryMonitor
-from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.profiling.system_monitor import SystemMonitor
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
+from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
+from metta.mettagrid.profiling.stopwatch import Stopwatch
+from metta.mettagrid.profiling.system_monitor import SystemMonitor
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
@@ -404,9 +404,13 @@ def process_policy_evaluator_stats(
     if epoch is None or agent_step is None or not run_name:
         logger.warning("No epoch or agent_step found in policy record - using defaults")
 
+    # Sanitize run_name for wandb - remove version suffix and invalid characters
+    # WandB run IDs cannot contain: :;,#?/'
+    sanitized_run_name = run_name.split(":")[0] if run_name else None
+
     # TODO: improve this parsing to be more general
     run = wandb.init(
-        id=run_name,
+        id=sanitized_run_name,
         project=METTA_WANDB_PROJECT,
         entity=METTA_WANDB_ENTITY,
         resume="must",
@@ -429,7 +433,6 @@ def process_policy_evaluator_stats(
                     agent_step=agent_step,  # type: ignore
                     epoch=epoch,  # type: ignore
                     wandb_run=run,
-                    metric_prefix=POLICY_EVALUATOR_METRIC_PREFIX,
                     step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
                     epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
                 )

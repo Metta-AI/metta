@@ -1,4 +1,3 @@
-import pytest
 from fastapi.testclient import TestClient
 
 from metta.app_backend.test_support.base_async_test import BaseAsyncTest
@@ -171,8 +170,3 @@ class TestTokenSystem(BaseAsyncTest):
         assert response.status_code == 200
         data = response.json()
         assert data["user_email"] == "unknown"
-
-
-if __name__ == "__main__":
-    # Simple test runner for debugging
-    pytest.main([__file__, "-v", "-s"])

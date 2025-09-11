@@ -1,8 +1,9 @@
-from metta.mettagrid.config.envs import make_navigation
+from metta.mettagrid.builder.envs import make_navigation
 from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
+from experiments.evals.cfg import NAVIGATION_EVALS
 
 
 def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
@@ -11,17 +12,32 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     return env
 
 
+def replace_objects_with_altars(name: str) -> str:
+    ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
+
+    with open(ascii_map, "r") as f:
+        map_content = f.read()
+
+    return map_content.replace("n", "_").replace("m", "_")
+
+
 def make_nav_ascii_env(
-    name: str, max_steps: int, border_width: int = 1, num_agents=4
+    name: str,
+    max_steps: int,
+    border_width: int = 6,
+    num_agents=1,
+    num_instances=4,
 ) -> MettaGridConfig:
-    ascii_map = f"mettagrid/configs/maps/navigation/{name}.map"
-    env = make_navigation(num_agents=num_agents)
+    # we re-use nav sequence maps, but replace all objects with altars
+    ascii_map = replace_objects_with_altars(name)
+
+    env = make_navigation(num_agents=num_agents * num_instances)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGen.Config(
-        instances=num_agents,
+        instances=num_instances,
         border_width=6,
         instance_border_width=3,
-        instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
+        instance_map=MapGen.Config.with_ascii_map(ascii_map, border_width=border_width),
     )
 
     return make_nav_eval_env(env)
@@ -48,47 +64,16 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
 
 
 def make_navigation_eval_suite() -> list[SimulationConfig]:
-    return [
-        SimulationConfig(name="corridors", env=make_nav_ascii_env("corridors", 450)),
+    evals = [
         SimulationConfig(
-            name="cylinder_easy", env=make_nav_ascii_env("cylinder_easy", 250)
-        ),
-        SimulationConfig(name="cylinder", env=make_nav_ascii_env("cylinder", 250)),
-        SimulationConfig(name="honeypot", env=make_nav_ascii_env("honeypot", 300)),
-        SimulationConfig(name="knotty", env=make_nav_ascii_env("knotty", 500)),
-        SimulationConfig(
-            name="memory_palace", env=make_nav_ascii_env("memory_palace", 200)
-        ),
-        SimulationConfig(name="obstacles0", env=make_nav_ascii_env("obstacles0", 100)),
-        SimulationConfig(name="obstacles1", env=make_nav_ascii_env("obstacles1", 300)),
-        SimulationConfig(name="obstacles2", env=make_nav_ascii_env("obstacles2", 350)),
-        SimulationConfig(name="obstacles3", env=make_nav_ascii_env("obstacles3", 300)),
-        SimulationConfig(
-            name="radial_large", env=make_nav_ascii_env("radial_large", 1000)
-        ),
-        SimulationConfig(
-            name="radial_mini", env=make_nav_ascii_env("radial_mini", 150)
-        ),
-        SimulationConfig(
-            name="radial_small", env=make_nav_ascii_env("radial_small", 120)
-        ),
-        SimulationConfig(
-            name="radial_maze", env=make_nav_ascii_env("radial_maze", 200)
-        ),
-        SimulationConfig(name="swirls", env=make_nav_ascii_env("swirls", 350)),
-        SimulationConfig(name="thecube", env=make_nav_ascii_env("thecube", 350)),
-        SimulationConfig(name="walkaround", env=make_nav_ascii_env("walkaround", 250)),
-        SimulationConfig(name="wanderout", env=make_nav_ascii_env("wanderout", 500)),
-        SimulationConfig(
-            name="emptyspace_outofsight",
-            env=make_nav_ascii_env("emptyspace_outofsight", 150),
-        ),
-        SimulationConfig(
-            name="walls_outofsight", env=make_nav_ascii_env("walls_outofsight", 250)
-        ),
-        SimulationConfig(
-            name="walls_withinsight", env=make_nav_ascii_env("walls_withinsight", 120)
-        ),
-        SimulationConfig(name="labyrinth", env=make_nav_ascii_env("labyrinth", 250)),
-        SimulationConfig(name="emptyspace_sparse", env=make_emptyspace_sparse_env()),
-    ]
+            name=f"navigation/{eval['name']}",
+            env=make_nav_ascii_env(
+                eval["name"],
+                eval["max_steps"],
+                eval["num_agents"],
+                eval["num_instances"],
+            ),
+        )
+        for eval in NAVIGATION_EVALS
+    ] + [SimulationConfig(name="emptyspace_sparse", env=make_emptyspace_sparse_env())]
+    return evals

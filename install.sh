@@ -47,19 +47,27 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Assumes install.sh is in root of repo
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+err() {
+  echo "ERROR: $1" >&2
+  exit 1
+}
 
-# Source common functions
-. "$REPO_ROOT/devops/tools/common.sh"
+check_cmd() {
+  command -v "$1" > /dev/null 2>&1
+  return $?
+}
 
 echo "Welcome to Metta!"
 
-# Ensure uv is in PATH, installed, and uv project environment associated with this repo
-ensure_uv_setup
+for cmd in uv bazel git g++; do
+  if ! check_cmd "$cmd"; then
+    echo "$cmd not found. Consider running ./devops/tools/install-system.sh"
+    exit 1
+  fi
+done
 
 uv sync || err "Failed to install Python dependencies"
-uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
+uv run python -m metta.setup.metta_cli symlink-setup setup || err "Failed to set up metta command in ~/.local/bin"
 if [ -n "$PROFILE" ]; then
   uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" $NON_INTERACTIVE || err "Failed to run configuration"
 else
