@@ -37,9 +37,9 @@ def _default_run_name() -> str:
 
     # Try to get git hash (7 chars like CI) for better tracking
     try:
-        from metta.common.util.git import get_current_commit
+        import gitta
 
-        git_hash = get_current_commit()[:7]
+        git_hash = gitta.get_current_commit()[:7]
         return f"navigation.{user}.{timestamp}.{git_hash}"
     except Exception:
         # Fallback: use timestamp
