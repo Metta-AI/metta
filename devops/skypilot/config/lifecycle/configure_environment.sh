@@ -31,15 +31,16 @@ HEARTBEAT_FILE="${HEARTBEAT_FILE:-$JOB_METADATA_DIR/heartbeat_file}"
 # Initialize or update restart tracking
 if [ -f "$RESTART_COUNT_FILE" ]; then
   RESTART_COUNT=$(cat "$RESTART_COUNT_FILE")
-  RESTART_COUNT=$((RESTART_COUNT + 1))
+  RESTART_COUNT=$(( ${RESTART_COUNT:-0} + 1 ))
 else
   RESTART_COUNT=0
 fi
 
 if [[ "$IS_MASTER" == "true" ]]; then
   echo "$RESTART_COUNT" > "$RESTART_COUNT_FILE"
-  # Clear any stale cluster stop flag at the beginning of a fresh attempt
+  # Clear any stale cluster stopping state at the beginning of a fresh attempt
   : > "$CLUSTER_STOP_FILE" 2> /dev/null || true
+  : > "$TERMINATION_REASON_FILE"
 else
   echo "[INFO] Skipping RESTART_COUNT_FILE and CLUSTER_STOP_FILE updates on non-master node"
 fi
@@ -57,6 +58,10 @@ echo "  RESTART_COUNT: ${RESTART_COUNT}"
 echo "  ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME}s ($((ACCUMULATED_RUNTIME / 60))m)"
 echo "  METADATA_DIR: ${JOB_METADATA_DIR}"
 echo "========================================"
+
+if [ -f "$METTA_ENV_FILE" ]; then
+    echo "Warning: $METTA_ENV_FILE already exists, appending new content"
+fi
 
 # Write all environment variables using heredoc
 cat >> "$METTA_ENV_FILE" << EOF
@@ -117,18 +122,19 @@ fi
 
 echo "Creating/updating job secrets..."
 
-# Build command - wandb-password is always included
-CMD="uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile softmax-docker --wandb-password \"$WANDB_PASSWORD\""
+CMD=(uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile softmax-docker --wandb-password="$WANDB_PASSWORD")
 
-# Add observatory-token only if it's set
 if [ -n "$OBSERVATORY_TOKEN" ]; then
-  CMD="$CMD --observatory-token \"$OBSERVATORY_TOKEN\""
+    echo "Found OBSERVATORY_TOKEN and providing to create_job_secrets.py - Observatory features should be available!"
+    CMD+=(--observatory-token="$OBSERVATORY_TOKEN")
+else
+    echo "Warning: OBSERVATORY_TOKEN is not set - Observatory features will not be available."
 fi
 
-# Execute the command
-eval $CMD || {
-  echo "ERROR: Failed to create job secrets"
-  exit 1
-}
+# Execute without eval
+if ! "${CMD[@]}"; then
+    echo "ERROR: Failed to create job secrets"
+    exit 1
+fi
 
 echo "Runtime environment configuration completed"

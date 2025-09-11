@@ -276,7 +276,7 @@ Run your task:
 
 Notes:
 
-- Tasks can also be Tool classes (subclasses of `metta.common.config.tool.Tool`). The runner will construct them with
+- Tasks can also be Tool classes (subclasses of `metta.common.tool.Tool`). The runner will construct them with
   `--args` and then apply `--overrides`.
 - Use `--dry-run` while developing to see the exact configuration your task produces.
 
