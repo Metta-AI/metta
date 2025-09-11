@@ -113,3 +113,4 @@ mettagrid/MODULE.bazel.lock
 mettascope2/dist/
 mettascope2/data/fidget/
 recipe_test_jobs.json
+cluster_test_jobs.json

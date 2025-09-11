@@ -5,6 +5,7 @@ Framework for launching and checking SkyPilot test jobs.
 import json
 import re
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -95,8 +96,10 @@ class SkyPilotTestLauncher:
         extra_args: list[str],
         test_config: dict[str, Any],
         enable_ci_tests: bool = False,
+        max_retries: int = 3,
+        retry_delay: float = 2.0,
     ) -> LaunchedJob:
-        """Launch a single job and track its status."""
+        """Launch a single job and track its status with retry logic."""
         # Build the command
         cmd = [
             "devops/skypilot/launch.py",
@@ -120,52 +123,108 @@ class SkyPilotTestLauncher:
             print(f"    {cyan(f'{key}:')} {value}")
         print("  }")
 
-        try:
-            # Launch the job
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            full_output = result.stdout + "\n" + result.stderr
+        # Try launching with retries
+        for attempt in range(max_retries):
+            try:
+                # Launch the job
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                full_output = result.stdout + "\n" + result.stderr
 
-            # Extract request ID
-            request_id = get_request_id_from_launch_output(full_output)
+                # Extract request ID
+                request_id = get_request_id_from_launch_output(full_output)
 
-            if request_id:
-                print(f"  {green('✅ Launched successfully')} - Request ID: {yellow(request_id)}")
+                if request_id:
+                    print(f"  {green('✅ Launched successfully')} - Request ID: {yellow(request_id)}")
 
-                # Try to get job ID
-                job_id = get_job_id_from_request_id(request_id)
+                    # Try to get job ID with retries
+                    job_id = None
+                    for job_attempt in range(3):
+                        job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
+                        if job_id:
+                            print(f"  {green('✅ Job ID retrieved:')} {yellow(job_id)}")
+                            break
+                        elif job_attempt < 2:
+                            print(f"  {cyan('⏳ Waiting for job ID...')} (attempt {job_attempt + 1}/3)")
+                            time.sleep(2.0)
 
-                if job_id:
-                    print(f"  {green('✅ Job ID retrieved:')} {yellow(job_id)}")
+                    if not job_id:
+                        print(f"  {cyan('⚠️  Job ID not available yet (may need more time)')}")
+
+                    job = LaunchedJob(
+                        job_id=job_id,
+                        request_id=request_id,
+                        run_name=run_name,
+                        test_config=test_config,
+                        launch_time=datetime.now().isoformat(),
+                        success=True,
+                    )
+                    self.launched_jobs.append(job)
+                    return job
                 else:
-                    print(f"  {cyan('⚠️  Job ID not available yet (may need more time)')}")
+                    # No request ID found, but let's check if it might be a transient issue
+                    if attempt < max_retries - 1:
+                        print(
+                            f"  {yellow('⚠️  No request ID found in output, retrying...')} "
+                            f"(attempt {attempt + 1}/{max_retries})"
+                        )
 
-                job = LaunchedJob(
-                    job_id=job_id,
-                    request_id=request_id,
-                    run_name=run_name,
-                    test_config=test_config,
-                    launch_time=datetime.now().isoformat(),
-                    success=True,
-                )
-                self.launched_jobs.append(job)
-                return job
-            else:
-                raise Exception("Failed to get request ID from launch output")
+                        # Print some diagnostic info on failed attempts
+                        if result.returncode != 0:
+                            print(f"  {yellow('Return code:')} {result.returncode}")
 
-        except Exception as e:
-            print(f"  {red('❌ Failed to launch job')}")
-            print(f"  {red('Error:')} {str(e)}")
+                        # Check for common error patterns
+                        if "sky-jobs-controller" in full_output.lower() and "not up" in full_output.lower():
+                            print(f"  {red('Error: Jobs controller appears to be down')}")
+                            # Don't retry if controller is down
+                            break
 
-            job = LaunchedJob(
-                job_id=None,
-                request_id=None,
-                run_name=run_name,
-                test_config=test_config,
-                launch_time=datetime.now().isoformat(),
-                success=False,
-            )
-            self.failed_launches.append(job)
-            return job
+                        # Wait before retry
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        # Final attempt failed
+                        raise Exception("Failed to get request ID from launch output after all retries")
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"  {yellow('⚠️  Launch failed, retrying...')} (attempt {attempt + 1}/{max_retries})")
+                    print(f"  {yellow('Error:')} {str(e)}")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # All retries exhausted
+                    print(f"  {red('❌ Failed to launch job after {max_retries} attempts')}")
+                    print(f"  {red('Final error:')} {str(e)}")
+
+                    # Save diagnostic information
+                    debug_info = {
+                        "last_stdout": result.stdout if "result" in locals() else "N/A",
+                        "last_stderr": result.stderr if "result" in locals() else "N/A",
+                        "return_code": result.returncode if "result" in locals() else "N/A",
+                    }
+
+                    job = LaunchedJob(
+                        job_id=None,
+                        request_id=None,
+                        run_name=run_name,
+                        test_config={**test_config, "debug_info": debug_info},
+                        launch_time=datetime.now().isoformat(),
+                        success=False,
+                    )
+                    self.failed_launches.append(job)
+                    return job
+
+        # Should not reach here, but just in case
+        job = LaunchedJob(
+            job_id=None,
+            request_id=None,
+            run_name=run_name,
+            test_config=test_config,
+            launch_time=datetime.now().isoformat(),
+            success=False,
+        )
+        self.failed_launches.append(job)
+        return job
 
     def save_results(self, output_file: str = "skypilot_test_jobs.json") -> Path:
         """Save launch results to JSON file."""
@@ -446,9 +505,15 @@ class SkyPilotJobChecker:
         launched_jobs = self.jobs_data.get("launched_jobs", [])
 
         print(f"\n{bold('Job Status Summary:')}")
-        print("-" * 60)
 
+        if not launched_jobs:
+            print(yellow("No jobs found"))
+            return {}
+
+        # Collect status counts
         status_counts = {}
+        job_data = []
+
         for job in launched_jobs:
             if job.get("job_id"):
                 job_id = int(job["job_id"])
@@ -456,11 +521,11 @@ class SkyPilotJobChecker:
                 status = job_info.get("status", "UNKNOWN")
                 status_counts[status] = status_counts.get(status, 0) + 1
 
-                # Display job info based on available keys
-                info_parts = [f"Job {yellow(job['job_id'])}: {self.formatter.format_status(status)}"]
+                # Collect relevant data
+                job_entry = {"job_id": job["job_id"], "status": status}
 
-                # Add any relevant test config info
-                for key, value in sorted(job.items()):
+                # Add test config info
+                for key, value in job.items():
                     if key not in [
                         "job_id",
                         "request_id",
@@ -470,20 +535,91 @@ class SkyPilotJobChecker:
                         "description",
                         "recipe_module",
                     ]:
-                        info_parts.append(f"{key}={value}")
+                        job_entry[key] = value
 
-                print(f"  {' | '.join(info_parts)}")
+                job_data.append(job_entry)
 
-        print("-" * 60)
+        # Determine columns to display
+        all_keys = set()
+        for job in job_data:
+            all_keys.update(job.keys())
 
-        # Display status counts
+        # Order columns: job_id, status, then alphabetically for the rest
+        ordered_keys = ["job_id", "status"]
+        other_keys = sorted(all_keys - set(ordered_keys))
+        headers = ordered_keys + other_keys
+
+        # Calculate column widths
+        col_widths = {}
+        for header in headers:
+            # Start with header width
+            col_widths[header] = len(header) + 2
+
+            # Adjust based on data
+            for job in job_data:
+                value = str(job.get(header, "-"))
+                # Different max widths for different types of columns
+                if "description" in header.lower():
+                    max_width = 50
+                elif header in ["job_id", "status"]:
+                    max_width = 15
+                else:
+                    max_width = 25
+
+                display_len = min(len(value), max_width) + 2
+                col_widths[header] = max(col_widths[header], display_len)
+
+        # Calculate table width
+        separator = " │ "
+        table_width = sum(col_widths.values()) + len(separator) * (len(headers) - 1)
+
+        # Print table
+        print("─" * table_width)
+
+        # Print headers
+        header_parts = []
+        for header in headers:
+            # Make header more readable
+            display_header = header.replace("_", " ").title()
+            header_parts.append(f"{display_header:^{col_widths[header]}}")
+        print(separator.join(header_parts))
+
+        print("─" * table_width)
+
+        # Print rows
+        for job in job_data:
+            row_parts = []
+
+            for header in headers:
+                value = str(job.get(header, "-"))
+
+                # Format special columns
+                if header == "job_id":
+                    value_display = yellow(value)
+                elif header == "status":
+                    value_display = self.formatter.format_status(value)
+                else:
+                    value_display = value
+                    # Truncate if needed
+                    max_width = col_widths[header] - 2
+                    if len(value) > max_width:
+                        value_display = value[: max_width - 3] + "..."
+
+                row_parts.append(self._format_cell(value_display, col_widths[header]))
+
+            print(separator.join(row_parts))
+
+        print("─" * table_width)
+
+        # Print status summary
+        print(f"\n{bold('Status Summary:')}")
         for status, count in sorted(status_counts.items()):
-            print(f"{self.formatter.format_status(status)}: {count}")
+            print(f"  {self.formatter.format_status(status)}: {count}")
 
         return status_counts
 
     def print_detailed_table(self) -> None:
-        """Print a detailed summary table with custom columns."""
+        """Print a detailed summary table with dynamic column widths."""
         launched_jobs = self.jobs_data.get("launched_jobs", [])
         if not launched_jobs:
             return
@@ -504,18 +640,57 @@ class SkyPilotJobChecker:
 
         headers = base_headers + extra_headers
 
-        # Calculate table width
-        num_columns = len(headers)
-        column_width = 15
+        # Calculate column widths based on content
+        col_widths = {}
+
+        # Start with header widths (minimum 8 characters)
+        for header in headers:
+            col_widths[header] = max(len(header) + 2, 10)  # +2 for padding, min 10
+
+        # Adjust widths based on actual data
+        for job in launched_jobs:
+            job_id_str = job.get("job_id")
+            if not job_id_str:
+                continue
+
+            job_id = int(job_id_str)
+            job_info = self.job_statuses.get(job_id, {})
+            status = job_info.get("status", "UNKNOWN")
+            summary = self.job_summaries.get(job_id, {})
+
+            # Calculate width for base columns
+            col_widths["Job ID"] = max(col_widths["Job ID"], len(job_id_str) + 2)
+            col_widths["Status"] = max(col_widths["Status"], len(status) + 2)
+
+            restart_val = summary.get("restart_count", "-")
+            col_widths["Restarts"] = max(col_widths["Restarts"], len(str(restart_val)) + 2)
+
+            term_val = summary.get("termination_reason", "-")
+            col_widths["Termination"] = max(col_widths["Termination"], len(str(term_val)) + 2)
+
+            exit_val = summary.get("exit_code", "-")
+            col_widths["Exit Code"] = max(col_widths["Exit Code"], len(str(exit_val)) + 2)
+
+            # Calculate width for extra columns
+            for header in extra_headers:
+                value = str(job.get(header, "-"))
+                # Cap at reasonable max width (40 for description fields, 25 for others)
+                max_width = 40 if "description" in header.lower() else 25
+                display_len = min(len(value), max_width) + 2
+                col_widths[header] = max(col_widths.get(header, 10), display_len)
+
+        # Calculate total table width
         separator_width = 3  # " │ "
-        table_width = (num_columns * column_width) + ((num_columns - 1) * separator_width)
+        table_width = sum(col_widths.values()) + (len(headers) - 1) * separator_width
 
         # Print top border
         print("─" * table_width)
 
         # Print headers
-        header_line = " │ ".join(f"{h:^15}" for h in headers)
-        print(header_line)
+        header_parts = []
+        for header in headers:
+            header_parts.append(f"{header:^{col_widths[header]}}")
+        print(" │ ".join(header_parts))
 
         # Print separator
         print("─" * table_width)
@@ -531,32 +706,51 @@ class SkyPilotJobChecker:
             status = job_info.get("status", "UNKNOWN")
             summary = self.job_summaries.get(job_id, {})
 
-            # Base values
-            values = [
-                yellow(job_id_str),
-                self.formatter.format_status(status),
-                self.formatter.format_restart_count(summary.get("restart_count")),
-                self.formatter.format_termination_reason(summary.get("termination_reason")),
-                self.formatter.format_exit_code(summary.get("exit_code")),
-            ]
+            # Build row values
+            row_parts = []
 
-            # Add extra values
+            # Job ID
+            job_id_display = yellow(job_id_str)
+            row_parts.append(self._format_cell(job_id_display, col_widths["Job ID"]))
+
+            # Status
+            status_display = self.formatter.format_status(status)
+            row_parts.append(self._format_cell(status_display, col_widths["Status"]))
+
+            # Restarts
+            restarts_display = self.formatter.format_restart_count(summary.get("restart_count"))
+            row_parts.append(self._format_cell(restarts_display, col_widths["Restarts"]))
+
+            # Termination
+            term_display = self.formatter.format_termination_reason(summary.get("termination_reason"))
+            row_parts.append(self._format_cell(term_display, col_widths["Termination"]))
+
+            # Exit Code
+            exit_display = self.formatter.format_exit_code(summary.get("exit_code"))
+            row_parts.append(self._format_cell(exit_display, col_widths["Exit Code"]))
+
+            # Extra columns
             for header in extra_headers:
                 value = str(job.get(header, "-"))
-                values.append(value[:15])
+                # Truncate if needed based on column width
+                max_width = col_widths[header] - 2
+                if "description" in header.lower() and len(value) > max_width:
+                    value = value[: max_width - 3] + "..."
+                elif len(value) > max_width:
+                    value = value[: max_width - 3] + "..."
+                row_parts.append(self._format_cell(value, col_widths[header]))
 
-            # Format row accounting for ANSI codes
-            formatted_values = []
-            for value in values:
-                visible_len = len(re.sub(r"\x1b\[[0-9;]+m", "", str(value)))
-                padding = 15 - visible_len
-                formatted_values.append(f"{value}{' ' * max(0, padding)}")
-
-            row = " │ ".join(formatted_values)
-            print(row)
+            print(" │ ".join(row_parts))
 
         # Print bottom border
         print("─" * table_width)
+
+    def _format_cell(self, value: str, width: int) -> str:
+        """Format a cell value with proper width accounting for ANSI codes."""
+        # Calculate visible length (without ANSI escape codes)
+        visible_len = len(re.sub(r"\x1b\[[0-9;]+m", "", str(value)))
+        padding = width - visible_len
+        return f"{value}{' ' * max(0, padding)}"
 
     def show_detailed_logs(self, tail_lines: int = 200) -> None:
         """Show detailed logs for each job."""
