@@ -23,9 +23,9 @@ def _make_deque_maxlen_100():
 class BucketAnalyzer:
     """Analyzes task completion patterns across different bucket dimensions."""
 
-    def __init__(self, max_bucket_axes: int = 3, enable_detailed_logging: bool = False):
+    def __init__(self, max_bucket_axes: int = 3, logging_detailed_slices: bool = False):
         self.max_bucket_axes = max_bucket_axes
-        self.enable_detailed_logging = enable_detailed_logging
+        self.logging_detailed_slices = logging_detailed_slices
 
         # Bucket tracking: bucket_name -> task_id -> value
         self._bucket_tracking: Dict[str, Dict[int, Any]] = defaultdict(dict)

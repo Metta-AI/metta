@@ -39,7 +39,7 @@ def learning_progress_algorithm():
         exploration_bonus=0.1,
         max_memory_tasks=1000,
         max_bucket_axes=3,
-        enable_detailed_bucket_logging=False,
+        logging_detailed_slices=False,
     )
 
 

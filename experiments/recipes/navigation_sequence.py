@@ -5,6 +5,7 @@ from typing import Optional
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -99,7 +100,12 @@ def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConf
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return CurriculumConfig(task_generator=nav_tasks)
+    return CurriculumConfig(
+        task_generator=nav_tasks,
+        algorithm_config=LearningProgressConfig(
+            use_bidirectional=True,  # Enable bidirectional learning progress by default
+        ),
+    )
 
 
 def train(

@@ -23,12 +23,10 @@ class TaskTracker:
     across parameter dimensions, and provide statistics for logging and algorithm decision-making.
     """
 
-    def __init__(
-        self, max_memory_tasks: int = 1000, max_bucket_axes: int = 3, enable_detailed_bucket_logging: bool = False
-    ):
+    def __init__(self, max_memory_tasks: int = 1000, max_bucket_axes: int = 3, logging_detailed_slices: bool = False):
         self.max_memory_tasks = max_memory_tasks
         self.max_bucket_axes = max_bucket_axes
-        self.enable_detailed_bucket_logging = enable_detailed_bucket_logging
+        self.logging_detailed_slices = logging_detailed_slices
 
         self._task_memory: Dict[int, Tuple[float, int, float, float]] = {}
         self._task_creation_order = deque()
@@ -60,16 +58,25 @@ class TaskTracker:
 
     def update_task_performance(self, task_id: int, score: float, bucket_values: Dict[str, Any] = None) -> None:
         """Update task performance statistics and optional bucket analysis."""
+        # Ensure task exists in memory with atomic operation
         if task_id not in self._task_memory:
             self.track_task_creation(task_id)
 
-        creation_time, completion_count, total_score, _ = self._task_memory[task_id]
+        # Use get() with default to handle race conditions in multiprocessing
+        task_data = self._task_memory.get(task_id)
+        if task_data is None:
+            # Task was removed between check and access - recreate it
+            self.track_task_creation(task_id)
+            task_data = self._task_memory[task_id]
+
+        creation_time, completion_count, total_score, _ = task_data
         new_completion_count = completion_count + 1
         new_total_score = total_score + score
 
         self._task_memory[task_id] = (creation_time, new_completion_count, new_total_score, score)
         self._completion_history.append(score)
 
+        # Update cached total completions incrementally
         if self._cache_valid:
             self._cached_total_completions += 1
         else:
@@ -107,18 +114,36 @@ class TaskTracker:
     def remove_task(self, task_id: int) -> None:
         """Remove a task from tracking."""
         if task_id in self._task_memory:
-            self._task_memory.pop(task_id)
-            self._task_creation_order = deque((ts, tid) for ts, tid in self._task_creation_order if tid != task_id)
-            self._cache_valid = False
+            # Update cached total before removal
+            if self._cache_valid:
+                _, completion_count, _, _ = self._task_memory[task_id]
+                self._cached_total_completions -= completion_count
+
+            self._task_memory.pop(task_id, None)
+            # Note: We don't remove from creation_order for performance - cleanup handles this
+
+            # Invalidate cache if removal makes it invalid
+            if self._cache_valid:
+                self._cache_valid = False
 
     def _cleanup_old_tasks(self) -> None:
-        """Remove oldest tasks to keep memory usage under control."""
-        while len(self._task_memory) > self.max_memory_tasks and self._task_creation_order:
-            _, old_task_id = self._task_creation_order.popleft()
-            if old_task_id in self._task_memory:
-                self._task_memory.pop(old_task_id)
+        """Remove oldest tasks when memory limit is exceeded."""
+        cleanup_count = min(100, len(self._task_memory) - self.max_memory_tasks + 100)
 
-        self._cache_valid = False
+        # Remove oldest tasks
+        removed_count = 0
+        while self._task_creation_order and removed_count < cleanup_count:
+            _, task_id = self._task_creation_order.popleft()
+            if task_id in self._task_memory:
+                # Update cached total before removal
+                if self._cache_valid:
+                    _, completion_count, _, _ = self._task_memory[task_id]
+                    self._cached_total_completions -= completion_count
+
+                del self._task_memory[task_id]
+                removed_count += 1
+
+        # Cache may still be valid after cleanup if we tracked changes
 
     def get_global_stats(self) -> Dict[str, float]:
         """Get global task tracking statistics."""
@@ -220,11 +245,11 @@ class TaskTracker:
 
     def get_completion_density_stats(self) -> Dict[str, Dict[str, float]]:
         """Get completion density statistics for all monitored buckets."""
-        if self.enable_detailed_bucket_logging and self._density_cache_valid and self._density_stats_cache is not None:
+        if self.logging_detailed_slices and self._density_cache_valid and self._density_stats_cache is not None:
             return self._density_stats_cache
 
         stats = {}
-        if self.enable_detailed_bucket_logging:
+        if self.logging_detailed_slices:
             for bucket_name in self._monitored_buckets:
                 bucket_stats = self._compute_bucket_density_stats(bucket_name)
                 if bucket_stats:

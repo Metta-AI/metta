@@ -108,8 +108,9 @@ class TestCurriculumCapacityAndEviction:
         config = bucketed_config.to_curriculum()
         config.num_active_tasks = 3  # Very small for testing
         config.min_presentations_for_eviction = 5  # Require 5 presentations
+        # Use variance-based algorithm for clearer eviction behavior with limited data
         config.algorithm_config = cc.LearningProgressConfig(
-            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100
+            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100, use_bidirectional=False
         )
 
         curriculum = config.make()
@@ -169,8 +170,9 @@ class TestCurriculumCapacityAndEviction:
         config = bucketed_config.to_curriculum()
         config.num_active_tasks = 4
         config.min_presentations_for_eviction = 3
+        # Force variance-based algorithm for this test since it tests variance detection
         config.algorithm_config = cc.LearningProgressConfig(
-            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100
+            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100, use_bidirectional=False
         )
 
         curriculum = config.make()
