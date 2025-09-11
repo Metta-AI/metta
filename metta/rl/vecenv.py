@@ -21,13 +21,12 @@ def _create_environment(env_cfg, **kwargs):
     
     This keeps environments decoupled - each environment type only knows about itself.
     """
-    # Check for tribal environment
+    # Create environment based on type
     if hasattr(env_cfg, "environment_type") and env_cfg.environment_type == "tribal":
         # Import tribal here to keep it decoupled from mettagrid
-        return env_cfg.create_environment(**kwargs)
-    
-    # Default to MettaGrid environment
+        env = env_cfg.create_environment(**kwargs)
     else:
+        # Default to MettaGrid environment
         # Extract MettaGrid-specific parameters
         render_mode = kwargs.get("render_mode", "rgb_array")
         stats_writer = kwargs.get("stats_writer")
@@ -41,13 +40,13 @@ def _create_environment(env_cfg, **kwargs):
             replay_writer=replay_writer,
             is_training=is_training,
         )
-        
-        # Set buffers for MettaGrid environments
-        buf = kwargs.get("buf")
-        if buf is not None:
-            set_buffers(env, buf)
-        
-        return env
+    
+    # Set buffers for ALL environments (unified treatment)
+    buf = kwargs.get("buf")
+    if buf is not None:
+        set_buffers(env, buf)
+    
+    return env
 
 
 @validate_call(config={"arbitrary_types_allowed": True})
