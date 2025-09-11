@@ -32,7 +32,6 @@ class TestConverterObservations:
                 "change_color": {"enabled": False},
                 "change_glyph": {"enabled": False, "number_of_glyphs": 0},
             },
-            "groups": {"agent": {"id": 0, "props": {}}},
             "objects": {
                 "wall": {"type_id": 1, "swappable": False},
             },

@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 import typer
 from rich.console import Console
@@ -16,12 +16,8 @@ from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import error, info, success, warning
 
-app = typer.Typer(
-    help="Metta Setup Tool - Configure and install development environment",
-    rich_markup_mode="rich",
-    no_args_is_help=True,
-    context_settings={"help_option_names": ["-h", "--help"]},
-)
+if TYPE_CHECKING:
+    from metta.setup.registry import SetupModule
 
 PYTHON_TEST_FOLDERS = [
     "tests",
@@ -133,11 +129,16 @@ class MettaCLI:
         return text[: max_len - 3] + "..."
 
 
-# Create a single CLI instance
 cli = MettaCLI()
+app = typer.Typer(
+    help="Metta Setup Tool - Configure and install development environment",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    callback=cli._init_all,
+)
 
 
-# Configure command
 @app.command(name="configure", help="Configure Metta settings")
 def cmd_configure(
     component: Annotated[Optional[str], typer.Argument(help="Specific component to configure")] = None,
@@ -151,7 +152,6 @@ def cmd_configure(
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
 ):
     """Configure Metta settings."""
-    cli._init_all()
     if component:
         configure_component(component)
     elif profile:
@@ -190,7 +190,16 @@ def configure_component(component_name: str):
     module.configure()
 
 
-# Install command
+def _get_selected_modules(components: list[str] | None = None) -> list["SetupModule"]:
+    from metta.setup.registry import get_all_modules
+
+    return [
+        m
+        for m in get_all_modules()
+        if (components is not None and m.name in components) or (components is None and m.is_enabled())
+    ]
+
+
 @app.command(name="install", help="Install or update components")
 def cmd_install(
     components: Annotated[Optional[list[str]], typer.Argument(help="Components to install")] = None,
@@ -198,11 +207,7 @@ def cmd_install(
     no_clean: Annotated[bool, typer.Option("--no-clean", help="Skip cleaning before install")] = False,
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
 ):
-    """Install or update components."""
-    from metta.setup.registry import get_all_modules, get_enabled_setup_modules
     from metta.setup.saved_settings import get_saved_settings
-
-    cli._init_all()
 
     if not get_saved_settings().exists():
         warning("No configuration found. Running setup wizard first...")
@@ -212,26 +217,11 @@ def cmd_install(
         cmd_clean()
 
     if components:
-        modules = get_all_modules()
+        always_required_components = ["system", "core"]
+        limited_components = always_required_components + [m for m in components if m not in always_required_components]
     else:
-        modules = get_enabled_setup_modules()
-
-    if components:
-        only_names = list(components)
-        original_only = set(only_names)
-
-        essential_modules = {"system", "core"}
-        added_essentials = essential_modules - original_only
-
-        for essential in essential_modules:
-            if essential not in only_names:
-                only_names.append(essential)
-
-        if added_essentials:
-            info(f"Note: Adding essential dependencies: {', '.join(sorted(added_essentials))}\n")
-
-        modules = [m for m in modules if m.name in only_names]
-        modules.sort(key=lambda m: (m.name not in essential_modules, m.name))
+        limited_components = None
+    modules = _get_selected_modules(limited_components)
 
     if not modules:
         info("No modules to install.")
@@ -255,45 +245,19 @@ def cmd_install(
     success("Installation complete!")
 
 
-# Status command
-@app.command(name="status", help="Show status of all components")
+@app.command(name="status", help="Show status of components")
 def cmd_status(
     components: Annotated[
-        Optional[str], typer.Option("--components", help="Comma-separated list of components")
+        Optional[list[str]],
+        typer.Option("--components", help="Comma-separated list of components. Defaults to all enabled components."),
     ] = None,
     non_interactive: Annotated[bool, typer.Option("-n", "--non-interactive", help="Non-interactive mode")] = False,
 ):
-    """Show status of all components."""
     import concurrent.futures
 
-    from metta.setup.registry import get_all_modules
-
-    cli._init_all()
-
-    all_modules = get_all_modules()
-
-    if components:
-        requested_components = [c.strip() for c in components.split(",")]
-        module_map = {m.name: m for m in all_modules}
-        modules = []
-        for comp in requested_components:
-            if comp in module_map:
-                modules.append(module_map[comp])
-            else:
-                warning(f"Unknown component: {comp}")
-                info(f"Available components: {', '.join(sorted(module_map.keys()))}")
-        if not modules:
-            return
-    else:
-        modules = all_modules
-
+    modules = _get_selected_modules(components if components else None)
     if not modules:
-        warning("No modules found.")
-        return
-
-    applicable_modules = [m for m in modules if m.is_enabled()]
-    if not applicable_modules:
-        warning("No applicable modules found.")
+        warning("No modules to check.")
         return
 
     module_status = {}
@@ -398,16 +362,12 @@ def cmd_status(
                 subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=cli.repo_root)
 
 
-# Run command
 @app.command(name="run", help="Run component-specific commands")
 def cmd_run(
     component: Annotated[str, typer.Argument(help="Component to run command for")],
     args: Annotated[Optional[list[str]], typer.Argument(help="Arguments to pass to the component")] = None,
 ):
-    """Run component-specific commands."""
     from metta.setup.registry import get_all_modules
-
-    cli._init_all()
 
     modules = get_all_modules()
     module_map = {m.name: m for m in modules}
@@ -420,11 +380,8 @@ def cmd_run(
     module.run(args or [])
 
 
-# Clean command
 @app.command(name="clean", help="Clean build artifacts and temporary files")
 def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
-    """Clean build artifacts and temporary files."""
-
     build_dir = cli.repo_root / "build"
     if build_dir.exists():
         info("  Removing root build directory...")
@@ -448,13 +405,11 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
             warning(f"  Cleanup script failed: {e}")
 
 
-# Lint command
 @app.command(name="lint", help="Run linting and formatting")
 def cmd_lint(
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
 ):
-    """Run linting and formatting."""
     files = []
     if staged:
         result = subprocess.run(
@@ -489,13 +444,8 @@ def cmd_lint(
             raise typer.Exit(e.returncode) from e
 
 
-# CI command
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
 def cmd_ci():
-    """Run all Python unit tests and all Mettagrid C++ tests."""
-
-    cli._init_all()
-
     info("Running Python tests...")
     python_test_cmd = [
         "uv",
@@ -530,10 +480,8 @@ def cmd_ci():
     success("\nAll CI tests passed!")
 
 
-# Test command
 @app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
 def cmd_test(ctx: typer.Context):
-    """Run all Python unit tests."""
     cmd = [
         "uv",
         "run",
@@ -551,14 +499,12 @@ def cmd_test(ctx: typer.Context):
         raise typer.Exit(e.returncode) from e
 
 
-# Pytest command
 @app.command(
     name="pytest",
     help="Run pytest with passed arguments",
     context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
 )
 def cmd_pytest(ctx: typer.Context):
-    """Run pytest with custom arguments."""
     cmd = [
         "uv",
         "run",
@@ -575,13 +521,11 @@ def cmd_pytest(ctx: typer.Context):
         raise typer.Exit(e.returncode) from e
 
 
-# Tool command
 @app.command(name="tool", help="Run a tool from the tools/ directory", context_settings={"allow_extra_args": True})
 def cmd_tool(
     tool_name: Annotated[str, typer.Argument(help="Name of the tool to run")],
     ctx: typer.Context,
 ):
-    """Run a tool from the tools/ directory."""
     tool_path = cli.repo_root / "tools" / f"{tool_name}.py"
     if not tool_path.exists():
         error(f"Error: Tool '{tool_name}' not found at {tool_path}")
@@ -594,10 +538,8 @@ def cmd_tool(
         raise typer.Exit(e.returncode) from e
 
 
-# Shell command
 @app.command(name="shell", help="Start an IPython shell with Metta imports")
 def cmd_shell():
-    """Start IPython shell."""
     cmd = ["uv", "run", "--active", "metta/setup/shell.py"]
     try:
         subprocess.run(cmd, cwd=cli.repo_root, check=True)
@@ -605,10 +547,8 @@ def cmd_shell():
         raise typer.Exit(e.returncode) from e
 
 
-# Go command
 @app.command(name="go", help="Navigate to a Softmax Home shortcut", context_settings={"allow_extra_args": True})
 def cmd_go(ctx: typer.Context):
-    """Navigate to Softmax Home shortcut."""
     import webbrowser
 
     if not ctx.args:
@@ -641,10 +581,8 @@ def cmd_report_env_details():
         info(f"Git Commit: {commit}")
 
 
-# Clip command
 @app.command(name="clip", help="Copy subsets of codebase for LLM contexts", context_settings={"allow_extra_args": True})
 def cmd_clip(ctx: typer.Context):
-    """Run codeclip tool."""
     cmd = ["codeclip"]
     if ctx.args:
         cmd.extend(ctx.args)
@@ -659,12 +597,6 @@ def cmd_clip(ctx: typer.Context):
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
-
-
-@app.callback()
-def main_callback():
-    """Handle initialization checks."""
-    pass
 
 
 def main() -> None:

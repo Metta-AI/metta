@@ -32,13 +32,16 @@ class SetupModule(ABC):
         return None
 
     def _is_applicable(self) -> bool:
+        """Check if this module applies to the current environment (OS)."""
         return True
 
     @abstractmethod
     def check_installed(self) -> bool:
+        """Check if this module is already installed and configured and no changes are needed."""
         pass
 
     def is_enabled(self) -> bool:
+        """Check if this module should be installed based on applicability and settings."""
         return self._is_applicable() and all(
             get_saved_settings().is_component_enabled(dep) for dep in ([self.name] + self.dependencies())
         )
@@ -247,15 +250,8 @@ class SetupModule(ABC):
             # Recursively clean up parent
             self._cleanup_empty_dicts(config, keys[:-1])
 
-    def get_status(self) -> dict[str, Any] | None:
-        """Get the status of this module.
-
-        Returns:
-            Dictionary with status information or None if not applicable
-        """
-        if not self.is_enabled():
-            return None
-
+    def get_status(self) -> dict[str, Any]:
+        """Get the status of this module. Does not check if the module is enabled."""
         installed = self.check_installed()
         connected_as = self.check_connected_as() if installed else None
         expected = get_saved_settings().get_expected_connection(self.name)
