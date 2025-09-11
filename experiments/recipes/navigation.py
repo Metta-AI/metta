@@ -4,7 +4,7 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig, DiscreteRandomConfig
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
@@ -65,7 +65,6 @@ def make_mettagrid(num_agents: int = 4) -> MettaGridConfig:
 
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
-    enable_learning_progress: bool = True,
     enable_detailed_bucket_logging: bool = False,
 ) -> CurriculumConfig:
     nav_env = nav_env or make_mettagrid()
@@ -92,50 +91,29 @@ def make_curriculum(
     sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
     sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
 
-    nav_tasks = cc.multi_task(dense_tasks, sparse_tasks)
-
-    # Choose algorithm based on flag
-    if enable_learning_progress:
-        algorithm_config = LearningProgressConfig(
-            ema_timescale=0.001,
-            exploration_bonus=0.1,
-            min_presentations_for_eviction=5,
-        )
-    else:
-        algorithm_config = DiscreteRandomConfig()
+    nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
     return CurriculumConfig(
         task_generator=nav_tasks,
         num_active_tasks=1000,  # Smaller pool for navigation tasks
-        algorithm_config=algorithm_config,
-        enable_detailed_bucket_logging=enable_detailed_bucket_logging,
-        max_memory_tasks=500 if enable_detailed_bucket_logging else 0,
-        max_bucket_axes=3 if enable_detailed_bucket_logging else 0,
+        algorithm_config=LearningProgressConfig(
+            enable_detailed_bucket_logging=enable_detailed_bucket_logging,
+        ),
     )
 
 
 def train(
     run: Optional[str] = None,
     curriculum: Optional[CurriculumConfig] = None,
-    enable_learning_progress: bool = True,
     enable_detailed_logging: bool = False,
 ) -> TrainTool:
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name()
-
-    # Add algorithm type to run name for easy identification
-    if run and not enable_learning_progress:  # Only modify if not default
-        algo_suffix = "lp" if enable_learning_progress else "random"
-        run = f"{run}.{algo_suffix}"
-
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum
-        or make_curriculum(
-            enable_learning_progress=enable_learning_progress,
-            enable_detailed_bucket_logging=enable_detailed_logging,
-        ),
+        or make_curriculum(enable_detailed_bucket_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),
