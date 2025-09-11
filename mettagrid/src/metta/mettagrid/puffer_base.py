@@ -141,3 +141,8 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
     def done(self) -> bool:
         """Check if environment is done."""
         return self._should_reset
+
+    def close(self) -> None:
+        """Close the environment."""
+        # Call MettaGridCore.close() directly to avoid NotImplementedError from PufferEnv.close()
+        MettaGridCore.close(self)

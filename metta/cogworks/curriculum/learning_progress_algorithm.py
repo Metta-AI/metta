@@ -1,24 +1,54 @@
-"""
-Learning Progress Algorithm using composition of focused components.
-
-This algorithm uses smaller, focused components that each handle a single responsibility.
-"""
-
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask, TaskTracker
-from .stats import BucketAnalyzer
+from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+from .task_tracker import TaskTracker
 
 
-class LearningProgressScorer:
-    """Calculates learning progress scores for tasks based on performance trends."""
+class LearningProgressConfig(CurriculumAlgorithmConfig):
+    """Configuration for the learning progress algorithm."""
 
-    def __init__(self, ema_timescale: float = 0.001, exploration_bonus: float = 0.1):
-        self.ema_timescale = ema_timescale
-        self.exploration_bonus = exploration_bonus
+    type: str = "learning_progress"
 
+    # Core algorithm parameters
+    ema_timescale: float = 0.001
+    exploration_bonus: float = 0.1
+
+    # Performance and memory management
+    max_memory_tasks: int = 1000
+    max_bucket_axes: int = 3
+    enable_detailed_bucket_logging: bool = False  # Disabled by default for performance
+
+    def algorithm_type(self) -> str:
+        return "learning_progress"
+
+    def create(self, num_tasks: int) -> "LearningProgressAlgorithm":
+        return LearningProgressAlgorithm(num_tasks, self)
+
+
+class LearningProgressAlgorithm(CurriculumAlgorithm):
+    """
+    Learning Progress Algorithm with integrated scoring functionality.
+
+    Combines task tracking, learning progress scoring, and bucket analysis
+    into a cohesive algorithm for intelligent task selection based on
+    performance variance and exploration needs.
+    """
+
+    def __init__(self, num_tasks: int, hypers: LearningProgressConfig):
+        super().__init__(num_tasks, hypers, initialize_weights=False)
+
+        self.hypers = hypers
+
+        # Override the default task tracker with learning progress and bucket analysis parameters
+        self.task_tracker = TaskTracker(
+            max_memory_tasks=hypers.max_memory_tasks,
+            max_bucket_axes=hypers.max_bucket_axes,
+            enable_detailed_bucket_logging=hypers.enable_detailed_bucket_logging,
+        )
+
+        # Integrated learning progress scoring state
         # EMA tracking for each task: task_id -> (ema_score, ema_squared, num_samples)
         self._task_emas: Dict[int, tuple[float, float, int]] = {}
 
@@ -26,7 +56,20 @@ class LearningProgressScorer:
         self._score_cache: Dict[int, float] = {}
         self._cache_valid_tasks: set[int] = set()
 
-    def update_task_ema(self, task_id: int, score: float) -> None:
+        # Cache for expensive stats computation
+        self._stats_cache = {}
+        self._stats_cache_valid = False
+
+        # Curriculum reference for accessing RNG
+        self._curriculum = None
+
+    def set_curriculum_reference(self, curriculum) -> None:
+        """Set reference to curriculum for accessing its RNG."""
+        self._curriculum = curriculum
+
+    # Integrated learning progress scoring methods
+
+    def _update_task_ema(self, task_id: int, score: float) -> None:
         """Update EMA tracking for a task with new score."""
         if task_id not in self._task_emas:
             self._task_emas[task_id] = (score, score * score, 1)
@@ -34,7 +77,7 @@ class LearningProgressScorer:
             ema_score, ema_squared, num_samples = self._task_emas[task_id]
 
             # Update EMAs
-            alpha = min(1.0, self.ema_timescale * num_samples)
+            alpha = min(1.0, self.hypers.ema_timescale * num_samples)
             new_ema_score = (1 - alpha) * ema_score + alpha * score
             new_ema_squared = (1 - alpha) * ema_squared + alpha * (score * score)
 
@@ -43,19 +86,19 @@ class LearningProgressScorer:
         # Invalidate cache for this task when EMA is updated
         self._cache_valid_tasks.discard(task_id)
 
-    def get_learning_progress_score(self, task_id: int, task_tracker: TaskTracker) -> float:
+    def _get_learning_progress_score(self, task_id: int) -> float:
         """Calculate learning progress score for a task."""
         # Return cached score if valid
         if task_id in self._cache_valid_tasks and task_id in self._score_cache:
             return self._score_cache[task_id]
 
-        task_stats = task_tracker.get_task_stats(task_id)
+        task_stats = self.task_tracker.get_task_stats(task_id)
         if not task_stats or task_stats["completion_count"] < 2:
             # New tasks get exploration bonus
-            score = self.exploration_bonus
+            score = self.hypers.exploration_bonus
         elif task_id not in self._task_emas:
             # Tasks without EMA tracking get exploration bonus (they're new to the scorer)
-            score = self.exploration_bonus
+            score = self.hypers.exploration_bonus
         else:
             ema_score, ema_squared, num_samples = self._task_emas[task_id]
 
@@ -69,7 +112,7 @@ class LearningProgressScorer:
 
             # Add exploration bonus for tasks with few samples
             if num_samples < 10:
-                learning_progress += self.exploration_bonus * (10 - num_samples) / 10
+                learning_progress += self.hypers.exploration_bonus * (10 - num_samples) / 10
 
             score = learning_progress
 
@@ -78,33 +121,13 @@ class LearningProgressScorer:
         self._cache_valid_tasks.add(task_id)
         return score
 
-    def score_tasks(self, task_ids: List[int], task_tracker: TaskTracker) -> Dict[int, float]:
-        """Score all provided tasks for selection probability."""
-        scores = {}
-
-        for task_id in task_ids:
-            scores[task_id] = self.get_learning_progress_score(task_id, task_tracker)
-
-        return scores
-
-    def recommend_eviction(self, task_ids: List[int], task_tracker: TaskTracker) -> Optional[int]:
-        """Recommend which task to evict based on learning progress."""
-        if not task_ids:
-            return None
-
-        scores = self.score_tasks(task_ids, task_tracker)
-
-        # Find task with minimum learning progress
-        min_task_id = min(task_ids, key=lambda tid: scores.get(tid, 0.0))
-        return min_task_id
-
-    def remove_task(self, task_id: int) -> None:
-        """Remove task from tracking and clear its cache."""
+    def _remove_task_from_scoring(self, task_id: int) -> None:
+        """Remove task from EMA tracking and clear its cache."""
         self._task_emas.pop(task_id, None)
         self._score_cache.pop(task_id, None)
         self._cache_valid_tasks.discard(task_id)
 
-    def get_stats(self) -> Dict[str, float]:
+    def _get_learning_progress_stats(self) -> Dict[str, float]:
         """Get statistics about learning progress scoring."""
         if not self._task_emas:
             return {
@@ -131,76 +154,24 @@ class LearningProgressScorer:
             "mean_learning_progress": np.mean(learning_progress_scores) if learning_progress_scores else 0.0,
         }
 
-
-class LearningProgressConfig(CurriculumAlgorithmConfig):
-    """Configuration for the learning progress algorithm."""
-
-    type: str = "learning_progress"
-
-    # Core algorithm parameters
-    ema_timescale: float = 0.001
-    exploration_bonus: float = 0.1
-
-    # Performance and memory management
-    max_memory_tasks: int = 1000
-    max_bucket_axes: int = 3
-    enable_detailed_bucket_logging: bool = False  # Disabled by default for performance
-
-    def algorithm_type(self) -> str:
-        return "learning_progress"
-
-    def create(self, num_tasks: int) -> "LearningProgressAlgorithm":
-        return LearningProgressAlgorithm(num_tasks, self)
-
-
-class LearningProgressAlgorithm(CurriculumAlgorithm):
-    """
-    Learning Progress Algorithm using focused components.
-
-    This version demonstrates clean separation of concerns:
-    - TaskTracker: Handles task memory and performance history
-    - LearningProgressScorer: Calculates learning progress scores
-    - BucketAnalyzer: Tracks completion patterns across parameter space
-
-    The algorithm coordinates these components but doesn't mix responsibilities.
-    """
-
-    def __init__(self, num_tasks: int, hypers: LearningProgressConfig):
-        super().__init__(num_tasks, hypers, initialize_weights=False)
-
-        self.hypers = hypers
-
-        # Override the default task tracker with learning progress parameters
-        self.task_tracker = TaskTracker(max_memory_tasks=hypers.max_memory_tasks)
-
-        # Initialize focused components
-        self.lp_scorer = LearningProgressScorer(
-            ema_timescale=hypers.ema_timescale, exploration_bonus=hypers.exploration_bonus
-        )
-        self.bucket_analyzer = BucketAnalyzer(
-            max_bucket_axes=hypers.max_bucket_axes, enable_detailed_logging=hypers.enable_detailed_bucket_logging
-        )
-
-        # Cache for expensive stats computation
-        self._stats_cache = {}
-        self._stats_cache_valid = False
-
-        # Curriculum reference for accessing RNG
-        self._curriculum = None
-
-    def set_curriculum_reference(self, curriculum) -> None:
-        """Set reference to curriculum for accessing its RNG."""
-        self._curriculum = curriculum
-
     # CurriculumAlgorithm interface implementation
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks for selection based on learning progress."""
-        return self.lp_scorer.score_tasks(task_ids, self.task_tracker)
+        scores = {}
+        for task_id in task_ids:
+            scores[task_id] = self._get_learning_progress_score(task_id)
+        return scores
 
     def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
         """Recommend task to evict based on learning progress."""
-        return self.lp_scorer.recommend_eviction(task_ids, self.task_tracker)
+        if not task_ids:
+            return None
+
+        scores = self.score_tasks(task_ids)
+        # Find task with minimum learning progress
+        min_task_id = min(task_ids, key=lambda tid: scores.get(tid, 0.0))
+        return min_task_id
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
         """Check if a task should be evicted based on criteria.
@@ -233,39 +204,42 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def on_task_evicted(self, task_id: int) -> None:
         """Clean up when a task is evicted."""
-        # Call parent implementation (handles task_tracker cleanup)
-        super().on_task_evicted(task_id)
+        # Remove from task tracker
+        self.task_tracker.remove_task(task_id)
 
         # Learning progress specific cleanup
-        self.lp_scorer.remove_task(task_id)
-        self.bucket_analyzer.remove_task(task_id)
+        self._remove_task_from_scoring(task_id)
 
         # Invalidate stats cache when task state changes
         self._stats_cache_valid = False
 
-    def update_task_performance(self, task_id: int, score: float) -> None:
+    def update_task_performance(self, task_id: int, score: float, bucket_values: Dict[str, Any] = None) -> None:
         """Update task performance across all components."""
-        # Call parent implementation (handles task_tracker update)
-        super().update_task_performance(task_id, score)
+        # Call parent implementation but pass bucket_values to task_tracker directly
+        if task_id not in self.task_tracker._task_memory:
+            self.task_tracker.track_task_creation(task_id)
+
+        # Update task tracker with bucket values
+        self.task_tracker.update_task_performance(task_id, score, bucket_values)
 
         # Update learning progress EMA
-        self.lp_scorer.update_task_ema(task_id, score)
+        self._update_task_ema(task_id, score)
 
         # Invalidate stats cache when performance updates
         self._stats_cache_valid = False
 
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle new task creation."""
-        # Call parent implementation (handles task_tracker)
-        super().on_task_created(task)
-
         task_id = task._task_id
 
-        # Extract and track bucket values
-        bucket_values = self.bucket_analyzer.extract_bucket_values(task)
+        # Track task creation directly
+        self.task_tracker.track_task_creation(task_id)
+
+        # Extract and track bucket values using integrated TaskTracker
+        bucket_values = self.task_tracker.extract_bucket_values(task)
         if bucket_values:
             # Initialize bucket tracking with default score
-            self.bucket_analyzer.track_task_completion(task_id, bucket_values, 0.0)
+            self.task_tracker.update_task_performance(task_id, 0.0, bucket_values)
 
         # Invalidate stats cache when new tasks are created
         self._stats_cache_valid = False
@@ -284,14 +258,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return {f"{prefix}{p}{k}": v for k, v in d.items()}
 
         # Learning progress stats
-        stats.update(add_prefix(self.lp_scorer.get_stats(), "lp/"))
+        stats.update(add_prefix(self._get_learning_progress_stats(), "lp/"))
 
-        # Bucket analysis stats
-        stats.update(add_prefix(self.bucket_analyzer.get_global_stats(), "buckets/"))
+        # Bucket analysis stats (now integrated into task tracker)
+        # The bucket stats are already included in the parent stats() call via TaskTracker.get_global_stats()
 
         # Detailed bucket density stats (if enabled) - this is expensive
         if self.hypers.enable_detailed_bucket_logging:
-            density_stats = self.bucket_analyzer.get_completion_density_stats()
+            density_stats = self.task_tracker.get_completion_density_stats()
             for bucket_name, bucket_stats in density_stats.items():
                 bucket_prefix = f"bucket_{bucket_name}/"
                 stats.update(add_prefix(bucket_stats, bucket_prefix))
@@ -301,16 +275,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stats_cache_valid = True
 
         return stats
-
-    def _choose_task(self) -> int:
-        """
-        Choose a task using learning progress guided sampling.
-
-        This delegates to the parent class implementation which uses
-        score_tasks() to get weights for weighted sampling.
-        """
-        # Use parent implementation that calls our score_tasks method
-        return super()._choose_task()
 
     def _choose_task_from_list(self, task_ids: List[int]) -> int:
         """Choose a task from a specific list of task IDs using learning progress scores."""
