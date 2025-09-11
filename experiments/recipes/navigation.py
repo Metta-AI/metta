@@ -100,6 +100,7 @@ def make_curriculum(
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             enable_detailed_bucket_logging=enable_detailed_bucket_logging,
+            use_bidirectional=True,
         ),
     )
 

@@ -3,6 +3,7 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
@@ -45,7 +46,15 @@ def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumCo
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return arena_tasks.to_curriculum()
+    return CurriculumConfig(
+        task_generator=arena_tasks,
+        algorithm_config=LearningProgressConfig(
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            use_bidirectional=True,
+        ),
+    )
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
