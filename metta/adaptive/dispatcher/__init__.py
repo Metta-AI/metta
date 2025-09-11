@@ -1,7 +1,7 @@
-"""Dispatcher implementations for job execution."""
+"""Dispatcher implementations for job execution (adaptive namespace)."""
 
-from metta.sweep.dispatcher.local import LocalDispatcher
-from metta.sweep.dispatcher.routing import RoutingDispatcher
-from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
+from .local import LocalDispatcher
+from .routing import RoutingDispatcher
+from .skypilot import SkypilotDispatcher
 
 __all__ = ["LocalDispatcher", "RoutingDispatcher", "SkypilotDispatcher"]

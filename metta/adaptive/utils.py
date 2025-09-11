@@ -3,7 +3,7 @@
 import hashlib
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
 
@@ -153,7 +153,6 @@ def create_eval_job(
     recipe_module: str,
     eval_entrypoint: str,
     stats_server_uri: Optional[str] = None,
-    eval_args: Optional[List[str]] = None,
     eval_overrides: Optional[Dict[str, Any]] = None,
 ) -> "JobDefinition":
     """Create an evaluation job definition.
@@ -183,9 +182,9 @@ def create_eval_job(
         run_id=run_id,
         cmd=f"{recipe_module}.{eval_entrypoint}",
         type=JobTypes.LAUNCH_EVAL,
-        args=eval_args or [],
+        args={"policy_uri": f"wandb://metta/{run_id}"},
         overrides=overrides,
-        metadata={"policy_uri": f"wandb://metta/{run_id}"},
+        metadata={},
     )
 
 
@@ -194,7 +193,6 @@ def create_training_job(
     experiment_id: str,
     recipe_module: str,
     train_entrypoint: str,
-    config: Dict[str, Any],
     gpus: int = 1,
     nodes: int = 1,
     stats_server_uri: Optional[str] = None,
@@ -208,7 +206,7 @@ def create_training_job(
         recipe_module: Module containing the training function
         train_entrypoint: Name of the training function
         config: Hyperparameter configuration from optimizer
-        gpus_per_job: Number of GPUs per job
+        gpus: Number of GPUs per job
         stats_server_uri: Optional stats server URI
         train_overrides: Optional additional overrides
 
@@ -227,7 +225,7 @@ def create_training_job(
         type=JobTypes.LAUNCH_TRAINING,
         gpus=gpus,
         nodes=nodes,
-        config=config,
+        args={"run": run_id, "group": experiment_id},
         overrides=overrides,
         metadata={"group": experiment_id},
     )
