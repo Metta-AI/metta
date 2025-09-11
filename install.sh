@@ -1,7 +1,7 @@
 #!/bin/sh
 set -u
-PROFILE=""
-NON_INTERACTIVE=""
+PROFILE_ADDITION=""
+NON_INTERACTIVE_ADDITION=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile)
@@ -9,11 +9,11 @@ while [ $# -gt 0 ]; do
         echo "Error: --profile requires an argument"
         exit 1
       fi
-      PROFILE="--profile=$2"
+      PROFILE_ADDITION="--profile=$2"
       shift 2
       ;;
     --non-interactive)
-      NON_INTERACTIVE="--non-interactive"
+      NON_INTERACTIVE_ADDITION="--non-interactive"
       shift
       ;;
     --help | -h)
@@ -64,7 +64,7 @@ done
 
 uv sync || err "Failed to install Python dependencies"
 uv run python -m metta.setup.metta_cli symlink-setup setup || err "Failed to set up metta command in ~/.local/bin"
-uv run python -m metta.setup.metta_cli install $PROFILE $NON_INTERACTIVE || err "Failed to install components"
+uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION || err "Failed to install components"
 
 echo "\nSetup complete!\n"
 
