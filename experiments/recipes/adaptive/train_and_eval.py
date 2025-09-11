@@ -16,6 +16,7 @@ def train_and_eval(
     experiment_id: str = "train_eval_poc",
     train_overrides: dict[str, Any] | None = None,  # Trainer overrides
     dispatcher_type: str = "skypilot",  # "local" or "skypilot"
+    resume: bool = False,  # Resume from existing experiment
 ) -> AdaptiveTool:
     """Create simple train-and-eval adaptive experiment for PoC.
 
@@ -32,6 +33,7 @@ def train_and_eval(
         experiment_id: Unique identifier for this experiment
         train_overrides: Additional overrides to apply to all training jobs
         dispatcher_type: Where to run jobs - "local" or "skypilot"
+        resume: Resume from existing experiment (skip initial fetch timeout)
 
     Returns:
         Configured AdaptiveTool for the experiment
@@ -64,7 +66,7 @@ def train_and_eval(
         "trainer.total_timesteps": 500000000, #500M
     }
 
-    adaptive_config = AdaptiveConfig(max_parallel=4)
+    adaptive_config = AdaptiveConfig(max_parallel=4, resume=resume)
 
     return AdaptiveTool(
         scheduler_type=SchedulerType.TRAIN_AND_EVAL,
