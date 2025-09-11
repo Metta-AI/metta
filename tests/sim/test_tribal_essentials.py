@@ -16,6 +16,7 @@ Replaces:
 
 import sys
 import unittest
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -30,7 +31,6 @@ if tribal_bindings.exists():
     sys.path.insert(0, str(tribal_bindings))
 
 # Suppress gym warnings
-import warnings
 
 warnings.filterwarnings("ignore", message=".*Gym.*")
 

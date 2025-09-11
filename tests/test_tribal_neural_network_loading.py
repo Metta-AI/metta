@@ -36,7 +36,8 @@ def sample_checkpoint_path():
     if not model_files:
         pytest.skip(
             "No trained tribal model found. Run training first: "
-            "uv run ./tools/run.py experiments.recipes.tribal_basic.train --overrides run=test_tribal_neural_demo trainer.total_timesteps=1000"
+            "uv run ./tools/run.py experiments.recipes.tribal_basic.train "
+            "--overrides run=test_tribal_neural_demo trainer.total_timesteps=1000"
         )
 
     return str(model_files[0])
@@ -151,7 +152,8 @@ class TestTribalNeuralNetworkLoading:
             assert action_logits.shape[1] > 0, "Action logits should have >0 actions"
             assert not torch.isnan(action_logits).any(), "Action logits should not contain NaN"
             print(
-                f"✅ Action logits shape: {action_logits.shape}, range: [{action_logits.min():.3f}, {action_logits.max():.3f}]"
+                f"✅ Action logits shape: {action_logits.shape}, "
+                f"range: [{action_logits.min():.3f}, {action_logits.max():.3f}]"
             )
 
         if "values" in output_td:

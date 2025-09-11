@@ -10,21 +10,22 @@ import sys
 import time
 from pathlib import Path
 
-# Add metta root to Python path so 'tribal' module can be found
-_metta_root = Path(__file__).parent.parent.parent
-if str(_metta_root) not in sys.path:
-    sys.path.insert(0, str(_metta_root))
-
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.common.tool import Tool
 from metta.cogworks.curriculum.task_generator import TaskGeneratorConfig
 from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
-from tribal.src.tribal_genny import TribalEnvConfig
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+
+# Add metta root to Python path so 'tribal' module can be found
+_metta_root = Path(__file__).parent.parent.parent
+if str(_metta_root) not in sys.path:
+    sys.path.insert(0, str(_metta_root))
+
+from tribal.src.tribal_genny import TribalEnvConfig  # noqa: E402
 
 
 def _ensure_tribal_bindings_built():
