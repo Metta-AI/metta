@@ -92,7 +92,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         rng: random.Random,
     ):
         converter_name = self._choose_converter_name(
-            self.converter_types, cfg.used_objects, rng
+            self.converter_types, set(cfg.used_objects), rng
         )
         cfg.used_objects.append(converter_name)
         cfg.converters.append(converter_name)
@@ -112,7 +112,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
     def _add_sink(self, cfg: _BuildCfg, rng: random.Random):
         sink_name = self._choose_converter_name(
-            self.converter_types, cfg.used_objects, rng
+            self.converter_types, set(cfg.used_objects), rng
         )
         cfg.used_objects.append(sink_name)
         sink = self.converter_types[sink_name].copy()
@@ -164,9 +164,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         height = rng.randint(self.config.height_range[0], self.config.height_range[1])
         max_steps = self.config.max_steps
 
-        total_objects = num_resources + num_sinks + 1
-        perimeter = 2 * (width + height) - 8
-        avg_hop = max(1, perimeter // total_objects)
+        avg_hop = width + height / 2
 
         # optimal reward estimates for the task, to be used in evaluation
         most_efficient_optimal_reward, least_efficient_optimal_reward = (
@@ -195,8 +193,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_resources: int,
         num_sinks: int,
         max_steps: int,
-        avg_hop: int,
-    ) -> tuple[int, int]:
+        avg_hop: float,
+    ) -> tuple[float, float]:
         """
         Returns (most_efficient_reward, least_efficient_reward).
 
@@ -231,7 +229,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         # or the time to traverse the chain again (including moving between stages).
         per_heart_cycle = max(cooldown, correct_chain_traverse_cost)
 
-        def hearts_after(first_heart_steps: int) -> int:
+        def hearts_after(first_heart_steps: float) -> float:
             if first_heart_steps > effective_max_steps:
                 return 0
             remaining = effective_max_steps - first_heart_steps
