@@ -44,10 +44,18 @@ class TaskTracker:
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance with new completion score."""
+        # Ensure task exists in memory with atomic operation
         if task_id not in self._task_memory:
             self.track_task_creation(task_id)
 
-        creation_time, completion_count, total_score, _ = self._task_memory[task_id]
+        # Use get() with default to handle race conditions in multiprocessing
+        task_data = self._task_memory.get(task_id)
+        if task_data is None:
+            # Task was removed between check and access - recreate it
+            self.track_task_creation(task_id)
+            task_data = self._task_memory[task_id]
+
+        creation_time, completion_count, total_score, _ = task_data
         new_completion_count = completion_count + 1
         new_total_score = total_score + score
 
