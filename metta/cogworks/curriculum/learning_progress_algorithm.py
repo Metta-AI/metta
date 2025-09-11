@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 
 from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .learning_progress_modules import BucketAnalyzer, LearningProgressScorer, TaskTracker
+from .learning_progress_modules.bidirectional_learning_progress_scorer import BidirectionalLearningProgressScorer
 
 
 class LearningProgressConfig(CurriculumAlgorithmConfig):
@@ -23,6 +24,14 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     max_memory_tasks: int = 1000
     max_bucket_axes: int = 3
     enable_detailed_bucket_logging: bool = False  # Disabled by default for performance
+
+    # Bidirectional learning progress parameters
+    use_bidirectional: bool = False
+    progress_smoothing: float = 0.05
+    num_active_tasks: int = 16
+    rand_task_rate: float = 0.25
+    sample_threshold: int = 10
+    memory: int = 25
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -50,9 +59,23 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Initialize focused components
         self.task_tracker = TaskTracker(max_memory_tasks=hypers.max_memory_tasks)
-        self.lp_scorer = LearningProgressScorer(
-            ema_timescale=hypers.ema_timescale, exploration_bonus=hypers.exploration_bonus
-        )
+
+        # Choose between standard and bidirectional learning progress scoring
+        if hypers.use_bidirectional:
+            self.lp_scorer = BidirectionalLearningProgressScorer(
+                ema_timescale=hypers.ema_timescale,
+                exploration_bonus=hypers.exploration_bonus,
+                progress_smoothing=hypers.progress_smoothing,
+                num_active_tasks=hypers.num_active_tasks,
+                rand_task_rate=hypers.rand_task_rate,
+                sample_threshold=hypers.sample_threshold,
+                memory=hypers.memory,
+            )
+        else:
+            self.lp_scorer = LearningProgressScorer(
+                ema_timescale=hypers.ema_timescale, exploration_bonus=hypers.exploration_bonus
+            )
+
         self.bucket_analyzer = BucketAnalyzer(
             max_bucket_axes=hypers.max_bucket_axes, enable_detailed_logging=hypers.enable_detailed_bucket_logging
         )
@@ -169,7 +192,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         stats.update(add_prefix(self.bucket_analyzer.get_global_stats(), "buckets/"))
 
         # Detailed bucket density stats (if enabled) - this is expensive
-        if self.hypers.enable_detailed_bucket_logging:
+        if isinstance(self.hypers, LearningProgressConfig) and self.hypers.enable_detailed_bucket_logging:
             density_stats = self.bucket_analyzer.get_completion_density_stats()
             for bucket_name, bucket_stats in density_stats.items():
                 bucket_prefix = f"bucket_{bucket_name}/"
@@ -181,15 +204,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return stats
 
-    def _choose_task(self) -> int:
-        """
-        Choose a task using learning progress guided sampling.
-
-        This delegates to the parent class implementation which uses
-        score_tasks() to get weights for weighted sampling.
-        """
-        # Use parent implementation that calls our score_tasks method
-        return super()._choose_task()
+    # Task selection is handled by the Curriculum class using our score_tasks() method
 
     def _choose_task_from_list(self, task_ids: List[int]) -> int:
         """Choose a task from a specific list of task IDs using learning progress scores."""
