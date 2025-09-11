@@ -15,6 +15,41 @@ from metta.mettagrid.stats_writer import StatsWriter
 logger = logging.getLogger("vecenv")
 
 
+def _create_environment(env_cfg, **kwargs):
+    """
+    Generic environment factory that dispatches to the appropriate environment type.
+    
+    This keeps environments decoupled - each environment type only knows about itself.
+    """
+    # Check for tribal environment
+    if hasattr(env_cfg, "environment_type") and env_cfg.environment_type == "tribal":
+        # Import tribal here to keep it decoupled from mettagrid
+        return env_cfg.create_environment(**kwargs)
+    
+    # Default to MettaGrid environment
+    else:
+        # Extract MettaGrid-specific parameters
+        render_mode = kwargs.get("render_mode", "rgb_array")
+        stats_writer = kwargs.get("stats_writer")
+        replay_writer = kwargs.get("replay_writer")
+        is_training = kwargs.get("is_training", False)
+        
+        env = MettaGridEnv(
+            env_cfg,
+            render_mode=render_mode,
+            stats_writer=stats_writer,
+            replay_writer=replay_writer,
+            is_training=is_training,
+        )
+        
+        # Set buffers for MettaGrid environments
+        buf = kwargs.get("buf")
+        if buf is not None:
+            set_buffers(env, buf)
+        
+        return env
+
+
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
@@ -30,19 +65,15 @@ def make_env_func(
 
     env_cfg = curriculum.get_task().get_env_cfg()
 
-    # Use unified config.create_environment() interface
-    env = env_cfg.create_environment(
+    # Use generic dispatch function to create environment
+    env = _create_environment(
+        env_cfg,
         render_mode=render_mode,
         stats_writer=stats_writer,
         replay_writer=replay_writer,
         is_training=is_training,
         buf=buf,
     )
-    
-    # Set buffers for environments that need it (MettaGrid)
-    # TribalGridEnv handles buffer setup internally and doesn't need this
-    if hasattr(env, '__module__') and 'mettagrid' in env.__module__ and buf is not None:
-        set_buffers(env, buf)
     env = CurriculumEnv(env, curriculum)
 
     return env

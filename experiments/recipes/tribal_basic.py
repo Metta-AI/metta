@@ -6,8 +6,14 @@ Agent count (15), map size (100x50), observation shape (19 layers, 11x11) are co
 """
 
 import subprocess
+import sys
 import time
 from pathlib import Path
+
+# Add metta root to Python path so 'tribal' module can be found
+_metta_root = Path(__file__).parent.parent.parent
+if str(_metta_root) not in sys.path:
+    sys.path.insert(0, str(_metta_root))
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.common.tool import Tool
