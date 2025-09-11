@@ -1,7 +1,5 @@
 from typing import TYPE_CHECKING, Type
 
-from metta.common.util.collections import find_first
-
 if TYPE_CHECKING:
     from metta.setup.components.base import SetupModule
 
@@ -47,11 +45,3 @@ def get_all_modules() -> list["SetupModule"]:
             visit(module)
 
     return result
-
-
-def get_enabled_setup_modules() -> list["SetupModule"]:
-    return [m for m in get_all_modules() if m.is_enabled()]
-
-
-def get_enabled_setup_module_by_name(name: str) -> "SetupModule | None":
-    return find_first(get_enabled_setup_modules(), lambda m: m.name == name)
