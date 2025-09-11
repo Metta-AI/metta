@@ -57,7 +57,7 @@ class TrainAndEvalScheduler:
         # 2. Create new training jobs if we have capacity and haven't hit max trials
         while available_training_slots > 0 and self._trial_count < self.config.max_trials:
             self._trial_count += 1
-            self.available_training_slots -= 1
+            available_training_slots -= 1
             run_id = generate_run_id(self.config.experiment_id, self._trial_count)
 
             training_job = create_training_job(
