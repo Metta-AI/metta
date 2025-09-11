@@ -51,7 +51,7 @@ class HeartbeatMonitor:
 
             # Check for timeout
             if elapsed > self.heartbeat_timeout:
-                logger.info(f"elapsed: {elapsed} > last_heartbeat_time: {last_heartbeat_time}")
+                logger.info(f"elapsed: {elapsed} > last_heartbeat_time: {self.heartbeat_timeout}")
                 return True, "heartbeat_timeout"
 
             return False, None

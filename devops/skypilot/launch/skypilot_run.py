@@ -121,10 +121,6 @@ def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> s
 
     logger.info(f"Starting monitoring loop with {len(monitors)} monitor(s)")
 
-    # We don't explicitly terminate the subprocess when monitors trigger.
-    # Instead, we exit with an appropriate code and let SkyPilot handle cluster
-    # shutdown, which cleanly terminates all processes.
-
     while True:
         exit_code = job.poll()
         if exit_code is not None:
@@ -161,7 +157,7 @@ def main() -> int:
 
         metrics = {
             "skypilot/latency_collection_time": datetime.now(timezone.utc).isoformat(),
-            "skypilot/task_id": os.environ.get("SKYPILOT_TASK_ID", "unknown"),
+            "skypilot/task_id": job_config.skypilot_task_id,
             "skypilot/hourly_cost": total_hourly_cost,
             "skypilot/queue_latency_s": latency_sec,
         }
