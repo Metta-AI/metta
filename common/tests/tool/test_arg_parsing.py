@@ -1,6 +1,5 @@
 """Fast unit tests for parse_value/parse_cli_args/get_tool_fields/classify_remaining_args."""
 
-
 from pydantic import Field
 
 from metta.common.tool import Tool
