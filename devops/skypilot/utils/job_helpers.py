@@ -1,3 +1,4 @@
+import importlib
 import netrc
 import os
 import re
@@ -68,48 +69,54 @@ def check_git_state(commit_hash: str) -> str | None:
     return None
 
 
-def check_config_files(cmd_args: list[str]) -> bool:
-    """Check that config files referenced in arguments actually exist."""
-    config_files_to_check = []
+def validate_module_path(module_path: str) -> bool:
+    """
+    Check that a module path like 'experiments.recipes.arena_basic_easy_shaped.train'
+    points to a valid function.
+    """
+    try:
+        # Split module path and function name
+        # e.g., "experiments.recipes.arena_basic_easy_shaped.train"
+        # -> module: "experiments.recipes.arena_basic_easy_shaped", function: "train"
+        parts = module_path.split(".")
+        module_name = ".".join(parts[:-1])
+        function_name = parts[-1]
 
-    # Mapping of argument prefix to config file path template
-    config_mappings = {
-        "agent=": "./configs/agent/{}.yaml",
-        "trainer=": "./configs/trainer/{}.yaml",
-        "trainer.curriculum=": "./configs/{}.yaml",
-        "sim=": "./configs/sim/{}.yaml",
-    }
+        # First check if the file exists (for better error messages)
+        module_file_path = module_name.replace(".", "/") + ".py"
+        if not Path(module_file_path).exists():
+            print(red(f"❌ Module file '{module_file_path}' does not exist"))
+            return False
 
-    for task_arg in cmd_args:
-        for prefix, path_template in config_mappings.items():
-            if task_arg.startswith(prefix):
-                value = task_arg.split("=", 1)[1]
-                config_path = path_template.format(value)
-                config_files_to_check.append((task_arg, config_path))
-                break
+        # Try to import the module
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError as e:
+            print(red(f"❌ Failed to import module '{module_name}': {e}"))
+            return False
 
-    missing_files = []
-    for arg, config_path in config_files_to_check:
-        if not Path(config_path).exists():
-            missing_files.append((arg, config_path))
+        # Check if the function exists in the module
+        if not hasattr(module, function_name):
+            print(red(f"❌ Function '{function_name}' not found in module '{module_name}'"))
+            # List available functions as suggestions
+            available_funcs = [
+                name for name in dir(module) if not name.startswith("_") and callable(getattr(module, name))
+            ]
+            if available_funcs:
+                print(f"    Available functions: {', '.join(available_funcs[:5])}")
+            return False
 
-    if missing_files:
-        print(red("❌ Config files not found:"))
-        for arg, path in missing_files:
-            print(f"  {arg} -> {path}")
+        # Optionally, verify it's callable
+        func = getattr(module, function_name)
+        if not callable(func):
+            print(red(f"❌ '{function_name}' exists but is not callable"))
+            return False
 
-            # Try to suggest similar files
-            config_dir = Path(path).parent
-            if config_dir.exists():
-                yaml_files = list(config_dir.glob("*.yaml"))
-                if yaml_files:
-                    suggestions = [f.stem for f in yaml_files[:3]]
-                    print(f"    Available: {', '.join(suggestions)}")
+        return True
 
-        print("Check your argument spelling and file paths.")
+    except Exception as e:
+        print(red(f"❌ Error validating module path '{module_path}': {e}"))
         return False
-
-    return True
 
 
 def display_job_summary(
