@@ -1,6 +1,8 @@
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("Softmax Codex")
+SOFTMAX_ATLAS_NAME = "Softmax Atlas"
+SOFTMAX_ATLAS_SERVER_PATH = __file__
+mcp = FastMCP(SOFTMAX_ATLAS_NAME)
 
 # Store roles with their prompts and required context
 roles = {
