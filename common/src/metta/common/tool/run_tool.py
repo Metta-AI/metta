@@ -12,7 +12,7 @@ import sys
 import warnings
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
 from rich.logging import RichHandler
 from typing_extensions import TypeVar
@@ -24,17 +24,16 @@ from metta.mettagrid.util.module import load_symbol
 from metta.rl.system_config import seed_everything
 
 logger = logging.getLogger(__name__)
-console = Console()
 
-# Configure rich logging
-logging.basicConfig(
-    level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(console=console, rich_tracebacks=True)]
-)
+# --------------------------------------------------------------------------------------
+# Environment setup
+# --------------------------------------------------------------------------------------
 
 
 def init_mettagrid_system_environment() -> None:
     """Initialize environment variables for headless operation."""
     # Set CUDA launch blocking for better error messages in development
+    # TODO (use env for prod/dev?)
     os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "1")
 
     # Make sure Numpy uses only 1 thread (matches what happens in C++ side)
@@ -53,9 +52,13 @@ def init_mettagrid_system_environment() -> None:
 
 T = TypeVar("T", bound=Config)
 
+# --------------------------------------------------------------------------------------
+# Small helpers
+# --------------------------------------------------------------------------------------
+
 
 def parse_value(value_str: str) -> Any:
-    """Parse a string value into appropriate Python type."""
+    """Parse a string value into appropriate Python type (minimal heuristics)."""
     lower = value_str.lower()
 
     if lower in {"true", "false"}:
@@ -67,18 +70,15 @@ def parse_value(value_str: str) -> Any:
     if (value_str.startswith("{") and value_str.endswith("}")) or (
         value_str.startswith("[") and value_str.endswith("]")
     ):
-        # Basic size validation to prevent parsing extremely large strings
         if len(value_str) > 1_000_000:  # 1MB limit
             logger.warning(f"Skipping JSON parsing for oversized value ({len(value_str)} chars)")
             return value_str
-
         try:
             return json.loads(value_str)
         except json.JSONDecodeError:
-            # Not valid JSON despite having JSON-like delimiters
             pass
 
-    # Try to parse as numeric
+    # Try numeric
     try:
         return int(value_str)
     except ValueError:
@@ -88,126 +88,97 @@ def parse_value(value_str: str) -> Any:
     except ValueError:
         pass
 
-    # Default to string
     return value_str
 
 
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
     """Parse CLI arguments in key=value format, keeping dotted keys flat."""
-    parsed = {}
-
+    parsed: dict[str, Any] = {}
     for arg in cli_args:
-        # Strip leading dashes if present (support --key=value format)
         clean_arg = arg.lstrip("-")
-
         if "=" not in clean_arg:
             raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
-
         key, value = clean_arg.split("=", 1)
-        # Keep dotted keys intact for proper classification
         parsed[key] = parse_value(value)
-
     return parsed
+
+
+def deep_merge(dst: dict, src: dict) -> dict:
+    """In-place deep merge of src into dst."""
+    for k, v in src.items():
+        if k in dst and isinstance(dst[k], dict) and isinstance(v, dict):
+            deep_merge(dst[k], v)
+        else:
+            dst[k] = v
+    return dst
+
+
+def nestify(flat: dict[str, Any]) -> dict[str, Any]:
+    """Turn {'a.b.c': 1, 'x': 2} into {'a': {'b': {'c': 1}}, 'x': 2}."""
+    out: dict[str, Any] = {}
+    for k, v in flat.items():
+        parts = k.split(".")
+        node: dict[str, Any] = {}
+        cur = node
+        for p in parts[:-1]:
+            cur[p] = {}
+            cur = cur[p]
+        cur[parts[-1]] = v
+        deep_merge(out, node)
+    return out
 
 
 def get_tool_fields(tool_class: type[Tool]) -> set[str]:
     """Get all field names from a Tool class and its parent classes."""
     fields = set()
-
-    # Walk up the MRO [method resolution order]
     for base in tool_class.__mro__:
-        # Stop at Tool base class
         if base is Tool:
             break
-        # Only include fields from Pydantic models
         if issubclass(base, BaseModel) and hasattr(base, "model_fields"):
             fields.update(base.model_fields.keys())
-
     return fields
 
 
-def extract_function_args(cli_args: dict[str, Any], make_tool_cfg: Any) -> tuple[dict[str, Any], dict[str, Any]]:
-    """
-    Extract function arguments from CLI args based on the function's signature.
-
-    This is the first phase of argument classification. It examines the signature
-    of make_tool_cfg (either a Tool class constructor or a function that returns
-    a Tool) and extracts any CLI arguments that match the function's parameters.
-
-    Rules:
-    - Only exact parameter name matches are extracted (no fuzzy matching)
-    - Dotted keys (e.g., "nested.field") are never function arguments
-    - Function arguments take precedence over tool fields in case of conflicts
-
-    Args:
-        cli_args: Dictionary of parsed CLI arguments (key=value pairs)
-        make_tool_cfg: Either a Tool class or a function that returns a Tool
-
-    Returns:
-        - func_args: Arguments that match function parameters
-        - remaining_args: All other arguments that need further classification
-    """
-    # Get function parameter names
+def get_function_params(make_tool_cfg: Any) -> set[str]:
+    """Get the parameters of a function or callable (not used for Tool classes)."""
     if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
-        # Tool class constructor
-        func_params = set(inspect.signature(make_tool_cfg.__init__).parameters.keys()) - {"self"}
+        # Important: do NOT read Tool.__init__ for params (it's usually **data).
+        return set()
     else:
-        # Function that returns a Tool
-        func_params = set(inspect.signature(make_tool_cfg).parameters.keys())
-
-    func_args = {}
-    remaining_args = {}
-
-    for key, value in cli_args.items():
-        # Dotted keys can never be function args
-        if "." not in key and key in func_params:
-            func_args[key] = value
-        else:
-            remaining_args[key] = value
-
-    return func_args, remaining_args
+        return set(inspect.signature(make_tool_cfg).parameters.keys())
 
 
 def classify_remaining_args(remaining_args: dict[str, Any], tool_fields: set[str]) -> tuple[dict[str, Any], list[str]]:
-    """
-    Classify remaining arguments as tool overrides or unknown arguments.
-
-    This is the second phase of argument classification. After function arguments
-    have been extracted, this function examines the remaining arguments and
-    determines which ones are valid tool field overrides vs unknown arguments.
-
-    Rules:
-    - Non-dotted keys must match exact tool field names
-    - Dotted keys (e.g., "nested.field") check if the base field exists
-    - Arguments that don't match any tool fields are marked as unknown
-
-    Args:
-        remaining_args: Arguments left after extracting function args
-        tool_fields: Set of valid field names from the Tool class hierarchy
-
-    Returns:
-        - overrides: Arguments that match tool fields (will be applied via tool.override())
-        - unknown: List of argument keys that don't match any known fields
-    """
-    overrides = {}
-    unknown = []
+    """Classify remaining arguments as tool overrides or unknown arguments."""
+    overrides: dict[str, Any] = {}
+    unknown: list[str] = []
 
     for key, value in remaining_args.items():
         if "." in key:
-            # Dotted path - check if base field exists
             base_key = key.split(".", 1)[0]
             if base_key in tool_fields:
                 overrides[key] = value
             else:
                 unknown.append(key)
         elif key in tool_fields:
-            # Non-dotted key that matches a tool field
             overrides[key] = value
         else:
-            # Unknown argument
             unknown.append(key)
 
     return overrides, unknown
+
+
+def type_parse(value: Any, annotation: Any) -> Any:
+    """Type-aware coercion using Pydantic when a function annotation is present."""
+    if annotation is inspect._empty:
+        return value
+    adapter = TypeAdapter(annotation)
+    return adapter.validate_python(value)
+
+
+# --------------------------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------------------------
 
 
 def main():
@@ -215,28 +186,25 @@ def main():
     parser = argparse.ArgumentParser(
         description="Run a tool with automatic argument classification",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        allow_abbrev=True,  # allow -v matching -verbose or similar
+        allow_abbrev=True,
         epilog="""
 Examples:
   %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
   %(prog)s experiments.recipes.arena.play policy_uri=file://./checkpoints --verbose
-  %(prog)s experiments.recipes.arena.train -- --trainer.epochs=10 --model.lr=0.001
   %(prog)s experiments.recipes.arena.train optim='{"lr":1e-3,"beta1":0.9}'
 
 Rules:
-  - Dotted keys (a.b.c) are always configuration overrides
-  - Exact parameter names are function arguments
-  - Values: true/false, null/none, JSON containers {...}/[...], or int/float/string
+  - Dotted keys (a.b.c) are configuration paths and will be nested and validated.
+  - Exact parameter names are function arguments for factory functions.
+  - Values: true/false, null/none, JSON containers {...}/[...], or int/float/string.
 
 This tool automatically determines which arguments are meant for the tool
-constructor/function vs which are configuration overrides based on introspection.
-
-Use -- to force treating following arguments as key=value pairs if they start with dashes.
+constructor/function vs configuration overrides based on introspection.
         """,
     )
 
     parser.add_argument(
-        "make_tool_cfg_path", help="Path to the function to run (e.g., experiments.recipes.arena.train)"
+        "make_tool_cfg_path", help="Path to the function or Tool class (e.g., experiments.recipes.arena.train)"
     )
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
@@ -244,13 +212,21 @@ Use -- to force treating following arguments as key=value pairs if they start wi
     # Use parse_known_args to capture option-like tokens that aren't recognized
     known_args, unknown_args = parser.parse_known_args()
 
-    # Combine positional args with any unknown option-like tokens
-    # This allows --key=value to work without requiring --
+    # Combine positional args with any unknown option-like tokens (supports --key=value without --)
     all_args = (known_args.args or []) + unknown_args
 
     # Initialize
     init_logging()
     init_mettagrid_system_environment()
+
+    # Configure rich logging
+    console = Console()
+    logging.basicConfig(
+        level="INFO",
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(console=console, rich_tracebacks=True)],
+    )
 
     # Exit on ctrl+c with proper exit code
     signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))  # 130 = interrupted by Ctrl-C
@@ -262,6 +238,9 @@ Use -- to force treating following arguments as key=value pairs if they start wi
         console.print(f"[red]Error:[/red] {e}")
         return 2  # Exit code 2 for usage errors
 
+    # Build nested payload from dotted paths for Pydantic validation
+    nested_cli = nestify(cli_args)
+
     console.print(f"\n[bold cyan]Loading tool:[/bold cyan] {known_args.make_tool_cfg_path}")
 
     # Load the tool configuration function/class
@@ -271,24 +250,65 @@ Use -- to force treating following arguments as key=value pairs if they start wi
         console.print(f"[red]Error loading {known_args.make_tool_cfg_path}:[/red] {e}")
         return 1
 
-    # Phase 1: Extract function arguments (no tool instance needed!)
-    func_args, remaining_args = extract_function_args(cli_args, make_tool_cfg)
-
-    # Phase 2: Log and create the tool config object with function arguments
-    if known_args.verbose and func_args:
-        # Get the function/class name for clearer logging
-        func_name = make_tool_cfg.__name__ if hasattr(make_tool_cfg, "__name__") else str(make_tool_cfg)
-        console.print(f"\n[cyan]Creating {func_name}:[/cyan]")
-        for key, value in func_args.items():
-            console.print(f"  {key}={value}")
-
+    # ----------------------------------------------------------------------------------
+    # Construct the Tool
+    #   - If class subclassing Tool (Pydantic model): validate the entire nested payload
+    #   - If function: bind parameters from nested_cli/cli_args using annotations
+    # ----------------------------------------------------------------------------------
+    func_args_for_invoke: dict[str, str] = {}  # what we pass to tool.invoke (as strings)
     try:
         if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
-            # Tool config constructor
-            tool_cfg = make_tool_cfg(**func_args)
+            if known_args.verbose and nested_cli:
+                cls_name = make_tool_cfg.__name__
+                console.print(f"\n[cyan]Creating {cls_name} from nested CLI payload:[/cyan]")
+                for k in sorted(nested_cli.keys()):
+                    console.print(f"  {k} = {nested_cli[k]}")
+            tool_cfg = make_tool_cfg.model_validate(nested_cli)
+            remaining_args = {}  # all dotted/top-level consumed by model validation
         else:
-            # Function that makes a tool config
-            tool_cfg = make_tool_cfg(**func_args)
+            # Factory function that returns a Tool
+            sig = inspect.signature(make_tool_cfg)
+            func_kwargs: dict[str, Any] = {}
+            consumed_keys: set[str] = set()
+
+            if known_args.verbose and (cli_args or nested_cli):
+                func_name = getattr(make_tool_cfg, "__name__", str(make_tool_cfg))
+                console.print(f"\n[cyan]Creating {func_name}:[/cyan]")
+
+            for name, p in sig.parameters.items():
+                if name == "self":
+                    continue
+
+                # Prefer nested group if provided (e.g., param 'trainer' and CLI has 'trainer.*')
+                if name in nested_cli:
+                    raw = nested_cli[name]
+                    val = type_parse(raw, p.annotation)
+                    func_kwargs[name] = val
+                    consumed_keys.add(name)
+                    # mark dotted keys consumed: base == param name
+                    for k in list(cli_args.keys()):
+                        if k == name or k.startswith(name + "."):
+                            consumed_keys.add(k)
+                    if known_args.verbose:
+                        console.print(f"  {name}={val!r}")
+                    continue
+
+                # Else fall back to flat CLI exact match
+                if name in cli_args:
+                    val = type_parse(cli_args[name], p.annotation)
+                    func_kwargs[name] = val
+                    consumed_keys.add(name)
+                    if known_args.verbose:
+                        console.print(f"  {name}={val!r}")
+
+            # Construct via function
+            tool_cfg = make_tool_cfg(**func_kwargs)
+
+            # Remaining args = anything not consumed as function params
+            remaining_args = {k: v for k, v in cli_args.items() if k not in consumed_keys}
+
+            # For invoke(), send just the function args as strings
+            func_args_for_invoke = {k: str(v) for k, v in func_kwargs.items()}
     except Exception as e:
         console.print(f"[red]Error creating tool configuration:[/red] {e}")
         return 1
@@ -299,34 +319,29 @@ Use -- to force treating following arguments as key=value pairs if they start wi
         )
         return 1
 
-    # Phase 3: Classify remaining arguments as overrides or unknown
+    # ----------------------------------------------------------------------------------
+    # Overrides & Unknowns (post-construction)
+    # ----------------------------------------------------------------------------------
     tool_fields = get_tool_fields(type(tool_cfg))
     override_args, unknown_args = classify_remaining_args(remaining_args, tool_fields)
 
-    # Handle unknown arguments
     if unknown_args:
         console.print(f"\n[red]Error: Unknown arguments:[/red] {', '.join(unknown_args)}")
-        console.print("\n[yellow]Available function parameters:[/yellow]")
-        if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
-            sig = inspect.signature(make_tool_cfg.__init__)
-        else:
-            sig = inspect.signature(make_tool_cfg)
-        for param in sig.parameters.values():
-            if param.name != "self":
-                console.print(f"  - {param.name}")
-
+        # Only show function params list if the entrypoint is a function
+        if not (inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool)):
+            console.print("\n[yellow]Available function parameters:[/yellow]")
+            for param in get_function_params(make_tool_cfg):
+                console.print(f"  - {param}")
         console.print("\n[yellow]Available tool fields for overrides:[/yellow]")
         for field in sorted(tool_fields):
             console.print(f"  - {field}")
         return 2  # Exit code 2 for usage errors
 
-    # Apply overrides
     if override_args:
         if known_args.verbose:
             console.print("\n[cyan]Applying overrides:[/cyan]")
             for key, value in override_args.items():
                 console.print(f"  {key}={value}")
-
         for key, value in override_args.items():
             try:
                 tool_cfg = tool_cfg.override(key, value)
@@ -334,16 +349,16 @@ Use -- to force treating following arguments as key=value pairs if they start wi
                 console.print(f"[red]Error applying override {key}={value}:[/red] {e}")
                 return 1
 
-    # Seed random number generators if system config is available
+    # ----------------------------------------------------------------------------------
+    # Seed & Run
+    # ----------------------------------------------------------------------------------
     if hasattr(tool_cfg, "system"):
         seed_everything(tool_cfg.system)
 
-    # Execute the tool
     console.print("\n[bold green]Running tool...[/bold green]\n")
 
     try:
-        # Convert func_args values to strings
-        result = tool_cfg.invoke({k: str(v) for k, v in func_args.items()})
+        result = tool_cfg.invoke(func_args_for_invoke)
     except KeyboardInterrupt:
         return 130  # Interrupted by Ctrl-C
     except Exception:

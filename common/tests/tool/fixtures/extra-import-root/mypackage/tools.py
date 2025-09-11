@@ -34,3 +34,14 @@ class SimpleTestTool(Tool):
 def make_test_tool(run: str = "default_run", count: int = 42) -> SimpleTestTool:
     """Function that creates a test tool."""
     return SimpleTestTool()
+
+
+class RequiredFieldTool(Tool):
+    """Tool with a required field (no default). Used to verify constructor validation."""
+
+    x: int
+
+    def invoke(self, args: dict[str, str]) -> int | None:
+        # Print the value so tests can assert behavior via subprocess output
+        print(self.x)
+        return 0
