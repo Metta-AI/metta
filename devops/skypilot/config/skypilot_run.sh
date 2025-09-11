@@ -52,8 +52,12 @@ METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_F
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -f devops/skypilot/utils/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    METTA_HOURLY_COST="$(uv run python devops/skypilot/utils/cost_monitor.py 2> /dev/null | tail -1 || true)"
-    echo "[RUN] METTA_HOURLY_COST set to $METTA_HOURLY_COST in $METTA_ENV_FILE by python."
+    if uv run python devops/skypilot/utils/cost_monitor.py; then
+      source "$METTA_ENV_FILE"
+      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+    else
+      echo "[RUN] Cost monitor script failed to run."
+    fi
   else
     echo "[RUN] Cost monitor script is missing!"
   fi
