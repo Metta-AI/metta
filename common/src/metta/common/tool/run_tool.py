@@ -285,9 +285,10 @@ constructor/function vs configuration overrides based on introspection.
                     val = type_parse(raw, p.annotation)
                     func_kwargs[name] = val
                     consumed_keys.add(name)
-                    # mark dotted keys consumed: base == param name
+                    # Only mark dotted keys as consumed if they actually contributed to nested_cli[name]
+                    # This prevents double consumption when there's both 'trainer' and 'trainer.lr' args
                     for k in list(cli_args.keys()):
-                        if k == name or k.startswith(name + "."):
+                        if k.startswith(name + "."):
                             consumed_keys.add(k)
                     if known_args.verbose:
                         console.print(f"  {name}={val!r}")
