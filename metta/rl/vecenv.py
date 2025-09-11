@@ -18,7 +18,7 @@ logger = logging.getLogger("vecenv")
 def _create_environment(env_cfg, **kwargs):
     """
     Generic environment factory that dispatches to the appropriate environment type.
-    
+
     This keeps environments decoupled - each environment type only knows about itself.
     """
     # Create environment based on type
@@ -32,7 +32,7 @@ def _create_environment(env_cfg, **kwargs):
         stats_writer = kwargs.get("stats_writer")
         replay_writer = kwargs.get("replay_writer")
         is_training = kwargs.get("is_training", False)
-        
+
         env = MettaGridEnv(
             env_cfg,
             render_mode=render_mode,
@@ -40,12 +40,12 @@ def _create_environment(env_cfg, **kwargs):
             replay_writer=replay_writer,
             is_training=is_training,
         )
-    
+
     # Set buffers for ALL environments (unified treatment)
     buf = kwargs.get("buf")
     if buf is not None:
         set_buffers(env, buf)
-    
+
     return env
 
 

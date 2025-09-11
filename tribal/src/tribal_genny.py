@@ -24,12 +24,12 @@ def _ensure_bindings_available():
     bindings_dir = tribal_dir / "bindings" / "generated"
     library_files = list(bindings_dir.glob("libtribal.*"))
     python_binding = bindings_dir / "tribal.py"
-    
+
     # Check if bindings exist
     if not library_files or not python_binding.exists():
         print("🔨 Tribal bindings not found, building automatically...")
         _build_bindings(tribal_dir)
-    
+
     # Add to Python path
     sys.path.insert(0, str(bindings_dir))
 
@@ -39,17 +39,17 @@ def _build_bindings(tribal_dir: Path):
     build_script = tribal_dir / "build_bindings.sh"
     if not build_script.exists():
         raise RuntimeError(f"Build script not found: {build_script}")
-    
+
     result = subprocess.run(
         ["bash", str(build_script)],
         cwd=tribal_dir,
         capture_output=True,
         text=True,
     )
-    
+
     if result.returncode != 0:
         raise RuntimeError(f"Failed to build bindings: {result.stderr}")
-    
+
     print("✅ Tribal bindings built successfully")
 
 
@@ -75,14 +75,14 @@ try:
     NUM_ACTION_TYPES = tribal.NUM_ACTION_TYPES
     OBSERVATION_WIDTH = tribal.OBSERVATION_WIDTH
     OBSERVATION_HEIGHT = tribal.OBSERVATION_HEIGHT
-    
+
     # Functions
     is_emulated = tribal.is_emulated
     is_done = tribal.is_done
     get_feature_normalizations = tribal.get_feature_normalizations
     reset_and_get_obs_pointer = tribal.reset_and_get_obs_pointer
     step_with_pointers = tribal.step_with_pointers
-    
+
 except ImportError as e:
     raise ImportError(
         f"Could not import tribal bindings: {e}\nRun 'cd tribal && ./build_bindings.sh' to generate bindings."
@@ -92,7 +92,7 @@ except ImportError as e:
 class TribalGridEnv:
     """
     Clean tribal environment wrapper with auto-building and smart delegation.
-    
+
     Uses direct pointer access for zero-copy performance with minimal boilerplate.
     """
 
@@ -103,7 +103,7 @@ class TribalGridEnv:
         # Set environment variable to signal Python training mode
         os.environ["TRIBAL_PYTHON_CONTROL"] = "1"
 
-        # Create Nim configuration with overrides  
+        # Create Nim configuration with overrides
         nim_config = default_tribal_config()
         if config:
             for key, value in config.items():
@@ -129,6 +129,7 @@ class TribalGridEnv:
 
         # Gym spaces for compatibility
         import gymnasium as gym
+
         self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
         self.single_action_space = gym.spaces.MultiDiscrete([NUM_ACTION_TYPES, 8])
 
@@ -136,7 +137,7 @@ class TribalGridEnv:
         self.obs_width = OBSERVATION_WIDTH
         self.obs_height = OBSERVATION_HEIGHT
         self.grid_objects = {}
-        
+
         # Feature normalizations
         feature_norms = get_feature_normalizations()
         self.feature_normalizations = {i: feature_norms[i] for i in range(len(feature_norms))}
@@ -144,7 +145,7 @@ class TribalGridEnv:
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment using direct pointer access."""
         obs_ptr_int = self.observations.ctypes.data_as(ctypes.c_void_p).value or 0
-        
+
         success = reset_and_get_obs_pointer(self._nim_env, obs_ptr_int)
         if not success:
             raise RuntimeError("Environment reset failed")
@@ -180,7 +181,7 @@ class TribalGridEnv:
         }
         return self.observations, self.rewards, self.terminals, self.truncations, info
 
-    # Smart delegation for unknown attributes  
+    # Smart delegation for unknown attributes
     def __getattr__(self, name):
         """Delegate unknown attributes to the Nim environment."""
         if hasattr(self._nim_env, name):
@@ -192,7 +193,7 @@ class TribalGridEnv:
     def emulated(self) -> bool:
         return is_emulated()
 
-    @property  
+    @property
     def done(self) -> bool:
         return is_done(self._nim_env)
 
@@ -235,9 +236,14 @@ class TribalGridEnv:
         }
 
     # Minimal compatibility stubs
-    def set_mg_config(self, config) -> None: pass
-    def get_episode_rewards(self) -> np.ndarray: return np.array([0.0])
-    def close(self) -> None: pass
+    def set_mg_config(self, config) -> None:
+        pass
+
+    def get_episode_rewards(self) -> np.ndarray:
+        return np.array([0.0])
+
+    def close(self) -> None:
+        pass
 
     # PufferLib async interface methods
     def async_reset(self, seed: int | None = None) -> np.ndarray:
@@ -262,7 +268,7 @@ class TribalGridEnv:
         return obs, rewards, terminals, truncations, info_list, lives, scores
 
 
-# Configuration Classes  
+# Configuration Classes
 class TribalGameConfig(Config):
     max_steps: int = Field(default=2000, ge=0)
     ore_per_battery: int = Field(default=3)
@@ -298,7 +304,7 @@ class TribalEnvConfig(Config):
     def get_action_space(self) -> Dict[str, Any]:
         return {
             "shape": (2,),
-            "dtype": "uint8", 
+            "dtype": "uint8",
             "type": "MultiDiscrete",
             "nvec": [6, 8],
         }

@@ -126,13 +126,13 @@ class TribalProcessPlayTool(Tool):
         """Run with test policy."""
         with ControllerClass(tribal_dir) as controller:
             assert controller.start_nim_process(), "Failed to start Nim viewer process"
-            
+
             controller.activate_communication()
             obs, info = controller.reset()
-            
+
             max_steps = min(500, self.env_config.game.max_steps)
             print(f"🎮 Running {max_steps} steps with {self.policy_uri}...")
-            
+
             for step in range(max_steps):
                 actions = []
                 for agent in range(controller.num_agents):
@@ -140,23 +140,26 @@ class TribalProcessPlayTool(Tool):
                         actions.append([0, 0])
                     elif self.policy_uri == "test_move":
                         import random
+
                         actions.append([1, random.randint(0, 3)])
                     else:
                         actions.append([0, 0])
-                
+
                 obs, rewards, terminals, truncations, info = controller.step(actions)
-                
+
                 if step % 20 == 0:
                     reward_sum = rewards.sum()
                     num_alive = (~(terminals | truncations)).sum()
-                    print(f"  Step {step}: reward_sum={reward_sum:.3f}, agents_alive={num_alive}")
-                
+                    print(
+                        f"  Step {step}: reward_sum={reward_sum:.3f}, agents_alive={num_alive}"
+                    )
+
                 if info.get("episode_done", False):
                     print(f"🏁 Episode ended at step {step}")
                     break
-                
+
                 time.sleep(0.1)
-            
+
             print("✅ Process-separated communication working!")
             time.sleep(5)
             return 0
@@ -164,34 +167,38 @@ class TribalProcessPlayTool(Tool):
     def _run_with_neural_network(self, ControllerClass, tribal_dir: Path) -> int:
         """Run with trained neural network policy."""
         from metta.rl.checkpoint_manager import CheckpointManager
-        
+
         policy = CheckpointManager.load_from_uri(self.policy_uri)
         print(f"✅ Neural network loaded: {type(policy).__name__}")
-        
+
         with ControllerClass(tribal_dir) as controller:
             assert controller.start_nim_process(), "Failed to start Nim viewer process"
-            
+
             controller.activate_communication()
             obs, info = controller.reset()
-            
+
             max_steps = min(200, self.env_config.game.max_steps)
             print(f"🎮 Running {max_steps} steps with neural network...")
-            
+
             for step in range(max_steps):
                 policy_output = policy.forward(obs)
-                actions = policy_output["actions"]  # Let it crash if actions key missing
-                
+                actions = policy_output[
+                    "actions"
+                ]  # Let it crash if actions key missing
+
                 obs, rewards, terminals, truncations, info = controller.step(actions)
-                
+
                 if step % 50 == 0:
                     reward_sum = rewards.sum()
                     num_alive = (~(terminals | truncations)).sum()
-                    print(f"  Step {step}: reward_sum={reward_sum:.3f}, agents_alive={num_alive}")
-                
+                    print(
+                        f"  Step {step}: reward_sum={reward_sum:.3f}, agents_alive={num_alive}"
+                    )
+
                 if info.get("episode_done", False):
                     print(f"🏁 Episode ended at step {step}")
                     break
-            
+
             print("✅ Neural network control working!")
             time.sleep(3)
             return 0
@@ -199,13 +206,13 @@ class TribalProcessPlayTool(Tool):
     def _run_builtin_ai(self, ControllerClass, tribal_dir: Path) -> int:
         """Run with built-in AI."""
         print("🤖 Running with built-in AI")
-        
+
         with ControllerClass(tribal_dir) as controller:
             assert controller.start_nim_process(), "Failed to start Nim viewer process"
-            
+
             controller.activate_communication()
             print("Press Ctrl+C to stop")
-            
+
             try:
                 while True:
                     time.sleep(1.0)

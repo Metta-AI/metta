@@ -36,7 +36,6 @@ exportConsts:
   NumActionTypes
 
 # Configuration objects matching Python TribalEnvConfig structure
-# NOTE: Structural parameters (numAgents, obsWidth, etc.) are kept as compile-time constants
 type
   TribalGameConfig* = object
     # Core game parameters
@@ -124,9 +123,7 @@ proc newTribalEnv*(config: TribalConfig): TribalEnv =
     lastError = getCurrentException()
 
 
-# Core environment methods (SeqInt-based functions removed - replaced by pointer-based interface)
-
-# Observation access (getObservations removed - replaced by pointer-based interface)
+# Core environment methods
 
 proc getTokenObservations*(tribal: TribalEnv): seq[int] =
   ## Get current observations as token sequence compatible with MettaGrid format
@@ -167,7 +164,7 @@ proc getTokenObservations*(tribal: TribalEnv): seq[int] =
   except:
     lastError = getCurrentException()
 
-# Reward access and terminal/truncation status (SeqFloat/SeqBool functions removed - replaced by pointer-based interface)
+# Environment status
 
 # Environment info
 proc getCurrentStep*(tribal: TribalEnv): int =
