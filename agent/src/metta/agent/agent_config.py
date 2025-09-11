@@ -13,6 +13,7 @@ from metta.agent.component_policies.latent_attn_tiny import LatentAttnTiny as Co
 # PyTorch implementations (vanilla models)
 from metta.agent.pytorch.example import Example
 from metta.agent.pytorch.fast import Fast as PyTorchFast
+from metta.agent.pytorch.hrm import HRM
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAttnMed
 from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
@@ -47,6 +48,7 @@ AGENT_REGISTRY = {
     "latent_attn_med": ComponentLatentAttnMed,
     "pytorch/example": Example,
     "pytorch/fast": PyTorchFast,
+    "pytorch/hrm": HRM,
     "pytorch/latent_attn_tiny": PyTorchLatentAttnTiny,
     "pytorch/latent_attn_small": PyTorchLatentAttnSmall,
     "pytorch/latent_attn_med": PyTorchLatentAttnMed,
