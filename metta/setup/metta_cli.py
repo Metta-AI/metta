@@ -19,13 +19,6 @@ from metta.setup.utils import error, info, success, warning
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
 
-app = typer.Typer(
-    help="Metta Setup Tool - Configure and install development environment",
-    rich_markup_mode="rich",
-    no_args_is_help=True,
-    context_settings={"help_option_names": ["-h", "--help"]},
-)
-
 PYTHON_TEST_FOLDERS = [
     "tests",
     "mettascope/tests",
@@ -136,8 +129,14 @@ class MettaCLI:
         return text[: max_len - 3] + "..."
 
 
-# Create a single CLI instance
 cli = MettaCLI()
+app = typer.Typer(
+    help="Metta Setup Tool - Configure and install development environment",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    callback=cli._init_all,
+)
 
 
 @app.command(name="configure", help="Configure Metta settings")
@@ -153,7 +152,6 @@ def cmd_configure(
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
 ):
     """Configure Metta settings."""
-    cli._init_all()
     if component:
         configure_component(component)
     elif profile:
@@ -211,8 +209,6 @@ def cmd_install(
 ):
     from metta.setup.saved_settings import get_saved_settings
 
-    cli._init_all()
-
     if not get_saved_settings().exists():
         warning("No configuration found. Running setup wizard first...")
         cli.setup_wizard()
@@ -259,7 +255,6 @@ def cmd_status(
 ):
     import concurrent.futures
 
-    cli._init_all()
     modules = _get_selected_modules(components if components else None)
     if not modules:
         warning("No modules to check.")
@@ -374,8 +369,6 @@ def cmd_run(
 ):
     from metta.setup.registry import get_all_modules
 
-    cli._init_all()
-
     modules = get_all_modules()
     module_map = {m.name: m for m in modules}
 
@@ -453,10 +446,6 @@ def cmd_lint(
 
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
 def cmd_ci():
-    """Run all Python unit tests and all Mettagrid C++ tests."""
-
-    cli._init_all()
-
     info("Running Python tests...")
     python_test_cmd = [
         "uv",
@@ -608,12 +597,6 @@ def cmd_clip(ctx: typer.Context):
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
-
-
-@app.callback()
-def main_callback():
-    """Handle initialization checks."""
-    pass
 
 
 def main() -> None:
