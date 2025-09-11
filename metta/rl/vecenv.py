@@ -11,7 +11,6 @@ from metta.common.util.log_config import init_logging
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from tribal.src.tribal_genny import TribalGridEnv
 
 logger = logging.getLogger("vecenv")
 
@@ -31,35 +30,18 @@ def make_env_func(
 
     env_cfg = curriculum.get_task().get_env_cfg()
 
-    # Check if this is a tribal environment
-    if hasattr(env_cfg, "environment_type") and env_cfg.environment_type == "tribal":
-        # Convert TribalEnvConfig to dict for TribalGridEnv
-        tribal_config = {
-            "max_steps": env_cfg.game.max_steps,
-            "ore_per_battery": env_cfg.game.ore_per_battery,
-            "batteries_per_heart": env_cfg.game.batteries_per_heart,
-            "enable_combat": env_cfg.game.enable_combat,
-            "clippy_spawn_rate": env_cfg.game.clippy_spawn_rate,
-            "clippy_damage": env_cfg.game.clippy_damage,
-            "heart_reward": env_cfg.game.heart_reward,
-            "ore_reward": env_cfg.game.ore_reward,
-            "battery_reward": env_cfg.game.battery_reward,
-            "survival_penalty": env_cfg.game.survival_penalty,
-            "death_penalty": env_cfg.game.death_penalty,
-        }
-
-        env = TribalGridEnv(tribal_config, render_mode=render_mode, buf=buf)
-        # TribalGridEnv handles PufferLib buffer setup internally
-    else:
-        # Standard MettaGrid environment
-        env = MettaGridEnv(
-            env_cfg,
-            render_mode=render_mode,
-            stats_writer=stats_writer,
-            replay_writer=replay_writer,
-            is_training=is_training,
-        )
-        # Only set buffers for non-tribal environments
+    # Use unified config.create_environment() interface
+    env = env_cfg.create_environment(
+        render_mode=render_mode,
+        stats_writer=stats_writer,
+        replay_writer=replay_writer,
+        is_training=is_training,
+        buf=buf,
+    )
+    
+    # Set buffers for environments that need it (MettaGrid)
+    # TribalGridEnv handles buffer setup internally and doesn't need this
+    if hasattr(env, '__module__') and 'mettagrid' in env.__module__ and buf is not None:
         set_buffers(env, buf)
     env = CurriculumEnv(env, curriculum)
 

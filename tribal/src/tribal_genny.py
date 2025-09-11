@@ -26,6 +26,7 @@ for path in _BINDINGS_PATHS:
 try:
     # Import genny-generated bindings
     import importlib.util
+
     bindings_file = Path(__file__).parent.parent / "bindings" / "generated" / "tribal.py"
     spec = importlib.util.spec_from_file_location("tribal_bindings", bindings_file)
     tribal = importlib.util.module_from_spec(spec)
@@ -36,7 +37,7 @@ try:
     TribalConfig = tribal.TribalConfig
     TribalGameConfig = tribal.TribalGameConfig
     default_tribal_config = tribal.default_tribal_config
-    
+
     # Constants
     MAP_AGENTS = tribal.MAP_AGENTS
     OBSERVATION_LAYERS = tribal.OBSERVATION_LAYERS
@@ -53,10 +54,7 @@ try:
     get_feature_normalizations = tribal.get_feature_normalizations
     is_emulated = tribal.is_emulated
     is_done = tribal.is_done
-    get_current_step = tribal.get_current_step
-    is_episode_done = tribal.is_episode_done
-    render_text = tribal.render_text
-    
+
     # Pointer-based functions
     reset_and_get_obs_pointer = tribal.reset_and_get_obs_pointer
     step_with_pointers = tribal.step_with_pointers
@@ -70,12 +68,14 @@ except ImportError as e:
 class TribalGridEnv:
     """
     Minimal pass-through wrapper for Nim tribal environment.
-    
+
     Uses direct pointer access for zero-copy performance.
     Python handles memory allocation, Nim reads/writes directly.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None, render_mode: Optional[str] = None, buf: Optional[Any] = None):
+    def __init__(
+        self, config: Optional[Dict[str, Any]] = None, render_mode: Optional[str] = None, buf: Optional[Any] = None
+    ):
         """Initialize tribal environment."""
         # Set environment variable to signal Python training mode
         os.environ["TRIBAL_PYTHON_CONTROL"] = "1"
@@ -103,12 +103,13 @@ class TribalGridEnv:
         self.height = MAP_HEIGHT
         self.width = MAP_WIDTH
         self.render_mode = render_mode
-        
+
         # Gym spaces for compatibility
         import gymnasium as gym
+
         self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
         self.single_action_space = gym.spaces.MultiDiscrete([NUM_ACTION_TYPES, 8])
-        
+
         # Additional compatibility properties
         self.obs_width = OBSERVATION_WIDTH
         self.obs_height = OBSERVATION_HEIGHT
@@ -120,14 +121,14 @@ class TribalGridEnv:
         """Reset environment using direct pointer access."""
         # Get pointer to observations array
         obs_ptr_int = self.observations.ctypes.data_as(ctypes.c_void_p).value or 0
-        
+
         # Reset and get observations written directly to our array
         success = reset_and_get_obs_pointer(self._nim_env, obs_ptr_int)
         if not success:
             raise RuntimeError("Environment reset failed")
 
         info = {
-            "current_step": get_current_step(self._nim_env),
+            "current_step": self._nim_env.get_current_step(),
             "max_steps": self._config.game.max_steps,
         }
         return self.observations, info
@@ -151,9 +152,9 @@ class TribalGridEnv:
             raise RuntimeError("Environment step failed")
 
         info = {
-            "current_step": get_current_step(self._nim_env),
+            "current_step": self._nim_env.get_current_step(),
             "max_steps": self._config.game.max_steps,
-            "episode_done": is_episode_done(self._nim_env),
+            "episode_done": self._nim_env.is_episode_done(),
         }
         return self.observations, self.rewards, self.terminals, self.truncations, info
 
@@ -162,13 +163,13 @@ class TribalGridEnv:
     def emulated(self) -> bool:
         return is_emulated()
 
-    @property  
+    @property
     def done(self) -> bool:
         return is_done(self._nim_env)
 
     @property
     def current_step(self) -> int:
-        return get_current_step(self._nim_env)
+        return self._nim_env.get_current_step()
 
     @property
     def action_names(self) -> list[str]:
@@ -192,14 +193,14 @@ class TribalGridEnv:
 
     def render(self, mode: str = "human") -> Optional[str]:
         if mode == "human":
-            return render_text(self._nim_env)
+            return self._nim_env.render_text()
         return None
 
     def get_episode_stats(self) -> Dict[str, Any]:
         return {
-            "current_step": get_current_step(self._nim_env),
+            "current_step": self._nim_env.get_current_step(),
             "max_steps": self._config.game.max_steps,
-            "episode_done": is_episode_done(self._nim_env),
+            "episode_done": self._nim_env.is_episode_done(),
         }
 
     # Minimal compatibility methods
@@ -272,7 +273,7 @@ class TribalEnvConfig(Config):
     def get_action_space(self) -> Dict[str, Any]:
         return {
             "shape": (2,),
-            "dtype": "uint8", 
+            "dtype": "uint8",
             "type": "MultiDiscrete",
             "nvec": [6, 8],
         }

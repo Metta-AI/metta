@@ -29,6 +29,7 @@ for path in _BINDINGS_PATHS:
 try:
     # Import genny-generated bindings
     import importlib.util
+
     bindings_file = Path(__file__).parent.parent / "bindings" / "generated" / "tribal.py"
     spec = importlib.util.spec_from_file_location("tribal_bindings", bindings_file)
     tribal = importlib.util.module_from_spec(spec)
@@ -66,14 +67,16 @@ except ImportError as e:
 class TribalGridEnv:
     """
     Simplified Python wrapper for Nim tribal environment using direct pointer access.
-    
+
     This provides zero-copy performance by sharing memory directly between Python and Nim.
     All numpy arrays are pre-allocated and Nim reads/writes directly to their memory.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None, render_mode: Optional[str] = None, buf: Optional[Any] = None):
+    def __init__(
+        self, config: Optional[Dict[str, Any]] = None, render_mode: Optional[str] = None, buf: Optional[Any] = None
+    ):
         """Initialize tribal environment with pre-allocated numpy arrays."""
-        
+
         # Set environment variable to signal Python training mode
         os.environ["TRIBAL_PYTHON_CONTROL"] = "1"
 
@@ -126,6 +129,7 @@ class TribalGridEnv:
 
         # Set up gym spaces for compatibility
         import gymnasium as gym
+
         self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
         self.single_action_space = gym.spaces.MultiDiscrete([NUM_ACTION_TYPES, 8])
 
@@ -145,7 +149,7 @@ class TribalGridEnv:
         """Reset environment using direct pointer access."""
         # Get pointer to observations array as integer
         obs_ptr_int = self.observations.ctypes.data_as(ctypes.c_void_p).value or 0
-        
+
         # Reset environment and get observations directly written to our array
         success = tribal.reset_and_get_obs_pointer(self._nim_env, obs_ptr_int)
         if not success:
@@ -176,14 +180,9 @@ class TribalGridEnv:
 
         # Step environment - Nim reads actions and writes results directly to our arrays
         success = tribal.step_with_pointers(
-            self._nim_env,
-            actions_ptr_int,
-            obs_ptr_int,
-            rewards_ptr_int,
-            terminals_ptr_int,
-            truncations_ptr_int
+            self._nim_env, actions_ptr_int, obs_ptr_int, rewards_ptr_int, terminals_ptr_int, truncations_ptr_int
         )
-        
+
         if not success:
             raise RuntimeError("Environment step failed")
 
@@ -201,7 +200,7 @@ class TribalGridEnv:
         """Native envs do not use emulation."""
         return is_emulated()
 
-    @property  
+    @property
     def done(self) -> bool:
         """Check if environment is done."""
         return is_done(self._nim_env)
@@ -290,6 +289,7 @@ class TribalGridEnv:
 # Configuration Classes - same as before but simpler
 class TribalGameConfig(Config):
     """Configuration for tribal game mechanics."""
+
     max_steps: int = Field(default=2000, ge=0)
     ore_per_battery: int = Field(default=3)
     batteries_per_heart: int = Field(default=2)
@@ -310,6 +310,7 @@ class TribalGameConfig(Config):
 
 class TribalEnvConfig(Config):
     """Configuration for Nim tribal environments."""
+
     environment_type: str = "tribal"
     label: str = Field(default="tribal")
     game: TribalGameConfig = Field(default_factory=TribalGameConfig)
@@ -328,7 +329,7 @@ class TribalEnvConfig(Config):
         """Get tribal environment action space."""
         return {
             "shape": (2,),
-            "dtype": "uint8", 
+            "dtype": "uint8",
             "type": "MultiDiscrete",
             "nvec": [6, 8],
         }
