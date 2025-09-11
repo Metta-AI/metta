@@ -21,7 +21,7 @@ from metta.tools.train import TrainTool
 from experiments.evals.navigation import make_navigation_eval_suite
 
 
-def make_mettagrid(num_agents: int = 4, num_instances: int = 4) -> MettaGridConfig:
+def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
     nav = eb.make_navigation(num_agents=num_agents * num_instances)
 
     nav.game.map_builder = MapGen.Config(
