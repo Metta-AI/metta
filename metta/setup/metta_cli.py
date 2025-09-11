@@ -153,6 +153,9 @@ def cmd_configure(
 ):
     """Configure Metta settings."""
     if component:
+        if profile:
+            error("Cannot configure a component and a profile at the same time.")
+            raise typer.Exit(1)
         configure_component(component)
     elif profile:
         from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
@@ -163,7 +166,6 @@ def cmd_configure(
             saved_settings = get_saved_settings()
             saved_settings.apply_profile(selected_user_type)
             success(f"Configured as {selected_user_type.value} user.")
-            info("\nRun 'metta install' to set up your environment.")
         else:
             error(f"Unknown profile: {profile}")
             raise typer.Exit(1)
@@ -203,18 +205,25 @@ def _get_selected_modules(components: list[str] | None = None) -> list["SetupMod
 @app.command(name="install", help="Install or update components")
 def cmd_install(
     components: Annotated[Optional[list[str]], typer.Argument(help="Components to install")] = None,
+    profile: Annotated[Optional[str], typer.Option("--profile", help="Profile to configure before installing")] = None,
     force: Annotated[bool, typer.Option("--force", help="Force reinstall")] = False,
     no_clean: Annotated[bool, typer.Option("--no-clean", help="Skip cleaning before install")] = False,
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
 ):
-    from metta.setup.saved_settings import get_saved_settings
-
-    if not get_saved_settings().exists():
-        warning("No configuration found. Running setup wizard first...")
-        cli.setup_wizard()
-
     if not no_clean:
         cmd_clean()
+
+    from metta.setup.saved_settings import get_saved_settings
+
+    # A profile must exist before installing. If installing in non-interactive mode,
+    # the target profile must be specified with --profile. If in interactive mode and
+    # no profile is specified, the setup wizard will be run.
+    profile_exists = get_saved_settings().exists()
+    if non_interactive and not profile_exists and not profile:
+        error("You do not have a profile configure. Must specify a profile with --profile.")
+        raise typer.Exit(1)
+    elif profile or not profile_exists:
+        cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
 
     if components:
         always_required_components = ["system", "core"]
