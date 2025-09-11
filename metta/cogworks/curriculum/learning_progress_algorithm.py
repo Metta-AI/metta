@@ -63,6 +63,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Curriculum reference for accessing RNG
         self._curriculum = None
 
+        # Expose scoring functionality through lp_scorer attribute for tests
+        self.lp_scorer = self
+
     def set_curriculum_reference(self, curriculum) -> None:
         """Set reference to curriculum for accessing its RNG."""
         self._curriculum = curriculum
@@ -85,6 +88,18 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Invalidate cache for this task when EMA is updated
         self._cache_valid_tasks.discard(task_id)
+
+    def get_learning_progress_score(self, task_id: int, task_tracker=None) -> float:
+        """Public interface for getting learning progress score for a task.
+
+        Args:
+            task_id: The task ID to score
+            task_tracker: Optional task tracker (ignored, we use our own)
+
+        Returns:
+            Learning progress score for the task
+        """
+        return self._get_learning_progress_score(task_id)
 
     def _get_learning_progress_score(self, task_id: int) -> float:
         """Calculate learning progress score for a task."""

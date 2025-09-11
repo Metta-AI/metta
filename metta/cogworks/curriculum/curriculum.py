@@ -204,7 +204,7 @@ class CurriculumConfig(Config):
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
 
-    algorithm_config: Union["DiscreteRandomConfig", "LearningProgressConfig"] = Field(
+    algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
         default_factory=lambda: DiscreteRandomConfig(), description="Curriculum algorithm hyperparameters"
     )
 
@@ -251,8 +251,12 @@ class Curriculum:
         self._num_created = 0
         self._num_evicted = 0
 
-        # Always have an algorithm (now guaranteed by config default)
-        self._algorithm = config.algorithm_config.create(config.num_active_tasks)
+        # Handle algorithm configuration
+        if config.algorithm_config is None:
+            # Use default discrete random algorithm when no algorithm specified
+            self._algorithm = DiscreteRandomCurriculum(config.num_active_tasks, DiscreteRandomConfig())
+        else:
+            self._algorithm = config.algorithm_config.create(config.num_active_tasks)
 
         # Pass curriculum reference to algorithm for stats updates
         if hasattr(self._algorithm, "set_curriculum_reference"):
