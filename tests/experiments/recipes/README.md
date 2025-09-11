@@ -6,13 +6,13 @@ A unified script for launching and checking SkyPilot test jobs across all active
 
 ```bash
 # Launch 5 jobs: one per recipe
-./recipe_test.py --launch
+./recipe_test.py launch
 
 # Check results
-./recipe_test.py --check
+./recipe_test.py check
 
 # Check with detailed logs
-./recipe_test.py --check -l
+./recipe_test.py check -l
 ```
 
 ## Test Configurations
@@ -42,20 +42,20 @@ The framework automatically parses and color-codes:
 
 ## Command Options
 
-### Launch Mode
+### Launch Command
 
 ```bash
-./recipe_test.py --launch [options]
+./recipe_test.py launch [options]
 ```
 
 - `--base-name`: Base name for test runs (default: recipe_test)
 - `--output-file`: JSON file to save results (default: recipe_test_jobs.json)
 - `--skip-git-check`: Skip git state validation
 
-### Check Mode
+### Check Command
 
 ```bash
-./recipe_test.py --check [options]
+./recipe_test.py check [options]
 ```
 
 - `-f, --input-file`: JSON file to check (default: recipe_test_jobs.json)
@@ -90,13 +90,17 @@ Each job entry includes:
 
 ```bash
 # Launch with custom base name
-./recipe_test.py --launch --base-name my_recipe_validation
+./recipe_test.py launch --base-name my_recipe_validation
 
 # Check specific output file with more log lines
-./recipe_test.py --check -f my_recipes.json -n 500
+./recipe_test.py check -f my_recipes.json -n 500
 
 # Launch without git validation
-./recipe_test.py --launch --skip-git-check
+./recipe_test.py launch --skip-git-check
+
+# Get help for specific commands
+./recipe_test.py launch --help
+./recipe_test.py check --help
 ```
 
 ## Purpose

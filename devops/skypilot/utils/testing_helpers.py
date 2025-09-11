@@ -2,9 +2,11 @@
 Framework for launching and checking SkyPilot test jobs.
 """
 
+import argparse
 import json
 import re
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -797,3 +799,143 @@ class SkyPilotJobChecker:
                 print(yellow("No log content available"))
 
             print("\n" + "-" * 80)
+
+
+class BaseTestRunner:
+    """Base class for SkyPilot test runner scripts."""
+
+    def __init__(
+        self,
+        prog_name: str,
+        description: str,
+        default_output_file: str,
+        default_base_name: str,
+        test_type: str = "Test",
+    ):
+        self.prog_name = prog_name
+        self.description = description
+        self.default_output_file = default_output_file
+        self.default_base_name = default_base_name
+        self.test_type = test_type
+
+    def create_parser(self) -> argparse.ArgumentParser:
+        """Create the argument parser with launch/check subcommands."""
+        parser = argparse.ArgumentParser(
+            description=self.description,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            prog=self.prog_name,
+        )
+
+        # Create subparsers
+        subparsers = parser.add_subparsers(dest="command", help="Command to execute", required=True)
+
+        # Launch subcommand
+        launch_parser = subparsers.add_parser(
+            "launch",
+            help="Launch test jobs",
+            description=self.get_launch_description(),
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog=self.get_launch_epilog(),
+        )
+        launch_parser.add_argument("--base-name", default=self.default_base_name, help="Base name for test runs")
+        launch_parser.add_argument("--output-file", default=self.default_output_file, help="Output JSON file")
+        launch_parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
+
+        # Add any custom launch arguments
+        self.add_custom_launch_args(launch_parser)
+
+        # Check subcommand
+        check_parser = subparsers.add_parser(
+            "check",
+            help="Check test results",
+            description=f"Check the status and results of {self.test_type.lower()} jobs",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+Examples:
+  %(prog)s                      # Check job statuses
+  %(prog)s -l                   # Check with detailed logs
+  %(prog)s -n 500               # Check with 500 lines of logs
+  %(prog)s -f custom.json       # Check from custom file
+        """,
+        )
+        check_parser.add_argument("-f", "--input-file", default=self.default_output_file, help="Input JSON file")
+        check_parser.add_argument("-l", "--logs", action="store_true", help="Show detailed logs")
+        check_parser.add_argument("-n", "--tail-lines", type=int, default=200, help="Log lines to tail")
+
+        return parser
+
+    def check_tests(self, args) -> None:
+        """Generic check implementation - same for all test types."""
+        # Create checker
+        checker = SkyPilotJobChecker(input_file=args.input_file)
+
+        # Load jobs
+        if not checker.load_jobs():
+            print(f"Run '{self.prog_name} launch' first to create the job file")
+            sys.exit(1)
+
+        # Get job count
+        launched_jobs = checker.jobs_data.get("launched_jobs", [])
+        if not launched_jobs:
+            sys.exit(0)
+
+        # Summary header
+        test_info = checker.jobs_data.get("test_run_info", {})
+        print(bold(f"\n=== Checking {len(launched_jobs)} {self.test_type} Jobs ==="))
+        print(f"{cyan('Test run:')} {test_info.get('base_name', 'Unknown')}")
+        print(f"{cyan('Launch time:')} {test_info.get('launch_time', 'Unknown')}")
+        print(f"{cyan('Input file:')} {args.input_file}")
+
+        # Check job statuses
+        checker.check_statuses()
+
+        # Quick status summary first
+        checker.print_quick_summary()
+
+        # Parse job summaries from logs
+        checker.parse_all_summaries(args.tail_lines)
+
+        # Print detailed table
+        checker.print_detailed_table()
+
+        # Show detailed logs if requested
+        if args.logs:
+            checker.show_detailed_logs(args.tail_lines)
+
+        # Print hints
+        print(f"\n{bold('Hints:')}")
+        print(f"  • Use {cyan('check -l')} to view detailed job logs")
+        print(f"  • Use {cyan('check -n <lines>')} to change log lines to tail")
+        print(f"  • Use {cyan('sky jobs logs <job_id>')} to view a single job's full log")
+
+    def run(self) -> None:
+        """Main entry point for the test runner."""
+        parser = self.create_parser()
+        args = parser.parse_args()
+
+        if args.command == "launch":
+            self.launch_tests(args)
+        elif args.command == "check":
+            self.check_tests(args)
+
+    # Methods to be implemented by subclasses
+    def get_launch_description(self) -> str:
+        """Get the launch subcommand description."""
+        return f"Launch {self.test_type.lower()} jobs on the cluster"
+
+    def get_launch_epilog(self) -> str:
+        """Get the launch subcommand epilog with examples."""
+        return """
+Examples:
+  %(prog)s                      # Launch with default settings
+  %(prog)s --skip-git-check     # Launch without git validation
+  %(prog)s --base-name custom   # Launch with custom base name
+        """
+
+    def add_custom_launch_args(self, parser: argparse.ArgumentParser) -> None:
+        """Add any custom arguments to the launch subcommand."""
+        pass
+
+    def launch_tests(self, args) -> None:
+        """Launch test jobs - to be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement launch_tests()")

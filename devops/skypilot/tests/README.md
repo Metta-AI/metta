@@ -6,13 +6,13 @@ A unified script for launching and checking multi-node SkyPilot test jobs with v
 
 ```bash
 # Launch 9 jobs: 3 node configs × 3 exit conditions
-./cluster_test.py --launch
+./cluster_test.py launch
 
 # Check results
-./cluster_test.py --check
+./cluster_test.py check
 
 # Check with detailed logs
-./cluster_test.py --check -l
+./cluster_test.py check -l
 ```
 
 ## Test Configurations (3×3 Matrix)
@@ -37,20 +37,20 @@ The framework automatically parses and color-codes:
 
 ## Command Options
 
-### Launch Mode
+### Launch Command
 
 ```bash
-./cluster_test.py --launch [options]
+./cluster_test.py launch [options]
 ```
 
 - `--base-name`: Base name for test runs (default: cluster_test)
 - `--output-file`: JSON file to save results (default: cluster_test_jobs.json)
 - `--skip-git-check`: Skip git state validation
 
-### Check Mode
+### Check Command
 
 ```bash
-./cluster_test.py --check [options]
+./cluster_test.py check [options]
 ```
 
 - `-f, --input-file`: JSON file to check (default: cluster_test_jobs.json)
@@ -79,11 +79,15 @@ Launching jobs produces a JSON file with the structure:
 
 ```bash
 # Launch with custom base name
-./cluster_test.py --launch --base-name my_cluster_test
+./cluster_test.py launch --base-name my_cluster_test
 
 # Check specific output file with more log lines
-./cluster_test.py --check -f my_output.json -n 500
+./cluster_test.py check -f my_output.json -n 500
 
 # Launch without git validation
-./cluster_test.py --launch --skip-git-check
+./cluster_test.py launch --skip-git-check
+
+# Get help for specific commands
+./cluster_test.py launch --help
+./cluster_test.py check --help
 ```
