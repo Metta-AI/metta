@@ -33,7 +33,7 @@ class CurriculumEnv(PufferEnv):
 
         # Stats batching configuration - updating stats too frequently is an SPS hit
         self._stats_update_counter = 0
-        self._stats_update_frequency = 50  # Batch stats updates to reduce overhead
+        self._stats_update_frequency = 500  # Much less frequent stats for better performance
 
         # Pre-compute string prefix for performance
         self._CURRICULUM_STAT_PREFIX = "env_curriculum/"
@@ -99,8 +99,7 @@ class CurriculumEnv(PufferEnv):
             self._current_task = self._curriculum.get_task()
             self._env.set_mg_config(self._current_task.get_env_cfg())
 
-            # Invalidate stats cache when task changes
-            self._stats_cache_valid = False
+            # Don't invalidate stats cache on every task change - let it expire naturally
 
         # Add curriculum stats to info for logging (batched)
         self._stats_update_counter += 1

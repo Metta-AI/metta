@@ -16,6 +16,7 @@ from .task_generator import (
     TaskGeneratorSetConfig,
 )
 from .task_tracker import TaskTracker
+from .weighted_algorithm_config import WeightedCurriculumAlgorithmConfig
 
 # Rebuild models after all imports to resolve forward references
 
@@ -28,6 +29,7 @@ __all__ = [
     "DiscreteRandomConfig",
     "LearningProgressAlgorithm",
     "LearningProgressConfig",
+    "WeightedCurriculumAlgorithmConfig",
     "TaskTracker",
     "TaskGenerator",
     "TaskGeneratorConfig",
