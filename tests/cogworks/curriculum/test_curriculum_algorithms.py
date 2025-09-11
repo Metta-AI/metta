@@ -102,8 +102,8 @@ class TestLearningProgressCoreBehavior:
         for task in tasks:
             algorithm.on_task_created(task)
 
-        # Use helper to setup learning patterns - REDUCED from 20 to 3 iterations
-        CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=3)
+        # Use helper to setup learning patterns - Increased to 6 iterations for sufficient samples
+        CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=6)
 
         # REDUCED from 100 to 50 samples for faster testing
         num_samples = 50
@@ -193,13 +193,13 @@ class TestLearningProgressCoreBehavior:
         task3_id = tasks[2]._task_id
 
         # Task 1: High variance (high learning progress)
-        # REDUCED from 5 to 3 updates
-        for i in range(3):
+        # Increased to 6 updates to ensure eviction eligibility
+        for i in range(6):
             algorithm.update_task_performance(task1_id, 0.1 if i % 2 == 0 else 0.9)
 
         # Task 2: Low variance (low learning progress)
-        # REDUCED from 5 to 3 updates
-        for _ in range(3):
+        # Increased to 6 updates to ensure eviction eligibility
+        for _ in range(6):
             algorithm.update_task_performance(task2_id, 0.5)
 
         # Task 3: No updates (gets exploration bonus)
@@ -293,15 +293,15 @@ class TestLearningProgressProductionPatterns:
             algorithm.on_task_created(task)
 
         # Task 1: High variance
-        for i in range(5):  # REDUCED from 10
+        for i in range(8):  # Increased to ensure sufficient samples
             algorithm.update_task_performance(tasks[0]._task_id, 0.1 if i % 2 == 0 else 0.9)
 
         # Task 2: Medium variance
-        for i in range(5):  # REDUCED from 10
+        for i in range(8):  # Increased to ensure sufficient samples
             algorithm.update_task_performance(tasks[1]._task_id, 0.3 if i % 2 == 0 else 0.7)
 
         # Task 3: Low variance
-        for _ in range(5):  # REDUCED from 10
+        for _ in range(8):  # Increased to ensure sufficient samples
             algorithm.update_task_performance(tasks[2]._task_id, 0.5)
 
         # Tasks 4,5: No updates (exploration bonus)
