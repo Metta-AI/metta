@@ -108,7 +108,7 @@ def build_eval_overrides(
     Returns:
         Dictionary of evaluation overrides
     """
-    eval_overrides = additional_overrides.copy() if additional_overrides else {}
+    eval_overrides = dict(additional_overrides) if additional_overrides else {}
 
     # WandB configuration
     eval_overrides["push_metrics_to_wandb"] = "True"
@@ -136,7 +136,7 @@ def build_train_overrides(
     Returns:
         Dictionary of training overrides
     """
-    overrides = additional_overrides.copy() if additional_overrides else {}
+    overrides = dict(additional_overrides) if additional_overrides else {}
 
     if stats_server_uri:
         overrides["stats_server_uri"] = stats_server_uri
