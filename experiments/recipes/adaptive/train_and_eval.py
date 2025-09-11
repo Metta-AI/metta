@@ -50,7 +50,9 @@ def train_and_eval(
     elif dispatcher_type.lower() == "skypilot":
         dispatcher_enum = DispatcherType.SKYPILOT
     else:
-        raise ValueError(f"Invalid dispatcher_type: {dispatcher_type}. Must be 'local' or 'skypilot'")
+        raise ValueError(
+            f"Invalid dispatcher_type: {dispatcher_type}. Must be 'local' or 'skypilot'"
+        )
 
     # Build scheduler config
     scheduler_config = {
@@ -63,7 +65,7 @@ def train_and_eval(
     }
 
     scheduler_config["train_overrides"] = {
-        "trainer.total_timesteps": 500000000, #500M
+        "trainer.total_timesteps": 500000000,  # 500M
     }
 
     adaptive_config = AdaptiveConfig(max_parallel=4, resume=resume)
@@ -71,7 +73,7 @@ def train_and_eval(
     return AdaptiveTool(
         scheduler_type=SchedulerType.TRAIN_AND_EVAL,
         scheduler_config=scheduler_config,
-        config = adaptive_config,
+        config=adaptive_config,
         dispatcher_type=dispatcher_enum,
         experiment_id=experiment_id,
     )

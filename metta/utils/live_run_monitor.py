@@ -218,6 +218,7 @@ def live_monitor_runs(
     # Always use adaptive store
     try:
         from metta.adaptive.stores.wandb import WandbStore
+
         store = WandbStore(entity=entity, project=project)
     except ImportError:
         print("Error: Cannot import adaptive WandbStore. Make sure dependencies are installed.")

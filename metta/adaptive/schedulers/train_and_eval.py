@@ -3,9 +3,9 @@
 import logging
 from dataclasses import dataclass, field
 from typing import Any
+
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
-
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TrainAndEvalConfig:
     """Configuration for simple train-and-eval scheduler."""
+
     recipe_module: str = "experiments.recipes.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
@@ -34,7 +35,6 @@ class TrainAndEvalScheduler:
 
     def __init__(self, config: TrainAndEvalConfig):
         self.config = config
-        self._trial_count = 0
         logger.info(f"[TrainAndEvalScheduler] Initialized with max_trials={config.max_trials}")
 
     def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
@@ -54,22 +54,26 @@ class TrainAndEvalScheduler:
                 logger.info(f"[TrainAndEvalScheduler] Creating eval job for {run.run_id}")
 
         # 2. Create new training jobs if we have capacity and haven't hit max trials
-        while available_training_slots > 0 and self._trial_count < self.config.max_trials:
-            self._trial_count += 1
-            available_training_slots -= 1
-            run_id = generate_run_id(self.config.experiment_id, self._trial_count)
+        # Use the number of existing runs to remain idempotent across restarts
+        current_trials = len(runs)
+        while available_training_slots > 0 and current_trials < self.config.max_trials:
+            trial_num = current_trials + 1
+            run_id = generate_run_id(self.config.experiment_id, trial_num)
 
             training_job = create_training_job(
                 run_id=run_id,
                 experiment_id=self.config.experiment_id,
                 recipe_module=self.config.recipe_module,
                 train_entrypoint=self.config.train_entrypoint,
-                config = {},
                 train_overrides=self.config.train_overrides,
                 gpus=self.config.gpus_per_job,
             )
             jobs.append(training_job)
-            logger.info(f"[TrainAndEvalScheduler] Creating training job {run_id} ({self._trial_count}/{self.config.max_trials})")
+            available_training_slots -= 1
+            current_trials += 1
+            logger.info(
+                f"[TrainAndEvalScheduler] Creating training job {run_id} ({current_trials}/{self.config.max_trials})"
+            )
 
         return jobs
 
@@ -85,6 +89,10 @@ class TrainAndEvalScheduler:
         is_complete = len(completed_runs) >= self.config.max_trials
 
         if is_complete:
-            logger.info(f"[TrainAndEvalScheduler] Experiment complete! {len(completed_runs)}/{self.config.max_trials} trials finished")
+            logger.info(
+                "[TrainAndEvalScheduler] Experiment complete! %s/%s trials finished",
+                len(completed_runs),
+                self.config.max_trials,
+            )
 
         return is_complete

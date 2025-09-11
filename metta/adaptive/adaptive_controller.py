@@ -4,7 +4,7 @@ import logging
 import time
 
 from .adaptive_config import AdaptiveConfig
-from .models import JobTypes, JobStatus
+from .models import JobStatus, JobTypes
 from .protocols import Dispatcher, ExperimentScheduler, Store
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class AdaptiveController:
         self.config = config
 
         # Job tracking by (run_id, job_type) to handle train/eval jobs with same run_id
-        self.dispatched_jobs = set[tuple[str, str]]()
+        self.dispatched_jobs: set[tuple[str, str]] = set()
 
     def run(self) -> None:
         """Main adaptive experiment loop - everything inline."""
@@ -47,7 +47,7 @@ class AdaptiveController:
                     runs = self.store.fetch_runs(filters={"group": self.experiment_id})
                 else:
                     runs = []
-                    has_data = True # Skip first fetch because WandB will just timeout.
+                    has_data = True  # Skip first fetch because WandB will just timeout.
 
                 # 2. Check if scheduler says experiment is complete
                 if self.scheduler.is_experiment_complete(runs):
@@ -56,8 +56,7 @@ class AdaptiveController:
 
                 # 3. Calculate available training slots (only count runs actually using training resources)
                 active_training_count = sum(
-                    1 for run in runs
-                    if run.status in (JobStatus.PENDING, JobStatus.IN_TRAINING)
+                    1 for run in runs if run.status in (JobStatus.PENDING, JobStatus.IN_TRAINING)
                 )
                 available_training_slots = max(0, self.config.max_parallel - active_training_count)
 
@@ -111,7 +110,9 @@ class AdaptiveController:
                         # Store job config
                         if job.config:
                             self.store.update_run_summary(job.run_id, {"config": job.config})
-                        logger.info(f"[AdaptiveController] Dispatched {job.run_id} ({job.type}) (dispatch_id: {dispatch_id})")
+                        logger.info(
+                            f"[AdaptiveController] Dispatched {job.run_id} ({job.type}) (dispatch_id: {dispatch_id})"
+                        )
 
                     except Exception as e:
                         logger.error(f"[AdaptiveController] Failed to dispatch {job.run_id} ({job.type}): {e}")

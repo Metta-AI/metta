@@ -16,11 +16,13 @@ logger = logging.getLogger(__name__)
 
 class SchedulerType(StrEnum):
     """Available scheduler types for adaptive experiments."""
+
     TRAIN_AND_EVAL = "train_and_eval"
 
 
 class DispatcherType(StrEnum):
     """Available dispatcher types for job execution."""
+
     LOCAL = "local"  # All jobs run locally
     SKYPILOT = "skypilot"  # All jobs run on Skypilot
 
@@ -43,7 +45,6 @@ class AdaptiveTool(Tool):
 
     def invoke(self, args, overrides):
         """Run the adaptive experiment"""
-        from metta.adaptive.dispatcher import LocalDispatcher, RoutingDispatcher
         from metta.adaptive.stores import WandbStore
 
         # Set up experiment ID
@@ -53,10 +54,7 @@ class AdaptiveTool(Tool):
         scheduler = self._create_scheduler()
 
         # Configure components
-        store = WandbStore(
-            entity=self.wandb.entity,
-            project=self.wandb.project
-        )
+        store = WandbStore(entity=self.wandb.entity, project=self.wandb.project)
 
         # Create dispatcher based on type
         dispatcher = self._create_dispatcher()
@@ -87,6 +85,7 @@ class AdaptiveTool(Tool):
         """Create dispatcher instance based on dispatcher_type."""
         if self.dispatcher_type == DispatcherType.LOCAL:
             from metta.adaptive.dispatcher import LocalDispatcher
+
             return LocalDispatcher(capture_output=self.capture_output)
 
         elif self.dispatcher_type == DispatcherType.SKYPILOT:

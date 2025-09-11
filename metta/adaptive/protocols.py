@@ -17,11 +17,7 @@ class ExperimentScheduler(Protocol):
     - AblationScheduler: Component ablation study
     """
 
-    def schedule(
-        self,
-        runs: list["RunInfo"],
-        available_training_slots: int
-    ) -> list["JobDefinition"]:
+    def schedule(self, runs: list["RunInfo"], available_training_slots: int) -> list["JobDefinition"]:
         """
         Decide which jobs to dispatch next based on current run state and available resources.
 
@@ -56,7 +52,7 @@ class Store(Protocol):
     """
 
     # Run operations
-    def init_run(self, run_id: str, group: str | None = None, tags: list[str] = []) -> None:
+    def init_run(self, run_id: str, group: str | None = None, tags: list[str] | None = None) -> None:
         """Initialize a new run"""
         ...
 
