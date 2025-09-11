@@ -4,8 +4,9 @@ from typing import Any, List, Optional
 
 import wandb
 
+from metta.adaptive.models import Observation, RunInfo
 from metta.common.util.numpy_helpers import clean_numpy_types
-from metta.adaptive.models import JobStatus, Observation, RunInfo
+from metta.common.util.retry import retry_on_exception
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,8 @@ class WandbStore:
         self.project = project
         # Don't store api instance - create fresh one each time to avoid caching
 
-    def init_run(self, run_id: str, group: str | None = None, tags: list[str] = []) -> None:
+    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    def init_run(self, run_id: str, group: str | None = None, tags: list[str] | None = None) -> None:
         """Initialize a new run in WandB."""
         logger.info(f"[WandbStore] Initializing run {run_id} for group {group}")
 
@@ -39,7 +41,7 @@ class WandbStore:
                 id=run_id,  # Use run_id as the WandB run ID
                 name=run_id,  # Also use run_id as the display name
                 group=group,  # Group by sweep_id for organization
-                tags=tags,  # Tag as sweep run if part of a sweep
+                tags=tags or [],  # Tag as sweep run if part of a sweep
                 reinit=True,  # Allow reinitializing if run exists
                 resume="allow",  # Allow resuming existing runs
             )
@@ -57,6 +59,7 @@ class WandbStore:
             # Re-raise to prevent dispatch - critical for resource management
             raise RuntimeError(f"Failed to initialize WandB run {run_id}: {e}") from e
 
+    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
     def fetch_runs(self, filters: dict, limit: Optional[int] = None) -> List[RunInfo]:
         """Fetch runs matching filter criteria.
 
@@ -104,6 +107,7 @@ class WandbStore:
             logger.error(f"[WandbStore] Error fetching runs: {e}")
             raise
 
+    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
     def update_run_summary(self, run_id: str, summary_update: dict) -> bool:
         """Update run summary in WandB."""
         try:
