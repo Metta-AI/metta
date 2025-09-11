@@ -55,8 +55,6 @@ def _get_status_color(status: str) -> str:
         return "bright_yellow"
     elif status == "IN_EVAL":
         return "bright_cyan"
-    elif status == "EVAL_DONE_NOT_COMPLETED":
-        return "bright_magenta"  # Purple for eval done but no observation
     elif status == "FAILED":
         return "bright_red"
     else:
@@ -215,14 +213,15 @@ def live_monitor_runs(
         display_limit: Maximum number of runs to display in table (default: 10)
     """
 
-    try:
-        from metta.sweep.stores.wandb import WandbStore
-    except ImportError:
-        print("Error: Cannot import WandbStore. Make sure wandb is installed and configured.")
-        sys.exit(1)
-
     console = Console()
-    store = WandbStore(entity=entity, project=project)
+
+    # Always use adaptive store
+    try:
+        from metta.adaptive.stores.wandb import WandbStore
+        store = WandbStore(entity=entity, project=project)
+    except ImportError:
+        print("Error: Cannot import adaptive WandbStore. Make sure dependencies are installed.")
+        sys.exit(1)
 
     def generate_display():
         try:
@@ -311,7 +310,7 @@ def live_monitor_runs_test(
     """Test mode for live run monitoring with mock data."""
     from datetime import datetime, timedelta
 
-    from metta.sweep.models import JobStatus, Observation, RunInfo
+    from metta.adaptive.models import JobStatus, Observation, RunInfo
 
     console = Console()
 
