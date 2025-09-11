@@ -67,9 +67,7 @@ def evaluate_policy(
             merged_db.merge_in(sim_result.stats_db)
             record_heartbeat()
             if replay_dir is not None:
-                checkpoint_metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-                key, version = checkpoint_metadata["run_name"], checkpoint_metadata["epoch"]
-                sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
+                sim_replay_urls = sim_result.stats_db.get_replay_urls(policy_uri=checkpoint_uri)
                 if sim_replay_urls:
                     replay_urls[sim.name] = sim_replay_urls
                     logger.info(f"Collected {len(sim_replay_urls)} replay URL(s) for simulation '{sim.name}'")
