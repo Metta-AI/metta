@@ -55,6 +55,8 @@ def _get_status_color(status: str) -> str:
         return "bright_yellow"
     elif status == "IN_EVAL":
         return "bright_cyan"
+    elif status == "EVAL_DONE_NOT_COMPLETED":
+        return "bright_magenta"  # Purple for eval done but no observation
     elif status == "FAILED":
         return "bright_red"
     else:

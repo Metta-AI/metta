@@ -5,7 +5,7 @@ from typing import Any, List, Optional
 import wandb
 
 from metta.common.util.numpy_helpers import clean_numpy_types
-from metta.sweep.models import Observation, RunInfo
+from metta.adaptive.models import JobStatus, Observation, RunInfo
 
 logger = logging.getLogger(__name__)
 
