@@ -18,9 +18,12 @@ def run_command(cmd, capture_output=True):
         cmd = cmd.split()
 
     result = subprocess.run(cmd, capture_output=capture_output, text=True)
-    if result.returncode != 0 and not capture_output:
+
+    if result.returncode != 0:
         logger.error(f"Command failed: {' '.join(cmd)}")
-        logger.error(f"Error: {result.stderr}")
+        if capture_output:
+            logger.error(f"Error: {result.stderr}")
+            logger.error(f"Output: {result.stdout}")
         sys.exit(1)
 
     return result.stdout.strip() if capture_output else None
