@@ -26,7 +26,7 @@ class PolicyArchitecture(Config):
         """Create an agent instance from configuration."""
 
         AgentClass = load_symbol(self.class_path)
-        return AgentClass(env_metadata, self)
+        return AgentClass(env_metadata)
 
 
 class Policy(ABC):
@@ -34,7 +34,6 @@ class Policy(ABC):
     implement this interface."""
 
     @abstractmethod
-    # xcxc spec the tensor dict
     def forward(self, td: TensorDict) -> TensorDict:
         pass
 
@@ -52,14 +51,29 @@ class Policy(ABC):
     @abstractmethod
     def device(self) -> torch.device: ...
 
+    @abstractmethod
+    def to(self, device: torch.device): ...
+
     @property
     @abstractmethod
     def total_params(self) -> int: ...
+
+    def get_agent_experience_spec(self) -> Composite:
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+        )
 
     def on_new_training_run(self):
         return
 
     def on_rollout_start(self):
+        return
+
+    def on_train_mb_start(self):
+        return
+
+    def on_eval_start(self):
         return
 
 

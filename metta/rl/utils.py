@@ -32,7 +32,6 @@ def log_training_progress(
     train_time: float,
     rollout_time: float,
     stats_time: float,
-    run_name: str,
 ) -> None:
     """Log training progress with timing breakdown and performance metrics."""
     total_time = train_time + rollout_time + stats_time
@@ -54,7 +53,6 @@ def log_training_progress(
             train_pct=train_pct,
             rollout_pct=rollout_pct,
             stats_pct=stats_pct,
-            run_name=run_name,
         )
     else:
 
@@ -67,10 +65,8 @@ def log_training_progress(
                 return f"{n / 1_000:.2f} k{unit}"
             return f"{n:.0f} {unit}" if unit else f"{n:.0f}"
 
-        run_info = f" [{run_name}]" if run_name else ""
-
         logger.info(
-            f"Epoch {epoch}{run_info} / "
+            f"Epoch {epoch} / "
             f"{human_readable_si(steps_per_sec, 'sps')} / "
             f"{agent_step / total_timesteps:.2%} of {human_readable_si(total_timesteps, 'steps')} / "
             f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"

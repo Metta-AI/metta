@@ -3,6 +3,8 @@ from einops import repeat
 from tensordict import TensorDict
 
 import metta.agent.lib.nn_layer_library as nn_layer_library
+from metta.agent.lib.metta_layer import NNParams
+from metta.rl.training.training_environment import EnvironmentMetaData
 
 
 class ActionEmbedding(nn_layer_library.Embedding):
@@ -27,17 +29,26 @@ class ActionEmbedding(nn_layer_library.Embedding):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, initialization="max_0_01", **cfg):
-        super().__init__(**cfg)
+    def __init__(self,
+                 name: str,
+                 embedding_dim: int,
+                 num_embeddings: int,
+                 sources: list[str] | None = None,
+                 nn_params: NNParams | None = None,
+                 initialization: str | None = "max_0_01",
+                 ):
+        super().__init__(name, embedding_dim, num_embeddings, sources, nn_params)
         self._reserved_action_embeds = {}
         self.num_actions = 0
         # delete this
         # # num_actions to be updated at runtime by the size of the active indices
         # self._out_tensor_shape = [self.num_actions, self._nn_params['embedding_dim']]
         self.initialization = initialization
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
 
-    def initialize_to_environment(self, action_names, device):
+    def initialize_to_environment(self, env_metadata: EnvironmentMetaData, device: torch.device):
         """
         Updates the set of active action embeddings based on available actions.
 
@@ -47,17 +58,17 @@ class ActionEmbedding(nn_layer_library.Embedding):
         and updates the number of active actions.
 
         Args:
-            action_names (list): List of action names (strings) available in the current environment
+            env_metadata (EnvironmentMetaData): Environment metadata
             device (torch.device): Device where the active_indices tensor should be stored
         """
 
-        for action_name in action_names:
+        for action_name in env_metadata.action_names:
             if action_name not in self._reserved_action_embeds:
                 embedding_index = len(self._reserved_action_embeds) + 1  # generate index for this string
                 self._reserved_action_embeds[action_name] = embedding_index  # update this component's known embeddings
 
         self.active_indices = torch.tensor(
-            [self._reserved_action_embeds[action_name] for action_name in action_names], device=device, dtype=torch.long
+            [self._reserved_action_embeds[action_name] for action_name in env_metadata.action_names], device=device, dtype=torch.long
         )
         self.num_actions = len(self.active_indices)
 
@@ -65,5 +76,5 @@ class ActionEmbedding(nn_layer_library.Embedding):
         B_TT = td.batch_size.numel()
 
         # get embeddings then expand to match the batch size
-        td[self._name] = repeat(self._net(self.active_indices), "a e -> b a e", b=B_TT)
+        td[self._name] = repeat(self._net(self.active_indices), "a e -> b a e", b=B_TT)  # type: ignore
         return td

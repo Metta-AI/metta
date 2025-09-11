@@ -1,117 +1,83 @@
 import logging
-from abc import ABC, abstractmethod
-from typing import Optional, Union
+from abc import abstractmethod
+from typing import Dict, Optional
 
-import gymnasium as gym
 import torch
 from tensordict import TensorDict
 from torch import nn
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.policy import Policy
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.collections import duplicates
+from metta.rl.trainer_state import TrainerState
+from metta.rl.training.training_environment import EnvironmentMetaData
 
 logger = logging.getLogger(__name__)
 
-
-class ComponentPolicy(nn.Module, ABC):
+class ComponentPolicy(nn.Module, Policy):
     """
     Abstract base class for component-based policies.
     Subclasses must override _build_components() to define their architecture.
     """
 
-    def __init__(
-        self,
-        obs_space: Optional[Union[gym.spaces.Space, gym.spaces.Dict]] = None,
-        obs_width: Optional[int] = None,
-        obs_height: Optional[int] = None,
-        feature_normalizations: Optional[dict[int, float]] = None,
-        config: Optional[dict] = None,
-    ):
+    def __init__(self, env_metadata: EnvironmentMetaData):
         super().__init__()
 
-        # Store config parameters
-        self.config = config or {}
-        self.clip_range = self.config.get("clip_range", 0)
-        self.analyze_weights_interval = self.config.get("analyze_weights_interval", 300)
-
         # Extract observation shape (always uses "grid_obs" key)
-        obs_key = "grid_obs"
-        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape") if obs_space is not None else None
+        self._obs_key = "grid_obs"
+        self._obs_shape = safe_get_from_obs_space(env_metadata.observation_space, self._obs_key, "shape")
 
-        # Create agent attributes dict
-        self.agent_attributes = {
-            "clip_range": self.clip_range,
-            "feature_normalizations": feature_normalizations,
-            "obs_width": obs_width,
-            "obs_height": obs_height,
-            "obs_key": obs_key,
-            "obs_shape": obs_shape,
-        }
+        self._components = self._build_components(env_metadata)
 
-        self.components = nn.ModuleDict()
-
-        # Build components using the abstract method
-        components = self._build_components()
-
-        # Add all components to the ModuleDict
-        self.components.update(components)
+        # register with pytorch
+        self._components_module = nn.ModuleDict(self._components)
 
         # Setup components by triggering leaf node setup
-        for component_name in self._get_output_heads():
-            component = self.components[component_name]
-            self._setup_components(component)
+        [self._setup_component(self._components[c]) for c in self._output_heads()]
 
-        for name, component in self.components.items():
-            if not getattr(component, "ready", False):
-                raise RuntimeError(f"Component {name} in {self.__class__.__name__} policy was never setup.")
+        for c in self._components.keys():
+            if not getattr(self._components[c], "ready", False):
+                raise RuntimeError(f"Component {c} in {self.__class__.__name__} policy was never setup.")
 
         # Check for duplicate component names
-        all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
+        all_names = [c._name for c in self._components.values() if hasattr(c, "_name")]
         if duplicate_names := duplicates(all_names):
             raise ValueError(f"Duplicate component names found: {duplicate_names}")
 
-        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            logger.info(f"{self.__class__.__name__} policy components: {self.components}")
 
-        # Initialize action conversion tensors (will be set by MettaAgent)
-        self.cum_action_max_params = None
-        self.action_index_tensor = None
+        # Compute action tensors for efficient indexing
+        self._cum_action_max_params = torch.cumsum(
+            torch.tensor([0] + env_metadata.max_action_args, device=self.device, dtype=torch.long), dim=0
+        )
+        self._action_index_tensor = torch.tensor(
+            [[idx, j] for idx, max_param in enumerate(env_metadata.max_action_args) for j in range(max_param + 1)],
+            device=self.device,
+            dtype=torch.int32,
+        )
 
-        logger.info(f"{self.__class__.__name__} policy initialized with components: {list(self.components.keys())}")
+        logger.info(f"{self.__class__.__name__} policy initialized with components: {list(self._components.keys())}")
+
+    def __repr__(self):
+        return f"{self.__class__.__name__} policy with components: {list(self._components.keys())}"
 
     @abstractmethod
-    def _build_components(self) -> dict:
-        """Build the component dictionary. Must be implemented by subclasses to define architecture."""
-        pass
+    def _build_components(self, env_metadata: EnvironmentMetaData) -> Dict[str, LayerBase]: ...
 
     @abstractmethod
-    def _get_output_heads(self) -> list[str]:
-        """Get the output heads for the policy."""
-        pass
+    def _output_heads(self) -> list[str]: ...
 
-    def _setup_components(self, component):
+    def _setup_component(self, component: LayerBase):
         """Setup component connections."""
-        # Skip if already setup
-        if getattr(component, "ready", False):
+        if component.ready:
             return
 
         # Recursively setup all source components first
-        if hasattr(component, "_sources") and component._sources is not None:
-            for source in component._sources:
-                if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-                    logger.info(f"setting up {component._name} with source {source['name']}")
-                self._setup_components(self.components[source["name"]])
-
-        # Setup the current component and pass in the source components
-        source_components = None
-        if hasattr(component, "_sources") and component._sources is not None:
-            source_components = {}
-            for source in component._sources:
-                source_components[source["name"]] = self.components[source["name"]]
-        component.setup(source_components)
+        [self._setup_component(self._components[c]) for c in component._source_component_names]
+        component.setup({c: self._components[c] for c in component._source_component_names})
 
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass."""
@@ -128,8 +94,8 @@ class ComponentPolicy(nn.Module, ABC):
             td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
         # Run the value and action components
-        self.components["_value_"](td)
-        self.components["_action_"](td)
+        self._components["_value_"](td)
+        self._components["_action_"](td)
 
         if action is None:
             output_td = self.forward_inference(td)
@@ -200,21 +166,21 @@ class ComponentPolicy(nn.Module, ABC):
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
-        if flattened_action.size(0) == 0:
-            raise ValueError("'flattened_action' dimension 0 ('BT') has invalid size 0, expected a positive value")
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        cumulative_sum = self._cum_action_max_params[action_type_numbers]
         return action_type_numbers + cumulative_sum + action_params
 
-    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
+    def _convert_logit_index_to_action(
+        self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
-        return self.action_index_tensor[action_logit_index]
+        return self._action_index_tensor[action_logit_index]
+
 
     def initialize_to_environment(self, full_action_names: list[str], device):
         """Initialize components to the environment with the given action names."""
-        if "_action_embeds_" in self.components:
-            self.components["_action_embeds_"].initialize_to_environment(full_action_names, device)
+        if "_action_embeds_" in self._components:
+            self._components["_action_embeds_"].initialize_to_environment(full_action_names, device)
 
     # ============================================================================
     # Memory-related Methods
@@ -227,20 +193,16 @@ class ComponentPolicy(nn.Module, ABC):
         )
 
     def on_new_training_run(self):
-        for _, component in self.components.items():
-            component.on_new_training_run()
+        [component.on_new_training_run() for component in self._components.values()]
 
     def on_rollout_start(self):
-        for _, component in self.components.items():
-            component.on_rollout_start()
+        [component.on_rollout_start() for component in self._components.values()]
 
     def on_train_mb_start(self):
-        for _, component in self.components.items():
-            component.on_train_mb_start()
+        [component.on_train_mb_start() for component in self._components.values()]
 
     def on_eval_start(self):
-        for _, component in self.components.items():
-            component.on_eval_start()
+        [component.on_eval_start() for component in self._components.values()]
 
     # ============================================================================
     # Weight/Training Utility Methods
@@ -249,7 +211,7 @@ class ComponentPolicy(nn.Module, ABC):
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for all components."""
         results = {}
-        for name, component in self.components.items():
+        for name, component in self._components.items():
             if hasattr(component, "compute_weight_metrics"):
                 result = component.compute_weight_metrics(delta)
                 if result is not None:
@@ -262,14 +224,14 @@ class ComponentPolicy(nn.Module, ABC):
 
     def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
         """Apply feature remapping to observation component."""
-        if "_obs_" in self.components:
-            obs_component = self.components["_obs_"]
+        if "_obs_" in self._components:
+            obs_component = self._components["_obs_"]
             if hasattr(obs_component, "update_feature_remapping"):
                 obs_component.update_feature_remapping(remap_tensor)
 
     def update_normalization_factors(self, features: dict[str, dict], original_feature_mapping: dict[str, int] | None):
         """Update normalization factors for ObsAttrValNorm components after feature remapping."""
-        for _, component in self.components.items():
+        for component in self._components.values():
             if hasattr(component, "__class__") and "ObsAttrValNorm" in component.__class__.__name__:
                 # Create normalization tensor with remapped IDs
                 norm_tensor = torch.ones(256, dtype=torch.float32)
@@ -285,14 +247,27 @@ class ComponentPolicy(nn.Module, ABC):
 
     def clip_weights(self):
         """Clip weights in all components that support it."""
-        for _, component in self.components.items():
+        for component in self._components.values():
             if hasattr(component, "clip_weights"):
                 component.clip_weights()
 
     def l2_init_loss(self) -> torch.Tensor:
         """Calculate L2 initialization loss across all components."""
         total_loss = torch.tensor(0.0, dtype=torch.float32)
-        for _, component in self.components.items():
+        for component in self._components.values():
             if hasattr(component, "l2_init_loss"):
                 total_loss += component.l2_init_loss()
         return total_loss
+
+    @property
+    def total_params(self) -> int:
+        return sum(p.numel() for p in self.parameters())
+
+    @property
+    def device(self) -> torch.device:
+        return next(self.parameters()).device
+
+    def to(self, device: torch.device):
+        [c.to(device) for c in self._components.values()]
+        self._action_index_tensor = self._action_index_tensor.to(device)
+        self._cum_action_max_params = self._cum_action_max_params.to(device)

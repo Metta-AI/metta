@@ -1,10 +1,29 @@
+from dataclasses import dataclass
+from typing import Optional
+
 import numpy as np
 import torch
 from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.util.weights_analysis import analyze_weights
+from metta.rl.trainer_state import TrainerState
 
+
+@dataclass
+class NNParams:
+    out_features: Optional[int] = None
+    out_channels: Optional[int] = None
+    kernel_size: Optional[int] = None
+    stride: Optional[int] = None
+    padding: Optional[int] = None
+    hidden_size: Optional[int] = None
+    num_layers: Optional[int] = None
+
+    def to_dict(self) -> dict:
+        return {
+            k: v for k, v in self.__dict__.items() if v is not None
+        }
 
 class LayerBase(nn.Module):
     """The base class for components that make up the Metta agent. All components
@@ -33,60 +52,40 @@ class LayerBase(nn.Module):
     forward method of the layer above it.
 
     Carefully passing input and output shapes is necessary to setup the agent.
-    self._in_tensor_shape and self._out_tensor_shape are always of type list.
+    self.in_tensor_shapes and self.out_tensor_shape are always of type list.
     Note that these lists not include the batch dimension so their shape is
     one dimension smaller than the actual shape of the tensor.
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy."""
 
-    def __init__(self, name=None, sources=None, nn_params=None, **cfg):
+    def __init__(self, name: str, sources: list[str] | None = None,
+                 nn_params: NNParams | None = None):
         super().__init__()
 
         # Extract name from cfg if not provided directly
-        if name is None and "name" in cfg:
-            name = cfg.pop("name")  # Using pop to remove it from cfg
         self._name = name
+        self._nn_params = nn_params or NNParams()
+        self._source_component_names = sources or []
+        self._source_components: dict[str, "LayerBase"] = {} # xcxc
+        self._in_tensor_shapes: list[torch.Size] = []
+        self._out_tensor_shape: torch.Size = torch.Size([])
 
-        # Extract sources from cfg if not provided directly
-        if sources is None and "sources" in cfg:
-            sources = cfg.pop("sources")
-        self._sources = sources
-        if self._sources is not None:
-            # convert from omegaconf's list class
-            self._sources = list(self._sources)
-
-        # Extract nn_params from cfg if not provided directly
-        if nn_params is None and "_nn_params" in cfg:
-            nn_params = cfg.pop("_nn_params")
-
-        # Initialize _nn_params
-        if not hasattr(self, "_nn_params"):
-            self._nn_params = nn_params if nn_params is not None else {}
-        else:
-            # If _nn_params already exists, update it with new values if provided
-            if nn_params is not None:
-                self._nn_params.update(nn_params)
-
-        self._net = None
+        self._net: nn.Module | None = None
         self._ready = False
 
     @property
     def ready(self):
         return self._ready
 
-    def setup(self, source_components=None):
+    def setup(self, source_components: dict[str, "LayerBase"]):
         """Sets up layer with source components and tensor shapes."""
         if self._ready:
             return
 
-        self.__dict__["_source_components"] = source_components
-        self._in_tensor_shapes = None
-        if self._source_components is not None:
-            self._in_tensor_shapes = []
-            for _, source in self._source_components.items():
-                self._in_tensor_shapes.append(source._out_tensor_shape.copy())
-
+        self._in_tensor_shapes = [
+            c._out_tensor_shape for c in source_components.values()]
+        self._source_components = source_components
         self._initialize()
         self._ready = True
 
@@ -101,9 +100,8 @@ class LayerBase(nn.Module):
             return td
 
         # recursively call the forward method of the source components
-        if self._source_components is not None:
-            for _, source in self._source_components.items():
-                source.forward(td)
+        for source in self._source_components.values():
+            source.forward(td)
 
         self._forward(td)
 
@@ -113,7 +111,10 @@ class LayerBase(nn.Module):
         """Components that have more than one input sources must have their own _forward() method."""
         # get the input tensor from the source component by calling its forward method (which recursively calls
         # _forward() on its source components)
-        td[self._name] = self._net(td[self._sources[0]["name"]])
+        assert self._net is not None
+        assert len(self._source_components) == 1
+
+        td[self._name] = self._net(td[self.src_component_name()])
         return td
 
     def on_new_training_run(self):
@@ -128,9 +129,15 @@ class LayerBase(nn.Module):
     def on_eval_start(self):
         pass
 
-    def compute_weight_metrics(self, delta: float = 0.01) -> dict:
+    def compute_weight_metrics(self, delta: float = 0.01) -> dict | None:
         pass
 
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def src_component_name(self, index: int = 0) -> str:
+        return list(self._source_components.values())[index].name
 
 class ParamLayer(LayerBase):
     """
@@ -158,28 +165,31 @@ class ParamLayer(LayerBase):
 
     def __init__(
         self,
+        name: str,
+        sources: list[str] | None = None,
         clip_scale=1,
         analyze_weights=None,
         l2_init_scale=1,
-        nonlinearity="nn.ReLU",
+        nonlinearity: str | None = None,
         initialization="Orthogonal",
         clip_range=None,
-        **cfg,
+        nn_params: NNParams | None = None,
     ):
         self.clip_scale = clip_scale
         self.analyze_weights_bool = analyze_weights
         self.l2_init_scale = l2_init_scale
-        self.nonlinearity = nonlinearity
         self.initialization = initialization
         self.global_clip_range = clip_range
-        super().__init__(**cfg)
+        self.nonlinearity = nonlinearity
+        self.nn_params = nn_params or NNParams()
+        super().__init__(name, sources, nn_params)
 
     def _initialize(self):
         self.__dict__["weight_net"] = self._make_net()
 
         self._initialize_weights()
 
-        if self.clip_scale > 0:
+        if self.clip_scale > 0 and self.global_clip_range is not None:
             self.clip_value = self.global_clip_range * self.largest_weight * self.clip_scale
         else:
             self.clip_value = 0  # disables clipping (not clip to 0)
@@ -262,3 +272,11 @@ class ParamLayer(LayerBase):
         metrics = analyze_weights(self.weight_net.weight.data, delta)
         metrics["name"] = self._name
         return metrics
+
+    @property
+    def out_tensor_shape(self) -> torch.Size:
+        return self._out_tensor_shape
+
+    @property
+    def in_tensor_shapes(self) -> list[torch.Size]:
+        return self._in_tensor_shapes

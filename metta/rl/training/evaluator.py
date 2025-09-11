@@ -22,7 +22,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 
 if TYPE_CHECKING:
-    from metta.rl.trainer_v2 import Trainer
+    from metta.rl.trainer import Trainer
     from metta.rl.training.stats_reporter import StatsReporter
 
 logger = logging.getLogger(__name__)

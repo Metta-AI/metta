@@ -17,9 +17,9 @@ class ObservationNormalizer(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, feature_normalizations, **cfg):
+    def __init__(self, feature_normalizations: dict[int, float], name: str, sources: list[str]):
         self._feature_normalizations = feature_normalizations
-        super().__init__(**cfg)
+        super().__init__(name, sources)
 
     def _initialize(self):
         obs_norm = torch.ones(max(self._feature_normalizations.keys()) + 1, dtype=torch.float32)
@@ -29,8 +29,8 @@ class ObservationNormalizer(LayerBase):
 
         self.register_buffer("obs_norm", obs_norm)
 
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        self._out_tensor_shape = self._in_tensor_shapes[0]
 
     def _forward(self, td: TensorDict):
-        td[self._name] = td[self._sources[0]["name"]] / self.obs_norm
+        td[self._name] = td[self.src_component_name(0)] / self.obs_norm
         return td

@@ -26,12 +26,12 @@ class LatentAttnMed(ComponentPolicy):
         return {
             "_obs_": ObsTokenPadStrip(
                 name="_obs_",
-                obs_shape=self.agent_attributes["obs_shape"],
+                obs_shape=self._agent_attributes["obs_shape"],
                 sources=None,
             ),
             "obs_normalizer": ObsAttrValNorm(
                 name="obs_normalizer",
-                feature_normalizations=self.agent_attributes["feature_normalizations"],
+                feature_normalizations=self._agent_attributes["feature_normalizations"],
                 sources=[{"name": "_obs_"}],
             ),
             "obs_fourier": ObsAttrEmbedFourier(
@@ -70,20 +70,20 @@ class LatentAttnMed(ComponentPolicy):
                 sources=[{"name": "_core_"}],
                 nonlinearity="nn.Tanh",
                 effective_rank=True,
-                **self.agent_attributes,
+                **self._agent_attributes,
             ),
             "_value_": Linear(
                 name="_value_",
                 nn_params=DictConfig({"out_features": 1}),
                 sources=[{"name": "critic_1"}],
                 nonlinearity=None,
-                **self.agent_attributes,
+                **self._agent_attributes,
             ),
             "actor_1": Linear(
                 name="actor_1",
                 nn_params=DictConfig({"out_features": 512}),
                 sources=[{"name": "_core_"}],
-                **self.agent_attributes,
+                **self._agent_attributes,
             ),
             "_action_embeds_": ActionEmbedding(
                 name="_action_embeds_",

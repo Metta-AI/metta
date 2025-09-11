@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, List, Literal, Tuple
 
+import numpy as np
 import torch
 from pydantic import Field
 from torch import Tensor
@@ -14,6 +15,7 @@ from torch import Tensor
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
 from metta.mettagrid.builder.envs import make_arena
 from metta.mettagrid.config import Config
+from metta.mettagrid.core import ObsFeature
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
 
@@ -51,15 +53,17 @@ class TrainingEnvironmentConfig(Config):
     """Random seed for environment"""
 
 
+
 @dataclass
 class EnvironmentMetaData:
     obs_width: int
     obs_height: int
-    feature_normalizations: dict[int, float]
-    feature_name_to_id: dict[str, int]
+    obs_features: dict[str, ObsFeature]
     action_names: List[str]
     max_action_args: List[int]
     num_agents: int
+    observation_space: Any
+    action_space: Any
 
 
 @dataclass
@@ -81,7 +85,7 @@ class TrainingEnvironment(ABC):
         """Get the observations."""
 
     @abstractmethod
-    def send_actions(self, actions: Any) -> None:
+    def send_actions(self, actions: np.ndarray) -> None:
         """Send the actions."""
 
     @property
@@ -99,9 +103,10 @@ class TrainingEnvironment(ABC):
     def single_observation_space(self) -> Any:
         """Get the single observation space."""
 
+    @property
     @abstractmethod
     def meta_data(self) -> EnvironmentMetaData:
-        """Get the observation height."""
+        """Get the environment metadata."""
 
 
 class VectorizedTrainingEnvironment(TrainingEnvironment):
@@ -119,7 +124,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         self._curriculum = Curriculum(cfg.curriculum)
         env_cfg = self._curriculum.get_task().get_env_cfg()
-        self._num_agents = self._curriculum.get_task().get_env_cfg().game.num_agents
+        self._num_agents = env_cfg.game.num_agents
 
         num_workers = cfg.num_workers
         async_factor = cfg.async_factor
@@ -154,15 +159,16 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         # Initialize environment with seed
         self._vecenv.async_reset(cfg.seed)
 
-        # xcxc
+
         self._meta_data = EnvironmentMetaData(
             obs_width=self._vecenv.driver_env.obs_width,
             obs_height=self._vecenv.driver_env.obs_height,
-            feature_normalizations={},
-            feature_name_to_id={},
+            obs_features=self._vecenv.driver_env.observation_features,
             action_names=self._vecenv.driver_env.action_names,
             max_action_args=self._vecenv.driver_env.max_action_args,
             num_agents=self._num_agents,
+            observation_space=self._vecenv.driver_env.observation_space,
+            action_space=self._vecenv.driver_env.action_space,
         )
 
     def __repr__(self) -> str:
@@ -212,5 +218,5 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         return o, r, d, t, info, training_env_id, mask, num_steps
 
-    def send_actions(self, actions: Any) -> None:
+    def send_actions(self, actions: np.ndarray) -> None:
         self._vecenv.send(actions)

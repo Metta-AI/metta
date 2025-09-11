@@ -1,10 +1,10 @@
 import torch
 from tensordict import TensorDict
 
-from metta.agent.metta_agent import MettaAgent
+from metta.agent.policy import Policy
 
 
-class MockAgent(MettaAgent):
+class MockAgent(Policy):
     """
     An agent that always does nothing. Used for tests and to run play without requiring a policy.
 

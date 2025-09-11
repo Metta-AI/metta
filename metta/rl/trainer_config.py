@@ -1,10 +1,11 @@
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.mettagrid.config import Config
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.loss.loss_config import LossConfig
+from metta.rl.training.heartbeat import HeartbeatConfig
 
 
 class OptimizerConfig(Config):
@@ -73,6 +74,7 @@ class TrainerConfig(Config):
 
     # scheduler registry
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
+    heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",

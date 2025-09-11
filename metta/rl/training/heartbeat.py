@@ -23,6 +23,6 @@ class HeartbeatConfig(Config):
 class HeartbeatWriter(TrainerComponent):
     """Writes heartbeat signals for monitoring training progress."""
 
-    def on_epoch_end(epoch: int) -> None:
+    def on_epoch_end(self, epoch: int) -> None:
         record_heartbeat()
         logger.debug(f"Heartbeat recorded at epoch {epoch}")

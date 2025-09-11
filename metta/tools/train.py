@@ -5,24 +5,17 @@ from typing import Optional
 import torch
 from pydantic import Field
 
-from metta.agent.agent_config import AgentConfig
-from metta.app_backend.clients.stats_client import StatsClient
+from metta.agent.policy import PolicyArchitecture
 from metta.common.tool import Tool
-from metta.common.util.git_repo import REPO_SLUG
-from metta.agent.metta_agent import MettaAgent, PolicyArchitecture
-from metta.common.config.tool import Tool
-
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.rl.system_config import guess_device
+from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.trainer_v2 import Trainer
 from metta.rl.training import (
     DistributedHelper,
     EvaluatorConfig,
-    HeartbeatConfig,
-    HeartbeatWriter,
     PolicyUploaderConfig,
     TrainerCheckpointerConfig,
 )
@@ -50,7 +43,6 @@ class TrainTool(Tool):
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     checkpointer: TrainerCheckpointerConfig = Field(default_factory=TrainerCheckpointerConfig)
-    heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
 
     # Optional configurations xcxc
     map_preview_uri: str | None = None
@@ -93,18 +85,10 @@ class TrainTool(Tool):
         # stats_client = StatsClient.create(self.stats_server_uri)
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
-        policy = self.policy_architecture.make_policy(
-            env.single_observation_space,
-            env.single_action_space,
-            env.obs_width,
-            env.obs_height,
-            env.feature_normalizations,
-        )
-        metta_agent = MettaAgent(env, policy)
+        policy = self.policy_architecture.make_policy(env.meta_data)
 
-        trainer = Trainer(self.trainer, env, metta_agent, torch.device(self.device))
+        trainer = Trainer(self.trainer, env, policy, torch.device(self.device))
 
-        trainer.register(HeartbeatWriter(epoch_interval=self.heartbeat.epoch_interval))
         # trainer.register(Evaluator(self.evaluation))
         # trainer.register(PolicyUploader(self.policy_uploader))
         # trainer.register(GradientStatsRecorder(self.gradient_stats))

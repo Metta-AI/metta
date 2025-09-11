@@ -19,7 +19,7 @@ from metta.rl.stats import (
 from metta.rl.training.component import TrainerComponent
 
 if TYPE_CHECKING:
-    from metta.rl.trainer_v2 import Trainer
+    from metta.rl.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 
@@ -310,7 +310,7 @@ class StatsReporter(TrainerComponent):
             agent_step=trainer.trainer_state.agent_step,
             losses_stats=getattr(trainer, "latest_losses_stats", {}),
             experience=trainer.core_loop.experience if trainer.core_loop else None,
-            policy=trainer._metta_agent,
+            policy=trainer._policy,
             timer=trainer.timer,
             trainer_cfg=trainer._cfg,
             optimizer=trainer.optimizer,

@@ -8,7 +8,7 @@ from metta.rl.hyperparameter_scheduler import step_hyperparameters
 from metta.rl.training.component import TrainerComponent
 
 if TYPE_CHECKING:
-    from metta.rl.trainer_v2 import Trainer
+    from metta.rl.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 

@@ -37,7 +37,7 @@ class MergeLayerBase(LayerBase):
 
         self.dims = []
         self.processed_lengths = []
-        for src_cfg in self._sources:
+        for src_cfg in self._source_component_names:
             source_name = src_cfg["name"]
 
             processed_size = self._source_components[source_name]._out_tensor_shape.copy()
@@ -72,7 +72,7 @@ class MergeLayerBase(LayerBase):
     def forward(self, td: TensorDict):
         outputs = []
         # TODO: do this without a for loop or dictionary lookup for perf
-        for src_cfg in self._sources:
+        for src_cfg in self._source_component_names:
             source_name = src_cfg["name"]
             self._source_components[source_name].forward(td)
             src_tensor = td[source_name]
@@ -316,7 +316,7 @@ class ReshapeLayer(LayerBase):
         self._ready = True
 
     def _forward(self, td: TensorDict):
-        tensor = td[self._sources[0]["name"]]
+        tensor = td[self._source_component_names[0]["name"]]
         shape = list(tensor.shape)
         compressed_size = shape[self.squeezed_dim] * shape[self.popped_dim]
         shape.pop(self.popped_dim)
@@ -358,7 +358,7 @@ class BatchReshapeLayer(LayerBase):
         self._ready = True
 
     def _forward(self, td: TensorDict):
-        tensor = td[self._sources[0]["name"]]
+        tensor = td[self._source_component_names[0]["name"]]
         B_TT = td["_BxTT_"]
         shape = list(tensor.shape)
         shape.insert(1, 0)
@@ -396,7 +396,7 @@ class CenterPixelLayer(LayerBase):
         self._ready = True
 
     def _forward(self, td: TensorDict):
-        tensor = td[self._sources[0]["name"]]
+        tensor = td[self._source_component_names[0]["name"]]
         B, C, H, W = tensor.shape
         center_h = H // 2
         center_w = W // 2

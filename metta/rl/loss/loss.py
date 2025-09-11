@@ -7,7 +7,6 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
-from metta.rl.trainer_state import TrainerState
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
 
@@ -73,7 +72,7 @@ class Loss:
     # Loss provides defaults for every control flow method and even handles the scheduling logic. Simply override
     # any of these methods in your Loss class to implement your own logic when needed.
 
-    def on_new_training_run(self, trainer_state: TrainerState) -> None:
+    def on_new_training_run(self) -> None:
         """We're at the very beginning of the training loop."""
         self.policy.on_new_training_run()
         return
@@ -83,31 +82,32 @@ class Loss:
         self.policy.on_rollout_start()
         return
 
-    def rollout(self, td: TensorDict, epoch: int) -> None:
+    def rollout(self, td: TensorDict, env_id: slice, epoch: int) -> None:
         """Repeatedly called rollout steps until you set completion.
         Each step gets obs and returns actions to the env."""
         if not self._should_run_rollout(epoch):
             return
-        self.run_rollout(td, epoch)
+        self.run_rollout(td, env_id)
 
-    def run_rollout(self, td: TensorDict, epoch: int) -> None:
+    def run_rollout(self, td: TensorDict, env_id: slice) -> None:
         """Override this method in subclasses to implement rollout logic. Or override rollout() if you need to override
         the scheduling logic."""
         return
 
-    def train(self, shared_loss_data: TensorDict, epoch: int) -> tuple[Tensor, TensorDict]:
+    def train(self, shared_loss_data: TensorDict,
+              env_id: slice, epoch: int, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
         """Repeatedly called training steps until the total number of minibatches (set in cfg) is reached.
         Compute loss and write any shared minibatch data needed by other losses."""
         if not self._should_run_train(epoch):
-            return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
-        return self.run_train(shared_loss_data, epoch)
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data, False
+        return self.run_train(shared_loss_data, env_id, epoch, mb_idx)
 
-    def run_train(self, shared_loss_data: TensorDict, epoch: int) -> tuple[Tensor, TensorDict]:
+    def run_train(self, shared_loss_data: TensorDict, env_id: slice, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
         """Override this method in subclasses to implement train logic. Or override train() if you need to override
         the scheduling logic."""
-        return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
+        return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data, False
 
-    def on_mb_end(self, epoch: int) -> None:
+    def on_mb_end(self, epoch: int, mb_idx: int) -> None:
         """For instance, allow losses with their own optimizers to run"""
         return
 

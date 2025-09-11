@@ -113,7 +113,7 @@ class ObsAttrValNorm(LayerBase):
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        observations = td[self._sources[0]["name"]]
+        observations = td[self.src_component_name]
 
         attr_indices = observations[..., 1].long()
         norm_factors = self._norm_factors[attr_indices]
@@ -152,7 +152,7 @@ class ObsAttrCoordEmbed(LayerBase):
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        observations = td[self._sources[0]["name"]]
+        observations = td[self.src_component_name]
 
         coord_indices = observations[..., 0].long()
         coord_pair_embedding = self._coord_embeds(coord_indices)
@@ -210,7 +210,7 @@ class ObsAttrEmbedFourier(LayerBase):
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        observations = td[self._sources[0]["name"]]
+        observations = td[self.src_component_name]
 
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
@@ -299,7 +299,7 @@ class ObsAttrCoordValueEmbed(LayerBase):
 
     def _forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
-        observations = td[self._sources[0]["name"]]
+        observations = td[self.src_component_name]
 
         # The first element of an observation is the coordinate, which can be used as a direct index for embedding.
         coord_indices = observations[..., 0].long()

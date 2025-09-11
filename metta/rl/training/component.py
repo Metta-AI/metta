@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict
 from pydantic import Field
 
 if TYPE_CHECKING:
-    from metta.rl.trainer_v2 import Trainer
+    from metta.rl.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 

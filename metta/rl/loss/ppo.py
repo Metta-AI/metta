@@ -129,17 +129,19 @@ class PPO(Loss):
         )
 
     # BaseLoss calls this method
-    def run_rollout(self, td: TensorDict, epoch: int) -> None:
+    def run_rollout(self, td: TensorDict, env_id: slice) -> None:
         with torch.no_grad():
-            self.policy(td)
+            self.policy.forward(td)
 
         # Store experience
-        self.replay.store(data_td=td, env_id=epoch)
+        self.replay.store(data_td=td, env_id=env_id)
 
         return
 
     # BaseLoss calls this method
-    def run_train(self, shared_loss_data: TensorDict, epoch: int, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
+    def run_train(self,
+                  shared_loss_data: TensorDict,
+                  env_id: slice, epoch: int, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
         """This is the PPO algorithm training loop."""
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
         self.policy.on_train_mb_start()
@@ -153,7 +155,8 @@ class PPO(Loss):
 
         # On the first minibatch of the update epoch, compute advantages and sampling params
         if mb_idx == 0:
-            self.advantages, self.anneal_beta = self._on_first_mb(epoch)
+            self.advantages, self.anneal_beta = self._on_first_mb(
+                epoch, self.trainer_cfg.total_timesteps, self.trainer_cfg.batch_size)
 
         # Then sample from the buffer (this happens at every minibatch)
         minibatch, indices, prio_weights = self._sample_minibatch(
@@ -167,7 +170,7 @@ class PPO(Loss):
 
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-        policy_td = self.policy(policy_td, action=minibatch["actions"])
+        policy_td = self.policy.forward(policy_td, action=minibatch["actions"])
         shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
 
         # Finally, calculate the loss!
@@ -188,7 +191,7 @@ class PPO(Loss):
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
 
-    def _on_first_mb(self, epoch: int) -> tuple[Tensor, float]:
+    def _on_first_mb(self, epoch: int, total_timesteps: int, batch_size: int) -> tuple[Tensor, float]:
         # reset importance sampling ratio
         if "ratio" in self.replay.buffer.keys():
             self.replay.buffer["ratio"].fill_(1.0)

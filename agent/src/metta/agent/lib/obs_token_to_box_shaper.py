@@ -23,8 +23,15 @@ class ObsTokenToBoxShaper(LayerBase):
     new information.
     """
 
-    def __init__(self, obs_shape, obs_width, obs_height, feature_normalizations, **cfg):
-        super().__init__(**cfg)
+    def __init__(
+        self,
+        name: str,
+        obs_shape: tuple[int, ...],
+        obs_width: int,
+        obs_height: int,
+        feature_normalizations: dict[int, float],
+    ):
+        super().__init__(name)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         # These let us know the grid size from which tokens are being computed, and thus the shape of the box
         # observation.

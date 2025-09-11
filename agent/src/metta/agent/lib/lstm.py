@@ -1,3 +1,4 @@
+
 from typing import Dict
 
 import torch
@@ -5,7 +6,7 @@ import torch.nn as nn
 from einops import rearrange
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.lib.metta_layer import LayerBase, NNParams
 
 
 class LSTM(LayerBase):
@@ -29,10 +30,10 @@ class LSTM(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-        self.hidden_size = self._nn_params["hidden_size"]
-        self.num_layers = self._nn_params["num_layers"]
+    def __init__(self, name: str, sources: list[str], nn_params: NNParams):
+        super().__init__(name, sources, nn_params)
+        self.hidden_size = self._nn_params.hidden_size
+        self.num_layers = self._nn_params.num_layers
 
         self.lstm_h: Dict[int, torch.Tensor] = {}
         self.lstm_c: Dict[int, torch.Tensor] = {}
@@ -82,18 +83,13 @@ class LSTM(LayerBase):
 
     def _make_net(self):
         # Get hidden_size from _nn_params
-        hidden_size = self._nn_params.get("hidden_size", self.hidden_size)
-        self._out_tensor_shape = [hidden_size]
+        hidden_size = self._nn_params.hidden_size
+        assert hidden_size is not None
+        self._out_tensor_shape = torch.Size([hidden_size])
 
-        # Guard against setup order issues for static analyzers and runtime safety
-        assert (
-            getattr(self, "_in_tensor_shapes", None) is not None
-            and isinstance(self._in_tensor_shapes, list)
-            and len(self._in_tensor_shapes) > 0
-            and isinstance(self._in_tensor_shapes[0], list)
-            and len(self._in_tensor_shapes[0]) > 0
-        ), "LSTM requires a valid input tensor shape from its source component"
-        net = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
+        assert len(self._in_tensor_shapes) == 1
+        assert self._in_tensor_shapes[0].numel() > 0
+        net = nn.LSTM(self._in_tensor_shapes[0].numel(), hidden_size=hidden_size, num_layers=self._nn_params.num_layers)
 
         for name, param in net.named_parameters():
             if "bias" in name:
@@ -105,7 +101,10 @@ class LSTM(LayerBase):
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def _forward(self, td: TensorDict):
-        hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
+        assert self.hidden_size is not None
+        assert self.num_layers is not None
+        assert self._net is not None
+        hidden = td[self.src_component_name(0)]  # → (2, num_layers, batch, hidden_size)
 
         TT = td["bptt"][0]
         B = td["batch"][0]

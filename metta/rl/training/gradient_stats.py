@@ -10,7 +10,7 @@ from metta.mettagrid.config import Config
 from metta.rl.training.component import TrainerComponent
 
 if TYPE_CHECKING:
-    from metta.rl.trainer_v2 import Trainer
+    from metta.rl.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class GradientStatsComponent(TrainerComponent):
         Args:
             trainer: The trainer instance
         """
-        policy = trainer._metta_agent
+        policy = trainer._policy
 
         if not policy.parameters():
             return {}

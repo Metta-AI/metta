@@ -149,7 +149,7 @@ class ObsLatentAttn(LayerBase):
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        x_features = td[self._sources[0]["name"]]
+        x_features = td[self._source_components[0]["name"]]
         key_mask = None
         if self._use_mask:
             key_mask = td["obs_mask"]
@@ -258,7 +258,7 @@ class ObsSelfAttn(LayerBase):
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        x_features = td[self._sources[0]["name"]]
+        x_features = td[self._source_components[0]["name"]]
         if self._use_cls_token:
             x_features = torch.cat([self._cls_token.expand(x_features.shape[0], -1, -1), x_features], dim=1)
 

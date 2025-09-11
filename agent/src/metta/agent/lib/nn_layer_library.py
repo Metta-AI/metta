@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_layer import LayerBase, ParamLayer
+from metta.agent.lib.metta_layer import LayerBase, NNParams, ParamLayer
 
 
 class Linear(ParamLayer):
@@ -16,22 +16,23 @@ class Linear(ParamLayer):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = [self._nn_params.out_features]
+        assert self._nn_params.out_features is not None
+        self._out_tensor_shape = torch.Size([self._nn_params.out_features])
         assert len(self._in_tensor_shapes[0]) == 1, (
             "_input_tensor_shape for Linear should be 1d (we don't include the batch dimension)"
         )
-        return nn.Linear(self._in_tensor_shapes[0][0], **self._nn_params)
+        return nn.Linear(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class ReLU(LayerBase):
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        self._out_tensor_shape = self._in_tensor_shapes[0]
         return nn.ReLU()
 
 
 class Tanh(LayerBase):
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        self._out_tensor_shape = self._in_tensor_shapes[0]
         return nn.Tanh()
 
 
@@ -44,8 +45,8 @@ class LayerNorm(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.LayerNorm(self._in_tensor_shapes[0][0], **self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.LayerNorm(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class Bilinear(LayerBase):
@@ -55,18 +56,20 @@ class Bilinear(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
     def _make_net(self):
-        self._out_tensor_shape = [self._nn_params.out_features]
+        assert self._nn_params.out_features is not None
+        assert len(self._in_tensor_shapes) == 2
+        assert len(self._in_tensor_shapes[0]) == 1
+        assert len(self._in_tensor_shapes[1]) == 1
 
-        self._nn_params["in1_features"] = self._in_tensor_shapes[0][0]
-        self._nn_params["in2_features"] = self._in_tensor_shapes[1][0]
-        self._nn_params = dict(self._nn_params)  # need to convert from omegaconf DictConfig
-        return nn.Bilinear(**self._nn_params)
+        self._out_tensor_shape = torch.Size([self._nn_params.out_features])
+
+        return nn.Bilinear(self._in_tensor_shapes[0][0], self._in_tensor_shapes[1][0], self._nn_params.out_features)
 
     def _forward(self, td: TensorDict):
-        input_1 = td[self._sources[0]["name"]]
-        input_2 = td[self._sources[1]["name"]]
+        assert self._net is not None
+        input_1 = td[self.src_component_name(0)]
+        input_2 = td[self.src_component_name(1)]
         td[self._name] = self._net(input_1, input_2)
         return td
 
@@ -122,7 +125,7 @@ class ResNetMLP(LayerBase):
         self._depth = depth
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        self._out_tensor_shape = self._in_tensor_shapes[0]
 
         if self._depth % 4 != 0:
             raise ValueError("Depth must be a multiple of 4.")
@@ -133,7 +136,7 @@ class ResNetMLP(LayerBase):
         self.residual_layers = nn.Sequential(*[ResidualBlock(hidden_size) for _ in range(self._num_blocks)])
 
     def _forward(self, td: TensorDict):
-        x = td[self._sources[0]["name"]]
+        x = td[self.src_component_name(0)]
         x = self.residual_layers(x)
         td[self._name] = x
         return td
@@ -155,12 +158,22 @@ class Embedding(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
+    def __init__(self, name: str,
+                 num_embeddings: int,
+                 embedding_dim: int,
+                 sources: list[str] | None = None,
+                 nn_params: NNParams | None = None,
+                 ):
+        super().__init__(name, sources, nn_params)
+        self._num_embeddings = num_embeddings
+        self._embedding_dim = embedding_dim
+
     def _make_net(self):
         # output shape [0] is the number of indices used in the forward pass which can change
         # no child layer should be sensitive to this dimension
-        self._out_tensor_shape = [0, self._nn_params["embedding_dim"]]
+        self._out_tensor_shape = torch.Size([0, self._embedding_dim])
 
-        net = nn.Embedding(**self._nn_params)
+        net = nn.Embedding(self._num_embeddings, self._embedding_dim)
 
         weight_limit = 0.1
         nn.init.orthogonal_(net.weight)
@@ -184,22 +197,27 @@ class Conv2d(ParamLayer):
 
     def _make_net(self):
         self._set_conv_dims()
-        return nn.Conv2d(self._in_tensor_shapes[0][0], **self._nn_params)
+        return nn.Conv2d(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())  # type: ignore
 
     def _set_conv_dims(self):
         """Calculate flattened width and height. This allows us to change obs width and height."""
         assert len(self._in_tensor_shapes[0]) == 3, "Conv2d input tensor shape must be 3d (ignoring batch dimension)"
+        assert self._in_tensor_shapes[0][1] is not None and self._in_tensor_shapes[0][2] is not None
+
+        assert self._nn_params.kernel_size is not None
+        assert self._nn_params.stride is not None
+        assert self._nn_params.out_channels is not None
+
         self._input_height = self._in_tensor_shapes[0][1]
         self._input_width = self._in_tensor_shapes[0][2]
 
-        if not hasattr(self._nn_params, "padding") or self._nn_params.padding is None:
-            self._nn_params.padding = 0
+        padding = self._nn_params.padding or 0
 
         self._output_height = (
-            (self._input_height + 2 * self._nn_params.padding - self._nn_params.kernel_size) / self._nn_params.stride
+            (self._input_height + 2 * padding - self._nn_params.kernel_size) / self._nn_params.stride
         ) + 1
         self._output_width = (
-            (self._input_width + 2 * self._nn_params.padding - self._nn_params.kernel_size) / self._nn_params.stride
+            (self._input_width + 2 * padding - self._nn_params.kernel_size) / self._nn_params.stride
         ) + 1
 
         if not self._output_height.is_integer() or not self._output_width.is_integer():
@@ -208,7 +226,7 @@ class Conv2d(ParamLayer):
         self._output_height = int(self._output_height)
         self._output_width = int(self._output_width)
 
-        self._out_tensor_shape = [self._nn_params.out_channels, self._output_height, self._output_width]
+        self._out_tensor_shape = torch.Size([self._nn_params.out_channels, self._output_height, self._output_width])
 
 
 class MaxPool1d(LayerBase):
@@ -220,8 +238,8 @@ class MaxPool1d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.MaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.MaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class MaxPool2d(LayerBase):
@@ -233,8 +251,8 @@ class MaxPool2d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.MaxPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.MaxPool2d(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class AdaptiveAvgPool1d(LayerBase):
@@ -246,8 +264,8 @@ class AdaptiveAvgPool1d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveAvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.AdaptiveAvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class AdaptiveAvgPool2d(LayerBase):
@@ -259,8 +277,8 @@ class AdaptiveAvgPool2d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveAvgPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.AdaptiveAvgPool2d(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class AdaptiveMaxPool1d(LayerBase):
@@ -272,8 +290,8 @@ class AdaptiveMaxPool1d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveMaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.AdaptiveMaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class AdaptiveMaxPool2d(LayerBase):
@@ -285,8 +303,8 @@ class AdaptiveMaxPool2d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveMaxPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.AdaptiveMaxPool2d(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class AvgPool1d(LayerBase):
@@ -298,8 +316,8 @@ class AvgPool1d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.AvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class AvgPool2d(LayerBase):
@@ -311,8 +329,8 @@ class AvgPool2d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AvgPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.AvgPool2d(self._in_tensor_shapes[0][0], **self._nn_params.to_dict())
 
 
 class Dropout(LayerBase):
@@ -324,8 +342,8 @@ class Dropout(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.Dropout(**self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.Dropout(**self._nn_params.to_dict())
 
 
 class Dropout2d(LayerBase):
@@ -337,8 +355,8 @@ class Dropout2d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.Dropout2d(**self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.Dropout2d(**self._nn_params.to_dict())
 
 
 class AlphaDropout(LayerBase):
@@ -350,8 +368,8 @@ class AlphaDropout(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AlphaDropout(**self._nn_params)
+        self._out_tensor_shape = self._in_tensor_shapes[0]
+        return nn.AlphaDropout(**self._nn_params.to_dict())
 
 
 class BatchNorm1d(LayerBase):
@@ -363,7 +381,7 @@ class BatchNorm1d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        self._out_tensor_shape = self._in_tensor_shapes[0]
         return nn.BatchNorm1d(self._in_tensor_shapes[0][0], **self._nn_params)
 
 
@@ -376,7 +394,7 @@ class BatchNorm2d(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        self._out_tensor_shape = self._in_tensor_shapes[0]
         return nn.BatchNorm2d(self._in_tensor_shapes[0][0], **self._nn_params)
 
 
@@ -389,7 +407,7 @@ class Flatten(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = [prod(self._in_tensor_shapes[0])]
+        self._out_tensor_shape = torch.Size([prod(self._in_tensor_shapes[0])])
         return nn.Flatten()
 
 
@@ -402,5 +420,5 @@ class Identity(LayerBase):
     """
 
     def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        self._out_tensor_shape = self._in_tensor_shapes[0]
         return nn.Identity()

@@ -63,8 +63,8 @@ class MettaActorBig(LayerBase):
             nn.init.uniform_(self.bias, -bound, bound)
 
     def _forward(self, td: TensorDict):
-        hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
-        action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
+        hidden = td[self.src_component_name(0)]  # Shape: [B*TT, hidden]
+        action_embeds = td[self.src_component_name(1)]  # Shape: [B*TT, num_actions, embed_dim]
 
         B_TT = td.batch_size.numel()
         num_actions = action_embeds.shape[1]
@@ -104,7 +104,7 @@ class MettaActorQuerySingleHead(LayerBase):
     def _make_net(self):
         self.hidden = self._in_tensor_shapes[0][0]  # input_1 dim
         self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
-        self._out_tensor_shape = [self.embed_dim]
+        self._out_tensor_shape = torch.Size([self.embed_dim])
 
         # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
         self.W = nn.Parameter(torch.Tensor(self.hidden, self.embed_dim).to(dtype=torch.float32))
@@ -117,7 +117,7 @@ class MettaActorQuerySingleHead(LayerBase):
         nn.init.uniform_(self.W, -bound, bound)
 
     def _forward(self, td: TensorDict):
-        hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
+        hidden = td[self.src_component_name(0)]  # Shape: [B*TT, hidden]
 
         # Project hidden state to query
         query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
@@ -145,8 +145,8 @@ class MettaActorKeySingleHead(LayerBase):
             nn.init.uniform_(self.bias, -bound, bound)
 
     def _forward(self, td: TensorDict):
-        query = td[self._sources[0]["name"]]  # Shape: [B*TT, embed_dim]
-        action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
+        query = td[self.src_component_name(0)]  # Shape: [B*TT, embed_dim]
+        action_embeds = td[self.src_component_name(1)]  # Shape: [B*TT, num_actions, embed_dim]
 
         # Compute scores
         scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]

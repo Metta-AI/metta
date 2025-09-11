@@ -3,15 +3,12 @@
 import logging
 from typing import Any, Dict, Optional
 
-import torch
-
-from metta.agent.metta_agent import MettaAgent
-from metta.agent.policy import Policy
-from metta.mettagrid import MettaGridEnv
+from metta.agent.policy import Policy, PolicyArchitecture
 from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
+from metta.rl.training.training_environment import EnvironmentMetaData
 
 logger = logging.getLogger(__name__)
 
@@ -44,59 +41,52 @@ class PolicyCheckpointer(TrainerComponent):
         self.distributed = distributed_helper
         self.config = config
 
-    def load_or_create_agent(
+    def load_or_create_policy(
         self,
-        env: MettaGridEnv,
-        system_cfg: Any,
-        agent_cfg: Any,
-        device: torch.device,
+        env: EnvironmentMetaData,
+        policy_architecture: PolicyArchitecture,
         policy_uri: Optional[str] = None,
-    ) -> MettaAgent:
-        """Load agent from checkpoint/URI or create new one.
+    ) -> Policy:
+        """Load policy from checkpoint/URI or create new one.
 
         Args:
             env: Environment for agent initialization
-            system_cfg: System configuration
-            agent_cfg: Agent configuration
-            device: Device to load agent on
+            policy_architecture_cfg: Policy architecture configuration
             policy_uri: Optional URI to load policy from (e.g., 'wandb://...' or 'file://...')
 
         Returns:
-            MettaAgent
+            Policy
         """
-        existing_agent = None
+        existing_policy = None
 
         if self.distributed.is_master():
             # Try to load from URI first if provided
             if policy_uri:
                 logger.info(f"Loading policy from URI: {policy_uri}")
                 try:
-                    existing_agent = self.checkpoint_manager.load_agent_from_uri(uri=policy_uri, device=device)
+                    existing_policy = self.checkpoint_manager.load_policy_from_uri(uri=policy_uri)
                 except Exception as e:
                     logger.error(f"Failed to load from URI: {e}")
                     raise
 
         # Broadcast agent from master to all workers
-        existing_agent = self.distributed.broadcast_from_master(existing_agent)
+        existing_policy = self.distributed.broadcast_from_master(existing_policy)
 
-        if existing_agent:
-            logger.info("Using loaded agent")
-            return existing_agent
+        if existing_policy:
+            logger.info("Using loaded policy")
+            return existing_policy
 
         # Create new agent if no checkpoint exists
         logger.info("Creating new agent from scratch")
-        new_agent = MettaAgent(
-            observation_space=env.observation_space,
-            action_space=env.action_space,
-            config=agent_cfg,
-            system_config=system_cfg,
-            device=device,
+        new_policy = policy_architecture.make_policy(
+            env_metadata=env.meta_data,
+            policy_architecture_cfg=policy_architecture,
         )
-        return new_agent
+        return new_policy
 
     def save_policy(
         self,
-        policy: MettaAgent,
+        policy: Policy,
         epoch: int,
         metadata: Optional[Dict[str, Any]] = None,
         force: bool = False,
@@ -119,8 +109,8 @@ class PolicyCheckpointer(TrainerComponent):
             return None
 
         # Save checkpoint
-        checkpoint_uri = self.checkpoint_manager.save_checkpoint(
-            agent=policy,
+        checkpoint_uri = self.checkpoint_manager.save_policy_checkpoint(
+            policy=policy,
             epoch=epoch,
             metadata=metadata or {},
         )
@@ -139,7 +129,7 @@ class PolicyCheckpointer(TrainerComponent):
         Returns:
             Policy as bytes
         """
-        return self.checkpoint_manager.save_agent_to_buffer(policy)
+        return self.checkpoint_manager.save_policy_checkpoint_to_buffer(policy)
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Get URI for the latest policy checkpoint.
@@ -147,7 +137,7 @@ class PolicyCheckpointer(TrainerComponent):
         Returns:
             Policy checkpoint URI or None if no checkpoint exists
         """
-        checkpoint_uris = self.checkpoint_manager.select_checkpoints("latest", count=1)
+        checkpoint_uris = self.checkpoint_manager.select_policy_checkpoints("latest", count=1)
         return checkpoint_uris[0] if checkpoint_uris else None
 
     def on_epoch_end(self, trainer: Any, epoch: int) -> None:
