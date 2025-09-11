@@ -36,10 +36,8 @@ def init_mettagrid_system_environment() -> None:
     # TODO (use env for prod/dev?)
     os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "1")
 
-    # Make sure Numpy uses only 1 thread (matches what happens in C++ side)
-    os.environ.setdefault("OMP_NUM_THREADS", "1")
-
-    # Make sure we're running headless to avoid any display issues
+    os.environ.setdefault("GLFW_PLATFORM", "osmesa")  # Use OSMesa as the GLFW backend
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     os.environ.setdefault("MPLBACKEND", "Agg")
     os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
     os.environ.setdefault("DISPLAY", "")
@@ -284,17 +282,23 @@ constructor/function vs configuration overrides based on introspection.
                     raw = nested_cli[name]
                     val = type_parse(raw, p.annotation)
                     func_kwargs[name] = val
-                    consumed_keys.add(name)
-                    # Only mark dotted keys as consumed if they actually contributed to nested_cli[name]
-                    # This prevents double consumption when there's both 'trainer' and 'trainer.lr' args
-                    for k in list(cli_args.keys()):
+
+                    # Determine which keys actually contributed to nested_cli[name]
+                    # If name exists as a flat key in cli_args, mark it as consumed
+                    if name in cli_args:
+                        consumed_keys.add(name)
+
+                    # Mark all dotted keys that start with this parameter name as consumed
+                    # These are the keys that were actually used to build the nested structure
+                    for k in cli_args.keys():
                         if k.startswith(name + "."):
                             consumed_keys.add(k)
+
                     if known_args.verbose:
                         console.print(f"  {name}={val!r}")
                     continue
 
-                # Else fall back to flat CLI exact match
+                # Check for direct parameter match in flat CLI args
                 if name in cli_args:
                     val = type_parse(cli_args[name], p.annotation)
                     func_kwargs[name] = val
