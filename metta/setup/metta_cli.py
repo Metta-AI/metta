@@ -12,6 +12,7 @@ from rich.table import Table
 
 from metta.common.util.fs import get_repo_root
 from metta.setup.local_commands import app as local_app
+from metta.setup.registry import get_enabled_setup_modules
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import error, info, success, warning
@@ -269,31 +270,23 @@ def cmd_status(
     from metta.setup.registry import get_all_modules
 
     cli._init_all()
-
-    all_modules = get_all_modules()
-
     if components:
-        requested_components = [c.strip() for c in components.split(",")]
-        module_map = {m.name: m for m in all_modules}
-        modules = []
-        for comp in requested_components:
-            if comp in module_map:
-                modules.append(module_map[comp])
-            else:
-                warning(f"Unknown component: {comp}")
-                info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+        requested_components = set(c.strip() for c in components.split(","))
+        module_map = {m.name: m for m in get_all_modules()}
+        modules = [module for name, module in module_map.items() if name in requested_components]
+        if missing := requested_components - set(module_map.keys()):
+            warning(f"Unknown components: {', '.join(sorted(missing))}")
+            info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+            return
         if not modules:
             return
     else:
-        modules = all_modules
-
+        modules = get_enabled_setup_modules()
+        if not modules:
+            warning("No applicable modules found.")
+            return
     if not modules:
         warning("No modules found.")
-        return
-
-    applicable_modules = [m for m in modules if m.is_enabled()]
-    if not applicable_modules:
-        warning("No applicable modules found.")
         return
 
     module_status = {}
