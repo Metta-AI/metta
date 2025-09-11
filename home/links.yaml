@@ -3,6 +3,10 @@ links:
     icon: https://cdn.wandb.ai/production/ef25f30fc/favicon.png
     url: https://wandb.ai/metta-research/metta
     short_urls: [w, wandb]
+    sub_links:
+      - name: Reports
+        url: https://wandb.ai/metta-research/metta/reportlist
+        short_urls: [wr]
   - name: Observatory
     url: https://observatory.softmax-research.net/
     short_urls: [o, observatory]
@@ -12,11 +16,17 @@ links:
     short_urls: [m, mettascope]
   - name: Skypilot
     icon: https://avatars.githubusercontent.com/u/109387420?s=200&v=4
-    url: https://skypilot-api.softmax-research.net/
+    url: https://skypilot-api.softmax-research.net/dashboard/jobs?property=user&operator=%3A&value=$username%40stem.ai
     short_urls: [s, sky, skypilot]
     sub_links:
       - name: README
         url: https://github.com/Metta-AI/metta/tree/main/devops/skypilot
+      - name: Clusters
+        url: https://skypilot-api.softmax-research.net/dashboard/clusters
+        short_urls: [sc]
+      - name: Jobs
+        url: https://skypilot-api.softmax-research.net/dashboard/jobs
+        short_urls: [sj]
   - name: Datadog
     url: https://app.datadoghq.com/dashboard/
     short_urls: [dd, datadog]
@@ -27,6 +37,12 @@ links:
       - name: Logs
         url: https://app.datadoghq.com/logs
         short_urls: [ddlogs]
+      - name: K8s pod statuses
+        url: https://app.datadoghq.com/orchestration/explorer/pod?explorer-na-groups=false
+        short_urls: [ddpods]
+      - name: Traces
+        url: https://app.datadoghq.com/apm/traces
+        short_urls: [ddtraces]
   - name: GitHub
     url: https://github.com/Metta-AI/metta
     short_urls: [g, gh, github]
@@ -37,6 +53,9 @@ links:
       - name: My PRs & Issues
         url: https://github.com/Metta-AI/metta/issues?q=is%3Apr%20is%3Aopen%20(assignee%3A%40me%20OR%20author%3A%40me)
         short_urls: [gm]
+      - name: Actions
+        url: https://github.com/Metta-AI/metta/actions
+        short_urls: [ga]
   - name: Spacelift
     url: https://metta-ai.app.spacelift.io/launchpad
     short_urls: [sl, spacelift]

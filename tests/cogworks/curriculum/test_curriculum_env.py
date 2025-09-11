@@ -11,7 +11,7 @@ from metta.cogworks.curriculum import (
     SingleTaskGeneratorConfig,
 )
 from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 
 class TestCurriculumEnv:
@@ -19,7 +19,7 @@ class TestCurriculumEnv:
 
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
-        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
         return Curriculum(config, seed=0)
 
@@ -35,7 +35,7 @@ class TestCurriculumEnv:
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([1.0, 2.0]))  # Add get_episode_rewards method
-        mock_env.set_env_config = Mock()  # Add set_env_config method
+        mock_env.set_mg_config = Mock()  # Add set_mg_config method
         return mock_env
 
     def test_curriculum_env_creation(self):
@@ -113,7 +113,7 @@ class TestCurriculumEnv:
         assert isinstance(wrapper._current_task, CurriculumTask)
 
         # Should have set new env config
-        mock_env.set_env_config.assert_called_once_with(wrapper._current_task.get_env_cfg())
+        mock_env.set_mg_config.assert_called_once_with(wrapper._current_task.get_env_cfg())
 
     def test_curriculum_env_step_with_truncation(self):
         """Test step method when episode truncates."""
@@ -305,9 +305,9 @@ class TestCurriculumEnvEdgeCases:
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.0, 0.0]))
-        mock_env.set_env_config = Mock()
+        mock_env.set_mg_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
@@ -333,9 +333,9 @@ class TestCurriculumEnvEdgeCases:
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.8]))
-        mock_env.set_env_config = Mock()
+        mock_env.set_mg_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
@@ -360,9 +360,9 @@ class TestCurriculumEnvEdgeCases:
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.7, 0.3]))
-        mock_env.set_env_config = Mock()
+        mock_env.set_mg_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)
         curriculum = Curriculum(config, seed=0)
         wrapper = CurriculumEnv(mock_env, curriculum)

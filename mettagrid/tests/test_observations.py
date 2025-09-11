@@ -10,10 +10,9 @@ from metta.mettagrid.mettagrid_config import (
     ActionsConfig,
     ChangeGlyphActionConfig,
     ConverterConfig,
-    EnvConfig,
     GameConfig,
     GlobalObsConfig,
-    GroupConfig,
+    MettaGridConfig,
     WallConfig,
 )
 from metta.mettagrid.test_support import ObservationHelper, Orientation, TokenTypes
@@ -24,7 +23,7 @@ NUM_OBS_TOKENS = 50
 @pytest.fixture
 def basic_env() -> MettaGridCore:
     """Create a basic test environment."""
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
             max_steps=1000,
@@ -38,7 +37,7 @@ def basic_env() -> MettaGridCore:
                 get_items=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-            inventory_item_names=["laser", "armor", "heart"],
+            resource_names=["laser", "armor", "heart"],
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#", "#", "#", "#"],
@@ -56,7 +55,7 @@ def basic_env() -> MettaGridCore:
 @pytest.fixture
 def adjacent_agents_env() -> MettaGridCore:
     """Create an environment with adjacent agents."""
-    cfg = EnvConfig(
+    cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
             max_steps=1000,
@@ -70,7 +69,7 @@ def adjacent_agents_env() -> MettaGridCore:
                 get_items=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-            inventory_item_names=["laser", "armor", "heart"],
+            resource_names=["laser", "armor", "heart"],
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
@@ -108,6 +107,7 @@ class TestObservations:
     def test_detailed_wall_observations(self, basic_env):
         """Test detailed wall observations for both agents."""
         obs, _ = basic_env.reset()
+        type_id_feature_id = basic_env.c_env.feature_spec()["type_id"]["id"]
         helper = ObservationHelper()
 
         # The environment creates a 4x8 grid (height=4, width=8):
@@ -139,19 +139,16 @@ class TestObservations:
             (0, 2),  # bottom-left
         ]
 
-        all_positions = {(x, y) for x in range(3) for y in range(3)}
-        no_wall_positions_agent0 = all_positions - set(wall_positions_agent0)
-
-        # Check expected wall positions
-        for x, y in wall_positions_agent0:
-            assert helper.has_wall_at(agent0_obs, x, y), f"Agent 0: Expected wall at ({x}, {y})"
-
-        # Check no walls at empty positions
-        for x, y in no_wall_positions_agent0:
-            assert not helper.has_wall_at(agent0_obs, x, y), f"Agent 0: Expected no wall at ({x}, {y})"
+        agent0_wall_tokens = helper.find_tokens(
+            agent0_obs, feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
+        )
+        agent0_wall_positions = helper.get_positions_from_tokens(agent0_wall_tokens)
+        assert set(agent0_wall_positions) == set(wall_positions_agent0), (
+            f"Agent 0: Expected walls at {wall_positions_agent0}, got {agent0_wall_positions}"
+        )
 
         # Verify wall count
-        assert helper.count_walls(agent0_obs) == 5, "Agent 0 should see exactly 5 walls"
+        assert len(agent0_wall_tokens) == 5, "Agent 0 should see exactly 5 walls"
 
         # Test Agent 1 observation
         agent1_obs = obs[1]
@@ -169,18 +166,16 @@ class TestObservations:
             (2, 2),  # bottom-right
         ]
 
-        no_wall_positions_agent1 = all_positions - set(wall_positions_agent1)
-
-        # Check expected wall positions
-        for x, y in wall_positions_agent1:
-            assert helper.has_wall_at(agent1_obs, x, y), f"Agent 1: Expected wall at ({x}, {y})"
-
-        # Check no walls at empty positions
-        for x, y in no_wall_positions_agent1:
-            assert not helper.has_wall_at(agent1_obs, x, y), f"Agent 1: Expected no wall at ({x}, {y})"
+        agent1_wall_tokens = helper.find_tokens(
+            agent1_obs, feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
+        )
+        agent1_wall_positions = helper.get_positions_from_tokens(agent1_wall_tokens)
+        assert set(agent1_wall_positions) == set(wall_positions_agent1), (
+            f"Agent 1: Expected walls at {wall_positions_agent1}, got {agent1_wall_positions}"
+        )
 
         # Verify wall count
-        assert helper.count_walls(agent1_obs) == 3, "Agent 1 should see exactly 3 walls"
+        assert len(agent1_wall_tokens) == 3, "Agent 1 should see exactly 3 walls"
 
     def test_agent_surrounded_by_altars(self):
         """Test agent observation when surrounded by colored altars."""
@@ -237,8 +232,8 @@ class TestObservations:
             ),
         }
 
-        # Create the environment using direct EnvConfig
-        cfg = EnvConfig(
+        # Create the environment using direct MettaGridConfig
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=1,
                 max_steps=10,
@@ -252,13 +247,14 @@ class TestObservations:
                     get_items=ActionConfig(),
                 ),
                 objects=objects,
-                groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
-                inventory_item_names=["laser", "resource1", "resource2"],  # include laser to allow attack
+                resource_names=["laser", "resource1", "resource2"],  # include laser to allow attack
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
 
         env = MettaGridCore(cfg)
+        type_id_feature_id = env.c_env.feature_spec()["type_id"]["id"]
+        color_feature_id = env.c_env.feature_spec()["agent:color"]["id"]
 
         obs, _ = env.reset()
         agent_obs = obs[0]
@@ -283,34 +279,22 @@ class TestObservations:
         # Check that we see altars at all expected positions
         for x, y in expected_altar_positions:
             # Check altar exists at location
-            assert helper.has_feature_at(agent_obs, x, y, TokenTypes.ALTAR_TYPE_ID), f"Should have altar at ({x}, {y})"
+            altar_tokens = helper.find_tokens(
+                agent_obs, location=(x, y), feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID
+            )
+            assert len(altar_tokens) == 1, f"Should have altar at ({x}, {y})"
 
             # Check color token
-            color_value = helper.find_token_value_at_location(agent_obs, x, y, TokenTypes.COLOR)
-            assert color_value == 42, f"Altar at ({x}, {y}) should have color 42, got {color_value}"
-
-            # Check converter status token exists
-            converter_value = helper.find_token_value_at_location(
-                agent_obs, x, y, TokenTypes.CONVERTING_OR_COOLING_DOWN
-            )
-            assert converter_value is not None, f"Should have converter status token at ({x}, {y})"
+            color_values = helper.find_token_values(agent_obs, location=(x, y), feature_id=color_feature_id)
+            assert color_values == [42], f"Altar at ({x}, {y}) should have color 42, got {color_values}"
 
         # Verify the agent sees itself at center (1,1)
-        agent_tokens = helper.find_tokens_at_location(agent_obs, 1, 1)
+        agent_tokens = helper.find_tokens(agent_obs, location=(1, 1))
         assert len(agent_tokens) > 0, "Agent should see itself at center position"
 
         # Count total altars
-        altar_count = helper.count_features_by_type(agent_obs, TokenTypes.ALTAR_TYPE_ID)
-        assert altar_count == 8, f"Should see 8 altars, got {altar_count}"
-
-    def _check_token_exists(self, obs, x, y, type_id, feature_id, agent_name):
-        """Helper to check if a specific token exists at a location."""
-        helper = ObservationHelper()
-        tokens = helper.find_tokens_at_location(obs, x, y)
-        for token in tokens:
-            if token[1] == type_id and token[2] == feature_id:
-                return
-        raise AssertionError(f"{agent_name}: Expected token with type {type_id} and feature {feature_id} at ({x}, {y})")
+        altar_tokens = helper.find_tokens(agent_obs, feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
+        assert len(altar_tokens) == 8, f"Should see 8 altars, got {len(altar_tokens)}"
 
     def test_agents_see_each_other(self, adjacent_agents_env):
         """Test that adjacent agents can see each other."""
@@ -335,7 +319,7 @@ class TestObservations:
         # Agent 1 at grid (2,2) - Agent 0 at grid (1,2) = offset (1,0)
         # So Agent 1 should appear at observation position (1+1, 1+0) = (2,1)
 
-        agent1_tokens = helper.find_tokens_at_location(obs[0], 2, 1)
+        agent1_tokens = helper.find_tokens(obs[0], location=(2, 1))
         assert len(agent1_tokens) > 0, "Agent 0 should see Agent 1 at (2,1)"
 
         # Agent 1 at (2,2) has observation window centered at (2,2)
@@ -347,7 +331,7 @@ class TestObservations:
         # Agent 0 at grid (1,2) - Agent 1 at grid (2,2) = offset (-1,0)
         # So Agent 0 should appear at observation position (1-1, 1+0) = (0,1)
 
-        agent0_tokens = helper.find_tokens_at_location(obs[1], 0, 1)
+        agent0_tokens = helper.find_tokens(obs[1], location=(0, 1))
         assert len(agent0_tokens) > 0, "Agent 1 should see Agent 0 at (0,1)"
 
     def test_observation_token_order(self, basic_env):
@@ -372,6 +356,10 @@ class TestGlobalTokens:
     def test_initial_global_tokens(self, basic_env):
         """Test initial global token values."""
         obs, _ = basic_env.reset()
+        episode_completion_pct_feature_id = basic_env.c_env.feature_spec()["episode_completion_pct"]["id"]
+        last_action_feature_id = basic_env.c_env.feature_spec()["last_action"]["id"]
+        last_action_arg_feature_id = basic_env.c_env.feature_spec()["last_action_arg"]["id"]
+        last_reward_feature_id = basic_env.c_env.feature_spec()["last_reward"]["id"]
         helper = ObservationHelper()
 
         # Global tokens are at the center of the observation window
@@ -379,10 +367,14 @@ class TestGlobalTokens:
         global_y = basic_env.obs_height // 2
 
         # Check token types and values
-        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.EPISODE_COMPLETION_PCT) == 0
-        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION) == 0
-        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG) == 0
-        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_REWARD) == 0
+        assert helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
+        ) == [0]
+        assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id) == [0]
+        assert helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
+        ) == [0]
+        assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_reward_feature_id) == [0]
 
     def test_global_tokens_update(self):
         """Test that global tokens update correctly."""
@@ -398,7 +390,7 @@ class TestGlobalTokens:
         game_map[2, 4] = "@"
 
         # Create environment with max_steps=10 so that 1 step = 10% completion
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=2,
                 max_steps=10,  # Important: 10 steps total so 1 step = 10%
@@ -418,11 +410,14 @@ class TestGlobalTokens:
                     last_reward=True,
                     resource_rewards=False,
                 ),
-                inventory_item_names=["laser", "armor", "heart"],
+                resource_names=["laser", "armor", "heart"],
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
         env = MettaGridCore(cfg)
+        episode_completion_pct_feature_id = env.c_env.feature_spec()["episode_completion_pct"]["id"]
+        last_action_feature_id = env.c_env.feature_spec()["last_action"]["id"]
+        last_action_arg_feature_id = env.c_env.feature_spec()["last_action_arg"]["id"]
         obs, _ = env.reset()
         num_agents = env.num_agents
         helper = ObservationHelper()
@@ -438,19 +433,21 @@ class TestGlobalTokens:
 
         # Check episode completion updated (1/10 = 10%)
         expected_completion = int(round(0.1 * 255))
-        completion_value = helper.find_token_value_at_location(
-            obs[0], global_x, global_y, TokenTypes.EPISODE_COMPLETION_PCT
+        completion_values = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         )
-        assert completion_value == expected_completion, (
-            f"Expected completion {expected_completion}, got {completion_value}"
+        assert completion_values == [expected_completion], (
+            f"Expected completion {expected_completion}, got {completion_values}"
         )
 
         # Check last action
-        last_action = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION)
+        last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id)
         assert last_action == noop_idx, f"Expected last action {noop_idx}, got {last_action}"
 
         # Check last action arg
-        last_arg = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG)
+        last_arg = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
+        )
         assert last_arg == 0, f"Expected last action arg 0, got {last_arg}"
 
         # Take a move action
@@ -460,15 +457,17 @@ class TestGlobalTokens:
 
         # Check updates
         expected_completion = int(round(0.2 * 255))
-        completion_value = helper.find_token_value_at_location(
-            obs[0], global_x, global_y, TokenTypes.EPISODE_COMPLETION_PCT
+        completion_value = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         )
         assert completion_value == expected_completion
 
-        last_action = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION)
+        last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id)
         assert last_action == move_idx
 
-        last_arg = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG)
+        last_arg = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
+        )
         assert last_arg == 1
 
     def test_glyph_signaling(self):
@@ -489,7 +488,7 @@ class TestGlobalTokens:
         game_map[2, 2] = "@"
 
         # Create environment with change_glyph enabled and 8 glyphs
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=2,
                 max_steps=10,
@@ -504,66 +503,33 @@ class TestGlobalTokens:
                     change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=8),
                 ),
                 objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-                groups={
-                    "agent": GroupConfig(id=0),  # "@" maps to "agent.agent" for both agents
-                },
-                inventory_item_names=["laser", "armor"],
+                resource_names=["laser", "armor"],
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
         env = MettaGridCore(cfg)
+        glyph_feature_id = env.c_env.feature_spec()["agent:glyph"]["id"]
 
         obs, _ = env.reset()
 
-        print("\n=== Testing Initial Glyph Values ===")
-
         # Check if we're seeing uninitialized memory issues
-        agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-        agent0_sees_agent1_glyph = helper.find_token_value_at_location(obs[0], 2, 1, TokenTypes.GLYPH)
-        agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
-        agent1_sees_agent0_glyph = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
-
-        # If we see value 231 or other unexpected values, it's likely uninitialized memory
-        unexpected_values = [agent0_self_glyph, agent0_sees_agent1_glyph, agent1_self_glyph, agent1_sees_agent0_glyph]
-        unexpected_values = [v for v in unexpected_values if v is not None and v > 7]
-
-        if unexpected_values:
-            print(f"WARNING: Found unexpected glyph values: {unexpected_values}")
-            print("This appears to be uninitialized memory. Attempting workaround...")
-
-            # Workaround: explicitly set glyphs to 0 and step once
-            change_glyph_idx = env.action_names.index("change_glyph")
-            actions = np.array(
-                [
-                    [change_glyph_idx, 0],  # Agent 0 to glyph 0
-                    [change_glyph_idx, 0],  # Agent 1 to glyph 0
-                ],
-                dtype=dtype_actions,
-            )
-            obs, _, _, _, _ = env.step(actions)
-
-            # Re-check
-            agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-            agent0_sees_agent1_glyph = helper.find_token_value_at_location(obs[0], 2, 1, TokenTypes.GLYPH)
-            agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
-            agent1_sees_agent0_glyph = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
+        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
+        agent0_sees_agent1_glyph = helper.find_token_values(obs[0], location=(2, 1), feature_id=glyph_feature_id)
+        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
+        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=glyph_feature_id)
 
         # Initially, both agents should have glyph 0 (default)
         # Since glyph 0 is suppressed, we should NOT find any glyph tokens
-        assert agent0_self_glyph is None, f"Agent 0 with glyph 0 should have no glyph token, got {agent0_self_glyph}"
-        assert agent0_sees_agent1_glyph is None, (
+        assert len(agent0_self_glyph) == 0, f"Agent 0 with glyph 0 should have no glyph token, got {agent0_self_glyph}"
+        assert len(agent0_sees_agent1_glyph) == 0, (
             f"Agent 0 should see Agent 1 with no glyph token (glyph 0), got {agent0_sees_agent1_glyph}"
         )
-        assert agent1_self_glyph is None, f"Agent 1 with glyph 0 should have no glyph token, got {agent1_self_glyph}"
-        assert agent1_sees_agent0_glyph is None, (
+        assert len(agent1_self_glyph) == 0, f"Agent 1 with glyph 0 should have no glyph token, got {agent1_self_glyph}"
+        assert len(agent1_sees_agent0_glyph) == 0, (
             f"Agent 1 should see Agent 0 with no glyph token (glyph 0), got {agent1_sees_agent0_glyph}"
         )
 
-        print("✓ Both agents start with glyph 0 (no glyph token)")
-
         # Test changing glyphs
-        print("\n=== Testing Glyph Changes ===")
-
         change_glyph_idx = env.action_names.index("change_glyph")
         noop_idx = env.action_names.index("noop")
 
@@ -571,6 +537,26 @@ class TestGlobalTokens:
         actions = np.array(
             [
                 [change_glyph_idx, 3],  # Agent 0 changes to glyph 3
+                [change_glyph_idx, 5],  # Agent 1 changes to glyph 5
+            ],
+            dtype=dtype_actions,
+        )
+
+        obs, _, _, _, _ = env.step(actions)
+
+        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
+        assert agent0_self_glyph == 3, f"Agent 0 should have glyph 3, got {agent0_self_glyph}"
+
+        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=glyph_feature_id)
+        assert agent1_sees_agent0_glyph == 3, f"Agent 1 should see Agent 0 with glyph 3, got {agent1_sees_agent0_glyph}"
+
+        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
+        assert agent1_self_glyph == 5, f"Agent 1 should have glyph 5, got {agent1_self_glyph}"
+
+        # Test 2: Invalid glyph values (should be no-op)
+        actions = np.array(
+            [
+                [change_glyph_idx, 123],  # Agent 0 tries invalid glyph
                 [noop_idx, 0],  # Agent 1 does nothing
             ],
             dtype=dtype_actions,
@@ -578,190 +564,14 @@ class TestGlobalTokens:
 
         obs, _, _, _, _ = env.step(actions)
 
-        agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-        assert agent0_self_glyph == 3, f"Agent 0 should have glyph 3, got {agent0_self_glyph}"
+        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
+        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
 
-        agent1_sees_agent0_glyph = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
-        assert agent1_sees_agent0_glyph == 3, f"Agent 1 should see Agent 0 with glyph 3, got {agent1_sees_agent0_glyph}"
+        # Glyphs should remain unchanged
+        assert agent0_glyph == 3, f"Agent 0 glyph should stay 3, got {agent0_glyph}"
+        assert agent1_glyph == 5, f"Agent 1 glyph should stay 5, got {agent1_glyph}"
 
-        agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
-        assert agent1_self_glyph is None, f"Agent 1 should still have no glyph token (glyph 0), got {agent1_self_glyph}"
-
-        print("✓ Agent 0 successfully changed to glyph 3")
-
-        # Test 2: Both agents change glyphs simultaneously
-        actions = np.array(
-            [
-                [change_glyph_idx, 5],  # Agent 0 changes to glyph 5
-                [change_glyph_idx, 7],  # Agent 1 changes to glyph 7
-            ],
-            dtype=dtype_actions,
-        )
-
-        obs, _, _, _, _ = env.step(actions)
-
-        agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-        agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
-
-        assert agent0_self_glyph == 5, f"Agent 0 should have glyph 5, got {agent0_self_glyph}"
-        assert agent1_self_glyph == 7, f"Agent 1 should have glyph 7, got {agent1_self_glyph}"
-
-        # Verify they see each other's new glyphs
-        agent0_sees_agent1 = helper.find_token_value_at_location(obs[0], 2, 1, TokenTypes.GLYPH)
-        agent1_sees_agent0 = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
-
-        assert agent0_sees_agent1 == 7, f"Agent 0 should see Agent 1 with glyph 7, got {agent0_sees_agent1}"
-        assert agent1_sees_agent0 == 5, f"Agent 1 should see Agent 0 with glyph 5, got {agent1_sees_agent0}"
-
-        print("✓ Both agents successfully changed glyphs simultaneously")
-
-        # Test 3: Test all valid glyph values (0-7)
-        print("\n=== Testing All Glyph Values ===")
-
-        for glyph in range(8):
-            actions = np.array(
-                [
-                    [change_glyph_idx, glyph],
-                    [change_glyph_idx, (glyph + 4) % 8],  # Different glyph for agent 1
-                ],
-                dtype=dtype_actions,
-            )
-
-            obs, _, _, _, _ = env.step(actions)
-
-            agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-            agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
-            expected_agent1_glyph = (glyph + 4) % 8
-
-            # Glyph 0 should not produce a token
-            if glyph == 0:
-                assert agent0_glyph is None, f"Agent 0 with glyph 0 should have no token, got {agent0_glyph}"
-            else:
-                assert agent0_glyph == glyph, f"Agent 0 should have glyph {glyph}, got {agent0_glyph}"
-
-            if expected_agent1_glyph == 0:
-                assert agent1_glyph is None, f"Agent 1 with glyph 0 should have no token, got {agent1_glyph}"
-            else:
-                assert agent1_glyph == expected_agent1_glyph, (
-                    f"Agent 1 should have glyph {expected_agent1_glyph}, got {agent1_glyph}"
-                )
-
-            # Verify cross-visibility
-            agent0_sees_agent1 = helper.find_token_value_at_location(obs[0], 2, 1, TokenTypes.GLYPH)
-            agent1_sees_agent0 = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
-
-            if expected_agent1_glyph == 0:
-                assert agent0_sees_agent1 is None, (
-                    f"Agent 0 should see Agent 1 with no glyph token (glyph 0), got {agent0_sees_agent1}"
-                )
-            else:
-                assert agent0_sees_agent1 == expected_agent1_glyph, (
-                    f"Agent 0 should see Agent 1 with glyph {expected_agent1_glyph}, got {agent0_sees_agent1}"
-                )
-
-            if glyph == 0:
-                assert agent1_sees_agent0 is None, (
-                    f"Agent 1 should see Agent 0 with no glyph token (glyph 0), got {agent1_sees_agent0}"
-                )
-            else:
-                assert agent1_sees_agent0 == glyph, (
-                    f"Agent 1 should see Agent 0 with glyph {glyph}, got {agent1_sees_agent0}"
-                )
-
-        print("✓ All glyph values (0-7) work correctly with glyph 0 suppressed")
-
-        # Test 4: Invalid glyph values (should be no-op)
-        print("\n=== Testing Invalid Glyph Values ===")
-
-        # First set agents to known glyph values
-        actions = np.array(
-            [
-                [change_glyph_idx, 3],  # Agent 0 to glyph 3
-                [change_glyph_idx, 5],  # Agent 1 to glyph 5
-            ],
-            dtype=dtype_actions,
-        )
-        obs, _, _, _, _ = env.step(actions)
-
-        # Verify initial glyphs
-        assert helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH) == 3
-        assert helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH) == 5
-
-        test_cases = [
-            (8, "8 should be no-op"),
-            (10, "10 should be no-op"),
-            (255, "255 should be no-op"),
-            (100, "100 should be no-op"),
-        ]
-
-        for invalid_value, description in test_cases:
-            actions = np.array(
-                [
-                    [change_glyph_idx, invalid_value],  # Agent 0 tries invalid glyph
-                    [noop_idx, 0],  # Agent 1 does nothing
-                ],
-                dtype=dtype_actions,
-            )
-
-            obs, _, _, _, _ = env.step(actions)
-
-            agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-            agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
-
-            # Glyphs should remain unchanged
-            assert agent0_glyph == 3, f"{description}: Agent 0 glyph should stay 3, got {agent0_glyph}"
-            assert agent1_glyph == 5, f"Agent 1 glyph should stay 5, got {agent1_glyph}"
-
-        print("✓ Invalid glyph values correctly ignored (no-op)")
-
-        # Test 5: Glyph persistence (glyphs should stay until changed)
-        print("\n=== Testing Glyph Persistence ===")
-
-        # Set distinct glyphs
-        actions = np.array(
-            [
-                [change_glyph_idx, 2],
-                [change_glyph_idx, 6],
-            ],
-            dtype=dtype_actions,
-        )
-        obs, _, _, _, _ = env.step(actions)
-
-        # Take several noop actions - glyphs should persist
-        for i in range(3):
-            actions = np.array(
-                [
-                    [noop_idx, 0],
-                    [noop_idx, 0],
-                ],
-                dtype=dtype_actions,
-            )
-            obs, _, _, _, _ = env.step(actions)
-
-            agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-            agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
-
-            assert agent0_glyph == 2, f"Agent 0 glyph should persist as 2 after {i + 1} steps, got {agent0_glyph}"
-            assert agent1_glyph == 6, f"Agent 1 glyph should persist as 6 after {i + 1} steps, got {agent1_glyph}"
-
-        print("✓ Glyphs persist correctly across multiple steps")
-
-        # Test 6: Changing back to glyph 0 removes the token
-        print("\n=== Testing Changing Back to Glyph 0 ===")
-
-        # First set to non-zero glyphs
-        actions = np.array(
-            [
-                [change_glyph_idx, 4],
-                [change_glyph_idx, 5],
-            ],
-            dtype=dtype_actions,
-        )
-        obs, _, _, _, _ = env.step(actions)
-
-        # Verify they have glyph tokens
-        assert helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH) == 4
-        assert helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH) == 5
+        # Test 3: Changing back to glyph 0 removes the token
 
         # Change back to glyph 0
         actions = np.array(
@@ -774,15 +584,11 @@ class TestGlobalTokens:
         obs, _, _, _, _ = env.step(actions)
 
         # Verify glyph tokens are gone
-        agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
-        agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
+        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
+        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
 
-        assert agent0_glyph is None, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
-        assert agent1_glyph is None, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
-
-        print("✓ Changing back to glyph 0 correctly removes glyph tokens")
-
-        print("\n=== All Glyph Tests Passed! ===")
+        assert len(agent0_glyph) == 0, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
+        assert len(agent1_glyph) == 0, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
 
 
 class TestEdgeObservations:
@@ -808,7 +614,7 @@ class TestEdgeObservations:
         game_map[5, 7] = "_"
 
         # Create environment with 7x7 observation window
-        cfg = EnvConfig(
+        cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=1,
                 max_steps=50,  # Enough steps to walk around
@@ -834,12 +640,12 @@ class TestEdgeObservations:
                         color=42,  # Distinctive color
                     ),
                 },
-                groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
-                inventory_item_names=["laser", "resource1", "resource2"],  # laser required for attack action
+                resource_names=["laser", "resource1", "resource2"],  # laser required for attack action
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
         env = MettaGridCore(cfg)
+        type_id_feature_id = env.c_env.feature_spec()["type_id"]["id"]
 
         obs, _ = env.reset()
 
@@ -847,14 +653,15 @@ class TestEdgeObservations:
         move_idx = env.action_names.index("move")
 
         # Verify initial position - agent should be at center of observation
-        agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
+        agent_tokens = helper.find_tokens(obs[0], location=(3, 3))
         assert len(agent_tokens) > 0, "Agent should see itself at center (3,3)"
 
         # The altar at grid position (row=5, col=7) should not be visible initially
         # Agent at (row=2, col=2) with 7x7 window sees:
         # - rows from (2-3) to (2+3) = -1 to 5 ✓ (altar at row 5 is at edge)
         # - cols from (2-3) to (2+3) = -1 to 5 ✗ (altar at col 7 is outside)
-        altar_visible = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+        altar_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
+        altar_visible = len(altar_tokens) > 0
         assert not altar_visible, "Altar should not be visible initially"
 
         print("\nInitial state: Agent at (2,2), altar at (5,7) - not visible")
@@ -868,7 +675,8 @@ class TestEdgeObservations:
             agent_col = 2 + step + 1  # Started at col 2, moved (step+1) times
 
             # Use helper to check if altar is actually visible
-            altar_visible = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+            altar_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
+            altar_visible = len(altar_tokens) > 0
 
             # The altar becomes visible when agent reaches column 4 (after step 1)
             # At col 4: window covers cols 1-7, altar at col 7 is just visible
@@ -876,7 +684,7 @@ class TestEdgeObservations:
                 assert altar_visible, f"Altar should be visible after step {step} (agent at col {agent_col})"
 
                 # Find altar in observation
-                altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
+                altar_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
                 altar_positions = helper.get_positions_from_tokens(altar_tokens)
                 assert len(altar_positions) == 1, "Should find exactly one altar"
 
@@ -905,10 +713,10 @@ class TestEdgeObservations:
             agent_col = 2 + step + 1
 
             # Check if altar is visible
-            altar_found = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+            altar_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
+            altar_found = len(altar_tokens) > 0
 
             if altar_found:
-                altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
                 altar_positions = helper.get_positions_from_tokens(altar_tokens)
                 if altar_positions:
                     obs_col, obs_row = altar_positions[0]
@@ -934,7 +742,7 @@ class TestEdgeObservations:
             obs, _, _, _, _ = env.step(actions)
 
         # Verify agent is still at center of observation
-        agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
+        agent_tokens = helper.find_tokens(obs[0], location=(3, 3))
         assert len(agent_tokens) > 0, "Agent should still see itself at center (3,3)"
 
         # Check walls at edges of observation
@@ -943,19 +751,25 @@ class TestEdgeObservations:
         for obs_y in range(7):
             grid_y = 8 + obs_y - 3  # Convert obs y to grid y
             if 0 <= grid_y <= 9:  # Within grid bounds
-                assert helper.has_wall_at(obs[0], 4, obs_y), f"Should see right wall at obs (4, {obs_y})"
+                wall_tokens = helper.find_tokens(
+                    obs[0], location=(4, obs_y), feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
+                )
+                assert len(wall_tokens) == 1, f"Should see right wall at obs (4, {obs_y})"
 
         # Bottom wall at grid y=9 appears at obs y=(9-8+3)=4
         for obs_x in range(7):
             grid_x = 13 + obs_x - 3  # Convert obs x to grid x
             if 0 <= grid_x <= 14:  # Within grid bounds
-                assert helper.has_wall_at(obs[0], obs_x, 4), f"Should see bottom wall at obs ({obs_x}, 4)"
+                wall_tokens = helper.find_tokens(
+                    obs[0], location=(obs_x, 4), feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
+                )
+                assert len(wall_tokens) == 1, f"Should see bottom wall at obs ({obs_x}, 4)"
 
         # Verify padding areas (beyond walls) have no feature tokens
         # Areas beyond x=4 and y=4 should be empty
         for x in range(5, 7):
             for y in range(7):
-                tokens = helper.find_tokens_at_location(obs[0], x, y)
+                tokens = helper.find_tokens(obs[0], location=(x, y))
                 # Check tokens beyond the first few (which might be global tokens)
                 for i, token in enumerate(tokens):
                     if i >= 4:  # Skip potential global tokens

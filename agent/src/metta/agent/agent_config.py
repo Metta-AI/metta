@@ -18,7 +18,7 @@ from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLate
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
 from metta.agent.pytorch.transformer import Transformer
 from metta.agent.pytorch.transformer_improved import TransformerImproved
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 
 
 class AgentConfig(Config):

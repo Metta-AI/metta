@@ -1,20 +1,3 @@
-"""
-This file implements an Experience class for storing and managing experience data during reinforcement
-learning training.
-
-The Experience class provides:
-- Segmented tensor storage for observations, actions, rewards, etc.
-- Support for BPTT (Backpropagation Through Time) with configurable horizon
-- Prioritized experience replay with importance sampling
-- Zero-copy operations where possible
-- Efficient minibatch creation for training
-
-Key features:
-- Stores trajectories in segmented tensors for BPTT
-- Provides prioritized sampling for training
-- Manages minibatch creation for training
-"""
-
 from typing import Dict
 
 import torch
@@ -37,7 +20,6 @@ class Experience:
         max_minibatch_size: int,
         experience_spec: Composite,
         device: torch.device | str,
-        cpu_offload: bool = False,
     ):
         """Initialize experience buffer with segmented storage."""
         self._check_for_duplicate_keys(experience_spec)
@@ -47,7 +29,6 @@ class Experience:
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
-        self.cpu_offload = cpu_offload
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -80,7 +61,7 @@ class Experience:
         # Tracking for rollout completion
         self.full_rows = 0
 
-        # Calculate num_minibatches for compatibility
+        # Calculate num_minibatches
         num_minibatches = self.segments / self.minibatch_segments
         self.num_minibatches: int = int(num_minibatches)
         if self.num_minibatches != num_minibatches:
@@ -93,7 +74,6 @@ class Experience:
                 f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
-        # Pre-allocate tensor to stores how many agents we have for use during environment reset
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
@@ -101,11 +81,6 @@ class Experience:
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
         if duplicate_keys := duplicates(all_keys):
             raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
-
-    @property
-    def full(self) -> bool:
-        """Alias for ready_for_training for compatibility."""
-        return self.ready_for_training
 
     @property
     def ready_for_training(self) -> bool:
@@ -120,17 +95,14 @@ class Experience:
         episode_lengths = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
-        # take whatever we need from the policy's output td
         self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_lengths))
 
-        # Update episode tracking
         self.ep_lengths[env_id] += 1
 
-        # Check if episodes are complete and reset if needed
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
-    def _reset_completed_episodes(self, env_id) -> None:  # av used to be not tensor
+    def _reset_completed_episodes(self, env_id) -> None:
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start
         self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
@@ -145,38 +117,14 @@ class Experience:
         self.ep_indices = self._range_tensor % self.segments
         self.ep_lengths.zero_()
 
+    def update(self, indices: Tensor, data_td: TensorDict) -> None:
+        """Update buffer with new data for given indices."""
+        self.buffer[indices].update(data_td)
+
     def reset_importance_sampling_ratios(self) -> None:
         """Reset the importance sampling ratio to 1.0."""
         if "ratio" in self.buffer.keys():
             self.buffer["ratio"].fill_(1.0)
-
-    def sample_minibatch(
-        self,
-        advantages: Tensor,
-        prio_alpha: float,
-        prio_beta: float,
-    ) -> tuple[TensorDict, Tensor, Tensor]:
-        """Sample a prioritized minibatch."""
-        # Prioritized sampling based on advantage magnitude
-        adv_magnitude = advantages.abs().sum(dim=1)
-        prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
-        prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
-
-        # Sample segment indices
-        idx = torch.multinomial(prio_probs, self.minibatch_segments)
-
-        minibatch = self.buffer[idx].clone()
-        if self.cpu_offload:
-            minibatch = minibatch.to(self.device, non_blocking=True)
-
-        minibatch["advantages"] = advantages[idx]
-        minibatch["returns"] = advantages[idx] + minibatch["values"]
-        prio_weights = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        return minibatch, idx, prio_weights
-
-    def update(self, indices: Tensor, data_td: TensorDict) -> None:
-        """Update buffer with new data for given indices."""
-        self.buffer[indices].update(data_td)
 
     def stats(self) -> Dict[str, float]:
         """Get mean values of all tracked buffers."""
@@ -210,3 +158,10 @@ class Experience:
                 stats["actions_std"] = actions.std().item()
 
         return stats
+
+    def give_me_empty_md_td(self) -> TensorDict:
+        return TensorDict(
+            {},
+            batch_size=(self.minibatch_segments, self.bptt_horizon),
+            device=self.device,
+        )

@@ -21,8 +21,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
 
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2, **kwargs):
         """Initialize Fast CNN-based policy with LSTM and mixin support."""
-        # Extract mixin parameters before passing to parent
-        mixin_params = self.extract_mixin_params(kwargs)
+        mixin_params = self.extract_mixin_params(kwargs)  # Extract mixin parameters before passing to parent
 
         if policy is None:
             policy = Policy(
@@ -30,8 +29,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
                 input_size=input_size,
                 hidden_size=hidden_size,
             )
-        # Pass num_layers=2 to match YAML configuration
-        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)  # Pass num_layers=2 to match YAML
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
@@ -95,16 +93,12 @@ class Policy(nn.Module):
         self.is_continuous = False
         self.action_space = env.single_action_space
 
-        self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
-        self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
+        self.out_width = env.obs_width
+        self.out_height = env.obs_height
 
         # Dynamically determine num_layers from environment features
         # This matches what ComponentPolicy does via ObsTokenToBoxShaper
-        if hasattr(env, "feature_normalizations"):
-            self.num_layers = max(env.feature_normalizations.keys()) + 1
-        else:
-            # Fallback for environments without feature_normalizations
-            self.num_layers = 25  # Default value
+        self.num_layers = max(env.feature_normalizations.keys()) + 1
 
         # Define layer dimensions that are used multiple times
         self.cnn_channels = 64  # Used in cnn1 and cnn2
@@ -156,16 +150,11 @@ class Policy(nn.Module):
 
         # Build normalization vector dynamically from environment
         # This matches what ObservationNormalizer does in ComponentPolicy
-        if hasattr(env, "feature_normalizations"):
-            # Create max_vec from feature_normalizations
-            max_values = [1.0] * self.num_layers  # Default to 1.0
-            for feature_id, norm_value in env.feature_normalizations.items():
-                if feature_id < self.num_layers:
-                    max_values[feature_id] = norm_value if norm_value > 0 else 1.0
-            max_vec = torch.tensor(max_values, dtype=torch.float32)[None, :, None, None]
-        else:
-            # Fallback normalization vector
-            max_vec = torch.ones(1, self.num_layers, 1, 1, dtype=torch.float32)
+        max_values = [1.0] * self.num_layers  # Default to 1.0
+        for feature_id, norm_value in env.feature_normalizations.items():
+            if feature_id < self.num_layers:
+                max_values[feature_id] = norm_value if norm_value > 0 else 1.0
+        max_vec = torch.tensor(max_values, dtype=torch.float32)[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
         # Track active actions
@@ -232,7 +221,6 @@ class Policy(nn.Module):
         assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
 
         # Don't modify original tensor - ComponentPolicy doesn't do this
-        # token_observations[token_observations == 255] = 0  # REMOVED
 
         # Extract coordinates and attributes (matching ObsTokenToBoxShaper exactly)
         coords_byte = token_observations[..., 0].to(torch.uint8)

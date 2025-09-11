@@ -7,9 +7,10 @@ import torch
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.agent_config import AgentConfig, create_agent
+from metta.rl.experience import Experience
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -30,26 +31,14 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent: "MettaAgent", device: torch.device):
         log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
-        # Check if the agent might have circular references that would cause recursion
-        # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
-        try:
-            # Try to convert - this will fail with RecursionError if there are circular refs
-            layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
-        except RecursionError:
-            logger.warning(
-                "RecursionError during SyncBatchNorm conversion - likely due to circular references. "
-                "Skipping SyncBatchNorm conversion."
-            )
-            layers_converted_agent = agent
+        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
 
-        # Pass device_ids for GPU, but not for CPU
-        if device.type == "cpu":
+        if device.type == "cpu":  # CPU doesn't need device_ids
             super().__init__(module=layers_converted_agent)
         else:
             super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name: str) -> Any:
-        # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
         try:
             return super().__getattr__(name)
         except AttributeError:
@@ -83,33 +72,23 @@ class MettaAgent(nn.Module):
 
         # Create policy if not provided
         if policy is None:
-            policy = self._create_policy(policy_architecture_cfg, env, system_cfg)
+            policy = create_agent(
+                config=policy_architecture_cfg,
+                obs_space=self.obs_space,
+                obs_width=self.obs_width,
+                obs_height=self.obs_height,
+                feature_normalizations=self.feature_normalizations,
+                env=env,
+            )
+            logger.info(f"Using agent: {policy_architecture_cfg.name}")
 
         self.policy = policy
         if self.policy is not None:
-            # Move policy to device - this matches how main branch handled it
             self.policy = self.policy.to(self.device)
-            # Set device attribute if the policy supports it (for backwards compatibility)
-            if hasattr(self.policy, "device"):
-                self.policy.device = self.device
+            self.policy.device = self.device
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
-
-    def _create_policy(self, agent_cfg: AgentConfig, env, system_cfg: SystemConfig) -> nn.Module:
-        """Create the appropriate policy based on configuration."""
-        # Use the create_agent factory function
-        policy = create_agent(
-            config=agent_cfg,
-            obs_space=self.obs_space,
-            obs_width=self.obs_width,
-            obs_height=self.obs_height,
-            feature_normalizations=self.feature_normalizations,
-            env=env,
-        )
-
-        logger.info(f"Using agent: {agent_cfg.name}")
-        return policy
 
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""
@@ -118,20 +97,47 @@ class MettaAgent(nn.Module):
 
         return self.policy(td, state, action)
 
+    def get_cfg(self) -> AgentConfig:
+        return self.cfg
+
+    def on_new_training_run(self):
+        if hasattr(self.policy, "on_new_training_run"):
+            self.policy.on_new_training_run()
+
+    def on_rollout_start(self):
+        if hasattr(self.policy, "on_rollout_start"):
+            self.policy.on_rollout_start()
+
+    def on_train_mb_start(self):
+        if hasattr(self.policy, "on_train_mb_start"):
+            self.policy.on_train_mb_start()
+
+    def on_eval_start(self):
+        if hasattr(self.policy, "on_eval_start"):
+            self.policy.on_eval_start()
+
+    # need to revisit these methods
     def reset_memory(self) -> None:
-        """Reset memory - delegates to policy."""
-        self.policy.reset_memory()
+        """Reset memory - delegates to policy if it supports memory."""
+        if hasattr(self.policy, "reset_memory"):
+            self.policy.reset_memory()
 
     def get_memory(self) -> dict:
         """Get memory state - delegates to policy if it supports memory."""
         return getattr(self.policy, "get_memory", lambda: {})()
 
     def get_agent_experience_spec(self) -> Composite:
-        return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            action=UnboundedDiscrete(shape=torch.Size([2]), dtype=torch.int64),
-            action_dist=UnboundedContinuous(shape=torch.Size([2, 3]), dtype=torch.float32),
-        )
+        if hasattr(self.policy, "get_agent_experience_spec"):
+            return self.policy.get_agent_experience_spec()
+        else:
+            return Composite(
+                env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+                dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            )
+
+    def attach_replay_buffer(self, experience: Experience):
+        """Losses expect to find a replay buffer in the policy."""
+        self.replay = experience
 
     def initialize_to_environment(
         self,
@@ -139,29 +145,31 @@ class MettaAgent(nn.Module):
         action_names: list[str],
         action_max_params: list[int],
         device,
-        is_training: bool = True,
+        is_training: bool = None,
     ):
         """Initialize the agent to the current environment.
 
-        This is the single entry point for environment initialization, combining
-        feature setup, action configuration, and all necessary mappings."""
+        Handles feature remapping to allow agents trained on one environment to work
+        on another environment where features may have different IDs but same names.
+        """
         self.device = device
-        self.training = is_training
 
-        # === FEATURE SETUP ===
+        # Auto-detect training context if not explicitly provided
+        if is_training is None:
+            is_training = self.training
+            log_on_master(f"Auto-detected {'training' if is_training else 'simulation'} context")
+
         # Build feature mappings
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
         self.feature_normalizations = {
             props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
         }
 
-        # Handle feature remapping for backward compatibility
         if not hasattr(self, "original_feature_mapping"):
-            # First initialization - store the mapping
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
             log_on_master(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
-            # Re-initialization - create remapping inline
+            # Re-initialization - create remapping for agent portability
             UNKNOWN_FEATURE_ID = 255
             self.feature_id_remap = {}
             unknown_features = []
@@ -188,7 +196,7 @@ class MettaAgent(nn.Module):
                 # Apply the remapping
                 self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
 
-        # === ACTION SETUP ===
+        # Store action configuration
         self.action_names = action_names
         self.action_max_params = action_max_params
 
@@ -202,17 +210,17 @@ class MettaAgent(nn.Module):
             dtype=torch.int32,
         )
 
-        # Generate full action names directly (no need to store active_actions)
+        # Generate full action names
         full_action_names = [
             f"{name}_{i}"
             for name, max_param in zip(action_names, action_max_params, strict=False)
             for i in range(max_param + 1)
         ]
 
-        # === ACTION EMBEDDING INITIALIZATION ===
+        # Initialize policy to environment
         self.policy.initialize_to_environment(full_action_names, device)
 
-        # Share tensors with policy (required for policy's forward pass)
+        # Share tensors with policy
         self.policy.action_index_tensor = self.action_index_tensor
         self.policy.cum_action_max_params = self.cum_action_max_params
 
@@ -222,11 +230,7 @@ class MettaAgent(nn.Module):
         )
 
     def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
-        """Apply feature remapping to policy if it supports it, and update normalizations.
-
-        This allows policies that understand feature remapping (like ComponentPolicy)
-        to update their observation components, while vanilla torch.nn.Module policies
-        will simply ignore this."""
+        """Apply feature remapping to policy for agent portability across environments."""
         # Build complete remapping tensor
         remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
@@ -240,7 +244,9 @@ class MettaAgent(nn.Module):
             if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
                 remap_tensor[feature_id] = unknown_id
 
+        # Apply remapping to policy
         self.policy._apply_feature_remapping(remap_tensor)
+
         self._update_normalization_factors(features)
 
     def _update_normalization_factors(self, features: dict[str, dict]):
@@ -251,12 +257,6 @@ class MettaAgent(nn.Module):
         """Get the original feature mapping for saving in metadata."""
         return getattr(self, "original_feature_mapping", None)
 
-    def restore_original_feature_mapping(self, mapping: dict[str, int]) -> None:
-        """Restore the original feature mapping from metadata."""
-        # Make a copy to avoid shared state between agents
-        self.original_feature_mapping = mapping.copy()
-        log_on_master(f"Restored original feature mapping with {len(mapping)} features from metadata")
-
     @property
     def total_params(self):
         return self._total_params
@@ -264,31 +264,24 @@ class MettaAgent(nn.Module):
     @property
     def lstm(self):
         """Access to LSTM component - delegates to policy if it has one."""
-        if hasattr(self.policy, "lstm"):
-            return self.policy.lstm
-        return None
-
-    def l2_init_loss(self) -> torch.Tensor:
-        """Calculate L2 initialization loss - delegates to policy."""
-        return self.policy.l2_init_loss()
-
-    def clip_weights(self):
-        """Clip weights to prevent large updates - delegates to policy."""
-        self.policy.clip_weights()
-
-    def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copies - delegates to policy."""
-        self.policy.update_l2_init_weight_copy()
+        return getattr(self.policy, "lstm", None)
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics - delegates to policy."""
         return self.policy.compute_weight_metrics(delta)
 
+    def clip_weights(self):
+        """Clip weights to prevent large updates during training - delegates to policy."""
+        return self.policy.clip_weights()
+
+    def l2_init_loss(self) -> torch.Tensor:
+        """Calculate L2 initialization loss for regularization - delegates to policy."""
+        return self.policy.l2_init_loss()
+
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
         if hasattr(self.policy, "_convert_action_to_logit_index"):
             return self.policy._convert_action_to_logit_index(flattened_action)
-        # Default implementation using MettaAgent's action tensors
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
@@ -298,121 +291,7 @@ class MettaAgent(nn.Module):
         """Convert discrete logit indices back to (action_type, action_param) pairs."""
         if hasattr(self.policy, "_convert_logit_index_to_action"):
             return self.policy._convert_logit_index_to_action(logit_indices)
-        # Default implementation using MettaAgent's action tensors
         return self.action_index_tensor[logit_indices]
-
-    def __setstate__(self, state):
-        """Restore state from checkpoint."""
-        # Check if this is an old checkpoint (has components but no policy)
-        # Components could be in state directly or in _modules
-        has_components = "components" in state or ("_modules" in state and "components" in state.get("_modules", {}))
-        has_policy = "policy" in state or ("_modules" in state and "policy" in state.get("_modules", {}))
-
-        if has_components and not has_policy:
-            logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
-
-            if "policy" in state and state.get("policy") is state:
-                del state["policy"]
-                log_on_master("Removed circular reference: state['policy'] = state")
-
-            # Default to Fast ComponentPolicy for old checkpoints
-            # (Old checkpoints don't have the agent type stored in a way we can easily retrieve)
-            from metta.agent.component_policies.fast import Fast
-
-            PolicyClass = Fast
-            logger.info("Converting old checkpoint to Fast agent")
-
-            # Create the specific policy class without calling __init__ to avoid rebuilding components
-            policy = PolicyClass.__new__(PolicyClass)
-            nn.Module.__init__(policy)
-
-            # Extract components from wherever they are
-            if "components" in state:
-                components = state["components"]
-            elif "_modules" in state and "components" in state["_modules"]:
-                components = state["_modules"]["components"]
-            else:
-                components = nn.ModuleDict()
-
-            # Transfer component-related attributes to the policy
-            policy.components = components
-            policy.components_with_memory = state.get("components_with_memory", [])
-            policy.clip_range = state.get("clip_range", 0)
-            policy.agent_attributes = state.get("agent_attributes", {})
-
-            # Transfer action conversion tensors if they exist
-            if "cum_action_max_params" in state:
-                policy.cum_action_max_params = state["cum_action_max_params"]
-            if "action_index_tensor" in state:
-                policy.action_index_tensor = state["action_index_tensor"]
-
-            # Transfer cfg if it exists
-            if "cfg" in state:
-                policy.cfg = state["cfg"]
-
-            # Now create a minimal state for MettaAgent itself
-            # Don't include "components" in the new state - that belongs to the policy now
-            new_state = {}
-            for key in state:
-                # Skip components and _modules to avoid adding components to MettaAgent
-                if key in ["components", "_modules"]:
-                    continue
-                # Only copy attributes that belong to MettaAgent
-                if key in [
-                    "obs_width",
-                    "obs_height",
-                    "action_space",
-                    "feature_normalizations",
-                    "device",
-                    "obs_space",
-                    "_total_params",
-                    "cfg",
-                    "feature_id_to_name",
-                    "original_feature_mapping",
-                    "action_names",
-                    "action_max_params",
-                    "components_with_memory",
-                    "clip_range",
-                    "agent_attributes",
-                    "cum_action_max_params",
-                    "action_index_tensor",
-                    "training",
-                    "_parameters",
-                    "_buffers",
-                    "_non_persistent_buffers_set",
-                    "_backward_pre_hooks",
-                    "_backward_hooks",
-                    "_is_full_backward_hook",
-                    "_forward_hooks",
-                    "_forward_hooks_with_kwargs",
-                    "_forward_hooks_always_called",
-                    "_forward_pre_hooks",
-                    "_forward_pre_hooks_with_kwargs",
-                    "_state_dict_hooks",
-                    "_state_dict_pre_hooks",
-                    "_load_state_dict_pre_hooks",
-                    "_load_state_dict_post_hooks",
-                ]:
-                    new_state[key] = state[key]
-
-            # Update MettaAgent with its state (without components)
-            self.__dict__.update(new_state)
-
-            # Ensure _modules dict exists but without components
-            if "_modules" not in self.__dict__:
-                self._modules = {}
-
-            # Set the converted policy
-            self.policy = policy
-
-            # Ensure policy has device attribute if MettaAgent has one
-            if hasattr(self, "device") and self.policy is not None:
-                self.policy.device = self.device
-
-            log_on_master("Successfully converted old checkpoint to new structure")
-        else:
-            # Normal checkpoint restoration
-            self.__dict__.update(state)
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent

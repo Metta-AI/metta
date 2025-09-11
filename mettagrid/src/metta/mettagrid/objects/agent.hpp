@@ -60,6 +60,7 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        glyph(0),
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
@@ -145,9 +146,9 @@ public:
 
     // Update stats
     if (delta > 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".gained", static_cast<float>(delta));
+      this->stats.add(this->stats.resource_name(item) + ".gained", delta);
     } else if (delta < 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".lost", static_cast<float>(-delta));
+      this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
     }
 
     // Update resource rewards incrementally

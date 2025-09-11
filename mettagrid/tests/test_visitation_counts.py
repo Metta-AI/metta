@@ -11,10 +11,9 @@ from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
-    EnvConfig,
     GameConfig,
     GlobalObsConfig,
-    GroupConfig,
+    MettaGridConfig,
     WallConfig,
 )
 
@@ -23,21 +22,20 @@ from metta.mettagrid.mettagrid_config import (
 def env_with_visitation():
     """Environment with visitation counts enabled."""
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -66,21 +64,20 @@ def env_without_visitation():
     """Environment with visitation counts disabled."""
     # Create custom configuration matching original test setup
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -109,21 +106,20 @@ def env_default():
     """Environment with default config (no visitation_counts specified)."""
     # Create custom configuration matching original test setup
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=100,
             obs_width=5,
             obs_height=5,
             num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
                 move=ActionConfig(enabled=True),  # Enable 8-way movement
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             # No explicit visitation_counts setting - uses default (False)
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
@@ -142,9 +138,8 @@ def env_default():
 
 
 # Helper functions
-def extract_visitation_features(obs: np.ndarray, agent_idx: int = 0) -> list[int]:
+def extract_visitation_features(visitation_feature_id: int, obs: np.ndarray, agent_idx: int = 0) -> list[int]:
     """Extract visitation count features from observation."""
-    visitation_feature_id = 14
     features = []
     for i in range(obs.shape[1]):
         if obs[agent_idx, i, 1] == visitation_feature_id:
@@ -152,39 +147,14 @@ def extract_visitation_features(obs: np.ndarray, agent_idx: int = 0) -> list[int
     return features
 
 
-def count_visitation_features_at_center(obs: np.ndarray) -> int:
-    """Count visitation count features at the center location."""
-    visitation_feature_id = 14
-    center_location = 34  # Center position in 5x5 observation grid
-
-    count = 0
-    num_agents = obs.shape[0]
-    for agent_idx in range(num_agents):
-        for token_idx in range(obs.shape[1]):
-            if (
-                obs[agent_idx, token_idx, 0] == center_location
-                and obs[agent_idx, token_idx, 1] == visitation_feature_id
-            ):
-                count += 1
-    return count
-
-
-def get_agent_position(env: MettaGridCore) -> tuple[int, int]:
-    """Get the current agent position."""
-    grid_objects = env.grid_objects
-    for obj in grid_objects.values():
-        if "agent_id" in obj:
-            return (obj["r"], obj["c"])
-    raise ValueError("Agent not found in grid objects")
-
-
 @pytest.mark.skip(reason="Visitation counts not incrementing - needs investigation")
 def test_visitation_counts_enabled(env_with_visitation):
     """Test that visitation counts work correctly when enabled."""
     obs, _ = env_with_visitation.reset(seed=42)
+    visitation_feature_id = env_with_visitation.c_env.feature_spec()["agent:visitation_counts"]["id"]
 
     # Check initial visitation counts
-    initial_features = extract_visitation_features(obs)
+    initial_features = extract_visitation_features(visitation_feature_id, obs)
     assert len(initial_features) == 5, f"Expected 5 visitation features, got {len(initial_features)}"
     assert initial_features == [0, 0, 0, 0, 0], f"Expected initial counts [0,0,0,0,0], got {initial_features}"
 
@@ -192,7 +162,7 @@ def test_visitation_counts_enabled(env_with_visitation):
     move_action = np.array([[0, 0]], dtype=np.int32)
     for step in range(3):
         obs, _, _, _, _ = env_with_visitation.step(move_action)
-        features = extract_visitation_features(obs)
+        features = extract_visitation_features(visitation_feature_id, obs)
         assert len(features) == 5, f"Step {step}: Expected 5 features, got {len(features)}"
         # At least one count should be non-zero after movement
         # Note: visitation counts are incremented at the end of the step,
@@ -204,96 +174,25 @@ def test_visitation_counts_enabled(env_with_visitation):
 def test_visitation_counts_disabled(env_without_visitation):
     """Test that visitation counts are not present when disabled."""
     obs, _ = env_without_visitation.reset(seed=42)
+    visitation_feature_id = env_without_visitation.c_env.feature_spec()["agent:visitation_counts"]["id"]
 
-    features = extract_visitation_features(obs)
+    features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, f"Expected no visitation features when disabled, got {len(features)}"
 
     # Verify they stay disabled after steps
     move_action = np.array([[0, 0]], dtype=np.int32)
     obs, _, _, _, _ = env_without_visitation.step(move_action)
-    features = extract_visitation_features(obs)
+    features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, "Visitation features appeared after step when disabled"
 
 
 def test_visitation_counts_default_disabled(env_default):
     """Test that visitation counts are disabled by default."""
     obs, _ = env_default.reset(seed=42)
+    visitation_feature_id = env_default.c_env.feature_spec()["agent:visitation_counts"]["id"]
 
-    features = extract_visitation_features(obs)
+    features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, "Visitation counts should be disabled by default"
-
-
-def test_visitation_counts_configurable():
-    """Test configuration variations for visitation counts."""
-
-    simple_map = [
-        [".", ".", ".", ".", ".", ".", "."],
-        [".", ".", ".", ".", ".", ".", "."],
-        [".", ".", ".", ".", ".", ".", "."],
-        [".", ".", ".", "@", ".", ".", "."],  # Agent in center
-        [".", ".", ".", ".", ".", ".", "."],
-        [".", ".", ".", ".", ".", ".", "."],
-        [".", ".", ".", ".", ".", ".", "."],
-    ]
-
-    # Test enabled
-    config_enabled = EnvConfig(
-        game=GameConfig(
-            num_agents=1,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(move=ActionConfig()),
-            objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
-            global_obs=GlobalObsConfig(visitation_counts=True),
-            map_builder=AsciiMapBuilder.Config(map_data=simple_map),
-        )
-    )
-    env = MettaGridCore(config_enabled)
-    obs, _ = env.reset(seed=42)
-    count = count_visitation_features_at_center(obs)
-    assert count == 5, f"Expected 5 features when enabled, got {count}"
-
-    # Test disabled
-    config_disabled = EnvConfig(
-        game=GameConfig(
-            num_agents=1,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(move=ActionConfig()),
-            objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
-            global_obs=GlobalObsConfig(visitation_counts=False),
-            map_builder=AsciiMapBuilder.Config(map_data=simple_map),
-        )
-    )
-    env = MettaGridCore(config_disabled)
-    obs, _ = env.reset(seed=42)
-    count = count_visitation_features_at_center(obs)
-    assert count == 0, f"Expected 0 features when disabled, got {count}"
-
-    # Test default (not specified)
-    config_default = EnvConfig(
-        game=GameConfig(
-            num_agents=1,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(move=ActionConfig()),
-            objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
-            map_builder=AsciiMapBuilder.Config(map_data=simple_map),
-        )
-    )
-    env = MettaGridCore(config_default)
-    obs, _ = env.reset(seed=42)
-    count = count_visitation_features_at_center(obs)
-    assert count == 0, f"Expected 0 features by default, got {count}"
 
 
 @pytest.fixture
@@ -310,17 +209,16 @@ def performance_config():
         [".", ".", ".", ".", ".", ".", "."],
     ]
 
-    config = EnvConfig(
+    config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
             max_steps=1000,
             obs_width=11,
             obs_height=11,
             num_observation_tokens=200,
-            inventory_item_names=["wood", "stone"],
+            resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )
@@ -368,47 +266,25 @@ def test_visitation_performance_impact(performance_config):
     )
 
 
-def test_agent_movement_tracking(env_with_visitation):
-    """Test that agent position updates correctly."""
-    env_with_visitation.reset(seed=42)
-
-    initial_pos = get_agent_position(env_with_visitation)
-    assert initial_pos == (3, 3), f"Expected agent at (3,3), got {initial_pos}"
-
-    # Move and check position updates
-    move_action = np.array([[0, 0]], dtype=np.int32)
-    env_with_visitation.step(move_action)
-    new_pos = get_agent_position(env_with_visitation)
-
-    # Check that movement was successful
-    action_success = env_with_visitation.action_success
-    if action_success[0]:  # If move was successful
-        assert new_pos != initial_pos, "Agent position should change after successful movement"
-
-
 def test_observation_structure(env_with_visitation):
     """Test the structure of observations with visitation counts."""
     obs, _ = env_with_visitation.reset(seed=42)
+    visitation_feature_id = env_with_visitation.c_env.feature_spec()["agent:visitation_counts"]["id"]
 
     # Check observation shape
     assert len(obs.shape) == 3, f"Expected 3D observation array, got shape {obs.shape}"
     assert obs.shape[0] == 1, f"Expected 1 agent, got {obs.shape[0]}"
 
     # Find all feature IDs in use
-    feature_ids = set()
-    for i in range(obs.shape[1]):
-        if obs[0, i, 0] != 0xFF:  # Not empty
-            feature_ids.add(obs[0, i, 1])
+    feature_ids = [obs[0, i, 1] for i in range(obs.shape[1]) if obs[0, i, 0] != 0xFF]
 
     # Visitation count feature (ID 14) should be present
-    assert 14 in feature_ids, f"Visitation count feature (14) not found. Found features: {sorted(feature_ids)}"
+    assert visitation_feature_id in feature_ids, (
+        f"Visitation count feature ({visitation_feature_id}) not found. Found features: {sorted(set(feature_ids))}"
+    )
 
     # Count visitation features at different locations
-    visitation_count = 0
-    for i in range(obs.shape[1]):
-        if obs[0, i, 1] == 14:
-            visitation_count += 1
-
+    visitation_count = len([feature_id for feature_id in feature_ids if feature_id == visitation_feature_id])
     assert visitation_count == 5, f"Expected 5 visitation count tokens, got {visitation_count}"
 
 

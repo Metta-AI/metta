@@ -43,12 +43,12 @@ protected:
         if (converter->inventory.count(item) == 0) {
           continue;
         }
-        InventoryDelta resources_available = static_cast<InventoryDelta>(converter->inventory[item]);
+        InventoryDelta resources_available = converter->inventory[item];
 
         InventoryDelta taken = actor->update_inventory(item, resources_available);
 
         if (taken > 0) {
-          actor->stats.add(actor->stats.inventory_item_name(item) + ".get", static_cast<float>(taken));
+          actor->stats.add(actor->stats.resource_name(item) + ".get", taken);
           converter->update_inventory(item, -taken);
           resources_taken = true;
         }
@@ -69,7 +69,7 @@ protected:
           return false;
         }
         // Return required resources to create box to creator inventory
-        for (const auto& [item, amount] : box->resources_to_create) {
+        for (const auto& [item, amount] : box->returned_resources) {
           if (amount > 0) {
             creator->update_inventory(item, amount);
           }

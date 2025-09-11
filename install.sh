@@ -1,6 +1,7 @@
 #!/bin/sh
 set -u
 PROFILE=""
+NON_INTERACTIVE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile)
@@ -15,6 +16,10 @@ while [ $# -gt 0 ]; do
       PROFILE="${1#--profile=}"
       shift
       ;;
+    --non-interactive)
+      NON_INTERACTIVE="--non-interactive"
+      shift
+      ;;
     --help | -h)
       echo "Usage: $0 [OPTIONS]"
       echo ""
@@ -26,6 +31,7 @@ while [ $# -gt 0 ]; do
       echo "Options:"
       echo "  --profile PROFILE      Set user profile (external, cloud, or softmax)"
       echo "                         If not specified, runs interactive configuration"
+      echo "  --non-interactive      Run in non-interactive mode (no prompts)"
       echo "  -h, --help             Show this help message"
       echo ""
       echo "Examples:"
@@ -41,25 +47,33 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Assumes install.sh is in root of repo
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+err() {
+  echo "ERROR: $1" >&2
+  exit 1
+}
 
-# Source common functions
-. "$REPO_ROOT/devops/tools/common.sh"
+check_cmd() {
+  command -v "$1" > /dev/null 2>&1
+  return $?
+}
 
 echo "Welcome to Metta!"
 
-# Ensure uv is in PATH, installed, and uv project environment associated with this repo
-ensure_uv_setup
+for cmd in uv bazel git g++; do
+  if ! check_cmd "$cmd"; then
+    echo "$cmd not found. Consider running ./devops/tools/install-system.sh"
+    exit 1
+  fi
+done
 
 uv sync || err "Failed to install Python dependencies"
-uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
+uv run python -m metta.setup.metta_cli symlink-setup setup || err "Failed to set up metta command in ~/.local/bin"
 if [ -n "$PROFILE" ]; then
-  uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" || err "Failed to run configuration"
+  uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" $NON_INTERACTIVE || err "Failed to run configuration"
 else
-  uv run python -m metta.setup.metta_cli configure || err "Failed to run configuration"
+  uv run python -m metta.setup.metta_cli configure $NON_INTERACTIVE || err "Failed to run configuration"
 fi
-uv run python -m metta.setup.metta_cli install || err "Failed to install components"
+uv run python -m metta.setup.metta_cli install $NON_INTERACTIVE || err "Failed to install components"
 
 echo "\nSetup complete!\n"
 

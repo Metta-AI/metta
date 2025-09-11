@@ -2,7 +2,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -40,17 +40,7 @@ class AgentConfig(Config):
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
-
-
-class GroupConfig(Config):
-    """Python group configuration."""
-
-    id: int = Field(default=0)
-    sprite: Optional[int] = Field(default=None)
-    # group_reward_pct values outside of [0.0,1.0] are probably mistakes, and are probably
-    # unstable. If you want to use values outside this range, please update this comment!
-    group_reward_pct: float = Field(default=0, ge=0, le=1)
-    props: Optional[AgentConfig] = Field(default=None)
+    team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
 
 
 class ActionConfig(Config):
@@ -121,7 +111,8 @@ class BoxConfig(Config):
     """Python box configuration."""
 
     type_id: int = Field(default=0, ge=0, le=255)
-    resources_to_create: dict[str, int] = Field(default_factory=dict)
+    # We don't allow setting of returned_resources -- it should always match
+    # the consumed_resources by place_box.
 
 
 class ConverterConfig(Config):
@@ -143,7 +134,7 @@ class GameConfig(Config):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    inventory_item_names: list[str] = Field(
+    resource_names: list[str] = Field(
         default=[
             "ore_red",
             "ore_blue",
@@ -166,8 +157,7 @@ class GameConfig(Config):
     obs_height: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
     num_observation_tokens: int = Field(ge=1, default=200)
     agent: AgentConfig = Field(default_factory=AgentConfig)
-    # Every agent must be in a group, so we need at least one group
-    groups: dict[str, GroupConfig] = Field(default_factory=lambda: {"agent": GroupConfig()}, min_length=1)
+    agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)
@@ -185,16 +175,13 @@ class GameConfig(Config):
     track_movement_metrics: bool = Field(
         default=True, description="Enable movement metrics tracking (sequential rotations)"
     )
-    no_agent_interference: bool = Field(
-        default=False, description="Enable agents to move through and not observe each other"
-    )
     recipe_details_obs: bool = Field(
         default=False, description="Converters show their recipe inputs and outputs when observed"
     )
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
 
-class EnvConfig(Config):
+class MettaGridConfig(Config):
     """Environment configuration."""
 
     label: str = Field(default="mettagrid")
@@ -202,26 +189,26 @@ class EnvConfig(Config):
     desync_episodes: bool = Field(default=True)
 
     @model_validator(mode="after")
-    def validate_fields(self) -> "EnvConfig":
+    def validate_fields(self) -> "MettaGridConfig":
         return self
 
-    def with_ascii_map(self, map_data: list[list[str]]) -> "EnvConfig":
+    def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
         return self
 
     @staticmethod
     def EmptyRoom(
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
-    ) -> "EnvConfig":
+    ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move=ActionConfig(),
-            rotate=ActionConfig(),
+            rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
         )
         objects = {}
         if border_width > 0 or with_walls:
             objects["wall"] = WallConfig(type_id=1, swappable=False)
-        return EnvConfig(
+        return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

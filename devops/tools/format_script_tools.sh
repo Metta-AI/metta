@@ -6,7 +6,6 @@ check_cmd() {
   return $?
 }
 
-
 # Check if pnpm is available, exit if not
 ensure_pnpm() {
   if ! check_cmd pnpm; then

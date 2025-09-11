@@ -3,8 +3,7 @@
 import logging
 
 import mettascope.server as server
-from metta.agent.policy_store import PolicyStore
-from metta.common.config.tool import Tool
+from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sim.simulation import Simulation
@@ -18,7 +17,6 @@ class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    selector_type: str = "latest"
     replay_dir: str | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True
@@ -47,23 +45,13 @@ def create_simulation(cfg: PlayTool) -> Simulation:
     """Create a simulation for playing/replaying."""
     logger.info(f"Creating simulation: {cfg.sim.name}")
 
-    # Create policy store directly without WandbContext
-    policy_store = PolicyStore.create(
-        device=cfg.system.device,
-        wandb_config=cfg.wandb,
-        data_dir=cfg.system.data_dir,
-        wandb_run=None,
-    )
-
-    # Create simulation using the helper method with explicit parameters
+    # Create simulation using CheckpointManager integration
     sim = Simulation.create(
         sim_config=cfg.sim,
-        policy_store=policy_store,
         device=cfg.system.device,
         vectorization=cfg.system.vectorization,
         stats_dir=cfg.effective_stats_dir,
         replay_dir=cfg.effective_replay_dir,
         policy_uri=cfg.policy_uri,
-        run_name="play_run",
     )
     return sim
