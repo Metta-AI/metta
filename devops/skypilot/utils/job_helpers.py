@@ -1,17 +1,18 @@
+import importlib
 import netrc
 import os
 import re
-import subprocess
 import sys
 import time
+from io import TextIOBase
 from pathlib import Path
-from queue import Empty, Queue
-from threading import Thread
+from typing import cast
 
 import sky
+import sky.exceptions
 import sky.jobs
-import sky.server.common
 import wandb
+from sky.server.common import RequestId, get_server_url
 
 import gitta as git
 from metta.app_backend.clients.base_client import get_machine_token
@@ -30,10 +31,6 @@ def get_jobs_controller_name() -> str:
     return job_clusters[0]["name"]
 
 
-def print_tip(text: str) -> None:
-    print(blue(text), file=sys.stderr)
-
-
 def launch_task(task: sky.Task) -> str:
     request_id = sky.jobs.launch(task)
 
@@ -42,7 +39,7 @@ def launch_task(task: sky.Task) -> str:
     short_request_id = request_id.split("-")[0]
 
     print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
-    dashboard_url = sky.server.common.get_server_url() + "/dashboard/jobs"
+    dashboard_url = get_server_url() + "/dashboard/jobs"
     print(f"- Or, visit: {yellow(dashboard_url)}")
 
     return request_id
@@ -72,48 +69,54 @@ def check_git_state(commit_hash: str) -> str | None:
     return None
 
 
-def check_config_files(cmd_args: list[str]) -> bool:
-    """Check that config files referenced in arguments actually exist."""
-    config_files_to_check = []
+def validate_module_path(module_path: str) -> bool:
+    """
+    Check that a module path like 'experiments.recipes.arena_basic_easy_shaped.train'
+    points to a valid function.
+    """
+    try:
+        # Split module path and function name
+        # e.g., "experiments.recipes.arena_basic_easy_shaped.train"
+        # -> module: "experiments.recipes.arena_basic_easy_shaped", function: "train"
+        parts = module_path.split(".")
+        module_name = ".".join(parts[:-1])
+        function_name = parts[-1]
 
-    # Mapping of argument prefix to config file path template
-    config_mappings = {
-        "agent=": "./configs/agent/{}.yaml",
-        "trainer=": "./configs/trainer/{}.yaml",
-        "trainer.curriculum=": "./configs/{}.yaml",
-        "sim=": "./configs/sim/{}.yaml",
-    }
+        # First check if the file exists (for better error messages)
+        module_file_path = module_name.replace(".", "/") + ".py"
+        if not Path(module_file_path).exists():
+            print(red(f"❌ Module file '{module_file_path}' does not exist"))
+            return False
 
-    for task_arg in cmd_args:
-        for prefix, path_template in config_mappings.items():
-            if task_arg.startswith(prefix):
-                value = task_arg.split("=", 1)[1]
-                config_path = path_template.format(value)
-                config_files_to_check.append((task_arg, config_path))
-                break
+        # Try to import the module
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError as e:
+            print(red(f"❌ Failed to import module '{module_name}': {e}"))
+            return False
 
-    missing_files = []
-    for arg, config_path in config_files_to_check:
-        if not Path(config_path).exists():
-            missing_files.append((arg, config_path))
+        # Check if the function exists in the module
+        if not hasattr(module, function_name):
+            print(red(f"❌ Function '{function_name}' not found in module '{module_name}'"))
+            # List available functions as suggestions
+            available_funcs = [
+                name for name in dir(module) if not name.startswith("_") and callable(getattr(module, name))
+            ]
+            if available_funcs:
+                print(f"    Available functions: {', '.join(available_funcs[:5])}")
+            return False
 
-    if missing_files:
-        print(red("❌ Config files not found:"))
-        for arg, path in missing_files:
-            print(f"  {arg} -> {path}")
+        # Optionally, verify it's callable
+        func = getattr(module, function_name)
+        if not callable(func):
+            print(red(f"❌ '{function_name}' exists but is not callable"))
+            return False
 
-            # Try to suggest similar files
-            config_dir = Path(path).parent
-            if config_dir.exists():
-                yaml_files = list(config_dir.glob("*.yaml"))
-                if yaml_files:
-                    suggestions = [f.stem for f in yaml_files[:3]]
-                    print(f"    Available: {', '.join(suggestions)}")
+        return True
 
-        print("Check your argument spelling and file paths.")
+    except Exception as e:
+        print(red(f"❌ Error validating module path '{module_path}': {e}"))
         return False
-
-    return True
 
 
 def display_job_summary(
@@ -244,40 +247,6 @@ def set_task_secrets(task: sky.Task) -> None:
     )
 
 
-def open_job_log_from_request_id(request_id: str, wait_seconds: float = 1.0) -> tuple[str | None, str]:
-    """Launch job log in a subprocess from a request ID."""
-
-    # Wait for the job to be registered
-    time.sleep(wait_seconds)
-
-    result = subprocess.run(["sky", "api", "logs", request_id], capture_output=True, text=True)
-
-    if result.returncode == 0:
-        output = result.stdout
-        job_id_match = re.search(r"ID:\s*(\d+)", output)
-
-        if job_id_match:
-            job_id = job_id_match.group(1)
-            print(green(f"Job submitted with ID: {job_id}"))
-
-            print(output)
-
-            print(f"\n{blue('Tailing job logs...')}")
-            try:
-                subprocess.run(["sky", "jobs", "logs", job_id])
-            except KeyboardInterrupt:
-                print("\n" + yellow("Stopped tailing logs"))
-
-            return job_id, output
-        else:
-            print(yellow("Job ID not found in output"))
-            return None, output
-    else:
-        error_msg = f"Error getting logs: {result.stderr}"
-        print(red(error_msg))
-        return None, error_msg
-
-
 def get_request_id_from_launch_output(output: str) -> str | None:
     """looks for "Submitted sky.jobs.launch request: XXX" pattern in cli output"""
     request_match = re.search(r"Submitted sky\.jobs\.launch request:\s*([a-f0-9-]+)", output)
@@ -294,192 +263,171 @@ def get_request_id_from_launch_output(output: str) -> str | None:
 
 
 def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> str | None:
-    """Get job ID from a request ID by querying sky api logs."""
+    """Get job ID from a request ID."""
     time.sleep(wait_seconds)  # Wait for job to be registered
 
     try:
-        result = subprocess.run(["sky", "api", "logs", request_id], capture_output=True, text=True)
-
-        if result.returncode == 0:
-            job_id_match = re.search(r"ID:\s*(\d+)", result.stdout)
-            if job_id_match:
-                return job_id_match.group(1)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-
-    return None
+        job_id, _ = sky.get(RequestId(request_id))
+        return str(job_id) if job_id is not None else None
+    except Exception:
+        return None
 
 
 def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
+    """Check the status of multiple jobs using the SDK."""
     if not job_ids:
         return {}
 
     job_data = {}
 
     try:
-        # Get all jobs in one command
-        cmd = ["sky", "jobs", "queue", "--all"]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # Get job queue with all users' jobs
+        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True))
 
-        if result.returncode == 0:
-            # Parse the output
-            lines = result.stdout.strip().split("\n")
+        # Create a mapping for quick lookup
+        jobs_map = {job["job_id"]: job for job in job_records}
 
-            # Process each job ID
-            for job_id in job_ids:
-                job_info = {"status": "UNKNOWN", "raw_line": "", "name": "", "duration": "", "submitted": ""}
+        for job_id in job_ids:
+            if job_id in jobs_map:
+                job = jobs_map[job_id]
 
-                # Find the job in the output
-                for line in lines:
-                    # Match job ID at start of line
-                    if re.match(rf"^{job_id}\s+", line):
-                        job_info["raw_line"] = line
+                # Calculate time ago
+                submitted_timestamp = job.get("submitted_at", time.time())
+                time_diff = time.time() - submitted_timestamp
 
-                        # Look for known status values anywhere in the line
-                        status_values = ["RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "PENDING", "PROVISIONING"]
-                        for status in status_values:
-                            if status in line:
-                                job_info["status"] = status
-                                break
+                if time_diff < 60:
+                    time_ago = f"{int(time_diff)} secs ago"
+                elif time_diff < 3600:
+                    time_ago = f"{int(time_diff / 60)} mins ago"
+                else:
+                    time_ago = f"{int(time_diff / 3600)} hours ago"
 
-                        # Extract other fields using more robust parsing
-                        parts = line.split()
-                        if len(parts) >= 3:
-                            job_info["name"] = parts[2]
+                # Format duration
+                duration = job.get("job_duration", 0)
+                if duration:
+                    duration_str = f"{int(duration)}s" if duration < 60 else f"{int(duration / 60)}m"
+                else:
+                    duration_str = ""
 
-                        # Find "ago" to locate submitted time
-                        for i, part in enumerate(parts):
-                            if part == "ago" and i >= 2:
-                                # Reconstruct submitted time (e.g., "26 mins ago")
-                                job_info["submitted"] = " ".join(parts[i - 2 : i + 1])
-                                break
+                job_data[job_id] = {
+                    "status": str(job["status"]).split(".")[-1],  # Extract status name
+                    "name": job.get("job_name", ""),
+                    "submitted": time_ago,
+                    "duration": duration_str,
+                    "raw_line": "",  # SDK doesn't provide raw line format
+                }
+            else:
+                job_data[job_id] = {"status": "UNKNOWN", "name": "", "submitted": "", "duration": "", "raw_line": ""}
 
-                        break
-
-                job_data[job_id] = job_info
-        else:
-            # If command failed, return error info
-            for job_id in job_ids:
-                job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": result.stderr}
-
+    except sky.exceptions.ClusterNotUpError:
+        # Jobs controller not up
+        for job_id in job_ids:
+            job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": "Jobs controller not up"}
     except Exception as e:
-        # On exception, return error info
         for job_id in job_ids:
             job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": str(e)}
 
     return job_data
 
 
-def tail_job_log(job_id: str, lines: int = 100, timeout: int = 8) -> str | None:
-    """Get the tail of job logs, handling timeouts gracefully for running jobs."""
-
+def tail_job_log(job_id: str, lines: int = 100) -> str | None:
+    """Get the tail of job logs using the SDK. Always returns last few lines."""
     try:
-        cmd = ["sky", "jobs", "logs", job_id]
+        # First check if the job exists and get its status
+        job_status = sky.get(sky.job_status(get_jobs_controller_name(), job_ids=[int(job_id)]))
 
-        # Queue to collect output lines
-        output_queue = Queue()
+        if job_status.get(int(job_id)) is None:
+            return f"Error: Job {job_id} not found"
 
-        def reader_thread(pipe, queue, pipe_name):
-            """Read lines from pipe and put them in queue."""
-            try:
-                for line in iter(pipe.readline, ""):
-                    if line:
-                        queue.put((pipe_name, line.rstrip()))
-            except Exception:
-                pass
-            finally:
-                queue.put((pipe_name, None))  # Signal end of stream
+        # Use a StringIO to capture output
+        from io import StringIO
 
-        # Start the process
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+        output = StringIO()
 
-        # Start reader threads for both stdout and stderr
-        stdout_thread = Thread(target=reader_thread, args=(process.stdout, output_queue, "stdout"))
-        stderr_thread = Thread(target=reader_thread, args=(process.stderr, output_queue, "stderr"))
-        stdout_thread.daemon = True
-        stderr_thread.daemon = True
-        stdout_thread.start()
-        stderr_thread.start()
+        try:
+            # Try to get logs without following
+            sky.jobs.tail_logs(job_id=int(job_id), follow=False, tail=lines, output_stream=cast(TextIOBase, output))
 
-        # Collect output with timeout
-        collected_lines = []
-        collected_errors = []
-        start_time = time.time()
-        streams_done = {"stdout": False, "stderr": False}
-
-        while time.time() - start_time < timeout:
-            # Check if both streams are done
-            if all(streams_done.values()):
-                break
-
-            try:
-                pipe_name, line = output_queue.get(timeout=0.1)
-
-                if line is None:
-                    streams_done[pipe_name] = True
-                else:
-                    if pipe_name == "stdout":
-                        collected_lines.append(line)
-                    else:
-                        collected_errors.append(line)
-
-            except Empty:
-                # Check if process ended
-                if process.poll() is not None:
-                    # Give a bit more time to collect remaining output
-                    end_collection_time = time.time() + 0.5
-                    while time.time() < end_collection_time and not output_queue.empty():
-                        try:
-                            pipe_name, line = output_queue.get_nowait()
-                            if line is not None:
-                                if pipe_name == "stdout":
-                                    collected_lines.append(line)
-                                else:
-                                    collected_errors.append(line)
-                            else:
-                                streams_done[pipe_name] = True
-                        except Empty:
-                            break
-                    break
-
-        # Clean up
-        if process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=1)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-
-        stdout_thread.join(timeout=1)
-        stderr_thread.join(timeout=1)
-
-        # Check if we got any error messages
-        if collected_errors and not collected_lines:
-            # Only errors, no stdout
-            error_msg = "\n".join(collected_errors)
-            # Check for common error patterns
-            if "does not exist" in error_msg or "not found" in error_msg:
-                return f"Error: {error_msg}"
+            result = output.getvalue()
+            if result:
+                return result
             else:
-                return f"Error: {error_msg}"
+                # No logs yet, job might be provisioning
+                return f"No logs available yet for job {job_id} (may still be provisioning)"
 
-        # Return stdout content
-        if collected_lines:
-            tail_lines = collected_lines[-lines:] if len(collected_lines) > lines else collected_lines
-
-            if time.time() - start_time >= timeout:
-                return f"[Note: Collection stopped after {timeout}s - job still running]\n\n" + "\n".join(tail_lines)
+        except sky.exceptions.ClusterNotUpError:
+            return "Error: Jobs controller is not up"
+        except Exception as e:
+            # If there's an error getting logs, provide context
+            error_msg = str(e)
+            if "still running" in error_msg.lower():
+                # Try one more time with preload_content=False if available
+                # Otherwise just indicate it's running
+                return f"Job {job_id} is currently running (logs may be incomplete)"
             else:
-                return "\n".join(tail_lines)
-        else:
-            # No stdout content
-            if process.returncode == 0:
-                # Command succeeded but no output - job might not have logs yet
-                return "Error: No logs available yet (job may still be provisioning)"
-            else:
-                # Command failed
-                return f"Error: No logs retrieved after {timeout}s (job may still be provisioning)"
+                return f"Error retrieving logs for job {job_id}: {error_msg}"
 
+    except ValueError:
+        return f"Error: Invalid job ID format: {job_id}"
     except Exception as e:
         return f"Error: {str(e)}"
+
+
+def open_job_log_from_request_id(request_id: str, wait_seconds: float = 1.0) -> tuple[str | None, str]:
+    """Launch job log in a subprocess from a request ID."""
+
+    # Wait for the job to be registered
+    time.sleep(wait_seconds)
+
+    try:
+        # Get the job ID and handle from the request
+        job_id, _handle = sky.get(RequestId(request_id))
+
+        if job_id is None:
+            print(yellow("Job ID not found in output"))
+            return None, "No job ID returned from request"
+
+        # assert isinstance(job_id, int)  # Help type checker
+
+        print(green(f"Job submitted with ID: {job_id}"))
+
+        # Stream the initial request logs
+        print("\nRequest submission logs:")
+        sky.stream_and_get(
+            request_id=RequestId(request_id),
+            log_path=None,
+            tail=None,
+            follow=False,
+            output_stream=cast(TextIOBase, sys.stdout),
+        )
+
+        print(f"\n{blue('Tailing job logs...')}")
+
+        try:
+            # Tail the job logs - returns exit code
+            exit_code = sky.jobs.tail_logs(job_id=job_id, follow=True, output_stream=cast(TextIOBase, sys.stdout))
+
+            # Determine success/failure based on exit code
+            if exit_code == 0:
+                status_msg = "Job completed successfully"
+            else:
+                status_msg = f"Job failed with exit code: {exit_code}"
+
+            return str(job_id), status_msg
+
+        except KeyboardInterrupt:
+            print("\n" + yellow("Stopped tailing logs"))
+            return str(job_id), "Log tailing interrupted by user"
+
+    except sky.exceptions.ClusterNotUpError:
+        error_msg = "Error: Jobs controller is not up"
+        print(red(error_msg))
+        return None, error_msg
+    except sky.exceptions.CommandError as e:
+        error_msg = f"Error getting logs: {str(e)}"
+        print(red(error_msg))
+        return None, error_msg
+    except Exception as e:
+        error_msg = f"Error: {str(e)}"
+        print(red(error_msg))
+        return None, error_msg

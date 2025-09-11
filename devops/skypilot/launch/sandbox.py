@@ -172,10 +172,9 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     hourly_cost = None
     try:
         with spinner(f"Calculating cost for {instance_type}", style=cyan):
-            hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
-
-        if hourly_cost is not None:
-            hourly_cost *= estimated_multiplier
+            hourly_cost = (
+                get_instance_cost(instance_type=instance_type, region=region, use_spot=False) * estimated_multiplier
+            )
 
     except Exception as e:
         print(f"\n{yellow('⚠️  Unable to calculate cost:')} {str(e)}")

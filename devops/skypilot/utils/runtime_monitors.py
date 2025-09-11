@@ -43,15 +43,11 @@ class HeartbeatMonitor:
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if heartbeat has timed out."""
         try:
-            # Get file stats
             stat = self.heartbeat_file.stat()
             last_heartbeat_time = stat.st_mtime
             current_time = time.time()
             elapsed = current_time - last_heartbeat_time
-
-            # Check for timeout
             if elapsed > self.heartbeat_timeout:
-                logger.info(f"elapsed: {elapsed} > last_heartbeat_time: {last_heartbeat_time}")
                 return True, "heartbeat_timeout"
 
             return False, None
@@ -145,14 +141,12 @@ class TimeoutMonitor:
 
     def check_condition(self) -> tuple[bool, Optional[str]]:
         """Check if max runtime has been exceeded."""
-        total_runtime = self.get_total_runtime()
+
+        if self.get_total_runtime() > self.max_seconds:
+            return True, "max_runtime_reached"
 
         # Save accumulated runtime on every check
         self.save_accumulated_runtime()
-
-        if total_runtime > self.max_seconds:
-            logger.info(f"total_runtime: {total_runtime} > self.max_seconds: {self.max_seconds}")
-            return True, "max_runtime_reached"
 
         return False, None
 

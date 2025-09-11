@@ -29,9 +29,11 @@ class AptInstaller(PackageInstaller[AptPackageConfig]):
         return self._get_list_cmd(["dpkg", "--get-selections"])
 
     def check_installed(self, packages: list[AptPackageConfig]) -> bool:
+        """Returns True when no changes are required."""
         installed = self._get_installed_packages()
         package_names = [p.name for p in packages]
-        return not all(pkg in installed for pkg in package_names)
+        to_install = [pkg for pkg in package_names if pkg not in installed]
+        return len(to_install) == 0
 
     def install(self, packages: list[AptPackageConfig]) -> None:
         # Update package list first (once per session)

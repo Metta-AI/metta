@@ -11,12 +11,12 @@ import yaml
 
 import gitta as git
 from devops.skypilot.utils.job_helpers import (
-    check_config_files,
     check_git_state,
     display_job_summary,
     launch_task,
     open_job_log_from_request_id,
     set_task_secrets,
+    validate_module_path,
 )
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
@@ -189,11 +189,7 @@ def main():
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
 
-    # check that the files referenced in the module path exist
-    # Convert module path to file path for validation
-    module_file_path = args.module_path.replace(".", "/") + ".py"
-    if not check_config_files([module_file_path]):
-        print(red(f"❌ Module path '{args.module_path}' does not exist (looking for {module_file_path})"))
+    if not validate_module_path(args.module_path):
         sys.exit(1)
 
     assert commit_hash
