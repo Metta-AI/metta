@@ -52,30 +52,23 @@ protected:
     actor->orientation = move_direction;
 
     // Check if target location is valid and empty
-    if (!_is_valid_square(target_location, _game_config->no_agent_interference)) {
+    if (!_is_valid_square(target_location)) {
       return false;
     }
 
     // Move the agent
-    if (_game_config->no_agent_interference) {
-      return _grid->ghost_move_object(actor->id, target_location);
-    } else {
-      return _grid->move_object(actor->id, target_location);
-    }
+    return _grid->move_object(actor->id, target_location);
   }
 
-  bool _is_valid_square(GridLocation target_location, bool no_agent_interference) {
+  bool _is_valid_square(GridLocation target_location) {
     if (!_grid->is_valid_location(target_location)) {
       return false;
     }
-    if (no_agent_interference) {
-      if (!_grid->is_empty_at_layer(target_location.r, target_location.c, GridLayer::ObjectLayer)) {
-        return false;
-      }
-    } else {
-      if (!_grid->is_empty(target_location.r, target_location.c)) {
-        return false;
-      }
+    if (!_grid->is_empty_at_layer(target_location.r, target_location.c, GridLayer::ObjectLayer)) {
+      return false;
+    }
+    if (!_grid->is_empty(target_location.r, target_location.c)) {
+      return false;
     }
     return true;
   }

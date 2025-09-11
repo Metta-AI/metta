@@ -7,15 +7,10 @@ name = "gitta"
 version = "0.1.0"
 description = "Simple git utilities for metta projects"
 requires-python = ">=3.9"
-dependencies = [
-    "httpx>=0.24.0",
-]
+dependencies = ["httpx>=0.24.0"]
 
 [dependency-groups]
-dev = [
-    "pytest>=8.3.3",
-    "pytest-cov>=6.1.1",
-]
+dev = ["pytest>=8.3.3", "pytest-cov>=6.1.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

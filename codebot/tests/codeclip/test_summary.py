@@ -1,6 +1,7 @@
 """Test the summary output functionality of codeclip."""
 
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,8 +25,6 @@ class TestCodeclipSummary(unittest.TestCase):
     def tearDown(self):
         """Clean up test environment."""
         os.chdir(self.original_dir)
-        import shutil
-
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_stdout_flag_outputs_to_stdout(self):

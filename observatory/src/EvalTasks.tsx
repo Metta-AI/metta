@@ -11,13 +11,13 @@ interface TypeaheadInputProps {
   filterType?: 'prefix' | 'substring'
 }
 
-function TypeaheadInput({ 
-  value, 
-  onChange, 
-  placeholder, 
-  suggestions, 
+function TypeaheadInput({
+  value,
+  onChange,
+  placeholder,
+  suggestions,
   maxSuggestions = 10,
-  filterType = 'substring' 
+  filterType = 'substring',
 }: TypeaheadInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
@@ -28,9 +28,7 @@ function TypeaheadInput({
       const filtered = suggestions.filter((suggestion) => {
         const lowerSuggestion = suggestion.toLowerCase()
         const lowerInput = inputValue.toLowerCase()
-        return filterType === 'prefix' 
-          ? lowerSuggestion.startsWith(lowerInput)
-          : lowerSuggestion.includes(lowerInput)
+        return filterType === 'prefix' ? lowerSuggestion.startsWith(lowerInput) : lowerSuggestion.includes(lowerInput)
       })
       setFilteredSuggestions(filtered.slice(0, maxSuggestions))
       setShowSuggestions(filtered.length > 0)
@@ -177,7 +175,6 @@ export function EvalTasks({ repo }: Props) {
     })
     return Array.from(simSuiteSet).sort()
   }
-
 
   const handleCreateTask = async () => {
     if (!policyIdInput.trim()) {

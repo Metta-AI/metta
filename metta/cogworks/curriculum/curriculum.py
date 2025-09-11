@@ -7,7 +7,7 @@ from typing import ClassVar
 
 from pydantic import ConfigDict, Field, field_validator
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 from .task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
@@ -51,9 +51,9 @@ class CurriculumConfig(Config):
     )
 
     @classmethod
-    def from_mg(cls, env_config: MettaGridConfig) -> CurriculumConfig:
+    def from_mg(cls, mg_config: MettaGridConfig) -> CurriculumConfig:
         return cls(
-            task_generator=SingleTaskGeneratorConfig(env=env_config),
+            task_generator=SingleTaskGeneratorConfig(env=mg_config),
         )
 
     @field_validator("num_active_tasks")

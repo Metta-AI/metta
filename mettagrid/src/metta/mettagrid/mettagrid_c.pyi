@@ -64,10 +64,10 @@ class WallConfig(GridObjectConfig):
     swappable: bool
 
 class BoxConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, resources_to_create: dict[int, int]): ...
+    def __init__(self, type_id: int, type_name: str, returned_resources: dict[int, int]): ...
     type_id: int
     type_name: str
-    resources_to_create: dict[int, int]
+    returned_resources: dict[int, int]
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -177,14 +177,13 @@ class GameConfig:
         episode_truncates: bool,
         obs_width: int,
         obs_height: int,
-        inventory_item_names: list[str],
+        resource_names: list[str],
         num_observation_tokens: int,
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
         track_movement_metrics: bool = False,
-        no_agent_interference: bool = False,
         recipe_details_obs: bool = False,
         allow_diagonals: bool = False,
     ) -> None: ...
@@ -193,13 +192,12 @@ class GameConfig:
     episode_truncates: bool
     obs_width: int
     obs_height: int
-    inventory_item_names: list[str]
+    resource_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
     resource_loss_prob: float
     # FEATURE FLAGS
     track_movement_metrics: bool
-    no_agent_interference: bool
     recipe_details_obs: bool
     allow_diagonals: bool
 
@@ -228,5 +226,5 @@ class MettaGrid:
     def action_success(self) -> list[bool]: ...
     def max_action_args(self) -> list[int]: ...
     def object_type_names(self) -> list[str]: ...
-    def inventory_item_names(self) -> list[str]: ...
+    def resource_names(self) -> list[str]: ...
     def feature_spec(self) -> dict[str, dict[str, float | int]]: ...

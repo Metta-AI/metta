@@ -1,5 +1,5 @@
 import
-  boxy, vmath, windy,
+  boxy, vmath, windy, fidget2/hybridrender,
   common, panels, sim
 
 

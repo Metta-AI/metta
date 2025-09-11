@@ -2,7 +2,6 @@
 #include "hermes.hpp"
 
 #include <raylib.h>
-
 #include <chrono>
 #include <format>
 #include <string>
@@ -965,7 +964,7 @@ static void Hermes_Cache(Hermes& ctx) {
   }
 
   // Map inventory item names to sprite indices.
-  const auto& item_names = ctx.self->inventory_item_names;
+  const auto& item_names = ctx.self->resource_names;
   ctx.sprite_atlas.items.resize(item_names.size());
 
   auto item_id = 0u;

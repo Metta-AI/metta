@@ -18,7 +18,6 @@ from metta.mettagrid.mettagrid_config import (
     AgentRewards,
     AttackActionConfig,
     GameConfig,
-    GroupConfig,
     WallConfig,
 )
 from metta.mettagrid.test_support.actions import (
@@ -41,7 +40,7 @@ def base_config():
         obs_width=3,
         obs_height=3,
         num_observation_tokens=100,
-        inventory_item_names=["laser", "armor"],
+        resource_names=["laser", "armor"],
         actions=ActionsConfig(
             noop=ActionConfig(enabled=True),
             move=ActionConfig(enabled=True),
@@ -51,7 +50,6 @@ def base_config():
             put_items=ActionConfig(enabled=True),
             swap=ActionConfig(enabled=True),
         ),
-        groups={"red": GroupConfig(id=0)},
         objects={
             "wall": WallConfig(type_id=1, swappable=False),
             "block": WallConfig(type_id=14, swappable=True),
@@ -153,15 +151,20 @@ def test_attack_and_swap_integration(configured_env, complex_game_map):
     """Test attack followed by swap with a frozen agent."""
     config_overrides = {
         "num_agents": 2,
-        "groups": {
-            "red": {"id": 0, "props": {}},
-            "blue": {"id": 1, "props": {}},
-        },
-        "agent": {
-            "freeze_duration": 6,
-            "resource_limits": {"laser": 10},
-            "initial_inventory": {"laser": 5},
-        },
+        "agents": [
+            {
+                "team_id": 0,
+                "freeze_duration": 6,
+                "resource_limits": {"laser": 10},
+                "initial_inventory": {"laser": 5},
+            },
+            {
+                "team_id": 1,
+                "freeze_duration": 6,
+                "resource_limits": {"laser": 10},
+                "initial_inventory": {"laser": 5},
+            },
+        ],
     }
 
     env = configured_env(complex_game_map, config_overrides)

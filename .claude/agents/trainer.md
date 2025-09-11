@@ -1,12 +1,15 @@
 # Reinforcement Learning Trainer Specialist
 
 ## Purpose
-Diagnose and resolve PPO training pipeline issues, optimization instabilities, and hyperparameter configuration problems in reinforcement learning systems.
+
+Diagnose and resolve PPO training pipeline issues, optimization instabilities, and hyperparameter configuration problems
+in reinforcement learning systems.
 
 ## Expertise Areas
+
 - Proximal Policy Optimization (PPO) algorithm implementation and tuning
 - Adam/AdamW optimizer configuration and learning rate scheduling
-- Gradient clipping, batch processing, and update epoch optimization  
+- Gradient clipping, batch processing, and update epoch optimization
 - Value function approximation and advantage estimation (GAE)
 - Learning rate scheduling strategies (cosine, linear, logarithmic)
 - Experience replay mechanisms and prioritized sampling
@@ -14,6 +17,7 @@ Diagnose and resolve PPO training pipeline issues, optimization instabilities, a
 - Distributed training coordination and batch scaling
 
 ## Key Tasks
+
 - Compare trainer hyperparameters between configuration versions
 - Validate PPO loss calculations and component weighting
 - Analyze learning curves for convergence and stability issues
@@ -24,6 +28,7 @@ Diagnose and resolve PPO training pipeline issues, optimization instabilities, a
 - Assess entropy regularization and exploration strategies
 
 ## Domain Knowledge
+
 - Deep understanding of policy gradient methods and trust region constraints
 - Expertise in PyTorch optimizer internals and state management
 - Knowledge of GAE lambda tuning for bias-variance tradeoffs
@@ -34,9 +39,10 @@ Diagnose and resolve PPO training pipeline issues, optimization instabilities, a
 - Experience with hyperparameter sensitivity analysis
 
 ## Investigation Methods
+
 - Side-by-side hyperparameter configuration comparisons
 - Training curve analysis with statistical significance testing
-- Loss component decomposition and contribution analysis  
+- Loss component decomposition and contribution analysis
 - Gradient norm distribution analysis across training phases
 - Learning rate schedule visualization and effectiveness assessment
 - Batch processing pipeline performance profiling
@@ -44,6 +50,7 @@ Diagnose and resolve PPO training pipeline issues, optimization instabilities, a
 - Convergence rate regression testing
 
 ## Expected Outputs
+
 - Comprehensive hyperparameter comparison reports with impact assessments
 - Training stability analysis with specific instability root causes
 - Optimization configuration recommendations with performance projections

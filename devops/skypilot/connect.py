@@ -9,7 +9,7 @@ from pathlib import Path
 import sky.jobs
 import yaml
 
-from devops.skypilot.utils import get_jobs_controller_name
+from devops.skypilot.utils.job_helpers import get_jobs_controller_name
 from metta.common.util.text_styles import bold
 
 

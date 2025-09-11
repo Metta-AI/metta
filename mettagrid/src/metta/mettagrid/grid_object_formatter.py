@@ -5,14 +5,6 @@ from typing import Union
 import numpy as np
 
 
-def inventory_format(inventory: dict) -> list:
-    """Convert inventory dict to list format expected by frontend."""
-    result = []
-    for item_id, amount in inventory.items():
-        result.append([item_id, amount])
-    return result
-
-
 def format_grid_object_base(grid_object: dict) -> dict:
     """Format the base properties common to all grid objects."""
     update_object = {}
@@ -20,7 +12,7 @@ def format_grid_object_base(grid_object: dict) -> dict:
     update_object["type_id"] = grid_object["type_id"]
     update_object["location"] = grid_object["location"]
     update_object["orientation"] = grid_object.get("orientation", 0)
-    update_object["inventory"] = inventory_format(grid_object.get("inventory", {}))
+    update_object["inventory"] = list(grid_object.get("inventory", {}).items())
     update_object["inventory_max"] = grid_object.get("inventory_max", 0)
     update_object["color"] = grid_object.get("color", 0)
     update_object["is_swappable"] = grid_object.get("is_swappable", False)
@@ -52,8 +44,8 @@ def format_agent_properties(
 
 def format_converter_properties(grid_object: dict, update_object: dict) -> None:
     """Add building/converter-specific properties to the update object."""
-    update_object["input_resources"] = inventory_format(grid_object.get("input_resources", {}))
-    update_object["output_resources"] = inventory_format(grid_object.get("output_resources", {}))
+    update_object["input_resources"] = list(grid_object.get("input_resources", {}).items())
+    update_object["output_resources"] = list(grid_object.get("output_resources", {}).items())
     update_object["output_limit"] = grid_object.get("output_limit", 0)
     update_object["conversion_remaining"] = 0  # TODO: Waiting for env to support this
     update_object["is_converting"] = grid_object.get("is_converting", False)

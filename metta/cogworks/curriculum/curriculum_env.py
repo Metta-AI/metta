@@ -22,7 +22,7 @@ class CurriculumEnv(PufferEnv):
             curriculum: The curriculum system to use for task generation
         """
 
-        assert hasattr(env, "set_env_config"), "Environment must have set_env_config method"
+        assert hasattr(env, "set_mg_config"), "Environment must have set_mg_config method"
         assert hasattr(env, "get_episode_rewards"), "Environment must have get_episode_rewards method"
 
         # We don't call super().__init__() because this wrapper
@@ -44,7 +44,7 @@ class CurriculumEnv(PufferEnv):
             mean_reward = self._env.get_episode_rewards().mean()
             self._current_task.complete(mean_reward)
             self._current_task = self._curriculum.get_task()
-            self._env.set_env_config(self._current_task.get_env_cfg())
+            self._env.set_mg_config(self._current_task.get_env_cfg())
 
         return obs, rewards, terminals, truncations, infos
 

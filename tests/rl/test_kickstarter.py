@@ -4,15 +4,13 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.rl.kickstarter import Kickstarter, KickstartTeacherConfig
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.kickstarter_config import KickstartTeacherConfig
 
 
 class TestKickstarter:
-    """Test suite for the Kickstarter class."""
-
     @pytest.fixture
     def mock_config(self):
-        """Create a mock configuration for testing."""
         cfg = MagicMock()
         cfg.additional_teachers = None
         cfg.anneal_ratio = 0.2
@@ -25,12 +23,10 @@ class TestKickstarter:
 
     @pytest.fixture
     def mock_policy_store(self):
-        """Create a mock policy store for testing."""
         return MagicMock()
 
     @pytest.fixture
     def mock_metta_grid_env(self):
-        """Create a mock MettaGridEnv for testing."""
         env = MagicMock()
         env.action_names = ["move", "attack"]
         env.max_action_args = [4, 2]
@@ -38,14 +34,16 @@ class TestKickstarter:
         return env
 
     def test_initialization_no_teachers(self, mock_config, mock_policy_store, mock_metta_grid_env):
-        """Test initialization when no teachers are provided."""
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
 
         assert kickstarter.enabled is False
         assert kickstarter.anneal_ratio == 0.2
         assert kickstarter.device == "cpu"
 
-    def test_initialization_with_teacher_uri(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    @patch("metta.rl.kickstarter.Kickstarter._load_policies")
+    def test_initialization_with_teacher_uri(
+        self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env
+    ):
         """Test initialization when a teacher URI is provided."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
@@ -58,7 +56,10 @@ class TestKickstarter:
         assert kickstarter.teacher_cfgs[0].action_loss_coef == 0.5
         assert kickstarter.teacher_cfgs[0].value_loss_coef == 0.5
 
-    def test_initialization_with_additional_teachers(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    @patch("metta.rl.kickstarter.Kickstarter._load_policies")
+    def test_initialization_with_additional_teachers(
+        self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env
+    ):
         """Test initialization when additional teachers are provided."""
         mock_config.additional_teachers = [
             KickstartTeacherConfig(teacher_uri="wandb://teacher1/uri", action_loss_coef=0.3, value_loss_coef=0.7),
@@ -73,7 +74,8 @@ class TestKickstarter:
         assert kickstarter.teacher_cfgs[0].teacher_uri == "wandb://teacher1/uri"
         assert kickstarter.teacher_cfgs[1].teacher_uri == "wandb://teacher2/uri"
 
-    def test_anneal_factor_calculation(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    @patch("metta.rl.kickstarter.Kickstarter._load_policies")
+    def test_anneal_factor_calculation(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the calculation of the anneal factor."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
@@ -132,32 +134,32 @@ class TestKickstarter:
         assert torch.all(ks_action_loss == 0.0)
         assert torch.all(ks_value_loss == 0.0)
 
-    @patch("metta.rl.kickstarter.Kickstarter._forward")
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
-    def test_loss_with_annealing(
-        self, mock_load_policies, mock_forward, mock_config, mock_policy_store, mock_metta_grid_env
-    ):
+    def test_loss_with_annealing(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the loss method with annealing."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
         kickstarter.enabled = True
 
-        # Mock the teachers list
-        mock_teacher = MagicMock()
-        mock_teacher.action_loss_coef = 0.5
-        mock_teacher.value_loss_coef = 0.5
-        kickstarter.teachers = [mock_teacher]
+        # Mock the teachers list - need to mock the teacher policy that gets called
+        mock_teacher_policy = MagicMock()
+        teacher_td = TensorDict(
+            {
+                "value": torch.ones(2, 1),
+                "full_log_probs": torch.log(torch.ones(2, 5) / 5.0),  # Uniform distribution log probs
+            },
+            batch_size=[2],
+        )
+        mock_teacher_policy.return_value = teacher_td
+        # Create proper teacher config and dictionary structure
+        teacher_config = KickstartTeacherConfig(teacher_uri="test://uri", action_loss_coef=0.5, value_loss_coef=0.5)
+        kickstarter.teachers = {mock_teacher_policy: teacher_config}
 
         # Create test tensors
         student_normalized_logits = torch.randn(2, 5)
         student_value = torch.randn(2, 1)
         observation = TensorDict({"obs": torch.randn(2, 10)}, batch_size=[2])
-
-        # Mock the _forward method to return predictable values
-        teacher_value = torch.ones(2, 1)
-        teacher_normalized_logits = torch.log(torch.ones(2, 5) / 5.0)  # Uniform distribution
-        mock_forward.return_value = (teacher_value, teacher_normalized_logits)
 
         # Test during ramp down phase (after ramp_down_start_step)
         agent_step = 900  # Between ramp_down_start_step (800) and kickstart_steps (1000)
@@ -172,33 +174,9 @@ class TestKickstarter:
         expected_anneal_factor = 1.0 - progress
         assert kickstarter.anneal_factor == pytest.approx(expected_anneal_factor)
 
-        # Verify that _forward was called with the right arguments
-        assert mock_forward.call_count == 1
-        args, _ = mock_forward.call_args
-        assert args[0] == mock_teacher
-        assert isinstance(args[1], TensorDict)
-        assert "obs" in args[1].keys()
+        # Verify that teacher policy was called with the observation
+        mock_teacher_policy.assert_called_once_with(observation)
 
-    def test_forward_method(self, mock_config, mock_policy_store, mock_metta_grid_env):
-        """Test the _forward method."""
-        mock_config.teacher_uri = "wandb://teacher/uri"
-
-        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
-
-        # Create a mock teacher
-        mock_teacher = MagicMock()
-        td = TensorDict({"value": torch.ones(2, 1), "full_log_probs": torch.zeros(2, 5)}, batch_size=[2])
-        mock_teacher.return_value = td
-
-        # Create test tensors
-        observation = TensorDict({"obs": torch.randn(2, 10)}, batch_size=[2])
-
-        # Call the _forward method
-        value, norm_logits = kickstarter._forward(mock_teacher, observation)
-
-        # Check that the teacher was called with the right arguments
-        mock_teacher.assert_called_once_with(observation)
-
-        # Check that the method returns the expected values
-        assert torch.all(value == torch.ones(2, 1))
-        assert torch.all(norm_logits == torch.zeros(2, 5))
+        # Verify that losses are non-zero (scaled by anneal factor)
+        assert ks_action_loss != 0.0
+        assert ks_value_loss != 0.0

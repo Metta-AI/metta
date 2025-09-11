@@ -1,6 +1,61 @@
-"""Protein optimization package for Metta."""
+"""Sweep orchestration package for Metta."""
 
+# Protocols
+# Controller
+from .controller import SweepController, SweepControllerConfig
+
+# Implementations
+from .dispatcher import LocalDispatcher, RoutingDispatcher, SkypilotDispatcher
+
+# Models
+from .models import (
+    JobDefinition,
+    JobStatus,
+    JobTypes,
+    Observation,
+    RunInfo,
+    SweepMetadata,
+    SweepStatus,
+)
+from .optimizer.protein import ProteinOptimizer
 from .protein import Protein
-from .protein_metta import MettaProtein
+from .protein_config import ParameterConfig, ProteinConfig
+from .protocols import Dispatcher, Optimizer, Scheduler, Store
+from .schedulers import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
+from .stores import WandbStore
 
-__all__ = ["Protein", "MettaProtein"]
+# Utils
+from .utils import make_monitor_table
+
+__all__ = [
+    # Core components
+    "Protein",
+    # Protocols
+    "Dispatcher",
+    "Scheduler",
+    "Store",
+    "Optimizer",
+    # Models
+    "JobDefinition",
+    "JobStatus",
+    "JobTypes",
+    "RunInfo",
+    "Observation",
+    "SweepMetadata",
+    "SweepStatus",
+    # Controller
+    "SweepController",
+    "SweepControllerConfig",
+    # Utils
+    "make_monitor_table",
+    # Implementations
+    "LocalDispatcher",
+    "SkypilotDispatcher",
+    "RoutingDispatcher",
+    "BatchedSyncedOptimizingScheduler",
+    "BatchedSyncedSchedulerConfig",
+    "WandbStore",
+    "ProteinOptimizer",
+    "ProteinConfig",
+    "ParameterConfig",
+]

@@ -21,7 +21,7 @@ const YamlScalar: FC<{
   const multiline = typeof value === "string" && value.includes("\n");
 
   let url = "";
-  const KNOWN_PACKAGES = ["metta.map", "metta.mettagrid.room"];
+  const KNOWN_PACKAGES = ["metta.mettagrid.mapgen", "metta.mettagrid.room"];
 
   const repoRoot = use(RepoRootContext);
   if (

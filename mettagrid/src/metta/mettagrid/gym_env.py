@@ -34,22 +34,22 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
 
     def __init__(
         self,
-        env_config: MettaGridConfig,
+        mg_config: MettaGridConfig,
         render_mode: Optional[str] = None,
     ):
         """
         Initialize Gymnasium environment.
 
         Args:
-            env_config: Environment configuration
+            mg_config: Environment configuration
             render_mode: Rendering mode
         """
-        assert env_config.game.num_agents == 1, "Gymnasium environments must be single-agent"
+        assert mg_config.game.num_agents == 1, "Gymnasium environments must be single-agent"
 
         # Initialize core functionality
         MettaGridCore.__init__(
             self,
-            env_config,
+            mg_config,
             render_mode=render_mode,
         )
 

@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from pydantic import ConfigDict, Field
 
-from metta.common.config import Config
+from metta.mettagrid.config import Config
 
 
 def guess_device() -> str:
@@ -60,10 +60,7 @@ def seed_everything(system_cfg: SystemConfig):
 
     # Add rank offset to base seed for distributed training to ensure different
     # processes generate uncorrelated random sequences
-    if seed is not None:
-        rank_specific_seed = seed + rank
-    else:
-        rank_specific_seed = rank
+    rank_specific_seed = (seed + rank) if seed is not None else rank
 
     random.seed(rank_specific_seed)
     np.random.seed(rank_specific_seed)

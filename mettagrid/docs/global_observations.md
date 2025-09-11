@@ -42,7 +42,7 @@ Each bit represents whether that inventory item has a positive reward:
 With the following inventory and reward configuration:
 
 ```yaml
-inventory_item_names: ['ore_red', 'ore_blue', 'battery', 'laser', 'armor', 'heart', 'gem', 'crystal']
+resource_names: ['ore_red', 'ore_blue', 'battery', 'laser', 'armor', 'heart', 'gem', 'crystal']
 agent:
   rewards:
     ore_red: 1.0 # Item 0: Has reward (bit = 1)

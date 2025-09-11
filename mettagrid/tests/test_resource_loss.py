@@ -38,10 +38,8 @@ class TestResourceLoss:
 
         # Verify agent has the items initially
         inventory = agent_obj["inventory"]
-        assert inventory[env.inventory_item_names.index("heart")] == 5, "Agent should have 5 hearts initially"
-        assert inventory[env.inventory_item_names.index("battery_blue")] == 3, (
-            "Agent should have 3 battery_blue initially"
-        )
+        assert inventory[env.resource_names.index("heart")] == 5, "Agent should have 5 hearts initially"
+        assert inventory[env.resource_names.index("battery_blue")] == 3, "Agent should have 3 battery_blue initially"
 
         # Take a step with noop action
         noop_idx = env.action_names.index("noop")
@@ -59,10 +57,8 @@ class TestResourceLoss:
 
         assert agent_obj_after is not None, "Should find an agent in grid objects after step"
         inventory_after = agent_obj_after["inventory"]
-        assert env.inventory_item_names.index("heart") not in inventory_after, (
-            "All hearts should be lost after one step"
-        )
-        assert env.inventory_item_names.index("battery_blue") not in inventory_after, (
+        assert env.resource_names.index("heart") not in inventory_after, "All hearts should be lost after one step"
+        assert env.resource_names.index("battery_blue") not in inventory_after, (
             "All battery_blue should be lost after one step"
         )
         assert len(inventory_after) == 0, "Agent should have no items left"
@@ -97,10 +93,8 @@ class TestResourceLoss:
 
         # Verify agent has the items initially
         inventory = agent_obj["inventory"]
-        assert inventory[env.inventory_item_names.index("heart")] == 5, "Agent should have 5 hearts initially"
-        assert inventory[env.inventory_item_names.index("battery_blue")] == 3, (
-            "Agent should have 3 battery_blue initially"
-        )
+        assert inventory[env.resource_names.index("heart")] == 5, "Agent should have 5 hearts initially"
+        assert inventory[env.resource_names.index("battery_blue")] == 3, "Agent should have 3 battery_blue initially"
 
         # Take multiple steps with noop action
         noop_idx = env.action_names.index("noop")
@@ -120,10 +114,8 @@ class TestResourceLoss:
 
         assert agent_obj_after is not None, "Should find an agent in grid objects after steps"
         inventory_after = agent_obj_after["inventory"]
-        assert inventory_after[env.inventory_item_names.index("heart")] == 5, (
-            "Hearts should remain after multiple steps"
-        )
-        assert inventory_after[env.inventory_item_names.index("battery_blue")] == 3, (
+        assert inventory_after[env.resource_names.index("heart")] == 5, "Hearts should remain after multiple steps"
+        assert inventory_after[env.resource_names.index("battery_blue")] == 3, (
             "Battery_blue should remain after multiple steps"
         )
 
@@ -159,13 +151,13 @@ class TestResourceLoss:
 
         # Verify agent has the items initially
         inventory = agent_obj["inventory"]
-        assert inventory[env.inventory_item_names.index("heart")] == 100, "Agent should have 100 hearts initially"
+        assert inventory[env.resource_names.index("heart")] == 100, "Agent should have 100 hearts initially"
 
         # Take multiple steps with noop action
         noop_idx = env.action_names.index("noop")
         actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
 
-        initial_count = inventory[env.inventory_item_names.index("heart")]
+        initial_count = inventory[env.resource_names.index("heart")]
 
         # Take 5 steps
         for step in range(5):
@@ -181,7 +173,7 @@ class TestResourceLoss:
 
             assert agent_obj_current is not None, "Should find an agent in grid objects"
             inventory_current = agent_obj_current["inventory"]
-            current_count = inventory_current[env.inventory_item_names.index("heart")]
+            current_count = inventory_current[env.resource_names.index("heart")]
 
             # With 50% loss probability, we should see some loss over multiple steps
             # The exact amount is random, but we should see some reduction

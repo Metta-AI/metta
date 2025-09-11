@@ -14,9 +14,7 @@ export function DateSelector({ value, onChange, label = 'Start Date', disabled =
 
   return (
     <div style={{ marginBottom: '16px' }}>
-      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>
-        {label}
-      </label>
+      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>{label}</label>
       <input
         type="date"
         value={value}

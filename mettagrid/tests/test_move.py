@@ -35,13 +35,12 @@ def base_config():
         "obs_width": 3,
         "obs_height": 3,
         "num_observation_tokens": 100,
-        "inventory_item_names": ["laser", "armor"],
+        "resource_names": ["laser", "armor"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": True},
         },
-        "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
             "wall": {"type_id": 1},
         },

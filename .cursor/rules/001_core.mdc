@@ -1,0 +1,32 @@
+---
+description: Core Metta AI project context and workflow
+alwaysApply: true
+---
+
+# Metta AI - Multi-agent RL project
+
+## Project
+- `metta/` - Core Python (agents, RL, simulation)
+- `mettagrid/` - C++/Python environment
+- Tools: mettascope, observatory, gridworks, app_backend
+
+## Commands  
+- Always use `uv run` for Python
+- Setup: `./install.sh`, Test: `metta test`, Lint: `metta lint --fix`
+
+## Recipe system
+```bash
+uv run ./tools/run.py experiments.recipes.arena.train run=name
+uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints
+```
+
+## AI behavior
+- Direct and concise - no apologies/confirmations
+- Focus on solutions over explanations
+- Use TodoWrite for multi-step tasks
+- File-by-file changes when requested
+
+## After Python edits - ALWAYS:
+```bash
+ruff format [file_path] && ruff check --fix [file_path]
+```

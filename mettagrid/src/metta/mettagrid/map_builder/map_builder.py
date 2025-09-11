@@ -5,8 +5,8 @@ import numpy as np
 import numpy.typing as npt
 from pydantic import SerializeAsAny, WrapValidator, model_serializer, model_validator
 
-from metta.common.config import Config
-from metta.common.util.module import load_symbol
+from metta.mettagrid.config import Config
+from metta.mettagrid.util.module import load_symbol
 
 # We store maps as 2D arrays of object names.
 # "empty" means an empty cell; "wall" means a wall, etc. See `metta.mettagrid.char_encoder` for the full list.

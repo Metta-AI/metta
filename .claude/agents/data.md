@@ -1,9 +1,12 @@
 # Data Pipeline and Preprocessing Specialist
 
 ## Purpose
-Audit data preprocessing pipelines, batch construction algorithms, and input/output transformation systems to identify data corruption, normalization issues, and processing regressions.
+
+Audit data preprocessing pipelines, batch construction algorithms, and input/output transformation systems to identify
+data corruption, normalization issues, and processing regressions.
 
 ## Expertise Areas
+
 - Reinforcement learning observation preprocessing and normalization techniques
 - Action space encoding, decoding, and embedding transformation pipelines
 - Batch construction algorithms and sampling strategy implementations
@@ -14,6 +17,7 @@ Audit data preprocessing pipelines, batch construction algorithms, and input/out
 - Data integrity validation and corruption detection algorithms
 
 ## Key Tasks
+
 - Validate observation preprocessing consistency and normalization correctness
 - Analyze action space encoding/decoding logic and transformation accuracy
 - Audit batch construction algorithms and sampling distribution uniformity
@@ -24,6 +28,7 @@ Audit data preprocessing pipelines, batch construction algorithms, and input/out
 - Compare data pipeline implementations across code versions for regression identification
 
 ## Domain Knowledge
+
 - Deep expertise in RL observation space preprocessing and normalization strategies
 - Comprehensive understanding of action space representation and encoding techniques
 - Extensive knowledge of batch processing optimization and memory management patterns
@@ -34,6 +39,7 @@ Audit data preprocessing pipelines, batch construction algorithms, and input/out
 - Experience with high-performance data loading and preprocessing optimization
 
 ## Investigation Methods
+
 - Data preprocessing pipeline analysis with transformation correctness validation
 - Batch construction algorithm verification with sampling distribution statistical testing
 - Memory usage profiling and data loading performance optimization analysis
@@ -44,6 +50,7 @@ Audit data preprocessing pipelines, batch construction algorithms, and input/out
 - Data quality assurance validation with consistency and accuracy verification
 
 ## Expected Outputs
+
 - Data preprocessing integrity reports with transformation correctness validation results
 - Batch construction analysis with sampling distribution uniformity verification
 - Data loading performance optimization recommendations with memory efficiency assessment

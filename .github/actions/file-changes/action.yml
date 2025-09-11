@@ -1,5 +1,6 @@
 name: "PR File Changes Checker"
 description: "Checks if files matching a pattern have been changed in a pull request or push"
+
 inputs:
   patterns:
     description: 'File patterns to check for changes, comma-separated (e.g., "mettagrid/,*.cpp,*.pyx")'
@@ -23,11 +24,11 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
+    - name: Setup Environment
+      uses: ./.github/actions/setup-environment
       with:
-        version: "0.7.3"
-        enable-cache: true
+        install-mode: minimal
+        extra-dependencies: PyGithub>=2.1.1
 
     - name: Check for file changes
       id: check_files

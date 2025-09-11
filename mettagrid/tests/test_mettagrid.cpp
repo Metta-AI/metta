@@ -1,17 +1,17 @@
 #include <gtest/gtest.h>
 
-#include "actions/attack.hpp"
-#include "actions/get_output.hpp"
-#include "actions/noop.hpp"
-#include "actions/put_recipe_items.hpp"
-#include "event.hpp"
-#include "grid.hpp"
-#include "mettagrid_config.hpp"
-#include "objects/agent.hpp"
-#include "objects/constants.hpp"
-#include "objects/converter.hpp"
-#include "objects/wall.hpp"
-#include "types.hpp"
+#include "mettagrid/actions/attack.hpp"
+#include "mettagrid/actions/get_output.hpp"
+#include "mettagrid/actions/noop.hpp"
+#include "mettagrid/actions/put_recipe_items.hpp"
+#include "mettagrid/event.hpp"
+#include "mettagrid/grid.hpp"
+#include "mettagrid/mettagrid_config.hpp"
+#include "mettagrid/objects/agent.hpp"
+#include "mettagrid/objects/constants.hpp"
+#include "mettagrid/objects/converter.hpp"
+#include "mettagrid/objects/wall.hpp"
+#include "mettagrid/types.hpp"
 
 // Test-specific inventory item type constants
 namespace TestItems {

@@ -4,7 +4,7 @@
 #include <set>
 #include <vector>
 
-#include "../mettagrid/packed_coordinate.hpp"
+#include "mettagrid/packed_coordinate.hpp"
 
 using PackedCoordinate::ObservationPattern;
 using Offset = std::pair<int, int>;

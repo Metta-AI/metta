@@ -1,6 +1,6 @@
 import
   std/[strformat],
-  boxy, vmath, windy,
+  boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays
 
 proc agentColor*(id: int): Color =
@@ -13,7 +13,7 @@ proc agentColor*(id: int): Color =
     1.0
   )
 
-proc useSelections*() =
+proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
   if window.buttonPressed[MouseLeft]:
     selection = nil
@@ -165,6 +165,78 @@ proc drawFogOfWar*() =
   ## Draw the fog of war.
   drawVisualRanges(alpha = 1.0)
 
+proc drawTrajectory*() =
+  ## Draw the trajectory of the selected object, with footprints or a future arrow.
+  if selection != nil and selection.location.len > 1:
+    for i in 1 ..< replay.maxSteps:
+      let
+        loc0 = selection.location.at(i - 1)
+        loc1 = selection.location.at(i)
+        cx0 = loc0.x.int
+        cy0 = loc0.y.int
+        cx1 = loc1.x.int
+        cy1 = loc1.y.int
+
+      if cx0 != cx1 or cy0 != cy1:
+        let a = 1.0f - abs(i - step).float32 / 200.0f
+        if a > 0:
+          var
+            tint = color(0, 0, 0, a)
+            image = ""
+
+          let isAgent = replay.typeNames[selection.typeId] == "agent"
+          if step >= i:
+            # Past trajectory is black.
+            tint = color(0, 0, 0, a)
+            if isAgent:
+              image = "agents/footprints"
+            else:
+              image = "agents/past_arrow"
+          else:
+            # Future trajectory is white.
+            tint = color(1, 1, 1, a)
+            if isAgent:
+              image = "agents/path"
+            else:
+              image = "agents/future_arrow"
+
+          let
+            dx = cx1 - cx0
+            dy = cy1 - cy0
+          var
+            rotation: float32 = 0
+            diagScale: float32 = 1
+
+          if dx > 0 and dy == 0:
+            rotation = 0
+          elif dx < 0 and dy == 0:
+            rotation = Pi
+          elif dx == 0 and dy > 0:
+            rotation = -Pi / 2
+          elif dx == 0 and dy < 0:
+            rotation = Pi / 2
+          elif dx > 0 and dy > 0:
+            rotation = -Pi / 4
+            diagScale = sqrt(2.0f)
+          elif dx > 0 and dy < 0:
+            rotation = Pi / 4
+            diagScale = sqrt(2.0f)
+          elif dx < 0 and dy > 0:
+            rotation = -3 * Pi / 4
+            diagScale = sqrt(2.0f)
+          elif dx < 0 and dy < 0:
+            rotation = 3 * Pi / 4
+            diagScale = sqrt(2.0f)
+
+          # Draw centered at the tile with rotation. Use a slightly larger scale on diagonals.
+          bxy.drawImage(
+            image,
+            vec2(cx0.float32, cy0.float32),
+            angle = rotation,
+            scale = (1.0f / 200.0f) * diagScale,
+            tint = tint
+          )
+
 proc drawActions*() =
   ## Draw the actions of the selected agent.
    # # Draw all possible attacks:
@@ -297,14 +369,56 @@ World
     color(1, 1, 1, 1)
   )
 
-proc drawWorldMap*(panel: Panel) =
+proc drawWorldMini*() =
+  let wallTypeId = replay.typeNames.find("wall")
+  let agentTypeId = replay.typeNames.find("agent")
 
-  panel.beginPanAndZoom()
-  useSelections()
-  agentControls()
+  # Floor
+  bxy.drawRect(rect(0, 0, replay.mapSize[0].float32 - 0.5,
+      replay.mapSize[1].float32 - 0.5),
+      color(0.906, 0.831, 0.718, 1))
 
+  # Walls
+  for obj in replay.objects:
+    if obj.typeId == agentTypeId:
+      continue
+    let color =
+      if obj.typeId == wallTypeId:
+        color(0.380, 0.341, 0.294, 1)
+      else:
+        color(1, 1, 1, 1)
+
+    let loc = obj.location.at(step).xy
+    bxy.drawRect(rect(loc.x.float32 - 0.5, loc.y.float32 - 0.5, 1, 1), color)
+
+  # Agents
+  let scale = 3.0
+  bxy.saveTransform()
+  bxy.scale(vec2(scale, scale))
+
+  for obj in replay.objects:
+    if obj.typeId != agentTypeId:
+      continue
+
+    let loc = obj.location.at(step).xy
+    bxy.drawImage("minimapPip", rect((loc.x.float32) / scale - 0.5, (loc.y.float32) / scale - 0.5,
+        1, 1), agentColor(obj.agentId))
+
+  bxy.restoreTransform()
+
+  # Overlays
+  if settings.showVisualRange:
+    drawVisualRanges()
+  elif settings.showFogOfWar:
+    drawFogOfWar()
+
+proc centerAt*(panel: Panel, entity: Entity) =
+  discard
+
+proc drawWorldMain*() =
   drawFloor()
   drawWalls()
+  drawTrajectory()
   drawObjects()
   # drawActions()
   # drawAgentDecorations()
@@ -319,6 +433,22 @@ proc drawWorldMap*(panel: Panel) =
 
   if settings.showFogOfWar:
     drawFogOfWar()
+
+
+proc drawWorldMap*(panel: Panel) =
+
+  panel.beginPanAndZoom()
+
+  useSelections(panel)
+  agentControls()
+
+  if followSelection:
+    centerAt(panel, selection)
+
+  if panel.zoom < 3:
+    drawWorldMini()
+  else:
+    drawWorldMain()
 
   panel.endPanAndZoom()
 

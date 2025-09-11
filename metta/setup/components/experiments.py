@@ -23,7 +23,7 @@ class ExperimentsSetup(SetupModule):
         username = os.getenv("USER", "user")
         return self.user_experiments_dir / f"{username}.py"
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False) -> None:
         info(f"Setting up personal experiments file under {self._personal_experiments_path}...")
         username = os.getenv("USER", "user")
 

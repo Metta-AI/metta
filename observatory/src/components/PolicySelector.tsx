@@ -34,10 +34,11 @@ export const PolicySelector: React.FC<PolicySelectorProps> = React.memo(
     }
 
     // Client-side filtering and pagination
-    const filtered = policies.filter((policy) =>
-      policy.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      (policy.user_id && policy.user_id.toLowerCase().includes(searchText.toLowerCase())) ||
-      policy.tags.some(tag => tag.toLowerCase().includes(searchText.toLowerCase()))
+    const filtered = policies.filter(
+      (policy) =>
+        policy.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        (policy.user_id && policy.user_id.toLowerCase().includes(searchText.toLowerCase())) ||
+        policy.tags.some((tag) => tag.toLowerCase().includes(searchText.toLowerCase()))
     )
 
     const startIndex = (currentPage - 1) * pageSize
@@ -48,7 +49,8 @@ export const PolicySelector: React.FC<PolicySelectorProps> = React.memo(
     const totalPages = Math.ceil(filtered.length / pageSize)
 
     // Check if all visible policies are selected
-    const allPoliciesSelected = filtered.length > 0 &&
+    const allPoliciesSelected =
+      filtered.length > 0 &&
       filtered.every((policy) => {
         if (policy.type === 'training_run') {
           return selectedTrainingRunIds.includes(policy.id)
@@ -82,26 +84,18 @@ export const PolicySelector: React.FC<PolicySelectorProps> = React.memo(
     const handleSelectAllPolicies = () => {
       if (allPoliciesSelected) {
         // Deselect all filtered policies
-        const visibleTrainingRunIds = filtered
-          .filter(p => p.type === 'training_run')
-          .map(p => p.id)
-        const visiblePolicyIds = filtered
-          .filter(p => p.type === 'policy')
-          .map(p => p.id)
+        const visibleTrainingRunIds = filtered.filter((p) => p.type === 'training_run').map((p) => p.id)
+        const visiblePolicyIds = filtered.filter((p) => p.type === 'policy').map((p) => p.id)
 
-        const newTrainingRunSelection = selectedTrainingRunIds.filter(id => !visibleTrainingRunIds.includes(id))
-        const newPolicySelection = selectedRunFreePolicyIds.filter(id => !visiblePolicyIds.includes(id))
+        const newTrainingRunSelection = selectedTrainingRunIds.filter((id) => !visibleTrainingRunIds.includes(id))
+        const newPolicySelection = selectedRunFreePolicyIds.filter((id) => !visiblePolicyIds.includes(id))
 
         onTrainingRunSelectionChange(newTrainingRunSelection)
         onRunFreePolicySelectionChange(newPolicySelection)
       } else {
         // Select all visible policies
-        const visibleTrainingRunIds = filtered
-          .filter(p => p.type === 'training_run')
-          .map(p => p.id)
-        const visiblePolicyIds = filtered
-          .filter(p => p.type === 'policy')
-          .map(p => p.id)
+        const visibleTrainingRunIds = filtered.filter((p) => p.type === 'training_run').map((p) => p.id)
+        const visiblePolicyIds = filtered.filter((p) => p.type === 'policy').map((p) => p.id)
 
         const newTrainingRunSelection = [...new Set([...selectedTrainingRunIds, ...visibleTrainingRunIds])]
         const newPolicySelection = [...new Set([...selectedRunFreePolicyIds, ...visiblePolicyIds])]
@@ -131,9 +125,7 @@ export const PolicySelector: React.FC<PolicySelectorProps> = React.memo(
         <div className={styles.policiesContainer}>
           {filteredAndPaginatedPolicies.length === 0 && (
             <div className={styles.emptyMessage}>
-              {searchText
-                ? 'No policies match your search.'
-                : 'No policies available.'}
+              {searchText ? 'No policies match your search.' : 'No policies available.'}
             </div>
           )}
 

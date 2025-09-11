@@ -3,20 +3,16 @@ from __future__ import annotations
 import datetime
 import uuid
 from pathlib import Path
-from typing import cast
 
 from duckdb import DuckDBPyConnection
 
-from metta.agent.mocks import MockPolicyRecord
-from metta.agent.policy_record import PolicyRecord
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 _DUMMY_AGENT_MAP = {0: ("dummy_policy", 0)}
 
 
 class TestHelpers:
-    """Helper methods for simulation stats database tests."""
-
     @staticmethod
     def get_count(con: DuckDBPyConnection, query: str) -> int:
         result = con.execute(query).fetchone()
@@ -25,7 +21,6 @@ class TestHelpers:
 
     @staticmethod
     def create_worker_db(path: Path, sim_steps: int = 0, replay_url: str | None = None) -> str:
-        """Create a worker database with a single test episode."""
         path.parent.mkdir(parents=True, exist_ok=True)
         db = SimulationStatsDB(path)
 
@@ -209,17 +204,20 @@ def test_get_replay_urls(tmp_path: Path):
     for url in replay_urls:
         assert url in all_urls
 
-    # Test filtering by policy key
-    policy1_urls = db.get_replay_urls(policy_key="policy1")
-    assert len(policy1_urls) == 2
-    assert replay_urls[0] in policy1_urls
-    assert replay_urls[1] in policy1_urls
+    # Test filtering by policy URI (policy1 version 1)
+    policy1_v1_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy1__e1__s0__t0__sc0.pt"))
+    assert len(policy1_v1_urls) == 1
+    assert replay_urls[0] in policy1_v1_urls
 
-    # Test filtering by policy version
-    version1_urls = db.get_replay_urls(policy_version=1)
-    assert len(version1_urls) == 2
-    assert replay_urls[0] in version1_urls
-    assert replay_urls[2] in version1_urls
+    # Test filtering by policy URI (policy1 version 2)
+    policy1_v2_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy1__e2__s0__t0__sc0.pt"))
+    assert len(policy1_v2_urls) == 1
+    assert replay_urls[1] in policy1_v2_urls
+
+    # Test filtering by policy URI (policy2 version 1)
+    policy2_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy2__e1__s0__t0__sc0.pt"))
+    assert len(policy2_urls) == 1
+    assert replay_urls[2] in policy2_urls
 
     # Test filtering by environment
     env1_urls = db.get_replay_urls(env="env1")
@@ -227,8 +225,10 @@ def test_get_replay_urls(tmp_path: Path):
     assert replay_urls[0] in env1_urls
     assert replay_urls[2] in env1_urls
 
-    # Test combining filters
-    combined_urls = db.get_replay_urls(policy_key="policy1", policy_version=1, env="env1")
+    # Test combining policy URI and environment filters
+    combined_urls = db.get_replay_urls(
+        policy_uri=CheckpointManager.normalize_uri("policy1__e1__s0__t0__sc0.pt"), env="env1"
+    )
     assert len(combined_urls) == 1
     assert replay_urls[0] in combined_urls
 
@@ -277,17 +277,17 @@ def test_from_shards_and_context(tmp_path: Path):
     # Check that the merged database doesn't exist yet
     assert not merged_path.exists(), "Merged DB already exists"
 
-    # Create agent map with our mock PolicyRecord
-    agent_map = {0: MockPolicyRecord.from_key_and_version("test_policy", 1)}
+    # Create agent map with URIs (new API)
+    agent_map = {0: CheckpointManager.normalize_uri("test_policy__e1__s1000__t10__sc0.pt")}
 
-    # Now call the actual from_shards_and_context method
+    # Now call the actual from_shards_and_context method using URI
     merged_db = SimulationStatsDB.from_shards_and_context(
         sim_id="sim_id",
         dir_with_shards=shard_dir,
-        agent_map=cast(dict[int, PolicyRecord], agent_map),
+        agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_record=cast(PolicyRecord, MockPolicyRecord.from_key_and_version("test_policy", 1)),
+        policy_uri=CheckpointManager.normalize_uri("test_policy__e1__s1000__t10__sc0.pt"),
     )
 
     # Verify merged database was created

@@ -10,6 +10,7 @@ from metta.app_backend.routes.sweep_routes import (
     SweepInfo,
 )
 from metta.common.util.constants import DEV_STATS_SERVER_URI
+from metta.common.util.log_config import init_logging
 
 
 class SweepClient:
@@ -74,6 +75,7 @@ def generate_run_id_for_sweep(
 
 if __name__ == "__main__":
     # Example usage
+    init_logging()
     client = SweepClient()
 
     # Initialize a sweep

@@ -1,0 +1,29 @@
+---
+description: Development tools and testing
+globs: ["tests/**/*.py", "**/test_*.py", "**/*.ts", "**/*.tsx"]
+alwaysApply: false
+---
+
+# Development
+
+## Testing
+- `metta test` or `metta test tests/file.py -v`
+- Coverage: `metta test --cov=mettagrid --cov-report=term-missing`
+
+## Quick integration test
+```bash
+export TEST_ID=$(date +%Y%m%d_%H%M%S)
+uv run ./tools/run.py experiments.recipes.arena.train run=test_$TEST_ID trainer.total_timesteps=100000
+uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+```
+
+## Frontend
+- mettascope/observatory/gridworks - use `pnpm run dev`
+- Strict TypeScript, interfaces over types
+- Functional components with hooks
+- Support file:// and wandb:// policy URIs
+
+## Planning
+- Use ExitPlanMode for larger tasks
+- Create plans in `.claude/tasks/TASK_NAME.md`
+- File references: `file_path:line_number`

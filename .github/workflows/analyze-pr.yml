@@ -47,11 +47,10 @@ jobs:
           restore-keys: |
             pr-cache-${{ github.repository }}-
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
-          version: "0.7.3"
-          enable-cache: true
+          install-mode: minimal
 
       - name: Fetch PR Data
         id: fetch-pr

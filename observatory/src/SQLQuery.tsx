@@ -739,9 +739,7 @@ export function SQLQuery({ repo }: Props) {
                     {getSortedRows().map((row, idx) => (
                       <tr key={idx}>
                         {row.map((cell, cellIdx) => (
-                          <td key={cellIdx}>
-                            {formatCell(cell)}
-                          </td>
+                          <td key={cellIdx}>{formatCell(cell)}</td>
                         ))}
                       </tr>
                     ))}

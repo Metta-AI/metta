@@ -1,6 +1,7 @@
 """Rich console progress display for training."""
 
 import os
+import sys
 
 from rich.console import Console
 from rich.table import Table
@@ -8,8 +9,6 @@ from rich.table import Table
 
 def should_use_rich_console() -> bool:
     """Determine if rich console output is appropriate based on environment and TTY availability."""
-    import sys
-
     # Check if explicitly disabled
     if os.environ.get("DISABLE_RICH_LOGGING", "").lower() in ("1", "true", "yes"):
         return False

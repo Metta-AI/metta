@@ -238,8 +238,3 @@ class TestDockerIntegration:
         # Should succeed (200) or fail due to missing database tables (500)
         # but not fail due to authentication (401)
         assert response.status_code != 401
-
-
-if __name__ == "__main__":
-    # Simple test runner for debugging
-    pytest.main([__file__, "-v", "-s"])

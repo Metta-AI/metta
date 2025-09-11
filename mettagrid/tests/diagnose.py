@@ -26,14 +26,18 @@ def debug_swap_frozen_agent():
         "obs_width": 3,
         "obs_height": 3,
         "num_observation_tokens": 100,
-        "inventory_item_names": ["laser"],
+        "resource_names": ["laser"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
+            "rotate": {"enabled": True},
             "attack": {"enabled": True},
             "swap": {"enabled": True},
         },
-        "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
+        "agents": [
+            {"team_id": 0, "freeze_duration": 6, "resource_limits": {"laser": 10}, "initial_inventory": {"laser": 5}},
+            {"team_id": 1, "freeze_duration": 6, "resource_limits": {"laser": 10}, "initial_inventory": {"laser": 5}},
+        ],
         "objects": {
             "wall": {"type_id": 1, "swappable": False},
         },

@@ -1,9 +1,9 @@
 import logging
 from typing import Any, Tuple
 
-from metta.common.profiling.memory_monitor import MemoryMonitor
-from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.util.system_monitor import SystemMonitor
+from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
+from metta.mettagrid.profiling.stopwatch import Stopwatch
+from metta.mettagrid.profiling.system_monitor import SystemMonitor
 from metta.rl.experience import Experience
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def setup_monitoring(
     system_monitor = SystemMonitor(
         sampling_interval_sec=1.0,
         history_size=100,
-        logger=logger,
+        log_level=logger.getEffectiveLevel(),
         auto_start=True,
         external_timer=timer,
     )

@@ -10,7 +10,7 @@ import sky
 import yaml
 
 import gitta as git
-from devops.skypilot.utils import (
+from devops.skypilot.utils.job_helpers import (
     check_config_files,
     check_git_state,
     display_job_summary,

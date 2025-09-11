@@ -1,7 +1,7 @@
 import logging
 import os
 
-from metta.map.utils.thumbnail import generate_thumbnail_from_replay
+from metta.mettagrid.mapgen.utils.thumbnail import generate_thumbnail_from_replay
 from metta.mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)

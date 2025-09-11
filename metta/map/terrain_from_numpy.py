@@ -14,6 +14,8 @@ from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuil
 
 logger = logging.getLogger(__name__)
 
+MAPS_ROOT = "s3://softmax-public/maps"
+
 
 def pick_random_file(path):
     chosen = None
@@ -53,17 +55,16 @@ def download_from_s3(s3_path: str, save_path: str):
 
 
 class TerrainFromNumpy(MapBuilder):
-    """
-    This class is used to load a terrain environment from numpy arrays on s3.
+    """This class is used to load a terrain environment from numpy arrays on s3.
 
-    It's not a MapGen scene, because we don't know the grid size until we load the file.
-    """
+    It's not a MapGen scene, because we don't know the grid size until we load the file."""
 
     class Config(MapBuilderConfig["TerrainFromNumpy"]):
         objects: dict[str, int] = Field(default_factory=dict)
         agents: int | dict[str, int] = Field(default=0, ge=0)
         dir: str
         file: Optional[str] = None
+        remove_altars: bool = False
 
     def __init__(self, config: Config):
         self.config = config
@@ -98,7 +99,7 @@ class TerrainFromNumpy(MapBuilder):
         map_dir = f"train_dir/{self.config.dir}"
         root_dir = f"train_dir/{root}"
 
-        s3_path = f"s3://softmax-public/maps/{root}.zip"
+        s3_path = f"{MAPS_ROOT}/{root}.zip"
         local_zipped_dir = root_dir + ".zip"
         # Only one process can hold this lock at a time:
         with FileLock(local_zipped_dir + ".lock"):
@@ -119,6 +120,9 @@ class TerrainFromNumpy(MapBuilder):
 
         # remove agents to then repopulate
         grid[grid == "agent.agent"] = "empty"
+
+        if self.config.remove_altars:
+            grid[grid == "altar"] = "empty"
 
         # Prepare agent labels
         if isinstance(self.config.agents, int):

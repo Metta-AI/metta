@@ -1,9 +1,0 @@
-type: metta.map.scenes.wfc.WFC
-params:
-  pattern_size: 3
-  pattern: |-
-    ###############
-    ...............
-    ...............
-    ...............
-    ###############

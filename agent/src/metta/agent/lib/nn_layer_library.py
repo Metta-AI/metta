@@ -18,22 +18,21 @@ class Linear(ParamLayer):
     def _make_net(self):
         self._out_tensor_shape = [self._nn_params.out_features]
         assert len(self._in_tensor_shapes[0]) == 1, (
-            "_input_tensor_shape for Linear should be 1d (ignoring batch dimension)"
+            "_input_tensor_shape for Linear should be 1d (we don't include the batch dimension)"
         )
         return nn.Linear(self._in_tensor_shapes[0][0], **self._nn_params)
 
 
 class ReLU(LayerBase):
-    """
-    Applies the rectified linear unit function element-wise: ReLU(x) = max(0, x)
-
-    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
-    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
-    """
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.ReLU()
+
+
+class Tanh(LayerBase):
+    def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        return nn.Tanh()
 
 
 class LayerNorm(LayerBase):
@@ -100,7 +99,7 @@ class ResidualBlock(nn.Module):
 
 class Swish(nn.Module):
     """
-    This class cannot be used as a layer in MettaAgent. It is a helper class for ResidualBlock.
+    This class cannot be used as a layer in MettaAgent. It is a helper class for ResNetMLP.
     """
 
     def __init__(self):
