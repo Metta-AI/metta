@@ -5,6 +5,7 @@ This provides a clean Python interface to the Nim tribal environment
 using genny's automatically generated bindings.
 """
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -85,6 +86,10 @@ class TribalGridEnv:
     def __init__(self, config: Optional[Dict[str, Any]] = None, render_mode: Optional[str] = None, buf: Optional[Any] = None):
         """Initialize tribal environment."""
         print(f"[DEBUG] TribalGridEnv.__init__() called with config: {config}")
+        
+        # Set environment variable to signal Python training mode (disables built-in AI)
+        os.environ["TRIBAL_PYTHON_CONTROL"] = "1"
+        print("[DEBUG] Set TRIBAL_PYTHON_CONTROL=1 for external neural network control")
 
         # Create Nim configuration object
         if config is None:

@@ -153,17 +153,23 @@ for i in 1..paramCount():
     useExternalController = true
     echo "🔗 Command line: Requested external controller mode"
 
-# Initialize controller - check command line, existing controller, or NO FALLBACK
-if useExternalController:
+# Check environment variable for Python training control
+let pythonControlMode = existsEnv("TRIBAL_PYTHON_CONTROL") or existsEnv("TRIBAL_EXTERNAL_CONTROL")
+
+# Initialize controller - prioritize external control, then existing controller, then default to BuiltinAI
+if useExternalController or pythonControlMode:
   initGlobalController(ExternalNN)
-  echo "🔗 Initialized with external NN controller (from command line)"
+  if pythonControlMode:
+    echo "🔗 Environment variable: Using external NN controller for Python training"
+  else:
+    echo "🔗 Command line: Using external NN controller"
 elif globalController != nil:
   echo "🔗 Keeping existing controller: ", getControllerType()
 else:
-  # NO AI FALLBACK - this ensures agents only move when controlled by Python
-  echo "🚫 NO CONTROLLER INITIALIZATION - Python environment must provide control"
-  echo "   Agents will not move unless Python provides actions"
-  echo "   This proves AI controls are fully disabled"
+  # DEFAULT: Use built-in AI for standalone execution
+  initGlobalController(BuiltinAI)
+  echo "🤖 Standalone mode: Initialized BuiltinAI controller - agents will move autonomously"
+  echo "   Use TRIBAL_PYTHON_CONTROL=1 environment variable to disable for Python training"
 
 # Check if external controller is active and start playing if so
 if isExternalControllerActive():
