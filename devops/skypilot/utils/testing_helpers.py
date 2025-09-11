@@ -115,9 +115,10 @@ class SkyPilotTestLauncher:
 
         # Display launch info
         print(f"\n{bold('Launching job:')} {magenta(run_name)}")
+        print("  Test Configuration: {")
         for key, value in test_config.items():
-            print(f"  {cyan(f'{key}:')} {value}")
-        print(f"  {cyan('CI Tests:')} {'Yes' if enable_ci_tests else 'No'}")
+            print(f"    {cyan(f'{key}:')} {value}")
+        print("  }")
 
         try:
             # Launch the job
@@ -203,11 +204,9 @@ class SkyPilotTestLauncher:
                 print(f"  • {job.run_name}")
 
     def _print_summary_table(self) -> None:
-        """Print a summary table of launched jobs."""
+        """Print a summary table of launched jobs with dynamic column widths."""
         print("\n" + bold("Launched Jobs Summary:"))
-        print("─" * 80)
 
-        # Print header based on available keys
         if self.launched_jobs:
             # Get all unique keys from test configs
             all_keys = set()
@@ -215,22 +214,62 @@ class SkyPilotTestLauncher:
                 all_keys.update(job.test_config.keys())
 
             headers = ["Job ID", "Request ID"] + sorted(all_keys)
-            print(" │ ".join(f"{h:^15}" for h in headers))
-            print("─" * 80)
+
+            # Calculate column widths based on content
+            col_widths = {}
+
+            # Start with header widths
+            for header in headers:
+                col_widths[header] = len(header) + 2  # +2 for padding
+
+            # Adjust based on actual data
+            for job in self.launched_jobs:
+                job_id = job.job_id or "pending"
+                request_id = job.request_id[:8] + "..." if job.request_id else "N/A"
+
+                col_widths["Job ID"] = max(col_widths["Job ID"], len(job_id) + 2)
+                col_widths["Request ID"] = max(col_widths["Request ID"], len(request_id) + 2)
+
+                for key in all_keys:
+                    value = str(job.test_config.get(key, "-"))
+                    # Cap at reasonable max width
+                    display_len = min(len(value), 30) + 2
+                    col_widths[key] = max(col_widths.get(key, 0), display_len)
+
+            # Calculate total table width
+            separator_width = 3  # " │ "
+            table_width = sum(col_widths.values()) + (len(headers) - 1) * separator_width
+
+            # Print table
+            print("─" * table_width)
+
+            # Print headers
+            header_parts = []
+            for header in headers:
+                header_parts.append(f"{header:^{col_widths[header]}}")
+            print(" │ ".join(header_parts))
+
+            print("─" * table_width)
 
             # Print rows
             for job in self.launched_jobs:
                 job_id = job.job_id or "pending"
                 request_id = job.request_id[:8] + "..." if job.request_id else "N/A"
 
-                values = [job_id, request_id]
+                row_parts = []
+                row_parts.append(f"{job_id:^{col_widths['Job ID']}}")
+                row_parts.append(f"{request_id:^{col_widths['Request ID']}}")
+
                 for key in sorted(all_keys):
                     value = str(job.test_config.get(key, "-"))
-                    values.append(value[:15])
+                    # Truncate if needed
+                    if len(value) > 30:
+                        value = value[:27] + "..."
+                    row_parts.append(f"{value:^{col_widths[key]}}")
 
-                print(" │ ".join(f"{v:^15}" for v in values))
+                print(" │ ".join(row_parts))
 
-        print("─" * 80)
+            print("─" * table_width)
 
 
 class JobSummaryParser:
@@ -422,7 +461,15 @@ class SkyPilotJobChecker:
 
                 # Add any relevant test config info
                 for key, value in sorted(job.items()):
-                    if key not in ["job_id", "request_id", "run_name", "launch_time", "success"]:
+                    if key not in [
+                        "job_id",
+                        "request_id",
+                        "run_name",
+                        "launch_time",
+                        "success",
+                        "description",
+                        "recipe_module",
+                    ]:
                         info_parts.append(f"{key}={value}")
 
                 print(f"  {' | '.join(info_parts)}")
@@ -442,7 +489,6 @@ class SkyPilotJobChecker:
             return
 
         print(f"\n{bold('Detailed Job Status:')}")
-        print("─" * 130)
 
         # Determine columns based on job data
         base_headers = ["Job ID", "Status", "Restarts", "Termination", "Exit Code"]
@@ -458,10 +504,21 @@ class SkyPilotJobChecker:
 
         headers = base_headers + extra_headers
 
+        # Calculate table width
+        num_columns = len(headers)
+        column_width = 15
+        separator_width = 3  # " │ "
+        table_width = (num_columns * column_width) + ((num_columns - 1) * separator_width)
+
+        # Print top border
+        print("─" * table_width)
+
         # Print headers
         header_line = " │ ".join(f"{h:^15}" for h in headers)
         print(header_line)
-        print("─" * 130)
+
+        # Print separator
+        print("─" * table_width)
 
         # Print rows
         for job in launched_jobs:
@@ -498,7 +555,8 @@ class SkyPilotJobChecker:
             row = " │ ".join(formatted_values)
             print(row)
 
-        print("─" * 130)
+        # Print bottom border
+        print("─" * table_width)
 
     def show_detailed_logs(self, tail_lines: int = 200) -> None:
         """Show detailed logs for each job."""

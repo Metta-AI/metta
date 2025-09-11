@@ -112,3 +112,4 @@ mettagrid/MODULE.bazel.lock
 # MetaScope
 mettascope2/dist/
 mettascope2/data/fidget/
+recipe_test_jobs.json

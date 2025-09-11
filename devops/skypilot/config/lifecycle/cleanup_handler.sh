@@ -25,8 +25,11 @@ cleanup() {
 
   # Master-only: Handle notifications and status updates
   if [[ "$IS_MASTER" == "true" ]]; then
-    handle_master_cleanup
     print_final_summary
+    # Force flush stdout to ensure summary is written
+    exec 1>&1
+
+    handle_master_cleanup
   fi
 
   # Set the final exit code for the script

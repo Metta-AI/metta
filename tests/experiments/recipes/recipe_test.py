@@ -81,7 +81,6 @@ def launch_tests(args):
         # Test config for tracking
         test_config = {
             "recipe": recipe_key,
-            "recipe_module": recipe["module"],
             "description": recipe["description"],
             "timesteps": 50000,
             "nodes": 1,
