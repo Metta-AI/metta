@@ -183,8 +183,8 @@ def print_detailed_table(jobs: list, job_statuses: dict, job_summaries: dict) ->
     print("─" * 130)
 
     # Header - Added "Restarts" column
-    headers = ["Job ID", "Status", "Exit", "Restarts", "Termination", "Nodes", "Condition", "Running CI tests?"]
-    col_widths = [8, 12, 6, 9, 20, 6, 20, 4]
+    headers = ["Job ID", "Status", "Restarts", "Termination", "Nodes", "Condition", "Running CI tests?"]
+    col_widths = [8, 12, 9, 20, 6, 20, 4]
 
     # Print headers
     header_line = ""
@@ -207,14 +207,13 @@ def print_detailed_table(jobs: list, job_statuses: dict, job_summaries: dict) ->
         # Format values
         job_id_fmt = yellow(job_id_str)
         status_fmt = format_status(status)
-        exit_fmt = format_exit_code(summary.get("exit_code"))
         restart_fmt = format_restart_count(summary.get("restart_count"))  # New
         term_fmt = format_termination_reason(summary.get("termination_reason"))
         nodes_fmt = str(job["nodes"])
         condition_fmt = job["condition_name"][:20]
         ci_fmt = green("✔") if job.get("ci_tests_enabled") else ""
 
-        row_values = [job_id_fmt, status_fmt, exit_fmt, restart_fmt, term_fmt, nodes_fmt, condition_fmt, ci_fmt]
+        row_values = [job_id_fmt, status_fmt, restart_fmt, term_fmt, nodes_fmt, condition_fmt, ci_fmt]
 
         formatted_values = []
         for value, width in zip(row_values, col_widths, strict=False):
