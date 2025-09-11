@@ -6,6 +6,12 @@ from enum import StrEnum, auto
 from typing import Any
 
 
+@dataclass
+class Observation:
+    score: float
+    cost: float
+    suggestion: dict
+
 
 class JobTypes(StrEnum):
     LAUNCH_TRAINING = auto()
@@ -31,7 +37,6 @@ class JobStatus(StrEnum):
     IN_TRAINING = auto()
     TRAINING_DONE_NO_EVAL = auto()
     IN_EVAL = auto()
-    EVAL_DONE_NOT_COMPLETED = auto()
     COMPLETED = auto()
     FAILED = auto()  # Job failed during training or evaluation
 
@@ -62,6 +67,9 @@ class RunInfo:
     # Training progress tracking
     total_timesteps: int | None = None  # Target timesteps from config
     current_steps: int | None = None  # Current agent_step from metrics
+
+    # Evaluation results
+    observation: Observation | None = None
 
     @property
     def status(self) -> JobStatus:
