@@ -124,57 +124,9 @@ proc newTribalEnv*(config: TribalConfig): TribalEnv =
     lastError = getCurrentException()
 
 
-# Core environment methods
-proc resetEnv*(tribal: TribalEnv) =
-  ## Reset the environment to initial state
-  try:
-    tribal.env.reset()
-    tribal.stepCount = 0
-  except:
-    lastError = getCurrentException()
+# Core environment methods (SeqInt-based functions removed - replaced by pointer-based interface)
 
-proc step*(tribal: TribalEnv, actions: seq[int]): bool =
-  ## Step environment with actions
-  ## actions: flat sequence of [action_type, argument] pairs
-  ## Length should be MapAgents * 2
-  try:
-    if actions.len != MapAgents * 2:
-      return false
-      
-    # Convert Python actions to Nim format
-    var nimActions: array[MapAgents, array[2, uint8]]
-    for i in 0..<MapAgents:
-      let actionIndex = i * 2
-      if actionIndex + 1 < actions.len:
-        nimActions[i][0] = actions[actionIndex].uint8
-        nimActions[i][1] = actions[actionIndex + 1].uint8
-      else:
-        nimActions[i][0] = 0  # noop
-        nimActions[i][1] = 0
-    
-    tribal.env.step(nimActions.addr)
-    tribal.stepCount += 1
-    return true
-  except:
-    lastError = getCurrentException()
-    return false
-
-# Observation access
-proc getObservations*(tribal: TribalEnv): seq[int] =
-  ## Get current observations as flat sequence
-  try:
-    let totalSize = MapAgents * ObservationLayers * ObservationHeight * ObservationWidth
-    result = newSeq[int](totalSize)
-    
-    var index = 0
-    for agentId in 0..<MapAgents:
-      for layer in 0..<ObservationLayers:
-        for y in 0..<ObservationHeight:
-          for x in 0..<ObservationWidth:
-            result[index] = tribal.env.observations[agentId][layer][x][y].int
-            inc index
-  except:
-    lastError = getCurrentException()
+# Observation access (getObservations removed - replaced by pointer-based interface)
 
 proc getTokenObservations*(tribal: TribalEnv): seq[int] =
   ## Get current observations as token sequence compatible with MettaGrid format
@@ -215,35 +167,7 @@ proc getTokenObservations*(tribal: TribalEnv): seq[int] =
   except:
     lastError = getCurrentException()
 
-# Reward access
-proc getRewards*(tribal: TribalEnv): seq[float] =
-  ## Get current step rewards for each agent
-  try:
-    result = newSeq[float](MapAgents)
-    for i in 0..<min(MapAgents, tribal.env.agents.len):
-      result[i] = tribal.env.agents[i].reward
-      tribal.env.agents[i].reward = 0.0  # Reset after reading
-  except:
-    lastError = getCurrentException()
-
-# Terminal/truncation status
-proc getTerminated*(tribal: TribalEnv): seq[bool] =
-  ## Get terminated status for each agent
-  try:
-    result = newSeq[bool](MapAgents)
-    for i in 0..<MapAgents:
-      result[i] = tribal.env.terminated[i] != 0.0
-  except:
-    lastError = getCurrentException()
-
-proc getTruncated*(tribal: TribalEnv): seq[bool] =
-  ## Get truncated status for each agent  
-  try:
-    result = newSeq[bool](MapAgents)
-    for i in 0..<MapAgents:
-      result[i] = tribal.env.truncated[i] != 0.0
-  except:
-    lastError = getCurrentException()
+# Reward access and terminal/truncation status (SeqFloat/SeqBool functions removed - replaced by pointer-based interface)
 
 # Environment info
 proc getCurrentStep*(tribal: TribalEnv): int =
@@ -385,13 +309,7 @@ exportRefObject TribalEnv:
   constructor:
     newTribalEnv(TribalConfig)
   procs:
-    resetEnv(TribalEnv)
-    step(TribalEnv, seq[int])
-    getObservations(TribalEnv)
     getTokenObservations(TribalEnv)
-    getRewards(TribalEnv)
-    getTerminated(TribalEnv)
-    getTruncated(TribalEnv)
     getCurrentStep(TribalEnv)
     isEpisodeDone(TribalEnv)
     renderText(TribalEnv)
