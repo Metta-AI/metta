@@ -7,6 +7,7 @@ from pydantic import Field
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +42,7 @@ class TrainAndEvalScheduler:
         """Schedule train or eval jobs based on current state."""
 
         # 1. First priority: Create eval jobs for completed training
-        eval_jobs = []
+        jobs = []
         for run in runs:
             if run.status == JobStatus.TRAINING_DONE_NO_EVAL:
                 eval_job = create_eval_job(
@@ -50,15 +51,13 @@ class TrainAndEvalScheduler:
                     recipe_module=self.config.recipe_module,
                     eval_entrypoint=self.config.eval_entrypoint,
                 )
-                eval_jobs.append(eval_job)
+                jobs.append(eval_job)
                 logger.info(f"[TrainAndEvalScheduler] Creating eval job for {run.run_id}")
 
-        if eval_jobs:
-            return eval_jobs
-
-        # 2. Create new training job if we have capacity and haven't hit max trials
-        if available_training_slots > 0 and self._trial_count < self.config.max_trials:
+        # 2. Create new training jobs if we have capacity and haven't hit max trials
+        while available_training_slots > 0 and self._trial_count < self.config.max_trials:
             self._trial_count += 1
+            self.available_training_slots -= 1
             run_id = generate_run_id(self.config.experiment_id, self._trial_count)
 
             training_job = create_training_job(
@@ -70,11 +69,10 @@ class TrainAndEvalScheduler:
                 train_overrides=self.config.train_overrides,
                 gpus=self.config.gpus_per_job,
             )
-
+            jobs.append(training_job)
             logger.info(f"[TrainAndEvalScheduler] Creating training job {run_id} ({self._trial_count}/{self.config.max_trials})")
-            return [training_job]
 
-        return []
+        return jobs
 
     def is_experiment_complete(self, runs: list[RunInfo]) -> bool:
         """Check if train-and-eval experiment is complete."""
