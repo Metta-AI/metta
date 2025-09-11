@@ -24,9 +24,10 @@ class JobDefinition:
     cmd: str  # e.g., "experiments.recipes.arena.train_shaped" or "experiments.recipes.arena.evaluate"
     gpus: int = 1
     nodes: int = 1
-    args: list[str] = field(default_factory=list)  # positional arguments
-    overrides: dict[str, Any] = field(default_factory=dict)  # key=value overrides for the tool
-    config: dict[str, Any] = field(default_factory=dict)  # additional config from optimizer
+    # Single source for recipe arguments (serialized as --args key=value)
+    args: dict[str, Any] = field(default_factory=dict)
+    # Single source for config overrides (serialized as --overrides key=value)
+    overrides: dict[str, Any] = field(default_factory=dict)
     type: JobTypes = JobTypes.LAUNCH_TRAINING  # JobTypes enum value
     created_at: datetime = field(default_factory=datetime.now)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -39,6 +40,7 @@ class JobStatus(StrEnum):
     IN_EVAL = auto()
     COMPLETED = auto()
     FAILED = auto()  # Job failed during training or evaluation
+
 
 @dataclass
 class RunInfo:
@@ -88,6 +90,7 @@ class RunInfo:
     # Dispatch info
     # dispatch_id: str | None = None
     # dispatch_type: DispatchType | None = None
+
 
 @dataclass
 class AdaptiveExperimentMetadata:

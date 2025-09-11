@@ -4,14 +4,14 @@
 from .adaptive_config import AdaptiveConfig
 from .adaptive_controller import AdaptiveController
 
-# Protocols
-from .protocols import Dispatcher, ExperimentScheduler, Store
+# Implementations
+from .dispatcher import LocalDispatcher, RoutingDispatcher, SkypilotDispatcher
 
 # Models (keep the essential ones)
 from .models import JobDefinition, JobStatus, RunInfo
 
-# Implementations
-from .dispatcher import LocalDispatcher, RoutingDispatcher, SkypilotDispatcher
+# Protocols
+from .protocols import Dispatcher, ExperimentScheduler, Store
 from .stores import WandbStore
 
 __all__ = [
