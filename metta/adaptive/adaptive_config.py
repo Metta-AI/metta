@@ -14,7 +14,7 @@ class AdaptiveConfig:
 
     # Core experiment limits
     max_trials: int = 100
-    max_parallel: int = 10
+    max_parallel: int = 1
 
     # Execution settings
     monitoring_interval: int = 60
