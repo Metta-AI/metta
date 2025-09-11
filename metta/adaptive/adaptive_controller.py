@@ -39,7 +39,7 @@ class AdaptiveController:
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
         has_data = self.config.resume
 
-        while len(self.dispatched_jobs) < self.config.max_trials:
+        while True:
             try:
                 # 1. Get current state
                 if has_data:
@@ -54,10 +54,10 @@ class AdaptiveController:
                     logger.info("[AdaptiveController] Scheduler reports experiment complete")
                     break
 
-                # 3. Calculate available training slots
+                # 3. Calculate available training slots (only count runs actually using training resources)
                 active_training_count = sum(
                     1 for run in runs
-                    if not (hasattr(run, 'status') and run.status.value in ('completed', 'failed'))
+                    if hasattr(run, 'status') and run.status.value in ('pending', 'in_training')
                 )
                 available_training_slots = max(0, self.config.max_parallel - active_training_count)
 
