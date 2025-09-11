@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from metta.adaptive.adaptive_config import AdaptiveConfig
 from metta.tools.adaptive import AdaptiveTool, SchedulerType, DispatcherType
 
 
@@ -11,7 +12,7 @@ def train_and_eval(
     train_entrypoint: str = "train",
     eval_entrypoint: str = "evaluate",
     max_trials: int = 3,
-    gpus_per_job: int = 1,
+    gpus_per_job: int = 4,
     experiment_id: str = "train_eval_poc",
     train_overrides: dict[str, Any] | None = None,  # Trainer overrides
     dispatcher_type: str = "skypilot",  # "local" or "skypilot"
@@ -59,12 +60,16 @@ def train_and_eval(
         "experiment_id": experiment_id,
     }
 
-    if train_overrides:
-        scheduler_config["train_overrides"] = train_overrides
+    scheduler_config["train_overrides"] = {
+        "trainer.total_timesteps": 500000000, #500M
+    }
+
+    adaptive_config = AdaptiveConfig(max_parallel=4)
 
     return AdaptiveTool(
         scheduler_type=SchedulerType.TRAIN_AND_EVAL,
         scheduler_config=scheduler_config,
+        config = adaptive_config,
         dispatcher_type=dispatcher_enum,
         experiment_id=experiment_id,
     )
