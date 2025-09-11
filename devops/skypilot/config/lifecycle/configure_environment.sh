@@ -123,7 +123,7 @@ CMD="uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile s
 
 # Add observatory-token only if it's set
 if [ -n "$OBSERVATORY_TOKEN" ]; then
-  CMD="$CMD --observatory-token \"$OBSERVATORY_TOKEN\""
+  CMD="$CMD --observatory-token=\"$OBSERVATORY_TOKEN\""
 fi
 
 # Execute the command
