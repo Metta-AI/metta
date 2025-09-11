@@ -1,9 +1,9 @@
 """Simplified protocols for adaptive experiments."""
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from .models import JobDefinition, RunInfo
+    from .models import JobDefinition, Observation, RunInfo
 
 
 @runtime_checkable
@@ -17,11 +17,7 @@ class ExperimentScheduler(Protocol):
     - AblationScheduler: Component ablation study
     """
 
-    def schedule(
-        self,
-        runs: list["RunInfo"],
-        available_training_slots: int
-    ) -> list["JobDefinition"]:
+    def schedule(self, runs: list["RunInfo"], available_training_slots: int) -> list["JobDefinition"]:
         """
         Decide which jobs to dispatch next based on current run state and available resources.
 
@@ -56,7 +52,7 @@ class Store(Protocol):
     """
 
     # Run operations
-    def init_run(self, run_id: str, group: str | None = None, tags: list[str] = []) -> None:
+    def init_run(self, run_id: str, group: str | None = None, tags: list[str] | None = None) -> None:
         """Initialize a new run"""
         ...
 
@@ -78,4 +74,77 @@ class Dispatcher(Protocol):
     # Distinction: run_id is the job's identifier in WandB, dispatch_id is the Sky Job iD, the pid, etc...
     def dispatch(self, job: "JobDefinition") -> str:
         """Start a job and return a dispatch ID"""
+        ...
+
+
+@runtime_checkable
+class Optimizer(Protocol):
+    """Suggests hyperparameters for new jobs."""
+
+    def suggest(self, observations: list["Observation"], n_suggestions: int = 1) -> list[dict[str, Any]]:
+        """Suggest configurations for new jobs"""
+        ...
+
+
+@runtime_checkable
+class SchedulerConfig(Protocol):
+    """Protocol for scheduler configuration objects expected by AdaptiveTool.
+
+    Must be serializable; at minimum provide a model_dump() -> dict interface
+    (e.g., Pydantic models). Dataclasses are also acceptable if converted prior
+    to passing into the tool.
+    """
+
+    def model_dump(self) -> dict[str, Any]:  # pragma: no cover - protocol only
+        ...
+
+
+@runtime_checkable
+class ExperimentState(Protocol):
+    """Optional typed state object for experiments (serializable, Pydantic-like).
+
+    Experiments that benefit from persistent or shared state (e.g., learning
+    progress, advanced optimizers) can define a dedicated state model.
+    """
+
+    def model_dump(self) -> dict[str, Any]:  # pragma: no cover - protocol only
+        ...
+
+    @classmethod
+    def model_validate(cls, data: dict[str, Any]) -> "ExperimentState":  # pragma: no cover - protocol only
+        ...
+
+
+@runtime_checkable
+class StateStore(Protocol):
+    """Abstract key-value state store for scheduler-managed experiment state.
+
+    Implementations may persist to local filesystem, databases, or other backends.
+    The interface is intentionally minimal to avoid coupling and config bloat.
+    """
+
+    def get(self, namespace: str, key: str) -> dict | None:  # pragma: no cover - protocol only
+        """Return a JSON-serializable dict for (namespace, key), or None if missing."""
+        ...
+
+    def put(self, namespace: str, key: str, value: dict) -> None:  # pragma: no cover - protocol only
+        """Persist a JSON-serializable dict for (namespace, key)."""
+        ...
+
+
+@runtime_checkable
+class SchedulerWithState(Protocol):
+    """Optional mixin protocol for schedulers that manage their own state.
+
+    The controller may call these hooks when present to load/save state around
+    the scheduling lifecycle.
+    """
+
+    def should_load_from_store(self, runs: list["RunInfo"]) -> bool:  # pragma: no cover - protocol only
+        ...
+
+    def load_from_store(self, store: StateStore, experiment_id: str) -> None:  # pragma: no cover - protocol only
+        ...
+
+    def save_to_store(self, store: StateStore, experiment_id: str) -> None:  # pragma: no cover - protocol only
         ...
