@@ -10,7 +10,9 @@ from metta.mettagrid.mettagrid_config import (
     AgentRewards,
     AttackActionConfig,
     GameConfig,
+    GetItemsActionConfig,
     MettaGridConfig,
+    PutItemsActionConfig,
 )
 
 from . import building, empty_converters
@@ -34,8 +36,8 @@ def make_arena(
         noop=ActionConfig(),
         move=ActionConfig(),
         rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
-        put_items=ActionConfig(),
-        get_items=ActionConfig(),
+        put_items=PutItemsActionConfig(),
+        get_items=GetItemsActionConfig(),
         attack=AttackActionConfig(
             consumed_resources={
                 "laser": 1,
@@ -112,8 +114,8 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
             resource_names=["heart"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
-                get_items=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                get_items=GetItemsActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
@@ -150,7 +152,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(),
-                get_items=ActionConfig(),
+                get_items=GetItemsActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
@@ -190,8 +192,8 @@ def make_icl_resource_chain(
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
+                get_items=GetItemsActionConfig(),
+                put_items=PutItemsActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(

@@ -40,11 +40,12 @@ def _():
 def _():
     import altair as alt
     import pandas as pd
+
     from experiments.notebooks.utils.metrics import fetch_metrics
-    from experiments.notebooks.utils.monitoring import sky_job_exists, get_sky_jobs_data
+    from experiments.notebooks.utils.monitoring import get_sky_jobs_data, sky_job_exists
     from experiments.notebooks.utils.monitoring_marimo import monitor_training_statuses
-    from experiments.notebooks.utils.training import launch_training
     from experiments.notebooks.utils.replays import show_replay
+    from experiments.notebooks.utils.training import launch_training
 
     print("Setup complete!")
     return (

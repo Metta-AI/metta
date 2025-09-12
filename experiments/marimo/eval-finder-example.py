@@ -53,6 +53,8 @@ def _(mo):
 @app.cell
 def _():
     # Import the eval finder widget
+    from metta.app_backend.clients.scorecard_client import ScorecardClient
+
     from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget import (
         EvalFinderWidget,
     )
@@ -60,7 +62,6 @@ def _():
         create_demo_eval_finder_widget,
         fetch_eval_data_for_policies,
     )
-    from metta.app_backend.clients.scorecard_client import ScorecardClient
 
     # Comment one of these out, uncomment the other.
     client = (

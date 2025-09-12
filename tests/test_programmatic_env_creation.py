@@ -14,6 +14,7 @@ from metta.mettagrid.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     GameConfig,
+    GetItemsActionConfig,
     MettaGridConfig,
 )
 from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -100,7 +101,7 @@ class TestProgrammaticEnvironments:
                 },
                 actions=ActionsConfig(
                     move=ActionConfig(),
-                    get_items=ActionConfig(),
+                    get_items=GetItemsActionConfig(),
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(

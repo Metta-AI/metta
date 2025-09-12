@@ -132,24 +132,54 @@ class ActionConfig:
         self,
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, int] = {},
+        priority: int = 0,
+        auto_execute: bool = False,
     ) -> None: ...
     required_resources: dict[int, int]
     consumed_resources: dict[int, int]
+    priority: int
+    auto_execute: bool
 
 class AttackActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, int] = {},
+        priority: int = 3,
+        auto_execute: bool = False,
         defense_resources: dict[int, int] = {},
     ) -> None: ...
     defense_resources: dict[int, int]
+
+class PutItemsActionConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+        priority: int = 1,
+        auto_execute: bool = False,
+        facing_required: bool = True,
+    ) -> None: ...
+    facing_required: bool
+
+class GetItemsActionConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+        priority: int = 2,
+        auto_execute: bool = False,
+        facing_required: bool = True,
+    ) -> None: ...
+    facing_required: bool
 
 class ChangeGlyphActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, int] = {},
+        priority: int = 0,
+        auto_execute: bool = False,
         number_of_glyphs: int = ...,
     ) -> None: ...
     number_of_glyphs: int

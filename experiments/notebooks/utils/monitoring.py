@@ -6,7 +6,6 @@ import ipywidgets as widgets
 import pandas as pd
 import wandb
 from IPython.display import display
-
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
 
