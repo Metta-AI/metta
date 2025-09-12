@@ -101,9 +101,8 @@ class TribalProcessPlayTool(Tool):
         project_root = Path(__file__).parent.parent.parent
         tribal_dir = project_root / "tribal"
 
-
         if self.policy_uri:
-            if self.policy_uri in ["test_noop", "test_move"]:
+            if self.policy_uri.startswith("test_"):
                 print(f"🧪 Test mode: {self.policy_uri}")
                 return self._run_test_policy(TribalProcessController, tribal_dir)
             else:
@@ -128,11 +127,11 @@ class TribalProcessPlayTool(Tool):
                 actions = []
                 for agent in range(controller.num_agents):
                     if self.policy_uri == "test_noop":
-                        actions.append([0, 0])
+                        actions.append([0, 0])  # NOOP action
                     elif self.policy_uri == "test_move":
-
-                        actions.append([1, random.randint(0, 3)])
+                        actions.append([1, random.randint(0, 3)])  # Random movement
                     else:
+                        # Default to NOOP for unknown test policies
                         actions.append([0, 0])
 
                 obs, rewards, terminals, truncations, info = controller.step(actions)

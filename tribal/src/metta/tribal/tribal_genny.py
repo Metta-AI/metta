@@ -34,7 +34,7 @@ def _ensure_bindings_available():
     # Check if bindings exist
     if not library_files or not python_binding.exists():
         print("🔨 Tribal bindings not found, building automatically...")
-        _build_bindings(tribal_dir)
+        _build_bindings(_tribal_dir)
 
     # Add to Python path
     sys.path.insert(0, str(bindings_dir))
@@ -62,7 +62,7 @@ def _build_bindings(tribal_dir: Path):
 # Auto-ensure bindings are available
 _ensure_bindings_available()
 
-# Use the same import pattern as the original but simplified  
+# Use the same import pattern as the original but simplified
 try:
     bindings_file = _tribal_dir / "bindings" / "generated" / "tribal.py"
     spec = importlib.util.spec_from_file_location("tribal", bindings_file)
@@ -266,12 +266,10 @@ class TribalGridEnv:
             "episode_done": self._nim_env.is_episode_done(),
         }
 
-    # Minimal compatibility stubs
+    # Compatibility stub for legacy code
     def set_mg_config(self, config) -> None:
+        """Legacy compatibility - no-op."""
         pass
-
-    def get_episode_rewards(self) -> np.ndarray:
-        return np.array([0.0])
 
     def close(self) -> None:
         pass
@@ -364,6 +362,5 @@ def make_tribal_env(**config) -> TribalGridEnv:
     return TribalGridEnv(config)
 
 
-def make_tribal_puffer_env(**config) -> TribalGridEnv:
-    """Create a tribal PufferLib environment instance."""
-    return TribalGridEnv(config)
+# Alias for backward compatibility
+make_tribal_puffer_env = make_tribal_env
