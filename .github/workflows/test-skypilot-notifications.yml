@@ -1,10 +1,6 @@
 name: "Test SkyPilot Notifications"
 
 on:
-  push:
-    branches:
-      - robb/0911-test-notifications
-
   workflow_dispatch:
     inputs:
       test_scenario:
@@ -29,6 +25,8 @@ jobs:
     steps:
       - name: Checkout PR branch (default behavior)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Fetch main branch HEAD
         run: |
@@ -75,6 +73,9 @@ jobs:
         run: |
           echo "## 🔔 Notification Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "🔗 [View main commit](https://github.com/${GITHUB_REPOSITORY}/commit/${{ steps.get_main_sha.outputs.main_sha }})" >> $GITHUB_STEP_SUMMARY
+
 
           if [ -f "/tmp/notification_test_results.md" ]; then
             cat /tmp/notification_test_results.md >> $GITHUB_STEP_SUMMARY
