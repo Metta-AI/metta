@@ -1,13 +1,12 @@
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
-from metta.mettagrid.mettagrid_c import BoxConfig as CppBoxConfig
 from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
-from metta.mettagrid.mettagrid_config import AgentConfig, BoxConfig, ConverterConfig, GameConfig, WallConfig
+from metta.mettagrid.mettagrid_config import AgentConfig, ConverterConfig, GameConfig, WallConfig
 
 
 def recursive_update(d, u):
@@ -156,16 +155,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 swappable=object_config.swappable,
             )
             objects_cpp_params[object_type] = cpp_wall_config
-        elif isinstance(object_config, BoxConfig):
-            returned_resources = game_config.actions.place_box.consumed_resources
-            cpp_box_config = CppBoxConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                returned_resources={
-                    resource_name_to_id[k]: v for k, v in returned_resources.items() if k in resource_name_to_id
-                },
-            )
-            objects_cpp_params[object_type] = cpp_box_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
