@@ -40,7 +40,10 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    arena_env: Optional[MettaGridConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
@@ -59,11 +62,15 @@ def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumCo
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return CurriculumConfig(
-        task_generator=arena_tasks,
+    return arena_tasks.to_curriculum(
         algorithm_config=LearningProgressConfig(
             use_bidirectional=True,  # Enable bidirectional learning progress by default
-        ),
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=5,  # More slices for arena complexity
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
     )
 
 
@@ -80,10 +87,14 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     ]
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_logging: bool = False,
+) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(
