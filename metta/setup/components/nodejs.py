@@ -43,6 +43,7 @@ class NodejsSetup(SetupModule):
             env["NODE_NO_WARNINGS"] = "1"
             result = subprocess.run(
                 ["which", "pnpm"],
+                capture_output=True,
                 env=env,
             )
             return result.returncode == 0
