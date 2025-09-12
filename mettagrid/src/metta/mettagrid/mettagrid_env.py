@@ -145,7 +145,7 @@ class MettaGridEnv(MettaGridPufferBase):
             for t in self._label_completions["completion_rates"]
         }
 
-    def _process_episode_completion(self, infos: Dict[str, Any], moving_avg_window: int = 500, alpha = 0.9) -> None:
+    def _process_episode_completion(self, infos: Dict[str, Any], moving_avg_window: int = 500, alpha=0.9) -> None:
         """Process episode completion - stats, etc."""
         self.timer.start("process_episode_stats")
 
@@ -186,8 +186,10 @@ class MettaGridEnv(MettaGridPufferBase):
 
         if self.mg_config.label not in self.per_label_rewards:
             self.per_label_rewards[self.mg_config.label] = 0
-        self.per_label_rewards[self.mg_config.label] += alpha * (episode_rewards.mean() - self.per_label_rewards[self.mg_config.label])
-        infos["per_label_rewards"] = self.per_label_rewards
+        self.per_label_rewards[self.mg_config.label] += episode_rewards.mean()
+        infos["per_label_rewards"] = (
+            alpha * self.per_label_rewards[self.mg_config.label] + (1 - alpha) * episode_rewards.mean()
+        )
 
         # Add attributes
         attributes: Dict[str, Any] = {
