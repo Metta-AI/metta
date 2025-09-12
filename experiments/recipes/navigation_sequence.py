@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
+import gitta
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -37,8 +38,6 @@ def _default_run_name() -> str:
 
     # Try to get git hash (7 chars like CI) for better tracking
     try:
-        import gitta
-
         git_hash = gitta.get_current_commit()[:7]
         return f"navigation_sequence.{user}.{timestamp}.{git_hash}"
     except Exception:

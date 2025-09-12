@@ -5,6 +5,7 @@ specialized components for high-performance curriculum learning.
 """
 
 import logging
+import random
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -545,8 +546,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 return self._curriculum._rng.choices(task_ids, weights=probabilities)[0]
             else:
                 # Fallback to numpy for backwards compatibility
-                import numpy as np
-
                 return np.random.choice(task_ids, p=probabilities)
         else:
             # Use curriculum's RNG for deterministic behavior
@@ -554,6 +553,4 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 return self._curriculum._rng.choice(task_ids)
             else:
                 # Fallback to random for backwards compatibility
-                import random
-
                 return random.choice(task_ids)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import inspect
 import random
 from abc import ABC
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
@@ -119,8 +120,6 @@ class CurriculumAlgorithm(ABC):
 
         if hasattr(self, "task_tracker"):
             # Handle different TaskTracker implementations
-            import inspect
-
             sig = inspect.signature(self.task_tracker.track_task_creation)
             if len(sig.parameters) > 1:  # Has bucket_values parameter
                 self.task_tracker.track_task_creation(task_id, bucket_values)
