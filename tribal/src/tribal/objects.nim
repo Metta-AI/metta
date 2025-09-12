@@ -59,7 +59,7 @@ const
   ArmorySize* = 4
   
   LanternTintRadius* = 2  # Lantern spreads tint in 5x5 area (radius 2)
-  ArmorDefenseValue* = 3  # Armor provides strong protection
+  ArmorDefenseValue* = 5  # Armor provides strong protection
   
   ClayOvenCooldown* = 10
   ClayOvenWheatCost* = 1

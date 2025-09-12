@@ -114,7 +114,7 @@ type
     inventoryWood*: int     # Wood from tree tiles
     inventorySpear*: int    # Spears crafted from forge
     inventoryLantern*: int  # Lanterns from weaving loom (plantable team markers)
-    inventoryArmor*: int    # Armor from armory (3-hit protection, tracks remaining uses)
+    inventoryArmor*: int    # Armor from armory (5-hit protection, tracks remaining uses)
     reward*: float32
     homeAltar*: IVec2      # Position of agent's home altar for respawning
     # Clippy:
@@ -694,7 +694,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
     # Put wood into armory → get armor
     if thing.cooldown == 0 and agent.inventoryWood > 0 and agent.inventoryArmor == 0:
       agent.inventoryWood -= 1
-      agent.inventoryArmor = 3  # Armor starts with 3 uses
+      agent.inventoryArmor = 5  # Armor starts with 5 uses
       thing.cooldown = 20
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
