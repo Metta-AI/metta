@@ -2,6 +2,7 @@ import std/[random, tables, times, math], vmath, chroma
 import terrain, objects, common
 export terrain, objects, common
 
+
 const
   # Map layout constants
   MapLayoutRoomsX* = 1
@@ -201,6 +202,22 @@ type
 var
   env*: Environment  # Global environment instance
   selection*: Thing  # Currently selected entity for UI interaction
+
+# Frozen building detection
+proc isBuildingFrozen*(pos: IVec2, env: Environment): bool =
+  ## Enhanced check if a building is frozen due to clippy creep zone effect
+  if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
+    return false
+  
+  let color = env.tileColors[pos.x][pos.y]
+  # Cool colors have more blue than red+green combined
+  let basicCoolCheck = color.b > (color.r + color.g)
+  
+  # Additional saturation check: blue should be significantly high (close to max saturation)  
+  # This indicates prolonged presence in a clippy creep zone
+  let highSaturationCheck = color.b >= 1.0  # Blue component near maximum
+  
+  return basicCoolCheck and highSaturationCheck
 
 proc render*(env: Environment): string =
   for y in 0 ..< MapHeight:
@@ -561,10 +578,15 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
     # Check if there's a building at this position
     let thing = env.getThing(targetPos)
     if not isNil(thing):
+      # Universal check: prevent using frozen buildings
+      if isBuildingFrozen(targetPos, env):
+        inc env.stats[id].actionInvalid  # Building is frozen, cannot use
+        return
+      
       # Handle getting outputs from buildings
       case thing.kind:
       of Mine:
-        # Get ore from mine
+        # Get ore from mine  
         if thing.cooldown == 0 and agent.inventoryOre < MapObjectAgentMaxInventory:
           agent.inventoryOre += 1
           env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
@@ -617,6 +639,11 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
   let thing = env.getThing(targetPos)
   if isNil(thing):
     inc env.stats[id].actionInvalid
+    return
+  
+  # Universal check: prevent using frozen buildings
+  if isBuildingFrozen(targetPos, env):
+    inc env.stats[id].actionInvalid  # Building is frozen, cannot use
     return
   
   # Handle putting resources into buildings

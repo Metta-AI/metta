@@ -9,13 +9,8 @@ const
   PurpleOverlayStrength* = 0.6  # How strong the purple overlay is
 
 proc isCoolColor*(pos: IVec2): bool =
-  ## Simple check if a tile has cool colors (blue > red+green)
-  if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
-    return false
-  
-  let color = env.tileColors[pos.x][pos.y]
-  # Cool colors have more blue than red+green combined
-  return color.b > (color.r + color.g)
+  ## Enhanced check if a tile has cool colors and high saturation (creep zone effect)
+  return isBuildingFrozen(pos, env)
 
 proc getInfectionLevel*(pos: IVec2): float32 =
   ## Simple infection level based on color temperature
