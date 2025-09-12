@@ -780,6 +780,45 @@ proc findEmptyPositionsAround*(env: Environment, center: IVec2, radius: int): se
       if env.isValidEmptyPosition(pos):
         result.add(pos)
 
+# ============== LANTERN PLACEMENT ==============
+
+proc findLanternPlacementSpot*(env: Environment, agent: Thing, controller: pointer): IVec2 =
+  ## Find a good spot to place a lantern (7+ tiles from altar, 2+ tiles from other lanterns)
+  let homeAltar = agent.homeAltar
+  
+  # Search in expanding rings around the agent
+  for radius in 1 .. 15:
+    for dx in -radius .. radius:
+      for dy in -radius .. radius:
+        if abs(dx) != radius and abs(dy) != radius:
+          continue  # Only check perimeter of ring
+        
+        let candidate = agent.pos + ivec2(dx, dy)
+        
+        # Must be valid empty position
+        if not env.isValidEmptyPosition(candidate):
+          continue
+          
+        # Must be 3+ tiles from home altar (reduced for testing)
+        let distToAltar = manhattanDistance(candidate, homeAltar)
+        if distToAltar < 3:
+          continue
+          
+        # Must be 2+ tiles from any existing lantern
+        var tooCloseToLantern = false
+        for thing in env.things:
+          if thing.kind == PlantedLantern:
+            let distToLantern = manhattanDistance(candidate, thing.pos)
+            if distToLantern < 2:
+              tooCloseToLantern = true
+              break
+        
+        if not tooCloseToLantern:
+          return candidate  # Found a good spot!
+  
+  # No good spot found
+  return ivec2(-1, -1)
+
 # ============== CLIPPY CREEP SPREAD AI ==============
 
 proc hasNearbyClippies(env: Environment, pos: IVec2, radius: int, excludeClippy: Thing = nil): bool =
