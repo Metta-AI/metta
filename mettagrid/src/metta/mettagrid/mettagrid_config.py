@@ -40,6 +40,7 @@ class AgentConfig(Config):
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
+    resource_loss_prob: dict[str, float] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
 
 
@@ -127,6 +128,7 @@ class ConverterConfig(Config):
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
+    resource_loss_prob: dict[str, float] = Field(default_factory=dict)
 
 
 class GameConfig(Config):
@@ -165,8 +167,6 @@ class GameConfig(Config):
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
     params: Optional[Any] = None
-
-    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)

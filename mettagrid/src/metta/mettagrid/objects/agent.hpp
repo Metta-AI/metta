@@ -6,10 +6,13 @@
 #include <cassert>
 #include <string>
 #include <vector>
+#include <random>
 
+#include "../event.hpp"
 #include "../stats_tracker.hpp"
 #include "agent_config.hpp"
 #include "constants.hpp"
+#include "inventory_list.hpp"
 #include "objects/box.hpp"
 #include "types.hpp"
 
@@ -19,10 +22,6 @@ public:
   short frozen;
   short freeze_duration;
   Orientation orientation;
-  // inventory is a map of item to amount.
-  // keys should be deleted when the amount is 0, to keep iteration faster.
-  // however, this should not be relied on for correctness.
-  std::map<InventoryItem, InventoryQuantity> inventory;
   std::map<InventoryItem, RewardType> resource_rewards;
   std::map<InventoryItem, RewardType> resource_reward_max;
   std::map<std::string, RewardType> stat_rewards;
@@ -45,13 +44,23 @@ public:
   std::string prev_action_name;
   unsigned int steps_without_motion;
   Box* box;
+  EventManager* event_manager;
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config)
+  // Inventory management with resource tracking
+  InventoryList inventory_list;
+  std::map<InventoryItem, InventoryQuantity> initial_inventory_config;
+
+public:
+  // Expose inventory and resource_instances for backward compatibility
+  std::map<InventoryItem, InventoryQuantity>& inventory = inventory_list.inventory;
+  std::map<uint64_t, ResourceInstance>& resource_instances = inventory_list.resource_instances;
+
+
+  Agent(GridCoord r, GridCoord c, const AgentConfig& config, EventManager* event_manager_ptr = nullptr, std::mt19937* rng_ptr = nullptr)
       : group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::North),
-        inventory(),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
@@ -68,22 +77,27 @@ public:
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
         steps_without_motion(0),
-        box(nullptr) {
-    populate_initial_inventory(config.initial_inventory);
+        box(nullptr),
+        event_manager(event_manager_ptr),
+        inventory_list(config.resource_loss_prob.empty() ? InventoryList() : InventoryList(event_manager_ptr, rng_ptr, config.resource_loss_prob)) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
+
+    // Store the initial inventory config for later initialization
+    this->initial_inventory_config = config.initial_inventory;
   }
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
+
+    // Initialize inventory and schedule resource loss events now that we have the correct ID
+    this->inventory_list.populate_initial_inventory(this->initial_inventory_config, this->id);
   }
 
-  void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
-    for (const auto& [item, amount] : initial_inventory) {
-      if (amount > 0) {
-        this->inventory[item] = amount;
-      }
-    }
-  }
+
+
+
+
+
 
   void init_visitation_grid(GridCoord height, GridCoord width) {
     visitation_grid.resize(height, std::vector<unsigned int>(width, 0));
@@ -137,22 +151,23 @@ public:
 
     InventoryDelta delta = new_amount - initial_amount;
 
-    // Update inventory
-    if (new_amount > 0) {
-      this->inventory[item] = new_amount;
-    } else {
-      this->inventory.erase(item);
-    }
+    // Handle inventory changes using InventoryList
+    if (delta != 0) {
+      // Use InventoryList to handle the update with stochastic resource loss
+      InventoryDelta actual_delta = this->inventory_list.update_inventory(item, delta, this->id);
 
-    // Update stats
-    if (delta > 0) {
-      this->stats.add(this->stats.resource_name(item) + ".gained", delta);
-    } else if (delta < 0) {
-      this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
-    }
+      // Update stats
+      if (actual_delta > 0) {
+        this->stats.add(this->stats.resource_name(item) + ".gained", actual_delta);
+      } else if (actual_delta < 0) {
+        this->stats.add(this->stats.resource_name(item) + ".lost", -actual_delta);
+      }
 
-    // Update resource rewards incrementally
-    this->_update_resource_reward(item, initial_amount, new_amount);
+      // Update resource rewards incrementally
+      this->_update_resource_reward(item, initial_amount, initial_amount + actual_delta);
+
+      return actual_delta;
+    }
 
     return delta;
   }

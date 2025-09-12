@@ -155,7 +155,7 @@ private:
 
   // Movement tracking
   bool _track_movement_metrics;
-  float _resource_loss_prob;
+
 
   void init_action_handlers();
   void add_agent(Agent* agent);
