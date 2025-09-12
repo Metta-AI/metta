@@ -343,33 +343,14 @@ def cmd_status(
     else:
         warning("Some components are not installed. Run 'metta install' to set them up.")
 
-    not_connected = [
+    could_force_install = [
         name
         for name, data in module_status.items()
-        if data["installed"] and data["expected"] and data["connected_as"] is None
+        if not data["installed"] or (data["expected"] and data["connected_as"] is None)
     ]
-
-    if not_connected:
-        console.print(f"\n[yellow]Components not connected: {', '.join(not_connected)}[/yellow]")
-        console.print("This could be due to expired credentials, network issues, or broken installations.")
-
-        if non_interactive:
-            console.print(f"\nTo fix: metta install {' '.join(not_connected)} --force")
-        elif sys.stdin.isatty():
-            if typer.confirm("\nReinstall these components to fix connection issues?"):
-                console.print(f"\nRunning: metta install {' '.join(not_connected)} --force")
-                cmd_install(components=not_connected, non_interactive=non_interactive, force=True, check_status=False)
-
-    not_installed = [name for name, data in module_status.items() if not data["installed"]]
-
-    if not_installed:
-        console.print(f"\n[yellow]Components not installed: {', '.join(not_installed)}[/yellow]")
-
-        if non_interactive:
-            console.print(f"\nTo fix: metta install {' '.join(not_installed)}")
-        elif sys.stdin.isatty():
-            if typer.confirm("\nInstall these components?"):
-                cmd_install(components=not_installed, non_interactive=non_interactive, check_status=False)
+    if could_force_install and not non_interactive and sys.stdin.isatty():
+        if typer.confirm(f"\nForce install {', '.join(could_force_install)} to attempt to resolve issues?"):
+            cmd_install(components=could_force_install, non_interactive=non_interactive, force=True, check_status=False)
 
 
 @app.command(name="run", help="Run component-specific commands")
