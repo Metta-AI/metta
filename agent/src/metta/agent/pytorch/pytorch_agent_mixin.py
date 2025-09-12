@@ -152,38 +152,8 @@ class PyTorchAgentMixin:
 
     def forward_inference(self, td: TensorDict, logits_list: torch.Tensor, value: torch.Tensor) -> TensorDict:
         """Forward pass for inference mode with action sampling."""
-        # Clamp logits to prevent FP16 numerical instability
-        logits_clamped = torch.clamp(logits_list, min=-10.0, max=10.0)
-        log_probs = F.log_softmax(logits_clamped, dim=-1)
-        action_probs = torch.exp(log_probs)
-
-        # Additional safety check for numerical stability
-        # Use fp16-safe minimum value
-        min_prob = 1e-6 if action_probs.dtype == torch.float16 else 1e-8
-        action_probs = torch.clamp(action_probs, min=min_prob, max=1.0)
-
-        # Ensure probabilities sum to 1 (normalize to fix any numerical drift)
-        action_probs = action_probs / action_probs.sum(dim=-1, keepdim=True)
-
-        # Check for invalid probability distributions and use uniform fallback if needed
-        has_errors = (
-            torch.isnan(action_probs).any() or
-            torch.isinf(action_probs).any() or
-            (action_probs < 0).any() or
-            (action_probs.sum(dim=-1) == 0).any()
-        )
-
-        if has_errors:
-            logger.warning("Using uniform distribution fallback due to invalid probabilities")
-            uniform_probs = torch.ones_like(action_probs) / action_probs.shape[-1]
-            action_probs = uniform_probs
-
-        try:
-            actions = torch.multinomial(action_probs, num_samples=1).view(-1)
-        except Exception as e:
-            logger.warning(f"Multinomial sampling failed ({e}), using argmax fallback")
-            actions = torch.argmax(action_probs, dim=-1)
-        
+        log_probs = F.log_softmax(logits_list, dim=-1)
+        actions = torch.multinomial(F.softmax(logits_list, dim=-1), num_samples=1).view(-1)
         batch_indices = torch.arange(actions.shape[0], device=actions.device)
         selected_log_probs = log_probs[batch_indices, actions]
 

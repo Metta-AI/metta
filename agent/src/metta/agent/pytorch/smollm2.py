@@ -33,13 +33,13 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Initialize the SmolLM2 model with memory optimizations
         logger.info(f"Loading SmolLM2 model: {model_name}")
 
-        # Try flash attention first, fallback gracefully if not available
+        # Load model in FP32 for numerical stability (similar to other agents in the codebase)
         try:
             self.llm = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 trust_remote_code=True,
                 attn_implementation="flash_attention_2",  # Use flash attention for performance
-                torch_dtype=torch.float16,  # Use FP16 for better memory efficiency
+                torch_dtype=torch.float32,  # Use FP32 for stability
                 low_cpu_mem_usage=True,  # Reduce CPU memory during model loading
             )
             logger.info("Loaded SmolLM2 with Flash Attention 2")
@@ -48,7 +48,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             self.llm = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 trust_remote_code=True,
-                torch_dtype=torch.float16,  # Still use FP16 for memory efficiency
+                torch_dtype=torch.float32,  # Use FP32 for stability
                 low_cpu_mem_usage=True,  # Reduce CPU memory during model loading
             )
 
@@ -247,11 +247,10 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         self.device = device
         self.to(device)
 
-        # CRITICAL: Ensure all custom layers match LLM dtype after device placement
-        # The LLM loads with fp16, but custom layers default to fp32
+        # Ensure all custom layers match LLM dtype (should be FP32 now)
         llm_dtype = next(self.llm.parameters()).dtype
 
-        # Convert token projector to match LLM dtype
+        # Convert token projector to match LLM dtype  
         self.token_projector = self.token_projector.to(dtype=llm_dtype)
         logger.info(f"Converted token_projector to {llm_dtype}")
 
@@ -263,33 +262,6 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Convert value head to match LLM dtype
         self.value = self.value.to(dtype=llm_dtype)
         logger.info(f"Converted value head to {llm_dtype}")
-        
-        # CRITICAL: Re-clamp all weights after dtype conversion to prevent NaN generation
-        # FP16 has limited range and can easily overflow during matrix multiplication
-        logger.info("Re-clamping weights after dtype conversion for FP16 stability")
-        
-        # Clamp token projector weights
-        for module in self.token_projector.modules():
-            if isinstance(module, nn.Linear):
-                with torch.no_grad():
-                    module.weight.clamp_(-0.1, 0.1)
-                    if module.bias is not None:
-                        module.bias.clamp_(-0.1, 0.1)
-        
-        # Clamp actor head weights
-        for actor_head in self.actor:
-            with torch.no_grad():
-                actor_head.weight.clamp_(-0.01, 0.01)  # Tighter bounds for logits
-                if actor_head.bias is not None:
-                    actor_head.bias.clamp_(-0.01, 0.01)
-        
-        # Clamp value head weights
-        with torch.no_grad():
-            self.value.weight.clamp_(-0.01, 0.01)
-            if self.value.bias is not None:
-                self.value.bias.clamp_(-0.01, 0.01)
-        
-        logger.info("Weight clamping completed for FP16 stability")
 
         # Store action names for debugging
         self.full_action_names = full_action_names
@@ -319,17 +291,3 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Use the mixin's implementation for consistency across all agents
         return super().l2_init_loss()
 
-    def clip_weights(self):
-        """Override to add aggressive clipping for token_projector stability."""
-        # Call the parent clip_weights for actor/value heads
-        super().clip_weights()
-        
-        # Add aggressive clipping for token_projector to prevent NaN generation
-        if hasattr(self, 'token_projector') and self.clip_range > 0:
-            for module in self.token_projector.modules():
-                if isinstance(module, nn.Linear):
-                    # Use tighter clipping bounds for FP16 stability
-                    clip_bound = min(self.clip_range, 0.1)  # Never exceed 0.1 for stability
-                    module.weight.data.clamp_(-clip_bound, clip_bound)
-                    if module.bias is not None:
-                        module.bias.data.clamp_(-clip_bound, clip_bound)
