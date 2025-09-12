@@ -534,7 +534,7 @@ class HRMBackbone(nn.Module):
 class HRM(PyTorchAgentMixin, LSTMWrapper):
     """Hierarchical Reasoning Model with LSTM using PyTorchAgentMixin for shared functionality."""
 
-    def __init__(self, env, policy=None, input_size=128, hidden_size=128, num_layers=2, **kwargs):
+    def __init__(self, env, policy=None, input_size=64, hidden_size=64, num_layers=1, **kwargs):
         """Initialize HRM policy with mixin support."""
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
@@ -554,13 +554,19 @@ class HRM(PyTorchAgentMixin, LSTMWrapper):
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # Use mixin to set critical TensorDict fields
-        B, TT = self.set_tensordict_fields(td, observations)
+        # Determine dimensions from observations before any reshaping
+        if observations.dim() == 4:  # Training: [B, TT, obs_tokens, 3]
+            B = observations.shape[0]
+            TT = observations.shape[1]
+            # Reshape TD for training if needed
+            if td.batch_dims > 1:
+                td = td.reshape(B * TT)
+        else:  # Inference: [B, obs_tokens, 3]
+            B = observations.shape[0]
+            TT = 1
 
-        # Handle BPTT reshaping if needed
-        if td.batch_dims > 1:
-            total_batch = B * TT
-            td = td.reshape(total_batch)
+        # Now set TensorDict fields with mixin (TD is already reshaped if needed)
+        self.set_tensordict_fields(td, observations)
 
         # Encode obs
         hidden = self.policy.encode_observations(observations, state)
@@ -579,7 +585,16 @@ class HRM(PyTorchAgentMixin, LSTMWrapper):
         # flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode - use the actual batch size from the hidden tensor
-        logits_list, value = self.policy.decode_actions(hidden.to(torch.float32), hidden.shape[0])
+        if td.batch_dims > 1:
+            # For training, hidden should be flattened to match the reshaped TD
+            flat_hidden = hidden
+            batch_size = B * TT
+        else:
+            # For inference
+            flat_hidden = hidden
+            batch_size = B
+
+        logits_list, value = self.policy.decode_actions(flat_hidden.to(torch.float32), batch_size)
 
         # Use mixin for mode-specific processing
         if action is None:
@@ -593,7 +608,7 @@ class HRM(PyTorchAgentMixin, LSTMWrapper):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, input_size=128, hidden_size=128):
+    def __init__(self, env, input_size=64, hidden_size=64):
         super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
@@ -612,35 +627,35 @@ class Policy(nn.Module):
         # HRM Backbone
         self.backbone = HRMBackbone(
             hidden_size=hidden_size,
-            vocab_size=10000,
+            vocab_size=100,
             batch_size=1,
             pos_encodings="rope",
-            rope_theta=10000,
+            rope_theta=100,
             seq_len=200,
-            forward_dtype="float16",
+            forward_dtype="bfloat16",  # More memory efficient than float16
             H_layers=1,
             L_layers=1,
             H_cycles=1,
             L_cycles=1,
             num_heads=1,
-            halt_max_steps=10,
+            halt_max_steps=3,  # Reduced from 5
             halt_exploration_prob=0.1,
         )
 
-        # Critic branch
-        self.critic_1 = nn.Linear(hidden_size, 1024)
-        self.value_head = nn.Linear(1024, 1)
+        # Critic branch - reduced sizes
+        self.critic_1 = nn.Linear(hidden_size, 256)  # Reduced from 1024
+        self.value_head = nn.Linear(256, 1)
 
-        # Actor branch
-        self.actor_1 = nn.Linear(hidden_size, 512)
+        # Actor branch - reduced sizes
+        self.actor_1 = nn.Linear(hidden_size, 128)  # Reduced from 512
 
-        # Action embeddings
-        self.action_embeddings = nn.Embedding(100, 16)
+        # Action embeddings - reduced dimension
+        self.action_embeddings = nn.Embedding(100, 8)  # Reduced from 16 to 8
         self._initialize_action_embeddings()
 
         # Store for dynamic action head
-        self.action_embed_dim = 16
-        self.actor_hidden_dim = 512
+        self.action_embed_dim = 8  # Reduced from 16
+        self.actor_hidden_dim = 128  # Reduced from 512
 
         # Bilinear layer to match MettaActorSingleHead
         self._init_bilinear_actor()
@@ -720,33 +735,51 @@ class Policy(nn.Module):
         actor_features = self.actor_1(hidden)
         actor_features = F.relu(actor_features)
 
+        # Use the actual batch size from the hidden tensor
+        actual_batch_size = hidden.shape[0]
+
         # Get action embeddings for all actions
         action_embeds = self.action_embeddings.weight[: self.num_active_actions]
 
         # Expand action embeddings for each batch element
-        action_embeds = action_embeds.unsqueeze(0).expand(batch_size, -1, -1)
+        action_embeds = action_embeds.unsqueeze(0).expand(actual_batch_size, -1, -1)
 
         # Bilinear interaction matching MettaActorSingleHead
         num_actions = action_embeds.shape[1]
 
         # Reshape for bilinear calculation
         actor_repeated = actor_features.unsqueeze(1).expand(-1, num_actions, -1)
-        actor_reshaped = actor_repeated.reshape(-1, self.actor_hidden_dim)
-        action_embeds_reshaped = action_embeds.reshape(-1, self.action_embed_dim)
+        # Use the actual feature dimension instead of self.actor_hidden_dim
+        actor_feature_dim = actor_features.shape[1]
+        actor_reshaped = actor_repeated.reshape(-1, actor_feature_dim)
+        # Use the actual embedding dimension
+        action_embed_dim = action_embeds.shape[2]
+        action_embeds_reshaped = action_embeds.reshape(-1, action_embed_dim)
 
         # Perform bilinear operation using einsum
+        # Always ensure actor_W has the correct dimensions for this forward pass
+        if (
+            not hasattr(self, "actor_W")
+            or self.actor_W.shape[1] != actor_feature_dim
+            or self.actor_W.shape[2] != action_embed_dim
+        ):
+            # Initialize or reinitialize actor_W with correct dimensions
+            self.actor_hidden_dim = actor_feature_dim
+            self.action_embed_dim = action_embed_dim
+            self._init_bilinear_actor()
+
         query = torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W)
         query = torch.tanh(query)
         # Reshape query to match action_embeds_reshaped for the dot product
-        query_reshaped = query.reshape(-1, self.action_embed_dim)
+        query_reshaped = query.reshape(-1, action_embed_dim)
         scores = torch.einsum("n e, n e -> n", query_reshaped, action_embeds_reshaped)
         # Reshape scores back to [batch_size * num_actions, 1] then [batch_size, num_actions]
-        scores = scores.reshape(batch_size, num_actions)
+        scores = scores.reshape(actual_batch_size, num_actions)
 
         biased_scores = scores + self.actor_bias
 
         # Reshape back to [B*TT, num_actions]
-        logits = biased_scores.reshape(batch_size, num_actions)
+        logits = biased_scores.reshape(actual_batch_size, num_actions)
 
         return logits, value
 
