@@ -9,13 +9,15 @@ This test verifies that we can:
 4. Validate the neural network outputs
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.tribal.tribal_genny import TribalEnvConfig, TribalGridEnv
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.tribal.tribal_genny import TribalEnvConfig, TribalGridEnv
 
 
 @pytest.fixture

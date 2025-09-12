@@ -151,7 +151,7 @@ for i in 1..paramCount():
   let param = paramStr(i)
   if param == "--external-controller":
     useExternalController = true
-    echo "🔗 Command line: Requested external controller mode"
+    # Command line: Requested external controller mode
 
 # Check environment variable for Python training control
 let pythonControlMode = existsEnv("TRIBAL_PYTHON_CONTROL") or existsEnv("TRIBAL_EXTERNAL_CONTROL")
@@ -160,11 +160,13 @@ let pythonControlMode = existsEnv("TRIBAL_PYTHON_CONTROL") or existsEnv("TRIBAL_
 if useExternalController or pythonControlMode:
   initGlobalController(ExternalNN)
   if pythonControlMode:
-    echo "🔗 Environment variable: Using external NN controller for Python training"
+    # Environment variable: Using external NN controller for Python training
   else:
-    echo "🔗 Command line: Using external NN controller"
+    # Command line: Using external NN controller
+    discard
 elif globalController != nil:
-  echo "🔗 Keeping existing controller: ", getControllerType()
+  # Keeping existing controller
+  discard
 else:
   # DEFAULT: Use built-in AI for standalone execution
   initGlobalController(BuiltinAI)

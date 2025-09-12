@@ -367,33 +367,6 @@ This creates:
 - **Polling frequency**: 50ms polling for responsive communication
 - **JSON streaming**: Files are written atomically
 
-## Migration from Legacy Approaches
-
-### From SeqInt Interface to Zero-Copy
-
-Replace:
-```python
-# Old approach (data conversion overhead)
-actions_seq = SeqInt()
-for action in actions.flatten():
-    actions_seq.append(action)
-obs_data = env.get_token_observations()
-
-# New approach (zero-copy)
-obs, rewards, terminals, truncations, info = env.step(actions)
-```
-
-### From Nimpy to Process Separation
-
-Replace:
-```python
-# Old approach (may crash with SIGSEGV)
-play_tool = play_nimpy(env_config, policy_uri)
-
-# New approach (stable process separation)
-play_tool = play(env_config, policy_uri)
-```
-
 ## Future Improvements
 
 ### Performance Optimizations

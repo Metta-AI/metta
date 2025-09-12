@@ -7,7 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "🔧 Building Tribal Environment Python Bindings..."
+echo "Building Tribal Environment Python Bindings..."
 echo "Working directory: $SCRIPT_DIR"
 
 # Create bindings directory
@@ -39,8 +39,8 @@ else
     LIBNAME="libtribal.so"
 fi
 
-echo "✅ Built bindings/generated/$LIBNAME"
-echo "✅ Generated bindings/generated/tribal.py"
+echo "Built bindings/generated/$LIBNAME"
+echo "Generated bindings/generated/tribal.py"
 echo ""
 echo "Python bindings are ready!"
 echo ""

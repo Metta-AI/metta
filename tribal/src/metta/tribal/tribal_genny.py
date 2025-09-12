@@ -33,7 +33,6 @@ def _ensure_bindings_available():
 
     # Check if bindings exist
     if not library_files or not python_binding.exists():
-        print("🔨 Tribal bindings not found, building automatically...")
         _build_bindings(_tribal_dir)
 
     # Add to Python path
@@ -55,8 +54,6 @@ def _build_bindings(tribal_dir: Path):
 
     if result.returncode != 0:
         raise RuntimeError(f"Failed to build bindings: {result.stderr}")
-
-    print("✅ Tribal bindings built successfully")
 
 
 # Auto-ensure bindings are available
@@ -133,13 +130,10 @@ class TribalGridEnv:
         self.width = MAP_WIDTH
         self.render_mode = render_mode
 
-        # Gymnasium spaces for compatibility
         import gymnasium as gym
 
         self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
         self.single_action_space = gym.spaces.MultiDiscrete([NUM_ACTION_TYPES, 8])
-
-        # Additional compatibility properties
         self.obs_width = OBSERVATION_WIDTH
         self.obs_height = OBSERVATION_HEIGHT
         self.grid_objects = {}
@@ -260,7 +254,3 @@ class TribalEnvConfig(Config):
 def make_tribal_env(**config) -> TribalGridEnv:
     """Create a tribal environment instance."""
     return TribalGridEnv(config)
-
-
-# Alias for backward compatibility
-make_tribal_puffer_env = make_tribal_env

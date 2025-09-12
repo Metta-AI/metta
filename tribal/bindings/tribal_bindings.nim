@@ -223,7 +223,7 @@ exportRefObject TribalEnv:
     isEpisodeDone(TribalEnv)
     renderText(TribalEnv)
 
-# PufferLib compatibility functions
+# Environment status functions
 proc isEmulated*(): bool =
   ## Native environments are not emulated
   false

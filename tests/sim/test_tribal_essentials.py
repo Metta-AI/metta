@@ -25,9 +25,9 @@ from pydantic import BaseModel
 warnings.filterwarnings("ignore", message=".*Gym.*")
 
 try:
-    from metta.tribal.tribal_genny import TribalEnvConfig, TribalGameConfig, TribalGridEnv
     import metta.tribal.tribal_genny as tribal_mod
     from experiments.recipes.tribal_basic import make_tribal_environment
+    from metta.tribal.tribal_genny import TribalEnvConfig, TribalGameConfig, TribalGridEnv
 except ImportError as e:
     print(f"❌ Failed to import tribal: {e}")
     print("Run 'cd tribal && ./build_bindings.sh' to generate bindings")
