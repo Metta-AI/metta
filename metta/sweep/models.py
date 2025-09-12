@@ -1,7 +1,7 @@
 """Data models for sweep orchestration."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from enum import StrEnum, auto
 import time
 from typing import Any
