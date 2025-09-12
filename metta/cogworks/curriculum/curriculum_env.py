@@ -122,15 +122,32 @@ class CurriculumEnv(PufferEnv):
         self._stats_update_counter = self._stats_update_frequency
         self._stats_cache_valid = False
 
-    def close(self) -> None:
-        """Close the wrapped environment."""
-        if hasattr(self._env, "close"):
-            self._env.close()
-
-    def __getattr__(self, name: str):
-        """Delegate attribute access to wrapped environment when attribute not found.
-
-        This is called only when the attribute is not found on CurriculumEnv itself,
-        providing automatic delegation for all PufferEnv interface methods.
+    def __getattribute__(self, name: str):
+        """Intercept all attribute access and delegate to wrapped environment when appropriate.
+        This handles the case where PufferEnv defines methods that raise NotImplementedError,
+        ensuring they get properly delegated to the wrapped environment.
         """
-        return getattr(self._env, name)
+        # First, handle our own attributes to avoid infinite recursion
+        if name in (
+            "_env",
+            "_curriculum",
+            "_current_task",
+            "step",
+            "_add_curriculum_stats_to_info",
+            "_stats_update_counter",
+            "_stats_update_frequency",
+            "set_stats_update_frequency",
+            "force_stats_update",
+            "_cached_stats",
+            "_stats_cache_valid",
+            "_first_reset_done",
+        ):
+            return object.__getattribute__(self, name)
+
+        # Try to get the attribute from our wrapped environment
+        try:
+            env = object.__getattribute__(self, "_env")
+            return getattr(env, name)
+        except AttributeError:
+            # If not found in wrapped env, fall back to parent class
+            return object.__getattribute__(self, name)
