@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 from pydantic import ConfigDict, Field
 
+from metta.cogworks.curriculum.stats import BucketAnalyzer
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
 from metta.cogworks.curriculum.task_tracker import TaskTracker
 from metta.mettagrid.config import Config
@@ -102,18 +103,41 @@ class CurriculumAlgorithm(ABC):
         """Notification that a task has been evicted from the pool."""
         # Default implementation removes from task tracker
         if hasattr(self, "task_tracker"):
+            task_stats = self.task_tracker.get_task_stats(task_id)
+            bucket_values = task_stats.get("bucket_values", {}) if task_stats else {}
             self.task_tracker.remove_task(task_id)
+
+            # Remove from bucket analyzer
+            if hasattr(self, "bucket_analyzer") and bucket_values:
+                self.bucket_analyzer.remove_task_bucket_data(task_id, bucket_values)
 
     def on_task_created(self, task: "CurriculumTask") -> None:
         """Notification that a new task has been created."""
         # Default implementation tracks task creation
+        task_id = task._task_id
+        bucket_values = task.get_bucket_values()
+
         if hasattr(self, "task_tracker"):
-            self.task_tracker.track_task_creation(task._task_id)
+            # Handle different TaskTracker implementations
+            import inspect
+
+            sig = inspect.signature(self.task_tracker.track_task_creation)
+            if len(sig.parameters) > 1:  # Has bucket_values parameter
+                self.task_tracker.track_task_creation(task_id, bucket_values)
+            else:  # Only takes task_id
+                self.task_tracker.track_task_creation(task_id)
 
     def update_task_performance(self, task_id: int, score: float):
         """Update task performance. Default implementation updates task tracker."""
         if hasattr(self, "task_tracker"):
             self.task_tracker.update_task_performance(task_id, score)
+
+            # Update bucket analyzer
+            if hasattr(self, "bucket_analyzer"):
+                task_stats = self.task_tracker.get_task_stats(task_id)
+                bucket_values = task_stats.get("bucket_values", {}) if task_stats else {}
+                if bucket_values:
+                    self.bucket_analyzer.update_bucket_completions(task_id, bucket_values)
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
         """Check if a task should be evicted based on algorithm-specific criteria.
@@ -151,12 +175,28 @@ class CurriculumAlgorithm(ABC):
         # Can be overridden in subclasses
         self.task_tracker = TaskTracker(max_memory_tasks=1000)
 
+        # Initialize bucket analyzer for tracking task completion patterns
+        # Can be overridden in subclasses with specific configurations
+        self.bucket_analyzer = BucketAnalyzer(max_bucket_axes=3, logging_detailed_slices=False)
+
     def stats(self, prefix: str = "") -> dict[str, float]:
         """Return statistics for logging purposes. Add `prefix` to all keys."""
         stats = {}
         if hasattr(self, "task_tracker"):
-            tracker_stats = self.task_tracker.get_global_stats()
-            stats.update({f"{prefix}tracker/{k}": v for k, v in tracker_stats.items()})
+            # Handle different TaskTracker implementations
+            if hasattr(self.task_tracker, "get_global_stats"):
+                tracker_stats = self.task_tracker.get_global_stats()
+                stats.update({f"{prefix}tracker/{k}": v for k, v in tracker_stats.items()})
+            elif hasattr(self.task_tracker, "get_total_completions"):
+                # Create basic stats from available methods
+                stats[f"{prefix}tracker/total_completions"] = float(self.task_tracker.get_total_completions())
+                if hasattr(self.task_tracker, "get_tracked_task_ids"):
+                    stats[f"{prefix}tracker/total_tracked_tasks"] = float(len(self.task_tracker.get_tracked_task_ids()))
+
+        if hasattr(self, "bucket_analyzer"):
+            bucket_stats_raw = self.bucket_analyzer.get_bucket_stats()
+            bucket_stats = {k: float(v) for k, v in bucket_stats_raw.items() if isinstance(v, (int, float))}
+            stats.update({f"{prefix}bucket/{k}": v for k, v in bucket_stats.items()})
         return stats
 
     def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
