@@ -34,16 +34,14 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         logger.info(f"Loading SmolLM2 model: {model_name}")
         self.llm = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float32,
+            dtype=torch.float32,
             trust_remote_code=True,
         )
 
-        # Enable gradient checkpointing for memory efficiency
-        if hasattr(self.llm, "gradient_checkpointing_enable"):
-            self.llm.gradient_checkpointing_enable()
-
         # Store sequence length limit
         self.max_sequence_length = max_sequence_length
+
+        # Note: Gradient checkpointing disabled for 135M model - unnecessary overhead
 
         # Get model configuration
         self.hidden_size = self.llm.config.hidden_size
@@ -74,20 +72,15 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         self.max_action_args = getattr(env, "max_action_args", [])
         self.num_action_types = len(self.max_action_args) if self.max_action_args else env.single_action_space.nvec[0]
 
-        # Create hierarchical action heads: separate action type and parameter selection
-        # Action type head: selects which action to take (attack, move, noop, etc.)
-        self.action_type_head = pufferlib.pytorch.layer_init(
-            nn.Linear(self.hidden_size, self.num_action_types), std=0.01
-        )
+        # Single action head for flattened multi-discrete space
+        # This matches the format expected by the existing training system
+        if hasattr(env, "max_action_args"):
+            total_actions = sum(max_arg + 1 for max_arg in env.max_action_args)
+        else:
+            # Fallback for multi-discrete action space
+            total_actions = sum(env.single_action_space.nvec)
 
-        # Parameter heads: one for each action type that has parameters
-        self.param_heads = nn.ModuleList()
-        for max_param in self.max_action_args:
-            if max_param > 0:  # Only create heads for actions with parameters
-                head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, max_param + 1), std=0.01)
-            else:
-                head = None  # No parameters needed for this action
-            self.param_heads.append(head)
+        self.actor = nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, total_actions), std=0.01)])
 
         # Value head
         self.value = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1), std=1)
@@ -136,39 +129,35 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         if obs_float.shape[1] > self.max_sequence_length:
             obs_float = obs_float[:, : self.max_sequence_length, :]
 
+        # Ensure input requires grad for proper gradient flow
+        obs_float.requires_grad_(True)
+
         # Project tokens to LLM embedding space
         token_embeddings = self.token_projector(obs_float)  # [B*TT, seq_len, hidden_size]
 
-        # Process through LLM with mixed precision for better performance
-        with torch.amp.autocast("cuda", enabled=True):
-            outputs = self.llm(
-                inputs_embeds=token_embeddings,
-                output_hidden_states=True,
-                return_dict=True,
-            )
+        # Process through LLM - autocast handled automatically by training loop
+        outputs = self.llm(
+            inputs_embeds=token_embeddings,
+            output_hidden_states=True,
+            return_dict=True,
+        )
 
         # Use the last hidden state, pooled across sequence dimension
-        hidden_states = outputs.hidden_states[-1]  # [B*TT, seq_len, hidden_size]
+        if hasattr(outputs, "hidden_states") and outputs.hidden_states is not None:
+            hidden_states = outputs.hidden_states[-1]  # [B*TT, seq_len, hidden_size]
+        else:
+            # Fallback: use last_hidden_state
+            hidden_states = outputs.last_hidden_state  # [B*TT, seq_len, hidden_size]
 
         # Pool over sequence dimension (mean pooling)
         pooled_hidden = hidden_states.mean(dim=1)  # [B*TT, hidden_size]
 
-        # Hierarchical action selection: action type + parameters
-        action_type_logits = self.action_type_head(pooled_hidden)  # [B*TT, num_action_types]
+        # Decode actions and value using single flattened head
+        logits_list = [head(pooled_hidden) for head in self.actor]
         value = self.value(pooled_hidden)
 
-        # Compute parameter logits for each action type
-        param_logits_list = []
-        for param_head in self.param_heads:
-            if param_head is not None:
-                param_logits = param_head(pooled_hidden)  # [B*TT, max_param+1]
-            else:
-                # For actions with no parameters, create dummy logits with single option
-                param_logits = torch.zeros(pooled_hidden.shape[0], 1, device=pooled_hidden.device)
-            param_logits_list.append(param_logits)
-
-        # Convert hierarchical logits to flattened format for mixin compatibility
-        logits = self._combine_hierarchical_logits(action_type_logits, param_logits_list)
+        # Convert logits list to single tensor for mixin compatibility
+        logits = logits_list[0] if len(logits_list) == 1 else torch.cat(logits_list, dim=-1)
 
         # Use mixin for mode-specific processing
         if action is None:
@@ -179,37 +168,6 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             td = self.forward_training(td, action, logits, value)
 
         return td
-
-    def _combine_hierarchical_logits(
-        self, action_type_logits: torch.Tensor, param_logits_list: list[torch.Tensor]
-    ) -> torch.Tensor:
-        """Convert hierarchical (action_type, params) logits to flattened action space.
-
-        This matches the flattened action space format expected by the training system,
-        where each (action_type, param) combination gets a unique index.
-        """
-        batch_size = action_type_logits.shape[0]
-
-        # Calculate total flattened action space size
-        total_actions = sum(max_arg + 1 for max_arg in self.max_action_args)
-
-        # Create flattened logits tensor
-        flattened_logits = torch.zeros(batch_size, total_actions, device=action_type_logits.device)
-
-        # Fill flattened logits based on hierarchical structure
-        flat_idx = 0
-        for action_type in range(self.num_action_types):
-            max_param = self.max_action_args[action_type]
-            param_logits = param_logits_list[action_type]
-
-            for param in range(max_param + 1):
-                # Combine action type and parameter logits
-                # This creates a joint probability for (action_type, param) pairs
-                combined_logit = action_type_logits[:, action_type] + param_logits[:, param]
-                flattened_logits[:, flat_idx] = combined_logit
-                flat_idx += 1
-
-        return flattened_logits
 
     def initialize_to_environment(self, full_action_names: list[str], device: torch.device):
         """Initialize the agent to the current environment."""
@@ -283,8 +241,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Only regularize the heads, not the pre-trained LLM
         modules_for_reg = [
             *self.token_projector.modules(),
-            self.action_type_head,
-            *[head for head in self.param_heads if head is not None],
+            *self.actor,
             self.value,
         ]
 
@@ -301,8 +258,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Collect all relevant modules for weight storage
         modules_to_store = [
             *self.token_projector.modules(),
-            self.action_type_head,
-            *[head for head in self.param_heads if head is not None],
+            *self.actor,
             self.value,
         ]
 
