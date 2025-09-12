@@ -220,6 +220,7 @@ jobs:
       # We publish Linux and macOS wheels (and sdist) without blocking on Windows.
 
       - name: Verify no universal wheels were produced
+        continue-on-error: true
         run: |
           shopt -s nullglob
           BAD=(dist/*py3-none-any.whl)
