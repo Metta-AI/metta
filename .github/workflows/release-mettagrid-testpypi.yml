@@ -141,6 +141,7 @@ jobs:
 
   wheels-windows:
     name: Windows wheels (x86_64)
+    continue-on-error: true
     runs-on: windows-latest
     defaults:
       run:
@@ -180,7 +181,6 @@ jobs:
       - sdist
       - wheels-linux
       - wheels-macos
-      - wheels-windows
     if: ${{ github.event.inputs.publish == 'yes' }}
     runs-on: ubuntu-latest
     defaults:
@@ -216,11 +216,8 @@ jobs:
           name: mettagrid-wheels-macos-arm64
           path: dist
 
-      - name: Download Windows wheels
-        uses: actions/download-artifact@v4
-        with:
-          name: mettagrid-wheels-windows
-          path: dist
+      # Windows wheels are currently experimental and may fail to build.
+      # We publish Linux and macOS wheels (and sdist) without blocking on Windows.
 
       - name: Verify no universal wheels were produced
         run: |
