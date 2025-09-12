@@ -65,7 +65,7 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
 
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
-    enable_detailed_bucket_logging: bool = False,
+    enable_detailed_slice_logging: bool = False,
 ) -> CurriculumConfig:
     nav_env = nav_env or make_mettagrid()
 
@@ -93,15 +93,15 @@ def make_curriculum(
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return CurriculumConfig(
-        task_generator=nav_tasks,
+    return nav_tasks.to_curriculum(
         num_active_tasks=1000,  # Smaller pool for navigation tasks
         algorithm_config=LearningProgressConfig(
+            use_bidirectional=True,  # Default: bidirectional learning progress
             ema_timescale=0.001,
             exploration_bonus=0.1,
             max_memory_tasks=1000,
-            enable_detailed_bucket_logging=enable_detailed_bucket_logging,
-            use_bidirectional=True,
+            max_slice_axes=3,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
         ),
     )
 
@@ -117,7 +117,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum
-        or make_curriculum(enable_detailed_bucket_logging=enable_detailed_logging),
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),
