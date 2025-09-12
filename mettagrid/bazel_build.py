@@ -50,6 +50,7 @@ def _run_bazel_build() -> None:
         "bazel",
         "build",
         f"--config={config}",
+        "--verbose_failures",
         "//:mettagrid_c",
     ]
 
@@ -57,7 +58,10 @@ def _run_bazel_build() -> None:
     result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
 
     if result.returncode != 0:
-        print(f"Bazel build failed:\n{result.stderr}", file=sys.stderr)
+        print("Bazel build failed. STDERR:", file=sys.stderr)
+        print(result.stderr, file=sys.stderr)
+        print("Bazel build STDOUT:", file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
         raise RuntimeError("Bazel build failed")
 
     # Copy the built extension to the package directory
