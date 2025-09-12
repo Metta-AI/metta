@@ -24,11 +24,14 @@ Run with: uv run python mettagrid/demos/demo_train_pettingzoo.py (from project r
 import time
 
 import numpy as np
+
+# Demo configuration
+from demo_config import DEFAULT_CONFIG as config
 from gymnasium import spaces
 from pettingzoo.test import parallel_api_test
 
 # PettingZoo adapter imports
-from metta.mettagrid import MettaGridConfig, MettaGridPettingZooEnv
+from metta.mettagrid import MettaGridPettingZooEnv
 
 
 def demo_pettingzoo_api():
@@ -36,17 +39,17 @@ def demo_pettingzoo_api():
     print("PETTINGZOO API DEMO")
     print("=" * 60)
 
-    # Create PettingZoo environment with default config
+    # Create PettingZoo environment with shared config
     env = MettaGridPettingZooEnv(
-        mg_config=MettaGridConfig(),
-        render_mode=None,
+        mg_config=config.get_pettingzoo_config(),
+        render_mode=config.render_mode,
     )
 
     print("PettingZoo environment created")
     print(f"   - Possible agents: {env.possible_agents}")
     print(f"   - Max agents: {env.max_num_agents}")
 
-    observations, _ = env.reset(seed=42)
+    observations, _ = env.reset(seed=config.seed)
     print(f"   - Reset successful: {len(observations)} observations")
 
     print("   - Running PettingZoo API compliance test...")
@@ -59,20 +62,20 @@ def demo_random_rollout():
     print("\nRANDOM ROLLOUT DEMO")
     print("=" * 60)
 
-    # Create PettingZoo environment with default config
+    # Create PettingZoo environment with shared config
     env = MettaGridPettingZooEnv(
-        mg_config=MettaGridConfig(),
-        render_mode=None,
-        is_training=True,
+        mg_config=config.get_pettingzoo_config(),
+        render_mode=config.render_mode,
+        is_training=config.pettingzoo_is_training,
     )
 
     print("Running random policy rollout...")
     print(f"   - Agents: {env.possible_agents}")
 
-    _, _ = env.reset(seed=42)
+    _, _ = env.reset(seed=config.seed)
     total_reward = {agent: 0 for agent in env.possible_agents}
     steps = 0
-    max_steps = 100  # Small for CI
+    max_steps = config.max_steps_quick  # Small for CI
 
     while steps < max_steps and env.agents:
         actions = {}
@@ -110,16 +113,16 @@ def demo_simple_marl_training():
     print("\nSIMPLE MULTI-AGENT TRAINING DEMO")
     print("=" * 60)
 
-    # Create PettingZoo environment with default config
+    # Create PettingZoo environment with shared config
     env = MettaGridPettingZooEnv(
-        mg_config=MettaGridConfig(),
-        render_mode=None,
-        is_training=True,
+        mg_config=config.get_pettingzoo_config(),
+        render_mode=config.render_mode,
+        is_training=config.pettingzoo_is_training,
     )
 
     print("Running simple multi-agent training...")
     print(f"   - Agents: {env.possible_agents}")
-    print("   - Training for 300 steps")
+    print(f"   - Training for {config.max_steps_rollout} steps")
 
     policies = {}
     for agent in env.possible_agents:
@@ -133,10 +136,10 @@ def demo_simple_marl_training():
             # Discrete case
             policies[agent] = np.ones(action_space.n) / action_space.n
 
-    _, _ = env.reset(seed=42)
+    _, _ = env.reset(seed=config.seed)
     total_rewards = {agent: 0 for agent in env.possible_agents}
     steps = 0
-    max_steps = 300  # Reduced for faster CI
+    max_steps = config.max_steps_rollout  # Reduced for faster CI
     episodes = 0
 
     while steps < max_steps:

@@ -30,11 +30,12 @@ import time
 
 import numpy as np
 
+# Demo configuration
+from demo_config import DEFAULT_CONFIG as config
+
 # MettaGrid imports
 # Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.builder.envs import make_arena
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 # Training framework imports
 try:
@@ -45,9 +46,9 @@ except ImportError:
     PUFFERLIB_AVAILABLE = False
 
 
-def create_test_config() -> MettaGridConfig:
+def create_test_config():
     """Create test configuration for Puffer integration."""
-    return MettaGridConfig()
+    return config.get_pettingzoo_config()
 
 
 def demo_puffer_env():
@@ -58,8 +59,8 @@ def demo_puffer_env():
     # Create MettaGridEnv - which IS a PufferLib environment!
     # MettaGridEnv inherits from PufferEnv, so it has all PufferLib functionality
     env = MettaGridEnv(
-        env_cfg=make_arena(num_agents=24),
-        render_mode=None,
+        env_cfg=config.get_puffer_config(),
+        render_mode=config.render_mode,
         is_training=False,  # Disable training-specific features for this demo
     )
 
@@ -69,7 +70,7 @@ def demo_puffer_env():
     print(f"   - Action space: {env.action_space}")
     print(f"   - Max steps: {env.max_steps}")
 
-    observations, _ = env.reset(seed=42)
+    observations, _ = env.reset(seed=config.seed)
     print(f"   - Reset successful: observations shape {observations.shape}")
 
     # Generate random actions compatible with the action space
@@ -104,19 +105,19 @@ def demo_random_rollout():
     # Create MettaGridEnv for rollout
     # Note: is_training=True enables training features like stats collection
     env = MettaGridEnv(
-        env_cfg=make_arena(num_agents=24),
-        render_mode=None,
-        is_training=True,
+        env_cfg=config.get_puffer_config(),
+        render_mode=config.render_mode,
+        is_training=config.puffer_is_training,
     )
 
     print("Running random policy rollout...")
     print(f"   - Agents: {env.num_agents}")
     print(f"   - Action space: {env.action_space}")
 
-    _, _ = env.reset(seed=42)
+    _, _ = env.reset(seed=config.seed)
     total_reward = 0
     steps = 0
-    max_steps = 100  # Small for CI
+    max_steps = config.max_steps_quick  # Small for CI
     episodes = 0
 
     for _ in range(max_steps):
@@ -171,9 +172,9 @@ def demo_pufferlib_training():
 
     # MettaGridEnv can be used directly with PufferLib training code
     env = MettaGridEnv(
-        env_cfg=make_arena(num_agents=24),
-        render_mode=None,
-        is_training=True,
+        env_cfg=config.get_puffer_config(),
+        render_mode=config.render_mode,
+        is_training=config.puffer_is_training,
     )
 
     print("Running PufferLib training...")
@@ -185,12 +186,12 @@ def demo_pufferlib_training():
     try:
         # PufferLib doesn't have a standard training API like pufferlib.frameworks.cleanrl.ppo
         # So we'll do a simple training loop that demonstrates the environment works
-        print("   - Running short training loop (256 steps)...")
+        print(f"   - Running short training loop ({config.max_steps_training} steps)...")
 
-        _, _ = env.reset(seed=42)
+        _, _ = env.reset(seed=config.seed)
         total_reward = 0
         steps = 0
-        max_steps = 256  # Reduced for faster CI
+        max_steps = config.max_steps_training  # Reduced for faster CI
 
         # Initialize simple policies based on action space type
         from gymnasium import spaces
