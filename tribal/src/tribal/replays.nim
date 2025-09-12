@@ -68,7 +68,7 @@ const TribalItemTypes = [
   "wheat",
   "wood",
   "spear",
-  "hat",
+  "lantern",
   "armor"
 ]
 
@@ -83,7 +83,8 @@ const TribalThingTypes = [
   "Armory",
   "Forge",
   "ClayOven",
-  "WeavingLoom"
+  "WeavingLoom",
+  "PlantedLantern"
 ]
 
 const TribalActionTypes = [
@@ -92,7 +93,8 @@ const TribalActionTypes = [
   "attack", 
   "get",
   "swap",
-  "put"
+  "put",
+  "plant"
 ]
 
 proc expand[T](data: auto, numSteps: int, defaultValue: T): seq[T] =
@@ -186,8 +188,8 @@ proc startRecording*(recorder: TribalReplayRecorder) =
         inventoryItems.add(TribalItemAmount(itemId: 4, count: thing.inventoryWood))
       if thing.inventorySpear > 0:
         inventoryItems.add(TribalItemAmount(itemId: 5, count: thing.inventorySpear))
-      if thing.inventoryHat > 0:
-        inventoryItems.add(TribalItemAmount(itemId: 6, count: thing.inventoryHat))
+      if thing.inventoryLantern > 0:
+        inventoryItems.add(TribalItemAmount(itemId: 6, count: thing.inventoryLantern))
       if thing.inventoryArmor > 0:
         inventoryItems.add(TribalItemAmount(itemId: 7, count: thing.inventoryArmor))
       
@@ -204,7 +206,7 @@ proc startRecording*(recorder: TribalReplayRecorder) =
       entity.cooldownProgress = @[thing.cooldown]
       entity.cooldownTime = thing.cooldown
       
-    elif thing.kind in {Converter, Spawner, Armory, Forge, ClayOven, WeavingLoom}:
+    elif thing.kind in {Converter, Spawner, Armory, Forge, ClayOven, WeavingLoom, PlantedLantern}:
       entity.cooldownProgress = @[thing.cooldown]
       entity.cooldownTime = thing.cooldown
     
@@ -267,8 +269,8 @@ proc recordStep*(recorder: TribalReplayRecorder, actions: ptr array[MapAgents, a
           inventoryItems.add(TribalItemAmount(itemId: 4, count: thing.inventoryWood))
         if thing.inventorySpear > 0:
           inventoryItems.add(TribalItemAmount(itemId: 5, count: thing.inventorySpear))
-        if thing.inventoryHat > 0:
-          inventoryItems.add(TribalItemAmount(itemId: 6, count: thing.inventoryHat))
+        if thing.inventoryLantern > 0:
+          inventoryItems.add(TribalItemAmount(itemId: 6, count: thing.inventoryLantern))
         if thing.inventoryArmor > 0:
           inventoryItems.add(TribalItemAmount(itemId: 7, count: thing.inventoryArmor))
           
@@ -282,7 +284,7 @@ proc recordStep*(recorder: TribalReplayRecorder, actions: ptr array[MapAgents, a
       entity.hearts.add(thing.hearts)
       entity.cooldownProgress.add(thing.cooldown)
       
-    elif thing.kind in {Converter, Spawner, Armory, Forge, ClayOven, WeavingLoom}:
+    elif thing.kind in {Converter, Spawner, Armory, Forge, ClayOven, WeavingLoom, PlantedLantern}:
       entity.cooldownProgress.add(thing.cooldown)
 
 proc stopRecording*(recorder: TribalReplayRecorder): string =

@@ -66,7 +66,7 @@ type
     AgentInventoryWheatLayer = 5
     AgentInventoryWoodLayer = 6
     AgentInventorySpearLayer = 7
-    AgentInventoryHatLayer = 8
+    AgentInventoryLanternLayer = 8
     AgentInventoryArmorLayer = 9
     WallLayer = 10
     MineLayer = 11
@@ -92,6 +92,7 @@ type
     Forge
     ClayOven
     WeavingLoom
+    PlantedLantern  # Planted lanterns that spread team colors
 
   Thing* = ref object
     kind*: ThingKind
@@ -112,7 +113,7 @@ type
     inventoryWheat*: int    # Wheat from wheat tiles
     inventoryWood*: int     # Wood from tree tiles
     inventorySpear*: int    # Spears crafted from forge
-    inventoryHat*: int      # Hats from weaving loom (1-hit protection)
+    inventoryLantern*: int  # Lanterns from weaving loom (plantable team markers)
     inventoryArmor*: int    # Armor from armory (3-hit protection, tracks remaining uses)
     reward*: float32
     homeAltar*: IVec2      # Position of agent's home altar for respawning
@@ -120,6 +121,10 @@ type
     homeSpawner*: IVec2     # Position of clippy's home spawner
     hasClaimedTerritory*: bool  # Whether this clippy has claimed territory and is stationary
     turnsAlive*: int            # Number of turns this clippy has been alive
+    
+    # PlantedLantern:
+    teamId*: int               # Which team this lantern belongs to (for color spreading)
+    lanternHealthy*: bool      # Whether lantern is active (not destroyed by clippy)
     
     # Spawner: (no longer needs altar targeting for new creep spread behavior)
 
@@ -132,6 +137,7 @@ type
     actionGet*: int      # Action 3: GET (from terrain/buildings)
     actionSwap*: int     # Action 4: SWAP
     actionPut*: int      # Action 5: PUT (into buildings)
+    actionPlant*: int    # Action 6: PLANT lantern
 
   TileColor* = object
     r*, g*, b*: float32      # RGB color components  
@@ -259,6 +265,8 @@ proc render*(env: Environment): string =
             cell = "O"
           of WeavingLoom:
             cell = "W"
+          of PlantedLantern:
+            cell = "L"
           break
       result.add(cell)
     result.add("\n")
@@ -314,38 +322,46 @@ proc updateObservations(env: Environment, agentId: int) =
         obs[6][x][y] = thing.inventoryWood.uint8
         # Layer 7: AgentInventorySpearLayer
         obs[7][x][y] = thing.inventorySpear.uint8
+        # Layer 8: AgentInventoryLanternLayer
+        obs[8][x][y] = thing.inventoryLantern.uint8
+        # Layer 9: AgentInventoryArmorLayer
+        obs[9][x][y] = thing.inventoryArmor.uint8
 
       of Wall:
-        # Layer 8: WallLayer
-        obs[8][x][y] = 1
+        # Layer 10: WallLayer (shifted due to lantern layer)
+        obs[10][x][y] = 1
 
       of Mine:
-        # Layer 9: MineLayer
-        obs[9][x][y] = 1
-        # Layer 10: MineResourceLayer
-        obs[10][x][y] = thing.resources.uint8
-        # Layer 11: MineReadyLayer
-        obs[11][x][y] = (thing.cooldown == 0).uint8
-
-      of Converter:
-        # Layer 12: ConverterLayer
-        obs[12][x][y] = 1
-        # Layer 13: ConverterReadyLayer
+        # Layer 11: MineLayer
+        obs[11][x][y] = 1
+        # Layer 12: MineResourceLayer
+        obs[12][x][y] = thing.resources.uint8
+        # Layer 13: MineReadyLayer
         obs[13][x][y] = (thing.cooldown == 0).uint8
 
-      of Altar:
-        # Layer 14: AltarLayer
+      of Converter:
+        # Layer 14: ConverterLayer
         obs[14][x][y] = 1
-        # Layer 15: AltarHeartsLayer
-        obs[15][x][y] = thing.hearts.uint8
-        # Layer 16: AltarReadyLayer
-        obs[16][x][y] = (thing.cooldown == 0).uint8
+        # Layer 15: ConverterReadyLayer
+        obs[15][x][y] = (thing.cooldown == 0).uint8
+
+      of Altar:
+        # Layer 16: AltarLayer
+        obs[16][x][y] = 1
+        # Layer 17: AltarHeartsLayer
+        obs[17][x][y] = thing.hearts.uint8
+        # Layer 18: AltarReadyLayer
+        obs[18][x][y] = (thing.cooldown == 0).uint8
       
       of Spawner:
         # Spawner acts similar to altar for observations
-        obs[14][x][y] = 1
-        obs[15][x][y] = thing.hearts.uint8
-        obs[16][x][y] = (thing.cooldown == 0).uint8
+        obs[16][x][y] = 1
+        obs[17][x][y] = thing.hearts.uint8
+        obs[18][x][y] = (thing.cooldown == 0).uint8
+      
+      of PlantedLantern:
+        # PlantedLantern uses wall layer for now (visible as obstacle)
+        obs[10][x][y] = 1
       
       of Clippy:
         # Clippy acts similar to agent for observations
@@ -359,7 +375,7 @@ proc updateObservations(env: Environment, agentId: int) =
       
       of Armory, Forge, ClayOven, WeavingLoom:
         # Corner buildings act like walls for observations
-        obs[8][x][y] = 1  # Use the wall layer for now
+        obs[10][x][y] = 1  # Use the wall layer for now
 
   # Add tint data to new observation layers
   for gy in gridStart.y ..< gridEnd.y:
@@ -662,25 +678,25 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       inc env.stats[id].actionInvalid
   
   of WeavingLoom:
-    # Put wheat into weaving loom → get hat
-    if thing.cooldown == 0 and agent.inventoryWheat > 0 and agent.inventoryHat == 0:
+    # Put wheat into weaving loom → get lantern
+    if thing.cooldown == 0 and agent.inventoryWheat > 0 and agent.inventoryLantern == 0:
       agent.inventoryWheat -= 1
-      agent.inventoryHat = 1
+      agent.inventoryLantern = 1
       thing.cooldown = 15
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-      env.updateObservations(AgentInventoryHatLayer, agent.pos, agent.inventoryHat)
+      env.updateObservations(AgentInventoryLanternLayer, agent.pos, agent.inventoryLantern)
       agent.reward += env.config.clothReward
       inc env.stats[id].actionPut
     else:
       inc env.stats[id].actionInvalid
   
   of Armory:
-    # Put ore into armory → get armor
-    if thing.cooldown == 0 and agent.inventoryOre > 0 and agent.inventoryArmor == 0:
-      agent.inventoryOre -= 1
+    # Put wood into armory → get armor
+    if thing.cooldown == 0 and agent.inventoryWood > 0 and agent.inventoryArmor == 0:
+      agent.inventoryWood -= 1
       agent.inventoryArmor = 3  # Armor starts with 3 uses
       thing.cooldown = 20
-      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+      env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
       agent.reward += env.config.armorReward
       inc env.stats[id].actionPut
@@ -735,6 +751,62 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
     env.updateObservations(target.agentId)
   else:
     inc env.stats[id].actionInvalid
+
+proc plantAction(env: Environment, id: int, agent: Thing, argument: int) =
+  ## Plant lantern at agent's current position - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
+  if argument > 7:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Check if agent has a lantern
+  if agent.inventoryLantern <= 0:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Calculate target position based on orientation argument
+  let plantOrientation = Orientation(argument)
+  let delta = getOrientationDelta(plantOrientation)
+  var targetPos = agent.pos
+  targetPos.x += int32(delta.x)
+  targetPos.y += int32(delta.y)
+  
+  # Check bounds
+  if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Check if position is empty and not water
+  if not env.isEmpty(targetPos) or env.terrain[targetPos.x][targetPos.y] == Water:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Find which team this agent belongs to (by home altar)
+  var teamId = -1
+  if agent.homeAltar.x >= 0:
+    # Find the team ID by matching home altar with village
+    for i, agent_i in env.agents:
+      if agent_i.homeAltar == agent.homeAltar:
+        teamId = i div 5  # Assume 5 agents per team
+        break
+  
+  # Plant the lantern
+  let lantern = Thing(
+    kind: PlantedLantern,
+    pos: targetPos,
+    teamId: teamId,
+    lanternHealthy: true
+  )
+  
+  env.add(lantern)
+  
+  # Consume the lantern from agent's inventory
+  agent.inventoryLantern = 0
+  env.updateObservations(AgentInventoryLanternLayer, agent.pos, agent.inventoryLantern)
+  
+  # Give reward for planting
+  agent.reward += env.config.clothReward * 0.5  # Half reward for planting
+  
+  inc env.stats[id].actionPlant
 
 
 # ============== CLIPPY AI ==============
@@ -874,6 +946,28 @@ proc updateTintModifications(env: Environment) =
       env.tintMods[pos.x][pos.y].r += int16(5)   # Very minimal warm glow (10x reduction)
       env.tintMods[pos.x][pos.y].g += int16(5)
       env.tintMods[pos.x][pos.y].b += int16(2)
+    
+    of PlantedLantern:
+      # Lanterns spread team colors in 5x5 area (similar to clippies but warm colors)
+      if thing.lanternHealthy and thing.teamId >= 0 and thing.teamId < agentVillageColors.len:
+        let teamColor = agentVillageColors[thing.teamId]
+        
+        for dx in -2 .. 2:
+          for dy in -2 .. 2:
+            let tintPos = ivec2(pos.x + dx, pos.y + dy)
+            if tintPos.x >= 0 and tintPos.x < MapWidth and tintPos.y >= 0 and tintPos.y < MapHeight:
+              # Distance-based falloff for more organic look
+              let distance = abs(dx) + abs(dy)  # Manhattan distance
+              let falloff = max(1, 5 - distance)  # Stronger at center, weaker at edges (5x5 grid)
+              
+              env.activeTiles.positions.add(tintPos)
+              env.activeTiles.count += 1
+              
+              # Lantern warm effect (spread team colors)
+              env.tintMods[tintPos.x][tintPos.y].r += int16((teamColor.r - 0.7) * 50 * falloff.float32)
+              env.tintMods[tintPos.x][tintPos.y].g += int16((teamColor.g - 0.65) * 50 * falloff.float32)  
+              env.tintMods[tintPos.x][tintPos.y].b += int16((teamColor.b - 0.6) * 50 * falloff.float32)
+    
     else:
       discard
 
@@ -1107,6 +1201,8 @@ proc init(env: Environment) =
             inventoryWheat: 0,
             inventoryWood: 0,
             inventorySpear: 0,
+            inventoryLantern: 0,
+            inventoryArmor: 0,
             frozen: 0,
           ))
           
@@ -1138,6 +1234,8 @@ proc init(env: Environment) =
       inventoryWheat: 0,
       inventoryWood: 0,
       inventorySpear: 0,
+      inventoryLantern: 0,
+      inventoryArmor: 0,
       frozen: 0,
     ))
     
@@ -1364,6 +1462,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     of 3: env.getAction(id, agent, action[1].int)  # Get from terrain/buildings
     of 4: env.swapAction(id, agent, action[1].int)
     of 5: env.putAction(id, agent, action[1].int)
+    of 6: env.plantAction(id, agent, action[1].int)  # Plant lantern
     else: inc env.stats[id].actionInvalid
 
   # Update objects and collect new clippys to spawn
@@ -1532,14 +1631,10 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         var agentSurvived = false
         
         if agentWouldDie:
-          # Check defense items - armor first (3 uses), then hat (1 use)
+          # Check defense items - only armor now (3 uses)
           if adjacentThing.inventoryArmor > 0:
             adjacentThing.inventoryArmor -= 1
             env.updateObservations(AgentInventoryArmorLayer, adjacentThing.pos, adjacentThing.inventoryArmor)
-            agentSurvived = true
-          elif adjacentThing.inventoryHat > 0:
-            adjacentThing.inventoryHat = 0
-            env.updateObservations(AgentInventoryHatLayer, adjacentThing.pos, adjacentThing.inventoryHat)
             agentSurvived = true
         
         # Only kill agent if they would die, have no defense, and combat is enabled
@@ -1555,10 +1650,50 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           
           # Clear inventory when agent dies
           env.updateObservations(AgentInventoryBatteryLayer, adjacentThing.pos, 0)
-          env.updateObservations(AgentInventoryHatLayer, adjacentThing.pos, 0)
+          env.updateObservations(AgentInventoryLanternLayer, adjacentThing.pos, 0)
           env.updateObservations(AgentInventoryArmorLayer, adjacentThing.pos, 0)
         
         # Break after first combat (clippy is already dead)
+        break
+      
+      # Check for lanterns adjacent to this clippy
+      elif not isNil(adjacentThing) and adjacentThing.kind == PlantedLantern:
+        # Lantern vs Clippy combat: 100% clippy dies, 25% lantern dies
+        if clippy notin clippysToRemove:
+          clippysToRemove.add(clippy)
+          env.grid[clippy.pos.x][clippy.pos.y] = nil
+        
+        # 25% chance lantern dies
+        let lanternRoll = r.rand(0.0 .. 1.0)
+        if lanternRoll < 0.25:
+          # Lantern is destroyed - mark for respawn if possible
+          adjacentThing.lanternHealthy = false
+          
+          # Find the team's altar to consume a heart for respawn
+          if adjacentThing.teamId >= 0:
+            var teamAltar: Thing = nil
+            # Find altar by matching team agents' home altars
+            for agent in env.agents:
+              if agent.agentId div 5 == adjacentThing.teamId and agent.homeAltar.x >= 0:
+                for thing in env.things:
+                  if thing.kind == Altar and thing.pos == agent.homeAltar:
+                    teamAltar = thing
+                    break
+                break
+            
+            if not isNil(teamAltar) and teamAltar.hearts > 0:
+              # Consume a heart to respawn lantern
+              teamAltar.hearts -= 1
+              env.updateObservations(AltarHeartsLayer, teamAltar.pos, teamAltar.hearts)
+              adjacentThing.lanternHealthy = true  # Respawn the lantern
+            else:
+              # No hearts available, remove the lantern permanently
+              let idx = env.things.find(adjacentThing)
+              if idx >= 0:
+                env.things.del(idx)
+              env.grid[adjacentThing.pos.x][adjacentThing.pos.y] = nil
+        
+        # Break after processing this lantern
         break
   
   # ============== CLIPPY CLEANUP ==============

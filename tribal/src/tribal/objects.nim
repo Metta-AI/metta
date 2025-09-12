@@ -7,7 +7,7 @@ type
   
   DefenseItem* = enum
     NoDefense = 0
-    Hat = 1
+    Lantern = 1
     Armor = 2
   
   FoodItem* = enum
@@ -29,7 +29,7 @@ type
     case kind*: ProductionBuildingKind
     of WeavingLoom:
       wheatCostLoom*: int
-      outputDefense*: DefenseItem
+      outputLantern*: DefenseItem
     of Armory:
       oreCost*: int
       outputArmor*: DefenseItem
@@ -58,7 +58,7 @@ const
   ArmoryOreCost* = 1
   ArmorySize* = 4
   
-  HatDefenseValue* = 1  # Number of hits a hat can absorb
+  LanternTintRadius* = 2  # Lantern spreads tint in 5x5 area (radius 2)
   ArmorDefenseValue* = 3  # Armor provides strong protection
   
   ClayOvenCooldown* = 10
@@ -109,7 +109,7 @@ proc createProductionBuilding*(kind: ProductionBuildingKind): ProductionBuilding
     result.centerPos = ivec2(1, 1)
     result.maxCooldown = WeavingLoomCooldown
     result.wheatCostLoom = WeavingLoomWheatCost
-    result.outputDefense = Hat
+    result.outputLantern = Lantern
   of Armory:
     result.width = ArmorySize
     result.height = ArmorySize
