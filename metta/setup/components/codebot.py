@@ -21,7 +21,7 @@ class CodebotSetup(SetupModule):
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         """Install codebot as a uv tool."""
         codebot_dir = self.repo_root / "codebot"
 
@@ -30,16 +30,21 @@ class CodebotSetup(SetupModule):
             return
 
         info("Installing codebot tools...")
+        cmd = ["uv", "tool", "install"]
+        if force:
+            cmd.append("--force")
         try:
-            self.run_command(["uv", "tool", "install", "--force", "-e", str(codebot_dir)])
+            self.run_command([*cmd, "-e", str(codebot_dir)])
         except subprocess.CalledProcessError:
             # Fallback: try without editable flag
             try:
-                self.run_command(["uv", "tool", "install", "--force", str(codebot_dir)])
+                self.run_command([*cmd, str(codebot_dir)])
             except subprocess.CalledProcessError as e:
-                warning(f"Failed to install codebot: {e}")
-                warning("You can manually install it with:")
-                warning(f"  uv tool install --force {codebot_dir}")
+                warning(f"""
+                Failed to install codebot: {e}
+                You can manually install it with:
+                    uv tool install --force {codebot_dir}
+                """)
                 return
 
         success("Codebot tools installed successfully!")

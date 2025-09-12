@@ -54,7 +54,7 @@ class TailscaleSetup(SetupModule):
         except Exception:
             return None
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up Tailscale...")
 
         # In test/CI environments or non-interactive mode, skip interactive setup
