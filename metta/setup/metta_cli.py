@@ -328,22 +328,6 @@ def cmd_status(
 
     console = Console()
     console.print(table)
-
-    all_installed = all(module_status[name].installed for name in module_status)
-    all_connected = all(
-        (module_status[name].connected_as is not None or module_status[name].expected is None)
-        for name in module_status
-        if module_status[name].installed
-    )
-
-    if all_installed:
-        if all_connected:
-            success("All components are properly configured!")
-        else:
-            warning("Some components need authentication. Run 'metta install' to set them up.")
-    else:
-        warning("Some components are not installed. Run 'metta install' to set them up.")
-
     could_force_install = [
         name
         for name, data in module_status.items()
