@@ -9,7 +9,6 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.pytorch.base import LSTMWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 # ------------------
@@ -37,31 +36,23 @@ def rms_norm(x: torch.Tensor, variance_epsilon: float = 1e-5) -> torch.Tensor:
 # Memory
 class HRMMemory:
     def __init__(self):
-        self.carry = None
-
+        self.carry = {}
 
     def has_memory(self):
         return True
-    
+
     def set_memory(self, memory):
-        self.carry = memory["carry"]
-    
+        self.carry = memory
+
     def get_memory(self):
         return self.carry
-    
+
     def reset_memory(self):
-        self.carry = None
-    
+        self.carry = {}
+
     def reset_env_memory(self, env_id):
         if env_id in self.carry:
             del self.carry[env_id]
-        
-    
-
-
-    
-
-    
 
 
 # ------------------
@@ -635,8 +626,6 @@ class HRM(PyTorchAgentMixin, HRMMemory):
             td = self.forward_training(td, action, logits_list, value)
 
         return td
-    
-
 
 
 class Policy(nn.Module):
@@ -740,21 +729,23 @@ class Policy(nn.Module):
         if len(observations.shape) == 4:
             observations = observations.reshape(-1, 200, 3)
 
-        # Initialize carry if not provided
-        if state is None:
-            state = {}
+        # Get environment ID for state tracking
+        training_env_id_start = td.get("training_env_id_start", None)
+        if training_env_id_start is None:
+            training_env_id_start = 0
+        else:
+            training_env_id_start = training_env_id_start[0].item()
 
-
-        if state.get("carry") is None:
-            batch = {"env_obs": observations}
-            state["carry"] = self.backbone.initial_carry(batch)
+        prev_carry = self.get_memory()
+        if prev_carry is None:
+            prev_carry = self.backbone.initial_carry({"env_obs": observations})
+        else:
+            prev_carry = prev_carry[training_env_id_start]
 
         # Forward through backbone
-        new_carry, outputs = self.backbone(state["carry"], {"env_obs": observations})
-        
+        new_carry, outputs = self.backbone(prev_carry, {"env_obs": observations})
 
-        # Update state
-        state["carry"] = new_carry
+        self.set_memory({str(training_env_id_start): new_carry})
 
         # Return hidden state
         return outputs["hidden_state"]
