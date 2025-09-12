@@ -41,7 +41,7 @@ const
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
   SpawnerCooldown* = 13  # Steps between Clippy spawns (1/3 of original 40)
-  ObservationLayers* = 19
+  ObservationLayers* = 20
   ObservationWidth* = 11
   ObservationHeight* = 11
   # Computed
@@ -75,6 +75,7 @@ type
     AltarLayer = 16
     AltarHeartsLayer = 17  # Hearts for respawning
     AltarReadyLayer = 18
+    TintLayer = 19        # Unified tint layer for all environmental effects
 
 
   ThingKind* = enum
@@ -184,8 +185,7 @@ type
     terrain*: TerrainGrid
     tileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Main color array
     baseTileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Base colors (terrain)
-    agentTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Agent heat contributions
-    clippyTintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Clippy cold contributions  
+    tintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Unified tint modifications  
     activeTiles*: ActiveTiles  # Sparse list of tiles to process
     observations*: array[
       MapAgents,
@@ -342,6 +342,17 @@ proc updateObservations(env: Environment, agentId: int) =
       of Armory, Forge, ClayOven, WeavingLoom:
         # Corner buildings act like walls for observations
         obs[8][x][y] = 1  # Use the wall layer for now
+
+  # Add tint data to new observation layers
+  for gy in gridStart.y ..< gridEnd.y:
+    for gx in gridStart.x ..< gridEnd.x:
+      let x = gx - gridOffset.x
+      let y = gy - gridOffset.y
+      
+      # Layer 19: TintLayer - Unified tint intensity from all sources
+      let tint = env.tintMods[gx][gy]
+      let tintIntensity = abs(tint.r) + abs(tint.g) + abs(tint.b)
+      obs[19][x][y] = min(255, tintIntensity div 4).uint8  # Scale down for uint8 range
 
 proc updateObservations(
   env: Environment,
@@ -768,28 +779,23 @@ proc clearTintModifications(env: Environment) =
   ## Clear only active tile modifications for performance
   for pos in env.activeTiles.positions:
     if pos.x >= 0 and pos.x < MapWidth and pos.y >= 0 and pos.y < MapHeight:
-      env.agentTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
-      env.clippyTintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
+      env.tintMods[pos.x][pos.y] = TintModification(r: 0, g: 0, b: 0, intensity: 0)
   
   # Clear the active list for next frame
   env.activeTiles.positions.setLen(0)
   env.activeTiles.count = 0
 
 proc updateTintModifications(env: Environment) =
-  ## Update tint modification arrays based on entity positions - runs every frame
+  ## Update unified tint modification array based on entity positions - runs every frame
   # Clear previous frame's modifications
   env.clearTintModifications()
   
-  # Process all entities and mark their current positions as active
+  # Process all entities and mark their affected positions as active
   for thing in env.things:
     let pos = thing.pos
     if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
       continue
     
-    # Add to active tiles list
-    env.activeTiles.positions.add(pos)
-    env.activeTiles.count += 1
-      
     case thing.kind
     of Clippy:
       # Clippies create creep spread in 3x3 area (stronger effect when planted)
@@ -801,61 +807,72 @@ proc updateTintModifications(env: Environment) =
           if creepPos.x >= 0 and creepPos.x < MapWidth and creepPos.y >= 0 and creepPos.y < MapHeight:
             # Distance-based falloff for more organic look
             let distance = abs(dx) + abs(dy)  # Manhattan distance
-            let falloff = max(1, 5 - distance)  # Stronger at center, weaker at edges
+            let falloff = max(1, 3 - distance)  # Stronger at center, weaker at edges (adjusted for 3x3)
             
-            env.clippyTintMods[creepPos.x][creepPos.y].r = int16(-30 * creepIntensity * falloff div 3)  # Reduce red
-            env.clippyTintMods[creepPos.x][creepPos.y].g = int16(-15 * creepIntensity * falloff div 3)  # Reduce green
-            env.clippyTintMods[creepPos.x][creepPos.y].b = int16(40 * creepIntensity * falloff div 3)   # Increase blue
+            env.activeTiles.positions.add(creepPos)
+            env.activeTiles.count += 1
+            
+            # Clippy creep effect (cool colors)
+            env.tintMods[creepPos.x][creepPos.y].r += int16(-30 * creepIntensity * falloff)  # Reduce red
+            env.tintMods[creepPos.x][creepPos.y].g += int16(-15 * creepIntensity * falloff)  # Reduce green
+            env.tintMods[creepPos.x][creepPos.y].b += int16(40 * creepIntensity * falloff)   # Increase blue
       
     of Agent:
-      # Agents add warmth based on their tribe color
+      # Agents create 5x stronger warmth in 3x3 area based on their tribe color
       let tribeId = thing.agentId
       if tribeId < agentVillageColors.len:
         let tribeColor = agentVillageColors[tribeId]
-        # Stronger tribe color effect
-        env.agentTintMods[pos.x][pos.y].r = int16((tribeColor.r - 0.7) * 50)
-        env.agentTintMods[pos.x][pos.y].g = int16((tribeColor.g - 0.65) * 50)
-        env.agentTintMods[pos.x][pos.y].b = int16((tribeColor.b - 0.6) * 50)
+        
+        for dx in -1 .. 1:
+          for dy in -1 .. 1:
+            let agentPos = ivec2(pos.x + dx, pos.y + dy)
+            if agentPos.x >= 0 and agentPos.x < MapWidth and agentPos.y >= 0 and agentPos.y < MapHeight:
+              # Distance-based falloff
+              let distance = abs(dx) + abs(dy)
+              let falloff = max(1, 3 - distance)  # Stronger at center, weaker at edges
+              
+              env.activeTiles.positions.add(agentPos)
+              env.activeTiles.count += 1
+              
+              # Agent warmth effect (5x stronger than before)
+              env.tintMods[agentPos.x][agentPos.y].r += int16((tribeColor.r - 0.7) * 250 * falloff.float32)  # 5x stronger
+              env.tintMods[agentPos.x][agentPos.y].g += int16((tribeColor.g - 0.65) * 250 * falloff.float32) # 5x stronger
+              env.tintMods[agentPos.x][agentPos.y].b += int16((tribeColor.b - 0.6) * 250 * falloff.float32)  # 5x stronger
         
     of Altar:
-      discard
+      # Reduce altar tint effect by 10x (minimal warm glow)
+      env.activeTiles.positions.add(pos)
+      env.activeTiles.count += 1
+      env.tintMods[pos.x][pos.y].r += int16(5)   # Very minimal warm glow (10x reduction)
+      env.tintMods[pos.x][pos.y].g += int16(5)
+      env.tintMods[pos.x][pos.y].b += int16(2)
     else:
       discard
 
 proc applyTintModifications(env: Environment) =
-  ## Apply tint modifications only to active tiles - very fast
+  ## Apply tint modifications to entity positions and their surrounding areas
   
-  # Process only tiles that have entities on them (sparse processing)
-  for pos in env.activeTiles.positions:
-    if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
-      continue
+  # First, apply modifications to all tiles that have tint modifications
+  for tileX in 0 ..< MapWidth:
+    for tileY in 0 ..< MapHeight:
+      # Skip if no modifications on this tile
+      if env.tintMods[tileX][tileY].r == 0 and env.tintMods[tileX][tileY].g == 0 and env.tintMods[tileX][tileY].b == 0:
+        continue
     
-    let x = pos.x
-    let y = pos.y
-    
-    # Get current color as integers (scaled by 1000 for precision)
-    var r = int(env.tileColors[x][y].r * 1000)
-    var g = int(env.tileColors[x][y].g * 1000)  
-    var b = int(env.tileColors[x][y].b * 1000)
-    
-    # Apply modifications with stronger effects
-    if env.agentTintMods[x][y].r != 0 or env.agentTintMods[x][y].g != 0 or env.agentTintMods[x][y].b != 0:
-      # Agent effect - warm shift
-      r += env.agentTintMods[x][y].r div 10  # 10% of the modification
-      g += env.agentTintMods[x][y].g div 10
-      b += env.agentTintMods[x][y].b div 10
-    
-    if env.clippyTintMods[x][y].r != 0 or env.clippyTintMods[x][y].g != 0 or env.clippyTintMods[x][y].b != 0:
-      # Clippy effect - cold shift (stronger)
-      r += env.clippyTintMods[x][y].r div 8  # 12.5% of the modification
-      g += env.clippyTintMods[x][y].g div 8
-      b += env.clippyTintMods[x][y].b div 8
-    
-    
-    # Convert back to float with clamping
-    env.tileColors[x][y].r = min(max(r.float32 / 1000.0, 0.3), 1.2)
-    env.tileColors[x][y].g = min(max(g.float32 / 1000.0, 0.3), 1.2)
-    env.tileColors[x][y].b = min(max(b.float32 / 1000.0, 0.3), 1.2)
+      # Get current color as integers (scaled by 1000 for precision)
+      var r = int(env.tileColors[tileX][tileY].r * 1000)
+      var g = int(env.tileColors[tileX][tileY].g * 1000)  
+      var b = int(env.tileColors[tileX][tileY].b * 1000)
+      
+      # Apply unified tint modifications
+      r += env.tintMods[tileX][tileY].r div 10  # 10% of the modification
+      g += env.tintMods[tileX][tileY].g div 10
+      b += env.tintMods[tileX][tileY].b div 10
+      
+      # Convert back to float with clamping
+      env.tileColors[tileX][tileY].r = min(max(r.float32 / 1000.0, 0.3), 1.2)
+      env.tileColors[tileX][tileY].g = min(max(g.float32 / 1000.0, 0.3), 1.2)
+      env.tileColors[tileX][tileY].b = min(max(b.float32 / 1000.0, 0.3), 1.2)
   
   # Apply global decay to ALL tiles (but infrequently for performance)
   if env.currentStep mod 30 == 0 and env.currentStep > 0:
@@ -869,9 +886,10 @@ proc applyTintModifications(env: Environment) =
         let baseB = env.baseTileColors[x][y].b
         
         # Only decay if color differs from base (avoid floating point errors)
-        if abs(env.tileColors[x][y].r - baseR) > 0.01 or 
-           abs(env.tileColors[x][y].g - baseG) > 0.01 or 
-           abs(env.tileColors[x][y].b - baseB) > 0.01:
+        # Lowered threshold to allow subtle creep effects to be balanced by decay
+        if abs(env.tileColors[x][y].r - baseR) > 0.001 or 
+           abs(env.tileColors[x][y].g - baseG) > 0.001 or 
+           abs(env.tileColors[x][y].b - baseB) > 0.001:
           env.tileColors[x][y].r = env.tileColors[x][y].r * decay + baseR * (1.0 - decay)
           env.tileColors[x][y].g = env.tileColors[x][y].g * decay + baseG * (1.0 - decay)
           env.tileColors[x][y].b = env.tileColors[x][y].b * decay + baseB * (1.0 - decay)
