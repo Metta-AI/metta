@@ -1,6 +1,7 @@
 import os
 import platform
 import re
+import shutil
 import subprocess
 
 from metta.setup.components.base import SetupModule
@@ -17,39 +18,24 @@ class NodejsSetup(SetupModule):
     def dependencies(self) -> list[str]:
         return ["system"]  # Ensure Node.js/corepack is installed before running pnpm setup
 
-    def _script_exists(self, script: str) -> bool:
-        try:
-            self.run_command(["which", script], capture_output=True)
-            return True
-        except subprocess.CalledProcessError:
-            return False
+    def _cmd_exists(self, script: str) -> bool:
+        return shutil.which(script) is not None
 
     def check_installed(self) -> bool:
         if not (self.repo_root / "node_modules").exists():
             return False
 
-        if not self._check_pnpm():
+        if not self._cmd_exists("pnpm"):
             return False
 
-        if not self._script_exists("turbo"):
+        if not self._cmd_exists("turbo"):
             return False
 
         return True
 
     def _check_pnpm(self) -> bool:
-        """Check if pnpm is working."""
-        try:
-            env = os.environ.copy()
-            env["NODE_NO_WARNINGS"] = "1"
-            result = subprocess.run(
-                ["pnpm", "--version"],
-                capture_output=False,
-                text=True,
-                env=env,
-            )
-            return result.returncode == 0
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-            return False
+        """Check if pnpm is available."""
+        return shutil.which("pnpm") is not None
 
     def _enable_corepack_with_cleanup(self):
         """Enable corepack, removing dead symlinks as needed."""
@@ -84,11 +70,15 @@ class NodejsSetup(SetupModule):
         warning("Failed to enable corepack after removing dead symlinks")
         return False
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up pnpm...")
 
+        if force:
+            info("Uninstalling pnpm first...")
+            self.run_command(["corepack", "disable"])
+
         # First enable corepack to make pnpm command available
-        if not self._check_pnpm():
+        if not self._cmd_exists("pnpm"):
             if not self._enable_corepack_with_cleanup():
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
@@ -117,7 +107,7 @@ class NodejsSetup(SetupModule):
                 os.environ["PATH"] = f"{pnpm_home}:{current_path}"
 
         # Install global turbo if pnpm is working
-        if self._check_pnpm():
+        if self._cmd_exists("pnpm"):
             info("Installing turbo globally...")
             self.run_command(["pnpm", "install", "--global", "turbo"], capture_output=False)
         else:

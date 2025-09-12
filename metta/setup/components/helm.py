@@ -31,7 +31,7 @@ class HelmSetup(SetupModule):
                 return False
         return True
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up helm plugins...")
 
         installed_plugins = self.get_installed_plugins()
