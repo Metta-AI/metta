@@ -1,12 +1,17 @@
+import importlib
 import netrc
 import os
-import sys
+import re
+import time
+from io import TextIOBase
 from pathlib import Path
+from typing import cast
 
 import sky
+import sky.exceptions
 import sky.jobs
-import sky.server.common
 import wandb
+from sky.server.common import RequestId, get_server_url
 
 import gitta as git
 from metta.app_backend.clients.base_client import get_machine_token
@@ -25,10 +30,6 @@ def get_jobs_controller_name() -> str:
     return job_clusters[0]["name"]
 
 
-def print_tip(text: str):
-    print(blue(text), file=sys.stderr)
-
-
 def launch_task(task: sky.Task) -> str:
     request_id = sky.jobs.launch(task)
 
@@ -37,10 +38,10 @@ def launch_task(task: sky.Task) -> str:
     short_request_id = request_id.split("-")[0]
 
     print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
-    dashboard_url = sky.server.common.get_server_url() + "/dashboard/jobs"
+    dashboard_url = get_server_url() + "/dashboard/jobs"
     print(f"- Or, visit: {yellow(dashboard_url)}")
 
-    return short_request_id
+    return request_id
 
 
 def check_git_state(commit_hash: str) -> str | None:
@@ -67,48 +68,54 @@ def check_git_state(commit_hash: str) -> str | None:
     return None
 
 
-def check_config_files(cmd_args: list[str]) -> bool:
-    """Check that config files referenced in arguments actually exist."""
-    config_files_to_check = []
+def validate_module_path(module_path: str) -> bool:
+    """
+    Check that a module path like 'experiments.recipes.arena_basic_easy_shaped.train'
+    points to a valid function.
+    """
+    try:
+        # Split module path and function name
+        # e.g., "experiments.recipes.arena_basic_easy_shaped.train"
+        # -> module: "experiments.recipes.arena_basic_easy_shaped", function: "train"
+        parts = module_path.split(".")
+        module_name = ".".join(parts[:-1])
+        function_name = parts[-1]
 
-    # Mapping of argument prefix to config file path template
-    config_mappings = {
-        "agent=": "./configs/agent/{}.yaml",
-        "trainer=": "./configs/trainer/{}.yaml",
-        "trainer.curriculum=": "./configs/{}.yaml",
-        "sim=": "./configs/sim/{}.yaml",
-    }
+        # First check if the file exists (for better error messages)
+        module_file_path = module_name.replace(".", "/") + ".py"
+        if not Path(module_file_path).exists():
+            print(red(f"❌ Module file '{module_file_path}' does not exist"))
+            return False
 
-    for task_arg in cmd_args:
-        for prefix, path_template in config_mappings.items():
-            if task_arg.startswith(prefix):
-                value = task_arg.split("=", 1)[1]
-                config_path = path_template.format(value)
-                config_files_to_check.append((task_arg, config_path))
-                break  # Found a match, no need to check other prefixes
+        # Try to import the module
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError as e:
+            print(red(f"❌ Failed to import module '{module_name}': {e}"))
+            return False
 
-    missing_files = []
-    for arg, config_path in config_files_to_check:
-        if not Path(config_path).exists():
-            missing_files.append((arg, config_path))
+        # Check if the function exists in the module
+        if not hasattr(module, function_name):
+            print(red(f"❌ Function '{function_name}' not found in module '{module_name}'"))
+            # List available functions as suggestions
+            available_funcs = [
+                name for name in dir(module) if not name.startswith("_") and callable(getattr(module, name))
+            ]
+            if available_funcs:
+                print(f"    Available functions: {', '.join(available_funcs[:5])}")
+            return False
 
-    if missing_files:
-        print(red("❌ Config files not found:"))
-        for arg, path in missing_files:
-            print(f"  {arg} -> {path}")
+        # Optionally, verify it's callable
+        func = getattr(module, function_name)
+        if not callable(func):
+            print(red(f"❌ '{function_name}' exists but is not callable"))
+            return False
 
-            # Try to suggest similar files
-            config_dir = Path(path).parent
-            if config_dir.exists():
-                yaml_files = list(config_dir.glob("*.yaml"))
-                if yaml_files:
-                    suggestions = [f.stem for f in yaml_files[:3]]
-                    print(f"    Available: {', '.join(suggestions)}")
+        return True
 
-        print("Check your argument spelling and file paths.")
+    except Exception as e:
+        print(red(f"❌ Error validating module path '{module_path}': {e}"))
         return False
-
-    return True
 
 
 def display_job_summary(
@@ -216,7 +223,6 @@ def display_job_summary(
 
 def set_task_secrets(task: sky.Task) -> None:
     """Write job secrets to task envs."""
-
     # Note: we can't mount these with `file_mounts` because of skypilot bug with service accounts.
     # Also, copying the entire `.netrc` is too much (it could contain other credentials).
 
@@ -238,3 +244,129 @@ def set_task_secrets(task: sky.Task) -> None:
             OBSERVATORY_TOKEN=observatory_token,
         )
     )
+
+
+def get_request_id_from_launch_output(output: str) -> str | None:
+    """looks for "Submitted sky.jobs.launch request: XXX" pattern in cli output"""
+    request_match = re.search(r"Submitted sky\.jobs\.launch request:\s*([a-f0-9-]+)", output)
+
+    if request_match:
+        return request_match.group(1)
+
+    # Fallback patterns
+    request_id_match = re.search(r"request[_-]?id[:\s]+([a-f0-9-]+)", output, re.IGNORECASE)
+    if request_id_match:
+        return request_id_match.group(1)
+
+    return None
+
+
+def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> str | None:
+    """Get job ID from a request ID."""
+    time.sleep(wait_seconds)  # Wait for job to be registered
+
+    try:
+        job_id, _ = sky.get(RequestId(request_id))
+        return str(job_id) if job_id is not None else None
+    except Exception:
+        return None
+
+
+def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
+    """Check the status of multiple jobs using the SDK."""
+    if not job_ids:
+        return {}
+
+    job_data = {}
+
+    try:
+        # Get job queue with all users' jobs
+        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True))
+
+        # Create a mapping for quick lookup
+        jobs_map = {job["job_id"]: job for job in job_records}
+
+        for job_id in job_ids:
+            if job_id in jobs_map:
+                job = jobs_map[job_id]
+
+                # Calculate time ago
+                submitted_timestamp = job.get("submitted_at", time.time())
+                time_diff = time.time() - submitted_timestamp
+
+                if time_diff < 60:
+                    time_ago = f"{int(time_diff)} secs ago"
+                elif time_diff < 3600:
+                    time_ago = f"{int(time_diff / 60)} mins ago"
+                else:
+                    time_ago = f"{int(time_diff / 3600)} hours ago"
+
+                # Format duration
+                duration = job.get("job_duration", 0)
+                if duration:
+                    duration_str = f"{int(duration)}s" if duration < 60 else f"{int(duration / 60)}m"
+                else:
+                    duration_str = ""
+
+                job_data[job_id] = {
+                    "status": str(job["status"]).split(".")[-1],  # Extract status name
+                    "name": job.get("job_name", ""),
+                    "submitted": time_ago,
+                    "duration": duration_str,
+                    "raw_line": "",  # SDK doesn't provide raw line format
+                }
+            else:
+                job_data[job_id] = {"status": "UNKNOWN", "name": "", "submitted": "", "duration": "", "raw_line": ""}
+
+    except sky.exceptions.ClusterNotUpError:
+        # Jobs controller not up
+        for job_id in job_ids:
+            job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": "Jobs controller not up"}
+    except Exception as e:
+        for job_id in job_ids:
+            job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": str(e)}
+
+    return job_data
+
+
+def tail_job_log(job_id: str, lines: int = 100) -> str | None:
+    """Get the tail of job logs using the SDK. Always returns last few lines."""
+    try:
+        # First check if the job exists and get its status
+        job_status = sky.get(sky.job_status(get_jobs_controller_name(), job_ids=[int(job_id)]))
+
+        if job_status.get(int(job_id)) is None:
+            return f"Error: Job {job_id} not found"
+
+        # Use a StringIO to capture output
+        from io import StringIO
+
+        output = StringIO()
+
+        try:
+            # Try to get logs without following
+            sky.jobs.tail_logs(job_id=int(job_id), follow=False, tail=lines, output_stream=cast(TextIOBase, output))
+
+            result = output.getvalue()
+            if result:
+                return result
+            else:
+                # No logs yet, job might be provisioning
+                return f"No logs available yet for job {job_id} (may still be provisioning)"
+
+        except sky.exceptions.ClusterNotUpError:
+            return "Error: Jobs controller is not up"
+        except Exception as e:
+            # If there's an error getting logs, provide context
+            error_msg = str(e)
+            if "still running" in error_msg.lower():
+                # Try one more time with preload_content=False if available
+                # Otherwise just indicate it's running
+                return f"Job {job_id} is currently running (logs may be incomplete)"
+            else:
+                return f"Error retrieving logs for job {job_id}: {error_msg}"
+
+    except ValueError:
+        return f"Error: Invalid job ID format: {job_id}"
+    except Exception as e:
+        return f"Error: {str(e)}"
