@@ -1,27 +1,35 @@
 ## Test lantern team coloring and production
-import std/[strformat, strutils]
+import std/[strformat, strutils, tables]
 import ../src/tribal/environment
 import ../src/tribal/ai
+import ../src/tribal/external_actions
+import test_utils
 
 proc testLanternProductionAndColoring() =
   echo "Testing Lantern Production and Team Coloring"
   echo "=" & repeat("=", 45)
   
-  var env = newEnvironment()
-  let controller = newController(seed = 42)
+  var env = setupTestEnvironment()
+  setupTestController(seed = 42)
   
-  # Find WeavingLoom specialists across different teams
+  # Find WeavingLoom specialists by running one step to initialize agent states
+  stepTestEnvironment(env)  # Initialize agent states with actual roles
+  
   var lanternMakers: seq[tuple[agentId: int, teamId: int, role: AgentRole]]
   
-  for i in 0 ..< env.agents.len:
-    let agent = env.agents[i]
-    let agentId = agent.agentId
-    let teamId = agentId div 5
-    let role = AgentRole(agentId mod 5)
-    
-    if role == WeavingLoomSpecialist:
-      lanternMakers.add((agentId: agentId, teamId: teamId, role: role))
-      echo fmt"  Agent {agentId} (Team {teamId}): WeavingLoom Specialist"
+  # Access the global controller to get actual agent roles
+  if globalController != nil and globalController.controllerType == BuiltinAI:
+    let controller = globalController.aiController
+    for i in 0 ..< env.agents.len:
+      if controller.agentStates.hasKey(i):
+        let agent = env.agents[i]
+        let state = controller.agentStates[i]
+        let agentId = agent.agentId
+        let teamId = agentId div 5
+        
+        if state.role == WeavingLoomSpecialist:
+          lanternMakers.add((agentId: agentId, teamId: teamId, role: state.role))
+          echo fmt"  Agent {agentId} (Team {teamId}): WeavingLoom Specialist"
   
   echo fmt"\nFound {lanternMakers.len} lantern makers across teams"
   
@@ -34,15 +42,10 @@ proc testLanternProductionAndColoring() =
   
   # Run simulation to see if lanterns get produced and planted
   echo "\nRunning 100 simulation steps to test lantern production..."
-  var actions: array[MapAgents, array[2, uint8]]
   
   for step in 1..100:
-    # Let AI decide actions for all agents
-    for i in 0 ..< env.agents.len:
-      actions[i] = controller.decideAction(env, i)
-    
-    env.step(addr actions)
-    controller.updateController()
+    # Use production-identical step method
+    stepTestEnvironment(env)
     
     # Check lantern inventories and planted lanterns every 20 steps
     if step mod 20 == 0:

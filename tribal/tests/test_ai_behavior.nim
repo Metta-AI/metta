@@ -1,6 +1,6 @@
 ## AI Behavior Test Suite
 ## Tests controller AI for agent decision making and coordination
-import std/[strformat, strutils, sets, math, tables]
+import std/[strformat, strutils, tables]
 import vmath
 import ../src/tribal/environment
 import ../src/tribal/ai
@@ -271,7 +271,7 @@ proc testAgentSpiralMovement() =
     targetType: NoTarget
   )
   
-  controller.agentStates.add(0, state)
+  controller.agentStates[0] = state
   
   echo fmt"  Base position: {state.basePosition}"
   echo "  Generated spiral points:"
