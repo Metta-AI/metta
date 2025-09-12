@@ -2,6 +2,7 @@
 #define GRID_OBJECT_HPP_
 
 #include <cstdint>
+
 #include <span>
 #include <string>
 #include <vector>
@@ -63,6 +64,7 @@ public:
   GridLocation location{};
   TypeId type_id{};
   std::string type_name;
+  std::vector<ObservationType> tag_feature_ids;  // Cached feature IDs for tags
 
   virtual ~GridObject() = default;
 
@@ -70,6 +72,10 @@ public:
     this->type_id = object_type_id;
     this->type_name = object_type_name;
     this->location = object_location;
+  }
+
+  void set_tag_feature_ids(const std::vector<ObservationType>& feature_ids) {
+    this->tag_feature_ids = feature_ids;
   }
 
   virtual bool swappable() const {

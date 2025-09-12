@@ -31,8 +31,11 @@ class AsciiMapBuilder(MapBuilder):
                     f"All lines in ASCII map must have the same length."
                 )
 
-        self._level = np.array([list(line) for line in config.map_data], dtype="U6")
-        self._level = np.vectorize(char_to_grid_object)(self._level)
+        # Convert strings first to avoid truncation
+        # np.vectorize infers dtype from first element which can truncate longer strings
+        converted = [[char_to_grid_object(ch) for ch in row] for row in config.map_data]
+        maxlen = max(1, max(len(ch) for row in converted for ch in row)) if converted else 1
+        self._level = np.array(converted, dtype=f"U{maxlen}")
 
     def build(self) -> GameMap:
         return GameMap(self._level)

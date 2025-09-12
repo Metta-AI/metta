@@ -2,11 +2,9 @@ from typing import Any, Optional
 
 import numpy as np
 
-from metta.mettagrid import (
-    MettaGridEnv,
-    dtype_actions,
-)
+from metta.mettagrid import dtype_actions
 from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.test_support.orientation import Orientation
 
 
