@@ -11,7 +11,7 @@ from metta.setup.utils import info, success
 
 @register_module
 class SkypilotSetup(SetupModule):
-    install_once = False
+    install_once = True
 
     softmax_url = METTA_SKYPILOT_URL
 
@@ -41,13 +41,14 @@ class SkypilotSetup(SetupModule):
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
+        # TODO: check if the sdk version from outside of this uv environment matches the latest version.
+        # It's possible that the user's `sky` is not the same as the one installed by the uv environment we are in.
         info("Setting up SkyPilot...")
 
         # In CI/test environments or non-interactive mode, avoid interactive login flows altogether
         if non_interactive:
-            info("Detected non-interactive/test/CI environment; skipping SkyPilot interactive authentication.")
-            success("SkyPilot installed (non-interactive mode)")
+            info("Skypilot installation requires interactive login. Skipping...")
             return
 
         # Check and setup GitHub authentication first

@@ -1,26 +1,33 @@
 """Skypilot dispatcher implementation for distributed job execution."""
 
 import logging
+import os
 import subprocess
 import uuid
 
-from metta.sweep.sweep_orchestrator import JobDefinition, JobTypes
+from metta.sweep.models import JobDefinition, JobTypes
+from metta.sweep.protocols import Dispatcher
+from metta.sweep.utils import get_display_id
 
 logger = logging.getLogger(__name__)
 
 
-class SkypilotDispatcher:
+class SkypilotDispatcher(Dispatcher):
     """Dispatches jobs to cloud resources using Skypilot."""
 
     def __init__(self):
         """Initialize the Skypilot dispatcher."""
-        logger.info("[SkypilotDispatcher] Initialized (fire-and-forget mode)")
+        pass  # No initialization needed
 
     def dispatch(self, job: JobDefinition) -> str:
         """Dispatch job using Skypilot launcher"""
 
         # Build command parts starting with the launcher script
-        cmd_parts = ["./devops/skypilot/launch.py"]
+        cmd_parts = [
+            os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "devops", "skypilot", "launch.py")
+            )
+        ]
 
         # Add Skypilot flags (in order)
         # 1. Always add --no-spot
@@ -73,14 +80,9 @@ class SkypilotDispatcher:
             cmd_parts.extend(all_overrides)
 
         # Extract trial portion for cleaner display (like LocalDispatcher)
-        display_id = job.run_id.split("_trial_")[-1] if "_trial_" in job.run_id else job.run_id
-        display_id = f"trial_{display_id}" if not display_id.startswith("trial_") else display_id
+        display_id = get_display_id(job.run_id)
 
-        # Get job type name (e.g., "LAUNCH_TRAINING" -> "training")
-        job_type_name = job.type.name
-
-        # Log the full command at INFO level
-        logger.info(f"[SkypilotDispatcher] Dispatching {job_type_name} for {display_id}: {' '.join(cmd_parts)}")
+        logger.info(f"Dispatching {display_id}: {' '.join(cmd_parts)}")
 
         # Generate a UUID for this dispatch
         dispatch_id = str(uuid.uuid4())
@@ -95,16 +97,11 @@ class SkypilotDispatcher:
                 text=True,
             )
 
-            # Log success with process PID for debugging
-            logger.info(
-                f"[SkypilotDispatcher] Launched {display_id} with PID {process.pid}, "
-                f"dispatch_id={dispatch_id} (fire-and-forget)"
-            )
+            logger.info(f"Launched {display_id} with PID {process.pid}")
 
             # Return the UUID as dispatch_id
             return dispatch_id
 
         except Exception as e:
-            # Log error and re-raise
-            logger.error(f"[SkypilotDispatcher] Failed to launch job {job.run_id}: {e}")
+            logger.error(f"Failed to launch job {job.run_id}: {e}")
             raise

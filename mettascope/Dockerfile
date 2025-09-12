@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Bazel for metta-mettagrid build
+# Install Bazel for mettagrid build
 RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
     && chmod +x /usr/local/bin/bazel
 

@@ -1,13 +1,33 @@
 """Comprehensive tests for SkypilotDispatcher implementation."""
 
+import os
 import subprocess
 import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from metta.sweep import Dispatcher, JobDefinition, JobTypes
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
-from metta.sweep.sweep_orchestrator import Dispatcher, JobDefinition, JobTypes
+
+
+# Helper to get the expected launch script path
+def get_launch_script_path():
+    """Get the absolute path to the launch script as SkypilotDispatcher computes it."""
+    import metta.sweep.dispatcher.skypilot
+
+    return os.path.abspath(
+        os.path.join(
+            os.path.dirname(metta.sweep.dispatcher.skypilot.__file__),
+            "..",
+            "..",
+            "..",
+            "devops",
+            "skypilot",
+            "launch.py",
+        )
+    )
+
 
 # ============================================================================
 # Fixtures
@@ -88,7 +108,7 @@ class TestCommandConstruction:
 
         # Verify command construction (JobDefinition defaults to gpus=1)
         expected_cmd = [
-            "./devops/skypilot/launch.py",
+            get_launch_script_path(),
             "--no-spot",
             "--gpus=1",
             "experiments.recipes.arena.train",
@@ -106,7 +126,7 @@ class TestCommandConstruction:
         dispatcher.dispatch(basic_eval_job)
 
         expected_cmd = [
-            "./devops/skypilot/launch.py",
+            get_launch_script_path(),
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
             "experiments.recipes.arena.evaluate",
@@ -128,7 +148,7 @@ class TestCommandConstruction:
         dispatcher.dispatch(job)
 
         expected_cmd = [
-            "./devops/skypilot/launch.py",
+            get_launch_script_path(),
             "--no-spot",
             "--gpus=8",
             "experiments.recipes.arena.train",
@@ -150,7 +170,7 @@ class TestCommandConstruction:
         dispatcher.dispatch(job)
 
         expected_cmd = [
-            "./devops/skypilot/launch.py",
+            get_launch_script_path(),
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
             "--nodes=4",
@@ -177,7 +197,7 @@ class TestCommandConstruction:
         dispatcher.dispatch(job)
 
         expected_cmd = [
-            "./devops/skypilot/launch.py",
+            get_launch_script_path(),
             "--no-spot",
             "--gpus=4",
             "--nodes=2",
@@ -196,7 +216,7 @@ class TestCommandConstruction:
         dispatcher.dispatch(complex_job)
 
         expected_cmd = [
-            "./devops/skypilot/launch.py",
+            get_launch_script_path(),
             "--no-spot",
             "--gpus=4",
             "--nodes=2",
@@ -228,7 +248,7 @@ class TestCommandConstruction:
         dispatcher.dispatch(job)
 
         expected_cmd = [
-            "./devops/skypilot/launch.py",
+            get_launch_script_path(),
             "--no-spot",
             "experiments.recipes.arena.train",
             "--args",
@@ -249,7 +269,7 @@ class TestCommandConstruction:
         dispatcher.dispatch(job)
 
         expected_cmd = [
-            "./devops/skypilot/launch.py",
+            get_launch_script_path(),
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
             "experiments.recipes.arena.train",
@@ -288,7 +308,7 @@ class TestFlagOrdering:
         cmd = args[0]
 
         # Check that --no-spot is the first flag (after the script)
-        assert cmd[0] == "./devops/skypilot/launch.py"
+        assert cmd[0] == get_launch_script_path()
         assert cmd[1] == "--no-spot"
 
     def test_gpus_before_nodes(self, mock_popen, mock_uuid):
@@ -461,7 +481,7 @@ class TestDispatcherComparison:
 
     def test_command_equivalence_basic(self, basic_training_job):
         """Test that both dispatchers build the same args/overrides for basic job."""
-        from metta.sweep.sweep_orchestrator import LocalDispatcher
+        from metta.sweep import LocalDispatcher
 
         with patch("subprocess.Popen") as mock_popen:
             mock_process = MagicMock()
@@ -495,7 +515,7 @@ class TestDispatcherComparison:
 
     def test_command_equivalence_complex(self, complex_job):
         """Test command equivalence for complex job with all parameters."""
-        from metta.sweep.sweep_orchestrator import LocalDispatcher
+        from metta.sweep import LocalDispatcher
 
         with patch("subprocess.Popen") as mock_popen:
             mock_process = MagicMock()
@@ -531,7 +551,7 @@ class TestDispatcherComparison:
 
     def test_eval_job_equivalence(self, basic_eval_job):
         """Test that eval jobs are handled identically by both dispatchers."""
-        from metta.sweep.sweep_orchestrator import LocalDispatcher
+        from metta.sweep import LocalDispatcher
 
         with patch("subprocess.Popen") as mock_popen:
             mock_process = MagicMock()

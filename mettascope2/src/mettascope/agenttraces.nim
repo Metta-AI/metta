@@ -1,6 +1,6 @@
 import
   std/[times],
-  boxy, chroma, windy,
+  boxy, chroma, windy, fidget2/[common, hybridrender],
   common, panels, replays, worldmap
 
 let traceWidth = 0.54 / 2
@@ -14,10 +14,6 @@ const clickDistance = 10.0 # pixels
 
 proc drawAgentTraces*(panel: Panel) =
   let box = IRect(x: 0, y: 0, w: panel.rect.w, h: panel.rect.h)
-  bxy.drawRect(
-    rect = box.rect,
-    color = color(0.08, 0.08, 0.08, 1.0)
-  )
 
   panel.scrollArea = rect(0, 0, replay.maxSteps.float32 * traceWidth,
       replay.agents.len.float32 * traceHeight)

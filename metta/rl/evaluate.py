@@ -83,7 +83,6 @@ def upload_replay_html(
     agent_step: int,
     epoch: int,
     wandb_run: WandbRun,
-    metric_prefix: str | None = None,
     step_metric_key: str | None = None,
     epoch_metric_key: str | None = None,
 ) -> None:

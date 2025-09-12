@@ -15,6 +15,7 @@
     "autotune",
     "autouse",
     "Backpropagation",
+    "bazel",
     "bencherdev",
     "bint",
     "Bloomin",
@@ -40,6 +41,7 @@
     "clocale",
     "clusterissuer",
     "cmath",
+    "codebot",
     "codeclip",
     "codecvt",
     "coef",
@@ -306,5 +308,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }

@@ -56,6 +56,7 @@ def get_pufferlib_repo():
             shutil.rmtree(temp_dir)
 
 
+@pytest.mark.timeout(200)
 @pytest.mark.skipif(
     os.environ.get("CI") != "true", reason="Skipping PufferLib integration test in local environment (CI only)"
 )

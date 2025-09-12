@@ -433,7 +433,6 @@ def process_policy_evaluator_stats(
                     agent_step=agent_step,  # type: ignore
                     epoch=epoch,  # type: ignore
                     wandb_run=run,
-                    metric_prefix=POLICY_EVALUATOR_METRIC_PREFIX,
                     step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
                     epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
                 )

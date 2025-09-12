@@ -12,12 +12,19 @@ set -euo pipefail
 
 TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
 
+# Function to handle timeout termination
+handle_timeout_termination() {
+  echo "[INFO] Timeout limit reached - terminating process group"
+  echo "max_runtime_reached" > "$TERMINATION_REASON_FILE"
+  kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
+}
+
 max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
 remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
 
 if [ "$remaining_at_start" -le 0 ]; then
-  echo "[INFO] Timeout limit reached at startup - terminating process group"
-  kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
+  handle_timeout_termination
+  echo "[INFO] Timeout monitor exiting after ensuring shutdown"
   exit 0
 fi
 
@@ -46,9 +53,7 @@ while true; do
     remaining_min=$((remaining / 60))
     echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
   else
-    echo "[INFO] Timeout limit reached - terminating process group"
-    echo "max_runtime_reached" > "$TERMINATION_REASON_FILE"
-    kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
+    handle_timeout_termination
     break
   fi
 done

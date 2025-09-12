@@ -1,145 +1,65 @@
 import
-  std/[strformat],
-  boxy, vmath, windy,
+  std/[strformat, strutils],
+  boxy, vmath, windy, fidget2/[hybridrender, common], fidget2,
   common, panels, sim, actions, utils, ui
 
-const
-  BgColor = parseHtmlColor("#2D343D")
+find "/UI/Main/GlobalFooter":
+  find "**/RewindToStart":
+    onClick:
+      step = 0
+  find "**/StepBack":
+    onClick:
+      step -= 1
+      step = clamp(step, 0, replay.maxSteps - 1)
+  find "**/Play":
+    onShow:
+      thisNode.setVariant("On", play)
+    onClick:
+      play = not play
+      thisNode.setVariant("On", play)
+  find "**/StepForward":
+    onClick:
+      step += 1
+      step = clamp(step, 0, replay.maxSteps - 1)
+  find "**/RewindToEnd":
+    onClick:
+      step = replay.maxSteps - 1
 
-proc drawFooter*(panel: Panel) =
-  bxy.drawRect(
-    rect = Rect(
-      x: 0,
-      y: 0,
-      w: panel.rect.w.float32,
-      h: panel.rect.h.float32
-    ),
-    color = BgColor
-  )
+  const speeds = [0.01, 0.05, 0.1, 0.5, 1, 5]
+  find "**/Speed?":
+    onDisplay:
+      var speedNum = parseInt($thisNode.name[^1]) - 1
+      thisNode.opacity =
+        if playSpeed < speeds[speedNum] - 0.00001:
+          0.5
+        else:
+          1
+    onClick:
+      var speedNum = parseInt($thisNode.name[^1]) - 1
+      playSpeed = speeds[speedNum]
 
-  # Draw the left side buttons.
-  var x = 16f
-  if drawIconButton(
-    "ui/rewindToStart",
-    pos = vec2(x, 16)
-  ):
-    step = 0
-  x += 32 + 5
-
-  if drawIconButton(
-    "ui/stepBack",
-    pos = vec2(x, 16)
-  ):
-    step -= 1
-    step = clamp(step, 0, replay.maxSteps - 1)
-  x += 32 + 5
-
-  if drawIconButton(
-    if play:
-      "ui/pause"
-    else:
-      "ui/play",
-    pos = vec2(x, 16)
-  ):
-    play = not play
-    stepFloat = step.float32
-  x += 32 + 5
-
-  if drawIconButton(
-    "ui/stepForward",
-    pos = vec2(x, 16)
-  ):
-    step += 1
-    step = clamp(step, 0, replay.maxSteps - 1)
-  x += 32 + 5
-
-  if drawIconButton(
-    "ui/rewindToEnd",
-    pos = vec2(x, 16)
-  ):
-    step = replay.maxSteps - 1
-
-
-  # Draw the middle buttons.
-  x = panel.rect.w.float32 / 2 - 32
-
-  if drawIconButton(
-    "ui/turtle",
-    pos = vec2(x, 16)
-  ):
-    echo "Speed 0"
-  x += 32 + 3
-
-  if drawIconButton(
-    "ui/speed",
-    pos = vec2(x, 16),
-    size = vec2(20, 32)
-  ):
-    echo "Speed 1"
-  x += 20
-
-  if drawIconButton(
-    "ui/speed",
-    pos = vec2(x, 16),
-    size = vec2(20, 32)
-  ):
-    echo "Speed 2"
-  x += 20
-
-  if drawIconButton(
-    "ui/speed",
-    pos = vec2(x, 16),
-    size = vec2(20, 32)
-  ):
-    echo "Speed 3"
-  x += 20
-
-  if drawIconButton(
-    "ui/speed",
-    pos = vec2(x, 16),
-    size = vec2(20, 32)
-  ):
-    echo "Speed 4"
-  x += 20
-
-  if drawIconButton(
-    "ui/rabbit",
-    pos = vec2(x, 16)
-  ):
-    echo "Speed 5"
-
-
-  # Draw the right side buttons.
-  x = panel.rect.w.float32 - 16 - 32
-
-  if drawIconToggle(
-    "ui/cloud",
-    pos = vec2(x, 16),
-    value = settings.showFogOfWar
-  ):
-    echo "Fog of war"
-  x -= 32 + 5
-
-  if drawIconToggle(
-    "ui/eye",
-    pos = vec2(x, 16),
-    value = settings.showVisualRange
-  ):
-    echo "Visual range"
-  x -= 32 + 5
-
-  if drawIconToggle(
-    "ui/grid",
-    pos = vec2(x, 16),
-    value = settings.showGrid
-  ):
-    echo "Grid"
-  x -= 32 + 5
-
-  if drawIconToggle(
-    "ui/tack",
-    pos = vec2(x, 16),
-    value = settings.lockFocus
-  ):
-    echo "Focus"
-  x -= 32 + 5
+  find "**/Tack":
+    onDisplay:
+      thisNode.setVariant("On", settings.lockFocus)
+    onClick:
+      settings.lockFocus = not settings.lockFocus
+  find "**/Heart":
+    onDisplay:
+      thisNode.setVariant("On", settings.showResources)
+    onClick:
+      settings.showResources = not settings.showResources
+  find "**/Grid":
+    onDisplay:
+      thisNode.setVariant("On", settings.showGrid)
+    onClick:
+      settings.showGrid = not settings.showGrid
+  find "**/Eye":
+    onDisplay:
+      thisNode.setVariant("On", settings.showVisualRange)
+    onClick:
+      settings.showVisualRange = not settings.showVisualRange
+  find "**/Cloud":
+    onDisplay:
+      thisNode.setVariant("On", settings.showFogOfWar)
+    onClick:
+      settings.showFogOfWar = not settings.showFogOfWar
