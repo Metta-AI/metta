@@ -164,7 +164,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         height = rng.randint(self.config.height_range[0], self.config.height_range[1])
         max_steps = self.config.max_steps
 
-        avg_hop = width + height / 2
+        avg_hop = (width + height) / 2
 
         # optimal reward estimates for the task, to be used in evaluation
         most_efficient_optimal_reward, least_efficient_optimal_reward = (
