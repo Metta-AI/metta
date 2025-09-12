@@ -96,40 +96,95 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
 
         logger.info(f"SmolLM2 agent initialized with {sum(p.numel() for p in self.parameters()):,} parameters")
 
+    def _compress_tokens(self, observations: torch.Tensor) -> torch.Tensor:
+        """Smart compression of tokens from [B, seq_len, 3] to [B, max_seq_len, 3]."""
+        B, seq_len, C = observations.shape
+
+        if seq_len <= self.max_sequence_length:
+            return observations
+
+        if self.token_compression == "truncate":
+            # Simple truncation - take first N tokens
+            return observations[:, : self.max_sequence_length, :]
+
+        elif self.token_compression == "smart_sample":
+            # Intelligent sampling based on token importance
+            # Prioritize non-empty tokens (those not set to 0xFF)
+
+            # Find valid tokens (not 0xFF which indicates empty/padding)
+            coords_byte = observations[..., 0]
+            valid_mask = coords_byte != 0xFF  # [B, seq_len]
+
+            compressed_obs = torch.zeros(
+                (B, self.max_sequence_length, C), device=observations.device, dtype=observations.dtype
+            )
+
+            for batch_idx in range(B):
+                valid_indices = torch.where(valid_mask[batch_idx])[0]
+
+                if len(valid_indices) <= self.max_sequence_length:
+                    # If we have fewer valid tokens than max, use all valid + padding
+                    n_valid = len(valid_indices)
+                    compressed_obs[batch_idx, :n_valid, :] = observations[batch_idx, valid_indices, :]
+                    # Rest remains zeros (padding)
+                else:
+                    # Smart sampling: take evenly spaced samples from valid tokens
+                    step = len(valid_indices) / self.max_sequence_length
+                    selected_indices = [valid_indices[int(i * step)] for i in range(self.max_sequence_length)]
+                    compressed_obs[batch_idx, :, :] = observations[batch_idx, selected_indices, :]
+
+            return compressed_obs
+
+        elif self.token_compression == "aggregate":
+            # Aggregate tokens by spatial regions
+            # Group tokens by spatial proximity and aggregate their values
+            # This is more complex but preserves spatial relationships
+
+            # For now, fall back to smart sampling
+            return self._compress_tokens_smart_sample(observations)
+
+        else:
+            # Default to truncation
+            return observations[:, : self.max_sequence_length, :]
+
     def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
         """Forward pass: process observations through SmolLM2 and predict actions/values."""
 
         observations = td["env_obs"]
 
         # Determine dimensions from observations and handle reshaping
-        if observations.dim() == 4:  # Training
+        if observations.dim() == 4:  # Training with BPTT: [B, TT, seq_len, 3]
             B = observations.shape[0]
             TT = observations.shape[1]
             # Reshape TD for training if needed
             if td.batch_dims > 1:
                 td = td.reshape(B * TT)
-        else:  # Inference
+        else:  # Inference: [B, seq_len, 3]
             B = observations.shape[0]
             TT = 1
 
         # Use mixin to set critical TensorDict fields (after reshaping)
         self.set_tensordict_fields(td, observations)
 
-        # Reshape observations for processing: [B*TT, seq_len, 3]
-        if observations.dim() == 4:
-            observations = observations.view(B * TT, observations.shape[2], 3)
-        elif observations.dim() == 3:
-            observations = observations.view(B, observations.shape[1], 3)
+        # Handle BPTT properly: work with flattened batch dimension from TD reshape
+        if observations.dim() == 4:  # [B, TT, seq_len, 3] - training with BPTT
+            # After TD reshape, this should be [B*TT, seq_len, 3] but we need to handle it
+            batch_size, time_steps, seq_len, channels = observations.shape
+            # First flatten to [B*TT, seq_len, 3] to match TD batch size
+            observations = observations.view(batch_size * time_steps, seq_len, channels)
+        elif observations.dim() == 3:  # [B*TT, seq_len, 3] - already in the right shape
+            pass  # Already flattened correctly
+        else:
+            raise ValueError(f"Unexpected observation dimensions: {observations.shape}")
 
         # Convert byte tokens to float and normalize
         obs_float = observations.float() / 255.0
 
-        # Truncate sequence length for better performance if needed
-        if obs_float.shape[1] > self.max_sequence_length:
-            obs_float = obs_float[:, : self.max_sequence_length, :]
+        # Apply smart compression to reduce sequence length
+        obs_float = self._compress_tokens(obs_float)
 
-        # Project tokens to LLM embedding space
-        token_embeddings = self.token_projector(obs_float)  # [B*TT, seq_len, hidden_size]
+        # Project compressed tokens to LLM embedding space
+        token_embeddings = self.token_projector(obs_float)  # [batch_size, max_seq_len, hidden_size]
 
         # Process through LLM - autocast handled automatically by training loop
         outputs = self.llm(
@@ -140,13 +195,13 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
 
         # Use the last hidden state, pooled across sequence dimension
         if hasattr(outputs, "hidden_states") and outputs.hidden_states is not None:
-            hidden_states = outputs.hidden_states[-1]  # [B*TT, seq_len, hidden_size]
+            hidden_states = outputs.hidden_states[-1]  # [batch_size, max_seq_len, hidden_size]
         else:
             # Fallback: use last_hidden_state
-            hidden_states = outputs.last_hidden_state  # [B*TT, seq_len, hidden_size]
+            hidden_states = outputs.last_hidden_state  # [batch_size, max_seq_len, hidden_size]
 
         # Pool over sequence dimension (mean pooling)
-        pooled_hidden = hidden_states.mean(dim=1)  # [B*TT, hidden_size]
+        pooled_hidden = hidden_states.mean(dim=1)  # [batch_size, hidden_size]
 
         # Decode actions and value using single flattened head
         logits_list = [head(pooled_hidden) for head in self.actor]
