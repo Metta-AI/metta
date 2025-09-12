@@ -100,7 +100,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         return base_stats
 
     def stats(self, prefix: str = "") -> Dict[str, float]:
-        """Get all statistics with optional prefix. Always includes learning progress stats."""
+        """Get all statistics with optional prefix. Respects enable_detailed_logging flag."""
         cache_key = prefix if prefix else "_default"
 
         if self._stats_cache_valid and cache_key in self._stats_cache:
@@ -109,9 +109,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Get base stats (required)
         stats = self.get_base_stats()
 
-        # Always add detailed stats for learning progress (override parent behavior)
-        detailed = self.get_detailed_stats()
-        stats.update(detailed)
+        # Add detailed stats if enabled (respect parent behavior for performance)
+        if self.enable_detailed_logging:
+            detailed = self.get_detailed_stats()
+            stats.update(detailed)
 
         # Add prefix to all keys
         if prefix:
