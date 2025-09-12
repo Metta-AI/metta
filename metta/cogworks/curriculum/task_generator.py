@@ -67,6 +67,18 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             )
         return cls._generator_cls
 
+    def to_curriculum(self, num_active_tasks: int = 16, algorithm_config=None):
+        """Create a CurriculumConfig from this TaskGeneratorConfig."""
+        from metta.cogworks.curriculum.curriculum import CurriculumConfig
+        from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+
+        if algorithm_config is None:
+            algorithm_config = LearningProgressConfig()
+
+        return CurriculumConfig(
+            task_generator=self, num_active_tasks=num_active_tasks, algorithm_config=algorithm_config
+        )
+
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
         """Ensure YAML/JSON dumps always include a 'type' with a nice FQCN."""
@@ -192,7 +204,16 @@ class TaskGeneratorSet(TaskGenerator):
         self._weights = self._config.weights if self._config.weights else [1.0] * len(self._sub_task_generators)
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        return rng.choices(self._sub_task_generators, weights=self._weights)[0].get_task(task_id)
+        chosen_generator = rng.choices(self._sub_task_generators, weights=self._weights)[0]
+        result = chosen_generator.get_task(task_id)
+
+        # Propagate bucket values if the chosen generator has them
+        if hasattr(chosen_generator, "_last_bucket_values"):
+            self._last_bucket_values = chosen_generator._last_bucket_values.copy()
+        else:
+            self._last_bucket_values = {}
+
+        return result
 
 
 ################################################################################
@@ -277,6 +298,9 @@ class BucketedTaskGenerator(TaskGenerator):
         overrides = {}
         for key, bucket_values in self._config.buckets.items():
             overrides[key] = self._get_bucket_value(bucket_values, rng)
+
+        # Store the bucket values for the curriculum to access
+        self._last_bucket_values = overrides.copy()
 
         # Get task from the child generator
         mg_config = self._child_generator.get_task(task_id)
