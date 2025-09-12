@@ -554,19 +554,13 @@ class HRM(PyTorchAgentMixin, LSTMWrapper):
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # Determine dimensions from observations
-        if observations.dim() == 4:  # Training
-            B = observations.shape[0]
-            TT = observations.shape[1]
-            # Reshape TD for training if needed
-            if td.batch_dims > 1:
-                td = td.reshape(B * TT)
-        else:  # Inference
-            B = observations.shape[0]
-            TT = 1
+        # Use mixin to set critical TensorDict fields
+        B, TT = self.set_tensordict_fields(td, observations)
 
-        # Now set TensorDict fields with mixin
-        self.set_tensordict_fields(td, observations)
+        # Handle BPTT reshaping if needed
+        if td.batch_dims > 1:
+            total_batch = B * TT
+            td = td.reshape(total_batch)
 
         # Encode obs
         hidden = self.policy.encode_observations(observations, state)
@@ -760,7 +754,6 @@ class Policy(nn.Module):
 if __name__ == "__main__":
     import gymnasium as gym
     import numpy as np
-    from omegaconf import DictConfig
 
     from metta.agent.metta_agent import MettaAgent
     from metta.rl.system_config import SystemConfig
@@ -778,15 +771,17 @@ if __name__ == "__main__":
     # Test the HRM model
     hrm = HRM(env)
 
-    # Test observations
-    obs = torch.randint(0, 8, (24, 200, 3), dtype=torch.uint8)
-    td = TensorDict({"env_obs": obs}, batch_size=obs.shape[:2])
+    # Test observations - for inference mode (3D: batch, tokens, features)
+    obs = torch.randint(0, 8, (2, 200, 3), dtype=torch.uint8)  # batch=2, tokens=200
+    td = TensorDict({"env_obs": obs}, batch_size=[obs.shape[0]])
+
+    from metta.agent.agent_config import AgentConfig
 
     agent = MettaAgent(
         env,
-        policy=HRM(env),
         system_cfg=SystemConfig(device="cpu"),
-        agent_cfg=DictConfig({"clip_range": 0.0}),
+        policy_architecture_cfg=AgentConfig(name="pytorch/hrm", clip_range=0.0),
+        policy=HRM(env),
     )
 
     agent.initialize_to_environment(
