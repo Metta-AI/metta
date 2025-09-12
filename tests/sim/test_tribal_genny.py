@@ -38,7 +38,11 @@ def test_genny_bindings():
     # Test 2: Import Python wrapper
     print("2. Testing Python wrapper imports...")
     try:
-        from metta.sim.tribal_genny import make_tribal_env
+        # Add tribal source to path
+        tribal_src = Path(__file__).parent.parent.parent / "tribal" / "src"
+        if tribal_src.exists():
+            sys.path.insert(0, str(tribal_src))
+        from tribal_genny import make_tribal_env
 
         print("✅ Python wrapper imported successfully")
     except Exception as e:
@@ -149,6 +153,12 @@ def test_genny_bindings():
     print("2. Monitor performance vs pure Python implementations")
 
     return True
+
+
+def test_genny_bindings_pytest():
+    """Pytest-compatible wrapper for test_genny_bindings."""
+    result = test_genny_bindings()
+    assert result, "Genny bindings test failed"
 
 
 if __name__ == "__main__":

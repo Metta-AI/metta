@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import logging
 import os
+
+# Import TribalGridEnv from the new location
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -27,7 +30,11 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
-from tribal.src.tribal_genny import TribalGridEnv
+
+tribal_src = Path(__file__).parent.parent.parent / "tribal" / "src"
+if tribal_src.exists():
+    sys.path.insert(0, str(tribal_src))
+from tribal_genny import TribalGridEnv  # noqa: E402
 
 SYNTHETIC_EVAL_PREFIX = "eval/"
 

@@ -25,7 +25,11 @@ _metta_root = Path(__file__).parent.parent.parent
 if str(_metta_root) not in sys.path:
     sys.path.insert(0, str(_metta_root))
 
-from tribal.src.tribal_genny import TribalEnvConfig  # noqa: E402
+# Import from tribal source directory
+tribal_src = Path(__file__).parent.parent / "tribal" / "src"
+if tribal_src.exists():
+    sys.path.insert(0, str(tribal_src))
+from tribal_genny import TribalEnvConfig  # noqa: E402
 
 
 def _ensure_tribal_bindings_built():
@@ -243,7 +247,7 @@ def make_tribal_environment(
     **kwargs,
 ) -> TribalEnvConfig:
     """Create tribal environment configuration with gameplay overrides."""
-    from tribal.src.tribal_genny import TribalGameConfig
+    from tribal_genny import TribalGameConfig
 
     game_overrides = {}
     if max_steps is not None:

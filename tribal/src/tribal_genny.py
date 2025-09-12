@@ -61,8 +61,9 @@ try:
     import importlib.util
 
     bindings_file = Path(__file__).parent.parent / "bindings" / "generated" / "tribal.py"
-    spec = importlib.util.spec_from_file_location("tribal_bindings", bindings_file)
+    spec = importlib.util.spec_from_file_location("tribal", bindings_file)
     tribal = importlib.util.module_from_spec(spec)
+    sys.modules["tribal"] = tribal  # Ensure the module is in sys.modules before loading
     spec.loader.exec_module(tribal)
 
     # Extract key items at import time (like original)
@@ -106,7 +107,33 @@ class TribalGridEnv:
         # Create Nim configuration with overrides
         nim_config = default_tribal_config()
         if config:
-            for key, value in config.items():
+            # Handle both dict and Pydantic config objects
+            if hasattr(config, "model_dump"):
+                # Pydantic config - extract game parameters
+                config_dict = config.game.model_dump() if hasattr(config, "game") else {}
+            elif hasattr(config, "items"):
+                # Dict config
+                config_dict = config
+            else:
+                # Fallback: try to get attributes from the object
+                config_dict = {}
+                for attr in [
+                    "max_steps",
+                    "ore_per_battery",
+                    "batteries_per_heart",
+                    "enable_combat",
+                    "clippy_spawn_rate",
+                    "clippy_damage",
+                    "heart_reward",
+                    "ore_reward",
+                    "battery_reward",
+                    "survival_penalty",
+                    "death_penalty",
+                ]:
+                    if hasattr(config, attr):
+                        config_dict[attr] = getattr(config, attr)
+
+            for key, value in config_dict.items():
                 if hasattr(nim_config.game, key):
                     setattr(nim_config.game, key, value)
 
