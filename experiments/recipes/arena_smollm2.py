@@ -182,6 +182,56 @@ def train_unfrozen() -> TrainTool:
     return train(freeze_llm=False)
 
 
+def train_high_throughput(
+    curriculum: Optional[CurriculumConfig] = None,
+    freeze_llm: bool = True,
+) -> TrainTool:
+    """Train SmolLM2 agent with high-throughput configuration for 24GB GPUs.
+
+    Optimized for maximum GPU utilization when you have plenty of memory available.
+    Uses larger batch sizes and reduced gradient accumulation for better throughput.
+
+    Args:
+        curriculum: Optional curriculum config
+        freeze_llm: Whether to freeze the LLM weights (default: True for faster training)
+    """
+    # Configure SmolLM2 agent
+    agent_cfg = AgentConfig(
+        name="pytorch/smollm2",
+        clip_range=0.2,  # Moderate weight clipping for stability
+        analyze_weights_interval=1000,  # More frequent analysis with better throughput
+    )
+
+    # High-throughput configuration for 24GB GPUs
+    # Maximizes GPU memory utilization for better performance
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(
+            loss_configs={
+                "ppo": PPOConfig(
+                    clip_coef=0.2,
+                    ent_coef=0.01,
+                    vf_coef=0.5,
+                )
+            }
+        ),
+        curriculum=curriculum or make_curriculum(),
+        # Larger batch sizes to fully utilize 24GB GPU memory
+        batch_size=32768,  # 32K batch - 8x increase for better GPU utilization
+        minibatch_size=2048,  # 16x increase - much larger minibatches
+        bptt_horizon=8,  # 2x increase for better temporal understanding
+        forward_pass_minibatch_target_size=512,  # 32x increase for better parallelization
+        update_epochs=4,  # Fewer epochs since we have larger batches
+        async_factor=2,  # Re-enable async for better throughput
+        compile=True,  # Enable torch.compile for speed optimization
+        evaluation=EvaluationConfig(
+            simulations=make_evals(),
+            evaluate_interval=50,  # More frequent evaluation with better performance
+        ),
+    )
+
+    return TrainTool(trainer=trainer_cfg, policy_architecture=agent_cfg)
+
+
 def train_cpu_debug() -> TrainTool:
     """Minimal configuration for CPU debugging on MacBook."""
     # Create tiny curriculum for CPU debugging

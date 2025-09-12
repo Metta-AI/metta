@@ -23,6 +23,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         max_sequence_length: int = 24,  # Longer sequences for temporal flattening efficiency
         freeze_llm: bool = False,
         use_lora: bool = False,
+        use_flash_attention: bool = True,  # Enable flash attention for memory efficiency
         **kwargs,
     ):
         super().__init__()
@@ -30,12 +31,25 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Extract mixin parameters
         mixin_params = self.extract_mixin_params(kwargs)
 
-        # Initialize the SmolLM2 model
+        # Initialize the SmolLM2 model with optimizations
         logger.info(f"Loading SmolLM2 model: {model_name}")
+        model_config = {}
+        if use_flash_attention:
+            # Enable flash attention and other memory optimizations
+            model_config.update(
+                {
+                    "attn_implementation": "flash_attention_2",  # Use flash attention if available
+                    "torch_dtype": torch.float16,  # Use FP16 for better memory efficiency
+                    "low_cpu_mem_usage": True,  # Reduce CPU memory during model loading
+                }
+            )
+        else:
+            model_config["torch_dtype"] = torch.float32
+
         self.llm = AutoModelForCausalLM.from_pretrained(
             model_name,
-            dtype=torch.float32,
             trust_remote_code=True,
+            **model_config,
         )
 
         # Store sequence length limit
