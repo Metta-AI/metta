@@ -11,20 +11,14 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from metta.common.util.fs import get_repo_root
+from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
-from metta.setup.utils import error, info, success, warning
+from metta.setup.utils import debug, error, info, success, warning
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
-
-app = typer.Typer(
-    help="Metta Setup Tool - Configure and install development environment",
-    rich_markup_mode="rich",
-    no_args_is_help=True,
-    context_settings={"help_option_names": ["-h", "--help"]},
-)
 
 PYTHON_TEST_FOLDERS = [
     "tests",
@@ -136,8 +130,14 @@ class MettaCLI:
         return text[: max_len - 3] + "..."
 
 
-# Create a single CLI instance
 cli = MettaCLI()
+app = typer.Typer(
+    help="Metta Setup Tool - Configure and install development environment",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    callback=cli._init_all,
+)
 
 
 @app.command(name="configure", help="Configure Metta settings")
@@ -153,8 +153,10 @@ def cmd_configure(
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
 ):
     """Configure Metta settings."""
-    cli._init_all()
     if component:
+        if profile:
+            error("Cannot configure a component and a profile at the same time.")
+            raise typer.Exit(1)
         configure_component(component)
     elif profile:
         from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
@@ -165,7 +167,6 @@ def cmd_configure(
             saved_settings = get_saved_settings()
             saved_settings.apply_profile(selected_user_type)
             success(f"Configured as {selected_user_type.value} user.")
-            info("\nRun 'metta install' to set up your environment.")
         else:
             error(f"Unknown profile: {profile}")
             raise typer.Exit(1)
@@ -205,20 +206,26 @@ def _get_selected_modules(components: list[str] | None = None) -> list["SetupMod
 @app.command(name="install", help="Install or update components")
 def cmd_install(
     components: Annotated[Optional[list[str]], typer.Argument(help="Components to install")] = None,
+    profile: Annotated[Optional[str], typer.Option("--profile", help="Profile to configure before installing")] = None,
     force: Annotated[bool, typer.Option("--force", help="Force reinstall")] = False,
     no_clean: Annotated[bool, typer.Option("--no-clean", help="Skip cleaning before install")] = False,
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
+    check_status: Annotated[bool, typer.Option("--check-status", help="Check status after installation")] = True,
 ):
-    from metta.setup.saved_settings import get_saved_settings
-
-    cli._init_all()
-
-    if not get_saved_settings().exists():
-        warning("No configuration found. Running setup wizard first...")
-        cli.setup_wizard()
-
     if not no_clean:
         cmd_clean()
+
+    from metta.setup.saved_settings import get_saved_settings
+
+    # A profile must exist before installing. If installing in non-interactive mode,
+    # the target profile must be specified with --profile. If in interactive mode and
+    # no profile is specified, the setup wizard will be run.
+    profile_exists = get_saved_settings().exists()
+    if non_interactive and not profile_exists and not profile:
+        error("Must specify a profile if installing in non-interactive mode without an existing one.")
+        raise typer.Exit(1)
+    elif profile or not profile_exists:
+        cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
 
     if components:
         always_required_components = ["system", "core"]
@@ -237,7 +244,7 @@ def cmd_install(
         info(f"[{module.name}] {module.description}")
 
         if module.install_once and module.check_installed() and not force:
-            info("  -> Already installed, skipping (use --force to reinstall)\n")
+            debug("  -> Already installed, skipping (use --force to reinstall)\n")
             continue
 
         try:
@@ -246,7 +253,8 @@ def cmd_install(
         except Exception as e:
             error(f"  Error: {e}\n")
 
-    success("Installation complete!")
+    if not non_interactive and check_status:
+        cmd_status(components=components, non_interactive=non_interactive)
 
 
 @app.command(name="status", help="Show status of components")
@@ -259,13 +267,12 @@ def cmd_status(
 ):
     import concurrent.futures
 
-    cli._init_all()
     modules = _get_selected_modules(components if components else None)
     if not modules:
         warning("No modules to check.")
         return
 
-    module_status = {}
+    module_status: dict[str, SetupModuleStatus] = {}
 
     console = Console()
     with Progress(
@@ -295,9 +302,9 @@ def cmd_status(
             continue
 
         status_data = module_status[module.name]
-        installed = status_data["installed"]
-        connected_as = status_data["connected_as"]
-        expected = status_data["expected"]
+        installed = status_data.installed
+        connected_as = status_data.connected_as
+        expected = status_data.expected
 
         installed_str = "Yes" if installed else "No"
         connected_str = cli._truncate(connected_as or "-", 25)
@@ -321,50 +328,14 @@ def cmd_status(
 
     console = Console()
     console.print(table)
-
-    all_installed = all(module_status[name]["installed"] for name in module_status)
-    all_connected = all(
-        (module_status[name]["connected_as"] is not None or module_status[name]["expected"] is None)
-        for name in module_status
-        if module_status[name]["installed"]
-    )
-
-    if all_installed:
-        if all_connected:
-            success("All components are properly configured!")
-        else:
-            warning("Some components need authentication. Run 'metta install' to set them up.")
-    else:
-        warning("Some components are not installed. Run 'metta install' to set them up.")
-
-    not_connected = [
+    could_force_install = [
         name
         for name, data in module_status.items()
-        if data["installed"] and data["expected"] and data["connected_as"] is None
+        if not data.installed or (data.expected and data.connected_as is None)
     ]
-
-    if not_connected:
-        console.print(f"\n[yellow]Components not connected: {', '.join(not_connected)}[/yellow]")
-        console.print("This could be due to expired credentials, network issues, or broken installations.")
-
-        if non_interactive:
-            console.print(f"\nTo fix: metta install {' '.join(not_connected)} --force")
-        elif sys.stdin.isatty():
-            if typer.confirm("\nReinstall these components to fix connection issues?"):
-                console.print(f"\nRunning: metta install {' '.join(not_connected)} --force")
-                subprocess.run([sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=cli.repo_root)
-
-    not_installed = [name for name, data in module_status.items() if not data["installed"]]
-
-    if not_installed:
-        console.print(f"\n[yellow]Components not installed: {', '.join(not_installed)}[/yellow]")
-
-        if non_interactive:
-            console.print(f"\nTo fix: metta install {' '.join(not_installed)}")
-        elif sys.stdin.isatty():
-            if typer.confirm("\nInstall these components?"):
-                console.print(f"\nRunning: metta install {' '.join(not_installed)}")
-                subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=cli.repo_root)
+    if could_force_install and not non_interactive and sys.stdin.isatty():
+        if typer.confirm(f"\nForce install {', '.join(could_force_install)} to attempt to resolve issues?"):
+            cmd_install(components=could_force_install, non_interactive=non_interactive, force=True, check_status=False)
 
 
 @app.command(name="run", help="Run component-specific commands")
@@ -373,8 +344,6 @@ def cmd_run(
     args: Annotated[Optional[list[str]], typer.Argument(help="Arguments to pass to the component")] = None,
 ):
     from metta.setup.registry import get_all_modules
-
-    cli._init_all()
 
     modules = get_all_modules()
     module_map = {m.name: m for m in modules}
@@ -453,10 +422,6 @@ def cmd_lint(
 
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
 def cmd_ci():
-    """Run all Python unit tests and all Mettagrid C++ tests."""
-
-    cli._init_all()
-
     info("Running Python tests...")
     python_test_cmd = [
         "uv",
@@ -608,12 +573,6 @@ def cmd_clip(ctx: typer.Context):
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
-
-
-@app.callback()
-def main_callback():
-    """Handle initialization checks."""
-    pass
 
 
 def main() -> None:
