@@ -245,12 +245,3 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
                 module._initial_weight = module.weight.data.clone()
                 if module.bias is not None:
                     module._initial_bias = module.bias.data.clone()
-
-    def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
-        """Convert discrete logit indices to (action_type, action_param) pairs."""
-        if hasattr(self, "action_index_tensor"):
-            return self.action_index_tensor[logit_indices]
-        else:
-            # Fallback: assume simple action space
-            # This would need proper implementation based on action space structure
-            return torch.stack([logit_indices, torch.zeros_like(logit_indices)], dim=-1)
