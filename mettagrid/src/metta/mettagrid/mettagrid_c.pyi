@@ -189,6 +189,7 @@ class GameConfig:
         track_movement_metrics: bool = False,
         recipe_details_obs: bool = False,
         allow_diagonals: bool = False,
+        reward_estimates: Optional[dict[str, float]] = None,
     ) -> None: ...
     num_agents: int
     max_steps: int
@@ -202,6 +203,7 @@ class GameConfig:
     track_movement_metrics: bool
     recipe_details_obs: bool
     allow_diagonals: bool
+    reward_estimates: Optional[dict[str, float]]
 
 class MettaGrid:
     obs_width: int

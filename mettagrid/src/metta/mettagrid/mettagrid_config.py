@@ -75,7 +75,7 @@ class ActionsConfig(Config):
     noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
     place_box: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
@@ -179,6 +179,8 @@ class GameConfig(Config):
         default=False, description="Converters show their recipe inputs and outputs when observed"
     )
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
+
+    reward_estimates: Optional[dict[str, float]] = Field(default=None)
 
 
 class MettaGridConfig(Config):
