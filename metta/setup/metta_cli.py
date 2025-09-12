@@ -209,6 +209,7 @@ def cmd_install(
     force: Annotated[bool, typer.Option("--force", help="Force reinstall")] = False,
     no_clean: Annotated[bool, typer.Option("--no-clean", help="Skip cleaning before install")] = False,
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
+    check_status: Annotated[bool, typer.Option("--check-status", help="Check status after installation")] = True,
 ):
     if not no_clean:
         cmd_clean()
@@ -251,7 +252,7 @@ def cmd_install(
         except Exception as e:
             error(f"  Error: {e}\n")
 
-    if not non_interactive:
+    if not non_interactive and check_status:
         cmd_status(components=components, non_interactive=non_interactive)
 
 
@@ -357,7 +358,7 @@ def cmd_status(
         elif sys.stdin.isatty():
             if typer.confirm("\nReinstall these components to fix connection issues?"):
                 console.print(f"\nRunning: metta install {' '.join(not_connected)} --force")
-                subprocess.run([sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=cli.repo_root)
+                cmd_install(components=not_connected, non_interactive=non_interactive, force=True, check_status=False)
 
     not_installed = [name for name, data in module_status.items() if not data["installed"]]
 
@@ -368,8 +369,7 @@ def cmd_status(
             console.print(f"\nTo fix: metta install {' '.join(not_installed)}")
         elif sys.stdin.isatty():
             if typer.confirm("\nInstall these components?"):
-                console.print(f"\nRunning: metta install {' '.join(not_installed)}")
-                subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=cli.repo_root)
+                cmd_install(components=not_installed, non_interactive=non_interactive, check_status=False)
 
 
 @app.command(name="run", help="Run component-specific commands")
