@@ -11,6 +11,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from metta.common.util.fs import get_repo_root
+from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
@@ -271,7 +272,7 @@ def cmd_status(
         warning("No modules to check.")
         return
 
-    module_status = {}
+    module_status: dict[str, SetupModuleStatus] = {}
 
     console = Console()
     with Progress(
@@ -301,9 +302,9 @@ def cmd_status(
             continue
 
         status_data = module_status[module.name]
-        installed = status_data["installed"]
-        connected_as = status_data["connected_as"]
-        expected = status_data["expected"]
+        installed = status_data.installed
+        connected_as = status_data.connected_as
+        expected = status_data.expected
 
         installed_str = "Yes" if installed else "No"
         connected_str = cli._truncate(connected_as or "-", 25)
@@ -328,11 +329,11 @@ def cmd_status(
     console = Console()
     console.print(table)
 
-    all_installed = all(module_status[name]["installed"] for name in module_status)
+    all_installed = all(module_status[name].installed for name in module_status)
     all_connected = all(
-        (module_status[name]["connected_as"] is not None or module_status[name]["expected"] is None)
+        (module_status[name].connected_as is not None or module_status[name].expected is None)
         for name in module_status
-        if module_status[name]["installed"]
+        if module_status[name].installed
     )
 
     if all_installed:
@@ -346,7 +347,7 @@ def cmd_status(
     could_force_install = [
         name
         for name, data in module_status.items()
-        if not data["installed"] or (data["expected"] and data["connected_as"] is None)
+        if not data.installed or (data.expected and data.connected_as is None)
     ]
     if could_force_install and not non_interactive and sys.stdin.isatty():
         if typer.confirm(f"\nForce install {', '.join(could_force_install)} to attempt to resolve issues?"):

@@ -4,11 +4,19 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, TypeVar
 
+from pydantic import BaseModel
+
 from metta.common.util.fs import get_repo_root
 from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import error
 
 T = TypeVar("T")
+
+
+class SetupModuleStatus(BaseModel):
+    installed: bool
+    connected_as: str | None
+    expected: str | None
 
 
 class SetupModule(ABC):
@@ -250,10 +258,10 @@ class SetupModule(ABC):
             # Recursively clean up parent
             self._cleanup_empty_dicts(config, keys[:-1])
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> SetupModuleStatus:
         """Get the status of this module. Does not check if the module is enabled."""
         installed = self.check_installed()
         connected_as = self.check_connected_as() if installed else None
         expected = get_saved_settings().get_expected_connection(self.name)
 
-        return {"installed": installed, "connected_as": connected_as, "expected": expected}
+        return SetupModuleStatus(installed=installed, connected_as=connected_as, expected=expected)
