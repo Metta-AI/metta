@@ -63,3 +63,11 @@ tribal_state.json
 
 # Executable binaries built by build_process_viewer.sh
 tribal_process_viewer
+
+# Python package build artifacts
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+build/
+dist/
