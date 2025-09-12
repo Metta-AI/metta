@@ -3,7 +3,6 @@ from typing import Optional
 
 import pufferlib.pytorch
 import torch
-import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 from transformers import AutoModelForCausalLM
@@ -21,6 +20,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         env,
         model_name: str = "HuggingFaceTB/SmolLM2-135M",
         hidden_size: int = 576,  # SmolLM2-135M has 576 hidden size
+        max_sequence_length: int = 50,  # Truncate sequences for better performance
         freeze_llm: bool = False,
         use_lora: bool = False,
         **kwargs,
@@ -37,6 +37,13 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             torch_dtype=torch.float32,
             trust_remote_code=True,
         )
+
+        # Enable gradient checkpointing for memory efficiency
+        if hasattr(self.llm, "gradient_checkpointing_enable"):
+            self.llm.gradient_checkpointing_enable()
+
+        # Store sequence length limit
+        self.max_sequence_length = max_sequence_length
 
         # Get model configuration
         self.hidden_size = self.llm.config.hidden_size
@@ -115,11 +122,15 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Convert byte tokens to float and normalize
         obs_float = observations.float() / 255.0
 
+        # Truncate sequence length for better performance if needed
+        if obs_float.shape[1] > self.max_sequence_length:
+            obs_float = obs_float[:, : self.max_sequence_length, :]
+
         # Project tokens to LLM embedding space
         token_embeddings = self.token_projector(obs_float)  # [B*TT, seq_len, hidden_size]
 
-        # Process through LLM
-        with torch.amp.autocast("cuda", enabled=False):  # Disable mixed precision for stability
+        # Process through LLM with mixed precision for better performance
+        with torch.amp.autocast("cuda", enabled=True):
             outputs = self.llm(
                 inputs_embeds=token_embeddings,
                 output_hidden_states=True,
@@ -136,86 +147,18 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         logits_list = [head(pooled_hidden) for head in self.actor]
         value = self.value(pooled_hidden)
 
-        # Sample actions
-        actions, log_probs, entropies, full_log_probs = self._sample_actions(logits_list)
+        # Convert logits list to single tensor for mixin compatibility
+        logits = logits_list[0] if len(logits_list) == 1 else torch.cat(logits_list, dim=-1)
 
-        # Convert actions to tensor format expected by environment
-        if len(actions) >= 2:
-            actions_tensor = torch.stack([actions[0], actions[1]], dim=-1)
-        else:
-            # For single-head action space, duplicate or pad
-            if len(actions) == 1:
-                # Get action type and parameter from flattened action
-                action_indices = actions[0]
-                actions_tensor = self._convert_logit_index_to_action(action_indices)
-            else:
-                actions_tensor = torch.zeros((total_batch, 2), dtype=torch.int32, device=observations.device)
-
-        actions_tensor = actions_tensor.to(dtype=torch.int32)
-
-        # Update TensorDict
+        # Use mixin for mode-specific processing
         if action is None:
-            # Inference mode
-            td["actions"] = actions_tensor
-            td["act_log_prob"] = log_probs.mean(dim=-1) if log_probs.dim() > 1 else log_probs
-            td["values"] = value.flatten()
-            td["full_log_probs"] = full_log_probs
+            # Mixin handles inference mode
+            td = self.forward_inference(td, logits, value)
         else:
-            # Training mode
-            td["act_log_prob"] = log_probs.mean(dim=-1) if log_probs.dim() > 1 else log_probs
-            td["entropy"] = entropies.sum(dim=-1) if entropies.dim() > 1 else entropies
-            td["value"] = value.flatten()
-            td["full_log_probs"] = full_log_probs
-            td = td.reshape(B, TT)
+            # Mixin handles training mode with proper reshaping
+            td = self.forward_training(td, action, logits, value)
 
         return td
-
-    def _sample_actions(self, logits_list: list[torch.Tensor]):
-        """Samples discrete actions from logits and computes log-probs and entropy."""
-        actions, selected_log_probs, entropies, full_log_probs = [], [], [], []
-
-        # Handle both single and multi-head action spaces
-        if len(logits_list) == 1:
-            # Single head for flattened action space
-            logits = logits_list[0]
-            log_probs = F.log_softmax(logits, dim=-1)
-            probs = log_probs.exp()
-
-            action = torch.multinomial(probs, 1).squeeze(-1)
-            batch_idx = torch.arange(action.shape[0], device=action.device)
-
-            selected_log_prob = log_probs[batch_idx, action]
-            entropy = -(probs * log_probs).sum(dim=-1)
-
-            return [action], selected_log_prob, entropy, log_probs
-        else:
-            # Multi-head action space
-            max_actions = max(logits.shape[1] for logits in logits_list)
-
-            for logits in logits_list:
-                log_probs = F.log_softmax(logits, dim=-1)
-                probs = log_probs.exp()
-
-                action = torch.multinomial(probs, 1).squeeze(-1)
-                batch_idx = torch.arange(action.shape[0], device=action.device)
-
-                selected_log_prob = log_probs[batch_idx, action]
-                entropy = -(probs * log_probs).sum(dim=-1)
-
-                actions.append(action)
-                selected_log_probs.append(selected_log_prob)
-                entropies.append(entropy)
-
-                # Pad log_probs to max size
-                pad_width = max_actions - log_probs.shape[1]
-                full_log_probs.append(F.pad(log_probs, (0, pad_width), value=float("-inf")))
-
-            return (
-                actions,
-                torch.stack(selected_log_probs, dim=-1),
-                torch.stack(entropies, dim=-1),
-                torch.stack(full_log_probs, dim=-1),
-            )
 
     def initialize_to_environment(self, full_action_names: list[str], device: torch.device):
         """Initialize the agent to the current environment."""
