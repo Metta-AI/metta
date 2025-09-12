@@ -25,10 +25,10 @@ proc getInfectionSprite*(entityType: string): string =
   case entityType:
   of "building", "mine", "converter", "altar", "armory", "forge", "clay_oven", "weaving_loom":
     return "agents/frozen"  # Ice cube overlay for static buildings
-  of "terrain", "wheat", "tree", "wall":
-    return "agents/frozen"  # Ice cube overlay for terrain features and walls
-  of "agent", "clippy", "spawner":
-    return ""  # No overlays for dynamic entities
+  of "terrain", "wheat", "tree":
+    return "agents/frozen"  # Ice cube overlay for terrain features (walls excluded)
+  of "agent", "clippy", "spawner", "wall":
+    return ""  # No overlays for dynamic entities and walls
   else:
     return ""  # Default: no overlay
 
@@ -144,28 +144,15 @@ proc drawWalls*() =
         
         let brightness = 0.3  # Fixed wall brightness
         let wallTint = color(brightness, brightness, brightness, 1.0)
-        let pos = ivec2(x, y)
         
         bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), 
                      angle = 0, scale = 1/200, tint = wallTint)
-        
-        # Add infection overlay if wall is infected
-        if isInfected(pos):
-          let overlaySprite = getInfectionSprite("wall")
-          if overlaySprite != "":
-            bxy.drawImage(overlaySprite, vec2(x.float32, y.float32), angle = 0, scale = 1/200)
 
   for fillPos in wallFills:
     let brightness = 0.3  # Fixed wall fill brightness
     let fillTint = color(brightness, brightness, brightness, 1.0)
     bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), 
                   angle = 0, scale = 1/200, tint = fillTint)
-    
-    # Add infection overlay to wall fills if infected
-    if isInfected(fillPos):
-      let overlaySprite = getInfectionSprite("wall")
-      if overlaySprite != "":
-        bxy.drawImage(overlaySprite, fillPos.vec2, angle = 0, scale = 1/200)
 
 proc drawObjects*() =
   for x in 0 ..< MapWidth:

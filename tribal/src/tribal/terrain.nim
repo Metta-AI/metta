@@ -129,8 +129,8 @@ proc createTerrainCluster*(terrain: var TerrainGrid, centerX, centerY: int, size
 
 
 proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate 7-10 clustered wheat fields for 100x50 map
-  let numFields = r.rand(7..10)
+  ## Generate 14-20 clustered wheat fields for 100x50 map (2x increase)
+  let numFields = r.rand(14..20)
   
   for i in 0 ..< numFields:
     # Try to place near water if possible
@@ -167,8 +167,8 @@ proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBord
       terrain.createTerrainCluster(x, y, fieldSize, mapWidth, mapHeight, Wheat, 1.0, 0.3, r)
 
 proc generateTrees*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate 7-10 tree groves for 100x50 map
-  let numGroves = r.rand(7..10)
+  ## Generate 14-20 tree groves for 100x50 map (2x increase)
+  let numGroves = r.rand(14..20)
   
   for i in 0 ..< numGroves:
     let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
