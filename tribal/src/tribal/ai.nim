@@ -17,6 +17,7 @@ type
     spiralDirection*: int
     spiralArcsCompleted*: int
     lastPosition*: IVec2
+    recentPositions*: seq[IVec2]  # Track last few positions to detect oscillation
     stuckCounter*: int
     escapeMode*: bool
     escapeStepsRemaining*: int
@@ -334,39 +335,89 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   
   var state = controller.agentStates[agentId]
   
-  # 10% chance for random action to prevent getting stuck
-  if controller.rng.rand(0.0..1.0) < 0.1:
-    let randomOrientation = Orientation(controller.rng.rand(0..7))
-    let randomDelta = getOrientationDelta(randomOrientation)
-    let testPos = agent.pos + ivec2(randomDelta.x.int32, randomDelta.y.int32)
-    if env.isEmpty(testPos):
-      return [1'u8, ord(randomOrientation).uint8]  # Random move
-    # If random move fails, fall through to normal logic
+  # Enhanced dithering to prevent getting stuck
+  # Higher chance for specialists who need to reach specific targets
+  let ditherChance = if state.role != AltarSpecialist: 0.25 else: 0.1  # 25% for specialists, 10% for altar agents
+  if controller.rng.rand(0.0..1.0) < ditherChance:
+    # Try multiple random directions to find a valid move
+    let allDirections = @[ivec2(0, -1), ivec2(1, 0), ivec2(0, 1), ivec2(-1, 0),  # Cardinals first
+                         ivec2(1, -1), ivec2(1, 1), ivec2(-1, 1), ivec2(-1, -1)] # Then diagonals
+    var shuffledDirs = allDirections
+    for i in countdown(shuffledDirs.len - 1, 1):
+      let j = controller.rng.rand(0..i)
+      let temp = shuffledDirs[i]
+      shuffledDirs[i] = shuffledDirs[j]
+      shuffledDirs[j] = temp
+    
+    for dir in shuffledDirs:
+      let testPos = agent.pos + dir
+      if env.isEmpty(testPos):
+        let orientation = getOrientation(dir)
+        return [1'u8, ord(orientation).uint8]  # Random move
+    # If all random moves fail, fall through to normal logic
   
   
-  # Stuck detection: Check if we haven't moved
-  const StuckThreshold = 5  # Consider stuck after 5 steps in same position
-  const EscapeSteps = 5  # Escape for 5 steps when stuck
+  # Enhanced stuck detection: Check for both stationary and oscillation patterns
+  const StuckThreshold = 3  # Consider stuck after 3 repetitions
+  const EscapeSteps = 8  # Escape for 8 steps when stuck
+  const PositionHistorySize = 4  # Track last 4 positions
   
-  if agent.pos == state.lastPosition:
-    state.stuckCounter += 1
-    if state.stuckCounter >= StuckThreshold and not state.escapeMode:
+  # Update position history
+  state.recentPositions.add(agent.pos)
+  if state.recentPositions.len > PositionHistorySize:
+    state.recentPositions.delete(0)  # Remove oldest position
+  
+  # Check for stuck patterns: either same position or oscillation
+  if state.recentPositions.len >= StuckThreshold:
+    # Check if we're repeating the same position
+    if agent.pos == state.lastPosition:
+      state.stuckCounter += 1
+    # Check for oscillation pattern (alternating between two positions)
+    elif state.recentPositions.len >= 4:
+      let pos0 = state.recentPositions[^1]  # Current
+      let pos1 = state.recentPositions[^2]  # Previous
+      let pos2 = state.recentPositions[^3]  # Two steps ago
+      let pos3 = state.recentPositions[^4]  # Three steps ago
+      
+      if (pos0 == pos2 and pos1 == pos3) or (pos0 == pos1):  # Oscillation or stuck
+        state.stuckCounter += 1
+      else:
+        state.stuckCounter = 0  # Making progress
+    else:
+      state.stuckCounter = 0  # Not enough history yet
+  
+  if state.stuckCounter >= StuckThreshold and not state.escapeMode:
       # We're stuck! Enter escape mode
       state.escapeMode = true
       state.escapeStepsRemaining = EscapeSteps
+      state.recentPositions.setLen(0)  # Clear history when entering escape mode
       
-      # Choose escape direction (opposite of where we were trying to go)
+      # Choose smart escape direction
       if state.currentTarget != agent.pos:
         let targetDir = getDirectionTo(agent.pos, state.currentTarget)
-        # Go opposite direction
-        state.escapeDirection = ivec2(-targetDir.x, -targetDir.y)
+        # Try perpendicular directions first (better for navigating around obstacles)
+        let perpendicular1 = ivec2(-targetDir.y, targetDir.x)  # 90 degrees clockwise
+        let perpendicular2 = ivec2(targetDir.y, -targetDir.x)  # 90 degrees counter-clockwise
+        let opposite = ivec2(-targetDir.x, -targetDir.y)       # 180 degrees
+        
+        # Test perpendicular directions first, then opposite
+        let candidateEscapes = @[perpendicular1, perpendicular2, opposite]
+        var foundEscape = false
+        for escapeDir in candidateEscapes:
+          let testPos = agent.pos + escapeDir
+          if env.isEmpty(testPos):
+            state.escapeDirection = escapeDir
+            foundEscape = true
+            break
+        
+        if not foundEscape:
+          # All directions blocked, try random cardinal direction
+          let dirs = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+          state.escapeDirection = controller.rng.sample(dirs)
       else:
         # Random escape direction
         let dirs = @[ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
         state.escapeDirection = controller.rng.sample(dirs)
-  else:
-    # We moved, reset stuck counter
-    state.stuckCounter = 0
   
   # Update last position for next step
   state.lastPosition = agent.pos
