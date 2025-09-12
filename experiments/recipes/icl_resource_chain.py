@@ -323,7 +323,7 @@ def train(
     # for in context learning, we need episode length to be equal to bptt_horizon
     # which requires a large batch size
     trainer_cfg.batch_size = 2064384
-    trainer_cfg.bptt_horizon = 512
+    trainer_cfg.bptt_horizon = 256
 
     return TrainTool(trainer=trainer_cfg)
 
