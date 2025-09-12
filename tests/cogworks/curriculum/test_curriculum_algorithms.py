@@ -222,10 +222,7 @@ class TestLearningProgressCoreBehavior:
 
     def test_learning_progress_eviction_policy(self, random_seed):
         """Test that eviction policy prefers tasks with low learning progress."""
-        config = LearningProgressConfig(
-            ema_timescale=0.001,
-            max_memory_tasks=10,
-        )
+        config = LearningProgressConfig(ema_timescale=0.001, max_memory_tasks=10, enable_detailed_slice_logging=True)
         algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
 
         rng = random.Random(random_seed)
@@ -270,6 +267,7 @@ class TestLearningProgressProductionPatterns:
         config = LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=50,  # REDUCED from 100 for faster testing
+            enable_detailed_slice_logging=True,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)  # REDUCED from 50
 
