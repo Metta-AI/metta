@@ -4,11 +4,19 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, TypeVar
 
+from pydantic import BaseModel
+
 from metta.common.util.fs import get_repo_root
 from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import error
 
 T = TypeVar("T")
+
+
+class SetupModuleStatus(BaseModel):
+    installed: bool
+    connected_as: str | None
+    expected: str | None
 
 
 class SetupModule(ABC):
@@ -51,14 +59,19 @@ class SetupModule(ABC):
         # It is assumed that `core` and `system` are always installed first
         return []
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         """Install this component.
+
+        This is called during a metta install if any of:
+        - the component is not installed
+        - the component is installed and SetupModule.install_once is False
+        - the component is installed and the user is running a force-install
+
+        Force-installs are likely called when the user is trying to repair an issue, so ideally this function
+        should self-doctor when force is True.
 
         Args:
             non_interactive: If True, run in non-interactive mode without prompts
-
-        Raises:
-            NotImplementedError: If neither setup_script_location is set nor install() is overridden
         """
         self._non_interactive = non_interactive
         if self.setup_script_location:
@@ -250,17 +263,10 @@ class SetupModule(ABC):
             # Recursively clean up parent
             self._cleanup_empty_dicts(config, keys[:-1])
 
-    def get_status(self) -> dict[str, Any] | None:
-        """Get the status of this module.
-
-        Returns:
-            Dictionary with status information or None if not applicable
-        """
-        if not self.is_enabled():
-            return None
-
+    def get_status(self) -> SetupModuleStatus:
+        """Get the status of this module. Does not check if the module is enabled."""
         installed = self.check_installed()
         connected_as = self.check_connected_as() if installed else None
         expected = get_saved_settings().get_expected_connection(self.name)
 
-        return {"installed": installed, "connected_as": connected_as, "expected": expected}
+        return SetupModuleStatus(installed=installed, connected_as=connected_as, expected=expected)
