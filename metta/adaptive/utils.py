@@ -206,7 +206,7 @@ def create_training_job(
         recipe_module: Module containing the training function
         train_entrypoint: Name of the training function
         config: Hyperparameter configuration from optimizer
-        gpus_per_job: Number of GPUs per job
+        gpus: Number of GPUs per job
         stats_server_uri: Optional stats server URI
         train_overrides: Optional additional overrides
 

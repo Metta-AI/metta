@@ -1,26 +1,25 @@
 """Simple train-and-eval scheduler for PoC."""
 
 import logging
-from dataclasses import dataclass, field
 from typing import Any
 
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
+from metta.mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class TrainAndEvalConfig:
+class TrainAndEvalConfig(Config):
     """Configuration for simple train-and-eval scheduler."""
 
     recipe_module: str = "experiments.recipes.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
     max_trials: int = 3
-    gpus_per_job: int = 1
+    gpus: int = 1
     experiment_id: str = "train_eval_poc"
-    train_overrides: dict[str, Any] = field(default_factory=dict)
+    train_overrides: dict[str, Any] = {}
 
 
 class TrainAndEvalScheduler:
@@ -66,7 +65,7 @@ class TrainAndEvalScheduler:
                 recipe_module=self.config.recipe_module,
                 train_entrypoint=self.config.train_entrypoint,
                 train_overrides=self.config.train_overrides,
-                gpus=self.config.gpus_per_job,
+                gpus=self.config.gpus,
             )
             jobs.append(training_job)
             available_training_slots -= 1
