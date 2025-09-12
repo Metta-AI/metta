@@ -3,7 +3,6 @@
 
 from devops.skypilot.utils.job_config import JobConfig
 from gitta import post_commit_status
-from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.util.retry import retry_function
 
@@ -46,7 +45,8 @@ class GitHubStatusUpdater:
         if job_config.metta_run_id:
             target_url = f"https://wandb.ai/metta-research/metta/runs/{job_config.metta_run_id}"
 
-        repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+        repo = job_config.github_repository
+        assert repo
 
         # Log detailed payload info before posting
         logger.info(
