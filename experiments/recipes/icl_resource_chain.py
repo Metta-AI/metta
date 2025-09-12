@@ -249,7 +249,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
         find_all_sinks_cost = (n_converters + 2 * num_sinks) * step_per_attempt
         find_right_pattern_cost = n_converters * (n_converters - 1) * step_per_attempt
 
-        worst_first_heart_steps = find_first_converter_cost + find_all_sinks_cost + find_right_pattern_cost
+        worst_first_heart_steps = (
+            find_first_converter_cost + find_all_sinks_cost + find_right_pattern_cost
+        )
         least_efficient = hearts_after(worst_first_heart_steps)
 
         return int(most_efficient), int(least_efficient)
