@@ -23,6 +23,7 @@ from setuptools.build_meta import (
     prepare_metadata_for_build_editable,
     prepare_metadata_for_build_wheel,
 )
+from setuptools.dist import Distribution
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -94,7 +95,14 @@ def _run_bazel_build() -> None:
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     """Build a wheel, compiling the C++ extension with Bazel first."""
     _run_bazel_build()
-    return _build_wheel(wheel_directory, config_settings, metadata_directory)
+    # Ensure wheel is tagged as non-pure (platform-specific) since we bundle a native extension
+    # Setuptools/wheel derive purity from Distribution.has_ext_modules(). Monkeypatch to force True.
+    original_has_ext_modules = Distribution.has_ext_modules
+    try:
+        Distribution.has_ext_modules = lambda self: True  # type: ignore[assignment]
+        return _build_wheel(wheel_directory, config_settings, metadata_directory)
+    finally:
+        Distribution.has_ext_modules = original_has_ext_modules
 
 
 def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
