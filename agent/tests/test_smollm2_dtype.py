@@ -23,18 +23,41 @@ def test_smollm2_dtype_consistency():
     # Initialize model
     model = SmolLM2(env, model_name="HuggingFaceTB/SmolLM2-135M")
     
-    # Check initial dtypes
+    # Check initial dtypes (before initialization)
     llm_dtype = next(model.llm.parameters()).dtype
     token_proj_dtype = next(model.token_projector.parameters()).dtype
     actor_dtype = next(model.actor.parameters()).dtype
+    value_dtype = next(model.value.parameters()).dtype
     
-    print(f"LLM dtype: {llm_dtype}")
-    print(f"Token projector dtype: {token_proj_dtype}")  
-    print(f"Actor dtype: {actor_dtype}")
+    print(f"BEFORE initialization:")
+    print(f"  LLM dtype: {llm_dtype}")
+    print(f"  Token projector dtype: {token_proj_dtype}")  
+    print(f"  Actor dtype: {actor_dtype}")
+    print(f"  Value dtype: {value_dtype}")
     
     # Initialize to device (CPU for testing)
     device = torch.device("cpu")
     model.initialize_to_environment(["move", "rotate", "noop"], device)
+    
+    # Check dtypes AFTER initialization - they should all match now
+    llm_dtype_after = next(model.llm.parameters()).dtype
+    token_proj_dtype_after = next(model.token_projector.parameters()).dtype
+    actor_dtype_after = next(model.actor.parameters()).dtype
+    value_dtype_after = next(model.value.parameters()).dtype
+    
+    print(f"AFTER initialization:")
+    print(f"  LLM dtype: {llm_dtype_after}")
+    print(f"  Token projector dtype: {token_proj_dtype_after}")  
+    print(f"  Actor dtype: {actor_dtype_after}")
+    print(f"  Value dtype: {value_dtype_after}")
+    
+    # Verify all components have matching dtypes
+    all_dtypes = [llm_dtype_after, token_proj_dtype_after, actor_dtype_after, value_dtype_after]
+    if len(set(all_dtypes)) == 1:
+        print(f"✅ All components successfully synchronized to {llm_dtype_after}")
+    else:
+        print(f"❌ Dtype mismatch still exists: {all_dtypes}")
+        return False
     
     # Create test input
     batch_size = 2

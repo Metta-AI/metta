@@ -174,8 +174,10 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             # This creates [B, TT*seq_len, 3] - longer sequences but fewer batch items
             observations_temporal = observations.view(B, TT * seq_len, channels)
 
-            # Convert to float, normalize, and apply smart compression to temporal sequences
-            obs_float = observations_temporal.float() / 255.0
+            # Convert to model dtype, normalize, and apply smart compression to temporal sequences
+            # Use token_projector dtype which is synchronized with LLM dtype in initialize_to_environment
+            model_dtype = next(self.token_projector.parameters()).dtype
+            obs_float = observations_temporal.to(dtype=model_dtype) / 255.0
             obs_float = self._compress_tokens(obs_float)  # [B, max_seq_len, 3]
 
             # Now handle TD reshaping if needed - but with fewer, longer sequences
@@ -190,7 +192,9 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         else:  # Inference: [B, seq_len, 3]
             B = observations.shape[0]
             TT = 1
-            obs_float = observations.float() / 255.0
+            # Convert to model dtype (synchronized with LLM dtype in initialize_to_environment)
+            model_dtype = next(self.token_projector.parameters()).dtype
+            obs_float = observations.to(dtype=model_dtype) / 255.0
             obs_float = self._compress_tokens(obs_float)
 
         # Use mixin to set critical TensorDict fields (after our processing)
@@ -240,28 +244,30 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         """Initialize the agent to the current environment."""
         self.device = device
         self.to(device)
-        
+
         # CRITICAL: Ensure all custom layers match LLM dtype after device placement
         # The LLM loads with fp16, but custom layers default to fp32
         llm_dtype = next(self.llm.parameters()).dtype
-        
+
         # Convert token projector to match LLM dtype
         self.token_projector = self.token_projector.to(dtype=llm_dtype)
         logger.info(f"Converted token_projector to {llm_dtype}")
-        
+
         # Convert actor heads to match LLM dtype
         for i, actor_head in enumerate(self.actor):
             self.actor[i] = actor_head.to(dtype=llm_dtype)
         logger.info(f"Converted {len(self.actor)} actor heads to {llm_dtype}")
-        
-        # Convert value head to match LLM dtype  
+
+        # Convert value head to match LLM dtype
         self.value = self.value.to(dtype=llm_dtype)
         logger.info(f"Converted value head to {llm_dtype}")
 
         # Store action names for debugging
         self.full_action_names = full_action_names
 
-        logger.info(f"SmolLM2 initialized to environment with {len(full_action_names)} actions, all components using {llm_dtype}")
+        logger.info(
+            f"SmolLM2 initialized to environment with {len(full_action_names)} actions, all components using {llm_dtype}"
+        )
 
     def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
         """Apply feature remapping for agent portability."""
