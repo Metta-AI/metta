@@ -135,6 +135,7 @@ class TribalGridEnv:
 
         # Gymnasium spaces for compatibility
         import gymnasium as gym
+
         self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
         self.single_action_space = gym.spaces.MultiDiscrete([NUM_ACTION_TYPES, 8])
 
@@ -182,7 +183,6 @@ class TribalGridEnv:
         }
         return self.observations, self.rewards, self.terminals, self.truncations, info
 
-
     # Essential properties for RL frameworks
     @property
     def emulated(self) -> bool:
@@ -203,10 +203,6 @@ class TribalGridEnv:
     @property
     def max_action_args(self) -> list[int]:
         return [0, 7, 7, 7, 1, 7]
-
-
-
-
 
     # PufferLib async interface methods
     def async_reset(self, seed: int | None = None) -> np.ndarray:
@@ -256,7 +252,6 @@ class TribalEnvConfig(Config):
     game: TribalGameConfig = Field(default_factory=TribalGameConfig)
     desync_episodes: bool = Field(default=True)
     render_mode: Optional[str] = Field(default=None)
-
 
     def create_environment(self, **kwargs) -> TribalGridEnv:
         return TribalGridEnv({**self.game.__dict__, "render_mode": self.render_mode, **kwargs})
