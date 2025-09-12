@@ -37,7 +37,7 @@ from metta.mettagrid import MettaGridPettingZooEnv
 def demo_pettingzoo_api():
     """Demonstrate PettingZoo API compliance and basic usage."""
     print("PETTINGZOO API DEMO")
-    print("=" * 60)
+    print("=" * config.separator_short)
 
     # Create PettingZoo environment with shared config
     env = MettaGridPettingZooEnv(
@@ -53,14 +53,14 @@ def demo_pettingzoo_api():
     print(f"   - Reset successful: {len(observations)} observations")
 
     print("   - Running PettingZoo API compliance test...")
-    parallel_api_test(env, num_cycles=2)
+    parallel_api_test(env, num_cycles=config.pettingzoo_api_test_cycles)
     print("PettingZoo API compliance passed!")
 
 
 def demo_random_rollout():
     """Demonstrate random policy rollout in PettingZoo environment."""
     print("\nRANDOM ROLLOUT DEMO")
-    print("=" * 60)
+    print("=" * config.separator_short)
 
     # Create PettingZoo environment with shared config
     env = MettaGridPettingZooEnv(
@@ -82,7 +82,9 @@ def demo_random_rollout():
         for agent in env.agents:
             action_space = env.action_space(agent)
             if isinstance(action_space, spaces.MultiDiscrete):
-                actions[agent] = np.random.randint(0, action_space.nvec, size=len(action_space.nvec), dtype=np.int32)
+                actions[agent] = np.random.randint(
+                    0, action_space.nvec, size=len(action_space.nvec), dtype=config.np_int32
+                )
             else:
                 actions[agent] = action_space.sample()
 
@@ -100,7 +102,7 @@ def demo_random_rollout():
 
     print(f"Completed {steps} steps")
     for agent, reward in total_reward.items():
-        print(f"   - {agent}: {reward:.2f} total reward")
+        print(f"   - {agent}: {reward:.{config.reward_precision}f} total reward")
 
     assert steps > 0, "Expected at least one step to be taken"
     assert all(isinstance(r, (int, float)) for r in total_reward.values()), "Rewards must be numeric"
@@ -111,7 +113,7 @@ def demo_random_rollout():
 def demo_simple_marl_training():
     """Demonstrate simple multi-agent training with PettingZoo."""
     print("\nSIMPLE MULTI-AGENT TRAINING DEMO")
-    print("=" * 60)
+    print("=" * config.separator_short)
 
     # Create PettingZoo environment with shared config
     env = MettaGridPettingZooEnv(
@@ -155,7 +157,7 @@ def demo_simple_marl_training():
                         probs = policies[agent][i, :nvec]
                         probs = probs / probs.sum()
                         action.append(np.random.choice(nvec, p=probs))
-                    actions[agent] = np.array(action, dtype=np.int32)
+                    actions[agent] = np.array(action, dtype=config.np_int32)
                 elif isinstance(action_space, spaces.Discrete):
                     # Discrete case
                     probs = policies[agent] / policies[agent].sum()
@@ -172,11 +174,11 @@ def demo_simple_marl_training():
                 if isinstance(action_space, spaces.MultiDiscrete):
                     # MultiDiscrete case
                     for i, a in enumerate(action_taken):
-                        policies[agent][i, a] *= 1.1
+                        policies[agent][i, a] *= config.pettingzoo_learning_rate
                         policies[agent][i] /= policies[agent][i].sum()
                 elif isinstance(action_space, spaces.Discrete):
                     # Discrete case
-                    policies[agent][action_taken] *= 1.1
+                    policies[agent][action_taken] *= config.pettingzoo_learning_rate
                     policies[agent] /= policies[agent].sum()
 
             total_rewards[agent] += reward
@@ -190,7 +192,7 @@ def demo_simple_marl_training():
     print(f"Training completed: {steps} steps, {episodes} episodes")
     for agent, total_reward in total_rewards.items():
         avg_reward = total_reward / steps if steps > 0 else 0
-        print(f"   - {agent}: {avg_reward:.3f} avg reward/step")
+        print(f"   - {agent}: {avg_reward:.{config.avg_reward_precision}f} avg reward/step")
 
     assert steps > 0, "Expected at least one training step"
     assert all(not np.isnan(r) for r in total_rewards.values()), "Rewards contain NaN"
@@ -201,7 +203,7 @@ def demo_simple_marl_training():
 def main():
     """Run PettingZoo adapter demo."""
     print("PETTINGZOO ADAPTER DEMO")
-    print("=" * 80)
+    print("=" * config.separator_long)
     print("This demo shows MettaGridPettingZooEnv integration with")
     print("the PettingZoo multi-agent ecosystem (no internal training code).")
     print()
@@ -216,18 +218,18 @@ def main():
 
         # Summary
         duration = time.time() - start_time
-        print("\n" + "=" * 80)
+        print("\n" + "=" * config.separator_long)
         print("PETTINGZOO DEMO COMPLETED")
-        print("=" * 80)
+        print("=" * config.separator_long)
         print("PettingZoo API compliance: Passed")
         print("Random rollout: Successful")
         print("Multi-agent training: Completed")
-        print(f"\nTotal demo time: {duration:.1f} seconds")
+        print(f"\nTotal demo time: {duration:.{config.time_precision}f} seconds")
         print("\nNext steps:")
         print("   - Use SuperSuit for advanced wrappers")
         print("   - Integrate with MARLlib, RLlib, or Tianshou")
         print("   - Build custom multi-agent algorithms")
-        print("=" * 80)
+        print("=" * config.separator_long)
 
     except KeyboardInterrupt:
         print("\nDemo interrupted by user")

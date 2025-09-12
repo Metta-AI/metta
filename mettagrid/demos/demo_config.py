@@ -37,6 +37,31 @@ class DemoConfig:
     puffer_num_agents: int = 24
     puffer_is_training: bool = True
 
+    # Gym-specific algorithm settings
+    gym_sb3_policy: str = "MlpPolicy"  # SB3 policy type
+    gym_sb3_verbose: int = 0  # SB3 verbosity level
+    gym_test_steps_divisor: int = 2  # Divisor for test steps calculation
+
+    # PettingZoo-specific algorithm settings
+    pettingzoo_api_test_cycles: int = 2  # Number of cycles for API compliance test
+    pettingzoo_learning_rate: float = 1.1  # Learning rate multiplier for simple training
+
+    # Puffer-specific algorithm settings
+    puffer_action_bins: int = 10  # Number of action bins for Box action spaces
+    puffer_learning_rate: float = 1.1  # Learning rate multiplier
+
+    # Display settings
+    separator_short: int = 60  # Length for short separators (=== * n)
+    separator_long: int = 80  # Length for long separators (=== * n)
+
+    # Formatting settings
+    reward_precision: int = 2  # Decimal places for reward display (.2f)
+    avg_reward_precision: int = 3  # Decimal places for average reward display (.3f)
+    time_precision: int = 1  # Decimal places for time display (.1f)
+
+    # NumPy settings
+    numpy_dtype_int32: str = "int32"  # Standard int32 dtype string
+
     def get_gym_config(self):
         """Get configuration for Gym environment."""
         # Use navigation config for single-agent compatibility
@@ -49,6 +74,13 @@ class DemoConfig:
     def get_puffer_config(self):
         """Get configuration for Puffer environment."""
         return make_arena(num_agents=self.puffer_num_agents)
+
+    @property
+    def np_int32(self):
+        """Get numpy int32 dtype."""
+        import numpy as np
+
+        return np.int32
 
 
 # Default configuration instance
@@ -66,6 +98,7 @@ class DemoPresets:
             max_steps_quick=50,
             max_steps_training=100,
             max_steps_rollout=150,
+            pettingzoo_api_test_cycles=1,  # Fewer cycles for faster CI
         )
 
     @staticmethod
@@ -76,6 +109,10 @@ class DemoPresets:
             max_steps_quick=200,
             max_steps_training=500,
             max_steps_rollout=1000,
+            gym_sb3_verbose=1,  # More verbose for interactive mode
+            reward_precision=3,  # Higher precision for better visibility
+            avg_reward_precision=4,
+            time_precision=2,
         )
 
     @staticmethod
@@ -87,4 +124,5 @@ class DemoPresets:
             max_steps_rollout=5000,
             gym_num_vec_envs=8,
             puffer_num_agents=48,
+            puffer_action_bins=20,  # More granular action spaces
         )
