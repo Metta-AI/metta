@@ -139,20 +139,8 @@ class SliceAnalyzer:
             slice_values: Parameter slice values for this task (e.g., {"map_size": "large", "num_agents": 4})
             score: Task completion score
         """
-        # PERFORMANCE FIX: Skip slice analysis if detailed logging is disabled and we have enough slices
-        if not self.enable_detailed_logging and len(self._monitored_slices) >= self.max_slice_axes:
-            return
-
-        # PERFORMANCE FIX: Limit slice processing for performance
-        processed_count = 0
-        max_slices_per_update = 5  # Process at most 5 slices per update
-
         # Store slice values for this task
         for slice_name, value in slice_values.items():
-            # Early exit if we've processed enough slices
-            if processed_count >= max_slices_per_update:
-                break
-
             self._slice_tracking[slice_name][task_id] = value
 
             # Initialize slice if not seen before
@@ -171,17 +159,8 @@ class SliceAnalyzer:
                 self._slice_completion_counts[slice_name][bin_index] += 1
                 self._slice_completion_history[slice_name].append((bin_index, score))
 
-            processed_count += 1
-
-        # PERFORMANCE FIX: Only invalidate density cache occasionally
-        if hasattr(self, "_density_invalidation_counter"):
-            self._density_invalidation_counter += 1
-        else:
-            self._density_invalidation_counter = 1
-
-        # Only invalidate every 20 updates to reduce computation overhead
-        if self._density_invalidation_counter % 20 == 0:
-            self._density_cache_valid = False
+        # Invalidate density cache when completion data changes
+        self._density_cache_valid = False
 
     def get_slice_distribution_stats(self) -> Dict[str, Dict[str, float]]:
         """Get probability distribution statistics across parameter slices."""
