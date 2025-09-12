@@ -272,6 +272,41 @@ proc hasNearbyLanterns(env: Environment, pos: IVec2, radius: int): bool =
   
   return false
 
+proc checkAndTransitionAfterCollection(state: ControllerState, agent: Thing, env: Environment) =
+  ## Check if agent has resources and transition to next phase if needed
+  ## This is called at the START of decision making, not during action execution
+  case state.role:
+  of ArmorySpecialist:
+    if agent.inventoryWood > 0 and state.targetType == Tree:
+      # Have wood, transition to Armory crafting
+      let armory = env.findHomeBuilding(agent, Armory)
+      if armory != nil:
+        state.currentTarget = armory.pos
+        state.targetType = Armory
+  of ForgeSpecialist:
+    if agent.inventoryWood > 0 and state.targetType == Tree:
+      # Have wood, transition to Forge crafting
+      let forge = env.findHomeBuilding(agent, Forge)
+      if forge != nil:
+        state.currentTarget = forge.pos
+        state.targetType = Forge
+  of ClayOvenSpecialist:
+    if agent.inventoryWheat > 0 and state.targetType == Wheat:
+      # Have wheat, transition to ClayOven crafting
+      let oven = env.findHomeBuilding(agent, ClayOven)
+      if oven != nil:
+        state.currentTarget = oven.pos
+        state.targetType = ClayOven
+  of WeavingLoomSpecialist:
+    if agent.inventoryWheat > 0 and state.targetType == Wheat:
+      # Have wheat, transition to WeavingLoom crafting
+      let loom = env.findHomeBuilding(agent, WeavingLoom)
+      if loom != nil:
+        state.currentTarget = loom.pos
+        state.targetType = WeavingLoom
+  else:
+    discard  # AltarSpecialist doesn't have resource collection phases
+
 proc findLanternPlacementSpot(env: Environment, agent: Thing, controller: Controller): IVec2 =
   ## Find a good spot to place a lantern: at least 7 squares from altar, 2+ squares from other lanterns
   result = ivec2(-1, -1)
@@ -463,6 +498,9 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     state.hasCompletedRole = false  # AltarSpecialist never "completes"
   
   
+  # Check for transitions after resource collection
+  checkAndTransitionAfterCollection(state, agent, env)
+  
   # SPECIALIZATION LOGIC: If agent has a specialized role and hasn't completed it, prioritize that
   if state.role != AltarSpecialist and not state.hasCompletedRole:
     case state.role:
@@ -627,15 +665,19 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       of Tree:
         if env.terrain[state.currentTarget.x][state.currentTarget.y] == Tree:
           let dir = state.currentTarget - agent.pos
+          # After collecting wood, agent will transition on next decision cycle
           return [3'u8, ord(getOrientation(dir)).uint8]  # Get wood from tree
         else:
-          state.targetType = NoTarget  # Tree gone, find new target
+          # Tree gone, search for new target based on role
+          state.targetType = NoTarget
       of Wheat:
         if env.terrain[state.currentTarget.x][state.currentTarget.y] == Wheat:
           let dir = state.currentTarget - agent.pos
+          # After collecting wheat, agent will transition on next decision cycle
           return [3'u8, ord(getOrientation(dir)).uint8]  # Get wheat
         else:
-          state.targetType = NoTarget  # Wheat gone, find new target
+          # Wheat gone, search for new target based on role
+          state.targetType = NoTarget
       of Armory, Forge, ClayOven, WeavingLoom:
         # Craft at building (put action)
         let dir = state.currentTarget - agent.pos

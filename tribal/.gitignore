@@ -23,11 +23,17 @@ src/tribal/clippy
 src/tribal/placement
 src/tribal/terrain
 
-# Test executables
+# Test executables (all compiled test binaries)
 tests/test_*
+tests/debug_*
+tests/quick_*
+tests/fixed_*
 !tests/test_*.nim
 !tests/test_*.py
 !tests/test_*.sh
+!tests/debug_*.nim
+!tests/quick_*.nim
+!tests/fixed_*.nim
 
 # General pattern for Nim binaries in src directories
 # (Nim compiles to extensionless executables on Unix)
