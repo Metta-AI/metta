@@ -109,7 +109,7 @@ def make_curriculum(
 def train(
     run: Optional[str] = None,
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_logging: bool = False,
+    enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
     # Generate structured run name if not provided
     if run is None:
@@ -117,7 +117,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum
-        or make_curriculum(enable_detailed_slice_logging=enable_detailed_logging),
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),

@@ -76,10 +76,12 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(

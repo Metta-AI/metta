@@ -187,7 +187,7 @@ def make_curriculum(enable_detailed_slice_logging: bool = False) -> CurriculumCo
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_logging: bool = False,
+    enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
@@ -197,7 +197,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum
-        or make_curriculum(enable_detailed_slice_logging=enable_detailed_logging),
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
