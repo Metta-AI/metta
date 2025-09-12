@@ -96,8 +96,7 @@ def train(
 ) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum
-        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
+        curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(

@@ -37,7 +37,6 @@ class ImprovedPolicy(nn.Module):
         self.out_height = getattr(env, "obs_height", 11)
         self.num_layers = max(env.feature_normalizations.keys()) + 1 if hasattr(env, "feature_normalizations") else 25
 
-        # Enhanced CNN backbone for better feature extraction
         self.cnn1 = init_layer(nn.Conv2d(self.num_layers, 64, 5, 3), std=1.0)
         self.cnn2 = init_layer(nn.Conv2d(64, 128, 3, 1), std=1.0)
 
@@ -49,7 +48,6 @@ class ImprovedPolicy(nn.Module):
         self.fc1 = init_layer(nn.Linear(self.flattened_size, 256), std=1.0)
         self.encoded_obs = init_layer(nn.Linear(256, input_size), std=1.0)
 
-        # Core GTrXL transformer with memory mechanism
         self._transformer = TransformerModule(
             d_model=hidden_size,
             n_heads=n_heads,
@@ -62,26 +60,21 @@ class ImprovedPolicy(nn.Module):
             use_gating=use_gating,
         )
 
-        # Standard GTrXL actor-critic heads (simplified)
         self.critic = nn.Sequential(
             nn.Linear(hidden_size, hidden_size), nn.LayerNorm(hidden_size), nn.ReLU(), nn.Linear(hidden_size, 1)
         )
 
-        # Simple actor head for action logits
         self.actor = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
             nn.LayerNorm(hidden_size),
             nn.ReLU(),
-            nn.Linear(hidden_size, 100),  # Max action space size
+            nn.Linear(hidden_size, 100),
         )
 
-        # Initialize heads with proper scaling
         for head in [self.critic, self.actor]:
             for layer in head:
                 if isinstance(layer, nn.Linear):
                     init_layer(layer, std=1.0 if layer != head[-1] else 0.1)
-
-        # Feature normalization
         max_values = [1.0] * self.num_layers
         if hasattr(env, "feature_normalizations"):
             for fid, norm in env.feature_normalizations.items():
@@ -104,30 +97,25 @@ class ImprovedPolicy(nn.Module):
         return x
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
-        # Handle batched observations efficiently
         if observations.dim() == 4:
             B, T = observations.shape[:2]
             observations = observations.reshape(B * T, *observations.shape[2:])
 
-        # Extract coordinate and attribute information
         coords_byte = observations[..., 0].to(torch.uint8)
         x_coord_indices = ((coords_byte >> 4) & 0x0F).long()
         y_coord_indices = (coords_byte & 0x0F).long()
         atr_indices = observations[..., 1].long()
         atr_values = observations[..., 2].float()
 
-        # Create validity masks
         valid_tokens = coords_byte != 0xFF
         valid_atr = atr_indices < self.num_layers
         valid_mask = valid_tokens & valid_atr
 
-        # Compute flattened indices for scatter operation
         dim_per_layer = self.out_width * self.out_height
         combined_index = atr_indices * dim_per_layer + x_coord_indices * self.out_height + y_coord_indices
         safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
         safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
 
-        # Scatter to grid representation
         box_flat = torch.zeros(
             (observations.shape[0], self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=observations.device
         )
@@ -137,17 +125,9 @@ class ImprovedPolicy(nn.Module):
 
     def decode_actions(self, hidden: torch.Tensor, batch_size: int = None) -> tuple:
         """Standard GTrXL action/value decoding."""
-        if batch_size is None:
-            batch_size = hidden.shape[0]
-
-        # Value head
         values = self.critic(hidden).squeeze(-1)
-
-        # Actor head - generate logits for all actions
-        full_logits = self.actor(hidden)  # (B, max_action_space)
-
-        # Slice to actual number of active actions
-        logits = full_logits[:, : self.num_active_actions]  # (B, num_active_actions)
+        full_logits = self.actor(hidden)
+        logits = full_logits[:, : self.num_active_actions]
 
         return logits, values
 
@@ -198,39 +178,30 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
         if state is None:
             state = {"transformer_memory": None, "hidden": None}
 
-        # Determine batch and time dimensions
         B = observations.shape[0]
         TT = observations.shape[1] if observations.dim() == 4 else 1
 
-        # Reshape if needed for batched processing
         if observations.dim() == 4 and td.batch_dims > 1:
             td = td.reshape(B * TT)
 
         self.set_tensordict_fields(td, observations)
 
-        # Encode observations
         hidden = self.policy.encode_observations(observations, state)
 
-        # Prepare for transformer (T, B, hidden_size format)
         if TT > 1:
             hidden = hidden.view(B, TT, -1).transpose(0, 1)
         else:
             hidden = hidden.unsqueeze(0)
 
-        # Pass through GTrXL transformer
         hidden, memory = self.policy.transformer(hidden, None, state.get("transformer_memory"))
         state["transformer_memory"] = memory
 
-        # Reshape back for action decoding
         if TT > 1:
             hidden = hidden.transpose(0, 1).reshape(B * TT, -1)
         else:
             hidden = hidden.squeeze(0)
 
-        # Decode actions and values
         logits, values = self.policy.decode_actions(hidden, B * TT)
-
-        # Forward through mixin
         if action is None:
             td = self.forward_inference(td, logits, values)
         else:

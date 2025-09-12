@@ -40,33 +40,29 @@ class Policy(nn.Module):
         self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
         self.num_layers = max(env.feature_normalizations.keys()) + 1 if hasattr(env, "feature_normalizations") else 25
 
-        # Enhanced CNN backbone - borrow wider cnn2 from TransformerImproved
         self.cnn1 = init_layer(nn.Conv2d(self.num_layers, 64, 5, 3), std=1.0)
-        self.cnn2 = init_layer(nn.Conv2d(64, 128, 3, 1), std=1.0)  # Improved: 128 channels
+        self.cnn2 = init_layer(nn.Conv2d(64, 128, 3, 1), std=1.0)
 
         with torch.no_grad():
             test_output = self.cnn2(self.cnn1(torch.zeros(1, self.num_layers, self.out_width, self.out_height)))
             self.flattened_size = test_output.numel() // test_output.shape[0]
 
         self.flatten = nn.Flatten()
-        # Enhanced feature processing - borrow larger fc1 from TransformerImproved
-        self.fc1 = init_layer(nn.Linear(self.flattened_size, 256), std=1.0)  # Improved: 256 dims
+        self.fc1 = init_layer(nn.Linear(self.flattened_size, 256), std=1.0)
         self.encoded_obs = init_layer(nn.Linear(256, input_size), std=1.0)
 
-        # Enhanced transformer with minimal memory - reduce memory_len for RL efficiency
         self._transformer = TransformerModule(
             d_model=hidden_size,
             n_heads=n_heads,
             n_layers=n_layers,
             d_ff=d_ff,
             max_seq_len=max_seq_len,
-            memory_len=16,  # Add minimal memory (vs 64 in TransformerImproved)
+            memory_len=16,
             dropout=dropout,
             use_causal_mask=use_causal_mask,
             use_gating=use_gating,
         )
 
-        # Simplified actor-critic heads
         self.critic = nn.Sequential(
             nn.Linear(hidden_size, hidden_size), nn.LayerNorm(hidden_size), nn.ReLU(), nn.Linear(hidden_size, 1)
         )
@@ -74,9 +70,8 @@ class Policy(nn.Module):
             nn.Linear(hidden_size, hidden_size),
             nn.LayerNorm(hidden_size),
             nn.ReLU(),
-            nn.Linear(hidden_size, 100),  # Max action space size
+            nn.Linear(hidden_size, 100),
         )
-        # Initialize heads with proper scaling
         for head in [self.critic, self.actor]:
             for layer in head:
                 if isinstance(layer, nn.Linear):
@@ -104,52 +99,45 @@ class Policy(nn.Module):
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Clean observation encoding with simplified tensor handling."""
-        # Handle batching: flatten to (batch_size, num_tokens, 3) if needed
-        if observations.dim() == 4:  # (B, T, M, 3) -> (B*T, M, 3)
+        if observations.dim() == 4:
             batch_size = observations.shape[0] * observations.shape[1]
             observations = observations.view(batch_size, *observations.shape[2:])
-        else:  # (B, M, 3)
+        else:
             batch_size = observations.shape[0]
 
         assert observations.shape[-1] == 3, f"Expected 3 channels per token, got {observations.shape}"
 
-        # Extract coordinate and attribute information
         coords_byte = observations[..., 0].to(torch.uint8)
         x_coord_indices = ((coords_byte >> 4) & 0x0F).long()
         y_coord_indices = (coords_byte & 0x0F).long()
         atr_indices = observations[..., 1].long()
         atr_values = observations[..., 2].float()
 
-        # Create validity masks
         valid_tokens = coords_byte != 0xFF
         valid_atr = atr_indices < self.num_layers
         valid_mask = valid_tokens & valid_atr
 
-        # Warn about invalid indices but continue
         if (valid_tokens & ~valid_atr).any():
             warnings.warn(f"Found obs attribute indices >= {self.num_layers}, ignoring", stacklevel=2)
 
-        # Compute flattened indices for scatter operation
         dim_per_layer = self.out_width * self.out_height
         combined_index = atr_indices * dim_per_layer + x_coord_indices * self.out_height + y_coord_indices
         safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
         safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
 
-        # Scatter to grid representation
         box_flat = torch.zeros(
             (batch_size, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=observations.device
         )
         box_flat.scatter_(1, safe_index, safe_values)
 
-        # Reshape and pass through CNN
         box_obs = box_flat.view(batch_size, self.num_layers, self.out_width, self.out_height)
         return self.network_forward(box_obs)
 
     def decode_actions(self, hidden: torch.Tensor, batch_size: int) -> tuple:
         """Decode actions and values from hidden states."""
         values = self.critic(hidden).squeeze(-1)
-        full_logits = self.actor(hidden)  # (B, max_action_space)
-        logits = full_logits[:, : self.num_active_actions]  # Slice to active actions
+        full_logits = self.actor(hidden)
+        logits = full_logits[:, : self.num_active_actions]
         return logits, values
 
     def transformer(self, hidden: torch.Tensor, terminations: torch.Tensor = None, memory: dict = None):
@@ -158,7 +146,6 @@ class Policy(nn.Module):
         return output, new_memory
 
     def initialize_memory(self, batch_size: int) -> dict:
-        """Initialize transformer memory."""
         return self._transformer.initialize_memory(batch_size)
 
 
@@ -199,16 +186,13 @@ class Transformer(PyTorchAgentMixin, TransformerWrapper):
         """Cleaner forward pass with simplified tensor handling."""
         observations = td["env_obs"]
 
-        # Initialize state if needed
         if state is None:
             state = {"transformer_memory": None, "hidden": None}
 
-        # Handle different input shapes more cleanly
-        is_sequential = observations.dim() == 4  # (B, T, M, 3)
+        is_sequential = observations.dim() == 4
         if is_sequential:
             batch_size, seq_len = observations.shape[:2]
             flat_batch_size = batch_size * seq_len
-            # Reshape TensorDict for processing
             if td.batch_dims > 1:
                 td = td.reshape(flat_batch_size)
         else:
@@ -217,36 +201,27 @@ class Transformer(PyTorchAgentMixin, TransformerWrapper):
 
         self.set_tensordict_fields(td, observations)
 
-        # Encode observations - this handles batching internally
-        hidden = self.policy.encode_observations(observations, state)  # -> (flat_batch_size, hidden_size)
+        hidden = self.policy.encode_observations(observations, state)
 
-        # Reshape for transformer: (seq_len, batch_size, hidden_size)
         if is_sequential:
             hidden = hidden.view(batch_size, seq_len, -1).transpose(0, 1)
         else:
-            hidden = hidden.unsqueeze(0)  # Add sequence dimension
+            hidden = hidden.unsqueeze(0)
 
-        # Pass through transformer with memory
         hidden, new_memory = self.policy.transformer(hidden, None, state.get("transformer_memory"))
 
-        # Update memory state
         if new_memory is not None:
             state["transformer_memory"] = new_memory
 
-        # Reshape back to flat for action decoding: (flat_batch_size, hidden_size)
         if is_sequential:
             hidden = hidden.transpose(0, 1).contiguous().view(flat_batch_size, -1)
         else:
             hidden = hidden.squeeze(0)
 
-        # Decode actions and values
         logits, values = self.policy.decode_actions(hidden, flat_batch_size)
 
-        # Ensure proper value shape
         if values.dim() > 1:
             values = values.squeeze(-1)
-
-        # Forward through mixin
         if action is None:
             td = self.forward_inference(td, logits, values)
         else:

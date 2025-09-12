@@ -25,7 +25,6 @@ class TransformerWrapper(nn.Module):
         Similar to LSTM's __setstate__, prevents batch size mismatches when resuming.
         """
         self.__dict__.update(state)
-        # Memory will be reinitialized on first forward pass after loading
 
     def __init__(self, env, policy, hidden_size: int = 256):
         """
@@ -42,7 +41,6 @@ class TransformerWrapper(nn.Module):
         self.hidden_size = hidden_size
         self.is_continuous = getattr(policy, "is_continuous", False)
 
-        # Initialize weights if needed
         for name, param in self.named_parameters():
             if "layer_norm" in name:
                 continue
@@ -66,35 +64,25 @@ class TransformerWrapper(nn.Module):
             logits: Action logits
             values: Value estimates
         """
-        # Encode observations
         hidden = self.policy.encode_observations(observations, state=state)
 
-        # Get transformer memory if it exists
         memory = state.get("transformer_memory", None)
 
-        # Process through transformer (single timestep)
-        # Add time dimension for transformer
-        hidden = hidden.unsqueeze(0)  # (1, B, hidden_size)
+        hidden = hidden.unsqueeze(0)
 
-        # Check for terminations in state
         terminations = state.get("terminations", torch.zeros(1, observations.shape[0], device=hidden.device))
         if terminations.dim() == 1:
             terminations = terminations.unsqueeze(0)
 
-        # Forward through transformer
         hidden, new_memory = self.policy.transformer(hidden, terminations, memory)
 
-        # Remove time dimension
         hidden = hidden.squeeze(0)
 
-        # Store updated memory with detachment to prevent gradient accumulation
         if new_memory is not None:
             state["transformer_memory"] = self._detach_memory(new_memory)
         else:
             state["transformer_memory"] = new_memory
         state["hidden"] = hidden
-
-        # Decode actions
         logits, values = self.policy.decode_actions(hidden)
 
         return logits, values
@@ -124,7 +112,6 @@ class TransformerWrapper(nn.Module):
         if x_shape[-space_n:] != space_shape:
             raise ValueError("Invalid input tensor shape", x.shape)
 
-        # Determine batch and time dimensions
         if x_n == space_n + 1:
             B, TT = x_shape[0], 1
         elif x_n == space_n + 2:
@@ -132,48 +119,38 @@ class TransformerWrapper(nn.Module):
         else:
             raise ValueError("Invalid input tensor shape", x.shape)
 
-        # Reshape for encoding: (B*T, ...)
         x = x.reshape(B * TT, *space_shape)
 
-        # Encode observations
         hidden = self.policy.encode_observations(x, state)
         assert hidden.shape == (B * TT, self.hidden_size), (
             f"Expected shape ({B * TT}, {self.hidden_size}), got {hidden.shape}"
         )
 
-        # Reshape for transformer: (B*T, hidden) -> (T, B, hidden)
         if TT > 1:
             hidden = hidden.view(B, TT, -1).transpose(0, 1)
         else:
             hidden = hidden.unsqueeze(0)
 
-        # Get terminations if available
         terminations = state.get("terminations", torch.zeros(TT, B, device=hidden.device))
         if terminations.dim() == 1:
             terminations = terminations.unsqueeze(0).expand(TT, -1)
         elif terminations.dim() == 2 and terminations.shape[0] == B:
-            # (B, T) -> (T, B)
             terminations = terminations.transpose(0, 1)
 
-        # Forward through transformer with full sequence as context
         hidden, new_memory = self.policy.transformer(hidden, terminations, memory)
 
-        # Convert back to (B, T, hidden) or (B, hidden)
         if TT > 1:
-            hidden = hidden.transpose(0, 1)  # (T, B, hidden) -> (B, T, hidden)
+            hidden = hidden.transpose(0, 1)
             flat_hidden = hidden.reshape(B * TT, self.hidden_size)
         else:
-            hidden = hidden.squeeze(0)  # (1, B, hidden) -> (B, hidden)
+            hidden = hidden.squeeze(0)
             flat_hidden = hidden
 
-        # Decode actions
         logits, values = self.policy.decode_actions(flat_hidden)
 
-        # Reshape values
         if TT > 1:
             values = values.reshape(B, TT)
 
-        # Update state with detachment to prevent gradient accumulation
         if new_memory is not None:
             state["transformer_memory"] = self._detach_memory(new_memory)
         else:
@@ -201,18 +178,12 @@ class TransformerWrapper(nn.Module):
             Initial memory state dictionary
         """
         if batch_size is None:
-            # Called by MettaAgent.reset_memory() without args
-            # Return empty state - will be initialized lazily on first forward
             return {
                 "transformer_memory": None,
                 "hidden": None,
-                "needs_init": True,  # Flag to indicate lazy initialization needed
+                "needs_init": True,
             }
 
-        # Explicit initialization with batch_size
-        # Note: We ignore the device parameter and let the policy handle device placement
-        # internally, similar to how LSTMWrapper works. The device will be inferred
-        # from the tensors being processed (observations.device)
         if hasattr(self.policy, "initialize_memory"):
             memory = self.policy.initialize_memory(batch_size)
         else:
