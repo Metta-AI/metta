@@ -18,43 +18,105 @@ from metta.tools.train import TrainTool
 
 
 def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
-    """Create a smaller arena environment for LLM testing."""
+    """Create a smaller arena environment with easy shaped rewards for LLM training."""
     arena_env = eb.make_arena(num_agents=num_agents)
     # Smaller map for faster training
     arena_env.game.map_builder.width = 20
     arena_env.game.map_builder.height = 20
+
+    # Apply easy shaped rewards from arena_basic_easy_shaped
+    arena_env.game.agent.rewards.inventory = {
+        "heart": 1,
+        "ore_red": 0.1,
+        "battery_red": 0.8,
+        "laser": 0.5,
+        "armor": 0.5,
+        "blueprint": 0.5,
+    }
+    arena_env.game.agent.rewards.inventory_max = {
+        "heart": 100,
+        "ore_red": 1,
+        "battery_red": 1,
+        "laser": 1,
+        "armor": 1,
+        "blueprint": 1,
+    }
+
+    # Easy converter: 1 battery_red to 1 heart (simplified from 3 to 1)
+    arena_env.game.objects["altar"].input_resources = {"battery_red": 1}
+
     return arena_env
 
 
 def make_tiny_mettagrid(num_agents: int = 6) -> MettaGridConfig:
-    """Create a tiny arena environment for CPU debugging."""
+    """Create a tiny arena environment for CPU debugging with easy shaped rewards."""
     arena_env = eb.make_arena(num_agents=num_agents)
     # Very small map for CPU debugging
     arena_env.game.map_builder.width = 12
     arena_env.game.map_builder.height = 12
+
+    # Apply same easy shaped rewards as regular environment
+    arena_env.game.agent.rewards.inventory = {
+        "heart": 1,
+        "ore_red": 0.1,
+        "battery_red": 0.8,
+        "laser": 0.5,
+        "armor": 0.5,
+        "blueprint": 0.5,
+    }
+    arena_env.game.agent.rewards.inventory_max = {
+        "heart": 100,
+        "ore_red": 1,
+        "battery_red": 1,
+        "laser": 1,
+        "armor": 1,
+        "blueprint": 1,
+    }
+
+    # Easy converter: 1 battery_red to 1 heart
+    arena_env.game.objects["altar"].input_resources = {"battery_red": 1}
+
     return arena_env
 
 
 def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
-    """Create a simplified curriculum for initial testing."""
+    """Create curriculum with easy shaped reward variations for LLM training."""
     arena_env = arena_env or make_mettagrid()
 
-    # Create simplified training tasks
+    # Create training tasks with curriculum from arena_basic_easy_shaped
     arena_tasks = cc.bucketed(arena_env)
 
-    # Add some basic reward variations
-    for item in ["ore_red", "battery_red"]:
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, 0.5, 1.0])
+    # Add reward variations for key items (similar to arena_basic_easy_shaped)
+    for item in ["ore_red", "battery_red", "laser", "armor"]:
+        arena_tasks.add_bucket(
+            f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
+        )
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+
+    # Enable/disable attacks using cost to maintain action space consistency
+    arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
+
+    # Sometimes add initial items to buildings for easier bootstrapping
+    for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
+        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
     return CurriculumConfig(task_generator=arena_tasks)
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
-    """Create evaluation environments."""
+    """Create evaluation environments (basic and combat variants)."""
     basic_env = env or make_mettagrid()
+
+    # Basic environment with disabled combat
+    basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+    # Combat environment with enabled combat
+    combat_env = basic_env.model_copy()
+    combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
         SimulationConfig(name="arena_smollm2/basic", env=basic_env),
+        SimulationConfig(name="arena_smollm2/combat", env=combat_env),
     ]
 
 
@@ -96,12 +158,7 @@ def train(
         forward_pass_minibatch_target_size=8,  # Minimal forward pass batch
         async_factor=1,  # No async for debugging
         evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(
-                    name="arena_smollm2/basic",
-                    env=make_mettagrid(),
-                ),
-            ],
+            simulations=make_evals(),
             evaluate_interval=10000,  # Evaluate every 10k steps
         ),
     )
@@ -154,12 +211,7 @@ def train_cpu_debug() -> TrainTool:
         async_factor=1,  # Synchronous operation
         update_epochs=1,  # Single epoch per update
         evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(
-                    name="arena_smollm2/cpu_debug",
-                    env=tiny_env,
-                ),
-            ],
+            simulations=make_evals(tiny_env),
             evaluate_interval=2500,  # Evaluate only once during run
             skip_git_check=True,  # Skip git check for debugging
         ),
