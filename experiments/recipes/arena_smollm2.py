@@ -138,11 +138,11 @@ def train(
     agent_cfg = AgentConfig(
         name="pytorch/smollm2",
         clip_range=0.2,  # Moderate weight clipping for stability
-        analyze_weights_interval=500,
+        analyze_weights_interval=2000,  # Less frequent analysis to save memory
     )
 
-    # SmolLM2-optimized configuration for RTX 4090 and high agent counts
-    # Supports up to 16384 agents (262144 / 16 bptt_horizon) while fitting in 24GB GPU
+    # Ultra memory-efficient configuration for RTX 4090 constraints
+    # Supports up to 8192 agents (131072 / 16 bptt_horizon) with aggressive memory optimization
     trainer_cfg = TrainerConfig(
         losses=LossConfig(
             loss_configs={
@@ -154,15 +154,18 @@ def train(
             }
         ),
         curriculum=curriculum or make_curriculum(),
-        # Memory-efficient batch sizes for LLM training
-        batch_size=262144,  # 256K batch - balances memory usage and agent capacity
-        minibatch_size=8192,  # Efficient GPU utilization
-        bptt_horizon=16,  # Shorter context reduces LLM memory usage significantly
-        forward_pass_minibatch_target_size=1024,  # Reasonable forward pass chunks
-        update_epochs=2,  # Extra epochs to compensate for reduced batch size
+        # Ultra memory-efficient batch sizes for RTX 4090 limits
+        # Supports up to 8192 agents (131072 / 16 bptt_horizon)
+        batch_size=131072,  # 128K batch - aggressive memory reduction
+        minibatch_size=4096,  # Smaller minibatches
+        bptt_horizon=16,  # Keep short context for memory efficiency
+        forward_pass_minibatch_target_size=256,  # Very small forward passes
+        update_epochs=4,  # More epochs to maintain learning efficiency
+        async_factor=1,  # Disable async for memory savings
+        compile=False,  # Disable torch.compile to save memory
         evaluation=EvaluationConfig(
             simulations=make_evals(),
-            evaluate_interval=50,
+            evaluate_interval=100,  # Less frequent evaluation to save memory
         ),
     )
 
