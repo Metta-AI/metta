@@ -26,7 +26,7 @@ def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
     return arena_env
 
 
-def make_tiny_mettagrid(num_agents: int = 4) -> MettaGridConfig:
+def make_tiny_mettagrid(num_agents: int = 6) -> MettaGridConfig:
     """Create a tiny arena environment for CPU debugging."""
     arena_env = eb.make_arena(num_agents=num_agents)
     # Very small map for CPU debugging
@@ -122,7 +122,7 @@ def train_unfrozen() -> TrainTool:
 def train_cpu_debug() -> TrainTool:
     """Minimal configuration for CPU debugging on MacBook."""
     # Create tiny curriculum for CPU debugging
-    tiny_env = make_tiny_mettagrid(num_agents=4)
+    tiny_env = make_tiny_mettagrid(num_agents=6)
     tiny_curriculum = make_curriculum(tiny_env)
 
     # Configure SmolLM2 agent with minimal settings
@@ -145,8 +145,8 @@ def train_cpu_debug() -> TrainTool:
         ),
         curriculum=tiny_curriculum,
         # Absolute minimal settings for CPU debugging
-        batch_size=16,  # Smallest viable batch
-        minibatch_size=4,  # Smallest minibatch
+        batch_size=48,  # Minimum for 6 agents * 8 BPTT horizon
+        minibatch_size=8,  # Must be divisible by bptt_horizon
         rollout_workers=1,  # Single worker
         total_timesteps=5000,  # Very short debug run
         bptt_horizon=8,  # Minimal BPTT
