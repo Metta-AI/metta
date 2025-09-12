@@ -29,7 +29,7 @@ class WandbSetup(SetupModule):
 
         return False
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         """Set up Weights & Biases authentication and configuration.
 
         Handles different user types:
