@@ -8,17 +8,18 @@ const
   InfectionThreshold* = 0.05  # Blue tint threshold for infection
   PurpleOverlayStrength* = 0.6  # How strong the purple overlay is
 
-proc getInfectionLevel*(pos: IVec2): float32 =
-  ## Calculate infection level based on blue/purple tint only
+proc isCoolColor*(pos: IVec2): bool =
+  ## Simple check if a tile has cool colors (blue > red+green)
   if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
-    return 0.0
+    return false
   
-  let tileColor = env.tileColors[pos.x][pos.y]
-  let baseColor = env.baseTileColors[pos.x][pos.y]
-  let blueDiff = tileColor.b - baseColor.b
-  
-  # Only blue/purple tint causes freezing - agent warmth naturally counters this through the tint system
-  return min(max(blueDiff / InfectionThreshold, 0.0), 1.0)
+  let color = env.tileColors[pos.x][pos.y]
+  # Cool colors have more blue than red+green combined
+  return color.b > (color.r + color.g)
+
+proc getInfectionLevel*(pos: IVec2): float32 =
+  ## Simple infection level based on color temperature
+  return if isCoolColor(pos): 1.0 else: 0.0
 
 proc isInfected*(pos: IVec2): bool =
   ## Check if a position has enough blue/purple tint to be frozen

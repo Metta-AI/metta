@@ -812,10 +812,10 @@ proc updateTintModifications(env: Environment) =
             env.activeTiles.positions.add(creepPos)
             env.activeTiles.count += 1
             
-            # Clippy creep effect (cool colors)
-            env.tintMods[creepPos.x][creepPos.y].r += int16(-30 * creepIntensity * falloff)  # Reduce red
-            env.tintMods[creepPos.x][creepPos.y].g += int16(-15 * creepIntensity * falloff)  # Reduce green
-            env.tintMods[creepPos.x][creepPos.y].b += int16(40 * creepIntensity * falloff)   # Increase blue
+            # Clippy creep effect (cool colors - half speed)
+            env.tintMods[creepPos.x][creepPos.y].r += int16(-15 * creepIntensity * falloff)  # Reduce red (halved)
+            env.tintMods[creepPos.x][creepPos.y].g += int16(-8 * creepIntensity * falloff)   # Reduce green (halved)  
+            env.tintMods[creepPos.x][creepPos.y].b += int16(20 * creepIntensity * falloff)   # Increase blue (halved)
       
     of Agent:
       # Agents create 5x stronger warmth in 3x3 area based on their tribe color
@@ -834,10 +834,10 @@ proc updateTintModifications(env: Environment) =
               env.activeTiles.positions.add(agentPos)
               env.activeTiles.count += 1
               
-              # Agent warmth effect (5x stronger than before)
-              env.tintMods[agentPos.x][agentPos.y].r += int16((tribeColor.r - 0.7) * 250 * falloff.float32)  # 5x stronger
-              env.tintMods[agentPos.x][agentPos.y].g += int16((tribeColor.g - 0.65) * 250 * falloff.float32) # 5x stronger
-              env.tintMods[agentPos.x][agentPos.y].b += int16((tribeColor.b - 0.6) * 250 * falloff.float32)  # 5x stronger
+              # Agent warmth effect (2.5x stronger than original)
+              env.tintMods[agentPos.x][agentPos.y].r += int16((tribeColor.r - 0.7) * 125 * falloff.float32)  # Half of 5x = 2.5x
+              env.tintMods[agentPos.x][agentPos.y].g += int16((tribeColor.g - 0.65) * 125 * falloff.float32) # Half of 5x = 2.5x 
+              env.tintMods[agentPos.x][agentPos.y].b += int16((tribeColor.b - 0.6) * 125 * falloff.float32)  # Half of 5x = 2.5x
         
     of Altar:
       # Reduce altar tint effect by 10x (minimal warm glow)
@@ -1465,8 +1465,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     if clippy.turnsAlive == 1:
       continue
     
-    # Plant if no nearby clippies in observation window (2-tile radius)
-    if not env.hasNearbyClippies(clippy.pos, 2, clippy):
+    # Plant if no nearby clippies in observation window (2-tile radius) and not on water
+    if not env.hasNearbyClippies(clippy.pos, 2, clippy) and env.terrain[clippy.pos.x][clippy.pos.y] != Water:
       clippy.hasClaimedTerritory = true
   
   # ============== CLIPPY COMBAT ==============
