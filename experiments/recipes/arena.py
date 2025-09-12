@@ -55,7 +55,7 @@ def make_curriculum(
             ema_timescale=0.001,
             exploration_bonus=0.1,
             max_memory_tasks=1000,
-            max_slice_axes=5,  # More slices for arena complexity
+            max_slice_axes=3,  # More slices for arena complexity
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
     )
