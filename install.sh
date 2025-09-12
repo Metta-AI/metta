@@ -43,11 +43,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-err() {
-  echo "ERROR: $1" >&2
-  exit 1
-}
-
 check_cmd() {
   command -v "$1" > /dev/null 2>&1
   return $?
@@ -62,9 +57,9 @@ for cmd in uv bazel git g++; do
   fi
 done
 
-uv sync || err "Failed to install Python dependencies"
-uv run python -m metta.setup.metta_cli symlink-setup setup || err "Failed to set up metta command in ~/.local/bin"
-uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION || err "Failed to install components"
+uv sync
+uv run python -m metta.setup.metta_cli symlink-setup setup
+uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
 
 echo "\nSetup complete!\n"
 
