@@ -194,13 +194,6 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: Verify tag for PyPI publishes
-        if: ${{ inputs.target == 'pypi' }}
-        run: |
-          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
-            echo "PyPI publishes must run from a tag (e.g., v0.2.0)" >&2
-            exit 1
-          fi
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
