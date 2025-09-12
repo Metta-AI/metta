@@ -125,44 +125,6 @@ proc newTribalEnv*(config: TribalConfig): TribalEnv =
 
 # Core environment methods
 
-proc getTokenObservations*(tribal: TribalEnv): seq[int] =
-  ## Get current observations as token sequence compatible with MettaGrid format
-  ## Returns flattened array of [agent0_tokens..., agent1_tokens..., ...]
-  ## where each agent has MaxTokensPerAgent tokens of 3 values: [coord_byte, layer, value]
-  try:
-    const TokenSize = 3  # [coord_byte, layer, value]
-    
-    result = newSeq[int](MapAgents * MaxTokensPerAgent * TokenSize)
-    
-    for agentId in 0..<MapAgents:
-      var tokenCount = 0
-      let baseIndex = agentId * MaxTokensPerAgent * TokenSize
-      
-      # Convert observations to tokens for this agent
-      for layer in 0..<ObservationLayers:
-        for y in 0..<ObservationHeight:
-          for x in 0..<ObservationWidth:
-            let value = tribal.env.observations[agentId][layer][x][y]
-            if value > 0 and tokenCount < MaxTokensPerAgent:
-              # Pack coordinates into single byte (4 bits each, max 15)
-              let coordByte = (x shl 4) or y
-              let tokenIndex = baseIndex + tokenCount * TokenSize
-              
-              result[tokenIndex] = coordByte
-              result[tokenIndex + 1] = layer
-              result[tokenIndex + 2] = value.int
-              
-              inc tokenCount
-      
-      # Fill remaining tokens with 0xFF (invalid marker)
-      for i in tokenCount..<MaxTokensPerAgent:
-        let tokenIndex = baseIndex + i * TokenSize
-        result[tokenIndex] = 0xFF
-        result[tokenIndex + 1] = 0xFF
-        result[tokenIndex + 2] = 0xFF
-        
-  except:
-    lastError = getCurrentException()
 
 # Environment status
 
@@ -184,21 +146,6 @@ proc renderText*(tribal: TribalEnv): string =
     lastError = getCurrentException()
     result = ""
 
-# Action metadata functions
-proc getActionNames*(): seq[string] =
-  ## Get the names of all available actions
-  @["NOOP", "MOVE", "ATTACK", "GET", "SWAP", "PUT"]
-
-proc getMaxActionArgs*(): seq[int] =
-  ## Get maximum argument values for each action type
-  ## NOOP=0, MOVE/ATTACK/GET/PUT=0-7 (8 directions), SWAP=0-1 (inventory positions)
-  @[0, 7, 7, 7, 1, 7]
-
-proc getFeatureNormalizations*(): seq[float] =
-  ## Get normalization values for each observation layer
-  result = newSeq[float](ObservationLayers)
-  for i in 0..<ObservationLayers:
-    result[i] = 1.0  # Default normalization for all layers
 
 # Helper procedures
 proc defaultMaxSteps*(): int =
@@ -231,28 +178,6 @@ proc externalActionCallback(): array[MapAgents, array[2, uint8]] =
       noopActions[i] = [0'u8, 0'u8]  # noop
     return noopActions
 
-proc setExternalActionsFromPython*(actions: seq[int]): bool =
-  ## Set external actions from Python neural network
-  ## actions: flat sequence of [action_type, argument] pairs for all agents
-  ## Length should be MapAgents * 2
-  try:
-    if actions.len != MapAgents * 2:
-      return false
-      
-    # Convert Python actions to Nim format
-    for i in 0..<MapAgents:
-      let actionIndex = i * 2
-      if actionIndex + 1 < actions.len:
-        storedExternalActions[i][0] = actions[actionIndex].uint8
-        storedExternalActions[i][1] = actions[actionIndex + 1].uint8
-      else:
-        storedExternalActions[i][0] = 0  # noop
-        storedExternalActions[i][1] = 0
-    
-    hasStoredActions = true
-    return true
-  except:
-    return false
 
 proc initExternalNNController*(): bool =
   ## Initialize controller to use external neural network
@@ -276,18 +201,6 @@ proc getControllerTypeString*(): string =
   of BuiltinAI: "BuiltinAI"
   of ExternalNN: "ExternalNN"
 
-# Export sequences
-exportSeq seq[int]:
-  discard
-
-exportSeq seq[float]:
-  discard
-
-exportSeq seq[bool]:
-  discard
-
-exportSeq seq[string]:
-  discard
 
 # Export error handling procedures
 exportProcs:
@@ -306,7 +219,6 @@ exportRefObject TribalEnv:
   constructor:
     newTribalEnv(TribalConfig)
   procs:
-    getTokenObservations(TribalEnv)
     getCurrentStep(TribalEnv)
     isEpisodeDone(TribalEnv)
     renderText(TribalEnv)
@@ -450,12 +362,8 @@ proc stepWithPointers*(tribal: TribalEnv, actionsPtrInt: int, obsPtrInt: int,
 exportProcs:
   defaultMaxSteps
   defaultTribalConfig
-  getActionNames
-  getMaxActionArgs
-  getFeatureNormalizations
   initBuiltinAIController
   initExternalNNController
-  setExternalActionsFromPython
   hasActiveController
   getControllerTypeString
   isEmulated

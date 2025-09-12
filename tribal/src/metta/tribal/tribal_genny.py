@@ -81,10 +81,9 @@ try:
     OBSERVATION_WIDTH = tribal.OBSERVATION_WIDTH
     OBSERVATION_HEIGHT = tribal.OBSERVATION_HEIGHT
 
-    # Functions
+    # Core functions
     is_emulated = tribal.is_emulated
     is_done = tribal.is_done
-    get_feature_normalizations = tribal.get_feature_normalizations
     reset_and_get_obs_pointer = tribal.reset_and_get_obs_pointer
     step_with_pointers = tribal.step_with_pointers
 
@@ -108,35 +107,11 @@ class TribalGridEnv:
         # Set environment variable to signal Python training mode
         os.environ["TRIBAL_PYTHON_CONTROL"] = "1"
 
-        # Create Nim configuration with overrides
+        # Create Nim configuration with simple overrides
         nim_config = default_tribal_config()
         if config:
-            # Handle both dict and Pydantic config objects
-            if hasattr(config, "model_dump"):
-                # Pydantic config - extract game parameters
-                config_dict = config.game.model_dump() if hasattr(config, "game") else {}
-            elif hasattr(config, "items"):
-                # Dict config
-                config_dict = config
-            else:
-                # Fallback: try to get attributes from the object
-                config_dict = {}
-                for attr in [
-                    "max_steps",
-                    "ore_per_battery",
-                    "batteries_per_heart",
-                    "enable_combat",
-                    "clippy_spawn_rate",
-                    "clippy_damage",
-                    "heart_reward",
-                    "ore_reward",
-                    "battery_reward",
-                    "survival_penalty",
-                    "death_penalty",
-                ]:
-                    if hasattr(config, attr):
-                        config_dict[attr] = getattr(config, attr)
-
+            # Simple dict-based configuration
+            config_dict = config if isinstance(config, dict) else getattr(config, "game", config).__dict__
             for key, value in config_dict.items():
                 if hasattr(nim_config.game, key):
                     setattr(nim_config.game, key, value)
@@ -158,9 +133,8 @@ class TribalGridEnv:
         self.width = MAP_WIDTH
         self.render_mode = render_mode
 
-        # Gym spaces for compatibility
+        # Gymnasium spaces for compatibility
         import gymnasium as gym
-
         self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(MAX_TOKENS_PER_AGENT, 3), dtype=np.uint8)
         self.single_action_space = gym.spaces.MultiDiscrete([NUM_ACTION_TYPES, 8])
 
@@ -168,10 +142,6 @@ class TribalGridEnv:
         self.obs_width = OBSERVATION_WIDTH
         self.obs_height = OBSERVATION_HEIGHT
         self.grid_objects = {}
-
-        # Feature normalizations
-        feature_norms = get_feature_normalizations()
-        self.feature_normalizations = {i: feature_norms[i] for i in range(len(feature_norms))}
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment using direct pointer access."""
@@ -212,17 +182,11 @@ class TribalGridEnv:
         }
         return self.observations, self.rewards, self.terminals, self.truncations, info
 
-    # Smart delegation for unknown attributes
-    def __getattr__(self, name):
-        """Delegate unknown attributes to the Nim environment."""
-        if hasattr(self._nim_env, name):
-            return getattr(self._nim_env, name)
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
-    # Essential properties (can't delegate these due to PufferLib requirements)
+    # Essential properties for RL frameworks
     @property
     def emulated(self) -> bool:
-        return is_emulated()
+        return False  # Native environment, not emulated
 
     @property
     def done(self) -> bool:
@@ -234,45 +198,15 @@ class TribalGridEnv:
 
     @property
     def action_names(self) -> list[str]:
-        names_seq = tribal.get_action_names()
-        return [names_seq[i] for i in range(len(names_seq))]
+        return ["NOOP", "MOVE", "ATTACK", "GET", "SWAP", "PUT"]
 
     @property
     def max_action_args(self) -> list[int]:
-        args_seq = tribal.get_max_action_args()
-        return [args_seq[i] for i in range(len(args_seq))]
+        return [0, 7, 7, 7, 1, 7]
 
-    def get_observation_features(self) -> Dict[str, Dict]:
-        """Get observation layer features."""
-        features = {}
-        feature_norms = get_feature_normalizations()
-        for layer_id in range(len(feature_norms)):
-            features[f"layer_{layer_id}"] = {
-                "id": layer_id,
-                "normalization": feature_norms[layer_id],
-            }
-        return features
 
-    def render(self, mode: str = "human") -> Optional[str]:
-        """Render the environment."""
-        if mode == "human":
-            return self._nim_env.render_text()
-        return None
 
-    def get_episode_stats(self) -> Dict[str, Any]:
-        return {
-            "current_step": self._nim_env.get_current_step(),
-            "max_steps": self._config.game.max_steps,
-            "episode_done": self._nim_env.is_episode_done(),
-        }
 
-    # Compatibility stub for legacy code
-    def set_mg_config(self, config) -> None:
-        """Legacy compatibility - no-op."""
-        pass
-
-    def close(self) -> None:
-        pass
 
     # PufferLib async interface methods
     def async_reset(self, seed: int | None = None) -> np.ndarray:
@@ -323,38 +257,9 @@ class TribalEnvConfig(Config):
     desync_episodes: bool = Field(default=True)
     render_mode: Optional[str] = Field(default=None)
 
-    def get_observation_space(self) -> Dict[str, Any]:
-        return {
-            "shape": (MAX_TOKENS_PER_AGENT, 3),
-            "dtype": "uint8",
-            "type": "Box",
-        }
 
-    def get_action_space(self) -> Dict[str, Any]:
-        return {
-            "shape": (2,),
-            "dtype": "uint8",
-            "type": "MultiDiscrete",
-            "nvec": [6, 8],
-        }
-
-    def create_environment(self, **kwargs) -> Any:
-        config = {
-            "max_steps": self.game.max_steps,
-            "ore_per_battery": self.game.ore_per_battery,
-            "batteries_per_heart": self.game.batteries_per_heart,
-            "enable_combat": self.game.enable_combat,
-            "clippy_spawn_rate": self.game.clippy_spawn_rate,
-            "clippy_damage": self.game.clippy_damage,
-            "heart_reward": self.game.heart_reward,
-            "battery_reward": self.game.battery_reward,
-            "ore_reward": self.game.ore_reward,
-            "survival_penalty": self.game.survival_penalty,
-            "death_penalty": self.game.death_penalty,
-            "render_mode": self.render_mode,
-            **kwargs,
-        }
-        return make_tribal_env(**config)
+    def create_environment(self, **kwargs) -> TribalGridEnv:
+        return TribalGridEnv({**self.game.__dict__, "render_mode": self.render_mode, **kwargs})
 
 
 def make_tribal_env(**config) -> TribalGridEnv:

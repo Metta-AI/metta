@@ -246,36 +246,6 @@ proc render*(env: Environment): string =
       result.add(cell)
     result.add("\n")
 
-proc renderObservations*(env: Environment): string =
-  const featureNames = [
-    "agent",
-    "agent:orientation",
-    "agent:inv:ore",
-    "agent:inv:battery",
-    "agent:inv:water",
-    "agent:inv:wheat",
-    "agent:inv:wood",
-    "agent:inv:spear",
-    "agent:inv:hat",
-    "agent:inv:armor",
-    "wall",
-    "mine",
-    "mine:resources",
-    "mine:ready",
-    "converter",
-    "converter:ready",
-    "altar",
-    "altar:hearts",
-    "altar:ready",
-  ]
-  for id, obs in env.observations:
-    result.add "Agent: " & $id & "\n"
-    for layer in 0 ..< ObservationLayers:
-      result.add "Feature " & $featureNames[layer] & " " & $layer & "\n"
-      for y in 0 ..< ObservationHeight:
-        for x in 0 ..< ObservationWidth:
-          result.formatValue(obs[layer][x][y], "4d")
-        result.add "\n"
 
 proc clear[T](s: var openarray[T]) =
   let p = cast[pointer](s[0].addr)
@@ -1275,91 +1245,6 @@ proc init(env: Environment) =
   for agentId in 0 ..< MapAgents:
     env.updateObservations(agentId)
 
-proc loadMap*(env: Environment, map: string) =
-  ## Load a map from a string
-
-  env.currentStep = 0
-  env.terminated.clear()
-  env.truncated.clear()
-  env.things.setLen(0)
-  env.agents.setLen(0)
-  env.stats.setLen(0)
-  env.grid.clear()
-  env.observations.clear()
-
-  for line in map.split("\n"):
-    let parts = line.split(" ")
-    let
-      kind = parseEnum[ThingKind](parts[0])
-      id = parts[1].parseInt
-    case kind:
-    of Agent:
-      env.add(Thing(
-        kind: kind,
-        id: id,
-        agentId: parts[2].parseInt,
-        pos: ivec2(parts[3].parseInt, parts[4].parseInt),
-        inventoryOre: 0,
-        inventoryBattery: 0,
-        inventorySpear: 0,
-        frozen: 0,
-      ))
-    of Wall:
-      env.add(Thing(
-        kind: kind,
-        id: id,
-        pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-      ))
-    of Mine:
-      env.add(Thing(
-        kind: kind,
-        id: id,
-        pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-        resources: MapObjectMineInitialResources,
-      ))
-    of Converter:
-      env.add(Thing(
-        kind: kind,
-        id: id,
-        pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-      ))
-    of Altar:
-      env.add(Thing(
-        kind: kind,
-        id: id,
-        pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-        hearts: MapObjectAltarInitialHearts,
-      ))
-    of Spawner:
-      env.add(Thing(
-        kind: kind,
-        id: id,
-        pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-      ))
-    of Clippy:
-      env.add(Thing(
-        kind: kind,
-        id: id,
-        agentId: parts[2].parseInt,
-        pos: ivec2(parts[3].parseInt, parts[4].parseInt),
-      ))
-    of Armory, Forge, ClayOven, WeavingLoom:
-      env.add(Thing(
-        kind: kind,
-        id: id,
-        pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-      ))
-
-  for agentId in 0 ..< MapAgents:
-    env.updateObservations(agentId)
-
-proc dumpMap*(env: Environment): string =
-  ## Dump the map
-  for thing in env.things:
-    if thing.kind == Agent:
-      result.add fmt"{thing.kind} {thing.id} {thing.agentId} {thing.pos.x} {thing.pos.y}" & "\n"
-    else:
-      result.add fmt"{thing.kind} {thing.id} {thing.pos.x} {thing.pos.y}" & "\n"
 
 proc defaultEnvironmentConfig*(): EnvironmentConfig =
   ## Create default environment configuration
@@ -1702,84 +1587,7 @@ proc applyTeamAltarReward*(env: Environment) =
           if altarHearts > 5:
             agent.reward += (altarHearts - 5) * 0.5  # Bonus for surplus
 
-proc getEpisodeStats*(env: Environment): string =
-  if env.stats.len == 0:
-    return
-  template display(name: string, statName) =
-    var
-      total = 0
-      min = int.high
-      max = 0
-    for stat in env.stats:
-      total += stat.statName
-      if stat.statName < min:
-        min = stat.statName
-      if stat.statName > max:
-        max = stat.statName
-    let avg = total.float32 / env.stats.len.float32
-    result.formatValue(name, ">26")
-    result.formatValue(total, "10d")
-    result.add " "
-    result.formatValue(avg, "10.2f")
-    result.add " "
-    result.formatValue(min, "8d")
-    result.add " "
-    result.formatValue(max, "8d")
-    result.add "\n"
 
-  result = "                      Stat     Total    Average      Min      Max\n"
-  display "action.invalid", actionInvalid
-  display "action.noop", actionNoop
-  display "action.move", actionMove
-  display "action.attack", actionAttack
-  display "action.get", actionGet
-  display "action.swap", actionSwap
-  display "action.put", actionPut
-
-  return result
-
-# ============== GAME STATE MANAGEMENT ==============
-
-type
-  GameState* = ref object
-    env*: Environment
-    selection*: Thing
-
-# Global game state instance
-var gameState* = GameState(
-  env: nil,
-  selection: nil
-)
-
-proc initGameState*() =
-  ## Initialize the game state with a new environment
-  gameState.env = newEnvironment()
-  gameState.selection = nil
-
-proc getEnv*(): Environment =
-  ## Get the current environment
-  if gameState.env == nil:
-    initGameState()
-  return gameState.env
-
-proc setEnv*(env: Environment) =
-  ## Set the current environment
-  gameState.env = env
-
-proc getSelection*(): Thing =
-  ## Get the currently selected thing
-  return gameState.selection
-
-proc setSelection*(thing: Thing) =
-  ## Set the currently selected thing
-  gameState.selection = thing
-
-proc clearSelection*() =
-  ## Clear the current selection
-  gameState.selection = nil
-
-# Initialize on module load
-initGameState()
 
 # ============== COLOR MANAGEMENT ==============
 
