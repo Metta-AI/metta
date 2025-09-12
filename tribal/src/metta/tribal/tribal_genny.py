@@ -6,6 +6,7 @@ patterns instead of verbose manual pass-through methods.
 """
 
 import ctypes
+import importlib.util
 import os
 import subprocess
 import sys
@@ -17,11 +18,16 @@ from pydantic import Field
 
 from metta.mettagrid.config import Config
 
+# Find tribal root directory - assume we're running from metta root
+_metta_root = Path.cwd()
+while _metta_root.name != "metta" and _metta_root.parent != _metta_root:
+    _metta_root = _metta_root.parent
+_tribal_dir = _metta_root / "tribal"
+
 
 def _ensure_bindings_available():
     """Auto-build tribal bindings if they don't exist or are stale."""
-    tribal_dir = Path(__file__).parent.parent
-    bindings_dir = tribal_dir / "bindings" / "generated"
+    bindings_dir = _tribal_dir / "bindings" / "generated"
     library_files = list(bindings_dir.glob("libtribal.*"))
     python_binding = bindings_dir / "tribal.py"
 
@@ -36,13 +42,13 @@ def _ensure_bindings_available():
 
 def _build_bindings(tribal_dir: Path):
     """Build the tribal bindings using the build script."""
-    build_script = tribal_dir / "build_bindings.sh"
+    build_script = _tribal_dir / "build_bindings.sh"
     if not build_script.exists():
         raise RuntimeError(f"Build script not found: {build_script}")
 
     result = subprocess.run(
         ["bash", str(build_script)],
-        cwd=tribal_dir,
+        cwd=_tribal_dir,
         capture_output=True,
         text=True,
     )
@@ -56,11 +62,9 @@ def _build_bindings(tribal_dir: Path):
 # Auto-ensure bindings are available
 _ensure_bindings_available()
 
-# Use the same import pattern as the original but simplified
+# Use the same import pattern as the original but simplified  
 try:
-    import importlib.util
-
-    bindings_file = Path(__file__).parent.parent / "bindings" / "generated" / "tribal.py"
+    bindings_file = _tribal_dir / "bindings" / "generated" / "tribal.py"
     spec = importlib.util.spec_from_file_location("tribal", bindings_file)
     tribal = importlib.util.module_from_spec(spec)
     sys.modules["tribal"] = tribal  # Ensure the module is in sys.modules before loading

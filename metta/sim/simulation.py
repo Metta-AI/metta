@@ -31,10 +31,7 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 
-tribal_src = Path(__file__).parent.parent.parent / "tribal" / "src"
-if tribal_src.exists():
-    sys.path.insert(0, str(tribal_src))
-from tribal_genny import TribalGridEnv  # noqa: E402
+from metta.tribal import TribalGridEnv
 
 SYNTHETIC_EVAL_PREFIX = "eval/"
 

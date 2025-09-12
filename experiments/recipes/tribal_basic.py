@@ -5,31 +5,26 @@ Uses genny-generated Nim bindings for high performance.
 Agent count (15), map size (100x50), observation shape (19 layers, 11x11) are compile-time constants.
 """
 
+import random
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.task_generator import TaskGenerator
 from metta.common.tool import Tool
 from metta.cogworks.curriculum.task_generator import TaskGeneratorConfig
-from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.loss_config import LossConfig
+from metta.rl.trainer_config import TrainerConfig, EvaluationConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-
-# Add metta root to Python path so 'tribal' module can be found
-_metta_root = Path(__file__).parent.parent.parent
-if str(_metta_root) not in sys.path:
-    sys.path.insert(0, str(_metta_root))
-
-# Import from tribal source directory
-tribal_src = Path(__file__).parent.parent / "tribal" / "src"
-if tribal_src.exists():
-    sys.path.insert(0, str(tribal_src))
-from tribal_genny import TribalEnvConfig  # noqa: E402
+from metta.tribal import TribalEnvConfig
+from metta.tribal.tribal_genny import TribalGameConfig
+from metta.tribal.tribal_process_controller import TribalProcessController
 
 
 def _ensure_tribal_bindings_built():
@@ -69,8 +64,6 @@ def _ensure_tribal_bindings_built():
 
         print("✅ Tribal bindings built successfully")
 
-    import sys
-
     bindings_path = str(bindings_dir)
     if bindings_path not in sys.path:
         sys.path.insert(0, bindings_path)
@@ -83,8 +76,6 @@ class TribalTaskGeneratorConfig(TaskGeneratorConfig):
 
     def create(self):
         """Create a task generator that returns the tribal environment."""
-        from metta.cogworks.curriculum.task_generator import TaskGenerator
-        import random
 
         class SimpleTribalTaskGenerator(TaskGenerator):
             def __init__(self, config):
@@ -110,11 +101,6 @@ class TribalProcessPlayTool(Tool):
         project_root = Path(__file__).parent.parent.parent
         tribal_dir = project_root / "tribal"
 
-        try:
-            from tribal.src.tribal_process_controller import TribalProcessController
-        except ImportError as e:
-            print(f"❌ Failed to import process controller: {e}")
-            return 1
 
         if self.policy_uri:
             if self.policy_uri in ["test_noop", "test_move"]:
@@ -144,7 +130,6 @@ class TribalProcessPlayTool(Tool):
                     if self.policy_uri == "test_noop":
                         actions.append([0, 0])
                     elif self.policy_uri == "test_move":
-                        import random
 
                         actions.append([1, random.randint(0, 3)])
                     else:
@@ -171,7 +156,6 @@ class TribalProcessPlayTool(Tool):
 
     def _run_with_neural_network(self, ControllerClass, tribal_dir: Path) -> int:
         """Run with trained neural network policy."""
-        from metta.rl.checkpoint_manager import CheckpointManager
 
         policy = CheckpointManager.load_from_uri(self.policy_uri)
         print(f"✅ Neural network loaded: {type(policy).__name__}")
@@ -247,7 +231,6 @@ def make_tribal_environment(
     **kwargs,
 ) -> TribalEnvConfig:
     """Create tribal environment configuration with gameplay overrides."""
-    from tribal_genny import TribalGameConfig
 
     game_overrides = {}
     if max_steps is not None:
