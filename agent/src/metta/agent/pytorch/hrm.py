@@ -34,6 +34,35 @@ def rms_norm(x: torch.Tensor, variance_epsilon: float = 1e-5) -> torch.Tensor:
     return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + variance_epsilon)
 
 
+# Memory
+class HRMMemory:
+    def __init__(self):
+        self.carry = None
+        self.steps = None
+        self.halted = None
+        self.current_data = None
+    
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if not hasattr(self, "carry"):
+            self.carry = None
+        if not hasattr(self, "steps"):
+            self.steps = None
+        if not hasattr(self, "halted"):
+            self.halted = None
+        if not hasattr(self, "current_data"):
+            self.current_data = None
+    
+    def reset(self):
+        self.carry = None
+        self.steps = None
+        self.halted = None
+        self.current_data = None
+    
+
+    
+
+
 # ------------------
 # Core layers
 # ------------------
@@ -711,6 +740,7 @@ class Policy(nn.Module):
         # Initialize carry if not provided
         if state is None:
             state = {}
+
 
         if state.get("carry") is None:
             batch = {"env_obs": observations}
