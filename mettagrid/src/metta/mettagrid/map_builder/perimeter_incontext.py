@@ -120,15 +120,13 @@ class PerimeterInContextMapBuilder(MapBuilder):
             # Check all directions
             for di, dj in directions:
                 ni, nj = i + di, j + dj
-                if (0 <= ni < height and 0 <= nj < width and
-                    not visited[ni, nj] and grid[ni, nj] != "wall"):
+                if 0 <= ni < height and 0 <= nj < width and not visited[ni, nj] and grid[ni, nj] != "wall":
                     visited[ni, nj] = True
                     queue.append((ni, nj))
 
         return False
 
-    def _place_obstacle(self, grid: np.ndarray, obstacle_shape: np.ndarray,
-                       avoid_mask: np.ndarray) -> bool:
+    def _place_obstacle(self, grid: np.ndarray, obstacle_shape: np.ndarray, avoid_mask: np.ndarray) -> bool:
         """Try to place an obstacle shape on the grid, avoiding specified areas."""
         shape_h, shape_w = obstacle_shape.shape
         grid_h, grid_w = grid.shape
@@ -138,7 +136,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         for i in range(grid_h - shape_h + 1):
             for j in range(grid_w - shape_w + 1):
                 # Check if this position is valid (no overlap with avoid_mask)
-                if not np.any(avoid_mask[i:i+shape_h, j:j+shape_w]):
+                if not np.any(avoid_mask[i : i + shape_h, j : j + shape_w]):
                     valid_positions.append((i, j))
 
         if not valid_positions:
@@ -235,8 +233,8 @@ class PerimeterInContextMapBuilder(MapBuilder):
         grid = flat_grid.reshape(height, width)
 
         # Place obstacles if specified (only for PerimeterInContextMapBuilderWithObstacles)
-        obstacle_type = getattr(self._config, 'obstacle_type', None)
-        density = getattr(self._config, 'density', None)
+        obstacle_type = getattr(self._config, "obstacle_type", None)
+        density = getattr(self._config, "density", None)
 
         if obstacle_type and density:
             # Try different densities if the requested one fails

@@ -72,9 +72,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         obstacle_types: list[str] = Field(
             default=[], description="Obstacle types to sample from"
         )
-        densities: list[str] = Field(
-            default=[], description="Density to sample from"
-        )
+        densities: list[str] = Field(default=[], description="Density to sample from")
         # obstacle_complexity
         max_steps: int = Field(default=256, description="Episode length")
 
@@ -132,7 +130,16 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.map_builder_objects[sink_name] = 1
 
     def _make_env_cfg(
-        self, resources, num_sinks, width, height, obstacle_type, density, avg_hop, rng, max_steps=256
+        self,
+        resources,
+        num_sinks,
+        width,
+        height,
+        obstacle_type,
+        density,
+        avg_hop,
+        rng,
+        max_steps=256,
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
         resource_chain = ["nothing"] + list(resources) + ["heart"]
@@ -200,7 +207,6 @@ class ConverterChainTaskGenerator(TaskGenerator):
         most_efficient_optimal_reward, least_efficient_optimal_reward = (
             self._estimate_max_rewards(num_resources, num_sinks, max_steps, avg_hop)
         )
-
 
         icl_env = self._make_env_cfg(
             resources,
