@@ -60,6 +60,7 @@ class MettaGridEnv(MettaGridPufferBase):
         self._last_reset_ts = datetime.datetime.now()
         self._is_training = is_training
         self._label_completions = {"completed_tasks": [], "completion_rates": {}}
+        self.per_label_rewards = {}
 
         # DesyncEpisodes - when training we want to stagger experience. The first episode
         # will end early so that the next episode can begin at a different time on each worker.
@@ -177,6 +178,12 @@ class MettaGridEnv(MettaGridPufferBase):
 
         self._update_label_completions()
         infos["label_completions"] = self._label_completions["completion_rates"]
+
+        if self.mg_config.label not in self.per_label_rewards:
+            self.per_label_rewards[self.mg_config.label] = 0
+        self.per_label_rewards[self.mg_config.label] += episode_rewards.mean()
+        infos["per_label_rewards"] = self.per_label_rewards
+
 
         # Add attributes
         attributes: Dict[str, Any] = {
