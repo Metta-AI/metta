@@ -45,14 +45,16 @@ def setup_path(force: bool = False) -> None:
     try:
         local_bin.mkdir(parents=True, exist_ok=True)
     except Exception as e:
-        error(f"Failed to create {local_bin}: {e}")
-        info("Please create this directory manually and re-run the installer.")
+        error(f"""
+        Failed to create {local_bin}: {e}
+        Please create this directory manually and re-run the installer.
+        """)
         return
 
     existing = _check_existing_metta()
 
     if existing == "ours":
-        success("metta is already installed and linked correctly.")
+        success("metta is already symlinked correctly.")
         return
     elif existing == "other":
         if force:
@@ -63,36 +65,43 @@ def setup_path(force: bool = False) -> None:
                 error(f"Failed to remove existing file: {e}")
                 return
         else:
-            debug(f"A 'metta' command already exists at {target_symlink}")
-            info("Run with --force if you want to replace it.")
+            debug(f"""
+            A 'metta' command already exists at {target_symlink}
+            Run with --force if you want to replace it.
+            """)
             return
 
     try:
         target_symlink.symlink_to(wrapper_script)
         success(f"Created symlink: {target_symlink} → {wrapper_script}")
     except Exception as e:
-        error(f"Failed to create symlink: {e}")
-        info("You can create it manually with:")
-        info(f"  ln -s {wrapper_script} {target_symlink}")
+        error(f"""
+        Failed to create symlink: {e}
+        You can create it manually with:
+          ln -s {wrapper_script} {target_symlink}
+        """)
         return
 
     if _local_bin_is_in_path():
-        success("metta is now available globally!")
-        info("You can run: metta --help")
+        success("metta command is now available")
     else:
-        info("")
         warning(f"{local_bin} is not in your PATH")
-        info("To use metta globally, add this to your shell profile:")
-        info('  export PATH="$HOME/.local/bin:$PATH"')
-        info("")
-        info("For example:")
-        info("  echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc")
-        info("  source ~/.bashrc")
+        info("""
+        To use metta globally, add this to your shell profile:
+          export PATH="$HOME/.local/bin:$PATH"
+
+        For example:
+          echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc
+          source ~/.bashrc
+        """)
 
 
 @app.command(name="setup")
-def cmd_setup(force: Annotated[bool, typer.Option("--force", help="Replace existing metta command")] = False):
-    """Create symlink to make metta command globally available."""
+def cmd_setup(
+    force: Annotated[
+        bool, typer.Option("--force", help="Create or replace symlink to make metta command globally available.")
+    ] = False,
+):
     setup_path(force=force)
 
 
@@ -102,11 +111,15 @@ def cmd_check():
     if status == "ours":
         success("metta command is properly installed")
     elif status == "other":
-        warning("metta command is installed from a different checkout")
-        info("Run 'metta symlink-setup setup --force' to reinstall from this checkout")
+        warning("""
+        metta command is installed from a different checkout
+        Run 'metta symlink-setup setup --force' to reinstall from this checkout
+        """)
     else:
-        warning("metta command is not installed")
-        info("Run 'metta symlink-setup setup' to install")
+        warning("""
+        metta command is not installed
+        Run 'metta symlink-setup setup' to install
+        """)
 
 
 def main():
