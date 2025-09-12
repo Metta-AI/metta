@@ -1,4 +1,4 @@
-name: Build and publish mettagrid to TestPyPI
+name: Build and publish mettagrid
 
 on:
   workflow_dispatch:
@@ -7,6 +7,14 @@ on:
         description: "Publish to TestPyPI (set to 'yes' to publish)"
         required: false
         default: "yes"
+      target:
+        description: "Publish target (testpypi or pypi)"
+        required: false
+        default: testpypi
+        type: choice
+        options:
+          - testpypi
+          - pypi
 
 permissions:
   contents: read
@@ -173,18 +181,25 @@ jobs:
           name: mettagrid-wheels-windows
           path: dist/*
 
-  publish-testpypi:
-    name: Publish to TestPyPI
+  publish:
+    name: Publish
     needs:
       - sdist
       - wheels-linux
       - wheels-macos
-    if: ${{ github.event.inputs.publish == 'yes' }}
+    if: ${{ inputs.publish == 'yes' }}
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
     steps:
+      - name: Verify tag for PyPI publishes
+        if: ${{ inputs.target == 'pypi' }}
+        run: |
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            echo "PyPI publishes must run from a tag (e.g., v0.2.0)" >&2
+            exit 1
+          fi
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -244,8 +259,16 @@ jobs:
           python -m twine check dist/*
 
       - name: Publish to TestPyPI (Trusted Publishing)
+        if: ${{ inputs.target == 'testpypi' }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
+
+      - name: Publish to PyPI (Trusted Publishing)
+        if: ${{ inputs.target == 'pypi' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          skip-existing: false
