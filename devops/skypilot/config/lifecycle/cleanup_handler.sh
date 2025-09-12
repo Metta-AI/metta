@@ -25,8 +25,11 @@ cleanup() {
 
   # Master-only: Handle notifications and status updates
   if [[ "$IS_MASTER" == "true" ]]; then
-    handle_master_cleanup
     print_final_summary
+    # Force flush stdout to ensure summary is written
+    exec 1>&1
+
+    handle_master_cleanup
   fi
 
   # Set the final exit code for the script
@@ -115,6 +118,7 @@ print_final_summary() {
   echo "[SUMMARY] ===== Job Summary ====="
   echo "[SUMMARY] Metta Run ID: ${METTA_RUN_ID}"
   echo "[SUMMARY] Skypilot Task ID: ${SKYPILOT_TASK_ID}"
+  echo "[SUMMARY] Restart Count: ${RESTART_COUNT}"
   echo "[SUMMARY] Exit code: ${CMD_EXIT}"
   echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
   echo "[SUMMARY] ======================"

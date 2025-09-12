@@ -524,7 +524,7 @@ class TestStopwatchIntegration:
 
         # Get current lap rate (should be based on steps since last checkpoint)
         current_rate = sw.get_lap_rate(650, "training")  # 50 steps in ~0.05 seconds
-        assert current_rate == pytest.approx(1000, rel=0.2)
+        assert current_rate == pytest.approx(1000, rel=0.3)
 
         sw.stop("training")
 

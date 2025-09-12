@@ -1,0 +1,244 @@
+name: Build and publish mettagrid to TestPyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to TestPyPI (set to 'yes' to publish)"
+        required: false
+        default: "yes"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  # Build only CPython 3.11 wheels, matching the strict requires-python
+  CIBW_BUILD: cp311-*
+  # Skip musllinux unless explicitly needed
+  CIBW_SKIP: "*musllinux*"
+  # Disable cibuildwheel's test install phase due to strict python pin
+  CIBW_TEST_SKIP: "*"
+  # Ensure our custom backend picks the CI config in Bazel
+  CI: "true"
+
+jobs:
+  sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.7'
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
+
+      - name: Build sdist
+        run: |
+          python -m build --sdist mettagrid
+          ls -l dist
+
+      - name: Upload sdist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mettagrid-sdist
+          path: dist/*
+
+  wheels-linux:
+    name: Linux wheels (x86_64)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      CIBW_BUILD: cp311-manylinux_x86_64
+      CIBW_OUTPUT_DIR: wheelhouse
+      # Ensure CI=true is visible inside the manylinux container
+      CIBW_ENVIRONMENT_LINUX: CI=true
+      # Install bazelisk and expose as 'bazel' inside manylinux container
+      CIBW_BEFORE_ALL_LINUX: |
+        yum install -y curl || (microdnf install -y curl || true)
+        curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
+        chmod +x /usr/local/bin/bazelisk
+        ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: python -m pip install --upgrade pip cibuildwheel==2.18.1
+
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir wheelhouse ./mettagrid
+
+      - name: List wheels
+        run: ls -l wheelhouse
+
+      - name: Upload wheels artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mettagrid-wheels-linux
+          path: wheelhouse/*
+
+  wheels-macos:
+    name: macOS wheels (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-13
+            arch: x86_64
+          - os: macos-14
+            arch: arm64
+    defaults:
+      run:
+        shell: bash
+    env:
+      CIBW_OUTPUT_DIR: wheelhouse
+      CIBW_ARCHS_MACOS: ${{ matrix.arch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Install cibuildwheel
+        run: python -m pip install --upgrade pip cibuildwheel==2.18.1
+
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir wheelhouse ./mettagrid
+
+      - name: List wheels
+        run: ls -l wheelhouse
+
+      - name: Upload wheels artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mettagrid-wheels-macos-${{ matrix.arch }}
+          path: wheelhouse/*
+
+  wheels-windows:
+    name: Windows wheels (x86_64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      CIBW_BUILD: cp311-win_amd64
+      CIBW_OUTPUT_DIR: wheelhouse
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Install cibuildwheel
+        run: python -m pip install --upgrade pip cibuildwheel==2.18.1
+
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir wheelhouse ./mettagrid
+
+      - name: List wheels
+        run: ls -l wheelhouse
+
+      - name: Upload wheels artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mettagrid-wheels-windows
+          path: wheelhouse/*
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs:
+      - sdist
+      - wheels-linux
+      - wheels-macos
+      - wheels-windows
+    if: ${{ github.event.inputs.publish == 'yes' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: mettagrid-sdist
+          path: dist
+
+      - name: Download Linux wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: mettagrid-wheels-linux
+          path: dist
+
+      - name: Download macOS x86_64 wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: mettagrid-wheels-macos-x86_64
+          path: dist
+
+      - name: Download macOS arm64 wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: mettagrid-wheels-macos-arm64
+          path: dist
+
+      - name: Download Windows wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: mettagrid-wheels-windows
+          path: dist
+
+      - name: Verify no universal wheels were produced
+        run: |
+          shopt -s nullglob
+          BAD=(dist/*py3-none-any.whl)
+          if [ ${#BAD[@]} -gt 0 ]; then
+            echo "Error: Found universal wheels (py3-none-any) which is not allowed for mettagrid:"
+            ls -l dist/*py3-none-any.whl || true
+            exit 1
+          fi
+
+      - name: Inspect artifacts
+        run: |
+          echo "Artifacts in dist/:"
+          ls -l dist
+
+      - name: Twine check
+        run: |
+          python -m pip install --upgrade pip twine
+          python -m twine check dist/*
+
+      - name: Publish to TestPyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true

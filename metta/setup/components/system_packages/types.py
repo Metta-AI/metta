@@ -19,6 +19,9 @@ class BrewPackageConfig(BaseModel):
             name = f"{self.tap}/{name}"
         return name
 
+    def __repr__(self) -> str:
+        return f"{self.fully_specified_name}"
+
 
 class AptPackageConfig(BaseModel):
     """Configuration for a single package."""

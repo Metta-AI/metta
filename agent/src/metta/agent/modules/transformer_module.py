@@ -94,8 +94,6 @@ class FusedGRUGating(nn.Module):
         return (1 - z) * x + z * h  # Interpolate
 
 
-# Backward compatibility alias for old checkpoints
-GRUGatingMechanism = FusedGRUGating
 
 
 class MultiHeadSelfAttention(nn.Module):
