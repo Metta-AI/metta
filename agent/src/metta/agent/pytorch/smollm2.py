@@ -125,9 +125,6 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         if obs_float.shape[1] > self.max_sequence_length:
             obs_float = obs_float[:, : self.max_sequence_length, :]
 
-        # Ensure input requires grad for proper gradient flow
-        obs_float.requires_grad_(True)
-
         # Project tokens to LLM embedding space
         token_embeddings = self.token_projector(obs_float)  # [B*TT, seq_len, hidden_size]
 

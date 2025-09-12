@@ -126,8 +126,8 @@ def train(
 ) -> TrainTool:
     """Train SmolLM2 agent on arena environment.
 
-    Uses memory-efficient batch sizes optimized for RTX 4090 and high agent counts.
-    Supports up to 16K agents while fitting comfortably in 24GB GPU memory.
+    Uses smaller batch sizes optimized for SmolLM2 stability and memory efficiency.
+    Reduced batch sizes help avoid tensor processing issues specific to LLM agents.
     For CPU debugging with minimal resources, use train_cpu_debug().
 
     Args:
@@ -154,12 +154,12 @@ def train(
             }
         ),
         curriculum=curriculum or make_curriculum(),
-        # Ultra memory-efficient batch sizes for RTX 4090 limits
-        # Supports up to 8192 agents (131072 / 16 bptt_horizon)
-        batch_size=131072,  # 128K batch - aggressive memory reduction
-        minibatch_size=4096,  # Smaller minibatches
-        bptt_horizon=16,  # Keep short context for memory efficiency
-        forward_pass_minibatch_target_size=256,  # Very small forward passes
+        # Smaller batch sizes to avoid tensor issues with SmolLM2
+        # Reduced from 128K to 32K for better stability
+        batch_size=32768,  # 32K batch - more conservative for LLM stability
+        minibatch_size=1024,  # Much smaller minibatches
+        bptt_horizon=8,  # Shorter context for memory efficiency
+        forward_pass_minibatch_target_size=64,  # Very small forward passes
         update_epochs=4,  # More epochs to maintain learning efficiency
         async_factor=1,  # Disable async for memory savings
         compile=False,  # Disable torch.compile to save memory
@@ -208,12 +208,12 @@ def train_cpu_debug() -> TrainTool:
         ),
         curriculum=tiny_curriculum,
         # Absolute minimal settings for CPU debugging
-        batch_size=48,  # Minimum for 6 agents * 8 BPTT horizon
-        minibatch_size=8,  # Must be divisible by bptt_horizon
+        batch_size=24,  # Even smaller - 6 agents * 4 BPTT horizon
+        minibatch_size=4,  # Much smaller minibatches
         rollout_workers=1,  # Single worker
         total_timesteps=5000,  # Very short debug run
-        bptt_horizon=8,  # Minimal BPTT
-        forward_pass_minibatch_target_size=4,  # Minimal forward batch
+        bptt_horizon=4,  # Even shorter BPTT
+        forward_pass_minibatch_target_size=2,  # Minimal forward batch
         async_factor=1,  # Synchronous operation
         update_epochs=1,  # Single epoch per update
         evaluation=EvaluationConfig(
