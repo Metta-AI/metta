@@ -48,6 +48,7 @@ jobs:
 
       - name: Run notification tests
         env:
+          PYTHONPATH: .
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_TEST_HOOK }}
           GITHUB_PAT: ${{ secrets.METTA_STATUS_PAT }}
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
