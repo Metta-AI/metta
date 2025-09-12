@@ -88,21 +88,27 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
 
         observations = td["env_obs"]
 
-        # Set critical TensorDict fields
-        B, TT = self.set_tensordict_fields(td, observations)
+        # Determine batch dimensions from observations
+        if observations.dim() == 4:  # Training: [B, T, seq_len, 3]
+            B, TT = observations.shape[0], observations.shape[1]
+        elif observations.dim() == 3:  # Inference: [B, seq_len, 3]
+            B, TT = observations.shape[0], 1
+        else:
+            raise ValueError(f"Unexpected observation dimensions: {observations.shape}")
 
-        # Handle BPTT reshaping if needed
+        # Handle BPTT reshaping if needed - preserve original batch structure
+        total_batch = B * TT
         if td.batch_dims > 1:
-            total_batch = B * TT
+            # Reshape to flatten batch dimensions for processing
             td = td.reshape(total_batch)
 
-        # Process observations
-        B = observations.shape[0]
-        TT = 1 if observations.dim() == 3 else observations.shape[1]
+        # Set critical TensorDict fields with correct dimensions (after reshaping)
+        td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
+        td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))
 
         # Reshape observations for processing: [B*TT, seq_len, 3]
         if observations.dim() == 4:
-            observations = observations.view(B * TT, observations.shape[2], 3)
+            observations = observations.view(total_batch, observations.shape[2], 3)
         elif observations.dim() == 3:
             observations = observations.view(B, observations.shape[1], 3)
 
@@ -113,7 +119,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         token_embeddings = self.token_projector(obs_float)  # [B*TT, seq_len, hidden_size]
 
         # Process through LLM
-        with torch.cuda.amp.autocast(enabled=False):  # Disable mixed precision for stability
+        with torch.amp.autocast("cuda", enabled=False):  # Disable mixed precision for stability
             outputs = self.llm(
                 inputs_embeds=token_embeddings,
                 output_hidden_states=True,
@@ -143,7 +149,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
                 action_indices = actions[0]
                 actions_tensor = self._convert_logit_index_to_action(action_indices)
             else:
-                actions_tensor = torch.zeros((B * TT, 2), dtype=torch.int32, device=observations.device)
+                actions_tensor = torch.zeros((total_batch, 2), dtype=torch.int32, device=observations.device)
 
         actions_tensor = actions_tensor.to(dtype=torch.int32)
 
