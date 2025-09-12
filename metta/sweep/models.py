@@ -1,8 +1,9 @@
 """Data models for sweep orchestration."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum, auto
+import time
 from typing import Any
 
 
@@ -32,6 +33,7 @@ class JobStatus(StrEnum):
     IN_EVAL = auto()
     EVAL_DONE_NOT_COMPLETED = auto()
     COMPLETED = auto()
+    STALE = auto()
     FAILED = auto()  # Job failed during training or evaluation
 
 
@@ -59,7 +61,7 @@ class RunInfo:
     created_at: datetime | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    last_heartbeat_at: datetime | None = None
+    last_updated_at: datetime | None = None
 
     # Configuration and results
     summary: dict | None = None
@@ -80,6 +82,9 @@ class RunInfo:
 
     @property
     def status(self) -> JobStatus:
+        time_since_last_updated = datetime.now() - self.last_updated_at if self.last_updated_at else timedelta(seconds=0)
+        if not self.has_failed and not self.has_completed_training and time_since_last_updated > timedelta(seconds=600):
+            return JobStatus.STALE
         if self.has_failed:
             return JobStatus.FAILED
         if not self.has_started_training:
