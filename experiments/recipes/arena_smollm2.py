@@ -126,8 +126,9 @@ def train(
 ) -> TrainTool:
     """Train SmolLM2 agent on arena environment.
 
-    Uses system defaults which automatically adapt to GPU/CPU environments.
-    For explicit CPU debugging with minimal resources, use train_cpu_debug().
+    Uses memory-efficient batch sizes optimized for RTX 4090 and high agent counts.
+    Supports up to 16K agents while fitting comfortably in 24GB GPU memory.
+    For CPU debugging with minimal resources, use train_cpu_debug().
 
     Args:
         curriculum: Optional curriculum config
@@ -140,7 +141,8 @@ def train(
         analyze_weights_interval=500,
     )
 
-    # Create trainer configuration - use defaults for GPU compatibility
+    # SmolLM2-optimized configuration for RTX 4090 and high agent counts
+    # Supports up to 16384 agents (262144 / 16 bptt_horizon) while fitting in 24GB GPU
     trainer_cfg = TrainerConfig(
         losses=LossConfig(
             loss_configs={
@@ -152,9 +154,15 @@ def train(
             }
         ),
         curriculum=curriculum or make_curriculum(),
+        # Memory-efficient batch sizes for LLM training
+        batch_size=262144,  # 256K batch - balances memory usage and agent capacity
+        minibatch_size=8192,  # Efficient GPU utilization
+        bptt_horizon=16,  # Shorter context reduces LLM memory usage significantly
+        forward_pass_minibatch_target_size=1024,  # Reasonable forward pass chunks
+        update_epochs=2,  # Extra epochs to compensate for reduced batch size
         evaluation=EvaluationConfig(
             simulations=make_evals(),
-            evaluate_interval=50,  # More frequent evaluation with default batch sizes
+            evaluate_interval=50,
         ),
     )
 
