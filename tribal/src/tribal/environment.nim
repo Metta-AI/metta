@@ -523,8 +523,8 @@ proc attackAction(env: Environment, id: int, agent: Thing, argument: int) =
     if idx >= 0:
       env.things.del(idx)
     
-    # Consume the spear
-    agent.inventorySpear = 0
+    # Consume one use of the spear
+    agent.inventorySpear -= 1
     env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
     
     # Give reward for destroying Clippy
@@ -668,7 +668,7 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
     # Put wood into forge → get spear
     if thing.cooldown == 0 and agent.inventoryWood > 0 and agent.inventorySpear == 0:
       agent.inventoryWood -= 1
-      agent.inventorySpear = 1
+      agent.inventorySpear = 5  # Spear starts with 5 uses
       thing.cooldown = 5
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
@@ -1009,9 +1009,9 @@ proc plantAction(env: Environment, id: int, agent: Thing, argument: int) =
   var teamId = -1
   if agent.homeAltar.x >= 0:
     # Find the team ID by matching home altar with village
-    for i, agent_i in env.agents:
+    for agent_i in env.agents:
       if agent_i.homeAltar == agent.homeAltar:
-        teamId = i div 5  # Assume 5 agents per team
+        teamId = agent_i.agentId div 5  # Use actual agentId, not array index
         break
   
   # Plant the lantern
