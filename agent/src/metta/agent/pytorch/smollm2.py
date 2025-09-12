@@ -23,7 +23,6 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         max_sequence_length: int = 24,  # Longer sequences for temporal flattening efficiency
         freeze_llm: bool = False,
         use_lora: bool = False,
-        use_flash_attention: bool = True,  # Enable flash attention for memory efficiency
         **kwargs,
     ):
         super().__init__()
@@ -31,26 +30,27 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Extract mixin parameters
         mixin_params = self.extract_mixin_params(kwargs)
 
-        # Initialize the SmolLM2 model with optimizations
+        # Initialize the SmolLM2 model with memory optimizations
         logger.info(f"Loading SmolLM2 model: {model_name}")
-        model_config = {}
-        if use_flash_attention:
-            # Enable flash attention and other memory optimizations
-            model_config.update(
-                {
-                    "attn_implementation": "flash_attention_2",  # Use flash attention if available
-                    "torch_dtype": torch.float16,  # Use FP16 for better memory efficiency
-                    "low_cpu_mem_usage": True,  # Reduce CPU memory during model loading
-                }
-            )
-        else:
-            model_config["torch_dtype"] = torch.float32
 
-        self.llm = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            trust_remote_code=True,
-            **model_config,
-        )
+        # Try flash attention first, fallback gracefully if not available
+        try:
+            self.llm = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+                attn_implementation="flash_attention_2",  # Use flash attention for performance
+                torch_dtype=torch.float16,  # Use FP16 for better memory efficiency
+                low_cpu_mem_usage=True,  # Reduce CPU memory during model loading
+            )
+            logger.info("Loaded SmolLM2 with Flash Attention 2")
+        except Exception as e:
+            logger.warning(f"Flash attention not available ({e}), falling back to standard attention")
+            self.llm = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+                torch_dtype=torch.float16,  # Still use FP16 for memory efficiency
+                low_cpu_mem_usage=True,  # Reduce CPU memory during model loading
+            )
 
         # Store sequence length limit
         self.max_sequence_length = max_sequence_length
