@@ -1,0 +1,262 @@
+from typing import Dict, Optional, Tuple
+
+import torch
+import torch.nn as nn
+from einops import rearrange
+from tensordict import TensorDict
+
+from metta.common.config.config import Config
+
+
+class LstmTrainStep(nn.Module):
+    def __init__(self, lstm: nn.LSTM):
+        super().__init__()
+        self.lstm = lstm
+
+    def forward(
+        self,
+        latent: torch.Tensor,
+        h_t: torch.Tensor,
+        c_t: torch.Tensor,
+        reset_mask: torch.Tensor,
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Only run when self.reset_in_training is true ie you're asking to unroll the LSTM in time."""
+        # latent is (TT, B, input_size)
+        # h_0 is (num_layers, B, input_size)
+        # c_0 is (num_layers, B, input_size)
+        # reset_mask is (1, B, TT, 1)
+
+        outputs = []
+        for t in range(latent.size(0)):
+            latent_t = latent[t].unsqueeze(0)
+            reset_mask_t = reset_mask[0, :, t, :]
+            h_t = h_t.masked_fill(reset_mask_t, 0)
+            c_t = c_t.masked_fill(reset_mask_t, 0)
+            hidden_t, (h_t, c_t) = self.lstm(latent_t, (h_t, c_t))  # one time step
+            outputs.append(hidden_t)
+
+        hidden = torch.cat(outputs, dim=0)
+        return hidden, (h_t, c_t)
+
+
+class LSTMResetConfig(Config):
+    latent_size: int = 128
+    hidden_size: int = 128
+    num_layers: int = 2
+    in_key: str = "encoded_obs"
+    out_key: str = "hidden"
+
+
+class LSTMReset(nn.Module):
+    """
+    LSTM layer that resets cell states when the episode is done or truncated in both inference and training. The file
+    lstm.py only resets state in inference.
+    """
+
+    def __init__(self, config: Optional[LSTMResetConfig] = None):
+        super().__init__()
+        self.config = config or LSTMResetConfig()
+        self.latent_size = self.config.latent_size
+        self.hidden_size = self.config.hidden_size
+        self.num_layers = self.config.num_layers
+        self.in_key = self.config.in_key
+        self.out_key = self.config.out_key
+        self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers)
+
+        for name, param in self.net.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1)  # Joseph originally had this as 0
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1)  # torch's default is uniform
+
+        self.lstm_h: Dict[int, torch.Tensor] = {}
+        self.lstm_c: Dict[int, torch.Tensor] = {}
+
+    def __setstate__(self, state):
+        """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
+        self.__dict__.update(state)
+        # Reset hidden states when loading from checkpoint to avoid batch size mismatch
+        if not hasattr(self, "lstm_h"):
+            self.lstm_h = {}
+        if not hasattr(self, "lstm_c"):
+            self.lstm_c = {}
+        # Clear any existing states to handle batch size mismatches
+        self.lstm_h.clear()
+        self.lstm_c.clear()
+
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
+    def forward(self, td: TensorDict):
+        latent = td[self.in_key]  # → (2, num_layers, batch, hidden_size)
+
+        TT = 1
+        B = td.batch_size.numel()
+        if td["bptt"][0] != 1:
+            TT = td["bptt"][0]
+        B = B // TT
+
+        latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
+
+        training_env_id = td.get("training_env_id", None)
+        if training_env_id is None:
+            training_env_id_start = 0
+        else:
+            training_env_id_start = training_env_id.reshape(-1)[0].item()  # av remove "start" aspects
+
+        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
+            h_0 = self.lstm_h[training_env_id_start]
+            c_0 = self.lstm_c[training_env_id_start]
+            # reset the hidden state if the episode is done or truncated
+            dones = td.get("dones", None)
+            truncateds = td.get("truncateds", None)
+            if dones is not None and truncateds is not None:
+                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+                h_0 = h_0.masked_fill(reset_mask, 0)
+                c_0 = c_0.masked_fill(reset_mask, 0)
+        else:
+            h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
+            c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
+
+        hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
+
+        self.lstm_h[training_env_id_start] = h_n.detach()
+        self.lstm_c[training_env_id_start] = c_n.detach()
+
+        hidden = rearrange(hidden, "t b h -> (b t) h")
+
+        td[self.out_key] = hidden
+
+        return td
+
+    def get_memory(self):
+        return self.lstm_h, self.lstm_c
+
+    def set_memory(self, memory):
+        """Cannot be called at the MettaAgent level - use policy.component[this_layer_name].set_memory()"""
+        self.lstm_h, self.lstm_c = memory[0], memory[1]
+
+    def reset_memory(self):
+        self.lstm_h.clear()
+        self.lstm_c.clear()
+
+    def _make_net(self):
+        # Get hidden_size from _nn_params
+        hidden_size = self._nn_params.get("hidden_size", self.hidden_size)
+        self._out_tensor_shape = [hidden_size]
+
+        self.lstm = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
+        if self.reset_in_training:
+            # self.lstm_train_step = torch.jit.script(LstmTrainStep(self.lstm))
+            self.lstm_train_step = LstmTrainStep(self.lstm)
+
+        for name, param in self.lstm.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1)  # Joseph originally had this as 0
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1)  # torch's default is uniform
+
+        # make registered buffers?
+        self.lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
+        self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
+        self.train_input_lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
+        self.train_input_lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
+        self.iter = -1
+        self.burn_in = 0
+        self.max_num_envs = 0
+        self.training_TT = 8
+
+        return None
+
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
+    def _forward(self, td: TensorDict):
+        latent = td[self._sources[0]["name"]]  # → (batch * TT, hidden_size)
+
+        TT = td["bptt"][0]
+        B = td["batch"][0]
+        segment_ids = td.get("segment_ids", None)
+        training_env_ids = td.get("training_env_ids", None)
+
+        if segment_ids is None:
+            # then we are in eval or similar. we just need indices for storing memory for the batch
+            segment_ids = torch.arange(B, device=latent.device)
+        if training_env_ids is None:
+            training_env_ids = torch.arange(B, device=latent.device)
+        else:
+            training_env_ids = training_env_ids.reshape(B * TT)  # av why reshape this? should already be B*TT
+
+        dones = td.get("dones", None)
+        truncateds = td.get("truncateds", None)
+        if dones is not None and truncateds is not None:
+            if dones.max() > 0:
+                breakpoint()
+            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)  # av check if this is right in TT !=1
+            if TT != 1:
+                breakpoint()
+        else:
+            # we're in eval
+            reset_mask = torch.ones(1, B, 1, device=latent.device)
+
+        if TT == 1:
+            self.iter += 1
+            # if segment_ids.max() >= self.lstm_h.size(1):
+            self.max_num_envs = training_env_ids.max() + 1
+            if self.max_num_envs > self.lstm_h.size(1):
+                num_allocated_envs = self.max_num_envs - self.lstm_h.size(1)
+                # we haven't allocated states for these envs (ie the very first epoch or rollout)
+                h_0 = torch.zeros(self.num_layers, num_allocated_envs, self.hidden_size, device=latent.device)
+                c_0 = torch.zeros(self.num_layers, num_allocated_envs, self.hidden_size, device=latent.device)
+                self.lstm_h = torch.cat([self.lstm_h, h_0.detach()], dim=1)
+                self.lstm_c = torch.cat([self.lstm_c, c_0.detach()], dim=1)
+                print(f"Allocated {num_allocated_envs} environments on iteration {self.iter}.")
+
+            h_0 = self.lstm_h[:, training_env_ids]
+            c_0 = self.lstm_c[:, training_env_ids]
+            td["lstm_h"] = h_0.permute(1, 0, 2).detach()
+            td["lstm_c"] = c_0.permute(1, 0, 2).detach()
+
+            td["check_seg_id"] = segment_ids
+            td["check_env_id"] = training_env_ids
+
+            if self.burn_in < 2 * self.training_TT:
+                self.burn_in += 1
+            elif self.iter % self.training_TT == 0:
+                pass
+                # self.train_input_lstm_h = torch.cat([self.train_input_lstm_h, h_0.detach()], dim=1)
+                # self.train_input_lstm_c = torch.cat([self.train_input_lstm_c, c_0.detach()], dim=1)
+
+        latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
+        if self.reset_in_training and TT != 1:
+            self.iter = -1
+            self.burn_in = 0
+
+            segment_ids = segment_ids.reshape(B, TT)[:, 0]
+            training_env_ids = training_env_ids.reshape(B, TT)[:, 0]
+            check_seg_id = td["check_seg_id"].reshape(B, TT)[:, 0]
+            check_env_id = td["check_env_id"].reshape(B, TT)[:, 0]
+
+            if check_seg_id != segment_ids or check_env_id != training_env_ids:
+                breakpoint()
+
+            h_0 = td["lstm_h"]
+            c_0 = td["lstm_c"]
+            h_0 = rearrange(h_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
+            c_0 = rearrange(c_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
+
+            # h_0 = self.train_input_lstm_h[:, segment_ids]
+            # c_0 = self.train_input_lstm_c[:, segment_ids]
+            hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask)
+
+        else:
+            hidden, (h_n, c_n) = self.lstm(latent, (h_0, c_0))
+            self.lstm_h[:, training_env_ids] = h_n.detach()
+            self.lstm_c[:, training_env_ids] = c_n.detach()
+
+        hidden = rearrange(hidden, "t b h -> (b t) h")
+
+        td[self._name] = hidden
+
+        return td
+
+    def _forward_train_step(self, latent, h_t, c_t, reset_mask):
+        """Run the JIT-scripted LSTM training step."""
+        reset_mask = reset_mask.view(1, latent.size(1), -1, 1)  # Shape: [1, B, TT, 1]
+        return self.lstm_train_step(latent, h_t, c_t, reset_mask)

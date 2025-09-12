@@ -65,7 +65,7 @@ def create_agent(
 ):
     """Create an agent instance from configuration."""
     # New, preferred pattern: config objects are responsible for instantiation. This will allow us to remove the agent
-    # registry. Agent config objects must therefore have an `instantiate_policy` method.
+    # registry. Agent config objects must therefore have an `instantiate` method.
 
     # package obs information
     obs_meta = {
@@ -76,11 +76,11 @@ def create_agent(
     }
 
     if config.policy_config is not None:
-        if hasattr(config.policy_config, "instantiate_policy"):
-            return config.policy_config.instantiate_policy(env=env, obs_meta=obs_meta)
+        if hasattr(config.policy_config, "instantiate"):
+            return config.policy_config.instantiate(env=env, obs_meta=obs_meta)
         else:
             raise AttributeError(
-                f"Provided policy config {type(config.policy_config).__name__} does not have an 'instantiate_policy' \
+                f"Provided policy config {type(config.policy_config).__name__} does not have an 'instantiate' \
                 method."
             )
 

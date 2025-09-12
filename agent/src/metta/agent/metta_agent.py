@@ -100,6 +100,7 @@ class MettaAgent(nn.Module):
             return self.policy(td, action=action)
         else:
             x = td["env_obs"]
+            # TODO: can add token to box shaper here
             # assume we only run external policies in simulation. otherwise we need to unpack return tuple
             action = self.policy(x, state, action)
             td["actions"] = action
@@ -125,6 +126,9 @@ class MettaAgent(nn.Module):
             return Composite(
                 env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
                 dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+                actions=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+                last_actions=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+                truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
             )
 
     def attach_replay_buffer(self, experience: Experience):
@@ -138,116 +142,11 @@ class MettaAgent(nn.Module):
         action_max_params: list[int],
         device,
         is_training: bool = None,
-    ):
-        """Initialize the agent to the current environment.
-
-        Handles feature remapping to allow agents trained on one environment to work
-        on another environment where features may have different IDs but same names.
-        """
-        self.device = device
-
-        # Auto-detect training context if not explicitly provided
-        if is_training is None:
-            is_training = self.training
-            log_on_master(f"Auto-detected {'training' if is_training else 'simulation'} context")
-
-        # Build feature mappings
-        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
-        self.feature_normalizations = {
-            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
-        }
-
-        if not hasattr(self, "original_feature_mapping"):
-            self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-            log_on_master(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
-        else:
-            # Re-initialization - create remapping for agent portability
-            UNKNOWN_FEATURE_ID = 255
-            self.feature_id_remap = {}
-            unknown_features = []
-
-            for name, props in features.items():
-                new_id = props["id"]
-                if name in self.original_feature_mapping:
-                    # Remap known features to their original IDs
-                    original_id = self.original_feature_mapping[name]
-                    if new_id != original_id:
-                        self.feature_id_remap[new_id] = original_id
-                elif not is_training:
-                    # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
-                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
-                    unknown_features.append(name)
-                else:
-                    # In training mode, learn new features
-                    self.original_feature_mapping[name] = new_id
-
-            if self.feature_id_remap:
-                logger.info(
-                    f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
-                )
-                # Apply the remapping
-                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
-
-        # Store action configuration
-        self.action_names = action_names
-        self.action_max_params = action_max_params
-
-        # Compute action tensors for efficient indexing
-        self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
-        )
-        self.action_index_tensor = torch.tensor(
-            [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
-            device=device,
-            dtype=torch.int32,
-        )
-
-        # Generate full action names
-        full_action_names = [
-            f"{name}_{i}"
-            for name, max_param in zip(action_names, action_max_params, strict=False)
-            for i in range(max_param + 1)
-        ]
-
-        # Share tensors with policy
-        self.policy.action_index_tensor = self.action_index_tensor
-        self.policy.cum_action_max_params = self.cum_action_max_params
-
-        # Initialize policy to environment
-        self.policy.initialize_to_environment(full_action_names, device)
-
-        log_on_master(
-            f"Environment initialized with {len(features)} features and actions: "
-            f"{list(zip(action_names, action_max_params, strict=False))}"
-        )
-
-    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
-        """Apply feature remapping to policy for agent portability across environments."""
-        # Build complete remapping tensor
-        remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
-
-        # Apply explicit remappings
-        for new_id, original_id in self.feature_id_remap.items():
-            remap_tensor[new_id] = original_id
-
-        # Map unused feature IDs to UNKNOWN
-        current_feature_ids = {props["id"] for props in features.values()}
-        for feature_id in range(256):
-            if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
-                remap_tensor[feature_id] = unknown_id
-
-        # Apply remapping to policy
-        self.policy._apply_feature_remapping(remap_tensor)
-
-        self._update_normalization_factors(features)
-
-    def _update_normalization_factors(self, features: dict[str, dict]):
-        """Update normalization factors after feature remapping."""
-        self.policy.update_normalization_factors(features, getattr(self, "original_feature_mapping", None))
-
-    def get_original_feature_mapping(self) -> dict[str, int] | None:
-        """Get the original feature mapping for saving in metadata."""
-        return getattr(self, "original_feature_mapping", None)
+    ) -> None:
+        logs = self.policy.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+        for log in logs:
+            if log is not None:
+                log_on_master(log)
 
     @property
     def total_params(self):

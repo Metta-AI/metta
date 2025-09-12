@@ -10,15 +10,19 @@ from metta.common.config.config import Config
 
 
 class ActorQueryConfig(Config):
-    hidden_size: int = 128
+    hidden_size: int = 512
     embed_dim: int = 16
     in_key: str = "hidden"
     out_key: str = "query"
 
+    def instantiate(self):
+        return ActorQuery(config=self)
+
 
 class ActorQuery(nn.Module):
     """
-    Projects the hidden state to a query vector.
+    Takes a state rep from the core, projects it to a hidden state via a linear layer and nonlinearity, then passes it
+    through what's supposed to represent a query matrix.
     """
 
     def __init__(self, config: Optional[ActorQueryConfig] = None):
@@ -30,6 +34,7 @@ class ActorQuery(nn.Module):
         self.out_key = self.config.out_key
 
         # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
+        self.proj = nn.LazyLinear(self.hidden_size)
         self.W = nn.Parameter(torch.Tensor(self.hidden_size, self.embed_dim).to(dtype=torch.float32))
         self._tanh = nn.Tanh()
         self._init_weights()
@@ -43,6 +48,8 @@ class ActorQuery(nn.Module):
         hidden = td[self.in_key]  # Shape: [B*TT, hidden]
 
         # Project hidden state to query
+        hidden = self.proj(hidden)
+        hidden = F.relu(hidden)
         query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
         query = self._tanh(query)
 
@@ -56,6 +63,9 @@ class ActorKeyConfig(Config):
     query_key: str = "query"
     embedding_key: str = "action_embeddings"
     out_key: str = "logits"
+
+    def instantiate(self):
+        return ActorKey(config=self)
 
 
 class ActorKey(nn.Module):
@@ -82,9 +92,26 @@ class ActorKey(nn.Module):
             bound = 1 / math.sqrt(self.embed_dim)
             nn.init.uniform_(self.bias, -bound, bound)
 
-    def initialize_to_environment(self, action_index_tensor: torch.Tensor, cum_action_max_params: torch.Tensor):
-        self.action_index_tensor = action_index_tensor
-        self.cum_action_max_params = cum_action_max_params
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = None,
+    ) -> None:
+        # Compute action tensors for efficient indexing
+        self.cum_action_max_params = torch.cumsum(
+            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
+        )
+
+        # Generate full action names
+        self.active_action_names = [
+            f"{name}_{i}"
+            for name, max_param in zip(action_names, action_max_params, strict=False)
+            for i in range(max_param + 1)
+        ]
+        self.num_active_actions = len(self.active_action_names)
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None):
         query = td[self.query_key]  # Shape: [B*TT, embed_dim]

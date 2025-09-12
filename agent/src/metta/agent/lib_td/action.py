@@ -13,6 +13,9 @@ class ActionEmbeddingConfig(Config):
     embedding_dim: int = 16
     out_key: str = "action_embeddings"
 
+    def instantiate(self):
+        return ActionEmbedding(config=self)
+
 
 class ActionEmbedding(nn.Module):
     """
@@ -50,13 +53,20 @@ class ActionEmbedding(nn.Module):
             max_abs_value = torch.max(torch.abs(self.net.weight))
             self.net.weight.mul_(weight_limit / max_abs_value)
 
-    def initialize_to_environment(self, action_names, device):
-        """
-        Updates the set of active action embeddings based on available actions. This method maintains a dictionary
-        mapping action names to embedding indices. When new action names are encountered, they are assigned new indices.
-        The method then creates a tensor of active indices on the specified device and updates the number of active
-        actions.
-        """
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = None,
+    ) -> None:
+        # Generate full action names
+        action_names = [
+            f"{name}_{i}"
+            for name, max_param in zip(action_names, action_max_params, strict=False)
+            for i in range(max_param + 1)
+        ]
 
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:

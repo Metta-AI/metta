@@ -15,6 +15,9 @@ class LSTMConfig(Config):
     in_key: str = "encoded_obs"
     out_key: str = "hidden"
 
+    def instantiate(self):
+        return LSTM(config=self)
+
 
 class LSTM(nn.Module):
     """

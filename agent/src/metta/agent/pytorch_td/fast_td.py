@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import pufferlib.pytorch
@@ -7,12 +7,15 @@ import torch
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
+from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.lib_td.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.lib_td.actor import ActorKey, ActorKeyConfig, ActorQuery, ActorQueryConfig
 from metta.agent.lib_td.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.lib_td.lstm import LSTM, LSTMConfig
+from metta.agent.lib_td.obs_shaping import ObsShaperBoxConfig
 from metta.common.config.config import Config
+from metta.rl.experience import Experience
 
 logger = logging.getLogger(__name__)
 
@@ -21,16 +24,16 @@ class FastConfig(Config):
     """Demonstrating that we can use config objects (ie LSTMConfig) for classes as layers (self.lstm) or attributes (ie
     actor_hidden_dim) for simple torch classes as layers (ie self.critic_1) and intermix."""
 
+    obs_shaper_config: ObsShaperBoxConfig = ObsShaperBoxConfig()
     cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig()
     lstm_config: LSTMConfig = LSTMConfig()
     critic_hidden_dim: int = 1024
-    actor_hidden_dim: int = 512
     action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig()
     actor_query_config: ActorQueryConfig = ActorQueryConfig()
     actor_key_config: ActorKeyConfig = ActorKeyConfig()
     wants_td: bool = True
 
-    def instantiate_policy(self, env, obs_meta: dict):
+    def instantiate(self, env, obs_meta: dict):
         return FastPolicy(env, obs_meta, config=self)
 
 
@@ -73,12 +76,6 @@ class FastPolicy(nn.Module):
         self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
 
         # Actor branch
-        # actor_1 uses gain=1 (YAML default for Linear layers with ReLU)
-        module = pufferlib.pytorch.layer_init(
-            nn.Linear(config.lstm_config.hidden_size, config.actor_hidden_dim), std=1.0
-        )
-        self.actor_1 = TDM(module, in_keys=["hidden"], out_keys=["actor_1"])
-
         # Action embeddings - will be properly initialized via activate_action_embeddings
         self.action_embeddings = ActionEmbedding(config=config.action_embedding_config)
 
@@ -103,20 +100,38 @@ class FastPolicy(nn.Module):
 
     # you need to expose the update methods of your policy to metta agent. We could instead have a self.components
     # dict and then run hasattr, letting metta agent walk the tree.
-    def initialize_to_environment(self, full_action_names: list[str], device):
-        """Initialize to environment, setting up action embeddings to match the available actions."""
-        self.active_action_names = full_action_names
-        self.num_active_actions = len(full_action_names)
-        self.action_embeddings.initialize_to_environment(full_action_names, device)
-        assert self.action_index_tensor is not None and self.cum_action_max_params is not None
-        self.actor_key.initialize_to_environment(self.action_index_tensor, self.cum_action_max_params)
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = None,
+    ) -> List[str]:
+        log = self.obs_shaper.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+        self.action_embeddings.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+        self.actor_key.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+        return [log]
 
-    def update_normalization_factors(self, features: dict[str, dict]):
+    def _apply_feature_remapping(self, features: dict[str, dict]):
         """You need a sequence encoder policy for this."""
         pass
 
-    def _update_normalization_factors(self, features: dict[str, dict]):
-        self.cnn_encoder.obs_normalizer.update_normalization_factors(features)
-
     def reset_memory(self):
         self.lstm.reset_memory()
+
+    def get_agent_experience_spec(self) -> Composite:
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            actions=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            last_actions=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+        )
+
+    def attach_replay_buffer(self, experience: Experience):
+        """Losses expect to find a replay buffer in the policy."""
+        self.replay = experience
+
+
+# av need Distributed Metta Agent class to wrap this

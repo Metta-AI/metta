@@ -338,6 +338,7 @@ def train(
                     buffer_step = buffer_step.select(*policy_spec.keys())
 
                     policy.reset_memory()  # av these should be handled by the memory layer once LSTM etc. is fixed
+                    actions = None
 
                     while not experience.ready_for_training and not trainer_state.stop_rollout:
                         o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
@@ -353,6 +354,8 @@ def train(
                         ).unsqueeze(1)  # av remove unsqueeze
                         B = td.batch_size.numel()
                         td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
+                        if actions is not None:
+                            td["last_actions"] = actions
 
                         # Inference - hybrid approach: run composable losses rollout hooks first
                         # note that each loss will modify the td, the same one that is passed to other losses.
@@ -371,7 +374,9 @@ def train(
                             # Store experience since no loss did it
                             experience.store(data_td=td, env_id=training_env_id)
 
-                        send_observation(vecenv, td["actions"], dtype_actions, timer)
+                        actions = td["actions"]
+
+                        send_observation(vecenv, actions, dtype_actions, timer)
 
                         if info:
                             raw_infos.extend(info)
