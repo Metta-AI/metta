@@ -33,13 +33,16 @@ def _check_existing_metta() -> Optional[str]:
 
     if target_symlink.is_symlink():
         target = target_symlink.resolve()
-        if target == wrapper_script.resolve():
+        resolved_target = wrapper_script.resolve()
+        if target == resolved_target:
             return "ours"
+        elif target.read_bytes() == resolved_target.read_bytes():
+            return "other-but-same-content"
 
     return "other"
 
 
-def setup_path(force: bool = False) -> None:
+def setup_path(force: bool = False, quiet: bool = False) -> None:
     wrapper_script.chmod(0o755)
 
     try:
@@ -53,8 +56,9 @@ def setup_path(force: bool = False) -> None:
 
     existing = _check_existing_metta()
 
-    if existing == "ours":
-        success("metta is already symlinked correctly.")
+    if existing in ("ours", "other-but-same-content"):
+        if not quiet:
+            success("metta is already symlinked correctly.")
         return
     elif existing == "other":
         if force:
@@ -101,14 +105,15 @@ def cmd_setup(
     force: Annotated[
         bool, typer.Option("--force", help="Create or replace symlink to make metta command globally available.")
     ] = False,
+    quiet: Annotated[bool, typer.Option("--quiet", help="Do not print success messages.")] = False,
 ):
-    setup_path(force=force)
+    setup_path(force=force, quiet=quiet)
 
 
 @app.command(name="check")
 def cmd_check():
     status = _check_existing_metta()
-    if status == "ours":
+    if status in ("ours", "other-but-same-content"):
         success("metta command is properly installed")
     elif status == "other":
         warning("""
