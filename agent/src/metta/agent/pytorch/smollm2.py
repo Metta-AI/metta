@@ -197,6 +197,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         self.set_tensordict_fields(td, observations)
 
         # Project compressed tokens to LLM embedding space
+        # Note: token_projector dtype is synchronized with LLM in initialize_to_environment()
         token_embeddings = self.token_projector(obs_float)  # [batch_size, max_seq_len, hidden_size]
 
         # Process through LLM - autocast handled automatically by training loop
@@ -215,6 +216,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             raise RuntimeError("SmolLM2 output missing hidden_states - check output_hidden_states=True parameter")
 
         # Pool over sequence dimension (mean pooling)
+        # Note: actor/value head dtypes are synchronized with LLM in initialize_to_environment()
         pooled_hidden = hidden_states.mean(dim=1)  # [batch_size, hidden_size]
 
         # Decode actions and value using single flattened head
@@ -238,11 +240,28 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         """Initialize the agent to the current environment."""
         self.device = device
         self.to(device)
+        
+        # CRITICAL: Ensure all custom layers match LLM dtype after device placement
+        # The LLM loads with fp16, but custom layers default to fp32
+        llm_dtype = next(self.llm.parameters()).dtype
+        
+        # Convert token projector to match LLM dtype
+        self.token_projector = self.token_projector.to(dtype=llm_dtype)
+        logger.info(f"Converted token_projector to {llm_dtype}")
+        
+        # Convert actor heads to match LLM dtype
+        for i, actor_head in enumerate(self.actor):
+            self.actor[i] = actor_head.to(dtype=llm_dtype)
+        logger.info(f"Converted {len(self.actor)} actor heads to {llm_dtype}")
+        
+        # Convert value head to match LLM dtype  
+        self.value = self.value.to(dtype=llm_dtype)
+        logger.info(f"Converted value head to {llm_dtype}")
 
         # Store action names for debugging
         self.full_action_names = full_action_names
 
-        logger.info(f"SmolLM2 initialized to environment with {len(full_action_names)} actions")
+        logger.info(f"SmolLM2 initialized to environment with {len(full_action_names)} actions, all components using {llm_dtype}")
 
     def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
         """Apply feature remapping for agent portability."""
