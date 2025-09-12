@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -2134,7 +2134,7 @@ dev = [
 
 [[package]]
 name = "mettagrid"
-version = "0.2"
+version = "0.2.0.1"
 source = { editable = "mettagrid" }
 dependencies = [
     { name = "boto3" },
