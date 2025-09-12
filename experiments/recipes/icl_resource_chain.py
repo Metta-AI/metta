@@ -145,7 +145,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cooldown = avg_hop * (chain_length - 1)
 
         for obj in cfg.converters:
-            cfg.game_objects[obj].cooldown = cooldown
+            cfg.game_objects[obj].cooldown = int(cooldown)
 
         return make_icl_resource_chain(
             num_agents=24,
