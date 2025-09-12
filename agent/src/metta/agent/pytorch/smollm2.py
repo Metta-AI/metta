@@ -79,10 +79,11 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             nn.Linear(hidden_size, self.hidden_size),
         )
 
-        # Initialize token projector with small weights
+        # Initialize token projector with standard weights (matching fast.py)
         for module in self.token_projector.modules():
             if isinstance(module, nn.Linear):
-                pufferlib.pytorch.layer_init(module, std=0.01)
+                # Use same std as fast.py: std=1.0 for most linear layers
+                pufferlib.pytorch.layer_init(module, std=1.0)
 
         # Store action space information
         self.action_space = env.single_action_space
@@ -97,10 +98,11 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             # Fallback for multi-discrete action space
             total_actions = sum(env.single_action_space.nvec)
 
+        # Actor head initialization (matching fast.py patterns)
         self.actor = nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, total_actions), std=0.01)])
 
-        # Value head
-        self.value = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1), std=1)
+        # Value head initialization (matching fast.py: std=1.0 for value head)  
+        self.value = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1), std=1.0)
 
         # Hidden state for recurrence (optional)
         self.hidden_state = None
@@ -261,6 +263,33 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Convert value head to match LLM dtype
         self.value = self.value.to(dtype=llm_dtype)
         logger.info(f"Converted value head to {llm_dtype}")
+        
+        # CRITICAL: Re-clamp all weights after dtype conversion to prevent NaN generation
+        # FP16 has limited range and can easily overflow during matrix multiplication
+        logger.info("Re-clamping weights after dtype conversion for FP16 stability")
+        
+        # Clamp token projector weights
+        for module in self.token_projector.modules():
+            if isinstance(module, nn.Linear):
+                with torch.no_grad():
+                    module.weight.clamp_(-0.1, 0.1)
+                    if module.bias is not None:
+                        module.bias.clamp_(-0.1, 0.1)
+        
+        # Clamp actor head weights
+        for actor_head in self.actor:
+            with torch.no_grad():
+                actor_head.weight.clamp_(-0.01, 0.01)  # Tighter bounds for logits
+                if actor_head.bias is not None:
+                    actor_head.bias.clamp_(-0.01, 0.01)
+        
+        # Clamp value head weights
+        with torch.no_grad():
+            self.value.weight.clamp_(-0.01, 0.01)
+            if self.value.bias is not None:
+                self.value.bias.clamp_(-0.01, 0.01)
+        
+        logger.info("Weight clamping completed for FP16 stability")
 
         # Store action names for debugging
         self.full_action_names = full_action_names
@@ -289,3 +318,18 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         """Calculate L2 initialization loss for regularization using mixin's standard approach."""
         # Use the mixin's implementation for consistency across all agents
         return super().l2_init_loss()
+
+    def clip_weights(self):
+        """Override to add aggressive clipping for token_projector stability."""
+        # Call the parent clip_weights for actor/value heads
+        super().clip_weights()
+        
+        # Add aggressive clipping for token_projector to prevent NaN generation
+        if hasattr(self, 'token_projector') and self.clip_range > 0:
+            for module in self.token_projector.modules():
+                if isinstance(module, nn.Linear):
+                    # Use tighter clipping bounds for FP16 stability
+                    clip_bound = min(self.clip_range, 0.1)  # Never exceed 0.1 for stability
+                    module.weight.data.clamp_(-clip_bound, clip_bound)
+                    if module.bias is not None:
+                        module.bias.data.clamp_(-clip_bound, clip_bound)
