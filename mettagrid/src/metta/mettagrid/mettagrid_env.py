@@ -137,11 +137,13 @@ class MettaGridEnv(MettaGridPufferBase):
         self._label_completions["completed_tasks"].append(label)
 
         # moving average of the completion rates
-        self._label_completions["completion_rates"] = {t : 0 for t in set(self._label_completions["completed_tasks"])}
+        self._label_completions["completion_rates"] = {t: 0 for t in set(self._label_completions["completed_tasks"])}
         for t in self._label_completions["completed_tasks"]:
             self._label_completions["completion_rates"][t] += 1
-        self._label_completions["completion_rates"] = {t : self._label_completions["completion_rates"][t] / len(self._label_completions["completed_tasks"]) for t in self._label_completions["completion_rates"]}
-
+        self._label_completions["completion_rates"] = {
+            t: self._label_completions["completion_rates"][t] / len(self._label_completions["completed_tasks"])
+            for t in self._label_completions["completion_rates"]
+        }
 
     def _process_episode_completion(self, infos: Dict[str, Any]) -> None:
         """Process episode completion - stats, etc."""
@@ -183,7 +185,6 @@ class MettaGridEnv(MettaGridPufferBase):
             self.per_label_rewards[self.mg_config.label] = 0
         self.per_label_rewards[self.mg_config.label] += episode_rewards.mean()
         infos["per_label_rewards"] = self.per_label_rewards
-
 
         # Add attributes
         attributes: Dict[str, Any] = {
