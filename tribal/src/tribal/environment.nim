@@ -115,11 +115,9 @@ type
     homeAltar*: IVec2      # Position of agent's home altar for respawning
     # Clippy:
     homeSpawner*: IVec2     # Position of clippy's home spawner
-    targetPos*: IVec2      # Current target altar
+    hasClaimedTerritory*: bool  # Whether this clippy has claimed territory and is stationary
     
-    # Spawner:
-    altarLocations*: seq[IVec2]  # All altar positions on the map
-    currentAltarIndex*: int      # Index of next altar to target
+    # Spawner: (no longer needs altar targeting for new creep spread behavior)
 
   Stats* = ref object
     # Agent Stats - aligned with 6 core actions:
@@ -384,14 +382,14 @@ proc findNearestThingPos(env: Environment, fromPos: IVec2, kind: ThingKind): IVe
   return nearestPos
 
 
-proc createClippy(pos: IVec2, homeSpawner: IVec2, targetAltar: IVec2, r: var Rand): Thing =
-  ## Create a new Clippy that moves toward a specific target altar
+proc createClippy(pos: IVec2, homeSpawner: IVec2, r: var Rand): Thing =
+  ## Create a new Clippy for creep spread behavior
   Thing(
     kind: Clippy,
     pos: pos,
     orientation: Orientation(r.rand(0..3)),
     homeSpawner: homeSpawner,
-    targetPos: targetAltar
+    hasClaimedTerritory: false  # Start mobile, will plant when far enough from others
   )
 
 
@@ -736,13 +734,55 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
       if env.isValidEmptyPosition(pos):
         result.add(pos)
 
+# ============== CLIPPY CREEP SPREAD AI ==============
 
-proc getClippyMoveDirection(clippy: Thing, r: var Rand): IVec2 =
-  # Move toward target altar if available, otherwise random
-  if clippy.targetPos.x >= 0 and r.rand(0.0..1.0) < 0.5:
-    getDirectionTo(clippy.pos, clippy.targetPos)
+proc findNearbyClippies(env: Environment, pos: IVec2, maxDistance: int): seq[Thing] =
+  ## Find all clippies within maxDistance tiles (Manhattan distance)
+  result = @[]
+  for thing in env.things:
+    if thing.kind == Clippy and thing.pos != pos:
+      let distance = abs(thing.pos.x - pos.x) + abs(thing.pos.y - pos.y)
+      if distance <= maxDistance:
+        result.add(thing)
+
+proc isClippyFarEnoughFromOthers(env: Environment, pos: IVec2, minDistance: int): bool =
+  ## Check if position is at least minDistance tiles away from any other clippy
+  for thing in env.things:
+    if thing.kind == Clippy:
+      let distance = abs(thing.pos.x - pos.x) + abs(thing.pos.y - pos.y)
+      if distance < minDistance:
+        return false
+  return true
+
+proc getClippyMoveDirection(clippy: Thing, env: Environment, r: var Rand): IVec2 =
+  ## New creep spread behavior: move away from other clippies until far enough, then stay put
+  
+  # If this clippy has already claimed territory, don't move
+  if clippy.hasClaimedTerritory:
+    return ivec2(0, 0)  # Stay stationary
+  
+  # Check if we're far enough from other clippies to plant (minimum 2 tiles)
+  if env.isClippyFarEnoughFromOthers(clippy.pos, 2):
+    # We're far enough! Plant ourselves and become stationary
+    clippy.hasClaimedTerritory = true
+    return ivec2(0, 0)  # Stay put
+  
+  # Find nearby clippies to avoid
+  let nearbyClippies = env.findNearbyClippies(clippy.pos, 10)  # Look within 10 tiles
+  
+  if nearbyClippies.len > 0:
+    # Calculate direction to move away from the nearest clippy
+    let nearest = nearbyClippies[0]  # Already sorted by distance
+    let awayDirection = getDirectionTo(nearest.pos, clippy.pos)  # Direction away from nearest
+    
+    # Add some randomness to avoid clustering
+    if r.rand(0.0..1.0) < 0.3:
+      const dirs = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+      return dirs[r.rand(0..<4)]
+    
+    return awayDirection
   else:
-    # Random movement (50% of the time, or always if no target)
+    # No nearby clippies, move randomly to explore
     const dirs = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
     dirs[r.rand(0..<4)]
 
@@ -787,10 +827,20 @@ proc updateTintModifications(env: Environment) =
       
     case thing.kind
     of Clippy:
-      # Clippies make tiles colder (stronger effect)
-      env.clippyTintMods[pos.x][pos.y].r = -30'i16  # Reduce red
-      env.clippyTintMods[pos.x][pos.y].g = -15'i16  # Reduce green
-      env.clippyTintMods[pos.x][pos.y].b = 40'i16   # Increase blue
+      # Clippies create creep spread in 5x5 area (stronger effect when planted)
+      let creepIntensity = if thing.hasClaimedTerritory: 2 else: 1
+      
+      for dx in -2 .. 2:
+        for dy in -2 .. 2:
+          let creepPos = ivec2(pos.x + dx, pos.y + dy)
+          if creepPos.x >= 0 and creepPos.x < MapWidth and creepPos.y >= 0 and creepPos.y < MapHeight:
+            # Distance-based falloff for more organic look
+            let distance = abs(dx) + abs(dy)  # Manhattan distance
+            let falloff = max(1, 5 - distance)  # Stronger at center, weaker at edges
+            
+            env.clippyTintMods[creepPos.x][creepPos.y].r = int16(-30 * creepIntensity * falloff div 3)  # Reduce red
+            env.clippyTintMods[creepPos.x][creepPos.y].g = int16(-15 * creepIntensity * falloff div 3)  # Reduce green
+            env.clippyTintMods[creepPos.x][creepPos.y].b = int16(40 * creepIntensity * falloff div 3)   # Increase blue
       
     of Agent:
       # Agents add warmth based on their tribe color
@@ -1167,8 +1217,7 @@ proc init(env: Environment) =
           # Find an empty position adjacent to the spawner for initial clippy
           let nearbyPositions = env.findEmptyPositionsAround(targetPos, 1)
           if nearbyPositions.len > 0:
-            let nearestAltar = env.findNearestThingPos(targetPos, Altar)
-            env.add(createClippy(nearbyPositions[0], targetPos, nearestAltar, r))
+            env.add(createClippy(nearbyPositions[0], targetPos, r))
           
           placed = true
           break
@@ -1213,8 +1262,7 @@ proc init(env: Environment) =
           
           let nearbyPositions = env.findEmptyPositionsAround(fallbackPos, 1)
           if nearbyPositions.len > 0:
-            let nearestAltar = env.findNearestThingPos(fallbackPos, Altar)
-            env.add(createClippy(nearbyPositions[0], fallbackPos, nearestAltar, r))
+            env.add(createClippy(nearbyPositions[0], fallbackPos, r))
           break
 
   for i in 0 ..< MapRoomObjectsConverters:
@@ -1237,10 +1285,6 @@ proc init(env: Environment) =
   for thing in env.things:
     if thing.kind == Altar:
       altarPositions.add(thing.pos)
-  for thing in env.things:
-    if thing.kind == Spawner:
-      thing.altarLocations = altarPositions
-      thing.currentAltarIndex = 0
 
   for agentId in 0 ..< MapAgents:
     env.updateObservations(agentId)
@@ -1348,15 +1392,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
             var r = initRand(env.currentStep)
             let spawnPos = r.sample(emptyPositions)
             
-            # Get next target altar from rotation
-            let targetAltar = if thing.altarLocations.len > 0:
-              let altar = thing.altarLocations[thing.currentAltarIndex]
-              thing.currentAltarIndex = (thing.currentAltarIndex + 1) mod thing.altarLocations.len
-              altar
-            else:
-              env.findNearestThingPos(thing.pos, Altar)
-            
-            let newClippy = createClippy(spawnPos, thing.pos, targetAltar, r)
+            let newClippy = createClippy(spawnPos, thing.pos, r)
             # Don't add immediately - collect for later
             newClippysToSpawn.add(newClippy)
             
@@ -1388,7 +1424,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
   
   for clippy in clippysToProcess:
     # Get movement direction from clippy AI (pass clippy directly)
-    let moveDir = getClippyMoveDirection(clippy, r)
+    let moveDir = getClippyMoveDirection(clippy, env, r)
     let newPos = clippy.pos + moveDir
     
     # Update clippy orientation based on movement direction
@@ -1618,3 +1654,4 @@ proc generateEntityColor*(entityType: string, id: int, fallbackColor: Color = co
 proc getAltarColor*(pos: IVec2): Color =
   ## Get altar color by position, with white fallback
   altarColors.getOrDefault(pos, color(1.0, 1.0, 1.0, 1.0))
+
