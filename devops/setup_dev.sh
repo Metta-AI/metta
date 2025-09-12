@@ -6,4 +6,4 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Run install.sh with softmax profile
-./install.sh --profile=softmax
+./install.sh --profile softmax
