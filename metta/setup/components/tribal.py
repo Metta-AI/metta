@@ -15,21 +15,25 @@ class TribalSetup(SetupModule):
     def check_installed(self) -> bool:
         """Check if tribal package is installed and bindings exist."""
         try:
-            # Check if tribal package is installed
-            result = subprocess.run(
-                ["uv", "run", "python", "-c", "import metta.tribal; print('OK')"],
-                capture_output=True,
-                text=True
-            )
-            
-            if result.returncode != 0:
+            # Check if tribal package is installed by trying to import directly
+            # (avoid uv run subprocess which has dependency resolution issues with local packages)
+            try:
+                import metta.tribal
+                package_installed = True
+            except ImportError:
+                package_installed = False
+                
+            if not package_installed:
                 return False
                 
             # Check if bindings exist
             project_root = Path(__file__).parent.parent.parent.parent
-            tribal_dir = project_root / "tribal"
+            tribal_dir = project_root / "tribal" 
             bindings_dir = tribal_dir / "bindings" / "generated"
             
+            if not bindings_dir.exists():
+                return False
+                
             library_files = list(bindings_dir.glob("libtribal.*"))
             python_binding = bindings_dir / "tribal.py"
             
