@@ -66,7 +66,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_sinks: list[int] = Field(
             default_factory=list, description="Number of sinks to sample from"
         )
-        room_size: str = Field(default="6x6", description="Room size to sample from")
+        room_sizes: list[str] = Field(default=["6x6"], description="Room size to sample from")
         max_steps: int = Field(default=256, description="Episode length")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
@@ -159,16 +159,17 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_resources = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
         resources = rng.sample(self.resource_types, num_resources)
+        room_size = rng.choice(self.config.room_sizes)
 
         # by default, use a 6x6 room - to reproduce existing results
-        if self.config.room_size == "6x6":
+        if room_size == "6x6":
             width, height = 6, 6
         else:
-            if self.config.room_size == "small":
+            if room_size == "small":
                 size_range = (5, 8)
-            elif self.config.room_size == "medium":
+            elif room_size == "medium":
                 size_range = (8, 12)
-            elif self.config.room_size == "large":
+            elif room_size == "large":
                 size_range = (12, 15)
 
             width, height = rng.randint(size_range[0], size_range[1]), rng.randint(size_range[0], size_range[1])
@@ -197,7 +198,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             "least_efficient_optimal_reward": least_efficient_optimal_reward,
         }
 
-        icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{self.config.room_size}"
+        icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{room_size}"
 
         return icl_env
 
@@ -286,6 +287,7 @@ def make_curriculum(
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
+        room_sizes = ["small"],
     )
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
