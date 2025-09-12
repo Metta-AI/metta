@@ -1,6 +1,7 @@
+from typing import Optional
+
 import metta.mettagrid.mapgen.scenes.random
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
-from typing import Optional
 from metta.mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mapgen.mapgen import MapGen
