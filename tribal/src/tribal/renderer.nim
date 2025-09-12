@@ -368,6 +368,9 @@ batteries: {selection.inventoryBattery}
 water: {selection.inventoryWater}
 wheat: {selection.inventoryWheat}
 wood: {selection.inventoryWood}
+spear: {selection.inventorySpear}
+lantern: {selection.inventoryLantern}
+armor: {selection.inventoryArmor}
 reward: {selection.reward}
 frozen: {selection.frozen}
       """

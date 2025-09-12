@@ -1,4 +1,4 @@
-import std/[random, tables]
+import std/[random, tables, math]
 import vmath
 import environment, common
 
@@ -258,43 +258,48 @@ proc findHomeBuilding(env: Environment, agent: Thing, buildingKind: ThingKind): 
           minDist = distFromAgent
           result = thing
 
+proc hasNearbyLanterns(env: Environment, pos: IVec2, radius: int): bool =
+  ## Check if there are any lanterns within radius tiles (like clippy logic)
+  for dx in -radius .. radius:
+    for dy in -radius .. radius:
+      if dx == 0 and dy == 0:
+        continue  # Skip center position
+      
+      let checkPos = pos + ivec2(dx, dy)
+      if checkPos.x >= 0 and checkPos.x < MapWidth and checkPos.y >= 0 and checkPos.y < MapHeight:
+        for thing in env.things:
+          if thing.kind == PlantedLantern and thing.pos == checkPos:
+            return true
+  
+  return false
+
 proc findLanternPlacementSpot(env: Environment, agent: Thing, controller: Controller): IVec2 =
-  ## Find a good spot to place a lantern around the village perimeter
+  ## Find a good spot to place a lantern: at least 7 squares from altar, 2+ squares from other lanterns
   result = ivec2(-1, -1)
   
   let basePos = agent.homeAltar
-  let minDistance = 3  # At least 3 tiles from base
-  let maxDistance = 8  # At most 8 tiles from base
+  let minDistanceFromAltar = 7  # Stay away from base buildings
+  let maxSearchRadius = 20     # Maximum search distance
   
-  # Try to find spots in a ring around the base
-  for distance in minDistance..maxDistance:
-    # Generate positions in a ring at this distance
-    var candidates: seq[IVec2] = @[]
+  # Try multiple attempts to find a good spot
+  for attempt in 0..80:
+    # Generate a random position within search radius
+    let angle = controller.rng.rand(0.0..2.0*PI) 
+    let distance = controller.rng.rand(minDistanceFromAltar..maxSearchRadius)
     
-    # Check positions around the perimeter at this distance
-    for dx in -distance..distance:
-      for dy in -distance..distance:
-        let manhattanDist = abs(dx) + abs(dy)
-        if manhattanDist >= minDistance and manhattanDist <= distance:
-          let pos = basePos + ivec2(dx.int32, dy.int32)
-          
-          # Check if position is valid for lantern placement
-          if pos.x >= 0 and pos.x < MapWidth and pos.y >= 0 and pos.y < MapHeight:
-            if env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
-              # Check if there's already a lantern nearby (avoid clustering)
-              var hasNearbyLantern = false
-              for thing in env.things:
-                if thing.kind == PlantedLantern:
-                  if manhattanDistance(thing.pos, pos) < 3:
-                    hasNearbyLantern = true
-                    break
-              
-              if not hasNearbyLantern:
-                candidates.add(pos)
+    let dx = int32(cos(angle) * distance.float)
+    let dy = int32(sin(angle) * distance.float)
+    let pos = basePos + ivec2(dx, dy)
     
-    # If we found candidates at this distance, pick one randomly
-    if candidates.len > 0:
-      return controller.rng.sample(candidates)
+    # Check if position is valid
+    if pos.x >= 0 and pos.x < MapWidth and pos.y >= 0 and pos.y < MapHeight:
+      if env.isEmpty(pos) and env.terrain[pos.x][pos.y] != Water:
+        # Must be at least 7 tiles from altar (to avoid base buildings)
+        let distanceFromAltar = manhattanDistance(pos, basePos)
+        if distanceFromAltar >= minDistanceFromAltar:
+          # Use clippy-style spacing: no lanterns within 2 tiles  
+          if not env.hasNearbyLanterns(pos, 2):
+            return pos
   
   # No good spot found
   return ivec2(-1, -1)
@@ -405,193 +410,120 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   if state.role != AltarSpecialist and not state.hasCompletedRole:
     case state.role:
     of ArmorySpecialist:
-      # Need wood, then craft at Armory
-      if agent.inventoryWood == 0:
-        # Find wood (trees)
-        if state.targetType != Tree:
-          let nearestTree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
-          if nearestTree.x >= 0:
-            state.currentTarget = nearestTree
-            state.targetType = Tree
-          else:
-            # No trees found, wander to find some
-            state.currentTarget = controller.getNextWanderPoint(state)
-            state.targetType = Wander
-        
-        # Check if we're adjacent to a tree
-        if state.targetType == Tree and isCardinallyAdjacent(agent.pos, state.currentTarget):
-          if env.terrain[state.currentTarget.x][state.currentTarget.y] == Tree:
-            # Get wood from tree
-            let dir = state.currentTarget - agent.pos
-            let useOrientation = getOrientation(dir)
-            return [3'u8, ord(useOrientation).uint8]  # Get action
-          else:
-            # Tree is gone, find a new one
-            state.targetType = NoTarget
-      
+      # Simple priority: wood → armory → craft armor
+      if agent.inventoryWood > 0:
+        # Have wood, go to armory to craft
+        let armory = env.findHomeBuilding(agent, Armory)
+        if armory != nil:
+          state.currentTarget = armory.pos
+          state.targetType = Armory
       else:
-        # Have wood, find Armory in our village
-        if state.targetType != Armory:
-          let armory = env.findHomeBuilding(agent, Armory)
-          if armory != nil:
-            state.currentTarget = armory.pos
-            state.targetType = Armory
-        
-        # Check if we're adjacent to armory
-        if state.targetType == Armory and isCardinallyAdjacent(agent.pos, state.currentTarget):
-          let dir = state.currentTarget - agent.pos
-          let useOrientation = getOrientation(dir)
-          return [5'u8, ord(useOrientation).uint8]  # Put action to craft armor
+        # Need wood, find nearest tree
+        let tree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
+        if tree.x >= 0:
+          state.currentTarget = tree
+          state.targetType = Tree
     
     of ForgeSpecialist:
-      # Phase 1: If we have a spear, hunt clippys
+      # Simple priority: hunt clippies with spear → craft spear → get wood
       if agent.inventorySpear > 0:
-        # Look for clippys to attack within range
-        let nearestClippy = findNearestClippy(env, agent.pos, maxDist = 15)
-        if nearestClippy != nil:
-          # Check if we can attack this clippy
-          if canAttackClippy(agent.pos, nearestClippy.pos):
-            # Attack the clippy!
-            let dir = nearestClippy.pos - agent.pos
-            let attackOrientation = getOrientation(dir)
-            return [2'u8, ord(attackOrientation).uint8]  # Attack action with spear
-          else:
-            # Move closer to the clippy
-            state.currentTarget = nearestClippy.pos
-            state.targetType = ClippyHunt
+        # Have spear, hunt clippies
+        let clippy = findNearestClippy(env, agent.pos, maxDist = 15)
+        if clippy != nil and canAttackClippy(agent.pos, clippy.pos):
+          # Can attack! Do it now
+          let dir = clippy.pos - agent.pos
+          return [2'u8, ord(getOrientation(dir)).uint8]  # Attack
+        elif clippy != nil:
+          # Move toward clippy
+          state.currentTarget = clippy.pos
+          state.targetType = ClippyHunt
         else:
-          # No clippys found, spiral outward from village to hunt
-          if state.targetType != ClippyHunt:
-            state.targetType = ClippyHunt
-            resetWanderState(state)  # Reset spiral when starting hunt
+          # No clippies nearby, wander to find them
           state.currentTarget = controller.getNextWanderPoint(state)
-      
-      # Phase 2: If no spear and no wood, get wood
-      elif agent.inventoryWood == 0:
-        if state.targetType != Tree:
-          let nearestTree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
-          if nearestTree.x >= 0:
-            state.currentTarget = nearestTree
-            state.targetType = Tree
-          else:
-            state.currentTarget = controller.getNextWanderPoint(state)
-            state.targetType = Wander
-        
-        if state.targetType == Tree and isCardinallyAdjacent(agent.pos, state.currentTarget):
-          if env.terrain[state.currentTarget.x][state.currentTarget.y] == Tree:
-            let dir = state.currentTarget - agent.pos
-            let useOrientation = getOrientation(dir)
-            return [3'u8, ord(useOrientation).uint8]  # Get wood
-          else:
-            state.targetType = NoTarget
-      
-      # Phase 3: If we have wood but no spear, craft at Forge
+          state.targetType = ClippyHunt
+      elif agent.inventoryWood > 0:
+        # Have wood, go to forge to craft spear
+        let forge = env.findHomeBuilding(agent, Forge)
+        if forge != nil:
+          state.currentTarget = forge.pos
+          state.targetType = Forge
       else:
-        if state.targetType != Forge:
-          let forge = env.findHomeBuilding(agent, Forge)
-          if forge != nil:
-            state.currentTarget = forge.pos
-            state.targetType = Forge
-        
-        if state.targetType == Forge and isCardinallyAdjacent(agent.pos, state.currentTarget):
-          let dir = state.currentTarget - agent.pos
-          let useOrientation = getOrientation(dir)
-          return [5'u8, ord(useOrientation).uint8]  # Put action to craft spear
+        # Need wood, find tree
+        let tree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
+        if tree.x >= 0:
+          state.currentTarget = tree
+          state.targetType = Tree
     
     of ClayOvenSpecialist:
-      # Need wheat, then craft at ClayOven
-      if agent.inventoryWheat == 0:
-        if state.targetType != Wheat:
-          let nearestWheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
-          if nearestWheat.x >= 0:
-            state.currentTarget = nearestWheat
-            state.targetType = Wheat
-          else:
-            state.currentTarget = controller.getNextWanderPoint(state)
-            state.targetType = Wander
-        
-        if state.targetType == Wheat and isCardinallyAdjacent(agent.pos, state.currentTarget):
-          if env.terrain[state.currentTarget.x][state.currentTarget.y] == Wheat:
-            let dir = state.currentTarget - agent.pos
-            let useOrientation = getOrientation(dir)
-            return [3'u8, ord(useOrientation).uint8]  # Get wheat
-          else:
-            state.targetType = NoTarget
-      
+      # Simple: wheat → clay oven → craft food
+      if agent.inventoryWheat > 0:
+        # Have wheat, go to clay oven to craft
+        let clayOven = env.findHomeBuilding(agent, ClayOven)
+        if clayOven != nil:
+          state.currentTarget = clayOven.pos
+          state.targetType = ClayOven
       else:
-        if state.targetType != ClayOven:
-          let clayOven = env.findHomeBuilding(agent, ClayOven)
-          if clayOven != nil:
-            state.currentTarget = clayOven.pos
-            state.targetType = ClayOven
-        
-        if state.targetType == ClayOven and isCardinallyAdjacent(agent.pos, state.currentTarget):
-          let dir = state.currentTarget - agent.pos
-          let useOrientation = getOrientation(dir)
-          return [5'u8, ord(useOrientation).uint8]  # Put action to craft food
+        # Need wheat, find some
+        let wheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
+        if wheat.x >= 0:
+          state.currentTarget = wheat
+          state.targetType = Wheat
     
     of WeavingLoomSpecialist:
-      # CONTINUOUS LANTERN PRODUCTION CYCLE
-      
-      # Phase 1: If we have a lantern, find a place to plant it
+      # Simple priority: plant lantern → craft lantern → get wheat
       if agent.inventoryLantern > 0:
-        if state.targetType != LanternPlantSpot:
-          # Find a good spot to plant the lantern
-          let plantSpot = env.findLanternPlacementSpot(agent, controller)
-          if plantSpot.x >= 0:
-            state.currentTarget = plantSpot
+        # Have lantern, find place to plant (7+ tiles from altar)
+        let plantSpot = env.findLanternPlacementSpot(agent, controller)
+        if plantSpot.x >= 0:
+          state.currentTarget = plantSpot
+          state.targetType = LanternPlantSpot
+        else:
+          # No good spot, try near agent as fallback
+          let nearbySpots = env.findEmptyPositionsAround(agent.pos, 3)
+          if nearbySpots.len > 0:
+            state.currentTarget = controller.rng.sample(nearbySpots)
             state.targetType = LanternPlantSpot
-          else:
-            # No good spots found, use environment function to find nearby spots
-            let nearbySpots = env.findEmptyPositionsAround(agent.pos, 2)
-            if nearbySpots.len > 0:
-              state.currentTarget = controller.rng.sample(nearbySpots)
-              state.targetType = LanternPlantSpot
-        
-        # Plant the lantern if we're adjacent to our target spot
-        if state.targetType == LanternPlantSpot and isCardinallyAdjacent(agent.pos, state.currentTarget):
-          let dir = state.currentTarget - agent.pos
-          let useOrientation = getOrientation(dir)
-          return [6'u8, ord(useOrientation).uint8]  # Plant action
-      
-      # Phase 2: If we don't have wheat, go get some
-      elif agent.inventoryWheat == 0:
-        if state.targetType != Wheat:
-          let nearestWheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
-          if nearestWheat.x >= 0:
-            state.currentTarget = nearestWheat
-            state.targetType = Wheat
-          else:
-            # No wheat found, wander to explore
-            state.currentTarget = controller.getNextWanderPoint(state)
-            state.targetType = Wander
-        
-        # Harvest wheat if we're adjacent to it
-        if state.targetType == Wheat and isCardinallyAdjacent(agent.pos, state.currentTarget):
-          if env.terrain[state.currentTarget.x][state.currentTarget.y] == Wheat:
-            let dir = state.currentTarget - agent.pos
-            let useOrientation = getOrientation(dir)
-            return [3'u8, ord(useOrientation).uint8]  # Get wheat
-          else:
-            # Wheat is gone, find another
-            state.targetType = NoTarget
-      
-      # Phase 3: If we have wheat but no lantern, craft at WeavingLoom
+      elif agent.inventoryWheat > 0:
+        # Have wheat, go to loom to craft lantern
+        let loom = env.findHomeBuilding(agent, WeavingLoom)
+        if loom != nil:
+          state.currentTarget = loom.pos
+          state.targetType = WeavingLoom
       else:
-        if state.targetType != WeavingLoom:
-          let weavingLoom = env.findHomeBuilding(agent, WeavingLoom)
-          if weavingLoom != nil:
-            state.currentTarget = weavingLoom.pos
-            state.targetType = WeavingLoom
-        
-        # Craft lantern if we're adjacent to the weaving loom
-        if state.targetType == WeavingLoom and isCardinallyAdjacent(agent.pos, state.currentTarget):
-          let dir = state.currentTarget - agent.pos
-          let useOrientation = getOrientation(dir)
-          return [5'u8, ord(useOrientation).uint8]  # Put action to craft lantern
+        # Need wheat, find some
+        let wheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
+        if wheat.x >= 0:
+          state.currentTarget = wheat
+          state.targetType = Wheat
     
     else:
       discard  # AltarSpecialist handled below
+    
+    # UNIFIED ACTION SYSTEM: Handle actions at target locations
+    if isCardinallyAdjacent(agent.pos, state.currentTarget):
+      case state.targetType:
+      of Tree:
+        if env.terrain[state.currentTarget.x][state.currentTarget.y] == Tree:
+          let dir = state.currentTarget - agent.pos
+          return [3'u8, ord(getOrientation(dir)).uint8]  # Get wood from tree
+        else:
+          state.targetType = NoTarget  # Tree gone, find new target
+      of Wheat:
+        if env.terrain[state.currentTarget.x][state.currentTarget.y] == Wheat:
+          let dir = state.currentTarget - agent.pos
+          return [3'u8, ord(getOrientation(dir)).uint8]  # Get wheat
+        else:
+          state.targetType = NoTarget  # Wheat gone, find new target
+      of Armory, Forge, ClayOven, WeavingLoom:
+        # Craft at building (put action)
+        let dir = state.currentTarget - agent.pos
+        return [5'u8, ord(getOrientation(dir)).uint8]  # Put/craft action
+      of LanternPlantSpot:
+        # Plant lantern
+        let dir = state.currentTarget - agent.pos
+        return [6'u8, ord(getOrientation(dir)).uint8]  # Plant action
+      else:
+        discard
     
     # If we have a specialized target, move toward it
     if state.targetType in [Tree, Wheat, Armory, Forge, ClayOven, WeavingLoom, LanternPlantSpot, ClippyHunt] and state.currentTarget != agent.pos:
