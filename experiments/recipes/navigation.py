@@ -2,7 +2,6 @@ import os
 from datetime import datetime
 from typing import Optional, Sequence
 
-import gitta
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -39,6 +38,8 @@ def _default_run_name() -> str:
 
     # Try to get git hash (7 chars like CI) for better tracking
     try:
+        import gitta
+
         git_hash = gitta.get_current_commit()[:7]
         return f"navigation.{user}.{timestamp}.{git_hash}"
     except Exception:
@@ -46,15 +47,15 @@ def _default_run_name() -> str:
         return f"navigation.{user}.{timestamp}"
 
 
-def make_mettagrid(num_agents: int = 4) -> MettaGridConfig:
-    nav = eb.make_navigation(num_agents=num_agents)
+def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
+    nav = eb.make_navigation(num_agents=num_agents * num_instances)
 
     nav.game.map_builder = MapGen.Config(
-        instances=num_agents,  # Create one instance per agent
+        instances=num_instances,
         border_width=6,
         instance_border_width=3,
         instance_map=TerrainFromNumpy.Config(
-            agents=1,  # Each terrain map instance has 1 agent
+            agents=num_agents,
             objects={"altar": 10},
             dir="varied_terrain/dense_large",
         ),
@@ -64,7 +65,7 @@ def make_mettagrid(num_agents: int = 4) -> MettaGridConfig:
 
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
-    logging_detailed_slices: bool = False,
+    enable_detailed_slice_logging: bool = False,
 ) -> CurriculumConfig:
     nav_env = nav_env or make_mettagrid()
 
@@ -82,7 +83,7 @@ def make_curriculum(
     # sparse environments are just random maps
     sparse_nav_env = nav_env.model_copy()
     sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
-        agents=4,  # Total agents across all instances
+        agents=4,
         objects={"altar": 10},
     )
     sparse_tasks = cc.bucketed(sparse_nav_env)
@@ -92,11 +93,15 @@ def make_curriculum(
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return CurriculumConfig(
-        task_generator=nav_tasks,
+    return nav_tasks.to_curriculum(
         num_active_tasks=1000,  # Smaller pool for navigation tasks
         algorithm_config=LearningProgressConfig(
-            logging_detailed_slices=logging_detailed_slices,
+            use_bidirectional=True,  # Default: bidirectional learning progress
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=3,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
         ),
     )
 
@@ -104,7 +109,7 @@ def make_curriculum(
 def train(
     run: Optional[str] = None,
     curriculum: Optional[CurriculumConfig] = None,
-    logging_detailed_slices: bool = False,
+    enable_detailed_logging: bool = False,
 ) -> TrainTool:
     # Generate structured run name if not provided
     if run is None:
@@ -112,7 +117,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum
-        or make_curriculum(logging_detailed_slices=logging_detailed_slices),
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),

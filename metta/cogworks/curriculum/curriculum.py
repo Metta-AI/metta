@@ -1,7 +1,8 @@
+"""Core curriculum implementations and utilities."""
+
 from __future__ import annotations
 
 import abc
-import inspect
 import random
 from abc import ABC
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
@@ -11,20 +12,26 @@ if TYPE_CHECKING:
 
 from pydantic import ConfigDict, Field
 
-from metta.cogworks.curriculum.stats import BucketAnalyzer
+from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
-from metta.cogworks.curriculum.task_tracker import TaskTracker
 from metta.mettagrid.config import Config
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+
+
+def get_algorithm_hypers_discriminator(v):
+    """Discriminator function for algorithm hypers types."""
+    if isinstance(v, dict) and "type" in v:
+        return v["type"]
+    return None
 
 
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 
-    def __init__(self, task_id: int, env_cfg, bucket_values: Optional[Dict[str, Any]] = None):
+    def __init__(self, task_id: int, env_cfg, slice_values: Optional[Dict[str, Any]] = None):
         self._task_id = task_id
         self._env_cfg = env_cfg
-        self._bucket_values = bucket_values or {}
+        self._slice_values = slice_values or {}
         self._num_completions = 0
         self._total_score = 0.0
         self._mean_score = 0.0
@@ -40,9 +47,13 @@ class CurriculumTask:
         """Get the environment configuration for this task."""
         return self._env_cfg
 
+    def get_slice_values(self):
+        """Get the slice values that were used to generate this task."""
+        return self._slice_values
+
     def get_bucket_values(self):
-        """Get the bucket values that were used to generate this task."""
-        return self._bucket_values
+        """Get the slice values (backward compatibility alias)."""
+        return self._slice_values
 
 
 class CurriculumAlgorithmConfig(Config, ABC):
@@ -74,7 +85,7 @@ class CurriculumAlgorithmConfig(Config, ABC):
     )
 
 
-class CurriculumAlgorithm(ABC):
+class CurriculumAlgorithm(StatsLogger, ABC):
     """
     Curriculum algorithms are responsible for:
     1. Scoring tasks based on their learning progress or other metrics
@@ -83,6 +94,7 @@ class CurriculumAlgorithm(ABC):
     4. Providing feedback to Curriculum for task selection
 
     The Curriculum maintains the task pool and lifecycle, while algorithms provide guidance.
+    Inherits from StatsLogger to provide unified statistics interface.
     """
 
     num_tasks: int
@@ -100,49 +112,29 @@ class CurriculumAlgorithm(ABC):
         """Recommend which task to evict. Return None for random selection."""
         pass
 
+    @abc.abstractmethod
     def on_task_evicted(self, task_id: int) -> None:
         """Notification that a task has been evicted from the pool."""
-        # Default implementation removes from task tracker
-        if hasattr(self, "task_tracker"):
-            task_stats = self.task_tracker.get_task_stats(task_id)
-            bucket_values = task_stats.get("bucket_values", {}) if task_stats else {}
-            self.task_tracker.remove_task(task_id)
+        pass
 
-            # Remove from bucket analyzer
-            if hasattr(self, "bucket_analyzer") and bucket_values:
-                self.bucket_analyzer.remove_task_bucket_data(task_id, bucket_values)
+    @abc.abstractmethod
+    def update_task_performance(self, task_id: int, score: float):
+        """Update task performance. Override in subclasses that track performance."""
+        pass
 
     def on_task_created(self, task: "CurriculumTask") -> None:
-        """Notification that a new task has been created."""
-        # Default implementation tracks task creation
-        task_id = task._task_id
-        bucket_values = task.get_bucket_values()
+        """Notification that a new task has been created. Override if needed."""
+        pass
 
-        if hasattr(self, "task_tracker"):
-            # Handle different TaskTracker implementations
-            sig = inspect.signature(self.task_tracker.track_task_creation)
-            if len(sig.parameters) > 1:  # Has bucket_values parameter
-                self.task_tracker.track_task_creation(task_id, bucket_values)
-            else:  # Only takes task_id
-                self.task_tracker.track_task_creation(task_id)
-
-    def update_task_performance(self, task_id: int, score: float):
-        """Update task performance. Default implementation updates task tracker."""
-        if hasattr(self, "task_tracker"):
-            self.task_tracker.update_task_performance(task_id, score)
-
-            # Update bucket analyzer
-            if hasattr(self, "bucket_analyzer"):
-                task_stats = self.task_tracker.get_task_stats(task_id)
-                bucket_values = task_stats.get("bucket_values", {}) if task_stats else {}
-                if bucket_values:
-                    self.bucket_analyzer.update_bucket_completions(task_id, bucket_values)
+    def set_curriculum_reference(self, curriculum: "Curriculum") -> None:
+        """Set reference to curriculum for stats updates. Override if needed."""
+        pass
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
         """Check if a task should be evicted based on algorithm-specific criteria.
 
-        Default implementation uses task_tracker to check minimum presentations.
-        Subclasses should override to implement their own eviction criteria.
+        Default implementation returns False (no eviction). Subclasses should override
+        to implement their own eviction criteria.
 
         Args:
             task_id: The task to check
@@ -151,12 +143,6 @@ class CurriculumAlgorithm(ABC):
         Returns:
             True if task should be evicted
         """
-        if hasattr(self, "task_tracker"):
-            task_stats = self.task_tracker.get_task_stats(task_id)
-            if not task_stats:
-                return False
-            # Only evict tasks with sufficient presentations
-            return task_stats["completion_count"] >= min_presentations
         return False
 
     def __init__(
@@ -170,33 +156,26 @@ class CurriculumAlgorithm(ABC):
             hypers = DiscreteRandomConfig()
         self.hypers = hypers
 
-        # Initialize task tracker for algorithms that need it
-        # Can be overridden in subclasses
-        self.task_tracker = TaskTracker(max_memory_tasks=1000)
+        # Initialize stats logging
+        enable_detailed = getattr(hypers, "enable_detailed_slice_logging", False)
+        StatsLogger.__init__(self, enable_detailed_logging=enable_detailed)
 
-        # Initialize bucket analyzer for tracking task completion patterns
-        # Can be overridden in subclasses with specific configurations
-        self.bucket_analyzer = BucketAnalyzer(max_bucket_axes=3, logging_detailed_slices=False)
+        # All algorithms get slice analysis capability
+        max_slice_axes = getattr(hypers, "max_slice_axes", 3)
+        self.slice_analyzer = SliceAnalyzer(max_slice_axes=max_slice_axes, enable_detailed_logging=enable_detailed)
+
+    def get_base_stats(self) -> Dict[str, float]:
+        """Get basic statistics that all algorithms must provide."""
+        return {"num_tasks": self.num_tasks, **self.slice_analyzer.get_base_stats()}
+
+    def get_detailed_stats(self) -> Dict[str, float]:
+        """Get detailed stats including expensive slice analysis."""
+        return self.slice_analyzer.get_detailed_stats()
 
     def stats(self, prefix: str = "") -> dict[str, float]:
         """Return statistics for logging purposes. Add `prefix` to all keys."""
-        stats = {}
-        if hasattr(self, "task_tracker"):
-            # Handle different TaskTracker implementations
-            if hasattr(self.task_tracker, "get_global_stats"):
-                tracker_stats = self.task_tracker.get_global_stats()
-                stats.update({f"{prefix}tracker/{k}": v for k, v in tracker_stats.items()})
-            elif hasattr(self.task_tracker, "get_total_completions"):
-                # Create basic stats from available methods
-                stats[f"{prefix}tracker/total_completions"] = float(self.task_tracker.get_total_completions())
-                if hasattr(self.task_tracker, "get_tracked_task_ids"):
-                    stats[f"{prefix}tracker/total_tracked_tasks"] = float(len(self.task_tracker.get_tracked_task_ids()))
-
-        if hasattr(self, "bucket_analyzer"):
-            bucket_stats_raw = self.bucket_analyzer.get_bucket_stats()
-            bucket_stats = {k: float(v) for k, v in bucket_stats_raw.items() if isinstance(v, (int, float))}
-            stats.update({f"{prefix}bucket/{k}": v for k, v in bucket_stats.items()})
-        return stats
+        # Use the StatsLogger implementation
+        return super().stats(prefix)
 
     def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
         """Get a task from the pool. Default implementation creates a simple task."""
@@ -230,6 +209,14 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
         """No preference for eviction - let Curriculum choose randomly."""
         return None
 
+    def on_task_evicted(self, task_id: int) -> None:
+        """No action needed for random curriculum."""
+        pass
+
+    def update_task_performance(self, task_id: int, score: float):
+        """Update task performance - no-op for discrete random curriculum."""
+        pass
+
 
 class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
@@ -244,7 +231,7 @@ class CurriculumConfig(Config):
     )
 
     algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
-        default_factory=lambda: DiscreteRandomConfig(), description="Curriculum algorithm hyperparameters"
+        default=None, description="Curriculum algorithm hyperparameters"
     )
 
     @classmethod
@@ -274,32 +261,34 @@ class CurriculumConfig(Config):
         return Curriculum(self)
 
 
-class Curriculum:
-    """Base curriculum class that uses TaskGenerator to generate MettaGridConfigs and returns Tasks.
+class Curriculum(StatsLogger):
+    """Base curriculum class that uses TaskGenerator to generate EnvConfigs and returns Tasks.
 
     Curriculum takes a CurriculumConfig, and supports get_task(). It uses the task generator
-    to generate the MettaGridConfig and then returns a Task(env_cfg). It always uses a
-    CurriculumAlgorithm for task selection (defaults to DiscreteRandom if none specified).
+    to generate the EnvConfig and then returns a Task(env_cfg). It can optionally use a
+    CurriculumAlgorithm for intelligent task selection.
+
+    Inherits from StatsLogger to provide unified statistics interface.
     """
 
     def __init__(self, config: CurriculumConfig, seed: int = 0):
+        # Initialize StatsLogger (algorithm handles detailed stats)
+        StatsLogger.__init__(self, enable_detailed_logging=False)
+
         self._config = config
         self._task_generator = config.task_generator.create()
         self._rng = random.Random(seed)
         self._tasks: dict[int, CurriculumTask] = {}
+        self._task_ids: set[int] = set()
         self._num_created = 0
         self._num_evicted = 0
 
-        # Handle algorithm configuration
-        if config.algorithm_config is None:
-            # Use default discrete random algorithm when no algorithm specified
-            self._algorithm = DiscreteRandomCurriculum(config.num_active_tasks, DiscreteRandomConfig())
-        else:
+        self._algorithm: Optional[CurriculumAlgorithm] = None
+        if config.algorithm_config is not None:
             self._algorithm = config.algorithm_config.create(config.num_active_tasks)
-
-        # Pass curriculum reference to algorithm for stats updates
-        if hasattr(self._algorithm, "set_curriculum_reference"):
-            self._algorithm.set_curriculum_reference(self)
+            # Pass curriculum reference to algorithm for stats updates
+            if hasattr(self._algorithm, "set_curriculum_reference"):
+                self._algorithm.set_curriculum_reference(self)
 
         # Always initialize task pool at capacity
         self._initialize_at_capacity()
@@ -310,21 +299,24 @@ class Curriculum:
         if len(self._tasks) < self._config.num_active_tasks:
             task = self._create_task()
         else:
-            task = self._choose_task()
+            # At capacity - check if any task meets eviction criteria first
+            task = None
+            if self._algorithm is not None:
+                evictable_tasks = [
+                    tid
+                    for tid in self._tasks.keys()
+                    if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
+                ]
+                if evictable_tasks:
+                    # Evict a task that meets the criteria and create a new one
+                    evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
+                    if evict_candidate is not None:
+                        self._evict_specific_task(evict_candidate)
+                        task = self._create_task()
 
-            # Use algorithm criteria for eviction
-            task_ids = list(self._tasks.keys())
-            evictable_tasks = [
-                tid
-                for tid in task_ids
-                if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
-            ]
-            if evictable_tasks:
-                # Evict a task that meets the criteria and create a new one
-                evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
-                if evict_candidate is not None:
-                    self._evict_specific_task(evict_candidate)
-                    task = self._create_task()
+            # If no eviction happened, choose from existing tasks
+            if task is None:
+                task = self._choose_task()
 
         task._num_scheduled += 1
         return task
@@ -340,36 +332,37 @@ class Curriculum:
             return
 
         # Notify algorithm of eviction
-        self._algorithm.on_task_evicted(task_id)
+        if self._algorithm is not None:
+            self._algorithm.on_task_evicted(task_id)
 
+        self._task_ids.remove(task_id)
         self._tasks.pop(task_id)
         self._num_evicted += 1
 
     def _choose_task(self) -> CurriculumTask:
         """Choose a task from the population using algorithm guidance."""
-        # Get current task IDs once to avoid repeated list() calls
-        task_ids = list(self._tasks.keys())
+        if self._algorithm is not None:
+            # Get algorithm's task selection preferences
+            task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
+            if task_scores:
+                # Convert scores to probabilities for sampling
+                task_ids = list(task_scores.keys())
+                scores = list(task_scores.values())
+                total_score = sum(scores)
+                if total_score > 0:
+                    probabilities = [score / total_score for score in scores]
+                    selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
+                    return self._tasks[selected_id]
 
-        # Get algorithm's task selection preferences
-        task_scores = self._algorithm.score_tasks(task_ids)
-        if task_scores:
-            # Convert scores to probabilities for sampling
-            scored_task_ids = list(task_scores.keys())
-            scores = list(task_scores.values())
-            total_score = sum(scores)
-            if total_score > 0:
-                probabilities = [score / total_score for score in scores]
-                selected_id = self._rng.choices(scored_task_ids, weights=probabilities)[0]
-                return self._tasks[selected_id]
-
-        # Fallback to random selection if no scores provided
-        return self._tasks[self._rng.choice(task_ids)]
+        # Fallback to random selection
+        return self._tasks[self._rng.choice(list(self._tasks.keys()))]
 
     def _create_task(self) -> CurriculumTask:
         """Create a new task."""
         task_id = self._rng.randint(0, self._config.max_task_id)
-        while task_id in self._tasks:
+        while task_id in self._task_ids:
             task_id = self._rng.randint(0, self._config.max_task_id)
+        self._task_ids.add(task_id)
         env_cfg = self._task_generator.get_task(task_id)
 
         # Extract bucket values if available
@@ -382,28 +375,45 @@ class Curriculum:
         self._num_created += 1
 
         # Notify algorithm of new task
-        if hasattr(self._algorithm, "on_task_created"):
+        if self._algorithm is not None and hasattr(self._algorithm, "on_task_created"):
             self._algorithm.on_task_created(task)
 
         return task
 
     def update_task_performance(self, task_id: int, score: float):
         """Update the curriculum algorithm with task performance."""
-        self._algorithm.update_task_performance(task_id, score)
+        if self._algorithm is not None:
+            self._algorithm.update_task_performance(task_id, score)
+
+        # Invalidate stats cache since task performance affects curriculum stats
+        self.invalidate_cache()
+
+    def get_base_stats(self) -> Dict[str, float]:
+        """Get basic curriculum statistics."""
+        base_stats: Dict[str, float] = {
+            "num_created": float(self._num_created),
+            "num_evicted": float(self._num_evicted),
+            "num_completed": float(sum(task._num_completions for task in self._tasks.values())),
+            "num_scheduled": float(sum(task._num_scheduled for task in self._tasks.values())),
+            "num_active_tasks": float(len(self._tasks)),
+        }
+
+        # Include algorithm stats if available
+        if self._algorithm is not None:
+            algorithm_stats = self._algorithm.stats("algorithm/")
+            base_stats.update(algorithm_stats)
+
+        return base_stats
 
     def stats(self) -> dict:
         """Return curriculum statistics for logging purposes."""
-        # Always include basic curriculum stats
-        base_stats = {
-            "num_created": self._num_created,
-            "num_evicted": self._num_evicted,
-            "num_completed": sum(task._num_completions for task in self._tasks.values()),
-            "num_scheduled": sum(task._num_scheduled for task in self._tasks.values()),
-            "num_active_tasks": len(self._tasks),
-        }
+        # Use the StatsLogger implementation
+        return super().stats()
 
-        # Always add algorithm stats
-        algorithm_stats = self._algorithm.stats()
-        # Add algorithm prefix to avoid conflicts
-        prefixed_algorithm_stats = {f"algorithm/{k}": v for k, v in algorithm_stats.items()}
-        return {**base_stats, **prefixed_algorithm_stats}
+
+# Import concrete config classes at the end to avoid circular imports
+# ruff: noqa: E402
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+
+# Rebuild the model to resolve forward references
+CurriculumConfig.model_rebuild()

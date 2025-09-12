@@ -1,172 +1,151 @@
-"""Task memory and performance history management.
+"""
+Task tracking component for curriculum algorithms.
 
-This module provides the TaskTracker class that handles task metadata,
-performance history, and completion statistics with memory management
-and performance optimizations.
+Handles task memory, performance history, and basic task metadata
+without mixing in learning progress calculations or bucket analysis.
 """
 
-import logging
+import time
 from collections import deque
-from typing import Any, Dict, List, Optional
-
-logger = logging.getLogger(__name__)
+from typing import Dict, Optional, Tuple
 
 
 class TaskTracker:
-    """Handles task metadata, performance history, and completion statistics.
+    """Tracks task metadata, performance history, and completion statistics."""
 
-    Key features:
-    - Memory management: Automatic cleanup of old tasks when memory limits exceeded
-    - Performance optimization: Cached total completions to avoid expensive recomputation
-    - Atomic operations: Thread safety in multiprocessing environments
-    """
-
-    def __init__(
-        self,
-        max_memory_tasks: int = 1000,
-        max_bucket_axes: int = 3,
-        logging_detailed_slices: bool = False,
-    ):
+    def __init__(self, max_memory_tasks: int = 1000):
         self.max_memory_tasks = max_memory_tasks
-        self.max_bucket_axes = max_bucket_axes
-        self.logging_detailed_slices = logging_detailed_slices
 
-        # Task performance tracking
-        self._task_stats: Dict[int, Dict[str, Any]] = {}
+        # Task memory: task_id -> (creation_time, completion_count, total_score, last_score)
+        self._task_memory: Dict[int, Tuple[float, int, float, float]] = {}
 
-        # Task creation order tracking for eviction (FIFO when memory full)
-        self._task_creation_order: deque[int] = deque()
+        # Task creation order for efficient cleanup
+        self._task_creation_order = deque()  # (timestamp, task_id) pairs
 
-        # Performance optimization: Cache total completions
-        self._total_completions_cache: Optional[int] = None
-        self._total_completions_cache_valid = False
+        # Performance tracking
+        self._completion_history = deque(maxlen=1000)  # Recent completion scores
 
-    def track_task_creation(self, task_id: int, bucket_values: Optional[Dict[str, Any]] = None) -> None:
-        """Track creation of a new task."""
-        if task_id not in self._task_stats:
-            # Clean up old tasks BEFORE adding new one to prevent immediate eviction
-            self._cleanup_old_tasks_if_needed()
+        # Cached values to avoid expensive recomputation
+        self._cached_total_completions = 0
+        self._cache_valid = False
 
-            self._task_stats[task_id] = {
-                "completion_count": 0,
-                "total_score": 0.0,
-                "mean_score": 0.0,
-                "bucket_values": bucket_values or {},
-                "scores_history": [],
-            }
-            self._task_creation_order.append(task_id)
+    def track_task_creation(self, task_id: int) -> None:
+        """Track when a task is created."""
+        timestamp = time.time()
+        self._task_memory[task_id] = (timestamp, 0, 0.0, 0.0)
+        self._task_creation_order.append((timestamp, task_id))
 
-            # Invalidate cache
-            self._total_completions_cache_valid = False
+        # Cleanup old tasks if we exceed memory limit
+        if len(self._task_memory) > self.max_memory_tasks:
+            self._cleanup_old_tasks()
+
+        # Invalidate cache when task structure changes
+        self._cache_valid = False
 
     def update_task_performance(self, task_id: int, score: float) -> None:
-        """Update performance statistics for a task."""
-        if task_id not in self._task_stats:
-            # Automatically register the task instead of just warning
-            logger.debug(f"Auto-registering unknown task {task_id} during performance update")
+        """Update task performance with new completion score."""
+        # Ensure task exists in memory with atomic operation
+        if task_id not in self._task_memory:
             self.track_task_creation(task_id)
 
-        # Double-check the task exists after registration (in case it was immediately evicted)
-        if task_id not in self._task_stats:
-            logger.error(
-                f"Task {task_id} was evicted immediately after registration due to memory limits. "
-                f"Consider increasing max_memory_tasks (current: {self.max_memory_tasks})"
-            )
-            return
+        # Use get() with default to handle race conditions in multiprocessing
+        task_data = self._task_memory.get(task_id)
+        if task_data is None:
+            # Task was removed between check and access - recreate it
+            self.track_task_creation(task_id)
+            task_data = self._task_memory[task_id]
 
-        stats = self._task_stats[task_id]
-        stats["completion_count"] += 1
-        stats["total_score"] += score
-        stats["mean_score"] = stats["total_score"] / stats["completion_count"]
-        stats["scores_history"].append(score)
+        creation_time, completion_count, total_score, _ = task_data
+        new_completion_count = completion_count + 1
+        new_total_score = total_score + score
 
-        # Keep history manageable (last 100 scores)
-        if len(stats["scores_history"]) > 100:
-            stats["scores_history"] = stats["scores_history"][-100:]
+        self._task_memory[task_id] = (creation_time, new_completion_count, new_total_score, score)
+        self._completion_history.append(score)
 
-        # Invalidate cache
-        self._total_completions_cache_valid = False
+        # Update cached total completions incrementally
+        if self._cache_valid:
+            self._cached_total_completions += 1
+        else:
+            self._cache_valid = False
 
-    def get_task_stats(self, task_id: int) -> Dict[str, Any]:
-        """Get performance statistics for a task."""
-        return self._task_stats.get(
-            task_id,
-            {
+    def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
+        """Get statistics for a specific task."""
+        if task_id not in self._task_memory:
+            return None
+
+        creation_time, completion_count, total_score, last_score = self._task_memory[task_id]
+
+        if completion_count == 0:
+            return {
                 "completion_count": 0,
-                "total_score": 0.0,
                 "mean_score": 0.0,
-                "bucket_values": {},
-                "scores_history": [],
-            },
-        )
+                "last_score": 0.0,
+                "age_seconds": time.time() - creation_time,
+            }
 
-    def get_all_task_stats(self) -> Dict[int, Dict[str, Any]]:
-        """Get performance statistics for all tracked tasks."""
-        return self._task_stats.copy()
+        return {
+            "completion_count": completion_count,
+            "mean_score": total_score / completion_count,
+            "last_score": last_score,
+            "age_seconds": time.time() - creation_time,
+        }
+
+    def get_all_tracked_tasks(self) -> list[int]:
+        """Get all currently tracked task IDs."""
+        return list(self._task_memory.keys())
 
     def remove_task(self, task_id: int) -> None:
         """Remove a task from tracking."""
-        if task_id in self._task_stats:
-            del self._task_stats[task_id]
+        if task_id in self._task_memory:
+            # Update cached total before removal
+            if self._cache_valid:
+                _, completion_count, _, _ = self._task_memory[task_id]
+                self._cached_total_completions -= completion_count
 
-            # Remove from creation order tracking
-            try:
-                # This is O(n) but should be rare
-                self._task_creation_order.remove(task_id)
-            except ValueError:
-                pass  # Task not in deque, which is fine
+            self._task_memory.pop(task_id, None)
+            # Note: We don't remove from creation_order for performance - cleanup handles this
 
-            # Invalidate cache
-            self._total_completions_cache_valid = False
-
-    def get_tracked_task_ids(self) -> List[int]:
-        """Get all currently tracked task IDs."""
-        return list(self._task_stats.keys())
-
-    def get_all_tracked_tasks(self) -> List[int]:
-        """Get all currently tracked task IDs (alias for backward compatibility)."""
-        return self.get_tracked_task_ids()
-
-    def get_total_completions(self) -> int:
-        """Get total completions across all tracked tasks (cached for performance)."""
-        if not self._total_completions_cache_valid:
-            self._total_completions_cache = sum(stats["completion_count"] for stats in self._task_stats.values())
-            self._total_completions_cache_valid = True
-
-        return self._total_completions_cache or 0
+            # Invalidate cache if removal makes it invalid
+            if self._cache_valid:
+                self._cache_valid = False
 
     def get_global_stats(self) -> Dict[str, float]:
-        """Get global task tracking statistics for backward compatibility."""
+        """Get global performance statistics."""
+        if not self._completion_history:
+            return {
+                "mean_recent_score": 0.0,
+                "total_tracked_tasks": 0,
+                "total_completions": 0,
+            }
+
+        # Use cached total completions if valid, otherwise compute
+        if not self._cache_valid:
+            self._cached_total_completions = sum(
+                completion_count for _, completion_count, _, _ in self._task_memory.values()
+            )
+            self._cache_valid = True
+
         return {
-            "total_tracked_tasks": float(len(self._task_stats)),
-            "total_completions": float(self.get_total_completions()),
-            "mean_completions_per_task": float(self.get_total_completions() / len(self._task_stats))
-            if self._task_stats
-            else 0.0,
+            "mean_recent_score": sum(self._completion_history) / len(self._completion_history),
+            "total_tracked_tasks": len(self._task_memory),
+            "total_completions": self._cached_total_completions,
         }
 
-    def get_oldest_tasks(self, n: int) -> List[int]:
-        """Get the n oldest tasks by creation order."""
-        return list(self._task_creation_order)[:n]
+    def _cleanup_old_tasks(self) -> None:
+        """Remove oldest tasks when memory limit is exceeded."""
+        cleanup_count = min(100, len(self._task_memory) - self.max_memory_tasks + 100)
 
-    def _cleanup_old_tasks_if_needed(self) -> None:
-        """Remove oldest tasks if memory limit exceeded."""
-        # Only clean up if we're significantly over the limit to avoid thrashing
-        while len(self._task_stats) >= self.max_memory_tasks:
-            if not self._task_creation_order:
-                break
+        # Remove oldest tasks
+        removed_count = 0
+        while self._task_creation_order and removed_count < cleanup_count:
+            _, task_id = self._task_creation_order.popleft()
+            if task_id in self._task_memory:
+                # Update cached total before removal
+                if self._cache_valid:
+                    _, completion_count, _, _ = self._task_memory[task_id]
+                    self._cached_total_completions -= completion_count
 
-            oldest_task_id = self._task_creation_order.popleft()
-            if oldest_task_id in self._task_stats:
-                del self._task_stats[oldest_task_id]
-                logger.debug(f"Evicted old task {oldest_task_id} due to memory limit")
+                del self._task_memory[task_id]
+                removed_count += 1
 
-        # Invalidate cache after cleanup
-        self._total_completions_cache_valid = False
-
-    def clear_all_tasks(self) -> None:
-        """Clear all tracked tasks (useful for testing)."""
-        self._task_stats.clear()
-        self._task_creation_order.clear()
-        self._total_completions_cache_valid = False
-        self._total_completions_cache = None
+        # Cache may still be valid after cleanup if we tracked changes
