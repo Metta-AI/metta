@@ -1,5 +1,0 @@
-numpy<2,>=1.26.4
-pydantic>=2.11.5
-gymnasium==0.29.1
-mettagrid
-metta-common
