@@ -197,7 +197,7 @@ class WandbStore:
         # TEMPORARY PATCH: Calculate cost as $4.6 per hour of runtime
         # TODO: Remove this patch when cost tracking is fixed upstream
         # Cost is stored under monitor/cost/accrued_total in WandB
-        # cost = float(summary.get("monitor/cost/accrued_total", 0.0))  # type: ignore
+        cost = float(summary.get("monitor/cost/accrued_total", -1))  # type: ignore
         # Runtime is stored under _runtime in WandB
         runtime = float(summary.get("_runtime", 0.0))  # type: ignore
         if runtime == 0.0 and hasattr(run, "duration"):
@@ -206,7 +206,8 @@ class WandbStore:
         # Calculate cost based on runtime at $4.6 per hour
         cost_per_hour = 4.6
         runtime_hours = runtime / 3600.0 if runtime > 0 else 0
-        cost = cost_per_hour * runtime_hours
+        if cost == -1:
+            cost = cost_per_hour * runtime_hours
 
         # Extract observation if present - use calculated cost instead of stored value
         observation = None

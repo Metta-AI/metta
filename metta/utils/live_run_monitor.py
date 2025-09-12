@@ -82,7 +82,8 @@ def make_rich_monitor_table(runs: List[RunInfo]) -> Table:
             total_gsteps = run.total_timesteps / 1_000_000_000
             current_gsteps = run.current_steps / 1_000_000_000
             percentage = (run.current_steps / run.total_timesteps) * 100
-            progress_str = f"{current_gsteps:.2f}/{total_gsteps:.0f}Gsteps ({percentage:.0f}%)"
+            # Show a space before the unit and format total to 2 decimals
+            progress_str = f"{current_gsteps:.2f}/{total_gsteps:.2f} Gsteps ({percentage:.0f}%)"
         else:
             progress_str = "N/A"
 
