@@ -1,6 +1,6 @@
 import
   vmath, bumpy, windy, boxy, chroma, fidget2, fidget2/[hybridrender, common],
-  common, utils
+  common, math
 
 const HeaderSize = 30
 
@@ -36,24 +36,26 @@ proc beginPanAndZoom*(panel: Panel) =
     panel.pos += panel.vel
 
     if window.scrollDelta.y != 0:
-      when defined(emscripten):
-        let scrollK = 0.0003
-      else:
-        let scrollK = 0.03
-      panel.zoomVel = window.scrollDelta.y * scrollK
-    else:
-      panel.zoomVel *= 0.8
-
-    let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    panel.zoom += panel.zoomVel
-    panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
-    let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    let localMousePos = window.mousePos.vec2 - panel.rect.xy.vec2
-    let newAt = newMat.inverse() * localMousePos
-    let oldAt = oldMat.inverse() * localMousePos
-    panel.pos -= (oldAt - newAt).xy * (panel.zoom*panel.zoom)
+      # Apply zoom at focal point (mouse position) with consistent sensitivity.
+      let localMousePos = window.mousePos.vec2 - panel.rect.xy.vec2
+      let zoomSensitivity = 0.005
+      
+      let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
+          panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let oldWorldPoint = oldMat.inverse() * localMousePos
+      
+      # Apply zoom with multiplicative scaling.
+      # keeps zoom consistent when zoomed far out or zoomed far in.
+      let zoomFactor = pow(1.0 - zoomSensitivity, window.scrollDelta.y)
+      panel.zoom *= zoomFactor
+      panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
+      
+      let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
+          panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let newWorldPoint = newMat.inverse() * localMousePos
+      
+      # Adjust pan position to keep the same world point under the mouse.
+      panel.pos += (newWorldPoint - oldWorldPoint) * (panel.zoom*panel.zoom)
 
   bxy.translate(panel.pos)
   bxy.scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
