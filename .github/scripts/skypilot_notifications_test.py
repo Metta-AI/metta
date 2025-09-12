@@ -6,16 +6,22 @@ import os
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import List, Tuple
 
-# Add the project root to the Python path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+this_file = Path(__file__).resolve()
+project_root = this_file.parents[2]  # 3 levels up
 
-from devops.skypilot.notifications.discord import DiscordNotifier
-from devops.skypilot.notifications.github import GitHubStatusUpdater
-from devops.skypilot.notifications.manager import NotificationManager
-from devops.skypilot.notifications.wandb import WandbAlertNotifier
-from devops.skypilot.utils.job_config import JobConfig
+if not (project_root / "pyproject.toml").is_file():
+    raise RuntimeError(f"Project root validation failed: {project_root}")
+
+sys.path.insert(0, str(project_root))
+
+from devops.skypilot.notifications.discord import DiscordNotifier  # noqa
+from devops.skypilot.notifications.github import GitHubStatusUpdater  # noqa
+from devops.skypilot.notifications.manager import NotificationManager  # noqa
+from devops.skypilot.notifications.wandb import WandbAlertNotifier  # noqa
+from devops.skypilot.utils.job_config import JobConfig  # noqa
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -76,7 +82,7 @@ class NotificationTester:
             config.restart_count = 0
 
         # Add test metadata directory
-        config.job_metadata_dir = f"/tmp/test_notifications_{scenario}"
+        config.job_metadata_dir = f"/tmp/test_notifications_{''.join(c for c in scenario if c.isalnum() or c in '_-')}"
         os.makedirs(config.job_metadata_dir, exist_ok=True)
 
         return config

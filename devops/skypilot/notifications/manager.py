@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import re
 
-from devops.skypilot.notifications.config import NotificationConfig
+from devops.skypilot.notifications.config import NotificationConfig, NotificationState
 from devops.skypilot.notifications.discord import DiscordNotifier
 from devops.skypilot.notifications.github import GitHubStatusUpdater
 from devops.skypilot.notifications.wandb import WandbAlertNotifier
@@ -99,17 +99,19 @@ class NotificationManager:
                 emoji="🚨",
                 title="SkyPilot Job Heartbeat Timeout",
                 description=f"Job failed - no heartbeat for {self.job_config.heartbeat_timeout} seconds",
+                state=NotificationState.FAILURE,
             ),
             "max_runtime_reached": NotificationConfig(
                 emoji="✅",
                 title="SkyPilot Job Completed",
                 description=f"Job ran successfully for {self.job_config.max_runtime_hours} hours",
-                github_state="success",
+                state=NotificationState.SUCCESS,
             ),
             "nccl_tests_failed": NotificationConfig(
                 emoji="🔧",
                 title="SkyPilot Job NCCL Config Error",
                 description="NCCL tests failed",
+                state=NotificationState.FAILURE,
             ),
             "rapid_restarts": NotificationConfig(
                 emoji="⚠️",
@@ -117,11 +119,13 @@ class NotificationManager:
                 description=(
                     f"Job terminated after {self.job_config.restart_count} restarts with average runtime < 3 minutes"
                 ),
+                state=NotificationState.FAILURE,
             ),
             "job_completed": NotificationConfig(
                 emoji="✅",
                 title="SkyPilot Job Completed",
                 description="Job ran to completion.",
+                state=NotificationState.SUCCESS,
             ),
         }
 
@@ -141,6 +145,7 @@ class NotificationManager:
                             description=(
                                 f"Job failed with code {exit_code}: {self.get_exit_code_description(exit_code)}"
                             ),
+                            state=NotificationState.FAILURE,
                         ),
                     }
                 )
@@ -163,7 +168,7 @@ class NotificationManager:
 
         if config.wandb and self.wandb:
             success = self.wandb.send_alert(
-                state="failure" if config.github_state == "failure" else "success",
+                state=config.state.to_wandb(),
                 description=config.description,
                 job_config=self.job_config,
             )
@@ -171,7 +176,7 @@ class NotificationManager:
 
         if config.github and self.github:
             success = self.github.set_status(
-                state=config.github_state,
+                state=config.state.to_github(),
                 description=config.description,
                 job_config=self.job_config,
             )
