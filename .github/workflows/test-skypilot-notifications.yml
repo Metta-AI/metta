@@ -41,10 +41,15 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: runtime # we use code from metta.common in the script
+          install-mode: minimal
           extra-dependencies: |
             requests>=2.31.0
             dataclasses
+
+      - name: Install metta.common in editable mode
+        run: |
+          cd common
+          uv pip install -e .
 
       - name: Run notification tests
         env:
