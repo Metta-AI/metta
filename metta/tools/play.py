@@ -31,7 +31,7 @@ class PlayTool(Tool):
         """Get the stats directory, defaulting to system.data_dir/stats if not specified."""
         return self.stats_dir if self.stats_dir is not None else f"{self.system.data_dir}/stats"
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         ws_url = "%2Fws"
 
         if self.open_browser_on_start:
