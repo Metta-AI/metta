@@ -1,8 +1,11 @@
 """
-Tribal Basic Recipe - Nim Environment Integration
+Tribal Basic Recipe
+
+Tribal environment with easy converter chain (1 battery per heart vs default 2).
+Tribal defaults already provide good shaped rewards matching arena_basic_easy_shaped.
 
 Uses genny-generated Nim bindings for high performance.
-Agent count (15), map size (100x50), observation shape (19 layers, 11x11) are compile-time constants.
+Agent count (15), map size (100x50) are compile-time constants.
 """
 
 import random
@@ -245,51 +248,15 @@ def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
     return CurriculumConfig(task_generator=task_gen_config)
 
 
-def make_tribal_environment(
-    max_steps: int = None,
-    enable_combat: bool = None,
-    ore_per_battery: int = None,
-    batteries_per_heart: int = None,
-    clippy_spawn_rate: float = None,
-    clippy_damage: int = None,
-    heart_reward: float = None,
-    ore_reward: float = None,
-    battery_reward: float = None,
-    survival_penalty: float = None,
-    death_penalty: float = None,
-    **kwargs,
-) -> TribalEnvConfig:
-    """Create tribal environment configuration with gameplay overrides."""
+def make_tribal_environment(**kwargs) -> TribalEnvConfig:
+    """Create tribal environment with easy converter chain (1 battery per heart).
 
-    game_overrides = {}
-    if max_steps is not None:
-        game_overrides["max_steps"] = max_steps
-    if enable_combat is not None:
-        game_overrides["enable_combat"] = enable_combat
-    if ore_per_battery is not None:
-        game_overrides["ore_per_battery"] = ore_per_battery
-    if batteries_per_heart is not None:
-        game_overrides["batteries_per_heart"] = batteries_per_heart
-    if clippy_spawn_rate is not None:
-        game_overrides["clippy_spawn_rate"] = clippy_spawn_rate
-    if clippy_damage is not None:
-        game_overrides["clippy_damage"] = clippy_damage
-    if heart_reward is not None:
-        game_overrides["heart_reward"] = heart_reward
-    if ore_reward is not None:
-        game_overrides["ore_reward"] = ore_reward
-    if battery_reward is not None:
-        game_overrides["battery_reward"] = battery_reward
-    if survival_penalty is not None:
-        game_overrides["survival_penalty"] = survival_penalty
-    if death_penalty is not None:
-        game_overrides["death_penalty"] = death_penalty
-
-    game_config = TribalGameConfig(**game_overrides)
-    config = TribalEnvConfig(
-        label="tribal_basic", desync_episodes=True, game=game_config, **kwargs
-    )
-    return config
+    Tribal defaults already provide arena_basic_easy_shaped reward structure:
+    - heart_reward: 1.0, ore_reward: 0.1, battery_reward: 0.8
+    - survival_penalty: -0.01, death_penalty: -5.0
+    """
+    game_config = TribalGameConfig(batteries_per_heart=1, **kwargs)
+    return TribalEnvConfig(label="tribal_basic", desync_episodes=True, game=game_config)
 
 
 def train() -> TrainTool:
@@ -303,9 +270,7 @@ def train() -> TrainTool:
         losses=LossConfig(),
         curriculum=curriculum,
         evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(name="tribal/basic", env=env),
-            ],
+            simulations=make_tribal_evals(env),
             skip_git_check=True,
         ),
     )
@@ -316,23 +281,11 @@ def train() -> TrainTool:
 def make_tribal_evals(
     base_env: TribalEnvConfig | None = None,
 ) -> list[SimulationConfig]:
-    """Create evaluation suite for tribal environment."""
+    """Create evaluation suite using the same environment as training."""
     base_env = base_env or make_tribal_environment()
 
-    basic_env = base_env.model_copy()
-
-    combat_env = base_env.model_copy()
-    combat_env.game.clippy_spawn_rate = 1.0
-    combat_env.game.clippy_damage = 2
-
-    scarcity_env = base_env.model_copy()
-    scarcity_env.game.ore_per_battery = 3
-    scarcity_env.game.batteries_per_heart = 3
-
     return [
-        SimulationConfig(name="tribal/basic", env=basic_env, num_episodes=10),
-        SimulationConfig(name="tribal/combat", env=combat_env, num_episodes=10),
-        SimulationConfig(name="tribal/scarcity", env=scarcity_env, num_episodes=10),
+        SimulationConfig(name="tribal/basic", env=base_env, num_episodes=10),
     ]
 
 
