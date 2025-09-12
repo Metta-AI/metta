@@ -154,13 +154,14 @@ def train(
             }
         ),
         curriculum=curriculum or make_curriculum(),
-        # Smaller batch sizes to avoid tensor issues with SmolLM2
-        # Reduced from 128K to 32K for better stability
-        batch_size=32768,  # 32K batch - more conservative for LLM stability
-        minibatch_size=1024,  # Much smaller minibatches
-        bptt_horizon=8,  # Shorter context for memory efficiency
-        forward_pass_minibatch_target_size=64,  # Very small forward passes
-        update_epochs=4,  # More epochs to maintain learning efficiency
+        # Very small batch sizes for SmolLM2 memory constraints
+        # Aggressive reduction to avoid CUDA OOM with 135M parameter LLM
+        batch_size=4096,  # 4K batch - much more conservative for LLM memory usage
+        minibatch_size=128,  # Very small minibatches to fit in GPU memory
+        bptt_horizon=4,  # Minimal context for memory efficiency
+        forward_pass_minibatch_target_size=16,  # Tiny forward passes
+        update_epochs=8,  # More epochs to compensate for smaller batches
+        gradient_accumulation_steps=4,  # Accumulate gradients to maintain effective batch size
         async_factor=1,  # Disable async for memory savings
         compile=False,  # Disable torch.compile to save memory
         evaluation=EvaluationConfig(
