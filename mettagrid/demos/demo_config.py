@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared configuration for MettagGrid demos.
+"""Shared configuration for MettaGrid demos.
 
 This module provides centralized configuration for all demo scripts to ensure
 consistency and make maintenance easier. Configuration can be overridden as needed
@@ -15,7 +15,7 @@ from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 @dataclass
 class DemoConfig:
-    """Configuration for MettagGrid demos."""
+    """Configuration for MettaGrid demos."""
 
     # Environment settings
     render_mode: Optional[str] = None  # None for headless/CI, "human" for visualization
@@ -24,7 +24,7 @@ class DemoConfig:
     # Training/rollout settings
     max_steps_quick: int = 100  # For quick CI tests
     max_steps_training: int = 256  # For short training demonstrations
-    max_steps_rollout: int = 300  # For longer rollouts
+    max_steps_rollout: int = 300  # For longer rollout sessions
 
     # Gym-specific settings
     gym_num_agents: int = 1
@@ -77,10 +77,8 @@ class DemoConfig:
 
     @property
     def np_int32(self):
-        """Get numpy int32 dtype."""
-        import numpy as np
-
-        return np.int32
+        """Get numpy int32 dtype as string."""
+        return "int32"
 
 
 # Default configuration instance
