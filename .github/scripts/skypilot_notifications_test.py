@@ -47,7 +47,7 @@ class NotificationTester:
 
         # GitHub configuration
         config.github_repository = os.environ.get("GITHUB_REPOSITORY", "unknown/repo")
-        config.metta_git_ref = os.environ.get("GITHUB_SHA", "unknown")[:8]
+        config.metta_git_ref = os.environ.get("GITHUB_SHA", "unknown")
         config.github_status_context = f"test/notifications/{scenario}"
 
         # Job metadata
