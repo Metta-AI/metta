@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import timedelta
 from typing import Any, List, Optional
 
 import wandb
@@ -254,7 +255,7 @@ class WandbStore:
             created_at=run.created_at if hasattr(run, "created_at") else None,
             started_at=None,  # WandB doesn't have separate started_at
             completed_at=None,  # Could be derived from state change
-            last_updated_at=run.summary.get("_timestamp"),
+            last_updated_at=timedelta(seconds=float(run.summary.get("_timestamp", 0))),
             summary=summary,  # type: ignore
             has_started_training=has_started_training,
             has_completed_training=has_completed_training,
