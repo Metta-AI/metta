@@ -91,6 +91,8 @@ class NotificationTester:
             # Create test job config
             job_config = self.create_test_job_config(scenario)
 
+            logger.info(f"Using GITHUB_SHA from origin/main: {job_config.metta_git_ref}")
+
             # Create notification manager
             manager = NotificationManager(job_config)
 
