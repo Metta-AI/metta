@@ -98,27 +98,23 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
 
         observations = td["env_obs"]
 
-        # Determine batch dimensions from observations
-        if observations.dim() == 4:  # Training: [B, T, seq_len, 3]
-            B, TT = observations.shape[0], observations.shape[1]
-        elif observations.dim() == 3:  # Inference: [B, seq_len, 3]
-            B, TT = observations.shape[0], 1
-        else:
-            raise ValueError(f"Unexpected observation dimensions: {observations.shape}")
+        # Determine dimensions from observations and handle reshaping
+        if observations.dim() == 4:  # Training
+            B = observations.shape[0]
+            TT = observations.shape[1]
+            # Reshape TD for training if needed
+            if td.batch_dims > 1:
+                td = td.reshape(B * TT)
+        else:  # Inference
+            B = observations.shape[0]
+            TT = 1
 
-        # Handle BPTT reshaping if needed - preserve original batch structure
-        total_batch = B * TT
-        if td.batch_dims > 1:
-            # Reshape to flatten batch dimensions for processing
-            td = td.reshape(total_batch)
-
-        # Set critical TensorDict fields with correct dimensions (after reshaping)
-        td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
-        td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))
+        # Use mixin to set critical TensorDict fields (after reshaping)
+        self.set_tensordict_fields(td, observations)
 
         # Reshape observations for processing: [B*TT, seq_len, 3]
         if observations.dim() == 4:
-            observations = observations.view(total_batch, observations.shape[2], 3)
+            observations = observations.view(B * TT, observations.shape[2], 3)
         elif observations.dim() == 3:
             observations = observations.view(B, observations.shape[1], 3)
 
@@ -190,80 +186,11 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         pass
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics for monitoring."""
-        metrics = []
-
-        # Metrics for token projector
-        for i, layer in enumerate(self.token_projector.modules()):
-            if isinstance(layer, nn.Linear):
-                weight = layer.weight.data
-                metrics.append(
-                    {
-                        "name": f"token_projector.{i}",
-                        "mean": weight.mean().item(),
-                        "std": weight.std().item(),
-                        "max": weight.max().item(),
-                        "min": weight.min().item(),
-                    }
-                )
-
-        # Metrics for action heads
-        for i, head in enumerate(self.actor):
-            weight = head.weight.data
-            metrics.append(
-                {
-                    "name": f"actor.{i}",
-                    "mean": weight.mean().item(),
-                    "std": weight.std().item(),
-                    "max": weight.max().item(),
-                    "min": weight.min().item(),
-                }
-            )
-
-        # Metrics for value head
-        weight = self.value.weight.data
-        metrics.append(
-            {
-                "name": "value",
-                "mean": weight.mean().item(),
-                "std": weight.std().item(),
-                "max": weight.max().item(),
-                "min": weight.min().item(),
-            }
-        )
-
-        return metrics
+        """Compute weight metrics for monitoring using mixin's standard approach."""
+        # Use the mixin's implementation for consistency
+        return super().compute_weight_metrics(delta)
 
     def l2_init_loss(self) -> torch.Tensor:
-        """Calculate L2 initialization loss for regularization."""
-        loss = torch.tensor(0.0, device=self.device)
-
-        # Only regularize the heads, not the pre-trained LLM
-        modules_for_reg = [
-            *self.token_projector.modules(),
-            *self.actor,
-            self.value,
-        ]
-
-        for module in modules_for_reg:
-            if hasattr(module, "_initial_weight") and hasattr(module, "weight"):
-                loss += ((module.weight - module._initial_weight) ** 2).sum()
-            if hasattr(module, "_initial_bias") and hasattr(module, "bias") and module.bias is not None:
-                loss += ((module.bias - module._initial_bias) ** 2).sum()
-
-        return loss * 0.001  # Small regularization factor
-
-    def _store_initial_weights(self):
-        """Store initial weights for L2 regularization."""
-        # Collect all relevant modules for weight storage
-        modules_to_store = [
-            *self.token_projector.modules(),
-            *self.actor,
-            self.value,
-        ]
-
-        for module in modules_to_store:
-            if isinstance(module, nn.Linear):
-                module._initial_weight = module.weight.data.clone()
-                if module.bias is not None:
-                    module._initial_bias = module.bias.data.clone()
+        """Calculate L2 initialization loss for regularization using mixin's standard approach."""
+        # Use the mixin's implementation for consistency across all agents
+        return super().l2_init_loss()
