@@ -57,6 +57,8 @@ def _get_status_color(status: str) -> str:
         return "bright_cyan"
     elif status == "FAILED":
         return "bright_red"
+    elif status == "STALE":
+        return "bright_black"
     else:
         return "white"
 
@@ -411,7 +413,7 @@ Examples:
   %(prog)s  # Monitor last 10 runs (fetch 50, display 10)
 
 The monitor will display a live table with color-coded statuses:
-  - Completed runs (blue) 
+  - Completed runs (blue)
   - In training runs (green)
   - Pending runs (gray)
   - Training done, no eval (orange)
