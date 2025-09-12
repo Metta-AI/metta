@@ -109,9 +109,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Get base stats (required)
         stats = self.get_base_stats()
 
-        # Always add detailed stats for learning progress (override parent behavior)
-        detailed = self.get_detailed_stats()
-        stats.update(detailed)
+        if self.enable_detailed_logging:
+            detailed = self.get_detailed_stats()
+            stats.update(detailed)
 
         # Add prefix to all keys
         if prefix:
