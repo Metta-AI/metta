@@ -4,6 +4,13 @@ import environment, common
 
 
 type
+  AgentRole* = enum
+    AltarSpecialist    # Default role - handles ore→battery→hearts loop
+    ArmorySpecialist   # Gathers wood, crafts armor at Armory
+    ForgeSpecialist    # Gathers wood, crafts spear at Forge
+    ClayOvenSpecialist # Gathers wheat, crafts food at ClayOven
+    WeavingLoomSpecialist # Gathers wheat, crafts lantern at WeavingLoom
+  
   ControllerState* = ref object
     spiralArcLength*: int
     spiralStepsInArc*: int
@@ -19,6 +26,8 @@ type
     hasBattery*: bool
     currentTarget*: IVec2
     targetType*: TargetType
+    role*: AgentRole  # Assigned specialization role
+    hasCompletedRole*: bool  # Whether agent has completed their specialized task
     
   TargetType* = enum
     NoTarget
@@ -26,6 +35,14 @@ type
     Converter
     Altar
     Wander
+    # New target types for specialized buildings
+    Armory
+    Forge
+    ClayOven
+    WeavingLoom
+    # Terrain resource gathering
+    Tree   # For wood gathering
+    Wheat  # For wheat gathering
     
   Controller* = ref object
     agentStates*: Table[int, ControllerState]
@@ -39,7 +56,33 @@ proc newController*(seed: int = 2024): Controller =
     stepCount: 0
   )
 
-proc initAgentState(controller: Controller, agentId: int, basePos: IVec2) =
+proc assignAgentRole(controller: Controller, agentId: int, env: Environment): AgentRole =
+  ## Assign specialized roles to agents based on their position in their village team
+  let agent = env.agents[agentId]
+  
+  # Find which village this agent belongs to by checking home altar
+  if agent.homeAltar.x < 0:
+    return AltarSpecialist  # Default role for agents without home
+  
+  # Find agent's position within their team by counting agents with same home altar before this one
+  var agentIndexInTeam = 0
+  
+  for i in 0..<agentId:
+    if i < env.agents.len and env.agents[i].homeAltar == agent.homeAltar:
+      agentIndexInTeam += 1
+  
+  # Assign role based on position in team (0-4 for each village)
+  case agentIndexInTeam mod 5:
+  of 0: AltarSpecialist     # Agent 0: Always on default altar loop
+  of 1: ArmorySpecialist    # Agent 1: Wood → Armor
+  of 2: ForgeSpecialist     # Agent 2: Wood → Spear  
+  of 3: ClayOvenSpecialist  # Agent 3: Wheat → Food
+  of 4: WeavingLoomSpecialist # Agent 4: Wheat → Lantern
+  else: AltarSpecialist     # Fallback
+
+proc initAgentState(controller: Controller, agentId: int, basePos: IVec2, env: Environment) =
+  let assignedRole = controller.assignAgentRole(agentId, env)
+  
   controller.agentStates[agentId] = ControllerState(
     spiralArcLength: 1,
     spiralStepsInArc: 0,
@@ -55,7 +98,9 @@ proc initAgentState(controller: Controller, agentId: int, basePos: IVec2) =
     hasOre: false,
     hasBattery: false,
     currentTarget: basePos,
-    targetType: NoTarget
+    targetType: NoTarget,
+    role: assignedRole,
+    hasCompletedRole: false
   )
 
 
@@ -181,6 +226,34 @@ proc isCardinallyAdjacent(pos1, pos2: IVec2): bool =
   let dy = abs(pos1.y - pos2.y)
   result = (dx == 1 and dy == 0) or (dx == 0 and dy == 1)
 
+proc findNearestTerrainResource(env: Environment, pos: IVec2, terrainType: TerrainType, maxDist: int = 15): IVec2 =
+  ## Find nearest terrain tile of specified type (Water, Wheat, Tree, Empty)
+  result = ivec2(-1, -1)
+  var minDist = maxDist + 1
+  
+  for x in 0..<MapWidth:
+    for y in 0..<MapHeight:
+      if env.terrain[x][y] == terrainType:
+        let dist = manhattanDistance(pos, ivec2(x.int32, y.int32))
+        if dist < minDist:
+          minDist = dist
+          result = ivec2(x.int32, y.int32)
+
+proc findHomeBuilding(env: Environment, agent: Thing, buildingKind: ThingKind): Thing =
+  ## Find a building of the specified type near the agent's home altar
+  result = nil
+  var minDist = 999999
+  
+  for thing in env.things:
+    if thing.kind == buildingKind:
+      # Check if this building is near the agent's home altar (same village)
+      let distFromHome = manhattanDistance(thing.pos, agent.homeAltar)
+      if distFromHome <= 10:  # Buildings should be close to home altar
+        let distFromAgent = manhattanDistance(thing.pos, agent.pos)
+        if distFromAgent < minDist:
+          minDist = distFromAgent
+          result = thing
+
 proc decideAction*(controller: Controller, env: Environment, agentId: int): array[2, uint8] =
   let agent = env.agents[agentId]
   
@@ -192,7 +265,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   if agentId notin controller.agentStates:
     # Use home altar as base, or current position if no home
     let basePos = if agent.homeAltar.x >= 0: agent.homeAltar else: agent.pos
-    controller.initAgentState(agentId, basePos)
+    controller.initAgentState(agentId, basePos, env)
   
   var state = controller.agentStates[agentId]
   
@@ -250,9 +323,179 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   state.hasOre = agent.inventoryOre > 0
   state.hasBattery = agent.inventoryBattery > 0
   
+  # Check if role is completed for specialized agents
+  case state.role:
+  of ArmorySpecialist:
+    state.hasCompletedRole = agent.inventoryArmor > 0
+  of ForgeSpecialist:
+    state.hasCompletedRole = agent.inventorySpear > 0
+  of ClayOvenSpecialist:
+    state.hasCompletedRole = true  # Food is consumed immediately, assume completed after crafting
+  of WeavingLoomSpecialist:
+    state.hasCompletedRole = agent.inventoryLantern > 0
+  else:
+    state.hasCompletedRole = false  # AltarSpecialist never "completes"
+  
   # Find visible things
   let visibleThings = env.findVisibleThings(agent, viewRadius = 5)
   
+  # SPECIALIZATION LOGIC: If agent has a specialized role and hasn't completed it, prioritize that
+  if state.role != AltarSpecialist and not state.hasCompletedRole:
+    case state.role:
+    of ArmorySpecialist:
+      # Need wood, then craft at Armory
+      if agent.inventoryWood == 0:
+        # Find wood (trees)
+        if state.targetType != Tree:
+          let nearestTree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
+          if nearestTree.x >= 0:
+            state.currentTarget = nearestTree
+            state.targetType = Tree
+          else:
+            # No trees found, wander to find some
+            state.currentTarget = controller.getNextWanderPoint(state)
+            state.targetType = Wander
+        
+        # Check if we're adjacent to a tree
+        if state.targetType == Tree and isCardinallyAdjacent(agent.pos, state.currentTarget):
+          if env.terrain[state.currentTarget.x][state.currentTarget.y] == Tree:
+            # Get wood from tree
+            let dir = state.currentTarget - agent.pos
+            let useOrientation = getOrientation(dir)
+            return [3'u8, ord(useOrientation).uint8]  # Get action
+          else:
+            # Tree is gone, find a new one
+            state.targetType = NoTarget
+      
+      else:
+        # Have wood, find Armory in our village
+        if state.targetType != Armory:
+          let armory = env.findHomeBuilding(agent, Armory)
+          if armory != nil:
+            state.currentTarget = armory.pos
+            state.targetType = Armory
+        
+        # Check if we're adjacent to armory
+        if state.targetType == Armory and isCardinallyAdjacent(agent.pos, state.currentTarget):
+          let dir = state.currentTarget - agent.pos
+          let useOrientation = getOrientation(dir)
+          return [5'u8, ord(useOrientation).uint8]  # Put action to craft armor
+    
+    of ForgeSpecialist:
+      # Need wood, then craft at Forge
+      if agent.inventoryWood == 0:
+        if state.targetType != Tree:
+          let nearestTree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
+          if nearestTree.x >= 0:
+            state.currentTarget = nearestTree
+            state.targetType = Tree
+          else:
+            state.currentTarget = controller.getNextWanderPoint(state)
+            state.targetType = Wander
+        
+        if state.targetType == Tree and isCardinallyAdjacent(agent.pos, state.currentTarget):
+          if env.terrain[state.currentTarget.x][state.currentTarget.y] == Tree:
+            let dir = state.currentTarget - agent.pos
+            let useOrientation = getOrientation(dir)
+            return [3'u8, ord(useOrientation).uint8]  # Get wood
+          else:
+            state.targetType = NoTarget
+      
+      else:
+        if state.targetType != Forge:
+          let forge = env.findHomeBuilding(agent, Forge)
+          if forge != nil:
+            state.currentTarget = forge.pos
+            state.targetType = Forge
+        
+        if state.targetType == Forge and isCardinallyAdjacent(agent.pos, state.currentTarget):
+          let dir = state.currentTarget - agent.pos
+          let useOrientation = getOrientation(dir)
+          return [5'u8, ord(useOrientation).uint8]  # Put action to craft spear
+    
+    of ClayOvenSpecialist:
+      # Need wheat, then craft at ClayOven
+      if agent.inventoryWheat == 0:
+        if state.targetType != Wheat:
+          let nearestWheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
+          if nearestWheat.x >= 0:
+            state.currentTarget = nearestWheat
+            state.targetType = Wheat
+          else:
+            state.currentTarget = controller.getNextWanderPoint(state)
+            state.targetType = Wander
+        
+        if state.targetType == Wheat and isCardinallyAdjacent(agent.pos, state.currentTarget):
+          if env.terrain[state.currentTarget.x][state.currentTarget.y] == Wheat:
+            let dir = state.currentTarget - agent.pos
+            let useOrientation = getOrientation(dir)
+            return [3'u8, ord(useOrientation).uint8]  # Get wheat
+          else:
+            state.targetType = NoTarget
+      
+      else:
+        if state.targetType != ClayOven:
+          let clayOven = env.findHomeBuilding(agent, ClayOven)
+          if clayOven != nil:
+            state.currentTarget = clayOven.pos
+            state.targetType = ClayOven
+        
+        if state.targetType == ClayOven and isCardinallyAdjacent(agent.pos, state.currentTarget):
+          let dir = state.currentTarget - agent.pos
+          let useOrientation = getOrientation(dir)
+          return [5'u8, ord(useOrientation).uint8]  # Put action to craft food
+    
+    of WeavingLoomSpecialist:
+      # Need wheat, then craft at WeavingLoom
+      if agent.inventoryWheat == 0:
+        if state.targetType != Wheat:
+          let nearestWheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
+          if nearestWheat.x >= 0:
+            state.currentTarget = nearestWheat
+            state.targetType = Wheat
+          else:
+            state.currentTarget = controller.getNextWanderPoint(state)
+            state.targetType = Wander
+        
+        if state.targetType == Wheat and isCardinallyAdjacent(agent.pos, state.currentTarget):
+          if env.terrain[state.currentTarget.x][state.currentTarget.y] == Wheat:
+            let dir = state.currentTarget - agent.pos
+            let useOrientation = getOrientation(dir)
+            return [3'u8, ord(useOrientation).uint8]  # Get wheat
+          else:
+            state.targetType = NoTarget
+      
+      else:
+        if state.targetType != WeavingLoom:
+          let weavingLoom = env.findHomeBuilding(agent, WeavingLoom)
+          if weavingLoom != nil:
+            state.currentTarget = weavingLoom.pos
+            state.targetType = WeavingLoom
+        
+        if state.targetType == WeavingLoom and isCardinallyAdjacent(agent.pos, state.currentTarget):
+          let dir = state.currentTarget - agent.pos
+          let useOrientation = getOrientation(dir)
+          return [5'u8, ord(useOrientation).uint8]  # Put action to craft lantern
+    
+    else:
+      discard  # AltarSpecialist handled below
+    
+    # If we have a specialized target, move toward it
+    if state.targetType in [Tree, Wheat, Armory, Forge, ClayOven, WeavingLoom] and state.currentTarget != agent.pos:
+      let dir = getDirectionTo(agent.pos, state.currentTarget)
+      if dir.x != 0 or dir.y != 0:
+        let moveOrientation = getOrientation(dir)
+        let nextPos = agent.pos + dir
+        if env.isEmpty(nextPos):
+          return [1'u8, ord(moveOrientation).uint8]  # Move toward specialized target
+        elif isAdjacent(agent.pos, state.currentTarget):
+          # Try to get to cardinal position
+          let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
+          if moveDir.x != 0 or moveDir.y != 0:
+            let moveOrient = getOrientation(moveDir)
+            return [1'u8, ord(moveOrient).uint8]
+  
+  # DEFAULT BEHAVIOR: Standard altar loop (for AltarSpecialist or completed specialists)
   # Decision logic based on current inventory
   if state.hasBattery:
     # Priority 1: If we have a battery, go back to altar to deposit it
