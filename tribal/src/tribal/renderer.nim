@@ -252,6 +252,16 @@ proc drawObjects*() =
             let overlaySprite = getInfectionSprite(overlayType)
             if overlaySprite != "":
               bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+        
+        of PlantedLantern:
+          # Draw lantern using a simple image with team color tint
+          let lantern = thing
+          if lantern.lanternHealthy and lantern.teamId >= 0 and lantern.teamId < agentVillageColors.len:
+            let teamColor = agentVillageColors[lantern.teamId]
+            bxy.drawImage("objects/altar", pos.vec2, angle = 0, scale = 1/200, tint = teamColor)
+          else:
+            # Unhealthy or unassigned lantern - draw as gray
+            bxy.drawImage("objects/altar", pos.vec2, angle = 0, scale = 1/200, tint = color(0.5, 0.5, 0.5, 1.0))
 
 proc drawVisualRanges*(alpha = 0.2) =
   var visibility: array[MapWidth, array[MapHeight, bool]]
@@ -415,6 +425,14 @@ cooldown: {selection.cooldown}
 Weaving Loom
 pos: ({selection.pos.x}, {selection.pos.y})
 cooldown: {selection.cooldown}
+      """
+    of PlantedLantern:
+      let healthStatus = if selection.lanternHealthy: "healthy" else: "destroyed"
+      info = &"""
+Planted Lantern
+pos: ({selection.pos.x}, {selection.pos.y})
+teamId: {selection.teamId}
+status: {healthStatus}
       """
   else:
     info = &"""

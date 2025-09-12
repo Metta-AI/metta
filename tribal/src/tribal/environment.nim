@@ -752,61 +752,6 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
   else:
     inc env.stats[id].actionInvalid
 
-proc plantAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Plant lantern at agent's current position - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
-  if argument > 7:
-    inc env.stats[id].actionInvalid
-    return
-  
-  # Check if agent has a lantern
-  if agent.inventoryLantern <= 0:
-    inc env.stats[id].actionInvalid
-    return
-  
-  # Calculate target position based on orientation argument
-  let plantOrientation = Orientation(argument)
-  let delta = getOrientationDelta(plantOrientation)
-  var targetPos = agent.pos
-  targetPos.x += int32(delta.x)
-  targetPos.y += int32(delta.y)
-  
-  # Check bounds
-  if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
-    inc env.stats[id].actionInvalid
-    return
-  
-  # Check if position is empty and not water
-  if not env.isEmpty(targetPos) or env.terrain[targetPos.x][targetPos.y] == Water:
-    inc env.stats[id].actionInvalid
-    return
-  
-  # Find which team this agent belongs to (by home altar)
-  var teamId = -1
-  if agent.homeAltar.x >= 0:
-    # Find the team ID by matching home altar with village
-    for i, agent_i in env.agents:
-      if agent_i.homeAltar == agent.homeAltar:
-        teamId = i div 5  # Assume 5 agents per team
-        break
-  
-  # Plant the lantern
-  let lantern = Thing(
-    kind: PlantedLantern,
-    pos: targetPos,
-    teamId: teamId,
-    lanternHealthy: true
-  )
-  
-  env.add(lantern)
-  
-  # Consume the lantern from agent's inventory
-  agent.inventoryLantern = 0
-  env.updateObservations(AgentInventoryLanternLayer, agent.pos, agent.inventoryLantern)
-  
-  # Give reward for planting
-  agent.reward += env.config.clothReward * 0.5  # Half reward for planting
-  
-  inc env.stats[id].actionPlant
 
 
 # ============== CLIPPY AI ==============
@@ -1031,6 +976,62 @@ proc add(env: Environment, thing: Thing) =
     env.agents.add(thing)
     env.stats.add(Stats())
   env.grid[thing.pos.x][thing.pos.y] = thing
+
+proc plantAction(env: Environment, id: int, agent: Thing, argument: int) =
+  ## Plant lantern at agent's current position - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
+  if argument > 7:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Check if agent has a lantern
+  if agent.inventoryLantern <= 0:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Calculate target position based on orientation argument
+  let plantOrientation = Orientation(argument)
+  let delta = getOrientationDelta(plantOrientation)
+  var targetPos = agent.pos
+  targetPos.x += int32(delta.x)
+  targetPos.y += int32(delta.y)
+  
+  # Check bounds
+  if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Check if position is empty and not water
+  if not env.isEmpty(targetPos) or env.terrain[targetPos.x][targetPos.y] == Water:
+    inc env.stats[id].actionInvalid
+    return
+  
+  # Find which team this agent belongs to (by home altar)
+  var teamId = -1
+  if agent.homeAltar.x >= 0:
+    # Find the team ID by matching home altar with village
+    for i, agent_i in env.agents:
+      if agent_i.homeAltar == agent.homeAltar:
+        teamId = i div 5  # Assume 5 agents per team
+        break
+  
+  # Plant the lantern
+  let lantern = Thing(
+    kind: PlantedLantern,
+    pos: targetPos,
+    teamId: teamId,
+    lanternHealthy: true
+  )
+  
+  env.add(lantern)
+  
+  # Consume the lantern from agent's inventory
+  agent.inventoryLantern = 0
+  env.updateObservations(AgentInventoryLanternLayer, agent.pos, agent.inventoryLantern)
+  
+  # Give reward for planting
+  agent.reward += env.config.clothReward * 0.5  # Half reward for planting
+  
+  inc env.stats[id].actionPlant
 
 proc init(env: Environment) =
   # Use current time for random seed to get different maps each time
