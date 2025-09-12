@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 this_file = Path(__file__).resolve()
-project_root = this_file.parents[2]  # 2 levels up
+project_root = this_file.parents[2]
 
 if not (project_root / "pyproject.toml").is_file():
     raise RuntimeError(f"Project root validation failed: {project_root}")
