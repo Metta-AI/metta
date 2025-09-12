@@ -169,6 +169,9 @@ class AdaptiveTool(Tool):
 
         # Create and run controller
         on_eval_completed = self._default_sweep_on_eval_completed if self.enable_sweep_observation_hook else None
+        # Construct a local file state store rooted at run_dir
+        from metta.adaptive.stores import FileStateStore
+        state_store = FileStateStore(self.run_dir)
         controller = AdaptiveController(
             experiment_id=experiment_id,
             scheduler=scheduler,
@@ -176,6 +179,7 @@ class AdaptiveTool(Tool):
             store=store,
             config=self.config,
             on_eval_completed=on_eval_completed,
+            state_store=state_store,
         )
 
         # Persist configuration

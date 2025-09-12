@@ -9,7 +9,13 @@ from metta.common.util.retry import retry_function
 
 from .adaptive_config import AdaptiveConfig
 from .models import JobStatus, JobTypes, RunInfo
-from .protocols import Dispatcher, ExperimentScheduler, Store
+from .protocols import (
+    Dispatcher,
+    ExperimentScheduler,
+    SchedulerWithState,
+    StateStore,
+    Store,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +35,7 @@ class AdaptiveController:
         store: Store,
         config: AdaptiveConfig,
         on_eval_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
+        state_store: Optional[StateStore] = None,
     ):
         self.experiment_id = experiment_id
         self.scheduler = scheduler
@@ -36,6 +43,7 @@ class AdaptiveController:
         self.store = store
         self.config = config
         self.on_eval_completed = on_eval_completed
+        self.state_store = state_store
 
         # Job tracking by (run_id, job_type) to handle train/eval jobs with same run_id
         self.dispatched_jobs: set[tuple[str, str]] = set()
@@ -45,6 +53,7 @@ class AdaptiveController:
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
         has_data = self.config.resume
 
+        loaded_state = False
         while True:
             try:
                 # 1. Get current state
@@ -54,6 +63,21 @@ class AdaptiveController:
                 else:
                     runs = []
                     has_data = True  # Skip first fetch because WandB will just timeout.
+
+                # 1.0 Load scheduler state on first data fetch if supported
+                if (
+                    not loaded_state
+                    and self.state_store is not None
+                    and isinstance(self.scheduler, SchedulerWithState)
+                ):
+                    try:
+                        if self.scheduler.should_load_from_store(runs):  # type: ignore[attr-defined]
+                            self.scheduler.load_from_store(self.state_store, self.experiment_id)  # type: ignore[attr-defined]
+                            logger.info("[AdaptiveController] Loaded scheduler state from store")
+                    except Exception as e:
+                        logger.warning(f"[AdaptiveController] Failed to load scheduler state: {e}")
+                    finally:
+                        loaded_state = True
 
                 # 1.a Run post-eval completion hooks (guarded by summary flag) before any scheduling
                 if runs and self.on_eval_completed is not None:
@@ -90,6 +114,13 @@ class AdaptiveController:
                             logger.error(
                                 f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}"
                             )
+
+                # 1.b Save scheduler state after processing eval completions (if supported)
+                if self.state_store is not None and isinstance(self.scheduler, SchedulerWithState):
+                    try:
+                        self.scheduler.save_to_store(self.state_store, self.experiment_id)  # type: ignore[attr-defined]
+                    except Exception as e:
+                        logger.warning(f"[AdaptiveController] Failed to save scheduler state: {e}")
 
                 # 2. Check if scheduler says experiment is complete
                 if self.scheduler.is_experiment_complete(runs):
@@ -161,6 +192,13 @@ class AdaptiveController:
 
                     except Exception as e:
                         logger.error(f"[AdaptiveController] Failed to dispatch {job.run_id} ({job.type}): {e}")
+
+                # 8. Save scheduler state after scheduling (if supported)
+                if self.state_store is not None and isinstance(self.scheduler, SchedulerWithState):
+                    try:
+                        self.scheduler.save_to_store(self.state_store, self.experiment_id)  # type: ignore[attr-defined]
+                    except Exception as e:
+                        logger.warning(f"[AdaptiveController] Failed to save scheduler state: {e}")
 
             except KeyboardInterrupt:
                 logger.info("[AdaptiveController] Interrupted, stopping experiment")
