@@ -59,36 +59,31 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      CIBW_BUILD: cp311-manylinux_x86_64
-      CIBW_OUTPUT_DIR: wheelhouse
-      # Ensure CI=true is visible inside the manylinux container
-      CIBW_ENVIRONMENT_LINUX: CI=true
-      # Install bazelisk and expose as 'bazel' inside manylinux container
-      CIBW_BEFORE_ALL_LINUX: |
-        yum install -y curl || (microdnf install -y curl || true)
-        curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
-        chmod +x /usr/local/bin/bazelisk
-        ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11.7'
-
-      - name: Set up Bazelisk
-        uses: bazelbuild/setup-bazelisk@v3
-
-      - name: Install build tooling
-        run: python -m pip install --upgrade pip build
-
-      - name: Build wheel
+      - name: Build manylinux2014 wheel via Docker
         run: |
-          python -m build --wheel --outdir dist mettagrid
-          ls -l dist
+          set -euxo pipefail
+          docker pull quay.io/pypa/manylinux2014_x86_64
+          docker run --rm \
+            -e CI=true \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work \
+            quay.io/pypa/manylinux2014_x86_64 \
+            bash -lc '
+              set -euxo pipefail
+              PY=/opt/python/cp311-cp311/bin/python
+              $PY -m pip install --upgrade pip build auditwheel
+              curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
+              chmod +x /usr/local/bin/bazelisk
+              ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+              $PY -m build --wheel --outdir /work/dist /work/mettagrid
+              ls -l /work/dist
+              auditwheel repair -w /work/dist /work/dist/mettagrid-*.whl
+              ls -l /work/dist
+            '
 
       - name: Upload wheels artifact
         uses: actions/upload-artifact@v4
