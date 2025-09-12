@@ -769,7 +769,7 @@ proc generateRandomMapPosition(r: var Rand): IVec2 =
   ## Generate a random position within map boundaries
   ivec2(r.rand(MapBorder ..< MapWidth - MapBorder), r.rand(MapBorder ..< MapHeight - MapBorder))
 
-proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq[IVec2] =
+proc findEmptyPositionsAround*(env: Environment, center: IVec2, radius: int): seq[IVec2] =
   ## Find empty positions around a center point within a given radius
   result = @[]
   for dx in -radius .. radius:

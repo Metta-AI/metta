@@ -476,20 +476,3 @@ proc findEmptyPosition*(grid: PlacementGrid, terrain: ptr TerrainGrid,
   # In production, you might want to do a systematic search
   return ivec2(-1, -1)
 
-proc findEmptyPositionsAround*(grid: PlacementGrid, terrain: ptr TerrainGrid,
-                              center: IVec2, radius: int,
-                              mapWidth, mapHeight, mapBorder: int): seq[IVec2] =
-  result = @[]
-  
-  for dx in -radius .. radius:
-    for dy in -radius .. radius:
-      if dx == 0 and dy == 0:
-        continue
-      
-      let x = center.x + dx
-      let y = center.y + dy
-      
-      if x >= mapBorder and x < mapWidth - mapBorder and
-         y >= mapBorder and y < mapHeight - mapBorder:
-        if isNil(grid[x][y]) and terrain[x][y] != Water:
-          result.add(ivec2(x.int32, y.int32))
