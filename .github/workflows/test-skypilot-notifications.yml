@@ -19,19 +19,24 @@ on:
           - nccl_tests_failed
           - rapid_restarts
           - max_runtime_reached
-
 jobs:
   test-notifications:
     runs-on: ubuntu-latest
     permissions:
-      statuses: write # For GitHub status updates
+      statuses: write
       contents: read
 
     steps:
-      - name: Checkout repository
+      - name: Checkout PR branch (default behavior)
         uses: actions/checkout@v4
-        with:
-          ref: main # Always checkout main to ensure we can set status
+
+      - name: Fetch main branch HEAD
+        run: |
+          git fetch origin main
+          MAIN_SHA=$(git rev-parse origin/main)
+          echo "Main branch HEAD SHA: $MAIN_SHA"
+          echo "main_sha=$MAIN_SHA" >> $GITHUB_OUTPUT
+        id: get_main_sha
 
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
@@ -40,14 +45,6 @@ jobs:
           extra-dependencies: |
             requests>=2.31.0
             dataclasses
-
-      - name: Get main branch HEAD SHA
-        id: get_main_sha
-        run: |
-          # Get the actual HEAD SHA of main branch
-          MAIN_SHA=$(git rev-parse HEAD)
-          echo "Main branch HEAD SHA: $MAIN_SHA"
-          echo "main_sha=$MAIN_SHA" >> $GITHUB_OUTPUT
 
       - name: Run notification tests
         env:
