@@ -152,10 +152,70 @@ class PyTorchAgentMixin:
 
     def forward_inference(self, td: TensorDict, logits_list: torch.Tensor, value: torch.Tensor) -> TensorDict:
         """Forward pass for inference mode with action sampling."""
-        log_probs = F.log_softmax(logits_list, dim=-1)
+        # DEBUG: Add comprehensive debugging for multinomial failure
+        logger.info(f"DEBUG: logits_list shape: {logits_list.shape}, dtype: {logits_list.dtype}")
+        logger.info(f"DEBUG: logits_list device: {logits_list.device}")
+        logger.info(
+            f"DEBUG: logits_list stats - min: {logits_list.min().item():.4f}, max: {logits_list.max().item():.4f}, mean: {logits_list.mean().item():.4f}"
+        )
+
+        # Check for invalid values in original logits
+        if torch.isnan(logits_list).any():
+            logger.error("DEBUG: Found NaN values in original logits!")
+        if torch.isinf(logits_list).any():
+            logger.error("DEBUG: Found inf values in original logits!")
+
+        # Clamp logits to prevent FP16 numerical instability
+        logits_clamped = torch.clamp(logits_list, min=-10.0, max=10.0)
+        log_probs = F.log_softmax(logits_clamped, dim=-1)
         action_probs = torch.exp(log_probs)
 
-        actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+        # Additional safety check for numerical stability
+        # Use fp16-safe minimum value
+        min_prob = 1e-6 if action_probs.dtype == torch.float16 else 1e-8
+        action_probs = torch.clamp(action_probs, min=min_prob, max=1.0)
+
+        # Ensure probabilities sum to 1 (normalize to fix any numerical drift)
+        action_probs = action_probs / action_probs.sum(dim=-1, keepdim=True)
+
+        # DEBUG: Check action_probs before multinomial
+        logger.info(f"DEBUG: action_probs shape: {action_probs.shape}, dtype: {action_probs.dtype}")
+        logger.info(
+            f"DEBUG: action_probs stats - min: {action_probs.min().item():.6f}, max: {action_probs.max().item():.6f}"
+        )
+        logger.info(f"DEBUG: action_probs sum per batch: {action_probs.sum(dim=-1)}")
+
+        # Check for invalid probability distributions
+        has_errors = False
+        if torch.isnan(action_probs).any():
+            logger.error("DEBUG: Found NaN values in action_probs!")
+            has_errors = True
+        if torch.isinf(action_probs).any():
+            logger.error("DEBUG: Found inf values in action_probs!")
+            has_errors = True
+        if (action_probs < 0).any():
+            logger.error("DEBUG: Found negative values in action_probs!")
+            has_errors = True
+        if (action_probs.sum(dim=-1) == 0).any():
+            logger.error("DEBUG: Found zero-sum probability distributions!")
+            has_errors = True
+
+        # If we detected errors, use uniform distribution as fallback
+        if has_errors:
+            logger.warning("DEBUG: Using uniform distribution fallback due to invalid probabilities")
+            uniform_probs = torch.ones_like(action_probs) / action_probs.shape[-1]
+            action_probs = uniform_probs
+
+        try:
+            actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+        except Exception as e:
+            logger.error(f"DEBUG: Multinomial failed even after cleanup: {e}")
+            logger.error(f"DEBUG: Final action_probs shape: {action_probs.shape}")
+            logger.error(f"DEBUG: Final action_probs dtype: {action_probs.dtype}")
+            logger.error(f"DEBUG: Final action_probs device: {action_probs.device}")
+            # Last resort: use argmax
+            logger.warning("DEBUG: Using argmax fallback instead of sampling")
+            actions = torch.argmax(action_probs, dim=-1)
         batch_indices = torch.arange(actions.shape[0], device=actions.device)
         selected_log_probs = log_probs[batch_indices, actions]
 
