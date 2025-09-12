@@ -11,10 +11,11 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from metta.common.util.fs import get_repo_root
+from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
-from metta.setup.utils import error, info, success, warning
+from metta.setup.utils import debug, error, info, success, warning
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -209,6 +210,7 @@ def cmd_install(
     force: Annotated[bool, typer.Option("--force", help="Force reinstall")] = False,
     no_clean: Annotated[bool, typer.Option("--no-clean", help="Skip cleaning before install")] = False,
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
+    check_status: Annotated[bool, typer.Option("--check-status", help="Check status after installation")] = True,
 ):
     if not no_clean:
         cmd_clean()
@@ -242,7 +244,7 @@ def cmd_install(
         info(f"[{module.name}] {module.description}")
 
         if module.install_once and module.check_installed() and not force:
-            info("  -> Already installed, skipping (use --force to reinstall)\n")
+            debug("  -> Already installed, skipping (use --force to reinstall)\n")
             continue
 
         try:
@@ -251,7 +253,8 @@ def cmd_install(
         except Exception as e:
             error(f"  Error: {e}\n")
 
-    success("Installation complete!")
+    if not non_interactive and check_status:
+        cmd_status(components=components, non_interactive=non_interactive)
 
 
 @app.command(name="status", help="Show status of components")
@@ -269,7 +272,7 @@ def cmd_status(
         warning("No modules to check.")
         return
 
-    module_status = {}
+    module_status: dict[str, SetupModuleStatus] = {}
 
     console = Console()
     with Progress(
@@ -299,9 +302,9 @@ def cmd_status(
             continue
 
         status_data = module_status[module.name]
-        installed = status_data["installed"]
-        connected_as = status_data["connected_as"]
-        expected = status_data["expected"]
+        installed = status_data.installed
+        connected_as = status_data.connected_as
+        expected = status_data.expected
 
         installed_str = "Yes" if installed else "No"
         connected_str = cli._truncate(connected_as or "-", 25)
@@ -325,50 +328,14 @@ def cmd_status(
 
     console = Console()
     console.print(table)
-
-    all_installed = all(module_status[name]["installed"] for name in module_status)
-    all_connected = all(
-        (module_status[name]["connected_as"] is not None or module_status[name]["expected"] is None)
-        for name in module_status
-        if module_status[name]["installed"]
-    )
-
-    if all_installed:
-        if all_connected:
-            success("All components are properly configured!")
-        else:
-            warning("Some components need authentication. Run 'metta install' to set them up.")
-    else:
-        warning("Some components are not installed. Run 'metta install' to set them up.")
-
-    not_connected = [
+    could_force_install = [
         name
         for name, data in module_status.items()
-        if data["installed"] and data["expected"] and data["connected_as"] is None
+        if not data.installed or (data.expected and data.connected_as is None)
     ]
-
-    if not_connected:
-        console.print(f"\n[yellow]Components not connected: {', '.join(not_connected)}[/yellow]")
-        console.print("This could be due to expired credentials, network issues, or broken installations.")
-
-        if non_interactive:
-            console.print(f"\nTo fix: metta install {' '.join(not_connected)} --force")
-        elif sys.stdin.isatty():
-            if typer.confirm("\nReinstall these components to fix connection issues?"):
-                console.print(f"\nRunning: metta install {' '.join(not_connected)} --force")
-                subprocess.run([sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=cli.repo_root)
-
-    not_installed = [name for name, data in module_status.items() if not data["installed"]]
-
-    if not_installed:
-        console.print(f"\n[yellow]Components not installed: {', '.join(not_installed)}[/yellow]")
-
-        if non_interactive:
-            console.print(f"\nTo fix: metta install {' '.join(not_installed)}")
-        elif sys.stdin.isatty():
-            if typer.confirm("\nInstall these components?"):
-                console.print(f"\nRunning: metta install {' '.join(not_installed)}")
-                subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=cli.repo_root)
+    if could_force_install and not non_interactive and sys.stdin.isatty():
+        if typer.confirm(f"\nForce install {', '.join(could_force_install)} to attempt to resolve issues?"):
+            cmd_install(components=could_force_install, non_interactive=non_interactive, force=True, check_status=False)
 
 
 @app.command(name="run", help="Run component-specific commands")
