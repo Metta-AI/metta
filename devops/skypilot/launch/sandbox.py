@@ -251,7 +251,6 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
             initial_delay=5.0,
             max_delay=10.0,
             backoff_factor=1.0,
-            exceptions=(Exception,),
         )
         print(f"{green('✓')} Cluster is now UP and ready")
         return True
