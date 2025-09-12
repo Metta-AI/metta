@@ -2,9 +2,13 @@
 
 import logging
 import time
+from datetime import datetime
+from typing import Callable, Optional
+
+from metta.common.util.retry import retry_function
 
 from .adaptive_config import AdaptiveConfig
-from .models import JobStatus, JobTypes
+from .models import JobStatus, JobTypes, RunInfo
 from .protocols import Dispatcher, ExperimentScheduler, Store
 
 logger = logging.getLogger(__name__)
@@ -24,12 +28,14 @@ class AdaptiveController:
         dispatcher: Dispatcher,
         store: Store,
         config: AdaptiveConfig,
+        on_eval_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
     ):
         self.experiment_id = experiment_id
         self.scheduler = scheduler
         self.dispatcher = dispatcher
         self.store = store
         self.config = config
+        self.on_eval_completed = on_eval_completed
 
         # Job tracking by (run_id, job_type) to handle train/eval jobs with same run_id
         self.dispatched_jobs: set[tuple[str, str]] = set()
@@ -48,6 +54,42 @@ class AdaptiveController:
                 else:
                     runs = []
                     has_data = True  # Skip first fetch because WandB will just timeout.
+
+                # 1.a Run post-eval completion hooks (guarded by summary flag) before any scheduling
+                if runs and self.on_eval_completed is not None:
+                    for run in runs:
+                        try:
+                            summary_dict = run.summary if isinstance(run.summary, dict) else {}
+                            already_processed = bool(
+                                summary_dict.get("adaptive/post_eval_processed", False)
+                            )
+                            if run.has_been_evaluated and not already_processed:
+                                logger.info(
+                                    f"[AdaptiveController] Running on_eval_completed for {run.run_id}"
+                                )
+
+                                def _invoke(r: RunInfo = run, rs: list[RunInfo] = runs) -> None:
+                                    assert self.on_eval_completed is not None
+                                    self.on_eval_completed(r, self.store, rs)
+
+                                retry_function(_invoke, max_retries=3, initial_delay=1.0, max_delay=30.0)
+
+                                processed_at = datetime.utcnow().isoformat()
+                                self.store.update_run_summary(
+                                    run.run_id,
+                                    {
+                                        "adaptive/post_eval_processed": True,
+                                        "adaptive/post_eval_processed_at": processed_at,
+                                    },
+                                )
+
+                                if isinstance(run.summary, dict):
+                                    run.summary["adaptive/post_eval_processed"] = True
+                                    run.summary["adaptive/post_eval_processed_at"] = processed_at
+                        except Exception as e:
+                            logger.error(
+                                f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}"
+                            )
 
                 # 2. Check if scheduler says experiment is complete
                 if self.scheduler.is_experiment_complete(runs):
@@ -102,14 +144,17 @@ class AdaptiveController:
                         # Initialize run in store (only for training jobs, eval reuses same run)
                         if job.type == JobTypes.LAUNCH_TRAINING:
                             self.store.init_run(job.run_id, group=self.experiment_id)
+                            # If scheduler attached a suggestion, persist it to summary for later hooks/optimizers
+                            suggestion = (
+                                job.metadata.get("adaptive/suggestion") if isinstance(job.metadata, dict) else None
+                            )
+                            if suggestion is not None:
+                                self.store.update_run_summary(job.run_id, {"observation/suggestion": suggestion})
 
                         # Mark eval jobs as started in store
                         elif job.type == JobTypes.LAUNCH_EVAL:
                             self.store.update_run_summary(job.run_id, {"has_started_eval": True})
 
-                        # Store job config
-                        if job.config:
-                            self.store.update_run_summary(job.run_id, {"config": job.config})
                         logger.info(
                             f"[AdaptiveController] Dispatched {job.run_id} ({job.type}) (dispatch_id: {dispatch_id})"
                         )
