@@ -272,6 +272,7 @@ def cmd_status(
         warning("No modules to check.")
         return
 
+    modules_by_name = {m.name: m for m in modules}
     module_status: dict[str, SetupModuleStatus] = {}
 
     console = Console()
@@ -331,7 +332,14 @@ def cmd_status(
     could_force_install = [
         name
         for name, data in module_status.items()
-        if not data.installed or (data.expected and data.connected_as is None)
+        if (
+            not data.installed  # Not installed
+            or (  # Expected to be connected as a specific account, but is not, and can remediate through force install
+                data.expected is not None
+                and data.connected_as != data.expected
+                and modules_by_name[name].can_remediate_connected_status_with_install
+            )
+        )
     ]
     if could_force_install and not non_interactive and sys.stdin.isatty():
         if typer.confirm(f"\nForce install {', '.join(could_force_install)} to attempt to resolve issues?"):

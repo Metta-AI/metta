@@ -65,10 +65,8 @@ class SkypilotSetup(SetupModule):
                     info("You can complete it later with: gh auth login")
 
         connected_as = self.check_connected_as()
-        if connected_as == self.softmax_url:
+        if connected_as == self.softmax_url and not force:
             info("SkyPilot is already configured for a softmax user. Skipping authentication.")
-        elif connected_as == "configured":
-            info("SkyPilot is already configured for external use. Skipping authentication.")
         else:
             # Need to authenticate skypilot.
             if get_saved_settings().user_type.is_softmax:
@@ -91,10 +89,16 @@ class SkypilotSetup(SetupModule):
                     2. Authenticate with uv run sky api login
                 """)
 
-    def check_connected_as(self) -> str | None:
-        if not self.check_installed():
-            return None
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        return (
+            # SkypilotSetup.install only implements authenticating with softmax
+            get_saved_settings().user_type.is_softmax
+            # If the connection is unhealthy, force installing will not help
+            and self.check_connected_as() != f"{self.softmax_url} (unhealthy)"
+        )
 
+    def check_connected_as(self) -> str | None:
         if get_saved_settings().user_type.is_softmax:
             try:
                 result = subprocess.run(["uv", "run", "--active", "sky", "api", "info"], capture_output=True, text=True)
@@ -116,3 +120,4 @@ class SkypilotSetup(SetupModule):
                 return None
             except Exception:
                 return None
+        return None

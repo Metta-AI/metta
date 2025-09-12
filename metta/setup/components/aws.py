@@ -59,6 +59,10 @@ class AWSSetup(SetupModule):
         except Exception:
             return None
 
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        return True
+
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()
         if saved_settings.user_type.is_softmax:

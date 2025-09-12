@@ -28,6 +28,10 @@ class TailscaleSetup(SetupModule):
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        return False
+
     def check_connected_as(self) -> str | None:
         if not self.check_installed():
             return None

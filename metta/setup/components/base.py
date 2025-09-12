@@ -163,12 +163,19 @@ class SetupModule(ABC):
         return self.run_command(cmd)
 
     def check_connected_as(self) -> str | None:
-        """Check what account/profile/org we're connected as.
-
-        Returns:
-            Current account/profile/org or None if not connected
+        """
+        Current account/profile/org the user is authenticated as, or None if not connected.
         """
         return None
+
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        """
+        If force-installing should be recommended to re-authenticate users when:
+        - check_installed is True and
+        - check_connected_as does not match the expected value
+        """
+        return False
 
     def get_configuration_options(self) -> dict[str, tuple[Any, str]]:
         """
