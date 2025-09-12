@@ -220,7 +220,7 @@ def cmd_install(
     # no profile is specified, the setup wizard will be run.
     profile_exists = get_saved_settings().exists()
     if non_interactive and not profile_exists and not profile:
-        error("You do not have a profile configure. Must specify a profile with --profile.")
+        error("Must specify a profile if installing in non-interactive mode without an existing one.")
         raise typer.Exit(1)
     elif profile or not profile_exists:
         cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
