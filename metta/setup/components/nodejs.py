@@ -37,14 +37,12 @@ class NodejsSetup(SetupModule):
         return True
 
     def _check_pnpm(self) -> bool:
-        """Check if pnpm is working."""
+        """Check if pnpm is available."""
         try:
             env = os.environ.copy()
             env["NODE_NO_WARNINGS"] = "1"
             result = subprocess.run(
-                ["pnpm", "--version"],
-                capture_output=False,
-                text=True,
+                ["which", "pnpm"],
                 env=env,
             )
             return result.returncode == 0
