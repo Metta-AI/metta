@@ -31,15 +31,12 @@ class CurriculumEnv(PufferEnv):
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
-        # Stats batching configuration - updating stats too frequently is an SPS hit
+        # Stats batching configuration - increased from 10 to 50 for better performance
         self._stats_update_counter = 0
-        self._stats_update_frequency = 50  # Batch stats updates to reduce overhead
+        self._stats_update_frequency = 50  # Update stats every 50 steps instead of 10
 
         # Pre-compute string prefix for performance
         self._CURRICULUM_STAT_PREFIX = "env_curriculum/"
-
-        # Track first reset to avoid hasattr checks
-        self._first_reset_done = False
 
         # Cache for curriculum stats to avoid recomputation
         self._cached_stats = {}
@@ -52,6 +49,7 @@ class CurriculumEnv(PufferEnv):
         and enables batching of expensive stats calculations.
         """
         # Only update curriculum stats periodically to reduce overhead
+        self._stats_update_counter += 1
         if self._stats_update_counter >= self._stats_update_frequency:
             if not self._stats_cache_valid:
                 self._cached_stats = self._curriculum.stats()
@@ -74,7 +72,7 @@ class CurriculumEnv(PufferEnv):
         self._stats_cache_valid = False
 
         # Only log curriculum stats on reset if cache is invalid or this is first reset
-        if not self._first_reset_done:
+        if not hasattr(self, "_first_reset_done"):
             curriculum_stats = self._curriculum.stats()
             for key, value in curriculum_stats.items():
                 info[self._CURRICULUM_STAT_PREFIX + key] = value
@@ -103,7 +101,6 @@ class CurriculumEnv(PufferEnv):
             self._stats_cache_valid = False
 
         # Add curriculum stats to info for logging (batched)
-        self._stats_update_counter += 1
         self._add_curriculum_stats_to_info(infos)
 
         return obs, rewards, terminals, truncations, infos
@@ -122,15 +119,33 @@ class CurriculumEnv(PufferEnv):
         self._stats_update_counter = self._stats_update_frequency
         self._stats_cache_valid = False
 
-    def close(self) -> None:
-        """Close the wrapped environment."""
-        if hasattr(self._env, "close"):
-            self._env.close()
+    def __getattribute__(self, name: str):
+        """Intercept all attribute access and delegate to wrapped environment when appropriate.
 
-    def __getattr__(self, name: str):
-        """Delegate attribute access to wrapped environment when attribute not found.
-
-        This is called only when the attribute is not found on CurriculumEnv itself,
-        providing automatic delegation for all PufferEnv interface methods.
+        This handles the case where PufferEnv defines methods that raise NotImplementedError,
+        ensuring they get properly delegated to the wrapped environment.
         """
-        return getattr(self._env, name)
+        # First, handle our own attributes to avoid infinite recursion
+        if name in (
+            "_env",
+            "_curriculum",
+            "_current_task",
+            "step",
+            "_add_curriculum_stats_to_info",
+            "_stats_update_counter",
+            "_stats_update_frequency",
+            "set_stats_update_frequency",
+            "force_stats_update",
+            "_cached_stats",
+            "_stats_cache_valid",
+            "_first_reset_done",
+        ):
+            return object.__getattribute__(self, name)
+
+        # Try to get the attribute from our wrapped environment
+        try:
+            env = object.__getattribute__(self, "_env")
+            return getattr(env, name)
+        except AttributeError:
+            # If not found in wrapped env, fall back to parent class
+            return object.__getattribute__(self, name)
