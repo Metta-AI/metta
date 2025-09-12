@@ -1,0 +1,494 @@
+"""
+AGaLiTe Experimental - A beefier variant of the working agalite-fast.
+Starts from the exact working baseline and adds more capacity for experimental features.
+"""
+
+import logging
+from typing import Dict, Optional, Tuple
+
+import einops
+import numpy as np
+import torch
+from pufferlib.pytorch import layer_init as init_layer
+from tensordict import TensorDict
+from torch import nn
+
+# Import enhanced implementation - required for AGaLiTe Experimental
+from metta.agent.modules.agalite_core_enhanced import EnhancedAGaLiTeCore
+from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
+from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentLinearTransformerEncoder
+from metta.agent.modules.transformer_wrapper import TransformerWrapper
+from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+
+logger = logging.getLogger(__name__)
+
+
+class AGaLiTeCore(nn.Module):
+    """
+    Full AGaLiTe transformer model with proper memory handling.
+    Processes entire BPTT sequences as context.
+
+    Supports two modes:
+    - Standard mode: Full AGaLiTe with configurable eta/r
+    - Fast mode: Optimized for large batches with reduced parameters
+    """
+
+    def __init__(
+        self,
+        n_layers: int,
+        d_model: int,
+        d_head: int,
+        d_ffc: int,
+        n_heads: int,
+        eta: int,
+        r: int,
+        reset_on_terminate: bool = True,
+        dropout: float = 0.0,
+        use_fast_mode: bool = False,
+    ):
+        super().__init__()
+        self.n_layers = n_layers
+        self.d_model = d_model
+        self.d_head = d_head
+        self.d_ffc = d_ffc
+        self.n_heads = n_heads
+        self.use_fast_mode = use_fast_mode
+
+        # Fast mode uses reduced parameters for efficiency
+        if use_fast_mode:
+            self.eta = min(eta, 2)  # Cap at 2 for fast mode
+            self.r = min(r, 4)  # Cap at 4 for fast mode
+            logger.info(f"Using FastAGaLiTeLayer with eta={self.eta}, r={self.r}")
+        else:
+            self.eta = eta
+            self.r = r
+
+        self.encoders = nn.ModuleList()
+        for layer in range(n_layers):
+            if use_fast_mode:
+                # Use fast implementation
+                encoder = FastAGaLiTeLayer(
+                    d_model=d_model,
+                    head_num=n_heads,
+                    head_dim=d_head,
+                    eta=self.eta,
+                    r=self.r,
+                    reset_hidden_on_terminate=reset_on_terminate,
+                    dropout=dropout,
+                )
+            else:
+                # Use standard implementation with wrapper
+                use_dense = layer == 0  # Use dense layer for first layer
+                encoder = RecurrentLinearTransformerEncoder(
+                    d_model=d_model,
+                    d_head=d_head,
+                    d_ffc=d_ffc,
+                    n_heads=n_heads,
+                    eta=self.eta,
+                    r=self.r,
+                    use_dense=use_dense,
+                    reset_hidden_on_terminate=reset_on_terminate,
+                    dropout=dropout,
+                )
+            self.encoders.append(encoder)
+
+    def forward(
+        self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Dict[str, Tuple]
+    ) -> Tuple[torch.Tensor, Dict[str, Tuple]]:
+        """Forward pass for AGaLiTe."""
+        u_i = inputs
+        new_memory = {}
+
+        for layer_idx, encoder in enumerate(self.encoders):
+            layer_key = f"layer_{layer_idx + 1}"
+            if self.use_fast_mode:
+                # Fast mode: encoder is FastAGaLiTeLayer, add residual connection
+                residual = u_i
+                attn_out, memory_updated = encoder(u_i, terminations, memory[layer_key])
+                u_i = residual + attn_out  # Residual connection
+            else:
+                # Standard mode: encoder is RecurrentLinearTransformerEncoder
+                u_i, memory_updated = encoder(u_i, terminations, memory[layer_key])
+            new_memory[layer_key] = memory_updated
+
+        return u_i, new_memory
+
+    @staticmethod
+    def initialize_memory(
+        batch_size: int,
+        n_layers: int,
+        n_heads: int,
+        d_head: int,
+        eta: int,
+        r: int,
+        device: torch.device = None,
+        use_fast_mode: bool = False,
+    ) -> Dict[str, Tuple]:
+        """Initialize memory for all layers."""
+        memory_dict = {}
+        for layer in range(1, n_layers + 1):
+            if use_fast_mode:
+                # Fast mode uses reduced parameters
+                actual_eta = min(eta, 2)
+                actual_r = min(r, 4)
+                memory_dict[f"layer_{layer}"] = FastAGaLiTeLayer.initialize_memory(
+                    batch_size, n_heads, d_head, actual_eta, actual_r, device
+                )
+            else:
+                memory_dict[f"layer_{layer}"] = AttentionAGaLiTeLayer.initialize_memory(
+                    batch_size, n_heads, d_head, eta, r, device
+                )
+        return memory_dict
+
+
+class AGaLiTePolicy(nn.Module):
+    """
+    AGaLiTe policy network that implements encode_observations and decode_actions.
+    This is designed to work with the TransformerWrapper.
+    """
+
+    def __init__(
+        self,
+        env,
+        d_model: int = 256,
+        d_head: int = 64,
+        d_ffc: int = 1024,
+        n_heads: int = 4,
+        n_layers: int = 4,
+        eta: int = 4,
+        r: int = 8,
+        mode: str = "agalite",
+        reset_on_terminate: bool = True,
+        dropout: float = 0.0,
+        use_enhanced: bool = True,
+    ):
+        super().__init__()
+        self.action_space = env.single_action_space
+
+        # AGaLiTe parameters
+        self.d_model = d_model
+        self.n_layers = n_layers
+        self.n_heads = n_heads
+        self.d_head = d_head
+        self.eta = eta
+        self.r = r
+        self.mode = mode
+        self.use_enhanced = use_enhanced
+        self.reset_on_terminate = reset_on_terminate
+
+        # Required by TransformerWrapper
+        self.is_continuous = False
+        self.hidden_size = d_model
+
+        # Observation encoding (same as Fast agent for token observations)
+        self.out_width = 11
+        self.out_height = 11
+        self.num_layers = 22
+
+        # Token to grid conversion
+        self.cnn1 = init_layer(nn.Conv2d(22, 64, kernel_size=5, stride=3))
+        self.cnn2 = init_layer(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+
+        test_input = torch.zeros(1, 22, 11, 11)
+        with torch.no_grad():
+            test_output = self.cnn2(self.cnn1(test_input))
+            self.flattened_size = test_output.numel() // test_output.shape[0]
+
+        self.flatten = nn.Flatten()
+        self.fc1 = init_layer(nn.Linear(self.flattened_size, 128))
+        self.encoded_obs = init_layer(nn.Linear(128, d_model))
+
+        # Create the AGaLiTe transformer (use enhanced or legacy implementation)
+        if use_enhanced:
+            self.transformer = EnhancedAGaLiTeCore(
+                n_layers=n_layers,
+                d_model=d_model,
+                d_head=d_head,
+                d_ffc=d_ffc,
+                n_heads=n_heads,
+                eta=eta,
+                r=r,
+                mode=mode,
+                reset_on_terminate=reset_on_terminate,
+                dropout=dropout,
+            )
+        else:
+            # Legacy implementation for backward compatibility
+            use_fast_mode = mode == "fast"
+            adjusted_eta = min(eta, 2) if use_fast_mode else eta
+            adjusted_r = min(r, 4) if use_fast_mode else r
+            self.transformer = AGaLiTeCore(
+                n_layers=n_layers,
+                d_model=d_model,
+                d_head=d_head,
+                d_ffc=d_ffc,
+                n_heads=n_heads,
+                eta=adjusted_eta,
+                r=adjusted_r,
+                reset_on_terminate=reset_on_terminate,
+                dropout=dropout,
+                use_fast_mode=use_fast_mode,
+            )
+
+        # Output heads
+        # critic_1 uses std=sqrt(2) because it's followed by tanh
+        self.critic_1 = init_layer(nn.Linear(d_model, 1024), std=np.sqrt(2))
+        self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = init_layer(nn.Linear(d_model, 512), std=1.0)
+        self.action_embeddings = nn.Embedding(100, 16)
+
+        # Initialize action embeddings to match YAML ActionEmbedding component
+        nn.init.orthogonal_(self.action_embeddings.weight)
+        with torch.no_grad():
+            max_abs_value = torch.max(torch.abs(self.action_embeddings.weight))
+            self.action_embeddings.weight.mul_(0.1 / max_abs_value)
+
+        # Action heads
+        if hasattr(self.action_space, "nvec"):
+            action_nvec = self.action_space.nvec
+        else:
+            action_nvec = [100]
+
+        self.actor_heads = nn.ModuleList([init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
+
+        # Normalization buffer
+        max_vec = torch.tensor(
+            [
+                9.0,
+                1.0,
+                1.0,
+                10.0,
+                3.0,
+                254.0,
+                1.0,
+                1.0,
+                235.0,
+                8.0,
+                9.0,
+                250.0,
+                29.0,
+                1.0,
+                1.0,
+                8.0,
+                1.0,
+                1.0,
+                6.0,
+                3.0,
+                1.0,
+                2.0,
+            ],
+            dtype=torch.float32,
+        )[None, :, None, None]
+        self.register_buffer("max_vec", max_vec)
+
+    def network_forward(self, x: torch.Tensor) -> torch.Tensor:
+        """CNN feature extraction from grid observations."""
+        x = x / self.max_vec
+        x = self.cnn1(x)
+        x = self.cnn2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        x = self.encoded_obs(x)
+        return x
+
+    def encode_observations(self, observations: torch.Tensor, state: Optional[Dict] = None) -> torch.Tensor:
+        """Encode token observations to hidden representation."""
+        # Convert from Byte to Float and move to device
+        observations = observations.float()
+        token_observations = observations
+        B = token_observations.shape[0]
+        TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
+
+        if token_observations.dim() != 3:
+            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
+
+        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
+        # Don't modify original tensor - ComponentPolicy doesn't do this
+        # token_observations[token_observations == 255] = 0  # REMOVED per PR #2126
+
+        # Convert tokens to grid representation
+        coords_byte = token_observations[..., 0].to(torch.uint8)
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()
+        y_coord_indices = (coords_byte & 0x0F).long()
+        atr_indices = token_observations[..., 1].long()
+        atr_values = token_observations[..., 2].float()
+
+        box_obs = torch.zeros(
+            (B * TT, self.num_layers, self.out_width, self.out_height),
+            dtype=atr_values.dtype,
+            device=token_observations.device,
+        )
+        batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
+
+        valid_tokens = coords_byte != 0xFF
+        valid_tokens = valid_tokens & (x_coord_indices < self.out_width) & (y_coord_indices < self.out_height)
+        valid_tokens = valid_tokens & (atr_indices < self.num_layers)
+
+        box_obs[
+            batch_indices[valid_tokens],
+            atr_indices[valid_tokens],
+            x_coord_indices[valid_tokens],
+            y_coord_indices[valid_tokens],
+        ] = atr_values[valid_tokens]
+
+        # Encode with CNN
+        hidden = self.network_forward(box_obs)
+
+        return hidden
+
+    def decode_actions(self, hidden: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Decode hidden representation to action logits and value."""
+        critic_features = torch.tanh(self.critic_1(hidden))
+        value = self.value_head(critic_features)
+
+        actor_features = self.actor_1(hidden)
+
+        action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(actor_features.shape[0], -1)
+        combined_features = torch.cat([actor_features, action_embed], dim=-1)
+
+        logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1)
+
+        return logits, value
+
+    def initialize_memory(self, batch_size: int) -> Dict:
+        """Initialize AGaLiTe memory for a batch.
+
+        Gets device from the model's parameters to ensure memory is created
+        on the same device as the model.
+        """
+        # Get device from model parameters
+        device = next(self.parameters()).device
+
+        return self.transformer.initialize_memory(batch_size=batch_size, device=device)
+
+
+class AGaLiTeExperimental(PyTorchAgentMixin, TransformerWrapper):
+    """
+    AGaLiTe Experimental - Beefier version of the working agalite-fast.
+
+    Changes from baseline:
+    - More layers (3 vs 2) for increased depth
+    - Larger model dimension (384 vs 256)
+    - More attention heads (8 vs 4)
+    - Small dropout (0.1) for regularization
+    - Otherwise identical to the working AGaLiTe
+    """
+
+    def __init__(
+        self,
+        env,
+        d_model: int = 384,  # Bigger (1.5x)
+        d_head: int = 64,  # Same head dim
+        d_ffc: int = 1536,  # Scaled up (1.5x)
+        n_heads: int = 8,  # More heads (2x)
+        n_layers: int = 3,  # One more layer
+        eta: int = 4,  # Full paper default (not reduced)
+        r: int = 8,  # Full paper default (not reduced)
+        mode: str = "agalite",  # "agalite", "galite", or "fast"
+        reset_on_terminate: bool = True,
+        dropout: float = 0.1,  # Small dropout for regularization
+        use_enhanced: bool = True,  # Use enhanced implementation by default
+        **kwargs,
+    ):
+        """Initialize AGaLiTe Experimental with enhanced paper implementation.
+
+        Args:
+            env: Environment
+            d_model: Model dimension (384 - bigger than baseline)
+            d_head: Head dimension (64 - same as baseline)
+            d_ffc: Feedforward dimension (1536 - scaled up)
+            n_heads: Number of attention heads (8 - more heads)
+            n_layers: Number of transformer layers (3 - one more layer)
+            eta: AGaLiTe eta parameter (4 - full paper default)
+            r: AGaLiTe r parameter (8 - full paper default)
+            mode: Attention mode ("agalite", "galite", or "fast")
+                - "agalite": Full AGaLiTe with oscillatory approximation
+                - "galite": Exact linear attention without approximation
+                - "fast": Optimized fast mode with reduced parameters
+            reset_on_terminate: Whether to reset memory on termination
+            dropout: Dropout rate (0.1 for regularization)
+            use_enhanced: Use enhanced implementation with proper paper features
+            **kwargs: Configuration parameters handled by mixin
+        """
+        # Extract mixin parameters before passing to parent
+        mixin_params = self.extract_mixin_params(kwargs)
+
+        # Create the AGaLiTe policy
+        policy = AGaLiTePolicy(
+            env=env,
+            d_model=d_model,
+            d_head=d_head,
+            d_ffc=d_ffc,
+            n_heads=n_heads,
+            n_layers=n_layers,
+            eta=eta,
+            r=r,
+            mode=mode,
+            reset_on_terminate=reset_on_terminate,
+            dropout=dropout,
+            use_enhanced=use_enhanced,
+        )
+
+        # Initialize with TransformerWrapper
+        super().__init__(env, policy, hidden_size=d_model)
+
+        # Initialize mixin with configuration parameters
+        self.init_mixin(**mixin_params)
+
+    def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
+        """Forward pass compatible with MettaAgent expectations.
+
+        Follows the Fast agent pattern for TensorDict handling:
+        - Reshape TD early if in training mode
+        - Keep it flat throughout processing
+        - Don't reshape back (caller handles that)
+        """
+        observations = td["env_obs"]
+
+        # Initialize state if needed (handle both None and lazy init cases)
+        if state is None or state.get("needs_init", False):
+            B = observations.shape[0]
+            state = self.reset_memory(B, observations.device)
+
+        # Store terminations if available
+        if "dones" in td:
+            state["terminations"] = td["dones"]
+
+        # Determine dimensions from observations
+        if observations.dim() == 4:  # Training
+            B = observations.shape[0]
+            TT = observations.shape[1]
+            # Reshape TD for training if needed (following Fast agent pattern)
+            if td.batch_dims > 1:
+                td = td.reshape(B * TT)
+        else:  # Inference
+            B = observations.shape[0]
+            TT = 1
+
+        # Set critical TensorDict fields using mixin (TD is already reshaped if needed)
+        self.set_tensordict_fields(td, observations)
+
+        # Determine if we're in training or inference mode
+        if action is None:
+            # Inference mode
+            logits, values = self.forward_eval(observations, state)
+
+            # Use mixin for inference mode processing
+            td = self.forward_inference(td, logits, values)
+
+        else:
+            # Training mode - use parent's forward for BPTT
+            logits, values = super().forward(observations, state)
+
+            # The mixin expects values to be flattened for training
+            if values.dim() == 2:  # (B, T) from TransformerWrapper
+                values_flat = values.flatten()
+            else:
+                values_flat = values
+
+            # Use mixin's forward_training
+            # Note: The mixin will try to reshape at the end, but that's okay
+            # because our TD is already flat and matches what it expects
+            td = self.forward_training(td, action, logits, values_flat)
+
+        return td
