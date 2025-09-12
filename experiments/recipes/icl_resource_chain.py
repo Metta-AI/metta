@@ -205,9 +205,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
             movement+interaction cost to traverse the whole chain again.
 
         Definitions:
-          - chain_length: number of *intermediate* resources between "nothing" and "heart".
+          - num_resources: number of *intermediate* resources between "nothing" and "heart".
           - n_converters = chain_length + 1 (edges: nothing->r1, ..., r_k->heart).
-          - cooldown = 6 * n_converters (as set in _make_env_cfg).
+          - cooldown = avg_hop * n_converters (as set in _make_env_cfg).
         """
         # Number of converters in the chain (nothing->r1, ..., r_k->heart)
         n_converters = num_resources + 1
@@ -241,20 +241,15 @@ class ConverterChainTaskGenerator(TaskGenerator):
         most_efficient = hearts_after(best_first_heart_steps)
 
         # ---------- Least efficient ----------
-        # At stage i (1..n_converters):
-        #   - Try all wrong converters for that stage first: (n_converters - i) attempts.
-        #   - Touch all sinks first (resets), and each reset forces rebuilding the correct
-        #     prefix of length i afterward; model this as i attempts per sink.
-        #   - Finally pick the correct converter once: 1 attempt.
-        wrong_converter_cost = sum(
-            (n_converters - i) * step_per_attempt for i in range(1, n_converters + 1)
-        )
-        sink_cost = sum(
-            num_sinks * i * step_per_attempt for i in range(1, n_converters + 1)
-        )
-        correct_choice_cost = n_converters * step_per_attempt
+        #   1. Find the first converter: (converters + sinks) attempts
+        #   2. Find all sinks: ~(converters + 2 * sinks) attempts
+        #      (every time you find a sink, you need to go get an item again)
+        #   3. Find the right pattern: ~converters * (converters - 1) attempts
+        find_first_converter_cost = (n_converters + num_sinks) * step_per_attempt
+        find_all_sinks_cost = (n_converters + 2 * num_sinks) * step_per_attempt
+        find_right_pattern_cost = n_converters * (n_converters - 1) * step_per_attempt
 
-        worst_first_heart_steps = wrong_converter_cost + sink_cost + correct_choice_cost
+        worst_first_heart_steps = find_first_converter_cost + find_all_sinks_cost + find_right_pattern_cost
         least_efficient = hearts_after(worst_first_heart_steps)
 
         return int(most_efficient), int(least_efficient)
