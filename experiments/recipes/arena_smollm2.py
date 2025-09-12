@@ -124,11 +124,10 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     freeze_llm: bool = True,
 ) -> TrainTool:
-    """Train SmolLM2 agent on arena environment with default batch sizes.
+    """Train SmolLM2 agent on arena environment.
 
-    Uses default batch sizes (524K) which work well for GPU training but may fail
-    on CPU or with limited resources. For CPU debugging, use train_cpu_debug().
-    For GPU-optimized training, use train_gpu().
+    Uses system defaults which automatically adapt to GPU/CPU environments.
+    For explicit CPU debugging with minimal resources, use train_cpu_debug().
 
     Args:
         curriculum: Optional curriculum config
@@ -170,40 +169,6 @@ def train_frozen() -> TrainTool:
 def train_unfrozen() -> TrainTool:
     """Train with unfrozen LLM weights (full fine-tuning)."""
     return train(freeze_llm=False)
-
-
-def train_gpu() -> TrainTool:
-    """Train with GPU-optimized batch sizes and full LLM fine-tuning."""
-    # Configure SmolLM2 agent for GPU training
-    agent_cfg = AgentConfig(
-        name="pytorch/smollm2",
-        clip_range=0.2,
-        analyze_weights_interval=500,
-    )
-
-    # GPU-optimized trainer configuration with larger batches
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(
-            loss_configs={
-                "ppo": PPOConfig(
-                    clip_coef=0.2,
-                    ent_coef=0.01,
-                    vf_coef=0.5,
-                )
-            }
-        ),
-        curriculum=make_curriculum(),
-        # Use larger batch sizes for GPU efficiency and agent scaling
-        batch_size=65536,  # Large enough for many agents and workers
-        minibatch_size=4096,  # Efficient GPU utilization
-        bptt_horizon=32,  # Reasonable context length for LLM
-        evaluation=EvaluationConfig(
-            simulations=make_evals(),
-            evaluate_interval=25,  # Frequent evaluation for monitoring
-        ),
-    )
-
-    return TrainTool(trainer=trainer_cfg, policy_architecture=agent_cfg)
 
 
 def train_cpu_debug() -> TrainTool:
