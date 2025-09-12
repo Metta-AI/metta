@@ -1,7 +1,7 @@
 #!/bin/sh
 set -u
-PROFILE=""
-NON_INTERACTIVE=""
+PROFILE_ADDITION=""
+NON_INTERACTIVE_ADDITION=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile)
@@ -9,15 +9,11 @@ while [ $# -gt 0 ]; do
         echo "Error: --profile requires an argument"
         exit 1
       fi
-      PROFILE="$2"
+      PROFILE_ADDITION="--profile=$2"
       shift 2
       ;;
-    --profile=*)
-      PROFILE="${1#--profile=}"
-      shift
-      ;;
     --non-interactive)
-      NON_INTERACTIVE="--non-interactive"
+      NON_INTERACTIVE_ADDITION="--non-interactive"
       shift
       ;;
     --help | -h)
@@ -36,7 +32,7 @@ while [ $# -gt 0 ]; do
       echo ""
       echo "Examples:"
       echo "  $0                     # Interactive setup"
-      echo "  $0 --profile=softmax   # Setup for Softmax employee"
+      echo "  $0 --profile softmax   # Setup for Softmax employee"
       exit 0
       ;;
     *)
@@ -46,11 +42,6 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
-
-err() {
-  echo "ERROR: $1" >&2
-  exit 1
-}
 
 check_cmd() {
   command -v "$1" > /dev/null 2>&1
@@ -66,14 +57,9 @@ for cmd in uv bazel git g++; do
   fi
 done
 
-uv sync || err "Failed to install Python dependencies"
-uv run python -m metta.setup.metta_cli symlink-setup setup || err "Failed to set up metta command in ~/.local/bin"
-if [ -n "$PROFILE" ]; then
-  uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" $NON_INTERACTIVE || err "Failed to run configuration"
-else
-  uv run python -m metta.setup.metta_cli configure $NON_INTERACTIVE || err "Failed to run configuration"
-fi
-uv run python -m metta.setup.metta_cli install $NON_INTERACTIVE || err "Failed to install components"
+uv sync
+uv run python -m metta.setup.metta_cli symlink-setup setup
+uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
 
 echo "\nSetup complete!\n"
 

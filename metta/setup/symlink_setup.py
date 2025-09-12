@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 
 from metta.common.util.fs import get_repo_root
-from metta.setup.utils import error, info, success, warning
+from metta.setup.utils import debug, error, info, success, warning
 
 console = Console()
 app = typer.Typer(
@@ -63,8 +63,7 @@ def setup_path(force: bool = False) -> None:
                 error(f"Failed to remove existing file: {e}")
                 return
         else:
-            warning(f"A 'metta' command already exists at {target_symlink}")
-            info("Not overwriting existing command.")
+            debug(f"A 'metta' command already exists at {target_symlink}")
             info("Run with --force if you want to replace it.")
             return
 
