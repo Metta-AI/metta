@@ -186,6 +186,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
             "least_efficient_optimal_reward": least_efficient_optimal_reward,
         }
 
+        icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{width}x{height}"
+
         return icl_env
 
     def _estimate_max_rewards(

@@ -59,6 +59,7 @@ class MettaGridEnv(MettaGridPufferBase):
         self._episode_id: str | None = None
         self._last_reset_ts = datetime.datetime.now()
         self._is_training = is_training
+        self._label_completions = {"completed_tasks": [], "completion_rates": {}}
 
         # DesyncEpisodes - when training we want to stagger experience. The first episode
         # will end early so that the next episode can begin at a different time on each worker.
@@ -125,6 +126,22 @@ class MettaGridEnv(MettaGridPufferBase):
         self.timer.start("thread_idle")
         return observations, rewards, terminals, truncations, infos
 
+    def _update_label_completions(self, moving_avg_window: int = 500) -> None:
+        """Update label completions."""
+        label = self.mg_config.label
+
+        # keep track of a list of the last 500 labels
+        if len(self._label_completions["completed_tasks"]) >= moving_avg_window:
+            self._label_completions["completed_tasks"].pop(0)
+        self._label_completions["completed_tasks"].append(label)
+
+        # moving average of the completion rates
+        self._label_completions["completion_rates"] = {t : 0 for t in set(self._label_completions["completed_tasks"])}
+        for t in self._label_completions["completed_tasks"]:
+            self._label_completions["completion_rates"][t] += 1
+        self._label_completions["completion_rates"] = {t : self._label_completions["completion_rates"][t] / len(self._label_completions["completed_tasks"]) for t in self._label_completions["completion_rates"]}
+
+
     def _process_episode_completion(self, infos: Dict[str, Any]) -> None:
         """Process episode completion - stats, etc."""
         self.timer.start("process_episode_stats")
@@ -157,6 +174,9 @@ class MettaGridEnv(MettaGridPufferBase):
             infos["reward_estimates"]["diff_from_inefficient_optimal"] = (
                 self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
             )
+
+        self._update_label_completions()
+        infos["label_completions"] = self._label_completions["completion_rates"]
 
         # Add attributes
         attributes: Dict[str, Any] = {
