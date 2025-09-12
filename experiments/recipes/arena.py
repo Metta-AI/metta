@@ -24,7 +24,7 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
 
 def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
-    enable_detailed_slice_logging: bool = False,
+    enable_detailed_logging: bool = False,
 ) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
@@ -56,7 +56,7 @@ def make_curriculum(
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=5,  # More slices for arena complexity
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            enable_detailed_slice_logging=enable_detailed_logging,
         )
     )
 
@@ -76,10 +76,12 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_logging: bool = False,
 ) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(

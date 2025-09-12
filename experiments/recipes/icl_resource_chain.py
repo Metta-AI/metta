@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.mettagrid.builder import empty_converters
 from metta.mettagrid.builder.envs import make_icl_resource_chain
@@ -166,15 +167,27 @@ def make_mettagrid() -> MettaGridConfig:
     return task_generator.get_task(0)
 
 
-def make_curriculum() -> CurriculumConfig:
+def make_curriculum(enable_detailed_logging: bool = False) -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
     )
-    return CurriculumConfig(task_generator=task_generator_cfg)
+    return CurriculumConfig(
+        task_generator=task_generator_cfg,
+        algorithm_config=LearningProgressConfig(
+            use_bidirectional=True,  # Default: bidirectional learning progress
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=3,
+            enable_detailed_slice_logging=enable_detailed_logging,
+        ),
+    )
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    curriculum: Optional[CurriculumConfig] = None, enable_detailed_logging: bool = False
+) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
         make_icl_resource_chain_eval_suite,
@@ -182,7 +195,8 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon

@@ -5,6 +5,7 @@ from typing import Optional
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -62,7 +63,10 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
     return nav
 
 
-def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    nav_env: Optional[MettaGridConfig] = None,
+    enable_detailed_logging: bool = False,
+) -> CurriculumConfig:
     nav_env = nav_env or make_env()
 
     # make a set of training tasks for navigation
@@ -99,17 +103,29 @@ def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConf
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return CurriculumConfig(task_generator=nav_tasks)
+    return nav_tasks.to_curriculum(
+        algorithm_config=LearningProgressConfig(
+            use_bidirectional=True,  # Default: bidirectional learning progress
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=3,
+            enable_detailed_slice_logging=enable_detailed_logging,
+        )
+    )
 
 
 def train(
-    run: Optional[str] = None, curriculum: Optional[CurriculumConfig] = None
+    run: Optional[str] = None,
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_logging: bool = False,
 ) -> TrainTool:
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name()
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_logging=enable_detailed_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_sequence_eval_suite(),
         ),
