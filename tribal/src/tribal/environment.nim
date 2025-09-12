@@ -41,6 +41,7 @@ const
   MapObjectMineInitialResources* = 30
   MapObjectMineUseCost* = 0
   SpawnerCooldown* = 13  # Steps between Clippy spawns (1/3 of original 40)
+  MinTintEpsilon* = 5   # Minimum tint threshold for visual effects
   ObservationLayers* = 20
   ObservationWidth* = 11
   ObservationHeight* = 11
@@ -834,10 +835,10 @@ proc updateTintModifications(env: Environment) =
               env.activeTiles.positions.add(agentPos)
               env.activeTiles.count += 1
               
-              # Agent warmth effect (2.5x stronger than original)
-              env.tintMods[agentPos.x][agentPos.y].r += int16((tribeColor.r - 0.7) * 125 * falloff.float32)  # Half of 5x = 2.5x
-              env.tintMods[agentPos.x][agentPos.y].g += int16((tribeColor.g - 0.65) * 125 * falloff.float32) # Half of 5x = 2.5x 
-              env.tintMods[agentPos.x][agentPos.y].b += int16((tribeColor.b - 0.6) * 125 * falloff.float32)  # Half of 5x = 2.5x
+              # Agent warmth effect (1.25x stronger than original)
+              env.tintMods[agentPos.x][agentPos.y].r += int16((tribeColor.r - 0.7) * 63 * falloff.float32)   # Quarter of 5x = 1.25x
+              env.tintMods[agentPos.x][agentPos.y].g += int16((tribeColor.g - 0.65) * 63 * falloff.float32)  # Quarter of 5x = 1.25x 
+              env.tintMods[agentPos.x][agentPos.y].b += int16((tribeColor.b - 0.6) * 63 * falloff.float32)   # Quarter of 5x = 1.25x
         
     of Altar:
       # Reduce altar tint effect by 10x (minimal warm glow)
@@ -855,8 +856,8 @@ proc applyTintModifications(env: Environment) =
   # First, apply modifications to all tiles that have tint modifications
   for tileX in 0 ..< MapWidth:
     for tileY in 0 ..< MapHeight:
-      # Skip if no modifications on this tile
-      if env.tintMods[tileX][tileY].r == 0 and env.tintMods[tileX][tileY].g == 0 and env.tintMods[tileX][tileY].b == 0:
+      # Skip if tint modifications are below minimum threshold
+      if abs(env.tintMods[tileX][tileY].r) < MinTintEpsilon and abs(env.tintMods[tileX][tileY].g) < MinTintEpsilon and abs(env.tintMods[tileX][tileY].b) < MinTintEpsilon:
         continue
       
       # Skip tinting on water tiles (rivers should remain clean)
