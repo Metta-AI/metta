@@ -41,7 +41,6 @@ proc initGlobalController*(controllerType: ControllerType, seed: int = int(epoch
   case controllerType:
   of BuiltinAI:
     globalController = newBuiltinAIController(seed)
-    echo "🤖 Debug: Initialized BuiltinAI controller"
   of ExternalNN:
     # External callback will be set later via setExternalActionCallback
     globalController = AgentController(
@@ -49,10 +48,8 @@ proc initGlobalController*(controllerType: ControllerType, seed: int = int(epoch
       aiController: nil,
       externalActionCallback: nil
     )
-    echo "🔗 Debug: Initialized ExternalNN controller"
     # Start automatic play mode for external controller
     play = true
-    echo "🎮 Debug: Enabled automatic play mode for external controller"
 
 proc setExternalActionCallback*(callback: proc(): array[MapAgents, array[2, uint8]]) =
   ## Set the external action callback for neural network control
@@ -63,8 +60,6 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
   ## Get actions for all agents using the configured controller
   if globalController == nil:
     # NO CONTROLLER - return NOOP actions (agents won't move, proving Python control is required)
-    echo "🚫 NO CONTROLLER: Returning NOOP actions - agents will not move"
-    echo "   This proves Python environment must provide control"
     var noopActions: array[MapAgents, array[2, uint8]]
     for i in 0..<MapAgents:
       noopActions[i] = [0'u8, 0'u8]  # NOOP action
@@ -81,20 +76,14 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
     
   of ExternalNN:
     # Use external neural network callback
-    echo "🎯 Debug: Using ExternalNN controller"
     if globalController.externalActionCallback != nil:
-      echo "📡 Debug: Calling external callback"
       let actions = globalController.externalActionCallback()
-      # Log sample actions
-      echo "🎮 Debug: Got external actions - Agent 0: [", actions[0][0], ",", actions[0][1], "], Agent 1: [", actions[1][0], ",", actions[1][1], "]"
       return actions
     else:
-      echo "📁 Debug: No external callback, trying to read actions from file"
       # Try to read actions from file (for Python neural network control across processes)
       let actionsFile = "actions.tmp"
       if fileExists(actionsFile):
         try:
-          echo "📄 Debug: Found actions file, reading..."
           let content = readFile(actionsFile)
           let lines = content.replace("\r", "").replace("\n\n", "\n").split('\n')
           if lines.len >= MapAgents:
@@ -110,12 +99,11 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
             try:
               removeFile(actionsFile)
             except:
-              echo "⚠️ Debug: Could not remove actions file"
+              discard  # Could not remove actions file
               
-            echo "📄 Debug: Successfully read actions from file - Agent 0: [", fileActions[0][0], ",", fileActions[0][1], "]"
             return fileActions
         except Exception as e:
-          echo "⚠️ Debug: Error reading actions file: ", e.msg
+          discard  # Error reading actions file
       
       # FAIL HARD: ExternalNN controller configured but no actions available!
       echo "❌ FATAL ERROR: ExternalNN controller configured but no callback or actions file found!"

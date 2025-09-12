@@ -75,7 +75,6 @@ proc drawSpeedButton*(x: float32, speed: float32, label: string): bool =
   if drawIconButton("ui/speed", pos = vec2(x, 16), size = vec2(20, 32)):
     playSpeed = speed
     play = true
-    debugLog("Speed button clicked: " & label)
     return true
   return false
 
@@ -108,13 +107,13 @@ proc drawHeader*(panel: Panel) =
     "ui/share",
     pos = vec2(panel.rect.rect.w - (16 + 32)*1, 16)
   ):
-    debugLog("Share button clicked")
-
+    discard  # Share button functionality
+  
   if drawIconButton(
     "ui/help",
     pos = vec2(panel.rect.rect.w - (16 + 32)*2, 16)
   ):
-    debugLog("Help button clicked")
+    discard  # Help button functionality
 
 
 proc drawFooter*(panel: Panel) =
@@ -125,14 +124,14 @@ proc drawFooter*(panel: Panel) =
     "ui/rewindToStart",
     pos = vec2(x, 16)
   ):
-    debugLog("Rewind to start")
+    discard  # Rewind to start
   x += 32 + 5
 
   if drawIconButton(
     "ui/stepBack",
     pos = vec2(x, 16)
   ):
-    debugLog("Step back")
+    discard  # Step back
   x += 32 + 5
 
   if drawIconButton(
@@ -148,7 +147,6 @@ proc drawFooter*(panel: Panel) =
     "ui/stepForward",
     pos = vec2(x, 16)
   ):
-    debugLog("Step forward")
     simStep()  # Step the simulation once
   x += 32 + 5
 
@@ -156,7 +154,7 @@ proc drawFooter*(panel: Panel) =
     "ui/rewindToEnd",
     pos = vec2(x, 16)
   ):
-    debugLog("Rewind to end")
+    discard  # Rewind to end
 
 
   x = panel.rect.rect.w / 2 - 32
@@ -167,7 +165,6 @@ proc drawFooter*(panel: Panel) =
   ):
     playSpeed = 0.5
     play = true
-    debugLog("Speed: Slow (0.5x)")
   x += 32 + 3
 
   discard drawSpeedButton(x, 0.25, "1x")
@@ -188,7 +185,6 @@ proc drawFooter*(panel: Panel) =
   ):
     playSpeed = 0.015625
     play = true
-    debugLog("Speed: Fast (16x)")
 
 
   x = panel.rect.rect.w - 16 - 32
@@ -198,7 +194,7 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     value = settings.showFogOfWar
   ):
-    debugLog("Fog of war toggled")
+    discard  # Fog of war toggle
   x -= 32 + 5
 
   if drawIconToggle(
@@ -206,7 +202,7 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     value = settings.showVisualRange
   ):
-    debugLog("Visual range toggled")
+    discard  # Visual range toggle
   x -= 32 + 5
 
   if drawIconToggle(
@@ -214,7 +210,7 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     value = settings.showGrid
   ):
-    debugLog("Grid toggled")
+    discard  # Grid toggle
   x -= 32 + 5
 
   if drawIconToggle(
@@ -222,7 +218,7 @@ proc drawFooter*(panel: Panel) =
     pos = vec2(x, 16),
     value = settings.lockFocus
   ):
-    debugLog("Focus toggled")
+    discard  # Focus toggle
   x -= 32 + 5
 
 

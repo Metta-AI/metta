@@ -319,10 +319,11 @@ cooldown: {selection.cooldown}
 spawn ready: {selection.cooldown == 0}
       """
     of Clippy:
+      let status = if selection.hasClaimedTerritory: "planted (creep tumor)" else: "seeking territory"
       info = &"""
 Clippy
 home: ({selection.homeSpawner.x}, {selection.homeSpawner.y})
-target: ({selection.targetPos.x}, {selection.targetPos.y})
+status: {status}
       """
     of Armory:
       info = &"""

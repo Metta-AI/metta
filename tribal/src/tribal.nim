@@ -161,6 +161,7 @@ if useExternalController or pythonControlMode:
   initGlobalController(ExternalNN)
   if pythonControlMode:
     # Environment variable: Using external NN controller for Python training
+    discard  # Python mode uses external controller
   else:
     # Command line: Using external NN controller
     discard
