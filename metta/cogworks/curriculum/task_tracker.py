@@ -44,6 +44,9 @@ class TaskTracker:
     def track_task_creation(self, task_id: int, bucket_values: Optional[Dict[str, Any]] = None) -> None:
         """Track creation of a new task."""
         if task_id not in self._task_stats:
+            # Clean up old tasks BEFORE adding new one to prevent immediate eviction
+            self._cleanup_old_tasks_if_needed()
+
             self._task_stats[task_id] = {
                 "completion_count": 0,
                 "total_score": 0.0,
@@ -56,14 +59,20 @@ class TaskTracker:
             # Invalidate cache
             self._total_completions_cache_valid = False
 
-            # Memory management: evict oldest tasks if over limit
-            self._cleanup_old_tasks_if_needed()
-
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update performance statistics for a task."""
         if task_id not in self._task_stats:
-            logger.warning(f"Updating performance for unknown task {task_id}")
+            # Automatically register the task instead of just warning
+            logger.debug(f"Auto-registering unknown task {task_id} during performance update")
             self.track_task_creation(task_id)
+
+        # Double-check the task exists after registration (in case it was immediately evicted)
+        if task_id not in self._task_stats:
+            logger.error(
+                f"Task {task_id} was evicted immediately after registration due to memory limits. "
+                f"Consider increasing max_memory_tasks (current: {self.max_memory_tasks})"
+            )
+            return
 
         stats = self._task_stats[task_id]
         stats["completion_count"] += 1
@@ -142,7 +151,8 @@ class TaskTracker:
 
     def _cleanup_old_tasks_if_needed(self) -> None:
         """Remove oldest tasks if memory limit exceeded."""
-        while len(self._task_stats) > self.max_memory_tasks:
+        # Only clean up if we're significantly over the limit to avoid thrashing
+        while len(self._task_stats) >= self.max_memory_tasks:
             if not self._task_creation_order:
                 break
 
