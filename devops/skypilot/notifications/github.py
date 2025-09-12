@@ -3,7 +3,6 @@
 
 from devops.skypilot.utils.job_config import JobConfig
 from gitta import post_commit_status
-from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.util.retry import retry_function
 
@@ -16,7 +15,7 @@ class GitHubStatusUpdater:
             logger.debug("GitHub status updates disabled")
             return False
 
-        # Validate required fields
+        # Extract and validate required fields
         commit_sha = job_config.metta_git_ref
         token = job_config.github_pat
         context = job_config.github_status_context
@@ -31,6 +30,11 @@ class GitHubStatusUpdater:
 
         assert commit_sha
 
+        # Validate SHA format
+        if len(commit_sha) < 40:
+            logger.error(f"Invalid GitHub SHA: '{commit_sha}' (expected 40 characters)")
+            return False
+
         # Build description
         desc = description
         if job_config.skypilot_job_id:
@@ -41,11 +45,21 @@ class GitHubStatusUpdater:
         if job_config.metta_run_id:
             target_url = f"https://wandb.ai/metta-research/metta/runs/{job_config.metta_run_id}"
 
-        logger.info(f"Setting GitHub status: state={state}, context={context}, sha={commit_sha[:8]}")
-        logger.debug(f"GitHub status details: description='{desc}', target_url={target_url}")
+        repo = job_config.github_repository
+        assert repo
+
+        # Log detailed payload info before posting
+        logger.info(
+            f"Posting GitHub status:\n"
+            f"  repo        = {repo}\n"
+            f"  sha         = {commit_sha}\n"
+            f"  state       = {state}\n"
+            f"  context     = {context}\n"
+            f"  description = {desc}\n"
+            f"  target_url  = {target_url}"
+        )
 
         try:
-            repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
             retry_function(
                 lambda: post_commit_status(
                     commit_sha=commit_sha,
@@ -60,7 +74,7 @@ class GitHubStatusUpdater:
                 initial_delay=2.0,
                 max_delay=30.0,
             )
-            logger.info(f"Successfully set GitHub status: {repo}@{commit_sha[:8]} → {state}")
+            logger.info(f"✅ Successfully set GitHub status: {repo}@{commit_sha[:8]} → {state}")
             return True
 
         except Exception as e:

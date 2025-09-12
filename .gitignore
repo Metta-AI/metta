@@ -112,5 +112,7 @@ mettagrid/MODULE.bazel.lock
 # MetaScope
 mettascope2/dist/
 mettascope2/data/fidget/
+
+# skypilot launch testing
 recipe_test_jobs.json
 cluster_test_jobs.json
