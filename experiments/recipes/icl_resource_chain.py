@@ -66,12 +66,14 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_sinks: list[int] = Field(
             default_factory=list, description="Number of sinks to sample from"
         )
-        width_range: tuple[int, int] = Field(
-            default=(5, 12), description="Width range to sample from"
+        room_sizes: list[str] = Field(
+            default=["6x6"], description="Room size to sample from"
         )
-        height_range: tuple[int, int] = Field(
-            default=(5, 12), description="Height range to sample from"
+        obstacle_types: list[str] = Field(
+            default=[], description="Obstacle types to sample from"
         )
+        densities: list[str] = Field(default=[], description="Density to sample from")
+        # obstacle_complexity
         max_steps: int = Field(default=256, description="Episode length")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
@@ -128,7 +130,16 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.map_builder_objects[sink_name] = 1
 
     def _make_env_cfg(
-        self, resources, num_sinks, width, height, avg_hop, rng, max_steps=256
+        self,
+        resources,
+        num_sinks,
+        width,
+        height,
+        obstacle_type,
+        density,
+        avg_hop,
+        rng,
+        max_steps=256,
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
         resource_chain = ["nothing"] + list(resources) + ["heart"]
@@ -158,14 +169,36 @@ class ConverterChainTaskGenerator(TaskGenerator):
             map_builder_objects=cfg.map_builder_objects,
             width=width,
             height=height,
+            obstacle_type=obstacle_type,
+            density=density,
         )
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         num_resources = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
         resources = rng.sample(self.resource_types, num_resources)
-        width = rng.randint(self.config.width_range[0], self.config.width_range[1])
-        height = rng.randint(self.config.height_range[0], self.config.height_range[1])
+        room_size = rng.choice(self.config.room_sizes)
+        obstacle_type = rng.choice(self.config.obstacle_types)
+        density = rng.choice(self.config.densities)
+
+        print(f"obstacle_type: {obstacle_type}, density: {density}")
+        print()
+        # by default, use a 6x6 room - to reproduce existing results
+        if room_size == "6x6":
+            width, height = 6, 6
+        else:
+            if room_size == "small":
+                size_range = (5, 8)
+            elif room_size == "medium":
+                size_range = (8, 12)
+            elif room_size == "large":
+                size_range = (12, 15)
+
+            width, height = (
+                rng.randint(size_range[0], size_range[1]),
+                rng.randint(size_range[0], size_range[1]),
+            )
+
         max_steps = self.config.max_steps
 
         avg_hop = (width + height) / 2
@@ -180,6 +213,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
             num_sinks,
             width=width,
             height=height,
+            obstacle_type=obstacle_type,
+            density=density,
             avg_hop=avg_hop,
             max_steps=max_steps,
             rng=rng,
@@ -189,6 +224,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
             "most_efficient_optimal_reward": most_efficient_optimal_reward,
             "least_efficient_optimal_reward": least_efficient_optimal_reward,
         }
+
+        icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{room_size}"
 
         return icl_env
 
@@ -263,9 +300,13 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
 def make_mettagrid() -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
-        chain_lengths=[6],
-        num_sinks=[2],
+        chain_lengths=[3],
+        num_sinks=[1],
+        room_sizes=["large"],
+        obstacle_types=["cross"],
+        densities=["dense"],
     )
+    print(task_generator_cfg)
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
     return task_generator.get_task(0)
 
@@ -277,8 +318,7 @@ def make_curriculum(
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
-        width_range=(5, 12),
-        height_range=(5, 12),
+        room_sizes=["small"],
     )
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -287,6 +327,7 @@ def make_curriculum(
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
+            progress_smoothing=0.1,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
