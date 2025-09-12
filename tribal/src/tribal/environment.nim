@@ -798,16 +798,16 @@ proc updateTintModifications(env: Environment) =
     
     case thing.kind
     of Clippy:
-      # Clippies create creep spread in 3x3 area (stronger effect when planted)
+      # Clippies create creep spread in 5x5 area (stronger effect when planted)
       let creepIntensity = if thing.hasClaimedTerritory: 2 else: 1
       
-      for dx in -1 .. 1:
-        for dy in -1 .. 1:
+      for dx in -2 .. 2:
+        for dy in -2 .. 2:
           let creepPos = ivec2(pos.x + dx, pos.y + dy)
           if creepPos.x >= 0 and creepPos.x < MapWidth and creepPos.y >= 0 and creepPos.y < MapHeight:
             # Distance-based falloff for more organic look
             let distance = abs(dx) + abs(dy)  # Manhattan distance
-            let falloff = max(1, 3 - distance)  # Stronger at center, weaker at edges (adjusted for 3x3)
+            let falloff = max(1, 5 - distance)  # Stronger at center, weaker at edges (5x5 grid)
             
             env.activeTiles.positions.add(creepPos)
             env.activeTiles.count += 1
@@ -857,6 +857,10 @@ proc applyTintModifications(env: Environment) =
     for tileY in 0 ..< MapHeight:
       # Skip if no modifications on this tile
       if env.tintMods[tileX][tileY].r == 0 and env.tintMods[tileX][tileY].g == 0 and env.tintMods[tileX][tileY].b == 0:
+        continue
+      
+      # Skip tinting on water tiles (rivers should remain clean)
+      if env.terrain[tileX][tileY] == Water:
         continue
     
       # Get current color as integers (scaled by 1000 for precision)

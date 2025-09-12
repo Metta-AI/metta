@@ -3,6 +3,40 @@ import
   boxy, vmath, windy, chroma,
   common, environment, utils, colors
 
+# Infection system constants
+const
+  InfectionThreshold* = 0.05  # Blue tint threshold for infection
+  PurpleOverlayStrength* = 0.6  # How strong the purple overlay is
+
+proc getInfectionLevel*(pos: IVec2): float32 =
+  ## Calculate infection level based on blue/purple tint only
+  if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
+    return 0.0
+  
+  let tileColor = env.tileColors[pos.x][pos.y]
+  let baseColor = env.baseTileColors[pos.x][pos.y]
+  let blueDiff = tileColor.b - baseColor.b
+  
+  # Only blue/purple tint causes freezing - agent warmth naturally counters this through the tint system
+  return min(max(blueDiff / InfectionThreshold, 0.0), 1.0)
+
+proc isInfected*(pos: IVec2): bool =
+  ## Check if a position has enough blue/purple tint to be frozen
+  return getInfectionLevel(pos) >= 1.0
+
+proc getInfectionSprite*(entityType: string): string =
+  ## Get the appropriate infection overlay sprite for static environmental objects only
+  case entityType:
+  of "building", "mine", "converter", "altar", "armory", "forge", "clay_oven", "weaving_loom":
+    return "agents/frozen"  # Ice cube overlay for static buildings
+  of "terrain", "wheat", "tree":
+    return "agents/frozen"  # Ice cube overlay for terrain features
+  of "agent", "clippy", "spawner":
+    return ""  # No overlays for dynamic entities
+  else:
+    return ""  # Default: no overlay
+
+
 proc useSelections*() =
   if window.buttonPressed[MouseLeft]:
     selection = nil
@@ -38,11 +72,25 @@ proc drawFloor*() =
 proc drawTerrain*() =
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
+      let pos = ivec2(x, y)
+      let infectionLevel = getInfectionLevel(pos)
+      let infected = infectionLevel >= 1.0
+      
       case env.terrain[x][y]
       of Wheat:
-        bxy.drawImage("objects/wheat_field", ivec2(x, y).vec2, angle = 0, scale = 1/200)
+        bxy.drawImage("objects/wheat_field", pos.vec2, angle = 0, scale = 1/200)
+        if infected:
+          # Add infection overlay sprite to infected wheat
+          let overlaySprite = getInfectionSprite("wheat")
+          if overlaySprite != "":
+            bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
       of Tree:
-        bxy.drawImage("objects/palm_tree", ivec2(x, y).vec2, angle = 0, scale = 1/200)
+        bxy.drawImage("objects/palm_tree", pos.vec2, angle = 0, scale = 1/200)
+        if infected:
+          # Add infection overlay sprite to infected trees
+          let overlaySprite = getInfectionSprite("tree")
+          if overlaySprite != "":
+            bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
       else:
         discard
 
@@ -115,6 +163,10 @@ proc drawObjects*() =
     for y in 0 ..< MapHeight:
       if env.grid[x][y] != nil:
         let thing = env.grid[x][y]
+        let pos = ivec2(x, y)
+        let infectionLevel = getInfectionLevel(pos)
+        let infected = infectionLevel >= 1.0
+        
         case thing.kind
         of Wall:
           discard
@@ -129,36 +181,49 @@ proc drawObjects*() =
             of NE: "agents/agent.e"  # Use east sprite for NE
             of SW: "agents/agent.w"  # Use west sprite for SW
             of SE: "agents/agent.e"  # Use east sprite for SE
+          
+          # Draw agent sprite with normal coloring (no infection overlay for agents)
           bxy.drawImage(
             agentImage,
-            ivec2(x, y).vec2,
+            pos.vec2,
             angle = 0,
             scale = 1/200,
             tint = generateEntityColor("agent", agent.agentId)
           )
+        
         of Altar:
+          let baseImage = "objects/altar"
           bxy.drawImage(
-            "objects/altar",
-            ivec2(x, y).vec2,
+            baseImage,
+            pos.vec2,
             angle = 0,
             scale = 1/200,
-            tint = getAltarColor(ivec2(x, y))
+            tint = getAltarColor(pos)
           )
+          if infected:
+            # Add infection overlay sprite
+            let overlaySprite = getInfectionSprite("altar")
+            if overlaySprite != "":
+              bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+        
         of Converter:
-          bxy.drawImage(
-            "objects/converter",
-            ivec2(x, y).vec2,
-            angle = 0,
-            scale = 1/200
-          )
+          let baseImage = "objects/converter"
+          bxy.drawImage(baseImage, pos.vec2, angle = 0, scale = 1/200)
+          if infected:
+            # Add infection overlay sprite
+            let overlaySprite = getInfectionSprite("converter")
+            if overlaySprite != "":
+              bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+        
         of Mine, Spawner:
           let imageName = if thing.kind == Mine: "objects/mine" else: "objects/spawner"
-          bxy.drawImage(
-            imageName,
-            ivec2(x, y).vec2,
-            angle = 0,
-            scale = 1/200
-          )
+          bxy.drawImage(imageName, pos.vec2, angle = 0, scale = 1/200)
+          if infected and thing.kind == Mine:
+            # Only mines get infection overlays, not spawners
+            let overlaySprite = getInfectionSprite("mine")
+            if overlaySprite != "":
+              bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+        
         of Clippy:
           # Map diagonal orientations to cardinal sprites
           let spriteDir = case thing.orientation:
@@ -166,12 +231,11 @@ proc drawObjects*() =
             of S: "s"
             of E, NE, SE: "e"
             of W, NW, SW: "w"
-          bxy.drawImage(
-            "agents/clippy.color." & spriteDir,
-            ivec2(x, y).vec2,
-            angle = 0,
-            scale = 1/200
-          )
+          let baseImage = "agents/clippy.color." & spriteDir
+          
+          # Clippies just draw normally - they're the infection source so no overlay needed
+          bxy.drawImage(baseImage, pos.vec2, angle = 0, scale = 1/200)
+        
         of Armory, Forge, ClayOven, WeavingLoom:
           let imageName = case thing.kind:
             of Armory: "objects/armory"
@@ -179,12 +243,19 @@ proc drawObjects*() =
             of ClayOven: "objects/clay_oven"
             of WeavingLoom: "objects/weaving_loom"
             else: ""
-          bxy.drawImage(
-            imageName,
-            ivec2(x, y).vec2,
-            angle = 0,
-            scale = 1/200
-          )
+          
+          bxy.drawImage(imageName, pos.vec2, angle = 0, scale = 1/200)
+          if infected:
+            # Add infection overlay sprite
+            let overlayType = case thing.kind:
+              of Armory: "armory"
+              of Forge: "forge" 
+              of ClayOven: "clay_oven"
+              of WeavingLoom: "weaving_loom"
+              else: "building"
+            let overlaySprite = getInfectionSprite(overlayType)
+            if overlaySprite != "":
+              bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
 
 proc drawVisualRanges*(alpha = 0.2) =
   var visibility: array[MapWidth, array[MapHeight, bool]]
