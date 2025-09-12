@@ -17,19 +17,16 @@ proc testLanternProductionAndColoring() =
   
   var lanternMakers: seq[tuple[agentId: int, teamId: int, role: AgentRole]]
   
-  # Access the global controller to get actual agent roles
-  if globalController != nil and globalController.controllerType == BuiltinAI:
-    let controller = globalController.aiController
-    for i in 0 ..< env.agents.len:
-      if controller.agentStates.hasKey(i):
-        let agent = env.agents[i]
-        let state = controller.agentStates[i]
-        let agentId = agent.agentId
-        let teamId = agentId div 5
-        
-        if state.role == WeavingLoomSpecialist:
-          lanternMakers.add((agentId: agentId, teamId: teamId, role: state.role))
-          echo fmt"  Agent {agentId} (Team {teamId}): WeavingLoom Specialist"
+  # Find WeavingLoom specialists using the simplified role assignment
+  for i in 0 ..< env.agents.len:
+    let agent = env.agents[i]
+    let agentId = agent.agentId
+    let teamId = agentId div 5
+    
+    # In simplified AI, WeavingLoomSpecialists are agents where (id mod 5) == 4
+    if (agentId mod 5) == 4:
+      lanternMakers.add((agentId: agentId, teamId: teamId, role: WeavingLoomSpecialist))
+      echo fmt"  Agent {agentId} (Team {teamId}): WeavingLoom Specialist"
   
   echo fmt"\nFound {lanternMakers.len} lantern makers across teams"
   
