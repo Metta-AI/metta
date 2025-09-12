@@ -222,174 +222,21 @@ class TribalHeadlessPlayTool(Tool):
         print("Random policy run completed!")
         return 0
 
-    def _print_observations(self, agent_obs, step):
-        """Print a visual ASCII grid of the environment around Agent 0."""
-        print(f"\n🗺️  Environment Grid (Step {step}) - Agent 0 Perspective")
-        print("=" * 60)
-
-        # agent_obs shape: (max_tokens, 3) where 3 = [coord_byte, layer, value]
-        # Parse observations into a grid
-        grid = {}
-        agent_positions = []
-        active_tokens = []
-
-        for i, token in enumerate(agent_obs):
-            coord_byte, layer, value = token
-            if coord_byte != 255:  # Valid token (not 0xFF padding)
-                x = (coord_byte >> 4) & 0xF
-                y = coord_byte & 0xF
-                active_tokens.append((x, y, layer, value))
-
-                # Track agent positions for special display
-                if layer == 0:  # Agent layer
-                    agent_positions.append((x, y))
-
-                # Build grid representation - prioritize most important items
-                pos = (x, y)
-                if pos not in grid or self._layer_priority(
-                    layer
-                ) > self._layer_priority(grid[pos][0]):
-                    grid[pos] = (layer, value)
-
-        if not active_tokens:
-            print("No active observations - agent may be isolated")
-            print("=" * 60)
-            return
-
-        # Determine grid bounds
-        all_x = [x for x, y, layer, value in active_tokens]
-        all_y = [y for x, y, layer, value in active_tokens]
-        min_x, max_x = min(all_x), max(all_x)
-        min_y, max_y = min(all_y), max(all_y)
-
-        print(f"📍 Observation area: {max_x - min_x + 1}x{max_y - min_y + 1} grid")
-
-        # Print the grid
-        print("\n   ", end="")
-        for x in range(min_x, max_x + 1):
-            print(f"{x:2}", end="")
-        print()
-
-        for y in range(min_y, max_y + 1):
-            print(f"{y:2} ", end="")
-            for x in range(min_x, max_x + 1):
-                pos = (x, y)
-                if pos in grid:
-                    symbol = self._layer_to_symbol(grid[pos][0], grid[pos][1])
-                    # Highlight agent positions
-                    if pos in agent_positions:
-                        symbol = f"\033[91m{symbol}\033[0m"  # Red color for agents
-                    print(f"{symbol:2}", end="")
-                else:
-                    print(" .", end="")
-            print()
-
-        # Print legend
-        print(f"\n📊 Layer Summary ({len(active_tokens)} observations):")
-        layer_counts = {}
-        layer_names = [
-            "Agent",
-            "AgentOrient",
-            "Ore",
-            "Battery",
-            "Water",
-            "Wheat",
-            "Wood",
-            "Spear",
-            "Hat",
-            "Armor",
-            "Wall",
-            "Mine",
-            "MineRes",
-            "MineReady",
-            "Converter",
-            "ConvReady",
-            "Altar",
-            "AltarHearts",
-            "AltarReady",
-        ]
-
-        for x, y, layer, value in active_tokens:
-            layer_counts[layer] = layer_counts.get(layer, 0) + 1
-
-        legend_items = []
-        for layer, count in sorted(layer_counts.items()):
-            symbol = self._layer_to_symbol(layer, 1)
-            layer_name = layer_names[layer] if layer < len(layer_names) else f"L{layer}"
-            legend_items.append(f"{symbol}={layer_name}({count})")
-
-        # Print legend in rows of 4
-        for i in range(0, len(legend_items), 4):
-            print("  " + "  ".join(legend_items[i : i + 4]))
-
-        print("=" * 60)
-
-    def _layer_priority(self, layer):
-        """Return display priority for layers (higher = more important to show)."""
-        priorities = {
-            0: 10,  # Agent (highest priority)
-            1: 9,  # AgentOrient
-            10: 8,  # Wall
-            11: 7,  # Mine
-            14: 6,  # Converter
-            16: 5,  # Altar
-            2: 4,  # Ore
-            3: 4,  # Battery
-            4: 3,  # Water
-            5: 3,  # Wheat
-            6: 3,  # Wood
-            7: 2,  # Spear
-            8: 2,  # Hat
-            9: 2,  # Armor
-        }
-        return priorities.get(layer, 1)
-
-    def _layer_to_symbol(self, layer, value):
-        """Convert layer to ASCII symbol for grid display."""
-        symbols = {
-            0: "A",  # Agent
-            1: "→",  # AgentOrient (could be directional)
-            2: "○",  # Ore
-            3: "B",  # Battery
-            4: "~",  # Water
-            5: "W",  # Wheat
-            6: "T",  # Wood (Tree)
-            7: "↑",  # Spear
-            8: "^",  # Hat
-            9: "□",  # Armor
-            10: "█",  # Wall
-            11: "M",  # Mine
-            12: "m",  # MineRes
-            13: "*",  # MineReady
-            14: "C",  # Converter
-            15: "c",  # ConvReady
-            16: "⛪",  # Altar
-            17: "♥",  # AltarHearts
-            18: "✦",  # AltarReady
-        }
-        return symbols.get(layer, "?")
+    # Removed verbose _print_observations method - using render_text() instead
 
     def _print_full_environment_grid(self, env, step):
         """Print the complete environment grid using the render_text method."""
-        # Clear terminal and show fresh grid
-        print("\033[2J\033[H", end="")  # Clear screen and move cursor to top
+        print("\033[2J\033[H", end="")  # Clear screen
 
         try:
-            # Get the full environment state as text
             full_grid_text = env._nim_env.render_text()
-
             if full_grid_text and full_grid_text.strip():
                 print(f"Step {step} - Full Environment Grid:")
                 print(full_grid_text)
             else:
                 print(f"Step {step} - No environment text available")
-                # Fallback to agent observations if render_text is empty
-                self._print_observations(env.observations[0], step)
-
         except Exception as e:
             print(f"Step {step} - Error getting environment grid: {e}")
-            # Fallback to the old method if there's an error
-            self._print_observations(env.observations[0], step)
 
 
 def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:

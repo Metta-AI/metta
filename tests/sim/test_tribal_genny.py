@@ -29,11 +29,12 @@ def test_genny_bindings():
     # Test 2: Create environment
     print("2. Creating tribal environment...")
     try:
-        env = make_tribal_env(num_agents=15, max_steps=100)
+        env = make_tribal_env(max_steps=100)
         print("✅ Environment created")
         print(f"   - Agents: {env.num_agents}")
-        print(f"   - Observation shape: [{env.observation_layers}, {env.observation_height}, {env.observation_width}]")
-        print(f"   - Action types: {env.num_action_types}")
+        print(f"   - Observation width: {env.obs_width}")
+        print(f"   - Observation height: {env.obs_height}")
+        print(f"   - Action names: {env.action_names}")
     except Exception as e:
         print(f"❌ Environment creation failed: {e}")
         return False
@@ -46,7 +47,7 @@ def test_genny_bindings():
         print(f"   - Observation shape: {obs.shape}")
         print(f"   - Info: {info}")
 
-        expected_shape = (15, 19, 11, 11)  # [agents, layers, height, width]
+        expected_shape = (15, 200, 3)  # [agents, max_tokens, features]
         if obs.shape == expected_shape:
             print("✅ Observation shape correct")
         else:
@@ -60,9 +61,9 @@ def test_genny_bindings():
     print("4. Testing environment step...")
     try:
         # Create safe actions: [action_type, argument]
-        actions = np.zeros((15, 2), dtype=np.int32)
+        actions = np.zeros((15, 2), dtype=np.uint8)
         actions[:, 0] = 1  # Move action
-        actions[:, 1] = np.random.randint(0, 4, size=15)  # Random cardinal directions
+        actions[:, 1] = np.random.randint(0, 8, size=15)  # Random directions
 
         obs, rewards, terminals, truncations, info = env.step(actions)
 
@@ -82,7 +83,7 @@ def test_genny_bindings():
         action_types = [0, 1, 2, 3, 4, 5]  # All available actions
 
         for step in range(5):
-            actions = np.zeros((15, 2), dtype=np.int32)
+            actions = np.zeros((15, 2), dtype=np.uint8)
             actions[:, 0] = np.random.choice(action_types, size=15)
             actions[:, 1] = np.random.randint(0, 8, size=15)  # Random arguments
 
@@ -101,14 +102,14 @@ def test_genny_bindings():
     # Test 6: Environment info
     print("6. Testing environment information...")
     try:
-        stats = env.get_episode_stats()
         current_step = env.current_step
         max_steps = env.max_steps
+        is_done = env.done
 
         print("✅ Environment info accessible")
         print(f"   - Current step: {current_step}")
         print(f"   - Max steps: {max_steps}")
-        print(f"   - Has stats: {'stats_text' in stats}")
+        print(f"   - Episode done: {is_done}")
 
     except Exception as e:
         print(f"❌ Environment info test failed: {e}")
