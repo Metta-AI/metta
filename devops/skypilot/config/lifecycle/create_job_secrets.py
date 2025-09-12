@@ -35,7 +35,6 @@ def main():
             os.makedirs(os.path.expanduser("~/.metta"), exist_ok=True)
             with open(os.path.expanduser("~/.metta/observatory_tokens.yaml"), "w") as f:
                 f.write(f"https://api.observatory.softmax-research.net: {args.observatory_token}\n")
-                f.write(f"https://observatory.softmax-research.net/api: {args.observatory_token}\n")
             print("~/.metta/observatory_tokens.yaml created")
 
 

@@ -12,8 +12,8 @@ from metta.setup.utils import error, info, success, warning
 @register_module
 class ObservatoryKeySetup(SetupModule):
     install_once = True
-    server_url: str = "https://observatory.softmax-research.net/api"
-    extra_server_urls: list[str] = [PROD_STATS_SERVER_URI]
+    server_url: str = PROD_STATS_SERVER_URI
+    extra_server_urls: list[str] = []
 
     @property
     def name(self) -> str:
