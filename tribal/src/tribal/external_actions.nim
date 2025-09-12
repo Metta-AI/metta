@@ -102,7 +102,7 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
               discard  # Could not remove actions file
               
             return fileActions
-        except Exception as e:
+        except Exception:
           discard  # Error reading actions file
       
       # FAIL HARD: ExternalNN controller configured but no actions available!

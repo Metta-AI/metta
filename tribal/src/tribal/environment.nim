@@ -116,6 +116,7 @@ type
     # Clippy:
     homeSpawner*: IVec2     # Position of clippy's home spawner
     hasClaimedTerritory*: bool  # Whether this clippy has claimed territory and is stationary
+    turnsAlive*: int            # Number of turns this clippy has been alive
     
     # Spawner: (no longer needs altar targeting for new creep spread behavior)
 
@@ -368,18 +369,6 @@ proc isEmpty*(env: Environment, pos: IVec2): bool =
     return false
   return env.grid[pos.x][pos.y] == nil
 
-proc findNearestThingPos(env: Environment, fromPos: IVec2, kind: ThingKind): IVec2 =
-  var nearestPos = ivec2(-1, -1)
-  var minDist = int.high
-  
-  for thing in env.things:
-    if thing.kind == kind:
-      let dist = manhattanDistance(thing.pos, fromPos)
-      if dist < minDist:
-        minDist = dist
-        nearestPos = thing.pos
-  
-  return nearestPos
 
 
 proc createClippy(pos: IVec2, homeSpawner: IVec2, r: var Rand): Thing =
@@ -389,7 +378,8 @@ proc createClippy(pos: IVec2, homeSpawner: IVec2, r: var Rand): Thing =
     pos: pos,
     orientation: Orientation(r.rand(0..3)),
     homeSpawner: homeSpawner,
-    hasClaimedTerritory: false  # Start mobile, will plant when far enough from others
+    hasClaimedTerritory: false,  # Start mobile, will plant when far enough from others
+    turnsAlive: 0                # New clippy hasn't lived any turns yet
   )
 
 
@@ -736,50 +726,30 @@ proc findEmptyPositionsAround(env: Environment, center: IVec2, radius: int): seq
 
 # ============== CLIPPY CREEP SPREAD AI ==============
 
-proc findNearbyClippies(env: Environment, pos: IVec2, maxDistance: int): seq[Thing] =
-  ## Find all clippies within maxDistance tiles (Manhattan distance)
-  result = @[]
-  for thing in env.things:
-    if thing.kind == Clippy and thing.pos != pos:
-      let distance = abs(thing.pos.x - pos.x) + abs(thing.pos.y - pos.y)
-      if distance <= maxDistance:
-        result.add(thing)
-
-proc isClippyFarEnoughFromOthers(env: Environment, pos: IVec2, minDistance: int): bool =
-  ## Check if position is at least minDistance tiles away from any other clippy
-  for thing in env.things:
-    if thing.kind == Clippy:
-      let distance = abs(thing.pos.x - pos.x) + abs(thing.pos.y - pos.y)
-      if distance < minDistance:
-        return false
-  return true
+proc hasNearbyClippies(env: Environment, pos: IVec2, radius: int, excludeClippy: Thing = nil): bool =
+  ## Check if there are any clippies within radius tiles (observation window)
+  for dx in -radius .. radius:
+    for dy in -radius .. radius:
+      if dx == 0 and dy == 0:
+        continue  # Skip center position
+      
+      let checkPos = pos + ivec2(dx, dy)
+      if checkPos.x >= 0 and checkPos.x < MapWidth and checkPos.y >= 0 and checkPos.y < MapHeight:
+        let thing = env.getThing(checkPos)
+        if not isNil(thing) and thing.kind == Clippy and thing != excludeClippy:
+          return true
+  return false
 
 proc getClippyMoveDirection(clippy: Thing, env: Environment, r: var Rand): IVec2 =
-  ## New creep spread behavior: move away from other clippies until far enough, then stay put
+  ## Simple clippy behavior: stay put if planted, otherwise move randomly
   
-  # If this clippy has already claimed territory, don't move
+  # If planted, don't move
   if clippy.hasClaimedTerritory:
-    return ivec2(0, 0)  # Stay stationary
+    return ivec2(0, 0)
   
-  # Check if we're far enough from other clippies to plant (minimum 2 tiles)
-  if env.isClippyFarEnoughFromOthers(clippy.pos, 2):
-    # We're far enough! Plant ourselves and become stationary
-    clippy.hasClaimedTerritory = true
-    return ivec2(0, 0)  # Stay put
-  
-  # Find nearby clippies to avoid
-  let nearbyClippies = env.findNearbyClippies(clippy.pos, 10)  # Look within 10 tiles
-  
-  if nearbyClippies.len > 0:
-    # Calculate direction to move away from the nearest clippy
-    let nearest = nearbyClippies[0]  # Already sorted by distance
-    let awayDirection = getDirectionTo(nearest.pos, clippy.pos)  # Direction away from nearest
-    
-    return awayDirection
-  else:
-    # No nearby clippies, move randomly to explore
-    const dirs = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
-    dirs[r.rand(0..<4)]
+  # Move randomly to explore
+  const dirs = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+  return dirs[r.rand(0..<4)]
 
 proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
   # Try with moderate attempts first
@@ -822,11 +792,11 @@ proc updateTintModifications(env: Environment) =
       
     case thing.kind
     of Clippy:
-      # Clippies create creep spread in 5x5 area (stronger effect when planted)
+      # Clippies create creep spread in 3x3 area (stronger effect when planted)
       let creepIntensity = if thing.hasClaimedTerritory: 2 else: 1
       
-      for dx in -2 .. 2:
-        for dy in -2 .. 2:
+      for dx in -1 .. 1:
+        for dy in -1 .. 1:
           let creepPos = ivec2(pos.x + dx, pos.y + dy)
           if creepPos.x >= 0 and creepPos.x < MapWidth and creepPos.y >= 0 and creepPos.y < MapHeight:
             # Distance-based falloff for more organic look
@@ -1381,7 +1351,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
         
         # Spawn a new Clippy (no limit for now)
         if true:
-          # Find empty positions around spawner
+          # Find empty positions around spawner (simple approach)
           let emptyPositions = env.findEmptyPositionsAround(thing.pos, 2)
           if emptyPositions.len > 0:
             var r = initRand(env.currentStep)
@@ -1417,9 +1387,16 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
   var clippysToRemove: seq[Thing] = @[]
   var r = initRand(env.currentStep)
   
+  # First pass: Calculate movements for all clippies
+  var clippyMoves: seq[tuple[clippy: Thing, moveDir: IVec2]] = @[]
   for clippy in clippysToProcess:
-    # Get movement direction from clippy AI (pass clippy directly)
     let moveDir = getClippyMoveDirection(clippy, env, r)
+    clippyMoves.add((clippy: clippy, moveDir: moveDir))
+  
+  # Second pass: Apply movements
+  for move in clippyMoves:
+    let clippy = move.clippy
+    let moveDir = move.moveDir
     let newPos = clippy.pos + moveDir
     
     # Update clippy orientation based on movement direction
@@ -1448,6 +1425,27 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           env.updateObservations(AltarHeartsLayer, target.pos, target.hearts)
         clippysToRemove.add(clippy)
         env.grid[clippy.pos.x][clippy.pos.y] = nil
+  
+  # Third pass: Handle planting decisions and age tracking
+  for clippy in clippysToProcess:
+    # Skip if clippy is already marked for removal
+    if clippy in clippysToRemove:
+      continue
+    
+    # Increment age counter
+    clippy.turnsAlive += 1
+    
+    # Skip planting if already planted
+    if clippy.hasClaimedTerritory:
+      continue
+    
+    # Skip planting on first turn (turnsAlive == 1 since we just incremented)
+    if clippy.turnsAlive == 1:
+      continue
+    
+    # Plant if no nearby clippies in observation window (2-tile radius)
+    if not env.hasNearbyClippies(clippy.pos, 2, clippy):
+      clippy.hasClaimedTerritory = true
   
   # ============== CLIPPY COMBAT ==============
   # Process combat between clippys and adjacent agents
