@@ -11,6 +11,8 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
+
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator
 from metta.common.tool import Tool
@@ -24,7 +26,6 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from metta.tribal import TribalEnvConfig
 from metta.tribal.tribal_genny import TribalGameConfig
-from metta.tribal.tribal_process_controller import TribalProcessController
 
 
 def _ensure_tribal_bindings_built():
@@ -88,125 +89,229 @@ class TribalTaskGeneratorConfig(TaskGeneratorConfig):
         return SimpleTribalTaskGenerator(self)
 
 
-class TribalProcessPlayTool(Tool):
-    """Process-separated tribal environment tool using file-based IPC."""
+class TribalHeadlessPlayTool(Tool):
+    """Simple headless tribal environment tool using direct Genny bindings."""
 
     env_config: TribalEnvConfig
     policy_uri: str | None = None
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        """Run tribal environment with process separation."""
-        print("🎮 Tribal Process-Separated Play Tool")
-
-        project_root = Path(__file__).parent.parent.parent
-        tribal_dir = project_root / "tribal"
+        """Run tribal environment headlessly with command-line visualization."""
+        print("🎮 Tribal Headless Play Tool")
+        print("Using direct Genny bindings - no separate process needed!\n")
 
         if self.policy_uri:
             if self.policy_uri.startswith("test_"):
                 print(f"🧪 Test mode: {self.policy_uri}")
-                return self._run_test_policy(TribalProcessController, tribal_dir)
+                return self._run_test_policy()
             else:
-                return self._run_with_neural_network(
-                    TribalProcessController, tribal_dir
-                )
+                return self._run_with_neural_network()
         else:
-            return self._run_builtin_ai(TribalProcessController, tribal_dir)
+            return self._run_random_policy()
 
-    def _run_test_policy(self, ControllerClass, tribal_dir: Path) -> int:
-        """Run with test policy."""
-        with ControllerClass(tribal_dir) as controller:
-            assert controller.start_nim_process(), "Failed to start Nim viewer process"
+    def _run_test_policy(self) -> int:
+        """Run with test policy using direct Genny bindings."""
+        from metta.tribal.tribal_genny import make_tribal_env
 
-            controller.activate_communication()
-            obs, info = controller.reset()
+        # Convert config to dict for make_tribal_env
+        config_dict = self.env_config.game.model_dump()
+        env = make_tribal_env(**config_dict)
 
-            max_steps = min(500, self.env_config.game.max_steps)
-            print(f"🎮 Running {max_steps} steps with {self.policy_uri}...")
+        print(f"✅ Environment created: {env.num_agents} agents")
 
+        obs, info = env.reset()
+        max_steps = min(500, self.env_config.game.max_steps)
+        print(f"🎮 Running {max_steps} steps with {self.policy_uri}...\n")
+
+        try:
             for step in range(max_steps):
+                # Generate actions based on test policy
                 actions = []
-                for agent in range(controller.num_agents):
+                for agent_id in range(env.num_agents):
                     if self.policy_uri == "test_noop":
                         actions.append([0, 0])  # NOOP action
                     elif self.policy_uri == "test_move":
-                        actions.append([1, random.randint(0, 3)])  # Random movement
+                        actions.append([1, random.randint(0, 7)])  # Random movement
                     else:
-                        # Default to NOOP for unknown test policies
-                        actions.append([0, 0])
+                        actions.append([0, 0])  # Default NOOP
 
-                obs, rewards, terminals, truncations, info = controller.step(actions)
+                actions = np.array(actions, dtype=np.uint8)
+                obs, rewards, terminals, truncations, info = env.step(actions)
 
+                # Print status every 20 steps
                 if step % 20 == 0:
                     reward_sum = rewards.sum()
                     num_alive = (~(terminals | truncations)).sum()
+                    current_step = info.get("current_step", step)
                     print(
-                        f"  Step {step}: reward_sum={reward_sum:.3f}, agents_alive={num_alive}"
+                        f"  Step {current_step}: reward_sum={reward_sum:.3f}, agents_alive={num_alive}/{env.num_agents}"
                     )
 
+                    # Show a simple visualization of the first agent's observations
+                    if step % 100 == 0:
+                        self._print_observations(obs[0], step)
+
                 if info.get("episode_done", False):
-                    print(f"🏁 Episode ended at step {step}")
+                    print(
+                        f"\n🏁 Episode ended at step {info.get('current_step', step)}"
+                    )
                     break
 
-                time.sleep(0.1)
+                # Small delay to make it readable
+                time.sleep(0.05)
 
-            print("✅ Process-separated communication working!")
-            time.sleep(5)
-            return 0
+        except KeyboardInterrupt:
+            print("\n⏹️  Interrupted by user")
 
-    def _run_with_neural_network(self, ControllerClass, tribal_dir: Path) -> int:
+        print("✅ Test policy run completed!")
+        return 0
+
+    def _run_with_neural_network(self) -> int:
         """Run with trained neural network policy."""
+        from metta.tribal.tribal_genny import make_tribal_env
 
         policy = CheckpointManager.load_from_uri(self.policy_uri)
         print(f"✅ Neural network loaded: {type(policy).__name__}")
 
-        with ControllerClass(tribal_dir) as controller:
-            assert controller.start_nim_process(), "Failed to start Nim viewer process"
+        # Convert config to dict for make_tribal_env
+        config_dict = self.env_config.game.model_dump()
+        env = make_tribal_env(**config_dict)
 
-            controller.activate_communication()
-            obs, info = controller.reset()
+        obs, info = env.reset()
+        max_steps = min(200, self.env_config.game.max_steps)
+        print(f"🎮 Running {max_steps} steps with neural network...\n")
 
-            max_steps = min(200, self.env_config.game.max_steps)
-            print(f"🎮 Running {max_steps} steps with neural network...")
-
+        try:
             for step in range(max_steps):
                 policy_output = policy.forward(obs)
-                actions = policy_output[
-                    "actions"
-                ]  # Let it crash if actions key missing
+                actions = policy_output["actions"]  # Let it crash if missing
 
-                obs, rewards, terminals, truncations, info = controller.step(actions)
+                obs, rewards, terminals, truncations, info = env.step(actions)
 
-                if step % 50 == 0:
+                if step % 10 == 0:
                     reward_sum = rewards.sum()
                     num_alive = (~(terminals | truncations)).sum()
+                    current_step = info.get("current_step", step)
                     print(
-                        f"  Step {step}: reward_sum={reward_sum:.3f}, agents_alive={num_alive}"
+                        f"  Step {current_step}: reward_sum={reward_sum:.3f}, agents_alive={num_alive}/{env.num_agents}"
                     )
 
+                    # Show observations periodically
+                    if step % 50 == 0:
+                        self._print_observations(obs[0], step)
+
                 if info.get("episode_done", False):
-                    print(f"🏁 Episode ended at step {step}")
+                    print(
+                        f"\n🏁 Episode ended at step {info.get('current_step', step)}"
+                    )
                     break
 
-            print("✅ Neural network control working!")
-            time.sleep(3)
-            return 0
+                time.sleep(0.02)
 
-    def _run_builtin_ai(self, ControllerClass, tribal_dir: Path) -> int:
-        """Run with built-in AI."""
-        print("🤖 Running with built-in AI")
+        except KeyboardInterrupt:
+            print("\n⏹️  Interrupted by user")
 
-        with ControllerClass(tribal_dir) as controller:
-            assert controller.start_nim_process(), "Failed to start Nim viewer process"
+        print("✅ Neural network control completed!")
+        return 0
 
-            controller.activate_communication()
-            print("Press Ctrl+C to stop")
+    def _run_random_policy(self) -> int:
+        """Run with random actions for demonstration."""
+        from metta.tribal.tribal_genny import make_tribal_env
 
-            try:
-                while True:
-                    time.sleep(1.0)
-            except KeyboardInterrupt:
-                print("\n⏹️  Interrupted by user")
-                return 0
+        print("🎲 Running with random actions")
+
+        # Convert config to dict for make_tribal_env
+        config_dict = self.env_config.game.model_dump()
+        env = make_tribal_env(**config_dict)
+
+        obs, info = env.reset()
+        max_steps = min(300, self.env_config.game.max_steps)
+        print(f"🎮 Running {max_steps} steps with random actions...\n")
+
+        try:
+            for step in range(max_steps):
+                # Generate random actions
+                actions = np.random.randint(
+                    0, [6, 8], size=(env.num_agents, 2), dtype=np.uint8
+                )
+                obs, rewards, terminals, truncations, info = env.step(actions)
+
+                if step % 30 == 0:
+                    reward_sum = rewards.sum()
+                    num_alive = (~(terminals | truncations)).sum()
+                    current_step = info.get("current_step", step)
+                    print(
+                        f"  Step {current_step}: reward_sum={reward_sum:.3f}, agents_alive={num_alive}/{env.num_agents}"
+                    )
+
+                    # Show observations every 60 steps
+                    if step % 60 == 0:
+                        self._print_observations(obs[0], step)
+
+                if info.get("episode_done", False):
+                    print(
+                        f"\n🏁 Episode ended at step {info.get('current_step', step)}"
+                    )
+                    break
+
+                time.sleep(0.1)
+
+        except KeyboardInterrupt:
+            print("\n⏹️  Interrupted by user")
+
+        print("✅ Random policy run completed!")
+        return 0
+
+    def _print_observations(self, agent_obs, step):
+        """Print a simple visualization of agent observations."""
+        print(f"\n--- Agent 0 Observations (Step {step}) ---")
+
+        # agent_obs shape: (max_tokens, 3) where 3 = [coord_byte, layer, value]
+        active_tokens = []
+        for i, token in enumerate(agent_obs):
+            coord_byte, layer, value = token
+            if coord_byte != 255:  # Valid token (not 0xFF padding)
+                x = (coord_byte >> 4) & 0xF
+                y = coord_byte & 0xF
+                active_tokens.append((x, y, layer, value))
+
+        if active_tokens:
+            print(f"Active observations: {len(active_tokens)} tokens")
+            # Group by layer and show summary
+            layer_counts = {}
+            for x, y, layer, value in active_tokens:
+                layer_counts[layer] = layer_counts.get(layer, 0) + 1
+
+            layer_names = [
+                "Agent",
+                "AgentOrient",
+                "Ore",
+                "Battery",
+                "Water",
+                "Wheat",
+                "Wood",
+                "Spear",
+                "Hat",
+                "Armor",
+                "Wall",
+                "Mine",
+                "MineRes",
+                "MineReady",
+                "Converter",
+                "ConvReady",
+                "Altar",
+                "AltarHearts",
+                "AltarReady",
+            ]
+
+            for layer, count in sorted(layer_counts.items()):
+                layer_name = (
+                    layer_names[layer] if layer < len(layer_names) else f"Layer{layer}"
+                )
+                print(f"  {layer_name}: {count} observations")
+        else:
+            print("No active observations")
+        print("" + "-" * 45)
 
 
 def tribal_env_curriculum(tribal_config: TribalEnvConfig) -> CurriculumConfig:
@@ -321,10 +426,10 @@ def evaluate(
 
 def play(
     env: TribalEnvConfig | None = None, policy_uri: str | None = None, **overrides
-) -> "TribalProcessPlayTool":
-    """Interactive play with the tribal environment using process separation."""
+) -> "TribalHeadlessPlayTool":
+    """Interactive play with the tribal environment using headless Genny bindings."""
     play_env = env or make_tribal_environment()
-    return TribalProcessPlayTool(
+    return TribalHeadlessPlayTool(
         env_config=play_env,
         policy_uri=policy_uri,
         **overrides,
