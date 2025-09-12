@@ -112,7 +112,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
             resource_names=["heart"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
+                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -149,7 +149,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             resource_names=["heart", "ore_red", "battery_red"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
+                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
