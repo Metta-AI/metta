@@ -71,6 +71,9 @@ def accumulate_rollout_stats(
 
     # Batch process info dictionaries
     for i in raw_infos:
+        # Skip non-dictionary objects that may have been incorrectly added to raw_infos
+        if not isinstance(i, dict):
+            continue
         for k, v in unroll_nested_dict(i):
             # Detach any tensors before accumulating to prevent memory leaks
             if torch.is_tensor(v):
