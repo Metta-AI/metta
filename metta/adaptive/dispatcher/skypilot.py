@@ -4,10 +4,10 @@ import logging
 import subprocess
 import uuid
 
+from metta.adaptive.models import JobDefinition
+from metta.adaptive.protocols import Dispatcher
+from metta.adaptive.utils import get_display_id
 from metta.common.util.constants import SKYPILOT_LAUNCH_PATH
-from metta.sweep.models import JobDefinition, JobTypes
-from metta.sweep.protocols import Dispatcher
-from metta.sweep.utils import get_display_id
 
 logger = logging.getLogger(__name__)
 
@@ -40,35 +40,14 @@ class SkypilotDispatcher(Dispatcher):
         # 4. Add the actual command (e.g., experiments.recipes.arena.train)
         cmd_parts.append(job.cmd)
 
-        # Add positional arguments first (if any)
-        cmd_parts.extend(job.args)
-
-        # Collect all args (exactly like LocalDispatcher)
-        all_args = []
-
-        # Add run_id for training jobs only (not for eval)
-        if job.type == JobTypes.LAUNCH_TRAINING:
-            all_args.append(f"run={job.run_id}")
-
-        # Add metadata fields as args (used for evaluation jobs)
-        for key, value in job.metadata.items():
-            all_args.append(f"{key}={value}")
-
-        # Add all args with --args flag
-        if all_args:
+        # Build --args from job.args dict
+        args_list: list[str] = [f"{k}={v}" for k, v in job.args.items()]
+        if args_list:
             cmd_parts.append("--args")
-            cmd_parts.extend(all_args)
+            cmd_parts.extend(args_list)
 
-        # Collect all overrides (from both overrides and config)
-        all_overrides = []
-
-        # Add explicit overrides
-        for key, value in job.overrides.items():
-            all_overrides.append(f"{key}={value}")
-
-        # Add config from optimizer as additional overrides
-        for key, value in job.config.items():
-            all_overrides.append(f"{key}={value}")
+        # Collect overrides from job.overrides only
+        all_overrides: list[str] = [f"{k}={v}" for k, v in job.overrides.items()]
 
         # Add all overrides with --overrides flag
         if all_overrides:
