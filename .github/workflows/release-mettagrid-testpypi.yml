@@ -83,6 +83,8 @@ jobs:
               $PY -m build --wheel --outdir /work/dist /work/mettagrid
               ls -l /work/dist
               auditwheel repair -w /work/dist /work/dist/mettagrid-*.whl
+              # Remove the original non-manylinux wheel to avoid accidental upload
+              rm -f /work/dist/*-linux_*.whl || true
               ls -l /work/dist
             '
 
@@ -215,13 +217,19 @@ jobs:
       # Windows wheels are currently experimental and may fail to build.
       # We publish Linux and macOS wheels (and sdist) without blocking on Windows.
 
-      - name: Verify no universal wheels were produced
+      - name: Verify no universal or plain-linux wheels were produced
         run: |
           shopt -s nullglob
           BAD=(dist/*py3-none-any.whl)
           if [ ${#BAD[@]} -gt 0 ]; then
             echo "Error: Found universal wheels (py3-none-any) which is not allowed for mettagrid:"
             ls -l dist/*py3-none-any.whl || true
+            exit 1
+          fi
+          BAD_LINUX=(dist/*-linux_*.whl)
+          if [ ${#BAD_LINUX[@]} -gt 0 ]; then
+            echo "Error: Found plain linux-tagged wheels; expected manylinux/musllinux:"
+            ls -l dist/*-linux_*.whl || true
             exit 1
           fi
 
