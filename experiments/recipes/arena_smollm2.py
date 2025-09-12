@@ -161,7 +161,6 @@ def train(
         bptt_horizon=4,  # Minimal context for memory efficiency
         forward_pass_minibatch_target_size=16,  # Tiny forward passes
         update_epochs=8,  # More epochs to compensate for smaller batches
-        gradient_accumulation_steps=4,  # Accumulate gradients to maintain effective batch size
         async_factor=1,  # Disable async for memory savings
         compile=False,  # Disable torch.compile to save memory
         evaluation=EvaluationConfig(
