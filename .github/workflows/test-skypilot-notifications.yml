@@ -46,9 +46,12 @@ jobs:
             requests>=2.31.0
             dataclasses
 
-      - name: Install metta.common in editable mode
+      - name: Install required local packages in editable mode
         run: |
           cd common
+          uv pip install -e .
+          cd ..
+          cd gitta
           uv pip install -e .
 
       - name: Run notification tests
