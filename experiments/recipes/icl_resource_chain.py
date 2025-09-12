@@ -287,7 +287,6 @@ def make_curriculum(
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
-        room_sizes = ["small"],
     )
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -296,6 +295,7 @@ def make_curriculum(
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
+            progress_smoothing=0.1,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
