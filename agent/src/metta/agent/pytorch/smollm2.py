@@ -69,17 +69,27 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             if isinstance(module, nn.Linear):
                 pufferlib.pytorch.layer_init(module, std=0.01)
 
-        # Action and value heads
+        # Store action space information
         self.action_space = env.single_action_space
+        self.max_action_args = getattr(env, "max_action_args", [])
+        self.num_action_types = len(self.max_action_args) if self.max_action_args else env.single_action_space.nvec[0]
 
-        # Calculate total flattened action space
-        if hasattr(env, "max_action_args"):
-            total_actions = sum(max_arg + 1 for max_arg in env.max_action_args)
-        else:
-            # Fallback for multi-discrete action space
-            total_actions = sum(env.single_action_space.nvec)
+        # Create hierarchical action heads: separate action type and parameter selection
+        # Action type head: selects which action to take (attack, move, noop, etc.)
+        self.action_type_head = pufferlib.pytorch.layer_init(
+            nn.Linear(self.hidden_size, self.num_action_types), std=0.01
+        )
 
-        self.actor = nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, total_actions), std=0.01)])
+        # Parameter heads: one for each action type that has parameters
+        self.param_heads = nn.ModuleList()
+        for max_param in self.max_action_args:
+            if max_param > 0:  # Only create heads for actions with parameters
+                head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, max_param + 1), std=0.01)
+            else:
+                head = None  # No parameters needed for this action
+            self.param_heads.append(head)
+
+        # Value head
         self.value = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1), std=1)
 
         # Hidden state for recurrence (optional)
@@ -143,12 +153,22 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         # Pool over sequence dimension (mean pooling)
         pooled_hidden = hidden_states.mean(dim=1)  # [B*TT, hidden_size]
 
-        # Decode actions and value
-        logits_list = [head(pooled_hidden) for head in self.actor]
+        # Hierarchical action selection: action type + parameters
+        action_type_logits = self.action_type_head(pooled_hidden)  # [B*TT, num_action_types]
         value = self.value(pooled_hidden)
 
-        # Convert logits list to single tensor for mixin compatibility
-        logits = logits_list[0] if len(logits_list) == 1 else torch.cat(logits_list, dim=-1)
+        # Compute parameter logits for each action type
+        param_logits_list = []
+        for param_head in self.param_heads:
+            if param_head is not None:
+                param_logits = param_head(pooled_hidden)  # [B*TT, max_param+1]
+            else:
+                # For actions with no parameters, create dummy logits with single option
+                param_logits = torch.zeros(pooled_hidden.shape[0], 1, device=pooled_hidden.device)
+            param_logits_list.append(param_logits)
+
+        # Convert hierarchical logits to flattened format for mixin compatibility
+        logits = self._combine_hierarchical_logits(action_type_logits, param_logits_list)
 
         # Use mixin for mode-specific processing
         if action is None:
@@ -159,6 +179,37 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             td = self.forward_training(td, action, logits, value)
 
         return td
+
+    def _combine_hierarchical_logits(
+        self, action_type_logits: torch.Tensor, param_logits_list: list[torch.Tensor]
+    ) -> torch.Tensor:
+        """Convert hierarchical (action_type, params) logits to flattened action space.
+
+        This matches the flattened action space format expected by the training system,
+        where each (action_type, param) combination gets a unique index.
+        """
+        batch_size = action_type_logits.shape[0]
+
+        # Calculate total flattened action space size
+        total_actions = sum(max_arg + 1 for max_arg in self.max_action_args)
+
+        # Create flattened logits tensor
+        flattened_logits = torch.zeros(batch_size, total_actions, device=action_type_logits.device)
+
+        # Fill flattened logits based on hierarchical structure
+        flat_idx = 0
+        for action_type in range(self.num_action_types):
+            max_param = self.max_action_args[action_type]
+            param_logits = param_logits_list[action_type]
+
+            for param in range(max_param + 1):
+                # Combine action type and parameter logits
+                # This creates a joint probability for (action_type, param) pairs
+                combined_logit = action_type_logits[:, action_type] + param_logits[:, param]
+                flattened_logits[:, flat_idx] = combined_logit
+                flat_idx += 1
+
+        return flattened_logits
 
     def initialize_to_environment(self, full_action_names: list[str], device: torch.device):
         """Initialize the agent to the current environment."""
@@ -230,7 +281,14 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         loss = torch.tensor(0.0, device=self.device)
 
         # Only regularize the heads, not the pre-trained LLM
-        for module in [*self.token_projector.modules(), *self.actor, self.value]:
+        modules_for_reg = [
+            *self.token_projector.modules(),
+            self.action_type_head,
+            *[head for head in self.param_heads if head is not None],
+            self.value,
+        ]
+
+        for module in modules_for_reg:
             if hasattr(module, "_initial_weight") and hasattr(module, "weight"):
                 loss += ((module.weight - module._initial_weight) ** 2).sum()
             if hasattr(module, "_initial_bias") and hasattr(module, "bias") and module.bias is not None:
@@ -240,7 +298,15 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
 
     def _store_initial_weights(self):
         """Store initial weights for L2 regularization."""
-        for module in [*self.token_projector.modules(), *self.actor, self.value]:
+        # Collect all relevant modules for weight storage
+        modules_to_store = [
+            *self.token_projector.modules(),
+            self.action_type_head,
+            *[head for head in self.param_heads if head is not None],
+            self.value,
+        ]
+
+        for module in modules_to_store:
             if isinstance(module, nn.Linear):
                 module._initial_weight = module.weight.data.clone()
                 if module.bias is not None:
