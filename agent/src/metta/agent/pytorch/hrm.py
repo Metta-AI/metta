@@ -38,26 +38,27 @@ def rms_norm(x: torch.Tensor, variance_epsilon: float = 1e-5) -> torch.Tensor:
 class HRMMemory:
     def __init__(self):
         self.carry = None
-        self.steps = None
-        self.halted = None
-        self.current_data = None
+
+
+    def has_memory(self):
+        return True
     
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        if not hasattr(self, "carry"):
-            self.carry = None
-        if not hasattr(self, "steps"):
-            self.steps = None
-        if not hasattr(self, "halted"):
-            self.halted = None
-        if not hasattr(self, "current_data"):
-            self.current_data = None
+    def set_memory(self, memory):
+        self.carry = memory["carry"]
     
-    def reset(self):
+    def get_memory(self):
+        return self.carry
+    
+    def reset_memory(self):
         self.carry = None
-        self.steps = None
-        self.halted = None
-        self.current_data = None
+    
+    def reset_env_memory(self, env_id):
+        if env_id in self.carry:
+            del self.carry[env_id]
+        
+    
+
+
     
 
     
@@ -560,7 +561,7 @@ class HRMBackbone(nn.Module):
         }, outputs
 
 
-class HRM(PyTorchAgentMixin, LSTMWrapper):
+class HRM(PyTorchAgentMixin, HRMMemory):
     """Hierarchical Reasoning Model with LSTM using PyTorchAgentMixin for shared functionality."""
 
     def __init__(self, env, policy=None, input_size=64, hidden_size=64, num_layers=1, **kwargs):
@@ -634,6 +635,8 @@ class HRM(PyTorchAgentMixin, LSTMWrapper):
             td = self.forward_training(td, action, logits_list, value)
 
         return td
+    
+
 
 
 class Policy(nn.Module):
@@ -748,6 +751,7 @@ class Policy(nn.Module):
 
         # Forward through backbone
         new_carry, outputs = self.backbone(state["carry"], {"env_obs": observations})
+        
 
         # Update state
         state["carry"] = new_carry
