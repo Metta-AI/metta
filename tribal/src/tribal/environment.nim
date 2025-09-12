@@ -775,11 +775,6 @@ proc getClippyMoveDirection(clippy: Thing, env: Environment, r: var Rand): IVec2
     let nearest = nearbyClippies[0]  # Already sorted by distance
     let awayDirection = getDirectionTo(nearest.pos, clippy.pos)  # Direction away from nearest
     
-    # Add some randomness to avoid clustering
-    if r.rand(0.0..1.0) < 0.3:
-      const dirs = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
-      return dirs[r.rand(0..<4)]
-    
     return awayDirection
   else:
     # No nearby clippies, move randomly to explore
