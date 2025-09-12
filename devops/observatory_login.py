@@ -1,5 +1,7 @@
 #!/usr/bin/env -S uv run
 
+# NOTE: when moving this file, make sure to update ObservatoryKeySetup.login_script_location
+
 import argparse
 import asyncio
 import os
