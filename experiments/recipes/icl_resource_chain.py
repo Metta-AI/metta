@@ -66,7 +66,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_sinks: list[int] = Field(
             default_factory=list, description="Number of sinks to sample from"
         )
-        room_sizes: list[str] = Field(default=["6x6"], description="Room size to sample from")
+        room_sizes: list[str] = Field(
+            default=["6x6"], description="Room size to sample from"
+        )
+        # obstacle_complexity
         max_steps: int = Field(default=256, description="Episode length")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
@@ -172,7 +175,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
             elif room_size == "large":
                 size_range = (12, 15)
 
-            width, height = rng.randint(size_range[0], size_range[1]), rng.randint(size_range[0], size_range[1])
+            width, height = (
+                rng.randint(size_range[0], size_range[1]),
+                rng.randint(size_range[0], size_range[1]),
+            )
 
         max_steps = self.config.max_steps
 
@@ -287,6 +293,7 @@ def make_curriculum(
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
+        room_sizes=["small"],
     )
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
