@@ -592,19 +592,34 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       discard  # AltarSpecialist handled below
     
     # If we have a specialized target, move toward it
-    if state.targetType in [Tree, Wheat, Armory, Forge, ClayOven, WeavingLoom, LanternPlantSpot, ClippyHunt] and state.currentTarget != agent.pos:
-      let dir = getDirectionTo(agent.pos, state.currentTarget)
-      if dir.x != 0 or dir.y != 0:
-        let moveOrientation = getOrientation(dir)
-        let nextPos = agent.pos + dir
-        if env.isEmpty(nextPos):
-          return [1'u8, ord(moveOrientation).uint8]  # Move toward specialized target
-        elif isAdjacent(agent.pos, state.currentTarget):
-          # Try to get to cardinal position
-          let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
-          if moveDir.x != 0 or moveDir.y != 0:
+    if state.targetType in [Tree, Wheat, Armory, Forge, ClayOven, WeavingLoom, LanternPlantSpot, ClippyHunt]:
+      # Special handling for resource tiles (Tree, Wheat) - need to be adjacent, not on top
+      if state.targetType in [Tree, Wheat] and state.currentTarget == agent.pos:
+        # We're on top of the resource, move to an adjacent cardinal position
+        let adjacentPositions = @[
+          state.currentTarget + ivec2(0, -1),  # North
+          state.currentTarget + ivec2(1, 0),   # East  
+          state.currentTarget + ivec2(0, 1),   # South
+          state.currentTarget + ivec2(-1, 0)   # West
+        ]
+        for adjPos in adjacentPositions:
+          if env.isEmpty(adjPos):
+            let moveDir = adjPos - agent.pos
             let moveOrient = getOrientation(moveDir)
-            return [1'u8, ord(moveOrient).uint8]
+            return [1'u8, ord(moveOrient).uint8]  # Move to adjacent position
+      elif state.currentTarget != agent.pos:
+        let dir = getDirectionTo(agent.pos, state.currentTarget)
+        if dir.x != 0 or dir.y != 0:
+          let moveOrientation = getOrientation(dir)
+          let nextPos = agent.pos + dir
+          if env.isEmpty(nextPos):
+            return [1'u8, ord(moveOrientation).uint8]  # Move toward specialized target
+          elif isAdjacent(agent.pos, state.currentTarget):
+            # Try to get to cardinal position
+            let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
+            if moveDir.x != 0 or moveDir.y != 0:
+              let moveOrient = getOrientation(moveDir)
+              return [1'u8, ord(moveOrient).uint8]
     
     # UNIFIED ACTION SYSTEM: Handle actions at target locations
     if isCardinallyAdjacent(agent.pos, state.currentTarget):
@@ -632,20 +647,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         discard
     
-    # If we have a specialized target, move toward it
-    if state.targetType in [Tree, Wheat, Armory, Forge, ClayOven, WeavingLoom, LanternPlantSpot, ClippyHunt] and state.currentTarget != agent.pos:
-      let dir = getDirectionTo(agent.pos, state.currentTarget)
-      if dir.x != 0 or dir.y != 0:
-        let moveOrientation = getOrientation(dir)
-        let nextPos = agent.pos + dir
-        if env.isEmpty(nextPos):
-          return [1'u8, ord(moveOrientation).uint8]  # Move toward specialized target
-        elif isAdjacent(agent.pos, state.currentTarget):
-          # Try to get to cardinal position
-          let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
-          if moveDir.x != 0 or moveDir.y != 0:
-            let moveOrient = getOrientation(moveDir)
-            return [1'u8, ord(moveOrient).uint8]
+    # If we're a specialist but couldn't move or act, just wait (don't fall through to altar behavior)
+    return [0'u8, 0'u8]  # Noop for specialists
   
   # DEFAULT BEHAVIOR: Standard altar loop (for AltarSpecialist or completed specialists)
   # Decision logic based on current inventory

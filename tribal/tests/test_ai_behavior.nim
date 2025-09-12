@@ -139,17 +139,133 @@ proc testFullSimulation() =
     echo "  ⚠ Limited activity (may need more steps)"
   echo ""
 
-# Test 5: Agent Spiral Movement Pattern
+# Test 5: Agent Role Assignments and Specialization
+proc testAgentRoleAssignments() =
+  echo "Test: Agent Role Assignments"
+  echo "-" & repeat("-", 40)
+  
+  var env = newEnvironment()
+  let controller = newController(seed = 42)
+  
+  # Run one step to initialize agent states and roles
+  var actions: array[MapAgents, array[2, uint8]]
+  for i in 0 ..< env.agents.len:
+    actions[i] = controller.decideAction(env, i)
+  
+  # Analyze role distribution
+  var roleCounts = initTable[AgentRole, int]()
+  var lanternSpecialists: seq[int] = @[]
+  
+  for i in 0..<min(env.agents.len, 15):
+    let agent = env.agents[i]
+    let state = controller.agentStates[i]
+    
+    # Count roles
+    roleCounts[state.role] = roleCounts.getOrDefault(state.role, 0) + 1
+    
+    if state.role == WeavingLoomSpecialist:
+      lanternSpecialists.add(i)
+    
+    if i < 5:  # Show first few agents
+      echo fmt"  Agent {i}: homeAltar={agent.homeAltar}, role={state.role}"
+      if state.role == WeavingLoomSpecialist:
+        echo fmt"    → Lantern Specialist! hasCompleted={state.hasCompletedRole}, target={state.currentTarget}"
+  
+  echo fmt"  Role distribution (first 15 agents):"
+  for role, count in roleCounts:
+    echo fmt"    {role}: {count} agents"
+    
+  if lanternSpecialists.len > 0:
+    echo fmt"  ✓ Found {lanternSpecialists.len} lantern specialists"
+  else:
+    echo "  ⚠ No lantern specialists found"
+  echo ""
+
+# Test 6: Wheat Collection and Specialization Logic
+proc testWheatCollectionSpecialization() =
+  echo "Test: Wheat Collection and Specialization"
+  echo "-" & repeat("-", 40)
+  
+  var env = newEnvironment()
+  let controller = newController(seed = 42)
+  
+  # Count wheat tiles available
+  var wheatCount = 0
+  for x in 0..<MapWidth:
+    for y in 0..<MapHeight:
+      if env.terrain[x][y] == Wheat:
+        wheatCount += 1
+  echo fmt"  Total wheat tiles available: {wheatCount}"
+  
+  # Find lantern specialists and track their behavior
+  var actions: array[MapAgents, array[2, uint8]]
+  var lanternSpecialists: seq[int] = @[]
+  
+  # Initialize
+  for i in 0 ..< env.agents.len:
+    actions[i] = controller.decideAction(env, i)
+    let state = controller.agentStates[i]
+    if state.role == WeavingLoomSpecialist:
+      lanternSpecialists.add(i)
+  
+  if lanternSpecialists.len == 0:
+    echo "  ⚠ No lantern specialists found for wheat collection test"
+    echo ""
+    return
+  
+  echo fmt"  Tracking {lanternSpecialists.len} lantern specialists for wheat collection..."
+  
+  # Track behavior over several steps
+  var wheatCollected = 0
+  for step in 1..15:
+    if step <= 3:  # Show details for first few steps
+      echo fmt"  Step {step}:"
+    
+    for agentId in lanternSpecialists:
+      let agent = env.agents[agentId]
+      let state = controller.agentStates[agentId]
+      
+      if agent.inventoryWheat > wheatCollected:
+        wheatCollected = agent.inventoryWheat
+      
+      if step <= 3:
+        # Find nearest wheat for context
+        var nearestWheat = ivec2(-1, -1)
+        var minDist = 999
+        for x in 0..<MapWidth:
+          for y in 0..<MapHeight:
+            if env.terrain[x][y] == Wheat:
+              let dist = manhattanDistance(agent.pos, ivec2(x.int32, y.int32))
+              if dist < minDist:
+                minDist = dist
+                nearestWheat = ivec2(x.int32, y.int32)
+        let wheatDistance = if nearestWheat.x >= 0: minDist else: -1
+        
+        echo fmt"    Agent {agentId}: pos={agent.pos}, wheat={agent.inventoryWheat}, target={state.targetType}"
+        echo fmt"      nearestWheat={nearestWheat}, distance={wheatDistance}"
+      
+      # Get next action and step
+      actions[agentId] = controller.decideAction(env, agentId)
+    
+    env.step(addr actions)
+    controller.updateController()
+  
+  echo fmt"  Results after 15 steps:"
+  echo fmt"    Max wheat collected by specialists: {wheatCollected}"
+  
+  if wheatCollected > 0:
+    echo "  ✓ Lantern specialists successfully collecting wheat"
+  else:
+    echo "  ⚠ Specialists may need more time or path optimization"
+  echo ""
+
+# Test 7: Agent Spiral Movement Pattern
 proc testAgentSpiralMovement() =
   echo "Test: Agent Spiral Movement"
   echo "-" & repeat("-", 40)
   
   var controller = newController(123)
   var state = ControllerState(
-    spiralArcLength: 1,
-    spiralStepsInArc: 0,
-    spiralDirection: 0,
-    spiralArcsCompleted: 0,
     basePosition: ivec2(10, 10),
     currentTarget: ivec2(10, 10),
     targetType: NoTarget
@@ -178,7 +294,6 @@ proc testAgentSpiralMovement() =
   echo fmt"  Spiral pattern analysis:"
   echo fmt"    Valid moves: {validMoves}/12"
   echo fmt"    Max distance from base: {maxDistance}"
-  echo fmt"    Arcs completed: {state.spiralArcsCompleted}"
   
   if validMoves >= 8 and maxDistance >= 3:
     echo "  ✓ Spiral movement pattern working correctly"
@@ -194,6 +309,8 @@ when isMainModule:
   testAgentController()
   testVillageAgents()
   testFullSimulation()
+  testAgentRoleAssignments()
+  testWheatCollectionSpecialization()
   testAgentSpiralMovement()
   
   echo "=" & repeat("=", 50)
