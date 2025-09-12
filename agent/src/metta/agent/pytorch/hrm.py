@@ -270,9 +270,9 @@ class HRM_ACTV1_Inner(nn.Module):
         )
 
         # Observation encoding parameters
-        self.num_layers = 8
-        self.out_width = 16
-        self.out_height = 16
+        self.num_layers = 25
+        self.out_width = 11
+        self.out_height = 11
 
         # Observation projection layer
         self.obs_projection = CastedLinear(
@@ -584,8 +584,8 @@ class HRM(PyTorchAgentMixin, LSTMWrapper):
 
         # flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
-        # Decode
-        logits_list, value = self.policy.decode_actions(hidden.to(torch.float32), B * TT)
+        # Decode - use the actual batch size from the hidden tensor
+        logits_list, value = self.policy.decode_actions(hidden.to(torch.float32), hidden.shape[0])
 
         # Use mixin for mode-specific processing
         if action is None:
@@ -680,6 +680,10 @@ class Policy(nn.Module):
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
 
+    def initialize_to_environment(self, full_action_names: list[str], device):
+        """Initialize to environment, setting up action embeddings to match the available actions."""
+        self.activate_action_embeddings(full_action_names, device)
+
     def encode_observations(self, observations, state=None):
         """
         Encode observations using the HRM backbone.
@@ -739,7 +743,11 @@ class Policy(nn.Module):
         # Perform bilinear operation using einsum
         query = torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W)
         query = torch.tanh(query)
-        scores = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)
+        # Reshape query to match action_embeds_reshaped for the dot product
+        query_reshaped = query.reshape(-1, self.action_embed_dim)
+        scores = torch.einsum("n e, n e -> n", query_reshaped, action_embeds_reshaped)
+        # Reshape scores back to [batch_size * num_actions, 1] then [batch_size, num_actions]
+        scores = scores.reshape(batch_size, num_actions)
 
         biased_scores = scores + self.actor_bias
 
