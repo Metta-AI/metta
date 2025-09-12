@@ -20,7 +20,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         env,
         model_name: str = "HuggingFaceTB/SmolLM2-135M",
         hidden_size: int = 576,  # SmolLM2-135M has 576 hidden size
-        max_sequence_length: int = 50,  # Truncate sequences for better performance
+        max_sequence_length: int = 12,  # Much shorter sequences for efficiency
         freeze_llm: bool = False,
         use_lora: bool = False,
         **kwargs,
@@ -40,6 +40,9 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
 
         # Store sequence length limit
         self.max_sequence_length = max_sequence_length
+
+        # Token compression strategy for efficiency
+        self.token_compression = "smart_sample"  # Options: "truncate", "smart_sample", "aggregate"
 
         # Note: Gradient checkpointing disabled for 135M model - unnecessary overhead
 
