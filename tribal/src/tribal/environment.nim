@@ -1,4 +1,4 @@
-import std/[strformat, random, strutils, tables, times, math], vmath, chroma
+import std/[random, tables, times, math], vmath, chroma
 import terrain, objects, common
 export terrain, objects, common
 
@@ -255,7 +255,7 @@ proc clear[N: int, T](s: ptr array[N, T]) =
   let p = cast[pointer](s[][0].addr)
   zeroMem(p, s[].len * sizeof(T))
 
-proc updateObservations*(env: Environment, agentId: int) =
+proc updateObservations(env: Environment, agentId: int) =
   var obs = env.observations[agentId].addr
   obs.clear()
 
@@ -344,7 +344,7 @@ proc updateObservations*(env: Environment, agentId: int) =
         # Corner buildings act like walls for observations
         obs[8][x][y] = 1  # Use the wall layer for now
 
-proc updateObservations*(
+proc updateObservations(
   env: Environment,
   layer: ObservationName,
   pos: IVec2,
@@ -359,7 +359,7 @@ proc updateObservations*(
     env.observations[agentId][layerId][x][y] = value.uint8
 
 
-proc getThing*(env: Environment, pos: IVec2): Thing =
+proc getThing(env: Environment, pos: IVec2): Thing =
   if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
     return nil
   return env.grid[pos.x][pos.y]
@@ -370,7 +370,7 @@ proc isEmpty*(env: Environment, pos: IVec2): bool =
     return false
   return env.grid[pos.x][pos.y] == nil
 
-proc findNearestThingPos*(env: Environment, fromPos: IVec2, kind: ThingKind): IVec2 =
+proc findNearestThingPos(env: Environment, fromPos: IVec2, kind: ThingKind): IVec2 =
   var nearestPos = ivec2(-1, -1)
   var minDist = int.high
   
@@ -384,7 +384,7 @@ proc findNearestThingPos*(env: Environment, fromPos: IVec2, kind: ThingKind): IV
   return nearestPos
 
 
-proc createClippy*(pos: IVec2, homeSpawner: IVec2, targetAltar: IVec2, r: var Rand): Thing =
+proc createClippy(pos: IVec2, homeSpawner: IVec2, targetAltar: IVec2, r: var Rand): Thing =
   ## Create a new Clippy that moves toward a specific target altar
   Thing(
     kind: Clippy,
@@ -443,7 +443,7 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
   else:
     inc env.stats[id].actionInvalid
 
-proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
+proc attackAction(env: Environment, id: int, agent: Thing, argument: int) =
   ## Attack with a spear if agent has one
   ## argument: 0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE (direction to attack)
   
@@ -759,7 +759,7 @@ proc randomEmptyPos(r: var Rand, env: Environment): IVec2 =
       return pos
   quit("Failed to find an empty position, map too full!")
 
-proc clearTintModifications*(env: Environment) =
+proc clearTintModifications(env: Environment) =
   ## Clear only active tile modifications for performance
   for pos in env.activeTiles.positions:
     if pos.x >= 0 and pos.x < MapWidth and pos.y >= 0 and pos.y < MapHeight:
@@ -770,7 +770,7 @@ proc clearTintModifications*(env: Environment) =
   env.activeTiles.positions.setLen(0)
   env.activeTiles.count = 0
 
-proc updateTintModifications*(env: Environment) =
+proc updateTintModifications(env: Environment) =
   ## Update tint modification arrays based on entity positions - runs every frame
   # Clear previous frame's modifications
   env.clearTintModifications()
@@ -807,7 +807,7 @@ proc updateTintModifications*(env: Environment) =
     else:
       discard
 
-proc applyTintModifications*(env: Environment) =
+proc applyTintModifications(env: Environment) =
   ## Apply tint modifications only to active tiles - very fast
   
   # Process only tiles that have entities on them (sparse processing)
@@ -866,7 +866,7 @@ proc applyTintModifications*(env: Environment) =
         if abs(env.tileColors[x][y].intensity - baseIntensity) > 0.01:
           env.tileColors[x][y].intensity = env.tileColors[x][y].intensity * decay + baseIntensity * (1.0 - decay)
 
-proc add*(env: Environment, thing: Thing) =
+proc add(env: Environment, thing: Thing) =
   env.things.add(thing)
   if thing.kind == Agent:
     env.agents.add(thing)

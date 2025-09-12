@@ -16,41 +16,18 @@ def test_genny_bindings():
     print("🧪 Testing Tribal Environment Genny Bindings")
     print("=" * 55)
 
-    # Test 1: Check if bindings are built
-    print("1. Checking if genny bindings are built...")
-    bindings_path = Path("mettascope2/bindings/generated")
-
-    if not bindings_path.exists():
-        print("❌ Bindings directory not found!")
-        print("   Run: cd mettascope2 && ./build_bindings.sh")
-        return False
-
-    py_file = bindings_path / "Tribal.py"
-    so_file = bindings_path / "Tribal.so"
-
-    if not (py_file.exists() and so_file.exists()):
-        print("❌ Binding files not found!")
-        print("   Run: cd mettascope2 && ./build_bindings.sh")
-        return False
-
-    print("✅ Genny bindings found")
-
-    # Test 2: Import Python wrapper
-    print("2. Testing Python wrapper imports...")
+    # Test 1: Import tribal package
+    print("1. Testing tribal package imports...")
     try:
-        # Add tribal source to path
-        tribal_src = Path(__file__).parent.parent.parent / "tribal" / "src"
-        if tribal_src.exists():
-            sys.path.insert(0, str(tribal_src))
-        from tribal_genny import make_tribal_env
-
-        print("✅ Python wrapper imported successfully")
-    except Exception as e:
-        print(f"❌ Python wrapper import failed: {e}")
+        from metta.tribal.tribal_genny import make_tribal_env
+        print("✅ Tribal package imported successfully")
+    except ImportError as e:
+        print(f"❌ Tribal package import failed: {e}")
+        print("   Run: cd tribal && ./build_bindings.sh")
         return False
 
-    # Test 3: Create environment
-    print("3. Creating tribal environment...")
+    # Test 2: Create environment
+    print("2. Creating tribal environment...")
     try:
         env = make_tribal_env(num_agents=15, max_steps=100)
         print("✅ Environment created")
@@ -61,8 +38,8 @@ def test_genny_bindings():
         print(f"❌ Environment creation failed: {e}")
         return False
 
-    # Test 4: Reset environment
-    print("4. Testing environment reset...")
+    # Test 3: Reset environment
+    print("3. Testing environment reset...")
     try:
         obs, info = env.reset(seed=42)
         print("✅ Reset successful")
@@ -79,8 +56,8 @@ def test_genny_bindings():
         print(f"❌ Reset failed: {e}")
         return False
 
-    # Test 5: Step environment
-    print("5. Testing environment step...")
+    # Test 4: Step environment
+    print("4. Testing environment step...")
     try:
         # Create safe actions: [action_type, argument]
         actions = np.zeros((15, 2), dtype=np.int32)
@@ -99,8 +76,8 @@ def test_genny_bindings():
         print(f"❌ Step failed: {e}")
         return False
 
-    # Test 6: Multiple steps with different actions
-    print("6. Testing action variety...")
+    # Test 5: Multiple steps with different actions
+    print("5. Testing action variety...")
     try:
         action_types = [0, 1, 2, 3, 4, 5]  # All available actions
 
@@ -121,8 +98,8 @@ def test_genny_bindings():
         print(f"❌ Action variety test failed: {e}")
         return False
 
-    # Test 7: Environment info
-    print("7. Testing environment information...")
+    # Test 6: Environment info
+    print("6. Testing environment information...")
     try:
         stats = env.get_episode_stats()
         current_step = env.current_step

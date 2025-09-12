@@ -2,9 +2,9 @@
 ## Standalone Nim executable that runs the environment and viewer
 ## Communicates with Python through file-based IPC
 
-import std/[os, times, strutils, json, strformat, random]
+import std/[os, times, strutils, json, random]
 import boxy, opengl, windy, vmath
-import environment, renderer, common, panels, controls, ui, external_actions
+import environment, common, external_actions
 
 # Communication files
 const
@@ -16,17 +16,7 @@ const
 var
   window: Window
   bxy: Boxy
-  rootArea: Area
-  worldMapPanel: Panel
-  minimapPanel: Panel  
-  agentTablePanel: Panel
-  agentTracesPanel: Panel
-  globalTimelinePanel: Panel
-  globalFooterPanel: Panel
-  globalHeaderPanel: Panel
-  
   env: Environment
-  lastUpdateTime = 0.0
   communicationActive = false
   assetsLoaded = false  # Track whether we have PNG assets
   testMode = false  # Standalone test mode without Python communication
@@ -70,26 +60,6 @@ proc initViewer(): bool =
       echo "❌ Failed to initialize boxy: ", e.msg
       return false
     
-    # Initialize UI panels
-    try:
-      rootArea = Area(layout: Horizontal)
-      worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
-      minimapPanel = Panel(panelType: Minimap, name: "Minimap")
-      agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table")
-      agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces")
-      globalTimelinePanel = Panel(panelType: GlobalTimeline)
-      globalFooterPanel = Panel(panelType: GlobalFooter)
-      globalHeaderPanel = Panel(panelType: GlobalHeader)
-      
-      rootArea.areas.add(Area(layout: Horizontal))
-      rootArea.panels.add(worldMapPanel)
-      rootArea.panels.add(minimapPanel)
-      rootArea.panels.add(agentTablePanel)
-      rootArea.panels.add(agentTracesPanel)
-      echo "✅ UI panels initialized"
-    except Exception as e:
-      echo "❌ Failed to initialize UI panels: ", e.msg
-      return false
     
     echo "✅ Viewer initialized with full graphics support"
     return true

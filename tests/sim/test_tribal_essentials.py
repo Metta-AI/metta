@@ -17,36 +17,20 @@ Replaces:
 import sys
 import unittest
 import warnings
-from pathlib import Path
 
 import numpy as np
 from pydantic import BaseModel
 
-# Add paths
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-tribal_bindings = Path(__file__).parent.parent / "bindings" / "generated"
-if tribal_bindings.exists():
-    sys.path.insert(0, str(tribal_bindings))
-
 # Suppress gym warnings
-
 warnings.filterwarnings("ignore", message=".*Gym.*")
 
 try:
-    # Add tribal source to path
-    tribal_src = Path(__file__).parent.parent.parent / "tribal" / "src"
-    if tribal_src.exists():
-        sys.path.insert(0, str(tribal_src))
-
-    import tribal_genny as tribal_mod
-    from tribal_genny import TribalEnvConfig, TribalGameConfig, TribalGridEnv
-
+    from metta.tribal.tribal_genny import TribalEnvConfig, TribalGameConfig, TribalGridEnv
+    import metta.tribal.tribal_genny as tribal_mod
     from experiments.recipes.tribal_basic import make_tribal_environment
 except ImportError as e:
     print(f"❌ Failed to import tribal: {e}")
-    print("Run 'nimble bindings' in tribal directory first")
+    print("Run 'cd tribal && ./build_bindings.sh' to generate bindings")
     sys.exit(1)
 
 

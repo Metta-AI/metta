@@ -9,22 +9,13 @@ This test verifies that we can:
 4. Validate the neural network outputs
 """
 
-import sys
-from pathlib import Path
-
 import numpy as np
 import pytest
 import torch
 from tensordict import TensorDict
 
-# Add the project paths to sys.path for tribal bindings
-tribal_src = Path(__file__).parent.parent / "tribal" / "src"
-if tribal_src.exists():
-    sys.path.insert(0, str(tribal_src))
-
-from tribal_genny import TribalEnvConfig, TribalGridEnv  # noqa: E402
-
-from metta.rl.checkpoint_manager import CheckpointManager  # noqa: E402
+from metta.tribal.tribal_genny import TribalEnvConfig, TribalGridEnv
+from metta.rl.checkpoint_manager import CheckpointManager
 
 
 @pytest.fixture
