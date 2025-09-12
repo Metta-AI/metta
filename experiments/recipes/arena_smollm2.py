@@ -124,7 +124,11 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     freeze_llm: bool = True,
 ) -> TrainTool:
-    """Train SmolLM2 agent on arena environment.
+    """Train SmolLM2 agent on arena environment with default batch sizes.
+
+    Uses default batch sizes (524K) which work well for GPU training but may fail
+    on CPU or with limited resources. For CPU debugging, use train_cpu_debug().
+    For GPU-optimized training, use train_gpu().
 
     Args:
         curriculum: Optional curriculum config
@@ -137,7 +141,7 @@ def train(
         analyze_weights_interval=500,
     )
 
-    # Create trainer configuration with minimal batch sizes for CPU debugging
+    # Create trainer configuration - use defaults for GPU compatibility
     trainer_cfg = TrainerConfig(
         losses=LossConfig(
             loss_configs={
@@ -149,17 +153,9 @@ def train(
             }
         ),
         curriculum=curriculum or make_curriculum(),
-        # Minimal batch sizes for CPU debugging
-        batch_size=32,  # Minimal batch size for CPU
-        minibatch_size=8,  # Minimal minibatch size
-        rollout_workers=1,  # Single worker for CPU
-        total_timesteps=10000,  # Very short run for debugging
-        bptt_horizon=16,  # Reduced BPTT horizon for CPU
-        forward_pass_minibatch_target_size=8,  # Minimal forward pass batch
-        async_factor=1,  # No async for debugging
         evaluation=EvaluationConfig(
             simulations=make_evals(),
-            evaluate_interval=10000,  # Evaluate every 10k steps
+            evaluate_interval=50,  # More frequent evaluation with default batch sizes
         ),
     )
 
@@ -174,6 +170,40 @@ def train_frozen() -> TrainTool:
 def train_unfrozen() -> TrainTool:
     """Train with unfrozen LLM weights (full fine-tuning)."""
     return train(freeze_llm=False)
+
+
+def train_gpu() -> TrainTool:
+    """Train with GPU-optimized batch sizes and full LLM fine-tuning."""
+    # Configure SmolLM2 agent for GPU training
+    agent_cfg = AgentConfig(
+        name="pytorch/smollm2",
+        clip_range=0.2,
+        analyze_weights_interval=500,
+    )
+
+    # GPU-optimized trainer configuration with larger batches
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(
+            loss_configs={
+                "ppo": PPOConfig(
+                    clip_coef=0.2,
+                    ent_coef=0.01,
+                    vf_coef=0.5,
+                )
+            }
+        ),
+        curriculum=make_curriculum(),
+        # Use larger batch sizes for GPU efficiency and agent scaling
+        batch_size=65536,  # Large enough for many agents and workers
+        minibatch_size=4096,  # Efficient GPU utilization
+        bptt_horizon=32,  # Reasonable context length for LLM
+        evaluation=EvaluationConfig(
+            simulations=make_evals(),
+            evaluate_interval=25,  # Frequent evaluation for monitoring
+        ),
+    )
+
+    return TrainTool(trainer=trainer_cfg, policy_architecture=agent_cfg)
 
 
 def train_cpu_debug() -> TrainTool:
