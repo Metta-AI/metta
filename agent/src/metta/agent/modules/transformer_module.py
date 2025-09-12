@@ -94,8 +94,6 @@ class FusedGRUGating(nn.Module):
         return (1 - z) * x + z * h  # Interpolate
 
 
-
-
 class MultiHeadSelfAttention(nn.Module):
     """Fused multi-head self-attention optimized for batch processing."""
 

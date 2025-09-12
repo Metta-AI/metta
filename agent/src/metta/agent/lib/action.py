@@ -31,9 +31,6 @@ class ActionEmbedding(nn_layer_library.Embedding):
         super().__init__(**cfg)
         self._reserved_action_embeds = {}
         self.num_actions = 0
-        # delete this
-        # # num_actions to be updated at runtime by the size of the active indices
-        # self._out_tensor_shape = [self.num_actions, self._nn_params['embedding_dim']]
         self.initialization = initialization
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
 
