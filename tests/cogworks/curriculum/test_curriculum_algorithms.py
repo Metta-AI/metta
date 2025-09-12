@@ -5,6 +5,7 @@ import random
 import pytest
 
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+from metta.cogworks.curriculum.learning_progress_modules import LearningProgressScorer
 
 from .test_helpers import CurriculumTestHelper, MockTaskGenerator
 
@@ -196,6 +197,7 @@ class TestLearningProgressCoreBehavior:
         config = LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=10,
+            use_bidirectional=False,  # Use standard mode for clearer variance differences
         )
         algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
 
@@ -515,3 +517,161 @@ class TestBidirectionalLearningProgressBehavior:
             assert key in stats, f"Missing stat key: {key}"
 
         assert stats["num_tracked_tasks"] > 0, "Should track some tasks"
+
+
+class TestUnifiedLearningProgressScorer:
+    """Test unified learning progress scorer implementation."""
+
+    def test_scorer_mode_selection(self):
+        """Test that the unified scorer correctly uses the specified mode."""
+        # Test standard mode
+        standard_scorer = LearningProgressScorer(mode="standard")
+        assert standard_scorer.mode == "standard"
+        assert hasattr(standard_scorer, "_task_emas")
+
+        # Test bidirectional mode
+        bidirectional_scorer = LearningProgressScorer(mode="bidirectional")
+        assert bidirectional_scorer.mode == "bidirectional"
+        assert hasattr(bidirectional_scorer, "_outcomes")
+
+    def test_unified_scorer_interface_consistency(self):
+        """Test that both modes provide the same public interface."""
+        standard_scorer = LearningProgressScorer(mode="standard")
+        bidirectional_scorer = LearningProgressScorer(mode="bidirectional")
+
+        # Both should have the same core methods
+        core_methods = ["update_task_ema", "get_learning_progress_score", "score_tasks", "remove_task", "clear_cache"]
+
+        for method_name in core_methods:
+            assert hasattr(standard_scorer, method_name)
+            assert hasattr(bidirectional_scorer, method_name)
+
+    def test_standard_mode_functionality(self):
+        """Test standard mode specific functionality."""
+        scorer = LearningProgressScorer(mode="standard", ema_timescale=0.1)
+
+        # Update some tasks
+        scorer.update_task_ema(1, 0.5)
+        scorer.update_task_ema(1, 0.7)
+        scorer.update_task_ema(2, 0.3)
+
+        # Get scores
+        score1 = scorer.get_learning_progress_score(1)
+        score2 = scorer.get_learning_progress_score(2)
+        new_task_score = scorer.get_learning_progress_score(999)
+
+        # New task should get exploration bonus
+        assert new_task_score == scorer.exploration_bonus
+
+        # Existing tasks should have variance-based scores
+        assert score1 > 0
+        assert score2 >= 0
+
+        # Test EMA stats (standard mode only)
+        ema_stats = scorer.get_task_ema_stats(1)
+        assert ema_stats is not None
+        assert len(ema_stats) == 3  # (ema_score, ema_squared, num_samples)
+
+        # Bidirectional stats should return None for standard mode
+        assert scorer.get_bidirectional_stats() == {}
+
+    def test_bidirectional_mode_functionality(self):
+        """Test bidirectional mode specific functionality."""
+        scorer = LearningProgressScorer(mode="bidirectional", sample_threshold=2, ema_timescale=0.1)
+
+        # Update some tasks
+        scorer.update_task_ema(1, 0.3)
+        scorer.update_task_ema(1, 0.8)
+        scorer.update_task_ema(1, 0.6)
+        scorer.update_task_ema(2, 0.4)
+        scorer.update_task_ema(2, 0.9)
+
+        # Get scores
+        score1 = scorer.get_learning_progress_score(1)
+        score2 = scorer.get_learning_progress_score(2)
+        new_task_score = scorer.get_learning_progress_score(999)
+
+        # New task should get exploration bonus
+        assert new_task_score == scorer.exploration_bonus
+
+        # Existing tasks should have bidirectional scores
+        assert score1 > 0
+        assert score2 > 0
+
+        # Test bidirectional stats
+        stats = scorer.get_bidirectional_stats()
+        expected_keys = [
+            "p_fast",
+            "p_slow",
+            "p_true",
+            "random_baseline",
+            "task_success_rate",
+            "sample_levels",
+            "task_dist",
+        ]
+        for key in expected_keys:
+            assert key in stats
+
+        # EMA stats should return None for bidirectional mode
+        assert scorer.get_task_ema_stats(1) is None
+
+    def test_scorer_caching_behavior(self):
+        """Test that caching works correctly for both modes."""
+        for mode in ["standard", "bidirectional"]:
+            scorer = LearningProgressScorer(mode=mode, sample_threshold=1)
+
+            # Add some data
+            scorer.update_task_ema(1, 0.5)
+            scorer.update_task_ema(1, 0.7)
+
+            # Get score (should be cached)
+            score1 = scorer.get_learning_progress_score(1)
+            score2 = scorer.get_learning_progress_score(1)  # From cache
+            assert score1 == score2
+
+            # Update task (should invalidate cache)
+            scorer.update_task_ema(1, 0.9)
+            score3 = scorer.get_learning_progress_score(1)  # Recalculated
+
+            # Clear cache
+            scorer.clear_cache()
+            score4 = scorer.get_learning_progress_score(1)  # Recalculated
+
+            # All scores should be positive
+            assert all(score > 0 for score in [score1, score2, score3, score4])
+
+    def test_scorer_task_removal(self):
+        """Test task removal works correctly for both modes."""
+        for mode in ["standard", "bidirectional"]:
+            scorer = LearningProgressScorer(mode=mode)
+
+            # Add task data
+            scorer.update_task_ema(1, 0.5)
+            scorer.update_task_ema(1, 0.7)
+
+            # Get score
+            initial_score = scorer.get_learning_progress_score(1)
+            assert initial_score > 0
+
+            # Remove task
+            scorer.remove_task(1)
+
+            # Score should now be exploration bonus (new task)
+            removed_score = scorer.get_learning_progress_score(1)
+            assert removed_score == scorer.exploration_bonus
+
+    def test_algorithm_integration_with_unified_scorer(self):
+        """Test that the learning progress algorithm correctly uses the unified scorer."""
+        # Test bidirectional integration
+        config_bi = LearningProgressConfig(use_bidirectional=True)
+        algorithm_bi = LearningProgressAlgorithm(num_tasks=100, hypers=config_bi)
+        assert algorithm_bi.lp_scorer.mode == "bidirectional"
+
+        # Test standard integration
+        config_std = LearningProgressConfig(use_bidirectional=False)
+        algorithm_std = LearningProgressAlgorithm(num_tasks=100, hypers=config_std)
+        assert algorithm_std.lp_scorer.mode == "standard"
+
+        # Test that parameters are passed correctly
+        assert algorithm_bi.lp_scorer.ema_timescale == config_bi.ema_timescale
+        assert algorithm_std.lp_scorer.ema_timescale == config_std.ema_timescale

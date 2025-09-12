@@ -3,6 +3,7 @@ from metta.mettagrid.mettagrid_config import MettaGridConfig
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask, DiscreteRandomConfig
 from .curriculum_env import CurriculumEnv
 from .learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+from .learning_progress_modules import TaskTracker
 from .task_generator import (
     AnyTaskGeneratorConfig,
     BucketedTaskGenerator,
@@ -15,7 +16,6 @@ from .task_generator import (
     TaskGeneratorSet,
     TaskGeneratorSetConfig,
 )
-from .task_tracker import TaskTracker
 
 # Rebuild models after all imports to resolve forward references
 
