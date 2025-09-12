@@ -79,20 +79,22 @@ jobs:
         with:
           python-version: '3.11.7'
 
-      - name: Install cibuildwheel
-        run: python -m pip install --upgrade pip cibuildwheel==2.18.1
+      - name: Set up Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
 
-      - name: Build wheels
-        run: python -m cibuildwheel --output-dir wheelhouse ./mettagrid
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
 
-      - name: List wheels
-        run: ls -l wheelhouse
+      - name: Build wheel
+        run: |
+          python -m build --wheel --outdir dist mettagrid
+          ls -l dist
 
       - name: Upload wheels artifact
         uses: actions/upload-artifact@v4
         with:
           name: mettagrid-wheels-linux
-          path: wheelhouse/*
+          path: dist/*
 
   wheels-macos:
     name: macOS wheels (${{ matrix.arch }})
@@ -123,20 +125,19 @@ jobs:
       - name: Set up Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
 
-      - name: Install cibuildwheel
-        run: python -m pip install --upgrade pip cibuildwheel==2.18.1
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
 
-      - name: Build wheels
-        run: python -m cibuildwheel --output-dir wheelhouse ./mettagrid
-
-      - name: List wheels
-        run: ls -l wheelhouse
+      - name: Build wheel
+        run: |
+          python -m build --wheel --outdir dist mettagrid
+          ls -l dist
 
       - name: Upload wheels artifact
         uses: actions/upload-artifact@v4
         with:
           name: mettagrid-wheels-macos-${{ matrix.arch }}
-          path: wheelhouse/*
+          path: dist/*
 
   wheels-windows:
     name: Windows wheels (x86_64)
@@ -154,25 +155,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.11.7'
 
       - name: Set up Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
 
-      - name: Install cibuildwheel
-        run: python -m pip install --upgrade pip cibuildwheel==2.18.1
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
 
-      - name: Build wheels
-        run: python -m cibuildwheel --output-dir wheelhouse ./mettagrid
-
-      - name: List wheels
-        run: ls -l wheelhouse
+      - name: Build wheel
+        run: |
+          python -m build --wheel --outdir dist mettagrid
+          ls -l dist
 
       - name: Upload wheels artifact
         uses: actions/upload-artifact@v4
         with:
           name: mettagrid-wheels-windows
-          path: wheelhouse/*
+          path: dist/*
 
   publish-testpypi:
     name: Publish to TestPyPI
