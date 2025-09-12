@@ -135,10 +135,11 @@ class PyTorchAgentMixin:
         entropy = -(action_probs * action_log_probs).sum(dim=-1)
 
         # Store in flattened TD (will be reshaped by caller if needed)
-        td["act_log_prob"] = selected_log_probs
-        td["entropy"] = entropy
-        td["full_log_probs"] = action_log_probs
-        td["value"] = value
+        # Convert to float32 for experience buffer compatibility (buffer expects FP32)
+        td["act_log_prob"] = selected_log_probs.float()
+        td["entropy"] = entropy.float()
+        td["full_log_probs"] = action_log_probs.float()
+        td["value"] = value.float()
 
         # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
         # The reshaping happens in ComponentPolicy.forward() after forward_training()
@@ -161,9 +162,9 @@ class PyTorchAgentMixin:
         action = self._convert_logit_index_to_action(actions)
 
         td["actions"] = action.to(dtype=torch.int32)
-        td["act_log_prob"] = selected_log_probs
-        td["values"] = value.flatten()
-        td["full_log_probs"] = log_probs
+        td["act_log_prob"] = selected_log_probs.float()  # Convert to FP32 for experience buffer
+        td["values"] = value.flatten().float()  # Convert to FP32 for experience buffer
+        td["full_log_probs"] = log_probs.float()  # Convert to FP32 for experience buffer
 
         return td
 

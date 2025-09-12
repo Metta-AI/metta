@@ -266,7 +266,8 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         self.full_action_names = full_action_names
 
         logger.info(
-            f"SmolLM2 initialized to environment with {len(full_action_names)} actions, all components using {llm_dtype}"
+            f"SmolLM2 initialized to environment with {len(full_action_names)} actions, "
+            f"all components using {llm_dtype}"
         )
 
     def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
