@@ -20,7 +20,7 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
         env,
         model_name: str = "HuggingFaceTB/SmolLM2-135M",
         hidden_size: int = 576,  # SmolLM2-135M has 576 hidden size
-        max_sequence_length: int = 12,  # Much shorter sequences for efficiency
+        max_sequence_length: int = 24,  # Longer sequences for temporal flattening efficiency
         freeze_llm: bool = False,
         use_lora: bool = False,
         **kwargs,
@@ -152,36 +152,35 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
 
         observations = td["env_obs"]
 
-        # Determine dimensions from observations and handle reshaping
+        # BPTT Temporal Flattening: Do this BEFORE TD reshaping for maximum efficiency
         if observations.dim() == 4:  # Training with BPTT: [B, TT, seq_len, 3]
-            B = observations.shape[0]
-            TT = observations.shape[1]
-            # Reshape TD for training if needed
+            B, TT, seq_len, channels = observations.shape
+
+            # Key optimization: Flatten temporal dimension into sequence dimension
+            # This creates [B, TT*seq_len, 3] - longer sequences but fewer batch items
+            observations_temporal = observations.view(B, TT * seq_len, channels)
+
+            # Convert to float, normalize, and apply smart compression to temporal sequences
+            obs_float = observations_temporal.float() / 255.0
+            obs_float = self._compress_tokens(obs_float)  # [B, max_seq_len, 3]
+
+            # Now handle TD reshaping if needed - but with fewer, longer sequences
             if td.batch_dims > 1:
+                # Instead of B*TT short sequences, we want B long sequences
+                # But TD expects flattened batch, so we need to adjust
                 td = td.reshape(B * TT)
+                # Repeat compressed sequences to match TD's expected batch size
+                obs_float = obs_float.repeat_interleave(TT, dim=0)  # [B*TT, max_seq_len, 3]
+            # If not reshaping TD, keep [B, max_seq_len, 3] - optimal for LLM
+
         else:  # Inference: [B, seq_len, 3]
             B = observations.shape[0]
             TT = 1
+            obs_float = observations.float() / 255.0
+            obs_float = self._compress_tokens(obs_float)
 
-        # Use mixin to set critical TensorDict fields (after reshaping)
+        # Use mixin to set critical TensorDict fields (after our processing)
         self.set_tensordict_fields(td, observations)
-
-        # Handle BPTT properly: work with flattened batch dimension from TD reshape
-        if observations.dim() == 4:  # [B, TT, seq_len, 3] - training with BPTT
-            # After TD reshape, this should be [B*TT, seq_len, 3] but we need to handle it
-            batch_size, time_steps, seq_len, channels = observations.shape
-            # First flatten to [B*TT, seq_len, 3] to match TD batch size
-            observations = observations.view(batch_size * time_steps, seq_len, channels)
-        elif observations.dim() == 3:  # [B*TT, seq_len, 3] - already in the right shape
-            pass  # Already flattened correctly
-        else:
-            raise ValueError(f"Unexpected observation dimensions: {observations.shape}")
-
-        # Convert byte tokens to float and normalize
-        obs_float = observations.float() / 255.0
-
-        # Apply smart compression to reduce sequence length
-        obs_float = self._compress_tokens(obs_float)
 
         # Project compressed tokens to LLM embedding space
         token_embeddings = self.token_projector(obs_float)  # [batch_size, max_seq_len, hidden_size]
@@ -193,12 +192,13 @@ class SmolLM2(PyTorchAgentMixin, nn.Module):
             return_dict=True,
         )
 
-        # Use the last hidden state, pooled across sequence dimension
+        # Use the last hidden state from the hidden_states tuple
+        # CausalLMOutputWithPast always has hidden_states when output_hidden_states=True
         if hasattr(outputs, "hidden_states") and outputs.hidden_states is not None:
             hidden_states = outputs.hidden_states[-1]  # [batch_size, max_seq_len, hidden_size]
         else:
-            # Fallback: use last_hidden_state
-            hidden_states = outputs.last_hidden_state  # [batch_size, max_seq_len, hidden_size]
+            # This should not happen with output_hidden_states=True, but fallback to logits processing
+            raise RuntimeError("SmolLM2 output missing hidden_states - check output_hidden_states=True parameter")
 
         # Pool over sequence dimension (mean pooling)
         pooled_hidden = hidden_states.mean(dim=1)  # [batch_size, hidden_size]
