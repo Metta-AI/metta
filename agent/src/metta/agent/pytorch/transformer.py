@@ -1,7 +1,6 @@
 """Transformer agent for Metta."""
 
 import logging
-import math
 import warnings
 from typing import Optional
 
@@ -67,35 +66,21 @@ class Policy(nn.Module):
             use_gating=use_gating,
         )
 
-        # Hybrid approach: Keep bilinear actor but add simplified critic option
-        self.use_simple_heads = True  # Flag to choose between simple vs bilinear heads
-
-        if self.use_simple_heads:
-            # Simplified heads inspired by TransformerImproved
-            self.critic = nn.Sequential(
-                nn.Linear(hidden_size, hidden_size), nn.LayerNorm(hidden_size), nn.ReLU(), nn.Linear(hidden_size, 1)
-            )
-            self.actor = nn.Sequential(
-                nn.Linear(hidden_size, hidden_size),
-                nn.LayerNorm(hidden_size),
-                nn.ReLU(),
-                nn.Linear(hidden_size, 100),  # Max action space size
-            )
-            # Initialize simplified heads with proper scaling from TransformerImproved
-            for head in [self.critic, self.actor]:
-                for layer in head:
-                    if isinstance(layer, nn.Linear):
-                        init_layer(layer, std=1.0 if layer != head[-1] else 0.1)
-        else:
-            # Original bilinear approach (fallback)
-            self.critic_1 = init_layer(nn.Linear(hidden_size, 1024), std=1.0)
-            self.value_head = init_layer(nn.Linear(1024, 1), std=0.1)
-            self.actor_1 = init_layer(nn.Linear(hidden_size, 512), std=0.5)
-            self.action_embeddings = nn.Embedding(100, 16)
-            self._initialize_action_embeddings()
-            self.action_embed_dim = 16
-            self.actor_hidden_dim = 512
-            self._init_bilinear_actor()
+        # Simplified actor-critic heads
+        self.critic = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size), nn.LayerNorm(hidden_size), nn.ReLU(), nn.Linear(hidden_size, 1)
+        )
+        self.actor = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 100),  # Max action space size
+        )
+        # Initialize heads with proper scaling
+        for head in [self.critic, self.actor]:
+            for layer in head:
+                if isinstance(layer, nn.Linear):
+                    init_layer(layer, std=1.0 if layer != head[-1] else 0.1)
 
         max_values = [1.0] * self.num_layers
         if hasattr(env, "feature_normalizations"):
@@ -105,18 +90,6 @@ class Policy(nn.Module):
         self.register_buffer("max_vec", torch.tensor(max_values, dtype=torch.float32)[None, :, None, None])
         self.active_action_names = []
         self.num_active_actions = 100
-
-    def _initialize_action_embeddings(self):
-        nn.init.orthogonal_(self.action_embeddings.weight)
-        with torch.no_grad():
-            self.action_embeddings.weight.mul_(0.1 / torch.max(torch.abs(self.action_embeddings.weight)))
-
-    def _init_bilinear_actor(self):
-        self.actor_W = nn.Parameter(torch.Tensor(1, self.actor_hidden_dim, self.action_embed_dim).float())
-        self.actor_bias = nn.Parameter(torch.Tensor(1).float())
-        bound = 1 / math.sqrt(self.actor_hidden_dim) if self.actor_hidden_dim > 0 else 0
-        nn.init.uniform_(self.actor_W, -bound, bound)
-        nn.init.uniform_(self.actor_bias, -bound, bound)
 
     def initialize_to_environment(self, full_action_names: list[str], device):
         """Initialize to environment, setting up action embeddings to match the available actions."""
@@ -173,28 +146,11 @@ class Policy(nn.Module):
         return self.network_forward(box_obs)
 
     def decode_actions(self, hidden: torch.Tensor, batch_size: int) -> tuple:
-        """Enhanced decode_actions with hybrid approach."""
-        if self.use_simple_heads:
-            # Simplified approach from TransformerImproved
-            values = self.critic(hidden).squeeze(-1)
-            full_logits = self.actor(hidden)  # (B, max_action_space)
-            logits = full_logits[:, : self.num_active_actions]  # Slice to active actions
-            return logits, values
-        else:
-            # Original bilinear approach
-            value = self.value_head(torch.tanh(self.critic_1(hidden)))
-            actor_features = F.relu(self.actor_1(hidden))
-            action_embeds = (
-                self.action_embeddings.weight[: self.num_active_actions].unsqueeze(0).expand(batch_size, -1, -1)
-            )
-            num_actions = action_embeds.shape[1]
-            actor_reshaped = actor_features.unsqueeze(1).expand(-1, num_actions, -1).reshape(-1, self.actor_hidden_dim)
-            action_embeds_reshaped = action_embeds.reshape(-1, self.action_embed_dim)
-            query = torch.tanh(torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W))
-            logits = (torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped) + self.actor_bias).reshape(
-                batch_size, num_actions
-            )
-            return logits, value
+        """Decode actions and values from hidden states."""
+        values = self.critic(hidden).squeeze(-1)
+        full_logits = self.actor(hidden)  # (B, max_action_space)
+        logits = full_logits[:, : self.num_active_actions]  # Slice to active actions
+        return logits, values
 
     def transformer(self, hidden: torch.Tensor, terminations: torch.Tensor = None, memory: dict = None):
         """Enhanced transformer with proper memory handling."""
