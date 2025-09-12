@@ -78,7 +78,7 @@ class DemoConfig:
     @property
     def np_int32(self):
         """Get numpy int32 dtype as string."""
-        return "int32"
+        return self.numpy_dtype_int32
 
 
 # Default configuration instance
