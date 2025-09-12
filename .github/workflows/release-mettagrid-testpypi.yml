@@ -43,7 +43,8 @@ jobs:
 
       - name: Build sdist
         run: |
-          python -m build --sdist mettagrid
+          # Build sdist and place output in repo-level dist/
+          python -m build --sdist --outdir dist mettagrid
           ls -l dist
 
       - name: Upload sdist artifact
@@ -76,7 +77,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.11.7'
 
       - name: Install cibuildwheel
         run: python -m pip install --upgrade pip cibuildwheel==2.18.1
@@ -117,7 +118,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.11.7'
 
       - name: Set up Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
@@ -186,6 +187,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Download sdist
         uses: actions/download-artifact@v4
         with:
