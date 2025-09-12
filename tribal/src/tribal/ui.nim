@@ -103,35 +103,31 @@ proc drawHeader*(panel: Panel) =
     color(1, 1, 1, 1)
   )
 
-  if drawIconButton(
+  discard drawIconButton(
     "ui/share",
     pos = vec2(panel.rect.rect.w - (16 + 32)*1, 16)
-  ):
-    discard  # Share button functionality
+  )
   
-  if drawIconButton(
+  discard drawIconButton(
     "ui/help",
     pos = vec2(panel.rect.rect.w - (16 + 32)*2, 16)
-  ):
-    discard  # Help button functionality
+  )
 
 
 proc drawFooter*(panel: Panel) =
   drawPanelBackground(panel, parseHtmlColor("#2D343D"))
   
   var x = 16f
-  if drawIconButton(
+  discard drawIconButton(
     "ui/rewindToStart",
     pos = vec2(x, 16)
-  ):
-    discard  # Rewind to start
+  )
   x += 32 + 5
 
-  if drawIconButton(
+  discard drawIconButton(
     "ui/stepBack",
     pos = vec2(x, 16)
-  ):
-    discard  # Step back
+  )
   x += 32 + 5
 
   if drawIconButton(
@@ -150,11 +146,10 @@ proc drawFooter*(panel: Panel) =
     simStep()  # Step the simulation once
   x += 32 + 5
 
-  if drawIconButton(
+  discard drawIconButton(
     "ui/rewindToEnd",
     pos = vec2(x, 16)
-  ):
-    discard  # Rewind to end
+  )
 
 
   x = panel.rect.rect.w / 2 - 32
@@ -189,36 +184,32 @@ proc drawFooter*(panel: Panel) =
 
   x = panel.rect.rect.w - 16 - 32
 
-  if drawIconToggle(
+  discard drawIconToggle(
     "ui/cloud",
     pos = vec2(x, 16),
     value = settings.showFogOfWar
-  ):
-    discard  # Fog of war toggle
+  )
   x -= 32 + 5
 
-  if drawIconToggle(
+  discard drawIconToggle(
     "ui/eye",
     pos = vec2(x, 16),
     value = settings.showVisualRange
-  ):
-    discard  # Visual range toggle
+  )
   x -= 32 + 5
 
-  if drawIconToggle(
+  discard drawIconToggle(
     "ui/grid",
     pos = vec2(x, 16),
     value = settings.showGrid
-  ):
-    discard  # Grid toggle
+  )
   x -= 32 + 5
 
-  if drawIconToggle(
+  discard drawIconToggle(
     "ui/tack",
     pos = vec2(x, 16),
     value = settings.lockFocus
-  ):
-    discard  # Focus toggle
+  )
   x -= 32 + 5
 
 
