@@ -13,7 +13,7 @@ from typing import Any, List
 from pydantic import Field
 
 from metta.adaptive.models import JobDefinition, JobStatus, Observation, RunInfo
-from metta.adaptive.protocols import Optimizer
+from metta.adaptive.protocols import ExperimentState, Optimizer
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
 from metta.mettagrid.config import Config
 
@@ -46,9 +46,15 @@ class BatchedSyncedOptimizingScheduler:
     - Suggestions come from a stateless Optimizer; observations are read from run summaries
     """
 
-    def __init__(self, config: BatchedSyncedSchedulerConfig, optimizer: Optimizer):
+    def __init__(
+        self,
+        config: BatchedSyncedSchedulerConfig,
+        optimizer: Optimizer,
+        state: ExperimentState | None = None,
+    ):
         self.config = config
         self.optimizer = optimizer
+        self.state = state
         logger.info(
             "[BatchedSyncedOptimizingScheduler] Initialized with max_trials=%s, batch_size=%s",
             config.max_trials,

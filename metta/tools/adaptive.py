@@ -73,6 +73,9 @@ class AdaptiveTool(Tool):
     protein_config: Any | None = Field(
         default=None, description="ProteinConfig for BATCHED_SYNCED scheduler"
     )
+    scheduler_state: Any | None = Field(
+        default=None, description="Typed ExperimentState instance (optional)"
+    )
 
     # Commonly consumed args
     consumed_args: list[str] = Field(
@@ -189,13 +192,22 @@ class AdaptiveTool(Tool):
 
     def _create_scheduler(self):
         """Create scheduler instance based on scheduler_type."""
+        # Optional: validate scheduler_state implements ExperimentState protocol
+        try:
+            from metta.adaptive.protocols import ExperimentState as _ExperimentStateProto
+        except Exception:
+            _ExperimentStateProto = object  # type: ignore[assignment]
+
+        if self.scheduler_state is not None and not isinstance(self.scheduler_state, _ExperimentStateProto):
+            raise ValueError("scheduler_state must implement ExperimentState protocol (model_dump/model_validate)")
+
         if self.scheduler_type == SchedulerType.TRAIN_AND_EVAL:
             from metta.adaptive.schedulers.train_and_eval import TrainAndEvalConfig, TrainAndEvalScheduler
 
             if not isinstance(self.scheduler_config, TrainAndEvalConfig):
                 raise ValueError("scheduler_config must be a TrainAndEvalConfig instance for TRAIN_AND_EVAL")
 
-            return TrainAndEvalScheduler(self.scheduler_config)
+            return TrainAndEvalScheduler(self.scheduler_config, state=self.scheduler_state)
 
         if self.scheduler_type == SchedulerType.BATCHED_SYNCED:
             from metta.adaptive.optimizer.protein import ProteinOptimizer
@@ -212,7 +224,9 @@ class AdaptiveTool(Tool):
                 )
 
             optimizer = ProteinOptimizer(self.protein_config)
-            return BatchedSyncedOptimizingScheduler(self.scheduler_config, optimizer)
+            return BatchedSyncedOptimizingScheduler(
+                self.scheduler_config, optimizer, state=self.scheduler_state
+            )
 
         else:
             raise ValueError(f"Unsupported scheduler type: {self.scheduler_type}")

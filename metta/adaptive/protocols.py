@@ -97,3 +97,54 @@ class SchedulerConfig(Protocol):
 
     def model_dump(self) -> dict[str, Any]:  # pragma: no cover - protocol only
         ...
+
+
+@runtime_checkable
+class ExperimentState(Protocol):
+    """Optional typed state object for experiments (serializable, Pydantic-like).
+
+    Experiments that benefit from persistent or shared state (e.g., learning
+    progress, advanced optimizers) can define a dedicated state model.
+    """
+
+    def model_dump(self) -> dict[str, Any]:  # pragma: no cover - protocol only
+        ...
+
+    @classmethod
+    def model_validate(cls, data: dict[str, Any]) -> "ExperimentState":  # pragma: no cover - protocol only
+        ...
+
+
+@runtime_checkable
+class StateStore(Protocol):
+    """Abstract key-value state store for scheduler-managed experiment state.
+
+    Implementations may persist to local filesystem, databases, or other backends.
+    The interface is intentionally minimal to avoid coupling and config bloat.
+    """
+
+    def get(self, namespace: str, key: str) -> dict | None:  # pragma: no cover - protocol only
+        """Return a JSON-serializable dict for (namespace, key), or None if missing."""
+        ...
+
+    def put(self, namespace: str, key: str, value: dict) -> None:  # pragma: no cover - protocol only
+        """Persist a JSON-serializable dict for (namespace, key)."""
+        ...
+
+
+@runtime_checkable
+class SchedulerWithState(Protocol):
+    """Optional mixin protocol for schedulers that manage their own state.
+
+    The controller may call these hooks when present to load/save state around
+    the scheduling lifecycle.
+    """
+
+    def should_load_from_store(self, runs: list["RunInfo"]) -> bool:  # pragma: no cover - protocol only
+        ...
+
+    def load_from_store(self, store: StateStore, experiment_id: str) -> None:  # pragma: no cover - protocol only
+        ...
+
+    def save_to_store(self, store: StateStore, experiment_id: str) -> None:  # pragma: no cover - protocol only
+        ...

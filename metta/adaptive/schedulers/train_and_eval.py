@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
+from metta.adaptive.protocols import ExperimentState
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
 from metta.mettagrid.config import Config
 
@@ -32,8 +33,9 @@ class TrainAndEvalScheduler:
     3. Repeat until max_trials reached
     """
 
-    def __init__(self, config: TrainAndEvalConfig):
+    def __init__(self, config: TrainAndEvalConfig, state: ExperimentState | None = None):
         self.config = config
+        self.state = state
         logger.info(f"[TrainAndEvalScheduler] Initialized with max_trials={config.max_trials}")
 
     def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
