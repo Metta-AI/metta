@@ -19,7 +19,6 @@ src/tribal/tribal
 # Nim compiled binaries (executables without extension)
 src/tribal/environment
 src/tribal/renderer
-src/tribal/controller
 src/tribal/clippy
 src/tribal/placement
 src/tribal/terrain
@@ -55,14 +54,6 @@ tribal_replay_*.tribal
 # Example outputs that shouldn't be committed
 examples/tribal_replay_*.tribal
 examples/*.tmp
-
-# Process communication JSON files (generated during runtime)
-tribal_actions.json
-tribal_control.json
-tribal_state.json
-
-# Executable binaries built by build_process_viewer.sh
-tribal_process_viewer
 
 # Python package build artifacts
 *.egg-info/
