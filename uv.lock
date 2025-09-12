@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -2109,6 +2109,10 @@ dev = [
 name = "metta-common"
 version = "0.1.0"
 source = { editable = "common" }
+dependencies = [
+    { name = "rich" },
+    { name = "wandb" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -2121,6 +2125,10 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "rich", specifier = ">=14.1" },
+    { name = "wandb", specifier = ">=0.21.2" },
+]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2134,7 +2142,7 @@ dev = [
 
 [[package]]
 name = "mettagrid"
-version = "0.2"
+version = "0.2.0.1"
 source = { editable = "mettagrid" }
 dependencies = [
     { name = "boto3" },

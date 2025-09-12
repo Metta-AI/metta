@@ -12,7 +12,7 @@ WORKDIR /workspace/metta
 
 RUN bash ./devops/tools/install-system.sh
 
-RUN bash install.sh --profile=softmax-docker --non-interactive
+RUN bash install.sh --profile softmax-docker --non-interactive
 
 # Pre-build all packages to avoid OOM during container startup
 RUN uv sync --all-extras --frozen && \
