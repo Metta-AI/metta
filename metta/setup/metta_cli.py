@@ -14,7 +14,7 @@ from metta.common.util.fs import get_repo_root
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
-from metta.setup.utils import error, info, success, warning
+from metta.setup.utils import debug, error, info, success, warning
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -242,7 +242,7 @@ def cmd_install(
         info(f"[{module.name}] {module.description}")
 
         if module.install_once and module.check_installed() and not force:
-            info("  -> Already installed, skipping (use --force to reinstall)\n")
+            debug("  -> Already installed, skipping (use --force to reinstall)\n")
             continue
 
         try:
@@ -251,7 +251,8 @@ def cmd_install(
         except Exception as e:
             error(f"  Error: {e}\n")
 
-    success("Installation complete!")
+    if not non_interactive:
+        cmd_status(components=components, non_interactive=non_interactive)
 
 
 @app.command(name="status", help="Show status of components")
