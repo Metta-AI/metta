@@ -88,9 +88,7 @@ proc initAgentState(controller: Controller, agentId: int, basePos: IVec2, env: E
   let assignedRole = controller.assignAgentRole(agentId, env)
   
   controller.agentStates[agentId] = ControllerState(
-    spiralArcLength: 1,
     spiralStepsInArc: 0,
-    spiralDirection: 0,  # Start going North
     spiralArcsCompleted: 0,  # No arcs completed yet
     # Stuck detection initialization
     lastPosition: basePos,
@@ -336,6 +334,16 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   
   var state = controller.agentStates[agentId]
   
+  # 10% chance for random action to prevent getting stuck
+  if controller.rng.rand(0.0..1.0) < 0.1:
+    let randomOrientation = Orientation(controller.rng.rand(0..7))
+    let randomDelta = getOrientationDelta(randomOrientation)
+    let testPos = agent.pos + ivec2(randomDelta.x.int32, randomDelta.y.int32)
+    if env.isEmpty(testPos):
+      return [1'u8, ord(randomOrientation).uint8]  # Random move
+    # If random move fails, fall through to normal logic
+  
+  
   # Stuck detection: Check if we haven't moved
   const StuckThreshold = 5  # Consider stuck after 5 steps in same position
   const EscapeSteps = 5  # Escape for 5 steps when stuck
@@ -403,29 +411,38 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   else:
     state.hasCompletedRole = false  # AltarSpecialist never "completes"
   
-  # Find visible things
-  let visibleThings = env.findVisibleThings(agent, viewRadius = 5)
   
   # SPECIALIZATION LOGIC: If agent has a specialized role and hasn't completed it, prioritize that
   if state.role != AltarSpecialist and not state.hasCompletedRole:
     case state.role:
     of ArmorySpecialist:
-      # Simple priority: wood → armory → craft armor
-      if agent.inventoryWood > 0:
-        # Have wood, go to armory to craft
-        let armory = env.findHomeBuilding(agent, Armory)
-        if armory != nil:
-          state.currentTarget = armory.pos
-          state.targetType = Armory
+      # Need wood, then craft at Armory
+      if agent.inventoryWood == 0:
+        # Find wood (trees)
+        if state.targetType != Tree:
+          let nearestTree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
+          if nearestTree.x >= 0:
+            state.currentTarget = nearestTree
+            state.targetType = Tree
+          else:
+            # No trees found, wander to find some
+            state.currentTarget = controller.getNextWanderPoint(state)
+            state.targetType = Wander
+        
+        # Actions will be handled by unified action system below
+      
       else:
-        # Need wood, find nearest tree
-        let tree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
-        if tree.x >= 0:
-          state.currentTarget = tree
-          state.targetType = Tree
+        # Have wood, find Armory in our village
+        if state.targetType != Armory:
+          let armory = env.findHomeBuilding(agent, Armory)
+          if armory != nil:
+            state.currentTarget = armory.pos
+            state.targetType = Armory
+        
+        # Actions will be handled by unified action system below
     
     of ForgeSpecialist:
-      # Simple priority: hunt clippies with spear → craft spear → get wood
+      # Need wood, then craft at Forge, then hunt with spear (never complete)
       if agent.inventorySpear > 0:
         # Have spear, hunt clippies
         let clippy = findNearestClippy(env, agent.pos, maxDist = 15)
@@ -443,34 +460,51 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
           state.targetType = ClippyHunt
       elif agent.inventoryWood > 0:
         # Have wood, go to forge to craft spear
-        let forge = env.findHomeBuilding(agent, Forge)
-        if forge != nil:
-          state.currentTarget = forge.pos
-          state.targetType = Forge
+        if state.targetType != Forge:
+          let forge = env.findHomeBuilding(agent, Forge)
+          if forge != nil:
+            state.currentTarget = forge.pos
+            state.targetType = Forge
+        
+        # Actions will be handled by unified action system below
       else:
-        # Need wood, find tree
-        let tree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
-        if tree.x >= 0:
-          state.currentTarget = tree
-          state.targetType = Tree
+        # Need wood, find trees
+        if state.targetType != Tree:
+          let nearestTree = env.findNearestTerrainResource(agent.pos, Tree, maxDist = 20)
+          if nearestTree.x >= 0:
+            state.currentTarget = nearestTree
+            state.targetType = Tree
+          else:
+            state.currentTarget = controller.getNextWanderPoint(state)
+            state.targetType = Wander
+        
+        # Actions will be handled by unified action system below
     
     of ClayOvenSpecialist:
-      # Simple: wheat → clay oven → craft food
-      if agent.inventoryWheat > 0:
-        # Have wheat, go to clay oven to craft
-        let clayOven = env.findHomeBuilding(agent, ClayOven)
-        if clayOven != nil:
-          state.currentTarget = clayOven.pos
-          state.targetType = ClayOven
+      # Need wheat, then craft at ClayOven
+      if agent.inventoryWheat == 0:
+        if state.targetType != Wheat:
+          let nearestWheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
+          if nearestWheat.x >= 0:
+            state.currentTarget = nearestWheat
+            state.targetType = Wheat
+          else:
+            state.currentTarget = controller.getNextWanderPoint(state)
+            state.targetType = Wander
+        
+        # Actions will be handled by unified action system below
+      
       else:
-        # Need wheat, find some
-        let wheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
-        if wheat.x >= 0:
-          state.currentTarget = wheat
-          state.targetType = Wheat
+        if state.targetType != ClayOven:
+          let clayOven = env.findHomeBuilding(agent, ClayOven)
+          if clayOven != nil:
+            state.currentTarget = clayOven.pos
+            state.targetType = ClayOven
+        
+        # Actions will be handled by unified action system below
     
     of WeavingLoomSpecialist:
-      # Simple priority: plant lantern → craft lantern → get wheat
+      # Need wheat, then craft at WeavingLoom, then plant lantern (never complete)
       if agent.inventoryLantern > 0:
         # Have lantern, find place to plant (7+ tiles from altar)
         let plantSpot = env.findLanternPlacementSpot(agent, controller)
@@ -478,26 +512,48 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
           state.currentTarget = plantSpot
           state.targetType = LanternPlantSpot
         else:
-          # No good spot, try near agent as fallback
-          let nearbySpots = env.findEmptyPositionsAround(agent.pos, 3)
-          if nearbySpots.len > 0:
-            state.currentTarget = controller.rng.sample(nearbySpots)
-            state.targetType = LanternPlantSpot
+          # No good spot, continue spiraling to find one
+          state.currentTarget = controller.getNextWanderPoint(state)
+          state.targetType = Wander
       elif agent.inventoryWheat > 0:
-        # Have wheat, go to loom to craft lantern
-        let loom = env.findHomeBuilding(agent, WeavingLoom)
-        if loom != nil:
-          state.currentTarget = loom.pos
-          state.targetType = WeavingLoom
+        # Have wheat, craft lantern
+        if state.targetType != WeavingLoom:
+          let weavingLoom = env.findHomeBuilding(agent, WeavingLoom)
+          if weavingLoom != nil:
+            state.currentTarget = weavingLoom.pos
+            state.targetType = WeavingLoom
+        
+        # Actions will be handled by unified action system below
       else:
-        # Need wheat, find some
-        let wheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
-        if wheat.x >= 0:
-          state.currentTarget = wheat
-          state.targetType = Wheat
+        # Need wheat
+        if state.targetType != Wheat:
+          let nearestWheat = env.findNearestTerrainResource(agent.pos, Wheat, maxDist = 20)
+          if nearestWheat.x >= 0:
+            state.currentTarget = nearestWheat
+            state.targetType = Wheat
+          else:
+            state.currentTarget = controller.getNextWanderPoint(state)
+            state.targetType = Wander
+        
+        # Actions will be handled by unified action system below
     
     else:
       discard  # AltarSpecialist handled below
+    
+    # If we have a specialized target, move toward it
+    if state.targetType in [Tree, Wheat, Armory, Forge, ClayOven, WeavingLoom, LanternPlantSpot, ClippyHunt] and state.currentTarget != agent.pos:
+      let dir = getDirectionTo(agent.pos, state.currentTarget)
+      if dir.x != 0 or dir.y != 0:
+        let moveOrientation = getOrientation(dir)
+        let nextPos = agent.pos + dir
+        if env.isEmpty(nextPos):
+          return [1'u8, ord(moveOrientation).uint8]  # Move toward specialized target
+        elif isAdjacent(agent.pos, state.currentTarget):
+          # Try to get to cardinal position
+          let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
+          if moveDir.x != 0 or moveDir.y != 0:
+            let moveOrient = getOrientation(moveDir)
+            return [1'u8, ord(moveOrient).uint8]
     
     # UNIFIED ACTION SYSTEM: Handle actions at target locations
     if isCardinallyAdjacent(agent.pos, state.currentTarget):
@@ -565,12 +621,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         # We can use the altar!
         let dir = state.currentTarget - agent.pos
         
-        # Determine orientation argument for put action (action 5)
-        let useOrientation = getOrientation(dir)
-        let useArg = ord(useOrientation).uint8
-        
         # Put battery into altar
-        return [5'u8, useArg]  # Put action with direction
+        return [5'u8, ord(getOrientation(dir)).uint8]  # Put action with direction
       elif isAdjacent(agent.pos, state.currentTarget):
         # We're diagonally adjacent - move to cardinal position
         let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
@@ -589,7 +641,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       var nearestConverter: Thing = nil
       var minDist = 999999.0
       
-      for thing in visibleThings:
+      for thing in env.things:
         if thing.kind == Converter and thing.cooldown == 0:
           let dist = manhattanDistance(agent.pos, thing.pos).float
           if dist < minDist:
@@ -615,12 +667,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         # We can get battery from converter (put ore in, get battery out)
         let dir = state.currentTarget - agent.pos
         
-        # Determine orientation argument for get action (action 3)
-        let useOrientation = getOrientation(dir)
-        let useArg = ord(useOrientation).uint8
-        
         # Get battery from converter (converts ore to battery)
-        return [3'u8, useArg]  # Get action with direction
+        return [3'u8, ord(getOrientation(dir)).uint8]  # Get action with direction
       elif isAdjacent(agent.pos, state.currentTarget):
         # We're diagonally adjacent - move to cardinal position
         let moveDir = getMoveToCardinalPosition(agent.pos, state.currentTarget, env)
@@ -650,7 +698,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       var nearestMine: Thing = nil
       var minDist = 999999.0
       
-      for thing in visibleThings:
+      for thing in env.things:
         if thing.kind == Mine and thing.cooldown == 0 and thing.resources > 0:
           let dist = manhattanDistance(agent.pos, thing.pos).float
           if dist < minDist:
@@ -718,17 +766,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         
         # Last resort: try a random direction (including diagonals)
         let randomOrientation = Orientation(controller.rng.rand(0..7))
-        let randomDelta = case randomOrientation
-          of N: ivec2(0, -1)
-          of S: ivec2(0, 1)
-          of W: ivec2(-1, 0)
-          of E: ivec2(1, 0)
-          of NW: ivec2(-1, -1)
-          of NE: ivec2(1, -1)
-          of SW: ivec2(-1, 1)
-          of SE: ivec2(1, 1)
-        
-        let testPos = agent.pos + randomDelta
+        let randomDelta = getOrientationDelta(randomOrientation)
+        let testPos = agent.pos + ivec2(randomDelta.x.int32, randomDelta.y.int32)
         if env.isEmpty(testPos):
           return [1'u8, ord(randomOrientation).uint8]  # Move in random direction
   

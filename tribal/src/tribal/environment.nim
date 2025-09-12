@@ -1005,14 +1005,8 @@ proc plantAction(env: Environment, id: int, agent: Thing, argument: int) =
     inc env.stats[id].actionInvalid
     return
   
-  # Find which team this agent belongs to (by home altar)
-  var teamId = -1
-  if agent.homeAltar.x >= 0:
-    # Find the team ID by matching home altar with village
-    for agent_i in env.agents:
-      if agent_i.homeAltar == agent.homeAltar:
-        teamId = agent_i.agentId div 5  # Use actual agentId, not array index
-        break
+  # Calculate team ID directly from the planting agent's ID
+  var teamId = agent.agentId div 5
   
   # Plant the lantern
   let lantern = Thing(
