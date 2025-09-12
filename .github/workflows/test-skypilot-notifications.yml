@@ -41,7 +41,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: minimal
+          install-mode: runtime # we use code from metta.common in the script
           extra-dependencies: |
             requests>=2.31.0
             dataclasses
