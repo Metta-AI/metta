@@ -6,6 +6,7 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -66,6 +67,7 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     nav_env = nav_env or make_mettagrid()
 
@@ -93,16 +95,19 @@ def make_curriculum(
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return nav_tasks.to_curriculum(
-        num_active_tasks=1000,  # Smaller pool for navigation tasks
-        algorithm_config=LearningProgressConfig(
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
             use_bidirectional=True,  # Default: bidirectional learning progress
             ema_timescale=0.001,
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
-        ),
+        )
+
+    return nav_tasks.to_curriculum(
+        num_active_tasks=1000,  # Smaller pool for navigation tasks
+        algorithm_config=algorithm_config,
     )
 
 
@@ -117,16 +122,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum
-        or make_curriculum(
-            algorithm_config=LearningProgressConfig(
-                use_bidirectional=True,  # Default: bidirectional learning progress
-                ema_timescale=0.001,
-                exploration_bonus=0.1,
-                max_memory_tasks=1000,
-                max_slice_axes=3,  # More slices for arena complexity
-                enable_detailed_slice_logging=enable_detailed_slice_logging,
-            )
-        ),
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),

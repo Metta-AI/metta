@@ -7,6 +7,7 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -65,6 +66,7 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     nav_env = nav_env or make_env()
 
@@ -102,8 +104,8 @@ def make_curriculum(
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return nav_tasks.to_curriculum(
-        algorithm_config=LearningProgressConfig(
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
             use_bidirectional=True,  # Enable bidirectional learning progress by default
             ema_timescale=0.001,
             exploration_bonus=0.1,
@@ -111,7 +113,8 @@ def make_curriculum(
             max_slice_axes=3,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
-    )
+
+    return nav_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
 def train(

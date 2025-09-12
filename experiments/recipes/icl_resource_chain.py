@@ -2,7 +2,10 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumConfig,
+    CurriculumAlgorithmConfig,
+)
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.mettagrid.builder import empty_converters
@@ -167,21 +170,27 @@ def make_mettagrid() -> MettaGridConfig:
     return task_generator.get_task(0)
 
 
-def make_curriculum(enable_detailed_slice_logging: bool = False) -> CurriculumConfig:
+def make_curriculum(
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+) -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
     )
-    return CurriculumConfig(
-        task_generator=task_generator_cfg,
-        algorithm_config=LearningProgressConfig(
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
             use_bidirectional=True,  # Enable bidirectional learning progress by default
             ema_timescale=0.001,
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
-        ),
+        )
+
+    return CurriculumConfig(
+        task_generator=task_generator_cfg,
+        algorithm_config=algorithm_config,
     )
 
 
