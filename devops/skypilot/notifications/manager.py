@@ -121,6 +121,11 @@ class NotificationManager:
                 ),
                 state=NotificationState.FAILURE,
             ),
+            "force_restart_test": NotificationConfig(
+                emoji="🔧",
+                title="SkyPilot Job Restarted",
+                description="Job restarted to test automatic recovery.",
+            ),
             "job_completed": NotificationConfig(
                 emoji="✅",
                 title="SkyPilot Job Completed",
