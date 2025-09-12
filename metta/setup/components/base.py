@@ -59,14 +59,19 @@ class SetupModule(ABC):
         # It is assumed that `core` and `system` are always installed first
         return []
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         """Install this component.
+
+        This is called during a metta install if any of:
+        - the component is not installed
+        - the component is installed and SetupModule.install_once is False
+        - the component is installed and the user is running a force-install
+
+        Force-installs are likely called when the user is trying to repair an issue, so ideally this function
+        should self-doctor when force is True.
 
         Args:
             non_interactive: If True, run in non-interactive mode without prompts
-
-        Raises:
-            NotImplementedError: If neither setup_script_location is set nor install() is overridden
         """
         self._non_interactive = non_interactive
         if self.setup_script_location:

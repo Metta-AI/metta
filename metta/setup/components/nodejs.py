@@ -70,8 +70,12 @@ class NodejsSetup(SetupModule):
         warning("Failed to enable corepack after removing dead symlinks")
         return False
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up pnpm...")
+
+        if force:
+            info("Uninstalling pnpm first...")
+            self.run_command(["corepack", "disable"])
 
         # First enable corepack to make pnpm command available
         if not self._cmd_exists("pnpm"):

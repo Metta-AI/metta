@@ -35,7 +35,7 @@ class ObservatoryKeySetup(SetupModule):
                 return False
         return True
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info(f"Setting up Observatory authentication for {self.server_url}...")
         login_script = self.repo_root / "devops" / "observatory_login.py"
 
@@ -51,8 +51,10 @@ class ObservatoryKeySetup(SetupModule):
                     )
                 success(f"Observatory auth configured for {self.server_url}")
             except subprocess.CalledProcessError:
-                warning("Observatory login failed. You can manually run:")
-                warning(f"  uv run python devops/observatory_login.py {self.server_url}")
+                warning(f"""
+                Observatory login failed. You can manually run:
+                  uv run python devops/observatory_login.py {self.server_url}
+                """)
         else:
             warning("Observatory login script not found at devops/observatory_login.py")
 

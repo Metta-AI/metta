@@ -270,6 +270,7 @@ def main():
         "auth_server_url",
         help=f"Stats server API URI (e.g., {PROD_STATS_SERVER_URI} or {DEV_STATS_SERVER_URI})",
     )
+    parser.add_argument("--force", action="store_true", help="Get a new token even if one already exists")
     parser.add_argument("--timeout", type=int, default=300, help="Authentication timeout in seconds (default: 300)")
 
     args = parser.parse_args()
@@ -278,7 +279,7 @@ def main():
     authenticator = CLIAuthenticator(auth_server_url=args.auth_server_url)
 
     # Check if we already have a token
-    if authenticator.has_saved_token():
+    if authenticator.has_saved_token() and not args.force:
         print(f"Found existing token for {urlparse(args.auth_server_url).hostname}")
         sys.exit(0)
 
