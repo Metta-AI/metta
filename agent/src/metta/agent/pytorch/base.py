@@ -76,6 +76,18 @@ class LSTMWrapper(nn.Module):
         if env_id in self.lstm_c:
             del self.lstm_c[env_id]
 
+    def on_new_training_run(self):
+        self.reset_memory()
+
+    def on_rollout_start(self):
+        self.reset_memory()
+
+    def on_train_mb_start(self):
+        self.reset_memory()
+
+    def on_eval_start(self):
+        self.reset_memory()
+
     def _manage_lstm_state(self, td, B, TT, device):
         """Manage LSTM state with automatic reset and detachment.
 
@@ -106,19 +118,13 @@ class LSTMWrapper(nn.Module):
             lstm_h = self.lstm_h[training_env_id_start]
             lstm_c = self.lstm_c[training_env_id_start]
 
-            # Guard against batch-size mismatches between rollout and training minibatches
-            # If stored state batch dimension != current B, reinitialize to correct shape immediately
-            if lstm_h.size(1) != B or lstm_c.size(1) != B:
-                lstm_h = torch.zeros(self.num_layers, B, self.hidden_size, device=device)
-                lstm_c = torch.zeros(self.num_layers, B, self.hidden_size, device=device)
-            else:
-                # Reset hidden state if episode is done or truncated
-                dones = td.get("dones", None)
-                truncateds = td.get("truncateds", None)
-                if dones is not None and truncateds is not None:
-                    reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
-                    lstm_h = lstm_h.masked_fill(reset_mask, 0)
-                    lstm_c = lstm_c.masked_fill(reset_mask, 0)
+            # Reset hidden state if episode is done or truncated
+            dones = td.get("dones", None)
+            truncateds = td.get("truncateds", None)
+            if dones is not None and truncateds is not None:
+                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+                lstm_h = lstm_h.masked_fill(reset_mask, 0)
+                lstm_c = lstm_c.masked_fill(reset_mask, 0)
         else:
             # Initialize new hidden states
             lstm_h = torch.zeros(self.num_layers, B, self.hidden_size, device=device)
