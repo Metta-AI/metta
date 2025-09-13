@@ -23,9 +23,11 @@ import time
 
 import numpy as np
 
+# Demo configuration
+from demo_config import DEFAULT_CONFIG as config
+
 # Gym adapter imports
 from metta.mettagrid import MettaGridGymEnv
-from metta.mettagrid.builder.envs import make_arena
 
 # Training framework imports
 try:
@@ -40,11 +42,11 @@ except ImportError:
 def demo_single_agent_gym():
     """Demonstrate single-agent Gymnasium environment."""
     print("SINGLE-AGENT GYM DEMO")
-    print("=" * 60)
+    print("=" * config.separator_short)
 
     env = MettaGridGymEnv(
-        mg_config=make_arena(num_agents=1),
-        render_mode=None,
+        mg_config=config.get_gym_config(),
+        render_mode=config.render_mode,
     )
 
     print("Single-agent Gym environment created")
@@ -52,7 +54,7 @@ def demo_single_agent_gym():
     print(f"   - Action space: {env.action_space}")
     print(f"   - Max steps: {env.max_steps}")
 
-    observation, info = env.reset(seed=42)
+    observation, info = env.reset(seed=config.seed)
     print(f"   - Reset successful: observation shape {observation.shape}")
 
     action = env.action_space.sample()
@@ -72,7 +74,7 @@ def demo_single_agent_gym():
 def demo_sb3_training():
     """Demonstrate SB3 training with single-agent environment."""
     print("\nSTABLE BASELINES3 TRAINING DEMO")
-    print("=" * 60)
+    print("=" * config.separator_short)
 
     if not SB3_AVAILABLE:
         print("Stable Baselines3 not available")
@@ -85,25 +87,25 @@ def demo_sb3_training():
 
     try:
         env = MettaGridGymEnv(
-            mg_config=make_arena(num_agents=1),
-            render_mode=None,
+            mg_config=config.get_gym_config(),
+            render_mode=config.render_mode,
         )
 
         print("Created single-agent environment for SB3")
         print(f"   - Observation space: {env.observation_space}")
         print(f"   - Action space: {env.action_space}")
 
-        model = PPO("MlpPolicy", env, verbose=0)
+        model = PPO(config.gym_sb3_policy, env, verbose=config.gym_sb3_verbose)
         print("Created PPO model")
 
-        print("Training for 256 timesteps...")
-        model.learn(total_timesteps=256)
+        print(f"Training for {config.max_steps_training} timesteps...")
+        model.learn(total_timesteps=config.max_steps_training)
 
         obs, _ = env.reset()
         total_reward = 0
         steps = 0
 
-        for _ in range(50):  # Test for 50 steps
+        for _ in range(config.max_steps_quick // config.gym_test_steps_divisor):  # Test for limited steps
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, _ = env.step(action)
             total_reward += reward
@@ -113,7 +115,9 @@ def demo_sb3_training():
                 obs, _ = env.reset()
 
         print("Training completed!")
-        print(f"   - Trained model average reward ({steps} steps): {total_reward / steps:.3f}")
+        print(
+            f"   - Trained model average reward ({steps} steps): {total_reward / steps:.{config.avg_reward_precision}f}"
+        )
         print("   - SB3 training integration successful!")
 
         assert total_reward == total_reward, "Reward is NaN"  # not NaN
@@ -129,7 +133,7 @@ def demo_sb3_training():
 def demo_vectorized_envs():
     """Demonstrate vectorized environments with SB3."""
     print("\nVECTORIZED ENVIRONMENTS DEMO")
-    print("=" * 60)
+    print("=" * config.separator_short)
 
     if not SB3_AVAILABLE:
         print("Stable Baselines3 not available")
@@ -141,28 +145,30 @@ def demo_vectorized_envs():
         def make_mettagrid():
             def _init():
                 return MettaGridGymEnv(
-                    mg_config=make_arena(num_agents=1),
-                    render_mode=None,
+                    mg_config=config.get_gym_config(),
+                    render_mode=config.render_mode,
                 )
 
             return _init
 
-        vec_env = DummyVecEnv([make_mettagrid() for _ in range(4)])
+        vec_env = DummyVecEnv([make_mettagrid() for _ in range(config.gym_num_vec_envs)])
 
-        print("Created 4 vectorized environments")
+        print(f"Created {config.gym_num_vec_envs} vectorized environments")
         print(f"   - Observation space: {vec_env.observation_space}")
         print(f"   - Action space: {vec_env.action_space}")
 
         observations = vec_env.reset()
         print(f"   - Vectorized reset: {observations.shape}")
 
-        actions = np.array([vec_env.action_space.sample() for _ in range(4)])
+        actions = np.array([vec_env.action_space.sample() for _ in range(config.gym_num_vec_envs)])
         observations, rewards, dones, infos = vec_env.step(actions)
         print(f"   - Vectorized step: obs {observations.shape}, rewards {rewards.shape}")
 
-        assert observations.shape[0] == 4, "Expected 4 environments"
-        assert rewards.shape == (4,), "Expected rewards for 4 environments"
-        assert dones.shape == (4,), "Expected dones for 4 environments"
+        assert observations.shape[0] == config.gym_num_vec_envs, f"Expected {config.gym_num_vec_envs} environments"
+        assert rewards.shape == (config.gym_num_vec_envs,), (
+            f"Expected rewards for {config.gym_num_vec_envs} environments"
+        )
+        assert dones.shape == (config.gym_num_vec_envs,), f"Expected dones for {config.gym_num_vec_envs} environments"
 
         print("Vectorized environments working correctly!")
         print("   - Ready for high-throughput SB3 training")
@@ -178,7 +184,7 @@ def demo_vectorized_envs():
 def main():
     """Run Gymnasium + SB3 adapter demo."""
     print("GYMNASIUM + SB3 ADAPTER DEMO")
-    print("=" * 80)
+    print("=" * config.separator_long)
     print("This demo shows MettaGridGymEnv integration with")
     print("Gymnasium and Stable Baselines3 (no internal training code).")
     print()
@@ -193,19 +199,19 @@ def main():
 
         # Summary
         duration = time.time() - start_time
-        print("\n" + "=" * 80)
+        print("\n" + "=" * config.separator_long)
         print("GYMNASIUM + SB3 DEMO COMPLETED")
-        print("=" * 80)
+        print("=" * config.separator_long)
         print("Single-agent environment: Working")
         print("SB3 training: Successful")
         print("Vectorized environments: Ready")
-        print(f"\nTotal demo time: {duration:.1f} seconds")
+        print(f"\nTotal demo time: {duration:.{config.time_precision}f} seconds")
         print("\nNext steps:")
         print("   - Train with different SB3 algorithms (PPO, A2C, SAC)")
         print("   - Use vectorized environments for faster training")
         print("   - Apply hyperparameter optimization")
         print("   - For multi-agent scenarios, consider PettingZoo adapter")
-        print("=" * 80)
+        print("=" * config.separator_long)
 
     except KeyboardInterrupt:
         print("\nDemo interrupted by user")

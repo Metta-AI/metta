@@ -30,11 +30,12 @@ import time
 
 import numpy as np
 
+# Demo configuration
+from demo_config import DEFAULT_CONFIG as config
+
 # MettaGrid imports
 # Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.builder.envs import make_arena
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 # Training framework imports
 try:
@@ -45,21 +46,21 @@ except ImportError:
     PUFFERLIB_AVAILABLE = False
 
 
-def create_test_config() -> MettaGridConfig:
+def create_test_config():
     """Create test configuration for Puffer integration."""
-    return MettaGridConfig()
+    return config.get_pettingzoo_config()
 
 
 def demo_puffer_env():
     """Demonstrate PufferLib environment creation and basic usage."""
     print("PUFFERLIB ENVIRONMENT DEMO")
-    print("=" * 60)
+    print("=" * config.separator_short)
 
     # Create MettaGridEnv - which IS a PufferLib environment!
     # MettaGridEnv inherits from PufferEnv, so it has all PufferLib functionality
     env = MettaGridEnv(
-        env_cfg=make_arena(num_agents=24),
-        render_mode=None,
+        env_cfg=config.get_puffer_config(),
+        render_mode=config.render_mode,
         is_training=False,  # Disable training-specific features for this demo
     )
 
@@ -69,7 +70,7 @@ def demo_puffer_env():
     print(f"   - Action space: {env.action_space}")
     print(f"   - Max steps: {env.max_steps}")
 
-    observations, _ = env.reset(seed=42)
+    observations, _ = env.reset(seed=config.seed)
     print(f"   - Reset successful: observations shape {observations.shape}")
 
     # Generate random actions compatible with the action space
@@ -77,7 +78,7 @@ def demo_puffer_env():
 
     if isinstance(env.action_space, spaces.MultiDiscrete):
         # MultiDiscrete case
-        actions = np.zeros((env.num_agents, len(env.action_space.nvec)), dtype=np.int32)
+        actions = np.zeros((env.num_agents, len(env.action_space.nvec)), dtype=config.np_int32)
         for i in range(env.num_agents):
             for j, n in enumerate(env.action_space.nvec):
                 actions[i, j] = np.random.randint(0, n)
@@ -87,7 +88,7 @@ def demo_puffer_env():
             env.action_space.low,
             env.action_space.high + 1,
             size=env.action_space.shape,
-            dtype=np.int32,
+            dtype=config.np_int32,
         )
 
     _, rewards, terminals, truncations, _ = env.step(actions)
@@ -99,24 +100,24 @@ def demo_puffer_env():
 def demo_random_rollout():
     """Demonstrate random policy rollout in PufferLib environment."""
     print("\nRANDOM ROLLOUT DEMO")
-    print("=" * 60)
+    print("=" * config.separator_short)
 
     # Create MettaGridEnv for rollout
     # Note: is_training=True enables training features like stats collection
     env = MettaGridEnv(
-        env_cfg=make_arena(num_agents=24),
-        render_mode=None,
-        is_training=True,
+        env_cfg=config.get_puffer_config(),
+        render_mode=config.render_mode,
+        is_training=config.puffer_is_training,
     )
 
     print("Running random policy rollout...")
     print(f"   - Agents: {env.num_agents}")
     print(f"   - Action space: {env.action_space}")
 
-    _, _ = env.reset(seed=42)
+    _, _ = env.reset(seed=config.seed)
     total_reward = 0
     steps = 0
-    max_steps = 100  # Small for CI
+    max_steps = config.max_steps_quick  # Small for CI
     episodes = 0
 
     for _ in range(max_steps):
@@ -125,14 +126,14 @@ def demo_random_rollout():
 
         if isinstance(env.action_space, spaces.MultiDiscrete):
             # MultiDiscrete case
-            actions = np.zeros((env.num_agents, len(env.action_space.nvec)), dtype=np.int32)
+            actions = np.zeros((env.num_agents, len(env.action_space.nvec)), dtype=config.np_int32)
             for i in range(env.num_agents):
                 for j, n in enumerate(env.action_space.nvec):
                     actions[i, j] = np.random.randint(0, n)
         else:
             # Box case
             actions = np.random.randint(
-                env.action_space.low, env.action_space.high + 1, size=env.action_space.shape, dtype=np.int32
+                env.action_space.low, env.action_space.high + 1, size=env.action_space.shape, dtype=config.np_int32
             )
 
         _, rewards, terminals, truncations, _ = env.step(actions)
@@ -147,7 +148,7 @@ def demo_random_rollout():
 
     avg_reward = total_reward / steps if steps > 0 else 0
     print(f"Completed {steps} steps across {episodes} episodes")
-    print(f"   - Average reward per step: {avg_reward:.3f}")
+    print(f"   - Average reward per step: {avg_reward:.{config.avg_reward_precision}f}")
 
     assert steps > 0, "Expected at least one step to be taken"
     assert not np.isnan(total_reward), "Total reward is NaN"
@@ -158,7 +159,7 @@ def demo_random_rollout():
 def demo_pufferlib_training():
     """Demonstrate actual PufferLib training integration."""
     print("\nPUFFERLIB TRAINING DEMO")
-    print("=" * 60)
+    print("=" * config.separator_short)
 
     if not PUFFERLIB_AVAILABLE:
         print("PufferLib not available")
@@ -171,9 +172,9 @@ def demo_pufferlib_training():
 
     # MettaGridEnv can be used directly with PufferLib training code
     env = MettaGridEnv(
-        env_cfg=make_arena(num_agents=24),
-        render_mode=None,
-        is_training=True,
+        env_cfg=config.get_puffer_config(),
+        render_mode=config.render_mode,
+        is_training=config.puffer_is_training,
     )
 
     print("Running PufferLib training...")
@@ -185,12 +186,12 @@ def demo_pufferlib_training():
     try:
         # PufferLib doesn't have a standard training API like pufferlib.frameworks.cleanrl.ppo
         # So we'll do a simple training loop that demonstrates the environment works
-        print("   - Running short training loop (256 steps)...")
+        print(f"   - Running short training loop ({config.max_steps_training} steps)...")
 
-        _, _ = env.reset(seed=42)
+        _, _ = env.reset(seed=config.seed)
         total_reward = 0
         steps = 0
-        max_steps = 256  # Reduced for faster CI
+        max_steps = config.max_steps_training  # Reduced for faster CI
 
         # Initialize simple policies based on action space type
         from gymnasium import spaces
@@ -204,21 +205,21 @@ def demo_pufferlib_training():
             # Box: track preferences for discretized bins
             action_low = env.action_space.low
             action_high = env.action_space.high
-            num_bins = 10
+            num_bins = config.puffer_action_bins
             action_preferences = np.ones((env.num_agents, env.action_space.shape[1], num_bins))
 
         for _ in range(max_steps):
             # Sample actions based on current preferences
             if isinstance(env.action_space, spaces.MultiDiscrete):
                 # MultiDiscrete case
-                actions = np.zeros((env.num_agents, len(env.action_space.nvec)), dtype=np.int32)
+                actions = np.zeros((env.num_agents, len(env.action_space.nvec)), dtype=config.np_int32)
                 for i in range(env.num_agents):
                     for j, n in enumerate(env.action_space.nvec):
                         probs = action_preferences[j] / action_preferences[j].sum()
                         actions[i, j] = np.random.choice(n, p=probs)
             else:
                 # Box case
-                actions = np.zeros((env.num_agents, env.action_space.shape[1]), dtype=np.int32)
+                actions = np.zeros((env.num_agents, env.action_space.shape[1]), dtype=config.np_int32)
                 for i in range(env.num_agents):
                     for j in range(env.action_space.shape[1]):
                         # Convert preferences to probabilities
@@ -240,7 +241,7 @@ def demo_pufferlib_training():
                 for i in range(env.num_agents):
                     if rewards[i] > 0:
                         for j in range(len(env.action_space.nvec)):
-                            action_preferences[j][actions[i, j]] *= 1.1
+                            action_preferences[j][actions[i, j]] *= config.puffer_learning_rate
             else:
                 # Box learning
                 for i in range(env.num_agents):
@@ -251,14 +252,14 @@ def demo_pufferlib_training():
                             bin_idx = int((actions[i, j] - action_low[i, j]) * num_bins / action_range)
                             bin_idx = np.clip(bin_idx, 0, num_bins - 1)
                             # Increase preference for this bin
-                            action_preferences[i, j, bin_idx] *= 1.1
+                            action_preferences[i, j, bin_idx] *= config.puffer_learning_rate
 
             if terminals.any() or truncations.any():
                 _, _ = env.reset()
 
         avg_reward = total_reward / steps if steps > 0 else 0
         print(f"   - Training completed: {steps} steps")
-        print(f"   - Average reward: {avg_reward:.3f}")
+        print(f"   - Average reward: {avg_reward:.{config.avg_reward_precision}f}")
 
         assert steps > 0, "Expected at least one step in training"
         assert not np.isnan(total_reward), "Total reward is NaN"
@@ -278,7 +279,7 @@ def demo_pufferlib_training():
 def main():
     """Run PufferLib adapter demo."""
     print("PUFFERLIB INTEGRATION DEMO")
-    print("=" * 80)
+    print("=" * config.separator_long)
     print("This demo shows MettaGridEnv's PufferLib integration.")
     print("MettaGridEnv inherits from PufferEnv, making it fully compatible")
     print("with the PufferLib high-performance training ecosystem.")
@@ -294,18 +295,18 @@ def main():
 
         # Summary
         duration = time.time() - start_time
-        print("\n" + "=" * 80)
+        print("\n" + "=" * config.separator_long)
         print("PUFFERLIB DEMO COMPLETED")
-        print("=" * 80)
+        print("=" * config.separator_long)
         print("Environment creation: Successful")
         print("Random rollout: Completed")
         print("PufferLib integration: Ready")
-        print(f"\nTotal demo time: {duration:.1f} seconds")
+        print(f"\nTotal demo time: {duration:.{config.time_precision}f} seconds")
         print("\nNext steps:")
         print("   - Use PufferLib's vectorized training")
         print("   - Integrate with CleanRL algorithms")
         print("   - Scale to high-throughput experiments")
-        print("=" * 80)
+        print("=" * config.separator_long)
 
     except KeyboardInterrupt:
         print("\nDemo interrupted by user")
