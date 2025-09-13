@@ -38,6 +38,11 @@ proc newController*(seed: int): Controller =
   )
   globalSimpleController = result
 
+# Helper proc to save state and return action
+proc saveStateAndReturn(controller: Controller, agentId: int, state: AgentState, action: array[2, uint8]): array[2, uint8] =
+  controller.agents[agentId] = state
+  return action
+
 proc applyDirectionOffset(offset: var IVec2, direction: int, distance: int32) =
   case direction:
   of 0: offset.y -= distance  # North
@@ -75,11 +80,12 @@ proc getNextSpiralPoint(state: var AgentState, rng: var Rand): IVec2 =
     state.spiralArcsCompleted += 1
     state.spiralStepsInArc = 1
     
-    # Reset spiral after ~30 arcs (radius ~15) to avoid going too far
-    if state.spiralArcsCompleted > 30:
-      state.spiralArcsCompleted = rng.rand(0..3)  # Random restart direction
+    # Reset spiral after ~100 arcs (radius ~50) to avoid going too far
+    if state.spiralArcsCompleted > 100:
+      state.spiralArcsCompleted = 0  # Reset to start of spiral
       state.spiralStepsInArc = 1
-      return state.basePosition  # Return to base
+      # Don't return to base immediately, continue spiral from current area
+      state.basePosition = state.lastSearchPosition
   
   # Calculate next position
   applyDirectionOffset(totalOffset, direction, 1)
@@ -97,12 +103,17 @@ proc findNearestThing(env: Environment, pos: IVec2, kind: ThingKind): Thing =
 
 proc findNearestThingSpiral(env: Environment, state: var AgentState, kind: ThingKind, rng: var Rand): Thing =
   ## Find nearest thing using spiral search pattern - more systematic than random search
-  # First check immediate area
+  # First check immediate area around current position
   result = findNearestThing(env, state.lastSearchPosition, kind)
   if result != nil:
     return result
     
-  # If not found, advance spiral search
+  # Also check around agent's current position before advancing spiral
+  result = findNearestThing(env, state.basePosition, kind)
+  if result != nil:
+    return result
+  
+  # If not found, advance spiral search only every few calls to reduce dithering
   let nextSearchPos = getNextSpiralPoint(state, rng)
   state.lastSearchPosition = nextSearchPos
   
@@ -123,12 +134,17 @@ proc findNearestTerrain(env: Environment, pos: IVec2, terrain: TerrainType): IVe
           result = terrainPos
 
 proc findNearestTerrainSpiral(env: Environment, state: var AgentState, terrain: TerrainType, rng: var Rand): IVec2 =
-  ## Find nearest terrain using spiral search pattern
+  ## Find terrain using spiral search pattern
   # First check from current spiral search position
   result = findNearestTerrain(env, state.lastSearchPosition, terrain)
   if result.x >= 0:
     return result
     
+  # Also check around agent's current position before advancing spiral
+  result = findNearestTerrain(env, state.basePosition, terrain)
+  if result.x >= 0:
+    return result
+  
   # If not found, advance spiral search
   let nextSearchPos = getNextSpiralPoint(state, rng)
   state.lastSearchPosition = nextSearchPos
@@ -252,7 +268,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         # No wheat found, continue spiral search
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
-        return [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8]
+        return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
 
   of ArmorySpecialist:
     # Priority 1: Craft armor if we have wood
@@ -267,7 +283,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         # No armory found, continue spiral search
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
-        return [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8]
+        return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
     
     # Priority 2: Collect wood using spiral search
     else:
@@ -281,7 +297,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         # No trees found, continue spiral search
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
-        return [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8]
+        return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
 
   of ForgeSpecialist:
     # Priority 1: Hunt clippies if we have spear using spiral search
@@ -296,7 +312,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         # No clippies found, continue spiral search for hunting
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
-        return [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8]
+        return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
     
     # Priority 2: Craft spear if we have wood
     elif agent.inventoryWood > 0:
@@ -320,7 +336,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         # No trees found, continue spiral search
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
-        return [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8]
+        return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
 
   of ClayOvenSpecialist:
     # Priority 1: Craft bread if we have wheat
@@ -335,7 +351,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         # No oven found, continue spiral search
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
-        return [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8]
+        return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
     
     # Priority 2: Collect wheat using spiral search
     else:
@@ -349,7 +365,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         # No wheat found, continue spiral search
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
-        return [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8]
+        return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
 
   of AltarSpecialist:
     # Handle ore → battery → altar workflow
@@ -375,7 +391,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         # No converter found, continue spiral search
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
-        return [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8]
+        return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
     
     else:
       # Find mine and collect ore using spiral search
@@ -389,9 +405,9 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       else:
         # No mine found, continue spiral search
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
-        return [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8]
+        return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
   
-  # Save updated state back to controller
+  # Save updated state back to controller before any return
   controller.agents[agentId] = state
   
   # Default: random movement to avoid getting stuck
