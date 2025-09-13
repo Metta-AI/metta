@@ -957,8 +957,8 @@ proc updateTintModifications(env: Environment) =
     
     of PlantedLantern:
       # Lanterns spread team colors in 5x5 area (similar to clippies but warm colors)
-      if thing.lanternHealthy and thing.teamId >= 0 and thing.teamId < agentVillageColors.len:
-        let teamColor = agentVillageColors[thing.teamId]
+      if thing.lanternHealthy and thing.teamId >= 0 and thing.teamId < teamColors.len:
+        let teamColor = teamColors[thing.teamId]
         
         for dx in -2 .. 2:
           for dy in -2 .. 2:

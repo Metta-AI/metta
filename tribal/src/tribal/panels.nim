@@ -37,7 +37,7 @@ proc beginPanAndZoom*(panel: Panel) =
       when defined(emscripten):
         let scrollK = 0.0003
       else:
-        let scrollK = 0.03
+        let scrollK = 0.15
       panel.zoomVel = window.scrollDelta.y * scrollK
     else:
       panel.zoomVel *= 0.8
