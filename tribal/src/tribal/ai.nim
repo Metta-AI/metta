@@ -187,6 +187,22 @@ proc getCardinalDirIndex(fromPos, toPos: IVec2): int =
     if dy > 0: return 1  # South  
     else: return 0       # North
 
+proc neighborDirIndex(fromPos, toPos: IVec2): int =
+  ## Orientation index (0..7) toward adjacent target (includes diagonals)
+  let dx = toPos.x - fromPos.x
+  let dy = toPos.y - fromPos.y
+  let sx = (if dx > 0: 1'i32 elif dx < 0: -1'i32 else: 0'i32)
+  let sy = (if dy > 0: 1'i32 elif dy < 0: -1'i32 else: 0'i32)
+  return vecToOrientation(ivec2(sx.int, sy.int))
+
+proc isPassable(env: Environment, pos: IVec2): bool =
+  ## Consider lantern tiles passable for movement planning
+  if env.isEmpty(pos): return true
+  for t in env.things:
+    if t.pos == pos and t.kind == PlantedLantern:
+      return true
+  return false
+
 proc getMoveTowards(env: Environment, fromPos, toPos: IVec2, rng: var Rand): int =
   ## Get a movement direction towards target, with obstacle avoidance
   let primaryDir = getCardinalDirIndex(fromPos, toPos)
@@ -204,7 +220,7 @@ proc getMoveTowards(env: Environment, fromPos, toPos: IVec2, rng: var Rand): int
   ]
   
   let primaryMove = fromPos + directions[primaryDir]
-  if env.isEmpty(primaryMove):
+  if isPassable(env, primaryMove):
     return primaryDir
   
   # Primary blocked, try adjacent directions
@@ -217,7 +233,7 @@ proc getMoveTowards(env: Environment, fromPos, toPos: IVec2, rng: var Rand): int
   
   for altDir in alternatives:
     let altMove = fromPos + directions[altDir]
-    if env.isEmpty(altMove):
+    if isPassable(env, altMove):
       return altDir
   
   # All blocked, try random movement
@@ -350,10 +366,11 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     elif agent.inventoryWheat > 0:
       let loom = env.findNearestThingSpiral(state, WeavingLoom, controller.rng)
       if loom != nil:
-        let dist = manhattanDistance(agent.pos, loom.pos)
-        if dist == 1:
-          # Adjacent to loom - craft lantern
-          return saveStateAndReturn(controller, agentId, state, [5'u8, getCardinalDirIndex(agent.pos, loom.pos).uint8])
+        let dx = abs(loom.pos.x - agent.pos.x)
+        let dy = abs(loom.pos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          # Adjacent (8-neighborhood) to loom - craft lantern
+          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, loom.pos).uint8])
         else:
           # Move toward loom
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, loom.pos, controller.rng).uint8])
@@ -362,10 +379,11 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     else:
       let wheatPos = env.findNearestTerrainSpiral(state, Wheat, controller.rng)
       if wheatPos.x >= 0:
-        let dist = manhattanDistance(agent.pos, wheatPos)
-        if dist == 1:
-          # Adjacent to wheat - harvest it
-          return saveStateAndReturn(controller, agentId, state, [3'u8, getCardinalDirIndex(agent.pos, wheatPos).uint8])
+        let dx = abs(wheatPos.x - agent.pos.x)
+        let dy = abs(wheatPos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          # Adjacent (8-neighborhood) to wheat - harvest it
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, wheatPos).uint8])
         else:
           # Move toward wheat
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, wheatPos, controller.rng).uint8])
@@ -379,9 +397,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     if agent.inventoryWood > 0:
       let armory = env.findNearestThingSpiral(state, Armory, controller.rng)
       if armory != nil:
-        let dist = manhattanDistance(agent.pos, armory.pos)
-        if dist == 1:
-          return saveStateAndReturn(controller, agentId, state, [5'u8, getCardinalDirIndex(agent.pos, armory.pos).uint8])
+        let dx = abs(armory.pos.x - agent.pos.x)
+        let dy = abs(armory.pos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, armory.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, armory.pos, controller.rng).uint8])
       else:
@@ -393,9 +412,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     else:
       let treePos = env.findNearestTerrainSpiral(state, Tree, controller.rng)
       if treePos.x >= 0:
-        let dist = manhattanDistance(agent.pos, treePos)
-        if dist == 1:
-          return saveStateAndReturn(controller, agentId, state, [3'u8, getCardinalDirIndex(agent.pos, treePos).uint8])
+        let dx = abs(treePos.x - agent.pos.x)
+        let dy = abs(treePos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, treePos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, treePos, controller.rng).uint8])
       else:
@@ -408,9 +428,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     if agent.inventorySpear > 0:
       let clippy = env.findNearestThingSpiral(state, Clippy, controller.rng)
       if clippy != nil:
-        let dist = manhattanDistance(agent.pos, clippy.pos)
-        if dist <= 2 and dist >= 1:  # Spear attack range
-          return saveStateAndReturn(controller, agentId, state, [2'u8, getCardinalDirIndex(agent.pos, clippy.pos).uint8])
+        let dx = abs(clippy.pos.x - agent.pos.x)
+        let dy = abs(clippy.pos.y - agent.pos.y)
+        if max(dx, dy) in [1'i32, 2'i32]:  # Spear attack range (chebyshev 1-2)
+          return saveStateAndReturn(controller, agentId, state, [2'u8, neighborDirIndex(agent.pos, clippy.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, clippy.pos, controller.rng).uint8])
       else:
@@ -422,9 +443,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     elif agent.inventoryWood > 0:
       let forge = env.findNearestThingSpiral(state, Forge, controller.rng)
       if forge != nil:
-        let dist = manhattanDistance(agent.pos, forge.pos)
-        if dist == 1:
-          return saveStateAndReturn(controller, agentId, state, [5'u8, getCardinalDirIndex(agent.pos, forge.pos).uint8])
+        let dx = abs(forge.pos.x - agent.pos.x)
+        let dy = abs(forge.pos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, forge.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, forge.pos, controller.rng).uint8])
     
@@ -432,9 +454,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     else:
       let treePos = env.findNearestTerrainSpiral(state, Tree, controller.rng)
       if treePos.x >= 0:
-        let dist = manhattanDistance(agent.pos, treePos)
-        if dist == 1:
-          return saveStateAndReturn(controller, agentId, state, [3'u8, getCardinalDirIndex(agent.pos, treePos).uint8])
+        let dx = abs(treePos.x - agent.pos.x)
+        let dy = abs(treePos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, treePos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, treePos, controller.rng).uint8])
       else:
@@ -447,9 +470,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     if agent.inventoryWheat > 0:
       let oven = env.findNearestThingSpiral(state, ClayOven, controller.rng)
       if oven != nil:
-        let dist = manhattanDistance(agent.pos, oven.pos)
-        if dist == 1:
-          return saveStateAndReturn(controller, agentId, state, [5'u8, getCardinalDirIndex(agent.pos, oven.pos).uint8])
+        let dx = abs(oven.pos.x - agent.pos.x)
+        let dy = abs(oven.pos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, oven.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, oven.pos, controller.rng).uint8])
       else:
@@ -461,9 +485,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
     else:
       let wheatPos = env.findNearestTerrainSpiral(state, Wheat, controller.rng)
       if wheatPos.x >= 0:
-        let dist = manhattanDistance(agent.pos, wheatPos)
-        if dist == 1:
-          return saveStateAndReturn(controller, agentId, state, [3'u8, getCardinalDirIndex(agent.pos, wheatPos).uint8])
+        let dx = abs(wheatPos.x - agent.pos.x)
+        let dy = abs(wheatPos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, wheatPos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, wheatPos, controller.rng).uint8])
       else:
@@ -477,9 +502,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       # Find altar and deposit battery
       for thing in env.things:
         if thing.kind == Altar and thing.pos == agent.homeAltar:
-          let dist = manhattanDistance(agent.pos, thing.pos)
-          if dist == 1:
-            return saveStateAndReturn(controller, agentId, state, [5'u8, getCardinalDirIndex(agent.pos, thing.pos).uint8])
+          let dx = abs(thing.pos.x - agent.pos.x)
+          let dy = abs(thing.pos.y - agent.pos.y)
+          if max(dx, dy) == 1'i32:
+            return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, thing.pos).uint8])
           else:
             return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, thing.pos, controller.rng).uint8])
     
@@ -487,9 +513,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       # Find converter and make battery using spiral search
       let converterThing = env.findNearestThingSpiral(state, Converter, controller.rng)
       if converterThing != nil:
-        let dist = manhattanDistance(agent.pos, converterThing.pos)
-        if dist == 1:
-          return saveStateAndReturn(controller, agentId, state, [5'u8, getCardinalDirIndex(agent.pos, converterThing.pos).uint8])
+        let dx = abs(converterThing.pos.x - agent.pos.x)
+        let dy = abs(converterThing.pos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, converterThing.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, converterThing.pos, controller.rng).uint8])
       else:
@@ -501,9 +528,10 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       # Find mine and collect ore using spiral search
       let mine = env.findNearestThingSpiral(state, Mine, controller.rng)
       if mine != nil:
-        let dist = manhattanDistance(agent.pos, mine.pos)
-        if dist == 1:
-          return saveStateAndReturn(controller, agentId, state, [3'u8, getCardinalDirIndex(agent.pos, mine.pos).uint8])
+        let dx = abs(mine.pos.x - agent.pos.x)
+        let dy = abs(mine.pos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, mine.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, mine.pos, controller.rng).uint8])
       else:

@@ -457,7 +457,30 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
   newPos.y += int32(delta.y)
   
   let newOrientation = moveOrientation
-  if env.isEmpty(newPos):
+  # Allow walking through planted lanterns by relocating the lantern to a nearby empty tile
+  var canMove = env.isEmpty(newPos)
+  if not canMove:
+    let blocker = env.getThing(newPos)
+    if not isNil(blocker) and blocker.kind == PlantedLantern:
+      # Try to relocate lantern to an adjacent empty tile
+      var relocated = false
+      for dy in -1 .. 1:
+        for dx in -1 .. 1:
+          if dx == 0 and dy == 0: continue
+          let alt = ivec2(newPos.x + dx, newPos.y + dy)
+          if alt.x < 0 or alt.y < 0 or alt.x >= MapWidth or alt.y >= MapHeight: continue
+          if env.isEmpty(alt):
+            # Move lantern to alt
+            env.grid[blocker.pos.x][blocker.pos.y] = nil
+            blocker.pos = alt
+            env.grid[blocker.pos.x][blocker.pos.y] = blocker
+            relocated = true
+            break
+        if relocated: break
+      if relocated:
+        canMove = true
+
+  if canMove:
     env.grid[agent.pos.x][agent.pos.y] = nil
     env.clearAgentObservations(agent.pos)
     agent.pos = newPos
@@ -1866,4 +1889,3 @@ proc generateEntityColor*(entityType: string, id: int, fallbackColor: Color = co
 proc getAltarColor*(pos: IVec2): Color =
   ## Get altar color by position, with white fallback
   altarColors.getOrDefault(pos, color(1.0, 1.0, 1.0, 1.0))
-
