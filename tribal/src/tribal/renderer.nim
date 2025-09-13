@@ -342,13 +342,13 @@ proc drawAgentDecorations*() =
 
     # Layout: row across top of tile
     let maxIcons = 6
-    var xOffset = -0.40f
-    let step = 0.14f  # slightly tighter spacing for smaller icons
+    var xOffset = -0.38f
+    let step = 0.12f  # tighter spacing for even smaller icons
     for (icon, count) in overlays:
       let n = min(count, maxIcons)
       for i in 0 ..< n:
-        let pos = agent.pos.vec2 + vec2(xOffset, -0.42)
-        bxy.drawImage(icon, pos, angle = 0, scale = 1/260)
+        let pos = agent.pos.vec2 + vec2(xOffset, -0.44)
+        bxy.drawImage(icon, pos, angle = 0, scale = 1/320)
         xOffset += step
 
 proc drawGrid*() =

@@ -10,12 +10,7 @@ type
 
   PanelType* = enum
     WorldMap
-    Minimap
-    AgentTable
-    AgentTraces
-    GlobalHeader
     GlobalFooter
-    GlobalTimeline
 
   Panel* = ref object
     panelType*: PanelType
@@ -26,7 +21,7 @@ type
     vel*: Vec2
     zoom*: float32 = 10
     zoomVel*: float32
-    minZoom*: float32 = 5
+    minZoom*: float32 = 3.5
     maxZoom*: float32 = 100
     scrollArea*: Rect
     hasMouse*: bool = false
@@ -69,18 +64,16 @@ var
 
 
   worldMapPanel*: Panel
-  minimapPanel*: Panel
-  agentTablePanel*: Panel
-  agentTracesPanel*: Panel
-  globalTimelinePanel*: Panel
   globalFooterPanel*: Panel
-  globalHeaderPanel*: Panel
 
   settings* = Settings()
 
   play*: bool
-  playSpeed*: float32 = 1/60.0
+  playSpeed*: float32 = 0.0625  # default to former middle speed (4x)
   lastSimTime*: float64 = epochTime()
+
+const
+  DefaultPlaySpeed* = 0.0625
 
   followSelection*: bool = false
   mouseCaptured*: bool = false

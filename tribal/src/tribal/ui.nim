@@ -1,6 +1,6 @@
 import
   boxy, vmath, windy, chroma,
-  common, utils, controls
+  common
 
 proc drawPanelBackground*(panel: Panel, bgColor: Color) =
   let panelRect = panel.rect.rect
@@ -39,37 +39,7 @@ proc drawIconButton*(
     pos = pos
   )
 
-proc drawIconToggle*(
-  image: string,
-  pos: Vec2,
-  size = vec2(32, 32),
-  value: var bool
-): bool =
-  let box = Rect(
-    x: pos.x,
-    y: pos.y,
-    w: size.x,
-    h: size.y
-  )
-
-  if window.boxyMouse.vec2.overlaps(box):
-    if window.buttonPressed[MouseLeft]:
-      value = not value
-      result = true
-    bxy.drawRect(
-      rect = box,
-      color = color(1, 1, 1, 0.5)
-    )
-
-  var alpha = 0.4
-  if value:
-    alpha = 1.0
-
-  bxy.drawImage(
-    image,
-    pos = pos,
-    tint = color(1, 1, 1, alpha)
-  )
+# drawIconToggle removed with UI simplification
 
 proc drawSpeedButton*(x: float32, speed: float32, label: string): bool =
   if drawIconButton("ui/speed", pos = vec2(x, 16), size = vec2(20, 32)):
@@ -80,40 +50,9 @@ proc drawSpeedButton*(x: float32, speed: float32, label: string): bool =
 
 
 
-const
-  HeaderBgColor = parseHtmlColor("#273646")
+const HeaderBgColor = parseHtmlColor("#273646")
 
-proc drawHeader*(panel: Panel) =
-  drawPanelBackground(panel, HeaderBgColor)
-  bxy.drawImage(
-    "ui/logo",
-    pos = vec2(0, 0),
-  )
-  bxy.drawImage(
-    "ui/header-bg",
-    pos = vec2(0, 0),
-  )
-
-  bxy.drawText(
-    "Mettascope Arena Basic",
-    translate(vec2(64+16, 16)),
-    typeface,
-    "Mettascope Arena Basic",
-    24,
-    color(1, 1, 1, 1)
-  )
-
-  discard drawIconButton(
-    "ui/share",
-    pos = vec2(panel.rect.rect.w - (16 + 32)*1, 16)
-  )
-  
-  discard drawIconButton(
-    "ui/help",
-    pos = vec2(panel.rect.rect.w - (16 + 32)*2, 16)
-  )
-
-
+# drawHeader removed; no header in simplified UI
 proc drawFooter*(panel: Panel) =
   drawPanelBackground(panel, parseHtmlColor("#2D343D"))
   # Minimal controls: turtle (slow), play/pause, rabbit (fast)
@@ -131,8 +70,13 @@ proc drawFooter*(panel: Panel) =
     if play: "ui/pause" else: "ui/play",
     pos = vec2(x, 16)
   ):
-    play = not play
-    echo if play: "Playing" else: "Paused"
+    if play:
+      play = false
+      echo "Paused"
+    else:
+      playSpeed = DefaultPlaySpeed
+      play = true
+      echo "Playing"
   x += 32 + 10
 
   if drawIconButton(
@@ -143,30 +87,7 @@ proc drawFooter*(panel: Panel) =
     play = true
 
 
-proc drawTimeline*(panel: Panel) =
-  drawPanelBackground(panel, parseHtmlColor("#1D1D1D"))
-  
-  bxy.drawRect(
-    rect = Rect(
-      x: 16,
-      y: 32,
-      w: panel.rect.rect.w - 32,
-      h: 16
-    ),
-    color = parseHtmlColor("#717171")
-  )
-
-  var progress = 0.37
-
-  bxy.drawRect(
-    rect = Rect(
-      x: 16,
-      y: 32,
-      w: (panel.rect.rect.w - 32) * progress,
-      h: 16
-    ),
-    color = color(1, 1, 1, 1)
-  )
+## drawTimeline removed; no timeline in simplified UI
 
 proc drawResourceBar*(pos: Vec2, size: Vec2, current: int, maximum: int, bgColor: Color = color(0.2, 0.2, 0.2, 1), fillColor: Color = color(0.8, 0.8, 0.8, 1)) =
   ## Draw a resource bar
