@@ -320,13 +320,36 @@ proc drawObservations*() =
 
 proc drawAgentDecorations*() =
   for agent in env.agents:
+    # Frozen overlay
     if agent.frozen > 0:
-      bxy.drawImage(
-        "agents/frozen",
-        agent.pos.vec2,
-        angle = 0,
-        scale = 1/200
-      )
+      bxy.drawImage("agents/frozen", agent.pos.vec2, angle = 0, scale = 1/200)
+
+    # Inventory overlays (small icons above agent)
+    var overlays: seq[(string, int)] = @[]
+    if agent.inventoryOre > 0: overlays.add(("resources/ore", agent.inventoryOre))
+    if agent.inventoryBattery > 0: overlays.add(("resources/battery", agent.inventoryBattery))
+    if agent.inventoryWater > 0: overlays.add(("resources/water", agent.inventoryWater))
+    if agent.inventoryWheat > 0: overlays.add(("resources/wheat", agent.inventoryWheat))
+    if agent.inventoryBread > 0: overlays.add(("resources/bread", agent.inventoryBread))
+    if agent.inventoryArmor > 0: overlays.add(("resources/armor", agent.inventoryArmor))
+    # Fallback icons for missing sprites
+    if agent.inventoryLantern > 0: overlays.add(("objects/lantern", agent.inventoryLantern))
+    if agent.inventoryWood > 0: overlays.add(("resources/wood", agent.inventoryWood))
+    if agent.inventorySpear > 0: overlays.add(("resources/spear", agent.inventorySpear))
+
+    if overlays.len == 0:
+      continue
+
+    # Layout: row across top of tile
+    let maxIcons = 6
+    var xOffset = -0.40f
+    let step = 0.16f
+    for (icon, count) in overlays:
+      let n = min(count, maxIcons)
+      for i in 0 ..< n:
+        let pos = agent.pos.vec2 + vec2(xOffset, -0.40)
+        bxy.drawImage(icon, pos, angle = 0, scale = 1/200)
+        xOffset += step
 
 proc drawGrid*() =
   for x in 0 ..< MapWidth:

@@ -1,4 +1,4 @@
-import std/[random, tables, times, math], vmath, chroma
+import std/[random, tables, times, math, os], vmath, chroma
 import terrain, objects, common
 export terrain, objects, common
 
@@ -1106,6 +1106,18 @@ proc plantAction(env: Environment, id: int, agent: Thing, argument: int) =
   inc env.stats[id].actionPlant
 
 proc init(env: Environment) =
+  # Ensure placeholder sprites for missing inventory icons (wood, spear)
+  try:
+    let woodPath = "tribal/data/resources/wood.png"
+    let woodSrc = "tribal/data/resources/palm_fiber.png"
+    if (not fileExists(woodPath)) and fileExists(woodSrc):
+      copyFile(woodSrc, woodPath)
+    let spearPath = "tribal/data/resources/spear.png"
+    let spearSrc = "tribal/data/resources/laser.png"
+    if (not fileExists(spearPath)) and fileExists(spearSrc):
+      copyFile(spearSrc, spearPath)
+  except:
+    discard
   # Use current time for random seed to get different maps each time
   let seed = int(epochTime() * 1000)
   var r = initRand(seed)
