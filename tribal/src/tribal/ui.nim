@@ -1,6 +1,6 @@
 import
   boxy, vmath, windy, chroma,
-  common
+  common, utils
 
 proc drawPanelBackground*(panel: Panel, bgColor: Color) =
   let panelRect = panel.rect.rect
@@ -26,9 +26,8 @@ proc drawIconButton*(
     h: size.y
   )
 
-  # Use current transform to convert mouse to local panel coords
-  let mouseLocal = bxy.getTransform().inverse * window.mousePos.vec2
-  if mouseLocal.overlaps(box):
+  # Use optimized boxyMouse for fast coordinate transformation
+  if boxyMouse(window).overlaps(box):
     if window.buttonPressed[MouseLeft]:
       result = true
     bxy.drawRect(
@@ -132,5 +131,13 @@ proc drawInfoTooltip*(text: string, pos: Vec2, bgColor: Color = color(0, 0, 0, 0
     color = bgColor
   )
   
-  # Text omitted in simplified UI to avoid extra font deps
-  discard
+  # Text rendering with optimized utils function
+  drawText(
+    bxy,
+    "tooltip_" & text,  # unique image key
+    translate(pos),  # transform
+    typeface,
+    text,
+    16,  # size
+    color(1, 1, 1, 1)
+  )
