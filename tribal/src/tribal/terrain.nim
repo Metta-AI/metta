@@ -8,7 +8,8 @@ type
     Wheat
     Tree
 
-  TerrainGrid* = array[100, array[50, TerrainType]]  # 100x50 map size
+  # Backing storage for terrain and placement. Use generous bounds to allow larger maps.
+  TerrainGrid* = array[256, array[256, TerrainType]]
 
   PlacementPriority* = enum
     PriorityRiver = 0      # Rivers always first - they shape the map
@@ -24,7 +25,7 @@ type
     bufferSize*: int       # How much buffer space
     layout*: seq[seq[char]] # Optional layout grid for complex structures
   
-  PlacementGrid* = ptr array[100, array[50, pointer]]
+  PlacementGrid* = ptr array[256, array[256, pointer]]
   
   PlacementResult* = object
     success*: bool
@@ -34,6 +35,20 @@ type
 
 const
   RiverWidth* = 4
+
+proc inCornerReserve(x, y, mapWidth, mapHeight, mapBorder: int, reserve: int): bool =
+  ## Returns true if the coordinate is within a reserved corner area
+  let left = mapBorder
+  let right = mapWidth - mapBorder
+  let top = mapBorder
+  let bottom = mapHeight - mapBorder
+  let rx = reserve
+  let ry = reserve
+  let inTopLeft = (x >= left and x < left + rx) and (y >= top and y < top + ry)
+  let inTopRight = (x >= right - rx and x < right) and (y >= top and y < top + ry)
+  let inBottomLeft = (x >= left and x < left + rx) and (y >= bottom - ry and y < bottom)
+  let inBottomRight = (x >= right - rx and x < right) and (y >= bottom - ry and y < bottom)
+  inTopLeft or inTopRight or inBottomLeft or inBottomRight
 
 
 
@@ -58,7 +73,14 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
   
   var riverPath: seq[IVec2] = @[]
   
-  var currentPos = toIVec2(mapBorder, r.rand(mapBorder + RiverWidth .. mapHeight - mapBorder - RiverWidth))
+  # Reserve corners for villages so river doesn't block them
+  let reserve = max(8, min(mapWidth, mapHeight) div 10)
+  
+  # Start near left edge but away from top/bottom corner reserves
+  var currentPos = toIVec2(
+    mapBorder,
+    r.rand(mapBorder + RiverWidth + reserve .. mapHeight - mapBorder - RiverWidth - reserve)
+  )
   
   var hasFork = false
   var forkPoint: IVec2
@@ -68,14 +90,15 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
         currentPos.y >= mapBorder and currentPos.y < mapHeight - mapBorder:
     riverPath.add(currentPos)
     
-    if not hasFork and riverPath.len > 20 and r.rand(1.0) < 0.4:
+    if not hasFork and riverPath.len > max(20, mapWidth div 8) and r.rand(1.0) < 0.4:
       hasFork = true
       forkPoint = currentPos
       
       var secondaryDirection = toIVec2(1, r.sample(@[-1, 1]))  # Flow right and either up or down
       
       var secondaryPos = forkPoint
-      for i in 0 ..< 30:  # Longer secondary branch for wider map
+      let branchLen = max(30, mapWidth div 6)
+      for i in 0 ..< branchLen:  # Longer secondary branch for wider map
         secondaryPos.x += 1  # Always move right
         secondaryPos.y += secondaryDirection.y  # Move in chosen vertical direction
         if r.rand(1.0) < 0.2:
@@ -83,7 +106,9 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
         
         if secondaryPos.x >= mapBorder and secondaryPos.x < mapWidth - mapBorder and
            secondaryPos.y >= mapBorder and secondaryPos.y < mapHeight - mapBorder:
-          secondaryPath.add(secondaryPos)
+          # Avoid carving water in reserved corner areas
+          if not inCornerReserve(secondaryPos.x, secondaryPos.y, mapWidth, mapHeight, mapBorder, reserve):
+            secondaryPath.add(secondaryPos)
         else:
           break
     
@@ -91,23 +116,25 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
     if r.rand(1.0) < 0.3:
       currentPos.y += r.sample(@[-1, 0, 0, 1]).int32  # Bias towards staying straight
   
-  # Place water tiles for main river
+  # Place water tiles for main river (skip reserved corners)
   for pos in riverPath:
     for dx in -RiverWidth div 2 .. RiverWidth div 2:
       for dy in -RiverWidth div 2 .. RiverWidth div 2:
         let waterPos = pos + toIVec2(dx, dy)
         if waterPos.x >= 0 and waterPos.x < mapWidth and
            waterPos.y >= 0 and waterPos.y < mapHeight:
-          terrain[waterPos.x][waterPos.y] = Water
+          if not inCornerReserve(waterPos.x, waterPos.y, mapWidth, mapHeight, mapBorder, reserve):
+            terrain[waterPos.x][waterPos.y] = Water
   
-  # Place water tiles for secondary branch
+  # Place water tiles for secondary branch (skip reserved corners)
   for pos in secondaryPath:
     for dx in -(RiverWidth div 2 - 1) .. (RiverWidth div 2 - 1):
       for dy in -(RiverWidth div 2 - 1) .. (RiverWidth div 2 - 1):
         let waterPos = pos + toIVec2(dx, dy)
         if waterPos.x >= 0 and waterPos.x < mapWidth and
            waterPos.y >= 0 and waterPos.y < mapHeight:
-          terrain[waterPos.x][waterPos.y] = Water
+          if not inCornerReserve(waterPos.x, waterPos.y, mapWidth, mapHeight, mapBorder, reserve):
+            terrain[waterPos.x][waterPos.y] = Water
 
 proc createTerrainCluster*(terrain: var TerrainGrid, centerX, centerY: int, size: int, 
                           mapWidth, mapHeight: int, terrainType: TerrainType, 
@@ -129,8 +156,8 @@ proc createTerrainCluster*(terrain: var TerrainGrid, centerX, centerY: int, size
 
 
 proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate 14-20 clustered wheat fields for 100x50 map (2x increase)
-  let numFields = r.rand(14..20)
+  ## Generate clustered wheat fields; 4x previous count for larger maps
+  let numFields = r.rand(14..20) * 4
   
   for i in 0 ..< numFields:
     # Try to place near water if possible
@@ -167,8 +194,8 @@ proc generateWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBord
       terrain.createTerrainCluster(x, y, fieldSize, mapWidth, mapHeight, Wheat, 1.0, 0.3, r)
 
 proc generateTrees*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int, r: var Rand) =
-  ## Generate 14-20 tree groves for 100x50 map (2x increase)
-  let numGroves = r.rand(14..20)
+  ## Generate tree groves; 4x previous count for larger maps
+  let numGroves = r.rand(14..20) * 4
   
   for i in 0 ..< numGroves:
     let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
@@ -197,9 +224,12 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
   
   result = @[]
   
-  # Start on the left edge
-  var currentPos = ivec2(mapBorder.int32, 
-                         r.rand(mapBorder + RiverWidth .. mapHeight - mapBorder - RiverWidth).int32)
+  # Start on the left edge but away from corner reserves
+  let reserve = max(8, min(mapWidth, mapHeight) div 10)
+  var currentPos = ivec2(
+    mapBorder.int32,
+    r.rand(mapBorder + RiverWidth + reserve .. mapHeight - mapBorder - RiverWidth - reserve).int32
+  )
   
   var hasFork = false
   var forkPoint: IVec2
@@ -209,15 +239,16 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
         currentPos.y >= mapBorder and currentPos.y < mapHeight - mapBorder:
     result.add(currentPos)
     
-    # Possible fork
-    if not hasFork and result.len > 20 and r.rand(1.0) < 0.4:
+    # Possible fork (scale with map width)
+    if not hasFork and result.len > max(20, mapWidth div 8) and r.rand(1.0) < 0.4:
       hasFork = true
       forkPoint = currentPos
       
       var secondaryDirection = ivec2(1, r.sample(@[-1, 1]).int32)
       var secondaryPos = forkPoint
       
-      for i in 0 ..< 30:
+      let branchLen = max(30, mapWidth div 6)
+      for i in 0 ..< branchLen:
         secondaryPos.x += 1
         secondaryPos.y += secondaryDirection.y
         if r.rand(1.0) < 0.2:
@@ -225,7 +256,8 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
         
         if secondaryPos.x >= mapBorder and secondaryPos.x < mapWidth - mapBorder and
            secondaryPos.y >= mapBorder and secondaryPos.y < mapHeight - mapBorder:
-          secondaryPath.add(secondaryPos)
+          if not inCornerReserve(secondaryPos.x, secondaryPos.y, mapWidth, mapHeight, mapBorder, reserve):
+            secondaryPath.add(secondaryPos)
         else:
           break
     
@@ -234,23 +266,25 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
     if r.rand(1.0) < 0.3:
       currentPos.y += r.sample(@[-1, 0, 0, 1]).int32
   
-  # Place water tiles for main river
+  # Place water tiles for main river (skip reserved corners)
   for pos in result:
     for dx in -RiverWidth div 2 .. RiverWidth div 2:
       for dy in -RiverWidth div 2 .. RiverWidth div 2:
         let waterX = pos.x + dx
         let waterY = pos.y + dy
         if waterX >= 0 and waterX < mapWidth and waterY >= 0 and waterY < mapHeight:
-          terrain[waterX][waterY] = Water
+          if not inCornerReserve(waterX, waterY, mapWidth, mapHeight, mapBorder, reserve):
+            terrain[waterX][waterY] = Water
   
-  # Place water for secondary branch
+  # Place water for secondary branch (skip reserved corners)
   for pos in secondaryPath:
     for dx in -(RiverWidth div 2 - 1) .. (RiverWidth div 2 - 1):
       for dy in -(RiverWidth div 2 - 1) .. (RiverWidth div 2 - 1):
         let waterX = pos.x + dx
         let waterY = pos.y + dy
         if waterX >= 0 and waterX < mapWidth and waterY >= 0 and waterY < mapHeight:
-          terrain[waterX][waterY] = Water
+          if not inCornerReserve(waterX, waterY, mapWidth, mapHeight, mapBorder, reserve):
+            terrain[waterX][waterY] = Water
   
   # Add secondary path to result
   result.add(secondaryPath)
@@ -275,7 +309,7 @@ proc placeTerrainCluster*(terrain: var TerrainGrid, centerX, centerY, size: int,
               terrain[x][y] = terrainType
 
 proc placeWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
-                      r: var Rand, numFields = 8) =
+                      r: var Rand, numFields = 32) =
   ## Place wheat fields, preferring locations near water
   for i in 0 ..< numFields:
     var placed = false
@@ -311,7 +345,7 @@ proc placeWheatFields*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder:
       placeTerrainCluster(terrain, x, y, fieldSize, Wheat, mapWidth, mapHeight, r, 0.9)
 
 proc placeTreeGroves*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
-                     r: var Rand, numGroves = 8) =
+                     r: var Rand, numGroves = 32) =
   ## Place tree groves across the map
   for i in 0 ..< numGroves:
     let x = r.rand(mapBorder + 3 .. mapWidth - mapBorder - 3)
@@ -380,24 +414,25 @@ proc findPlacement*(grid: PlacementGrid, terrain: ptr TerrainGrid,
   
   # If preferCorners, try corner regions first
   if preferCorners:
-    # Define corner regions (25% of map from each corner)
-    let cornerSize = min(mapWidth, mapHeight) div 4
+    # Define tighter corner regions that scale with map size
+    let cornerW = max(10, mapWidth div 8)
+    let cornerH = max(10, mapHeight div 8)
     
     # Define the 4 corner regions with indices for tracking
     var cornerRegions: seq[tuple[id: int, minX, maxX, minY, maxY: int]] = @[]
     
     # Corner 0: Top-left
-    cornerRegions.add((0, minX, min(minX + cornerSize, maxX), 
-                       minY, min(minY + cornerSize, maxY)))
+    cornerRegions.add((0, minX, min(minX + cornerW, maxX), 
+                       minY, min(minY + cornerH, maxY)))
     # Corner 1: Top-right
-    cornerRegions.add((1, max(maxX - cornerSize, minX), maxX,
-                       minY, min(minY + cornerSize, maxY)))
+    cornerRegions.add((1, max(maxX - cornerW, minX), maxX,
+                       minY, min(minY + cornerH, maxY)))
     # Corner 2: Bottom-left
-    cornerRegions.add((2, minX, min(minX + cornerSize, maxX),
-                       max(maxY - cornerSize, minY), maxY))
+    cornerRegions.add((2, minX, min(minX + cornerW, maxX),
+                       max(maxY - cornerH, minY), maxY))
     # Corner 3: Bottom-right
-    cornerRegions.add((3, max(maxX - cornerSize, minX), maxX,
-                       max(maxY - cornerSize, minY), maxY))
+    cornerRegions.add((3, max(maxX - cornerW, minX), maxX,
+                       max(maxY - cornerH, minY), maxY))
     
     # Filter out excluded corners
     var availableCorners: seq[tuple[id: int, minX, maxX, minY, maxY: int]] = @[]
@@ -412,13 +447,19 @@ proc findPlacement*(grid: PlacementGrid, terrain: ptr TerrainGrid,
     
     # Try each available corner region
     for region in availableCorners:
-      for attempt in 0 ..< maxAttempts div 4:  # Fewer attempts per corner
+      # Random attempts first
+      for attempt in 0 ..< max(maxAttempts div 3, 50):
         let x = r.rand(region.minX ..< region.maxX)
         let y = r.rand(region.minY ..< region.maxY)
         let pos = ivec2(x.int32, y.int32)
-        
         if canPlaceAt(grid, terrain, pos, structure, mapWidth, mapHeight):
           return PlacementResult(success: true, position: pos, cornerUsed: region.id)
+      # Systematic sweep inside the corner region before giving up
+      for y in region.minY ..< region.maxY:
+        for x in region.minX ..< region.maxX:
+          let pos = ivec2(x.int32, y.int32)
+          if canPlaceAt(grid, terrain, pos, structure, mapWidth, mapHeight):
+            return PlacementResult(success: true, position: pos, cornerUsed: region.id)
   
   # Try random placement (original behavior)
   for attempt in 0 ..< maxAttempts:
@@ -475,4 +516,3 @@ proc findEmptyPosition*(grid: PlacementGrid, terrain: ptr TerrainGrid,
   # If we couldn't find anything randomly, give up
   # In production, you might want to do a systematic search
   return ivec2(-1, -1)
-
