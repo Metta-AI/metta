@@ -116,43 +116,8 @@ proc drawHeader*(panel: Panel) =
 
 proc drawFooter*(panel: Panel) =
   drawPanelBackground(panel, parseHtmlColor("#2D343D"))
-  
-  var x = 16f
-  discard drawIconButton(
-    "ui/rewindToStart",
-    pos = vec2(x, 16)
-  )
-  x += 32 + 5
-
-  discard drawIconButton(
-    "ui/stepBack",
-    pos = vec2(x, 16)
-  )
-  x += 32 + 5
-
-  if drawIconButton(
-    if play: "ui/pause" else: "ui/play",
-    pos = vec2(x, 16)
-  ):
-    play = not play
-    echo if play: "Playing" else: "Paused"
-  x += 32 + 5
-
-
-  if drawIconButton(
-    "ui/stepForward",
-    pos = vec2(x, 16)
-  ):
-    simStep()  # Step the simulation once
-  x += 32 + 5
-
-  discard drawIconButton(
-    "ui/rewindToEnd",
-    pos = vec2(x, 16)
-  )
-
-
-  x = panel.rect.rect.w / 2 - 32
+  # Minimal controls: turtle (slow), play/pause, rabbit (fast)
+  var x = (panel.rect.rect.w.float32 - (32f * 3 + 10f * 2)) / 2
 
   if drawIconButton(
     "ui/turtle",
@@ -160,19 +125,15 @@ proc drawFooter*(panel: Panel) =
   ):
     playSpeed = 0.5
     play = true
-  x += 32 + 3
+  x += 32 + 10
 
-  discard drawSpeedButton(x, 0.25, "1x")
-  x += 20
-
-  discard drawSpeedButton(x, 0.125, "2x")
-  x += 20
-
-  discard drawSpeedButton(x, 0.0625, "4x")
-  x += 20
-
-  discard drawSpeedButton(x, 0.03125, "8x")
-  x += 20
+  if drawIconButton(
+    if play: "ui/pause" else: "ui/play",
+    pos = vec2(x, 16)
+  ):
+    play = not play
+    echo if play: "Playing" else: "Paused"
+  x += 32 + 10
 
   if drawIconButton(
     "ui/rabbit",
@@ -180,37 +141,6 @@ proc drawFooter*(panel: Panel) =
   ):
     playSpeed = 0.015625
     play = true
-
-
-  x = panel.rect.rect.w - 16 - 32
-
-  discard drawIconToggle(
-    "ui/cloud",
-    pos = vec2(x, 16),
-    value = settings.showFogOfWar
-  )
-  x -= 32 + 5
-
-  discard drawIconToggle(
-    "ui/eye",
-    pos = vec2(x, 16),
-    value = settings.showVisualRange
-  )
-  x -= 32 + 5
-
-  discard drawIconToggle(
-    "ui/grid",
-    pos = vec2(x, 16),
-    value = settings.showGrid
-  )
-  x -= 32 + 5
-
-  discard drawIconToggle(
-    "ui/tack",
-    pos = vec2(x, 16),
-    value = settings.lockFocus
-  )
-  x -= 32 + 5
 
 
 proc drawTimeline*(panel: Panel) =

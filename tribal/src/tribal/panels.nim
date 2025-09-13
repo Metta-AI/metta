@@ -81,11 +81,16 @@ proc endDraw*(panel: Panel) =
 
 proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
-  for num,panel in area.panels:
-    if num == area.selectedPanelNum:
-      panel.rect = irect(area.rect.x, area.rect.y + HeaderSize, area.rect.w, area.rect.h - HeaderSize)
-    else:
-      panel.rect = irect(0, 0, 0, 0)
+  if area.panels.len <= 1:
+    # No tabs/header when only one panel is present
+    for num, panel in area.panels:
+      panel.rect = area.rect
+  else:
+    for num,panel in area.panels:
+      if num == area.selectedPanelNum:
+        panel.rect = irect(area.rect.x, area.rect.y + HeaderSize, area.rect.w, area.rect.h - HeaderSize)
+      else:
+        panel.rect = irect(0, 0, 0, 0)
 
   for subarea in area.areas:
     updatePanelsSizes(subarea)

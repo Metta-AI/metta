@@ -2,7 +2,7 @@ import std/[os, times, strutils],
   boxy, opengl, windy, vmath,
   tribal/environment, tribal/controls, tribal/common, tribal/panels, tribal/renderer, tribal/ui, tribal/external_actions
 
-window = newWindow("MettaScope in Nim", ivec2(1280, 800))
+window = newWindow("Tribal", ivec2(1280, 800))
 makeContextCurrent(window)
 
 when not defined(emscripten):
@@ -11,18 +11,10 @@ when not defined(emscripten):
 bxy = newBoxy()
 rootArea = Area(layout: Horizontal)
 worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
-minimapPanel = Panel(panelType: Minimap, name: "Minimap")
-agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table")
-agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces")
-globalTimelinePanel = Panel(panelType: GlobalTimeline)
 globalFooterPanel = Panel(panelType: GlobalFooter)
-globalHeaderPanel = Panel(panelType: GlobalHeader)
 
 rootArea.areas.add(Area(layout: Horizontal))
 rootArea.panels.add(worldMapPanel)
-rootArea.panels.add(minimapPanel)
-rootArea.panels.add(agentTablePanel)
-rootArea.panels.add(agentTracesPanel)
 
 proc display() =
   # Handle mouse capture release
@@ -59,11 +51,10 @@ proc display() =
 
   bxy.beginFrame(window.size)
   const RibbonHeight = 64
-  rootArea.rect = IRect(x: 0, y: RibbonHeight, w: window.size.x, h: window.size.y - RibbonHeight*3)
+  # Use full window minus footer for the world view; remove header/tabs/timeline
+  rootArea.rect = IRect(x: 0, y: 0, w: window.size.x, h: window.size.y - RibbonHeight)
   rootArea.updatePanelsSizes()
-  globalHeaderPanel.rect = IRect(x: 0, y: 0, w: window.size.x, h: RibbonHeight)
   globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
-  globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
 
 
 
@@ -98,19 +89,10 @@ proc display() =
   worldMapPanel.endDraw()
 
 
-  globalHeaderPanel.beginDraw()
-  drawHeader(globalHeaderPanel)
-  globalHeaderPanel.endDraw()
-
   globalFooterPanel.beginDraw()
   drawFooter(globalFooterPanel)
   globalFooterPanel.endDraw()
 
-  globalTimelinePanel.beginDraw()
-  drawTimeline(globalTimelinePanel)
-  globalTimelinePanel.endDraw()
-
-  rootArea.drawFrame()
 
   bxy.endFrame()
   window.swapBuffers()
