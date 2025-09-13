@@ -61,6 +61,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /workspace /workspace
 COPY --from=builder /bin/uv /bin/uv
+COPY --from=builder /usr/local/bin/bazel /usr/local/bin/bazel
 COPY --from=builder /bin/uvx /bin/uvx
 COPY --from=builder /root/.local/share/uv /root/.local/share/uv
 
