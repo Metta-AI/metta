@@ -1,8 +1,6 @@
 import
   vmath, bumpy, windy, boxy, chroma,
-  common, utils
-
-const HeaderSize = 30
+  common
 
 proc updateMouse*(panel: Panel) =
   let box = panel.rect.rect
@@ -80,69 +78,10 @@ proc endDraw*(panel: Panel) =
   bxy.popLayer()
 
 proc updatePanelsSizes*(area: Area) =
-  # Update the sizes of the panels in the area and its subareas and subpanels.
-  if area.panels.len <= 1:
-    # No tabs/header when only one panel is present
-    for num, panel in area.panels:
-      panel.rect = area.rect
-  else:
-    for num,panel in area.panels:
-      if num == area.selectedPanelNum:
-        panel.rect = irect(area.rect.x, area.rect.y + HeaderSize, area.rect.w, area.rect.h - HeaderSize)
-      else:
-        panel.rect = irect(0, 0, 0, 0)
-
+  # Simplified: all panels fill the area; no tabs/header
+  for panel in area.panels:
+    panel.rect = area.rect
   for subarea in area.areas:
     updatePanelsSizes(subarea)
 
-proc drawFrame*(area: Area) =
-  # Draw the frame of the area.
-
-  # Draw the header ribbon background.
-  bxy.saveTransform()
-  let areaRect = area.rect.rect
-  bxy.translate(vec2(areaRect.x, areaRect.y))
-  bxy.drawRect(
-    rect = Rect(
-      x: 0,
-      y: 0,
-      w: areaRect.w,
-      h: HeaderSize.float32
-    ),
-    color = color(0, 0, 0, 1)
-  )
-
-  var x = 10.0
-  for num, panel in area.panels:
-    let width = measureText(panel.name, 16).x + 20
-    let panelBox = Rect(
-      x: x.float32,
-      y: 2,
-      w: width,
-      h: HeaderSize.float32 - 4
-    )
-    var color = parseHtmlColor("#282D35")
-    if num == area.selectedPanelNum:
-      color = parseHtmlColor("#43526A")
-
-    if window.boxyMouse.vec2.overlaps(panelBox):
-      color = parseHtmlColor("#FF0000")
-      if window.buttonPressed[MouseLeft]:
-        area.selectedPanelNum = num
-
-    bxy.drawRect(
-      rect = panelBox,
-      color = color
-    )
-    bxy.drawText(
-      panel.name,
-      translate(vec2(x.float32 + 5, 4)),
-      typeface,
-      panel.name,
-      16,
-      color(1, 1, 1, 1)
-    )
-
-    x += width + 10
-
-  bxy.restoreTransform()
+## drawFrame removed with tab/header simplification
