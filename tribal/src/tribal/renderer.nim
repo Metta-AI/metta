@@ -258,10 +258,10 @@ proc drawObjects*() =
           let lantern = thing
           if lantern.lanternHealthy and lantern.teamId >= 0 and lantern.teamId < agentVillageColors.len:
             let teamColor = agentVillageColors[lantern.teamId]
-            bxy.drawImage("objects/altar", pos.vec2, angle = 0, scale = 1/200, tint = teamColor)
+            bxy.drawImage("objects/lantern", pos.vec2, angle = 0, scale = 1/200, tint = teamColor)
           else:
             # Unhealthy or unassigned lantern - draw as gray
-            bxy.drawImage("objects/altar", pos.vec2, angle = 0, scale = 1/200, tint = color(0.5, 0.5, 0.5, 1.0))
+            bxy.drawImage("objects/lantern", pos.vec2, angle = 0, scale = 1/200, tint = color(0.5, 0.5, 0.5, 1.0))
 
 proc drawVisualRanges*(alpha = 0.2) =
   var visibility: array[MapWidth, array[MapHeight, bool]]
