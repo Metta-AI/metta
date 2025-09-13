@@ -375,8 +375,8 @@ We support agent architectures without using the MettaAgent system:
 
 - Implement your agent class under `metta/agent/src/metta/agent/pytorch/my_agent.py`. See
   `metta/agent/src/metta/agent/pytorch/fast.py` for an example.
-- Register it in `metta/agent/src/metta/agent/pytorch/agent_mapper.py` by adding an entry to `agent_classes` with a key
-  name (e.g., `"my_agent"`).
+- Register it in `metta/agent/src/metta/agent/agent_config.py` by adding an entry to `AGENT_REGISTRY` with a key name
+  (e.g., `"my_agent"`).
 - Select it at runtime using the runner and an override on the agent config name:
   ```bash
   ./tools/run.py experiments.recipes.arena.train --overrides policy_architecture.name=pytorch/my_agent
