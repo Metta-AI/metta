@@ -41,6 +41,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
         "components": {
             "system": {"enabled": True},
             "core": {"enabled": True},
+            "tribal": {"enabled": True},
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
@@ -57,6 +58,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
         "components": {
             "system": {"enabled": True},
             "core": {"enabled": True},
+            "tribal": {"enabled": True},
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
@@ -73,6 +75,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
         "components": {
             "system": {"enabled": True},
             "core": {"enabled": True},
+            "tribal": {"enabled": True},
             "nodejs": {"enabled": False},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": False},
@@ -89,6 +92,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
         "components": {
             "system": {"enabled": True},
             "core": {"enabled": True},
+            "tribal": {"enabled": True},
             "codeclip": {"enabled": True},
             "apps": {"enabled": True},
             "nodejs": {"enabled": True},

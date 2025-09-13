@@ -235,8 +235,8 @@ class CurriculumConfig(Config):
     )
 
     @classmethod
-    def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
-        """Create a CurriculumConfig from a MettaGridConfig."""
+    def from_mg(cls, mg_config: Union[MettaGridConfig, Config]) -> CurriculumConfig:
+        """Create curriculum from any environment config (MettaGrid, Tribal, etc.)."""
         return cls(
             task_generator=SingleTaskGeneratorConfig(env=mg_config),
         )

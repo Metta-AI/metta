@@ -15,6 +15,40 @@ from metta.mettagrid.stats_writer import StatsWriter
 logger = logging.getLogger("vecenv")
 
 
+def _create_environment(env_cfg, **kwargs):
+    """
+    Generic environment factory that dispatches to the appropriate environment type.
+
+    This keeps environments decoupled - each environment type only knows about itself.
+    """
+    # Create environment based on type
+    if hasattr(env_cfg, "environment_type") and env_cfg.environment_type == "tribal":
+        # Import tribal here to keep it decoupled from mettagrid
+        env = env_cfg.create_environment(**kwargs)
+    else:
+        # Default to MettaGrid environment
+        # Extract MettaGrid-specific parameters
+        render_mode = kwargs.get("render_mode", "rgb_array")
+        stats_writer = kwargs.get("stats_writer")
+        replay_writer = kwargs.get("replay_writer")
+        is_training = kwargs.get("is_training", False)
+
+        env = MettaGridEnv(
+            env_cfg,
+            render_mode=render_mode,
+            stats_writer=stats_writer,
+            replay_writer=replay_writer,
+            is_training=is_training,
+        )
+
+    # Set buffers for ALL environments (unified treatment)
+    buf = kwargs.get("buf")
+    if buf is not None:
+        set_buffers(env, buf)
+
+    return env
+
+
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
@@ -28,14 +62,17 @@ def make_env_func(
 ):
     init_logging(run_dir=run_dir)
 
-    env = MettaGridEnv(
-        curriculum.get_task().get_env_cfg(),
+    env_cfg = curriculum.get_task().get_env_cfg()
+
+    # Use generic dispatch function to create environment
+    env = _create_environment(
+        env_cfg,
         render_mode=render_mode,
         stats_writer=stats_writer,
         replay_writer=replay_writer,
         is_training=is_training,
+        buf=buf,
     )
-    set_buffers(env, buf)
     env = CurriculumEnv(env, curriculum)
 
     return env

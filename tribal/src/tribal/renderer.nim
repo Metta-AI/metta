@@ -1,0 +1,421 @@
+import
+  std/strformat,
+  boxy, vmath,
+  common, environment, utils
+
+# Infection system constants
+const
+  InfectionThreshold* = 0.05  # Blue tint threshold for infection
+  PurpleOverlayStrength* = 0.6  # How strong the purple overlay is
+
+proc isCoolColor*(pos: IVec2): bool =
+  ## Enhanced check if a tile has cool colors and high saturation (creep zone effect)
+  return isBuildingFrozen(pos, env)
+
+proc getInfectionLevel*(pos: IVec2): float32 =
+  ## Simple infection level based on color temperature
+  return if isCoolColor(pos): 1.0 else: 0.0
+
+proc isInfected*(pos: IVec2): bool =
+  ## Check if a position has enough blue/purple tint to be frozen
+  return getInfectionLevel(pos) >= 1.0
+
+proc getInfectionSprite*(entityType: string): string =
+  ## Get the appropriate infection overlay sprite for static environmental objects only
+  case entityType:
+  of "building", "mine", "converter", "altar", "armory", "forge", "clay_oven", "weaving_loom":
+    return "agents/frozen"  # Ice cube overlay for static buildings
+  of "terrain", "wheat", "tree":
+    return "agents/frozen"  # Ice cube overlay for terrain features (walls excluded)
+  of "agent", "clippy", "spawner", "wall":
+    return ""  # No overlays for dynamic entities and walls
+  else:
+    return ""  # Default: no overlay
+
+
+proc useSelections*() =
+  if window.buttonPressed[MouseLeft]:
+    selection = nil
+    let
+      mousePos = bxy.getTransform().inverse * window.mousePos.vec2
+      gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
+    if gridPos.x >= 0 and gridPos.x < MapWidth and
+       gridPos.y >= 0 and gridPos.y < MapHeight:
+      let thing = env.grid[gridPos.x][gridPos.y]
+      if thing != nil:
+        selection = thing
+
+proc drawFloor*() =
+  # Draw the floor tiles everywhere first as the base layer
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+ 
+      let tileColor = env.tileColors[x][y]
+      
+      let finalR = min(tileColor.r * tileColor.intensity, 1.5)
+      let finalG = min(tileColor.g * tileColor.intensity, 1.5)
+      let finalB = min(tileColor.b * tileColor.intensity, 1.5)
+      
+      if env.terrain[x][y] == Water:
+        let waterBlend = 0.7  # How much water color to keep
+        let r = finalR * (1.0 - waterBlend) + 0.3 * waterBlend
+        let g = finalG * (1.0 - waterBlend) + 0.5 * waterBlend
+        let b = finalB * (1.0 - waterBlend) + 0.8 * waterBlend
+        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(r, g, b, 1.0))
+      else:
+        bxy.drawImage("objects/floor", ivec2(x, y).vec2, angle = 0, scale = 1/200, tint = color(finalR, finalG, finalB, 1.0))
+
+proc drawTerrain*() =
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      let pos = ivec2(x, y)
+      let infectionLevel = getInfectionLevel(pos)
+      let infected = infectionLevel >= 1.0
+      
+      case env.terrain[x][y]
+      of Wheat:
+        bxy.drawImage("objects/wheat_field", pos.vec2, angle = 0, scale = 1/200)
+        if infected:
+          # Add infection overlay sprite to infected wheat
+          let overlaySprite = getInfectionSprite("wheat")
+          if overlaySprite != "":
+            bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+      of Tree:
+        bxy.drawImage("objects/palm_tree", pos.vec2, angle = 0, scale = 1/200)
+        if infected:
+          # Add infection overlay sprite to infected trees
+          let overlaySprite = getInfectionSprite("tree")
+          if overlaySprite != "":
+            bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+      else:
+        discard
+
+proc generateWallSprites(): seq[string] =
+  result = newSeq[string](16)
+  for i in 0 .. 15:
+    var suffix = ""
+    if (i and 8) != 0: suffix.add("n")
+    if (i and 4) != 0: suffix.add("w")  
+    if (i and 2) != 0: suffix.add("s")
+    if (i and 1) != 0: suffix.add("e")
+    
+    if suffix.len > 0:
+      result[i] = "objects/wall." & suffix
+    else:
+      result[i] = "objects/wall"
+
+const wallSprites = generateWallSprites()
+
+type WallTile = enum
+  WallNone = 0,
+  WallE = 1,
+  WallS = 2,
+  WallW = 4,
+  WallN = 8,
+  WallSE = 2 or 1,
+  WallNW = 8 or 4,
+
+proc drawWalls*() =
+  template hasWall(x: int, y: int): bool =
+    x >= 0 and x < MapWidth and
+    y >= 0 and y < MapHeight and
+    env.grid[x][y] != nil and
+    env.grid[x][y].kind == Wall
+
+  var wallFills: seq[IVec2]
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      let thing = env.grid[x][y]
+      if thing != nil and thing.kind == Wall:
+        var tile = 0'u16
+        if hasWall(x, y + 1): tile = tile or WallS.uint16
+        if hasWall(x + 1, y): tile = tile or WallE.uint16
+        if hasWall(x, y - 1): tile = tile or WallN.uint16
+        if hasWall(x - 1, y): tile = tile or WallW.uint16
+
+        if (tile and WallSE.uint16) == WallSE.uint16 and
+            hasWall(x + 1, y + 1):
+          wallFills.add(ivec2(x.int32, y.int32))
+          if (tile and WallNW.uint16) == WallNW.uint16 and
+              hasWall(x - 1, y - 1) and
+              hasWall(x - 1, y + 1) and
+              hasWall(x + 1, y - 1):
+            continue
+        
+        let brightness = 0.3  # Fixed wall brightness
+        let wallTint = color(brightness, brightness, brightness, 1.0)
+        
+        bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), 
+                     angle = 0, scale = 1/200, tint = wallTint)
+
+  for fillPos in wallFills:
+    let brightness = 0.3  # Fixed wall fill brightness
+    let fillTint = color(brightness, brightness, brightness, 1.0)
+    bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), 
+                  angle = 0, scale = 1/200, tint = fillTint)
+
+proc drawObjects*() =
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      if env.grid[x][y] != nil:
+        let thing = env.grid[x][y]
+        let pos = ivec2(x, y)
+        let infectionLevel = getInfectionLevel(pos)
+        let infected = infectionLevel >= 1.0
+        
+        case thing.kind
+        of Wall:
+          discard
+        of Agent:
+          let agent = thing
+          var agentImage = case agent.orientation:
+            of N: "agents/agent.n"
+            of S: "agents/agent.s"
+            of E: "agents/agent.e"
+            of W: "agents/agent.w"
+            of NW: "agents/agent.w"  # Use west sprite for NW
+            of NE: "agents/agent.e"  # Use east sprite for NE
+            of SW: "agents/agent.w"  # Use west sprite for SW
+            of SE: "agents/agent.e"  # Use east sprite for SE
+          
+          # Draw agent sprite with normal coloring (no infection overlay for agents)
+          bxy.drawImage(
+            agentImage,
+            pos.vec2,
+            angle = 0,
+            scale = 1/200,
+            tint = generateEntityColor("agent", agent.agentId)
+          )
+        
+        of Altar:
+          let baseImage = "objects/altar"
+          bxy.drawImage(
+            baseImage,
+            pos.vec2,
+            angle = 0,
+            scale = 1/200,
+            tint = getAltarColor(pos)
+          )
+          if infected:
+            # Add infection overlay sprite
+            let overlaySprite = getInfectionSprite("altar")
+            if overlaySprite != "":
+              bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+        
+        of Converter:
+          let baseImage = "objects/converter"
+          bxy.drawImage(baseImage, pos.vec2, angle = 0, scale = 1/200)
+          if infected:
+            # Add infection overlay sprite
+            let overlaySprite = getInfectionSprite("converter")
+            if overlaySprite != "":
+              bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+        
+        of Mine, Spawner:
+          let imageName = if thing.kind == Mine: "objects/mine" else: "objects/spawner"
+          bxy.drawImage(imageName, pos.vec2, angle = 0, scale = 1/200)
+          if infected and thing.kind == Mine:
+            # Only mines get infection overlays, not spawners
+            let overlaySprite = getInfectionSprite("mine")
+            if overlaySprite != "":
+              bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+        
+        of Clippy:
+          # Map diagonal orientations to cardinal sprites
+          let spriteDir = case thing.orientation:
+            of N: "n"
+            of S: "s"
+            of E, NE, SE: "e"
+            of W, NW, SW: "w"
+          let baseImage = "agents/clippy.color." & spriteDir
+          
+          # Clippies just draw normally - they're the infection source so no overlay needed
+          bxy.drawImage(baseImage, pos.vec2, angle = 0, scale = 1/200)
+        
+        of Armory, Forge, ClayOven, WeavingLoom:
+          let imageName = case thing.kind:
+            of Armory: "objects/armory"
+            of Forge: "objects/forge"
+            of ClayOven: "objects/clay_oven"
+            of WeavingLoom: "objects/weaving_loom"
+            else: ""
+          
+          bxy.drawImage(imageName, pos.vec2, angle = 0, scale = 1/200)
+          if infected:
+            # Add infection overlay sprite
+            let overlayType = case thing.kind:
+              of Armory: "armory"
+              of Forge: "forge" 
+              of ClayOven: "clay_oven"
+              of WeavingLoom: "weaving_loom"
+              else: "building"
+            let overlaySprite = getInfectionSprite(overlayType)
+            if overlaySprite != "":
+              bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
+        
+        of PlantedLantern:
+          # Draw lantern using a simple image with team color tint
+          let lantern = thing
+          if lantern.lanternHealthy and lantern.teamId >= 0 and lantern.teamId < teamColors.len:
+            let teamColor = teamColors[lantern.teamId]
+            bxy.drawImage("objects/lantern", pos.vec2, angle = 0, scale = 1/200, tint = teamColor)
+          else:
+            # Unhealthy or unassigned lantern - draw as gray
+            bxy.drawImage("objects/lantern", pos.vec2, angle = 0, scale = 1/200, tint = color(0.5, 0.5, 0.5, 1.0))
+
+proc drawVisualRanges*(alpha = 0.2) =
+  var visibility: array[MapWidth, array[MapHeight, bool]]
+  for agent in env.agents:
+    for i in 0 ..< ObservationWidth:
+      for j in 0 ..< ObservationHeight:
+        let
+          gridPos = (agent.pos + ivec2(i - ObservationWidth div 2, j -
+              ObservationHeight div 2))
+
+        if gridPos.x >= 0 and gridPos.x < MapWidth and
+           gridPos.y >= 0 and gridPos.y < MapHeight:
+          visibility[gridPos.x][gridPos.y] = true
+
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      if not visibility[x][y]:
+        bxy.drawRect(
+          rect(x.float32 - 0.5, y.float32 - 0.5, 1, 1),
+          color(0, 0, 0, alpha)
+        )
+
+proc drawFogOfWar*() =
+  drawVisualRanges(alpha = 1.0)
+
+proc drawActions*() =
+  discard
+
+proc drawObservations*() =
+  if settings.showObservations > -1 and selection != nil and selection.kind == Agent:
+    bxy.drawText(
+      "observationTitle",
+      translate((selection.pos - ivec2(ObservationWidth div 2,
+          ObservationHeight div 2)).vec2 * 64 + vec2(-32, -64)),
+      typeface,
+      $ObservationName(settings.showObservations),
+      20,
+      color(1, 1, 1, 1)
+    )
+    for x in 0 ..< ObservationWidth:
+      for y in 0 ..< ObservationHeight:
+        let
+          gridPos = (selection.pos + ivec2(x - ObservationWidth div 2, y -
+              ObservationHeight div 2))
+          value = env.observations[selection.agentId][
+              settings.showObservations][x][y]
+
+        bxy.drawText(
+          "observation" & $x & $y,
+          translate(gridPos.vec2 * 64 + vec2(-28, -28)),
+          typeface,
+          $value,
+          20,
+          color(1, 1, 1, 1)
+        )
+
+proc drawAgentDecorations*() =
+  for agent in env.agents:
+    if agent.frozen > 0:
+      bxy.drawImage(
+        "agents/frozen",
+        agent.pos.vec2,
+        angle = 0,
+        scale = 1/200
+      )
+
+proc drawGrid*() =
+  for x in 0 ..< MapWidth:
+    for y in 0 ..< MapHeight:
+      bxy.drawImage(
+        "view/grid",
+        ivec2(x, y).vec2,
+        angle = 0,
+        scale = 1/200
+      )
+
+proc drawSelection*() =
+  if selection != nil:
+    bxy.drawImage(
+      "selection",
+      selection.pos.vec2,
+      angle = 0,
+      scale = 1/200
+    )
+
+template infoLine(key, value: string): string =
+  &"{key}: {value}\n"
+
+proc drawInfoText*() =
+  var info = ""
+
+  if selection != nil:
+    case selection.kind
+    of Wall:
+      info = "Wall\n" & infoLine("pos", &"({selection.pos.x}, {selection.pos.y})")
+    of Agent:
+      info = "Agent\n" &
+        infoLine("agentId", $selection.agentId) &
+        infoLine("orientation", $selection.orientation) &
+        infoLine("ore", $selection.inventoryOre) &
+        infoLine("batteries", $selection.inventoryBattery) &
+        infoLine("water", $selection.inventoryWater) &
+        infoLine("wheat", $selection.inventoryWheat) &
+        infoLine("wood", $selection.inventoryWood) &
+        infoLine("spear", $selection.inventorySpear) &
+        infoLine("lantern", $selection.inventoryLantern) &
+        infoLine("armor", $selection.inventoryArmor) &
+        infoLine("reward", $selection.reward) &
+        infoLine("frozen", $selection.frozen)
+    of Altar:
+      info = "Altar\n" &
+        infoLine("hearts", $selection.hearts) &
+        infoLine("cooldown", $selection.cooldown)
+    of Converter:
+      info = "Converter\n" &
+        infoLine("cooldown", $selection.cooldown) &
+        infoLine("ready", $(selection.cooldown == 0))
+    of Mine:
+      info = "Mine\n" &
+        infoLine("resources", $selection.resources) &
+        infoLine("cooldown", $selection.cooldown)
+    of Spawner:
+      info = "Spawner\n" &
+        infoLine("cooldown", $selection.cooldown) &
+        infoLine("spawn ready", $(selection.cooldown == 0))
+    of Clippy:
+      let status = if selection.hasClaimedTerritory: "planted (creep tumor)" else: "seeking territory"
+      info = "Clippy\n" &
+        infoLine("home", &"({selection.homeSpawner.x}, {selection.homeSpawner.y})") &
+        infoLine("status", status)
+    of Armory, Forge, ClayOven, WeavingLoom:
+      let name = case selection.kind
+        of Armory: "Armory"
+        of Forge: "Forge"
+        of ClayOven: "Clay Oven"
+        of WeavingLoom: "Weaving Loom"
+        else: "Building"
+      info = &"{name}\n" &
+        infoLine("pos", &"({selection.pos.x}, {selection.pos.y})") &
+        infoLine("cooldown", $selection.cooldown)
+    of PlantedLantern:
+      let healthStatus = if selection.lanternHealthy: "healthy" else: "destroyed"
+      info = "Planted Lantern\n" &
+        infoLine("pos", &"({selection.pos.x}, {selection.pos.y})") &
+        infoLine("teamId", $selection.teamId) &
+        infoLine("status", healthStatus)
+  else:
+    info = &"speed: {1/playSpeed:0.3f}\nstep: {env.currentStep}"
+
+  bxy.drawText(
+    "info",
+    translate(vec2(10, 10)),
+    typeface,
+    info,
+    16,
+    color(1, 1, 1, 1)
+  )
