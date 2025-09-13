@@ -46,7 +46,15 @@ class ImprovedPolicy(nn.Module):
 
         self.flatten = nn.Flatten()
         self.fc1 = init_layer(nn.Linear(self.flattened_size, 256), std=1.0)
+        # Produce feature vector of size `input_size` (may differ from hidden_size)
         self.encoded_obs = init_layer(nn.Linear(256, input_size), std=1.0)
+
+        # Ensure the transformer always receives vectors of size `hidden_size`.
+        # If input_size != hidden_size, add a projection; otherwise use identity.
+        if input_size != hidden_size:
+            self.to_hidden = init_layer(nn.Linear(input_size, hidden_size), std=1.0)
+        else:
+            self.to_hidden = nn.Identity()
 
         self._transformer = TransformerModule(
             d_model=hidden_size,
@@ -90,10 +98,13 @@ class ImprovedPolicy(nn.Module):
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
 
-    def network_forward(self, x):
+    def network_forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Encode observations into `hidden_size` vectors for the transformer."""
         x = x / self.max_vec
         x = F.relu(self.cnn2(F.relu(self.cnn1(x))))
-        x = F.relu(self.encoded_obs(F.relu(self.fc1(self.flatten(x)))))
+        x = F.relu(self.fc1(self.flatten(x)))
+        x = F.relu(self.encoded_obs(x))
+        x = self.to_hidden(x)
         return x
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:

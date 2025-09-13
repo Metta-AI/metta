@@ -371,7 +371,8 @@ class TransformerModule(nn.Module):
         T, B, _ = x.shape
 
         if T <= chunk_size:
-            return self.forward(x)
+            out, _ = self.forward(x)
+            return out
 
         outputs = []
         overlap = chunk_size // 4
@@ -380,7 +381,7 @@ class TransformerModule(nn.Module):
             chunk_end = min(i + chunk_size, T)
             chunk = x[i:chunk_end]
 
-            chunk_out = self.forward(chunk)
+            chunk_out, _ = self.forward(chunk)
 
             if i > 0 and overlap > 0:
                 blend_region = min(overlap, len(outputs[-1]))
