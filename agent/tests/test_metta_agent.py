@@ -8,7 +8,7 @@ from torchrl.data import Composite
 # Import the actual class
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
-from metta.rl.system_config import SystemConfig
+
 
 
 @pytest.fixture
@@ -38,15 +38,12 @@ def create_metta_agent():
             self.single_action_space = action_space
             self.feature_normalizations = feature_normalizations
 
-    # Create system config
-    system_cfg = SystemConfig(device="cpu")
     # Use the current interface but with the agent the old tests expected
     agent_cfg = AgentConfig(name="fast")
 
     # Create the agent with the CURRENT signature
     agent = MettaAgent(
         env=MinimalEnv(),
-        system_cfg=system_cfg,
         policy_architecture_cfg=agent_cfg,
         policy=None,  # Will create ComponentPolicy internally
     )
@@ -198,7 +195,6 @@ def test_activate_actions_via_initialize(create_metta_agent):
 def test_policy_none_error():
     """Test that error is raised when policy is None and forward is called."""
     # Create agent with no policy
-    system_cfg = SystemConfig(device="cpu")
     agent_cfg = AgentConfig(name="fast")
 
     class MinimalEnv:
@@ -210,7 +206,7 @@ def test_policy_none_error():
             self.feature_normalizations = {0: 1.0}
 
     # Create agent but force policy to None
-    agent = MettaAgent(env=MinimalEnv(), system_cfg=system_cfg, policy_architecture_cfg=agent_cfg, policy=None)
+    agent = MettaAgent(env=MinimalEnv(), policy_architecture_cfg=agent_cfg, policy=None)
     agent.policy = None  # Force it to None for testing
 
     # Try forward pass - should raise error
