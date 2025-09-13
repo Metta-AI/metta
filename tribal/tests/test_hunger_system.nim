@@ -1,8 +1,7 @@
-import std/[strformat, random]
+import std/strformat
 import vmath
 import ../src/tribal/environment
 import ../src/tribal/objects
-import ../src/tribal/common
 
 echo "\n=== Hunger and Bread System Test ==="
 echo "Testing hunger mechanics and bread production\n"

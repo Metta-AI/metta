@@ -56,7 +56,6 @@ type
     lockFocus* = false
     showAgentPaths* = false
     showBuildingStatus* = true
-    showHungerStatus* = true
     enableInteraction* = true
     debugMode* = false
     showPerformanceStats* = false

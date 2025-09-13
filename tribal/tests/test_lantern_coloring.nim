@@ -1,9 +1,8 @@
 ## Test lantern team coloring and production
-import std/[strformat, strutils, tables]
+import std/[strformat, strutils]
 import vmath
 import ../src/tribal/environment
 import ../src/tribal/ai
-import ../src/tribal/external_actions
 import test_utils
 
 proc testLanternProductionAndColoring() =

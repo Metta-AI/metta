@@ -239,7 +239,7 @@ proc drawTimeline*(panel: Panel) =
   )
 
 proc drawResourceBar*(pos: Vec2, size: Vec2, current: int, maximum: int, bgColor: Color = color(0.2, 0.2, 0.2, 1), fillColor: Color = color(0.8, 0.8, 0.8, 1)) =
-  ## Draw a resource bar (health, hunger, etc.)
+  ## Draw a resource bar
   let progress = if maximum > 0: current.float / maximum.float else: 0.0
   
   # Background
