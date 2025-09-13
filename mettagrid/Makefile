@@ -1,4 +1,4 @@
-.PHONY: help build build-prod benchmark test coverage tidy tidy-verbose clean install pytest
+.PHONY: help build build-prod benchmark test coverage tidy tidy-verbose clean install pytest compile_commands
 
 # Default target
 help:
@@ -13,14 +13,21 @@ help:
 	@echo "  pytest         - Run Python tests"
 	@echo "  clean          - Clean all build artifacts"
 	@echo "  install        - Install package in editable mode"
+	@echo "  compile_commands - Generate compile_commands.json for LSP"
+
+# Generate compile_commands.json
+compile_commands:
+	@echo "📝 Generating compile_commands.json"
+	@bazel run @hedron_compile_commands//:refresh_all
+	@echo "✅ compile_commands.json generated"
 
 # Debug build with tests and coverage
-build:
+build: compile_commands
 	@echo "🔨 Building debug with tests and coverage..."
 	bazel build --config=dbg //:mettagrid_c
 
 # Production release build
-build-prod:
+build-prod: compile_commands
 	@echo "🔨 Building release..."
 	bazel build --config=opt //:mettagrid_c
 
@@ -39,7 +46,7 @@ benchmark:
 	uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only
 
 # Run unit tests
-test: build
+test: build compile_commands
 	@echo "🧪 Running unit tests..."
 	bazel test //tests:tests_all
 
