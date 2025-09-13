@@ -1,4 +1,4 @@
-.PHONY: help build build-prod benchmark test coverage tidy tidy-verbose clean install pytest
+.PHONY: help build build-prod benchmark test coverage tidy tidy-verbose format clean install pytest
 
 # Default target
 help:
@@ -10,6 +10,7 @@ help:
 	@echo "  coverage       - Generate coverage report"
 	@echo "  tidy           - Run clang-tidy (fails on errors only)"
 	@echo "  tidy-verbose   - Run clang-tidy with full output"
+	@echo "  format         - Format C++ code with clang-format"
 	@echo "  pytest         - Run Python tests"
 	@echo "  clean          - Clean all build artifacts"
 	@echo "  install        - Install package in editable mode"
@@ -60,6 +61,13 @@ tidy:
 tidy-verbose:
 	@echo "🔍 Running clang-tidy with full output..."
 	@bazel test //lint:clang_tidy --test_output=all --nocache_test_results
+
+# Format C++ code with clang-format
+format:
+	@echo "🎨 Formatting C++ code with clang-format..."
+	@find src/metta/mettagrid tests benchmarks -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
+		-exec clang-format -i {} +
+	@echo "✅ C++ code formatting complete"
 
 # Python
 install:

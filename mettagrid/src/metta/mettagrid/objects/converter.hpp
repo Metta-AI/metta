@@ -26,6 +26,17 @@ private:
     if (this->converting || this->cooling_down) {
       return;
     }
+    // If there are no outputs configured, there is nothing to produce. Avoid scheduling
+    // zero-delay events that would loop forever.
+    if (this->output_resources.empty()) {
+      return;
+    }
+    // Prevent zero-tick loops: if both conversion_ticks and cooldown are 0,
+    // we would create an infinite loop of immediate events
+    if (this->conversion_ticks == 0 && this->cooldown == 0) {
+      stats.incr("conversions.zero_tick_prevented");
+      return;
+    }
     // Check if the converter has reached max conversions
     if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
       stats.incr("conversions.permanent_stop");

@@ -6,6 +6,7 @@
 #include <pybind11/stl.h>
 
 #include <map>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -45,8 +46,12 @@ public:
 
   virtual ~ActionHandler() {}
 
-  void init(Grid* grid) {
+  void init(Grid* grid, std::mt19937* rng) {
+    if (!rng) {
+      throw std::runtime_error("RNG cannot be null in ActionHandler::init - a valid std::mt19937* must be provided");
+    }
     this->_grid = grid;
+    this->_rng = rng;
   }
 
   bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
@@ -120,6 +125,7 @@ protected:
   std::string _action_name;
   std::map<InventoryItem, InventoryQuantity> _required_resources;
   std::map<InventoryItem, InventoryQuantity> _consumed_resources;
+  std::mt19937* _rng;
 };
 
 namespace py = pybind11;
