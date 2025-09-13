@@ -5,8 +5,8 @@ import
 proc updateMouse*(panel: Panel) =
   let box = panel.rect.rect
 
-  panel.hasMouse = panel.visible and ((not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
-    (mouseCaptured and mouseCapturedPanel == panel))
+  panel.hasMouse = panel.visible and ((not common.mouseCaptured and window.mousePos.vec2.overlaps(box)) or
+    (common.mouseCaptured and common.mouseCapturedPanel == panel))
   
   # Handle focus changes
   if panel.hasMouse and window.buttonPressed[MouseLeft]:
@@ -21,8 +21,8 @@ proc beginPanAndZoom*(panel: Panel) =
 
   if panel.hasMouse:
     if window.buttonPressed[MouseLeft]:
-      mouseCaptured = true
-      mouseCapturedPanel = panel
+      common.mouseCaptured = true
+      common.mouseCapturedPanel = panel
 
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
       panel.vel = window.mouseDelta.vec2

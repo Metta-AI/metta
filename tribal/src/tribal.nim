@@ -2,7 +2,7 @@ import std/[os, times, strutils],
   boxy, opengl, windy, vmath,
   tribal/environment, tribal/controls, tribal/common, tribal/panels, tribal/renderer, tribal/ui, tribal/external_actions
 
-window = newWindow("Tribal", ivec2(1280, 800))
+window = newWindow("Tribal", ivec2(1280, 800), style = DecoratedResizable)
 makeContextCurrent(window)
 
 when not defined(emscripten):
@@ -19,16 +19,16 @@ rootArea.panels.add(worldMapPanel)
 proc display() =
   # Handle mouse capture release
   if window.buttonReleased[MouseLeft]:
-    mouseCaptured = false
-    mouseCapturedPanel = nil
+    common.mouseCaptured = false
+    common.mouseCapturedPanel = nil
   
   if window.buttonPressed[KeySpace]:
     play = false
-  if window.buttonPressed[KeyMinus]:
+  if window.buttonPressed[KeyMinus] or window.buttonPressed[KeyLeftBracket]:
     playSpeed *= 0.5
     playSpeed = clamp(playSpeed, 0.00001, 60.0)
     play = true
-  if window.buttonPressed[KeyEqual]:
+  if window.buttonPressed[KeyEqual] or window.buttonPressed[KeyRightBracket]:
     playSpeed *= 2
     playSpeed = clamp(playSpeed, 0.00001, 60.0)
     play = true

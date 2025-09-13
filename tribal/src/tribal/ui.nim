@@ -26,7 +26,8 @@ proc drawIconButton*(
     h: size.y
   )
 
-  if window.boxyMouse.vec2.overlaps(box):
+  # Use window.mousePos (ivec2) instead of boxyMouse helper
+  if window.mousePos.vec2.overlaps(box):
     if window.buttonPressed[MouseLeft]:
       result = true
     bxy.drawRect(
