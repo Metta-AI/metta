@@ -116,6 +116,7 @@ type
     inventorySpear*: int    # Spears crafted from forge
     inventoryLantern*: int  # Lanterns from weaving loom (plantable team markers)
     inventoryArmor*: int    # Armor from armory (5-hit protection, tracks remaining uses)
+    inventoryBread*: int    # Bread baked from clay oven
     reward*: float32
     homeAltar*: IVec2      # Position of agent's home altar for respawning
     # Clippy:
@@ -138,6 +139,7 @@ type
     actionUse*: int      # Action 3: USE (terrain/buildings)
     actionSwap*: int     # Action 4: SWAP
     actionPlant*: int    # Action 6: PLANT lantern
+    actionPut*: int      # Action 5: GIVE to teammate
 
   TileColor* = object
     r*, g*, b*: float32      # RGB color components  
@@ -466,12 +468,12 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
       # Preferred push positions in move direction
       let ahead1 = ivec2(newPos.x + delta.x, newPos.y + delta.y)
       let ahead2 = ivec2(newPos.x + delta.x * 2, newPos.y + delta.y * 2)
-      if ahead2.x >= 0 and ahead2.x < MapWidth and ahead2.y >= 0 and ahead2.y < MapHeight and env.isEmpty(ahead2):
+      if ahead2.x >= 0 and ahead2.x < MapWidth and ahead2.y >= 0 and ahead2.y < MapHeight and env.isEmpty(ahead2) and env.terrain[ahead2.x][ahead2.y] != Water:
         env.grid[blocker.pos.x][blocker.pos.y] = nil
         blocker.pos = ahead2
         env.grid[blocker.pos.x][blocker.pos.y] = blocker
         relocated = true
-      elif ahead1.x >= 0 and ahead1.x < MapWidth and ahead1.y >= 0 and ahead1.y < MapHeight and env.isEmpty(ahead1):
+      elif ahead1.x >= 0 and ahead1.x < MapWidth and ahead1.y >= 0 and ahead1.y < MapHeight and env.isEmpty(ahead1) and env.terrain[ahead1.x][ahead1.y] != Water:
         env.grid[blocker.pos.x][blocker.pos.y] = nil
         blocker.pos = ahead1
         env.grid[blocker.pos.x][blocker.pos.y] = blocker
@@ -483,7 +485,7 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
             if dx == 0 and dy == 0: continue
             let alt = ivec2(newPos.x + dx, newPos.y + dy)
             if alt.x < 0 or alt.y < 0 or alt.x >= MapWidth or alt.y >= MapHeight: continue
-            if env.isEmpty(alt):
+            if env.isEmpty(alt) and env.terrain[alt.x][alt.y] != Water:
               env.grid[blocker.pos.x][blocker.pos.y] = nil
               blocker.pos = alt
               env.grid[blocker.pos.x][blocker.pos.y] = blocker
@@ -696,8 +698,10 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
   of ClayOven:
     if thing.cooldown == 0 and agent.inventoryWheat > 0:
       agent.inventoryWheat -= 1
+      agent.inventoryBread += 1
       thing.cooldown = 10
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      # No observation layer for bread; optional for UI later
       agent.reward += env.config.foodReward
       inc env.stats[id].actionUse
     else:
@@ -740,6 +744,45 @@ proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
 
 
 
+proc sameTeam(a, b: Thing): bool =
+  ## Agents are teammates if they share the same house index (agentId div MapAgentsPerHouse)
+  (a.agentId div MapAgentsPerHouse) == (b.agentId div MapAgentsPerHouse)
+
+proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
+  ## Give items to adjacent teammate. Argument is direction (0..7)
+  if argument > 7:
+    inc env.stats[id].actionInvalid
+    return
+  let dir = Orientation(argument)
+  let delta = getOrientationDelta(dir)
+  let targetPos = ivec2(agent.pos.x + delta.x.int32, agent.pos.y + delta.y.int32)
+  if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
+    inc env.stats[id].actionInvalid
+    return
+  let target = env.getThing(targetPos)
+  if isNil(target) or target.kind != Agent:
+    inc env.stats[id].actionInvalid
+    return
+  if not sameTeam(agent, target):
+    inc env.stats[id].actionInvalid
+    return
+  var transferred = false
+  # Give armor if we have any and target has none
+  if agent.inventoryArmor > 0 and target.inventoryArmor == 0:
+    target.inventoryArmor = agent.inventoryArmor
+    agent.inventoryArmor = 0
+    env.updateObservations(AgentInventoryArmorLayer, target.pos, target.inventoryArmor)
+    transferred = true
+  # Otherwise give food if possible (no obs layer yet)
+  elif agent.inventoryBread > 0 and target.inventoryBread < MapObjectAgentMaxInventory:
+    let giveAmt = min(agent.inventoryBread, MapObjectAgentMaxInventory - target.inventoryBread)
+    agent.inventoryBread -= giveAmt
+    target.inventoryBread += giveAmt
+    transferred = true
+  if transferred:
+    inc env.stats[id].actionPut
+  else:
+    inc env.stats[id].actionInvalid
 # ============== CLIPPY AI ==============
 
 
@@ -1485,6 +1528,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     of 2: env.attackAction(id, agent, action[1].int)
     of 3: env.useAction(id, agent, action[1].int)  # Use terrain/buildings
     of 4: env.swapAction(id, agent, action[1].int)
+    of 5: env.putAction(id, agent, action[1].int)  # Give to teammate
     of 6: env.plantAction(id, agent, action[1].int)  # Plant lantern
     else: inc env.stats[id].actionInvalid
 

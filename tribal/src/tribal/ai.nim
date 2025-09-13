@@ -238,6 +238,32 @@ proc isAdjacentToLantern(env: Environment, agentPos: IVec2): bool =
       return true
   return false
 
+proc sameTeam(agentA, agentB: Thing): bool =
+  (agentA.agentId div MapAgentsPerHouse) == (agentB.agentId div MapAgentsPerHouse)
+
+type NeedType = enum
+  NeedArmor
+  NeedBread
+
+proc findNearestTeammateNeeding(env: Environment, me: Thing, need: NeedType): Thing =
+  var best: Thing = nil
+  var bestDist = int.high
+  for other in env.agents:
+    if other.agentId == me.agentId: continue
+    if not sameTeam(me, other): continue
+    var needs = false
+    case need
+    of NeedArmor:
+      needs = other.inventoryArmor == 0
+    of NeedBread:
+      needs = other.inventoryBread < 1
+    if not needs: continue
+    let d = int(chebyshevDist(me.pos, other.pos))
+    if d < bestDist:
+      bestDist = d
+      best = other
+  return best
+
 proc isPassable(env: Environment, pos: IVec2): bool =
   ## Consider lantern tiles passable for movement planning
   if env.isEmpty(pos): return true
@@ -462,7 +488,19 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
 
   of ArmorySpecialist:
-    # Priority 1: Craft armor if we have wood
+    # Priority 1: If we have armor, deliver it to teammates who need it
+    if agent.inventoryArmor > 0:
+      let teammate = findNearestTeammateNeeding(env, agent, NeedArmor)
+      if teammate != nil:
+        let dx = abs(teammate.pos.x - agent.pos.x)
+        let dy = abs(teammate.pos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          # Give armor via PUT to teammate
+          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, teammate.pos).uint8])
+        else:
+          return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, teammate.pos, controller.rng).uint8])
+
+    # Priority 2: Craft armor if we have wood
     if agent.inventoryWood > 0:
       let armory = env.findNearestThingSpiral(state, Armory, controller.rng)
       if armory != nil:
@@ -477,7 +515,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
         return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
     
-    # Priority 2: Collect wood using spiral search
+    # Priority 3: Collect wood using spiral search
     else:
       let treePos = env.findNearestTerrainSpiral(state, Tree, controller.rng)
       if treePos.x >= 0:
@@ -535,7 +573,18 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
 
   of ClayOvenSpecialist:
-    # Priority 1: Craft bread if we have wheat
+    # Priority 1: If carrying food, deliver to teammates needing it
+    if agent.inventoryBread > 0:
+      let teammate = findNearestTeammateNeeding(env, agent, NeedBread)
+      if teammate != nil:
+        let dx = abs(teammate.pos.x - agent.pos.x)
+        let dy = abs(teammate.pos.y - agent.pos.y)
+        if max(dx, dy) == 1'i32:
+          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, teammate.pos).uint8])
+        else:
+          return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, teammate.pos, controller.rng).uint8])
+
+    # Priority 2: Craft bread if we have wheat
     if agent.inventoryWheat > 0:
       let oven = env.findNearestThingSpiral(state, ClayOven, controller.rng)
       if oven != nil:
@@ -550,7 +599,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         let nextSearchPos = getNextSpiralPoint(state, controller.rng)
         return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
     
-    # Priority 2: Collect wheat using spiral search
+    # Priority 3: Collect wheat using spiral search
     else:
       let wheatPos = env.findNearestTerrainSpiral(state, Wheat, controller.rng)
       if wheatPos.x >= 0:
