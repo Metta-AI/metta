@@ -2,7 +2,7 @@
 Agent configuration following the dehydration branch Config pattern.
 """
 
-from typing import Literal
+from pydantic import Field, field_validator
 
 # ComponentPolicy implementations (modular architecture)
 from metta.agent.component_policies.fast import Fast as ComponentFast
@@ -22,20 +22,16 @@ from metta.mettagrid.config import Config
 class AgentConfig(Config):
     """Configuration for agent architecture selection."""
 
-    name: Literal[
-        "fast",
-        "latent_attn_tiny",
-        "latent_attn_small",
-        "latent_attn_med",
-        "pytorch/example",
-        "pytorch/fast",
-        "pytorch/latent_attn_tiny",
-        "pytorch/latent_attn_small",
-        "pytorch/latent_attn_med",
-    ] = "fast"
+    name: str = Field(default="fast")
 
     clip_range: float = 0
     analyze_weights_interval: int = 300
+
+    @field_validator("name")
+    def validate_name(self, v: str):
+        if v not in AGENT_REGISTRY:
+            raise ValueError(f"Invalid agent name: {v}")
+        return v
 
 
 # Registry mapping agent names to classes
