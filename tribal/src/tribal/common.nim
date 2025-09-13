@@ -75,6 +75,7 @@ var
 const
   DefaultPlaySpeed* = 0.0625
 
+var
   followSelection*: bool = false
   mouseCaptured*: bool = false
   mouseCapturedPanel*: Panel = nil

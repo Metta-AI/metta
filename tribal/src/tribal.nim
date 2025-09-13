@@ -2,7 +2,7 @@ import std/[os, times, strutils],
   boxy, opengl, windy, vmath,
   tribal/environment, tribal/controls, tribal/common, tribal/panels, tribal/renderer, tribal/ui, tribal/external_actions
 
-window = newWindow("Tribal", ivec2(1280, 800), style = DecoratedResizable)
+window = newWindow("Tribal", ivec2(1280, 800))
 makeContextCurrent(window)
 
 when not defined(emscripten):

@@ -26,8 +26,9 @@ proc drawIconButton*(
     h: size.y
   )
 
-  # Use window.mousePos (ivec2) instead of boxyMouse helper
-  if window.mousePos.vec2.overlaps(box):
+  # Use current transform to convert mouse to local panel coords
+  let mouseLocal = bxy.getTransform().inverse * window.mousePos.vec2
+  if mouseLocal.overlaps(box):
     if window.buttonPressed[MouseLeft]:
       result = true
     bxy.drawRect(
@@ -40,7 +41,7 @@ proc drawIconButton*(
     pos = pos
   )
 
-# drawIconToggle removed with UI simplification
+ 
 
 proc drawSpeedButton*(x: float32, speed: float32, label: string): bool =
   if drawIconButton("ui/speed", pos = vec2(x, 16), size = vec2(20, 32)):
@@ -51,9 +52,7 @@ proc drawSpeedButton*(x: float32, speed: float32, label: string): bool =
 
 
 
-const HeaderBgColor = parseHtmlColor("#273646")
-
-# drawHeader removed; no header in simplified UI
+ 
 proc drawFooter*(panel: Panel) =
   drawPanelBackground(panel, parseHtmlColor("#2D343D"))
   # Minimal controls: turtle (slow), play/pause, rabbit (fast)
@@ -88,7 +87,7 @@ proc drawFooter*(panel: Panel) =
     play = true
 
 
-## drawTimeline removed; no timeline in simplified UI
+ 
 
 proc drawResourceBar*(pos: Vec2, size: Vec2, current: int, maximum: int, bgColor: Color = color(0.2, 0.2, 0.2, 1), fillColor: Color = color(0.8, 0.8, 0.8, 1)) =
   ## Draw a resource bar
@@ -133,12 +132,5 @@ proc drawInfoTooltip*(text: string, pos: Vec2, bgColor: Color = color(0, 0, 0, 0
     color = bgColor
   )
   
-  # Text
-  bxy.drawText(
-    "",  # image key
-    translate(pos) * scale(vec2(16, 16)),  # transform  
-    typeface,
-    text,
-    16,  # size
-    color(1, 1, 1, 1)
-  )
+  # Text omitted in simplified UI to avoid extra font deps
+  discard
