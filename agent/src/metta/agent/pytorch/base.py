@@ -113,6 +113,12 @@ class LSTMWrapper(nn.Module):
                 reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
                 lstm_h = lstm_h.masked_fill(reset_mask, 0)
                 lstm_c = lstm_c.masked_fill(reset_mask, 0)
+
+            # Guard against batch-size mismatches between rollout and training minibatches
+            # If stored state batch dimension != current B, reinitialize to correct shape
+            if lstm_h.size(1) != B or lstm_c.size(1) != B:
+                lstm_h = torch.zeros(self.num_layers, B, self.hidden_size, device=device)
+                lstm_c = torch.zeros(self.num_layers, B, self.hidden_size, device=device)
         else:
             # Initialize new hidden states
             lstm_h = torch.zeros(self.num_layers, B, self.hidden_size, device=device)
