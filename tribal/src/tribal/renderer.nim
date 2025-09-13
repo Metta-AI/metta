@@ -1,6 +1,6 @@
 import
   std/strformat,
-  boxy, vmath,
+  boxy, vmath, windy,
   common, environment, utils
 
 # Infection system constants
@@ -348,7 +348,7 @@ proc drawSelection*() =
     )
 
 template infoLine(key, value: string): string =
-  &"{key}: {value}\n"
+  key & ": " & value & "\n"
 
 proc drawInfoText*() =
   var info = ""
