@@ -17,14 +17,9 @@ MEMORY_BUDGET = 2064384 * 256  # ~528M tokens
 #   - minibatch_size % bptt_horizon == 0
 #   - (batch_size // bptt_horizon) % (minibatch_size // bptt_horizon) == 0
 CONFIGS: List[Tuple[int, int, str]] = [
-    (128, 4128768, "h128"),  # 2x batch size for 0.5x horizon
-    (256, 2064384, "h256"),  # baseline
+    #    (128, 4128768, "h128"),  # 2x batch size for 0.5x horizon
+    #    (256, 2064384, "h256"),  # baseline
     (512, 1032192, "h512"),  # 0.5x batch size for 2x horizon
-    (
-        768,
-        688128,
-        "h768",
-    ),  # ~0.33x batch size for 3x horizon (requires minibatch_size override)
     # For 1024, adjust to nearest multiple that works with default minibatch (16384) → 524288
     (1024, 524288, "h1024"),
 ]
@@ -79,6 +74,10 @@ def launch_job(
         f"trainer.batch_size={batch_size}",
         f"trainer.minibatch_size={minibatch_size}",
     ]
+
+    # Increase heartbeat timeout only for long horizons (to tolerate longer checkpoint uploads)
+    if horizon in (512, 1024):
+        cmd.extend(["--heartbeat-timeout-seconds", "900"])  # 15 minutes
 
     print(f"\nLaunching {job_name}...")
     print(f"  Horizon: {horizon}, Batch size: {batch_size:,}")
