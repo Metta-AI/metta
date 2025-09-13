@@ -256,8 +256,8 @@ proc drawObjects*() =
         of PlantedLantern:
           # Draw lantern using a simple image with team color tint
           let lantern = thing
-          if lantern.lanternHealthy and lantern.teamId >= 0 and lantern.teamId < agentVillageColors.len:
-            let teamColor = agentVillageColors[lantern.teamId]
+          if lantern.lanternHealthy and lantern.teamId >= 0 and lantern.teamId < teamColors.len:
+            let teamColor = teamColors[lantern.teamId]
             bxy.drawImage("objects/lantern", pos.vec2, angle = 0, scale = 1/200, tint = teamColor)
           else:
             # Unhealthy or unassigned lantern - draw as gray
