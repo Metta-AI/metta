@@ -54,6 +54,7 @@ const
 
 # Global village color management
 var agentVillageColors*: seq[Color] = @[]
+var teamColors*: seq[Color] = @[]
 var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
 
 type
@@ -905,8 +906,8 @@ proc updateTintModifications(env: Environment) =
     
     of PlantedLantern:
       # Lanterns spread team colors in 5x5 area (similar to clippies but warm colors)
-      if thing.lanternHealthy and thing.teamId >= 0 and thing.teamId < agentVillageColors.len:
-        let teamColor = agentVillageColors[thing.teamId]
+      if thing.lanternHealthy and thing.teamId >= 0 and thing.teamId < teamColors.len:
+        let teamColor = teamColors[thing.teamId]
         
         for dx in -2 .. 2:
           for dy in -2 .. 2:
@@ -1074,6 +1075,7 @@ proc init(env: Environment) =
   # Agents will now spawn with their villages/houses below
   # Clear and prepare village colors arrays
   agentVillageColors.setLen(MapRoomObjectsAgents)  # Allocate space for all agents
+  teamColors.setLen(0)  # Clear team colors
   altarColors.clear()  # Clear altar colors from previous game
   # Spawn houses with their altars, walls, and associated agents (tribes)
   let numHouses = MapRoomObjectsHouses
@@ -1114,7 +1116,10 @@ proc init(env: Environment) =
       of 4: villageColor = color(1.0, 0.5, 0.4, 1.0)    # Coral
       of 5: villageColor = color(0.8, 0.4, 0.6, 1.0)    # Warm pink
       else: villageColor = color(1.0, 0.5, 0.3, 1.0)    # Default warm orange
-      
+
+      # Store team color for lanterns
+      teamColors.add(villageColor)
+
       # Spawn agents around this house
       let agentsForThisHouse = min(MapAgentsPerHouse, MapRoomObjectsAgents - totalAgentsSpawned)
       
