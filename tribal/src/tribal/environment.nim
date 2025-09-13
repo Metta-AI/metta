@@ -457,26 +457,39 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
   newPos.y += int32(delta.y)
   
   let newOrientation = moveOrientation
-  # Allow walking through planted lanterns by relocating the lantern to a nearby empty tile
+  # Allow walking through planted lanterns by relocating the lantern, preferring push direction (up to 2 tiles ahead)
   var canMove = env.isEmpty(newPos)
   if not canMove:
     let blocker = env.getThing(newPos)
     if not isNil(blocker) and blocker.kind == PlantedLantern:
-      # Try to relocate lantern to an adjacent empty tile
       var relocated = false
-      for dy in -1 .. 1:
-        for dx in -1 .. 1:
-          if dx == 0 and dy == 0: continue
-          let alt = ivec2(newPos.x + dx, newPos.y + dy)
-          if alt.x < 0 or alt.y < 0 or alt.x >= MapWidth or alt.y >= MapHeight: continue
-          if env.isEmpty(alt):
-            # Move lantern to alt
-            env.grid[blocker.pos.x][blocker.pos.y] = nil
-            blocker.pos = alt
-            env.grid[blocker.pos.x][blocker.pos.y] = blocker
-            relocated = true
-            break
-        if relocated: break
+      # Preferred push positions in move direction
+      let ahead1 = ivec2(newPos.x + delta.x, newPos.y + delta.y)
+      let ahead2 = ivec2(newPos.x + delta.x * 2, newPos.y + delta.y * 2)
+      if ahead2.x >= 0 and ahead2.x < MapWidth and ahead2.y >= 0 and ahead2.y < MapHeight and env.isEmpty(ahead2):
+        env.grid[blocker.pos.x][blocker.pos.y] = nil
+        blocker.pos = ahead2
+        env.grid[blocker.pos.x][blocker.pos.y] = blocker
+        relocated = true
+      elif ahead1.x >= 0 and ahead1.x < MapWidth and ahead1.y >= 0 and ahead1.y < MapHeight and env.isEmpty(ahead1):
+        env.grid[blocker.pos.x][blocker.pos.y] = nil
+        blocker.pos = ahead1
+        env.grid[blocker.pos.x][blocker.pos.y] = blocker
+        relocated = true
+      # Fallback to any adjacent empty tile around the lantern
+      if not relocated:
+        for dy in -1 .. 1:
+          for dx in -1 .. 1:
+            if dx == 0 and dy == 0: continue
+            let alt = ivec2(newPos.x + dx, newPos.y + dy)
+            if alt.x < 0 or alt.y < 0 or alt.x >= MapWidth or alt.y >= MapHeight: continue
+            if env.isEmpty(alt):
+              env.grid[blocker.pos.x][blocker.pos.y] = nil
+              blocker.pos = alt
+              env.grid[blocker.pos.x][blocker.pos.y] = blocker
+              relocated = true
+              break
+          if relocated: break
       if relocated:
         canMove = true
 

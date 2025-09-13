@@ -195,6 +195,49 @@ proc neighborDirIndex(fromPos, toPos: IVec2): int =
   let sy = (if dy > 0: 1'i32 elif dy < 0: -1'i32 else: 0'i32)
   return vecToOrientation(ivec2(sx.int, sy.int))
 
+proc chebyshevDist(a, b: IVec2): int32 =
+  let dx = abs(a.x - b.x)
+  let dy = abs(a.y - b.y)
+  return (if dx > dy: dx else: dy)
+
+proc findNearestLantern(env: Environment, pos: IVec2): tuple[pos: IVec2, found: bool, dist: int32] =
+  var best = (pos: ivec2(0, 0), found: false, dist: int32.high)
+  for t in env.things:
+    if t.kind == PlantedLantern:
+      let d = chebyshevDist(pos, t.pos)
+      if d < best.dist:
+        best = (pos: t.pos, found: true, dist: d)
+  return best
+
+proc findPlantDirWithSpacing(env: Environment, agentPos: IVec2, minSpacing: int32): int =
+  ## Find a planting direction whose target tile is at least minSpacing from all lanterns
+  for i in 0 .. 7:
+    let orientation = Orientation(i)
+    let dir = orientationToVec(orientation)
+    let target = agentPos + dir
+    if target.x < 0 or target.y < 0 or target.x >= MapWidth or target.y >= MapHeight:
+      continue
+    # Must be empty and not water
+    if not env.isEmpty(target):
+      continue
+    if env.terrain[target.x][target.y] == Water:
+      continue
+    var ok = true
+    for t in env.things:
+      if t.kind == PlantedLantern:
+        if chebyshevDist(target, t.pos) < minSpacing:
+          ok = false
+          break
+    if ok:
+      return i
+  return -1
+
+proc isAdjacentToLantern(env: Environment, agentPos: IVec2): bool =
+  for t in env.things:
+    if t.kind == PlantedLantern and chebyshevDist(agentPos, t.pos) == 1'i32:
+      return true
+  return false
+
 proc isPassable(env: Environment, pos: IVec2): bool =
   ## Consider lantern tiles passable for movement planning
   if env.isEmpty(pos): return true
@@ -359,10 +402,36 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
   of WeavingLoomSpecialist:
     # Priority 1: Plant lantern if we have one
     if agent.inventoryLantern > 0:
-      # Find a good spot nearby to plant (simple: just plant north of current position)
-      return saveStateAndReturn(controller, agentId, state, [6'u8, 0'u8])  # Plant lantern North
+      # Prefer planting at least 2 tiles from any existing lantern
+      let plantDir = findPlantDirWithSpacing(env, agent.pos, 2'i32)
+      if plantDir >= 0:
+        return saveStateAndReturn(controller, agentId, state, [6'u8, plantDir.uint8])
+      # If no spot respects spacing, move away from nearest lantern and try later
+      let near = findNearestLantern(env, agent.pos)
+      if near.found and near.dist <= 2'i32:
+        # Step away from the nearest lantern
+        let away = agent.pos + ivec2(
+          (if agent.pos.x > near.pos.x: 1'i32 elif agent.pos.x < near.pos.x: -1'i32 else: 0'i32),
+          (if agent.pos.y > near.pos.y: 1'i32 elif agent.pos.y < near.pos.y: -1'i32 else: 0'i32)
+        )
+        return saveStateAndReturn(controller, agentId, state, [1'u8, neighborDirIndex(agent.pos, away).uint8])
+      # Fallback: keep searching/roaming
+      let nextSearchPos = getNextSpiralPoint(state, controller.rng)
+      return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, nextSearchPos, controller.rng).uint8])
     
-    # Priority 2: Craft lantern if we have wheat  
+    # Priority 2: If adjacent to an existing lantern without one to plant, push it further away
+    elif isAdjacentToLantern(env, agent.pos):
+      let near = findNearestLantern(env, agent.pos)
+      if near.found and near.dist == 1'i32:
+        # Move into the lantern tile to push it (env will relocate; we bias pushing away in moveAction)
+        return saveStateAndReturn(controller, agentId, state, [1'u8, neighborDirIndex(agent.pos, near.pos).uint8])
+      # If diagonally close, step to set up a push next
+      let dx = near.pos.x - agent.pos.x
+      let dy = near.pos.y - agent.pos.y
+      let step = agent.pos + ivec2((if dx != 0: dx div abs(dx) else: 0'i32), (if dy != 0: dy div abs(dy) else: 0'i32))
+      return saveStateAndReturn(controller, agentId, state, [1'u8, neighborDirIndex(agent.pos, step).uint8])
+
+    # Priority 3: Craft lantern if we have wheat  
     elif agent.inventoryWheat > 0:
       let loom = env.findNearestThingSpiral(state, WeavingLoom, controller.rng)
       if loom != nil:
