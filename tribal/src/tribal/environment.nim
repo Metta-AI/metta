@@ -8,8 +8,9 @@ const
   MapLayoutRoomsX* = 1
   MapLayoutRoomsY* = 1
   MapBorder* = 4
-  MapRoomWidth* = 96  # 100 - 4 border = 96
-  MapRoomHeight* = 46  # 50 - 4 border = 46
+  # Increase map size and target ~16:9 aspect by using 192x108 rooms
+  MapRoomWidth* = 192
+  MapRoomHeight* = 108
   MapRoomBorder* = 0
   
   # Reward constants
@@ -43,7 +44,7 @@ const
   MapObjectMineUseCost* = 0
   SpawnerCooldown* = 13  # Steps between Clippy spawns (1/3 of original 40)
   MinTintEpsilon* = 5   # Minimum tint threshold for visual effects
-  ObservationLayers* = 20
+  ObservationLayers* = 21
   ObservationWidth* = 11
   ObservationHeight* = 11
   # Computed
@@ -79,6 +80,7 @@ type
     AltarHeartsLayer = 17  # Hearts for respawning
     AltarReadyLayer = 18
     TintLayer = 19        # Unified tint layer for all environmental effects
+    AgentInventoryBreadLayer = 20  # Bread baked from clay oven
 
 
   ThingKind* = enum
@@ -328,6 +330,8 @@ proc updateObservations(env: Environment, agentId: int) =
         obs[8][x][y] = thing.inventoryLantern.uint8
         # Layer 9: AgentInventoryArmorLayer
         obs[9][x][y] = thing.inventoryArmor.uint8
+        # Layer 20: AgentInventoryBreadLayer
+        obs[20][x][y] = thing.inventoryBread.uint8
 
       of Wall:
         # Layer 10: WallLayer (shifted due to lantern layer)
@@ -701,6 +705,7 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       agent.inventoryBread += 1
       thing.cooldown = 10
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      env.updateObservations(AgentInventoryBreadLayer, agent.pos, agent.inventoryBread)
       # No observation layer for bread; optional for UI later
       agent.reward += env.config.foodReward
       inc env.stats[id].actionUse
@@ -781,6 +786,11 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
     transferred = true
   if transferred:
     inc env.stats[id].actionPut
+    # Update observations for changed inventories
+    env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
+    env.updateObservations(AgentInventoryArmorLayer, target.pos, target.inventoryArmor)
+    env.updateObservations(AgentInventoryBreadLayer, agent.pos, agent.inventoryBread)
+    env.updateObservations(AgentInventoryBreadLayer, target.pos, target.inventoryBread)
   else:
     inc env.stats[id].actionInvalid
 # ============== CLIPPY AI ==============
@@ -1719,6 +1729,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
           env.updateObservations(AgentInventoryBatteryLayer, adjacentThing.pos, 0)
           env.updateObservations(AgentInventoryLanternLayer, adjacentThing.pos, 0)
           env.updateObservations(AgentInventoryArmorLayer, adjacentThing.pos, 0)
+          env.updateObservations(AgentInventoryBreadLayer, adjacentThing.pos, 0)
         
         # Break after first combat (clippy is already dead)
         break
