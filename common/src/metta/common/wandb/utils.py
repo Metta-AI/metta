@@ -35,7 +35,7 @@ def send_wandb_alert(title: str, text: str, run_id: str, project: str, entity: s
         id=run_id,
         project=project,
         entity=entity,
-        resume="must",
+        resume="allow",
         settings=wandb.Settings(init_timeout=15, silent=True, x_disable_stats=True, x_disable_meta=True),
     )
     try:
