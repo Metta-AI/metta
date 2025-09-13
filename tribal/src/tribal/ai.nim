@@ -239,8 +239,6 @@ proc getMoveTowards(env: Environment, fromPos, toPos: IVec2, rng: var Rand): int
   # All blocked, try random movement
   return rng.rand(0..3)
 
-proc manhattanDistance(a, b: IVec2): int =
-  abs(a.x - b.x) + abs(a.y - b.y)
 
 proc decideAction*(controller: Controller, env: Environment, agentId: int): array[2, uint8] =
   let agent = env.agents[agentId]
@@ -346,13 +344,15 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
       candidates[i] = candidates[j]
       candidates[j] = tmp
     for d in candidates:
-      if env.isEmpty(agent.pos + d):
+      if isPassable(env, agent.pos + d):
         state.lastPosition = agent.pos
         return saveStateAndReturn(controller, agentId, state, [1'u8, vecToOrientation(d).uint8])
 
   # From here on, ensure lastPosition is updated this tick regardless of branch
   state.lastPosition = agent.pos
-  
+  # Anchor spiral search around current agent position each tick
+  state.basePosition = agent.pos
+
   # Role-based decision making
   case state.role:
   
@@ -370,7 +370,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         let dy = abs(loom.pos.y - agent.pos.y)
         if max(dx, dy) == 1'i32:
           # Adjacent (8-neighborhood) to loom - craft lantern
-          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, loom.pos).uint8])
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, loom.pos).uint8])
         else:
           # Move toward loom
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, loom.pos, controller.rng).uint8])
@@ -400,7 +400,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         let dx = abs(armory.pos.x - agent.pos.x)
         let dy = abs(armory.pos.y - agent.pos.y)
         if max(dx, dy) == 1'i32:
-          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, armory.pos).uint8])
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, armory.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, armory.pos, controller.rng).uint8])
       else:
@@ -446,7 +446,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         let dx = abs(forge.pos.x - agent.pos.x)
         let dy = abs(forge.pos.y - agent.pos.y)
         if max(dx, dy) == 1'i32:
-          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, forge.pos).uint8])
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, forge.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, forge.pos, controller.rng).uint8])
     
@@ -473,7 +473,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         let dx = abs(oven.pos.x - agent.pos.x)
         let dy = abs(oven.pos.y - agent.pos.y)
         if max(dx, dy) == 1'i32:
-          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, oven.pos).uint8])
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, oven.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, oven.pos, controller.rng).uint8])
       else:
@@ -505,7 +505,7 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
           let dx = abs(thing.pos.x - agent.pos.x)
           let dy = abs(thing.pos.y - agent.pos.y)
           if max(dx, dy) == 1'i32:
-            return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, thing.pos).uint8])
+            return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, thing.pos).uint8])
           else:
             return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, thing.pos, controller.rng).uint8])
     
@@ -516,7 +516,8 @@ proc decideAction*(controller: Controller, env: Environment, agentId: int): arra
         let dx = abs(converterThing.pos.x - agent.pos.x)
         let dy = abs(converterThing.pos.y - agent.pos.y)
         if max(dx, dy) == 1'i32:
-          return saveStateAndReturn(controller, agentId, state, [5'u8, neighborDirIndex(agent.pos, converterThing.pos).uint8])
+          # Converter uses GET to consume ore and produce battery
+          return saveStateAndReturn(controller, agentId, state, [3'u8, neighborDirIndex(agent.pos, converterThing.pos).uint8])
         else:
           return saveStateAndReturn(controller, agentId, state, [1'u8, getMoveTowards(env, agent.pos, converterThing.pos, controller.rng).uint8])
       else:

@@ -129,14 +129,13 @@ type
     # Spawner: (no longer needs altar targeting for new creep spread behavior)
 
   Stats* = ref object
-    # Agent Stats - aligned with 6 core actions:
+    # Agent Stats - simplified actions:
     actionInvalid*: int
     actionNoop*: int     # Action 0: NOOP
     actionMove*: int     # Action 1: MOVE  
     actionAttack*: int   # Action 2: ATTACK
-    actionGet*: int      # Action 3: GET (from terrain/buildings)
+    actionUse*: int      # Action 3: USE (terrain/buildings)
     actionSwap*: int     # Action 4: SWAP
-    actionPut*: int      # Action 5: PUT (into buildings)
     actionPlant*: int    # Action 6: PLANT lantern
 
   TileColor* = object
@@ -558,15 +557,15 @@ proc attackAction(env: Environment, id: int, agent: Thing, argument: int) =
     # Attack missed or no valid target
     inc env.stats[id].actionInvalid
 
-proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Get resources from terrain (water, wheat, wood) - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
+proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
+  ## Use terrain or building with a single action (requires holding needed resource if any)
   if argument > 7:
     inc env.stats[id].actionInvalid
     return
   
   # Calculate target position based on orientation argument
-  let getOrientation = Orientation(argument)
-  let delta = getOrientationDelta(getOrientation)
+  let useOrientation = Orientation(argument)
+  let delta = getOrientationDelta(useOrientation)
   var targetPos = agent.pos
   targetPos.x += int32(delta.x)
   targetPos.y += int32(delta.y)
@@ -575,133 +574,90 @@ proc getAction(env: Environment, id: int, agent: Thing, argument: int) =
   if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
     inc env.stats[id].actionInvalid
     return
-  
-  # Check what terrain is at target position
+
+  # Terrain use first
   case env.terrain[targetPos.x][targetPos.y]:
   of Water:
-    # Get water (max 5 water inventory)
-    if agent.inventoryWater < 5:
+    if agent.inventoryWater < MapObjectAgentMaxInventory:
       agent.inventoryWater += 1
-      env.terrain[targetPos.x][targetPos.y] = Empty  # Remove water tile
+      env.terrain[targetPos.x][targetPos.y] = Empty
       env.updateObservations(AgentInventoryWaterLayer, agent.pos, agent.inventoryWater)
-      agent.reward += env.config.waterReward  # Small shaped reward
-      inc env.stats[id].actionGet
+      agent.reward += env.config.waterReward
+      inc env.stats[id].actionUse
+      return
     else:
-      inc env.stats[id].actionInvalid  # Inventory full
-  
+      inc env.stats[id].actionInvalid
+      return
   of Wheat:
-    # Get wheat (max 5 wheat inventory)
-    if agent.inventoryWheat < 5:
+    if agent.inventoryWheat < MapObjectAgentMaxInventory:
       agent.inventoryWheat += 1
-      env.terrain[targetPos.x][targetPos.y] = Empty  # Remove wheat tile
+      env.terrain[targetPos.x][targetPos.y] = Empty
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
-      env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
-      agent.reward += env.config.wheatReward  # Small shaped reward
-      inc env.stats[id].actionGet
+      agent.reward += env.config.wheatReward
+      inc env.stats[id].actionUse
+      return
     else:
-      inc env.stats[id].actionInvalid  # Inventory full
-  
+      inc env.stats[id].actionInvalid
+      return
   of Tree:
-    # Get wood (max 5 wood inventory)
-    if agent.inventoryWood < 5:
+    if agent.inventoryWood < MapObjectAgentMaxInventory:
       agent.inventoryWood += 1
-      env.terrain[targetPos.x][targetPos.y] = Empty  # Remove tree tile
-      env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+      env.terrain[targetPos.x][targetPos.y] = Empty
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
-      agent.reward += env.config.woodReward  # Small shaped reward (slightly higher for spear path)
-      inc env.stats[id].actionGet
+      agent.reward += env.config.woodReward
+      inc env.stats[id].actionUse
+      return
     else:
-      inc env.stats[id].actionInvalid  # Inventory full
-  
+      inc env.stats[id].actionInvalid
+      return
   of Empty:
-    # Check if there's a building at this position
-    let thing = env.getThing(targetPos)
-    if not isNil(thing):
-      # Universal check: prevent using frozen buildings
-      if isBuildingFrozen(targetPos, env):
-        inc env.stats[id].actionInvalid  # Building is frozen, cannot use
-        return
-      
-      # Handle getting outputs from buildings
-      case thing.kind:
-      of Mine:
-        # Get ore from mine  
-        if thing.cooldown == 0 and agent.inventoryOre < MapObjectAgentMaxInventory:
-          agent.inventoryOre += 1
-          env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
-          thing.cooldown = MapObjectMineCooldown
-          env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
-          # Inventory-based reward shaping: only reward if this was their first ore
-          if agent.inventoryOre == 1:
-            agent.reward += env.config.oreReward
-          inc env.stats[id].actionGet
-        else:
-          inc env.stats[id].actionInvalid
-      of Converter:
-        # Get battery from converter (requires ore to put in)
-        if thing.cooldown == 0 and agent.inventoryOre > 0 and agent.inventoryBattery < MapObjectAgentMaxInventory:
-          agent.inventoryOre -= 1
-          agent.inventoryBattery += 1
-          env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
-          env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
-          thing.cooldown = 0  # Instant conversion
-          env.updateObservations(ConverterReadyLayer, thing.pos, 1)
-          # Inventory-based reward shaping: only reward if this was their first battery
-          if agent.inventoryBattery == 1:
-            agent.reward += env.config.batteryReward
-          inc env.stats[id].actionGet
-        else:
-          inc env.stats[id].actionInvalid
-      else:
-        inc env.stats[id].actionInvalid  # Can't get from this building type
-    else:
-      inc env.stats[id].actionInvalid  # Nothing to get
+    discard
 
-proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
-  ## Put resources into buildings to get crafted items - argument specifies direction (0=N, 1=S, 2=W, 3=E, 4=NW, 5=NE, 6=SW, 7=SE)
-  if argument > 7:
-    inc env.stats[id].actionInvalid
-    return
-  
-  # Calculate target position based on orientation argument
-  let putOrientation = Orientation(argument)
-  let delta = getOrientationDelta(putOrientation)
-  var targetPos = agent.pos
-  targetPos.x += int32(delta.x)
-  targetPos.y += int32(delta.y)
-  
-  # Check bounds
-  if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
-    inc env.stats[id].actionInvalid
-    return
-  
+  # Building use
   let thing = env.getThing(targetPos)
   if isNil(thing):
     inc env.stats[id].actionInvalid
     return
-  
-  # Universal check: prevent using frozen buildings
+  # Prevent using frozen buildings
   if isBuildingFrozen(targetPos, env):
-    inc env.stats[id].actionInvalid  # Building is frozen, cannot use
+    inc env.stats[id].actionInvalid
     return
-  
-  # Handle putting resources into buildings
+
   case thing.kind:
+  of Mine:
+    if thing.cooldown == 0 and agent.inventoryOre < MapObjectAgentMaxInventory:
+      agent.inventoryOre += 1
+      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+      thing.cooldown = MapObjectMineCooldown
+      env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
+      if agent.inventoryOre == 1: agent.reward += env.config.oreReward
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
+  of Converter:
+    if thing.cooldown == 0 and agent.inventoryOre > 0 and agent.inventoryBattery < MapObjectAgentMaxInventory:
+      agent.inventoryOre -= 1
+      agent.inventoryBattery += 1
+      env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+      env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
+      thing.cooldown = 0
+      env.updateObservations(ConverterReadyLayer, thing.pos, 1)
+      if agent.inventoryBattery == 1: agent.reward += env.config.batteryReward
+      inc env.stats[id].actionUse
+    else:
+      inc env.stats[id].actionInvalid
   of Forge:
-    # Put wood into forge → get spear
     if thing.cooldown == 0 and agent.inventoryWood > 0 and agent.inventorySpear == 0:
       agent.inventoryWood -= 1
-      agent.inventorySpear = 5  # Spear starts with 5 uses
+      agent.inventorySpear = 5
       thing.cooldown = 5
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
       agent.reward += env.config.spearReward
-      inc env.stats[id].actionPut
+      inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
-  
   of WeavingLoom:
-    # Put wheat into weaving loom → get lantern
     if thing.cooldown == 0 and agent.inventoryWheat > 0 and agent.inventoryLantern == 0:
       agent.inventoryWheat -= 1
       agent.inventoryLantern = 1
@@ -709,36 +665,30 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       env.updateObservations(AgentInventoryLanternLayer, agent.pos, agent.inventoryLantern)
       agent.reward += env.config.clothReward
-      inc env.stats[id].actionPut
+      inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
-  
   of Armory:
-    # Put wood into armory → get armor
     if thing.cooldown == 0 and agent.inventoryWood > 0 and agent.inventoryArmor == 0:
       agent.inventoryWood -= 1
-      agent.inventoryArmor = 5  # Armor starts with 5 uses
+      agent.inventoryArmor = 5
       thing.cooldown = 20
       env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
       env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
       agent.reward += env.config.armorReward
-      inc env.stats[id].actionPut
+      inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
-  
   of ClayOven:
-    # Put wheat into clay oven → get food
     if thing.cooldown == 0 and agent.inventoryWheat > 0:
       agent.inventoryWheat -= 1
       thing.cooldown = 10
       env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
       agent.reward += env.config.foodReward
-      inc env.stats[id].actionPut
+      inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
-  
   of Altar:
-    # Put battery into altar → add heart
     if thing.cooldown == 0 and agent.inventoryBattery >= 1:
       agent.inventoryBattery -= 1
       thing.hearts += 1
@@ -747,12 +697,11 @@ proc putAction(env: Environment, id: int, agent: Thing, argument: int) =
       env.updateObservations(AltarHeartsLayer, thing.pos, thing.hearts)
       env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
       agent.reward += env.config.heartReward
-      inc env.stats[id].actionPut
+      inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
-  
   else:
-    inc env.stats[id].actionInvalid  # Can't put into this building type
+    inc env.stats[id].actionInvalid
 
 proc swapAction(env: Environment, id: int, agent: Thing, argument: int) =
   ## Swap
@@ -1516,9 +1465,8 @@ proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
     of 0: env.noopAction(id, agent)
     of 1: env.moveAction(id, agent, action[1].int)
     of 2: env.attackAction(id, agent, action[1].int)
-    of 3: env.getAction(id, agent, action[1].int)  # Get from terrain/buildings
+    of 3: env.useAction(id, agent, action[1].int)  # Use terrain/buildings
     of 4: env.swapAction(id, agent, action[1].int)
-    of 5: env.putAction(id, agent, action[1].int)
     of 6: env.plantAction(id, agent, action[1].int)  # Plant lantern
     else: inc env.stats[id].actionInvalid
 
