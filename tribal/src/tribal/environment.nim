@@ -1146,10 +1146,6 @@ proc init(env: Environment) =
         env.add(Thing(kind: Wall, pos: ivec2(j, y)))
         env.add(Thing(kind: Wall, pos: ivec2(MapWidth - j - 1, y)))
 
-  for i in 0 ..< MapRoomObjectsWalls:
-    let pos = r.randomEmptyPos(env)
-    env.add(Thing(kind: Wall, pos: pos))
-
   # Agents will now spawn with their villages/houses below
   # Clear and prepare village colors arrays
   agentVillageColors.setLen(MapRoomObjectsAgents)  # Allocate space for all agents
@@ -1158,19 +1154,15 @@ proc init(env: Environment) =
   # Spawn houses with their altars, walls, and associated agents (tribes)
   let numHouses = MapRoomObjectsHouses
   var totalAgentsSpawned = 0
-  var usedCorners: seq[int] = @[]  # Track which corners have been used
   for i in 0 ..< numHouses:
     # Use the new unified placement system
     let houseStruct = createHouse()
     var gridPtr = cast[PlacementGrid](env.grid.addr)
     var terrainPtr = env.terrain.addr
-    let placementResult = findPlacement(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = true, excludedCorners = usedCorners)
+    # Simplify: random placement anywhere valid (no corner preference)
+    let placementResult = findPlacement(gridPtr, terrainPtr, houseStruct, MapWidth, MapHeight, MapBorder, r, preferCorners = false)
     
     if placementResult.success:  # Valid location found
-      # Track which corner was used (if any)
-      if placementResult.cornerUsed >= 0:
-        usedCorners.add(placementResult.cornerUsed)
-      
       let elements = getStructureElements(houseStruct, placementResult.position)
       
       # Clear terrain within the house area to create a clearing
@@ -1301,6 +1293,11 @@ proc init(env: Environment) =
       
       # Note: Entrances are left empty (no walls placed there)
   
+  # Now place additional random walls after villages to avoid blocking corner placement
+  for i in 0 ..< MapRoomObjectsWalls:
+    let pos = r.randomEmptyPos(env)
+    env.add(Thing(kind: Wall, pos: pos))
+  
   # If there are still agents to spawn (e.g., if not enough houses), spawn them randomly
   # They will get a neutral color
   let neutralColor = color(0.5, 0.5, 0.5, 1.0)  # Gray for unaffiliated agents
@@ -1330,142 +1327,92 @@ proc init(env: Environment) =
     
     totalAgentsSpawned += 1
 
-  # Calculate spawner positions in the middle area of the map
-  # Spawners are distributed to provide equal access from corners
-  
-  let centerX = MapWidth div 2
-  let centerY = MapHeight div 2
-  
-  # Define spawner positions based on number of houses
-  var spawnerPositions: seq[IVec2] = @[]
-  
-  if numHouses == 3:
-    # For 3 houses/altars, create a triangular spawner arrangement
-    # Place spawners in positions that are equidistant from center but closer to their respective corners
-    spawnerPositions = @[
-      ivec2(centerX - 15, centerY - 8),  # Upper-left spawner
-      ivec2(centerX + 15, centerY - 8),  # Upper-right spawner
-      ivec2(centerX, centerY + 10)       # Bottom-center spawner
-    ]
-  elif numHouses == 4:
-    # For 4 houses, create a square pattern
-    spawnerPositions = @[
-      ivec2(centerX - 15, centerY - 8),
-      ivec2(centerX + 15, centerY - 8),
-      ivec2(centerX - 15, centerY + 8),
-      ivec2(centerX + 15, centerY + 8)
-    ]
-  else:
-    # Fallback: distribute spawners evenly in a circle around center
-    for i in 0 ..< numHouses:
-      let angle = (2.0 * PI * i.float) / numHouses.float
-      let radius = 15.0
-      let x = centerX + (radius * cos(angle)).int
-      let y = centerY + (radius * sin(angle)).int
-      spawnerPositions.add(ivec2(x, y))
-  
-  # Spawn spawners with Clippys at calculated positions
-  for i in 0 ..< spawnerPositions.len:
+  # Random spawner placement with a simple minimum distance from villages
+  # Gather altar positions for distance checks
+  var altarPositionsNow: seq[IVec2] = @[]
+  for thing in env.things:
+    if thing.kind == Altar:
+      altarPositionsNow.add(thing.pos)
+
+  let numSpawners = numHouses
+  let minDist = 20  # tiles; simple guard so spawner isn't extremely close to a village
+  let minDist2 = minDist * minDist
+
+  for i in 0 ..< numSpawners:
     let spawnerStruct = createSpawner()
-    var targetPos = spawnerPositions[i]
-    
-    # Try to place spawner at or near the target position
     var placed = false
-    for attempt in 0 ..< 10:
-      # Add some random offset if initial position is blocked
-      if attempt > 0:
-        targetPos = spawnerPositions[i] + ivec2(
-          r.rand(-5 .. 5),
-          r.rand(-5 .. 5)
-        )
-      
-      # Check if position is valid (within bounds and not on water/walls)
-      if targetPos.x >= MapBorder + spawnerStruct.width div 2 and 
-         targetPos.x < MapWidth - MapBorder - spawnerStruct.width div 2 and
-         targetPos.y >= MapBorder + spawnerStruct.height div 2 and 
-         targetPos.y < MapHeight - MapBorder - spawnerStruct.height div 2:
-        
-        # Check if area is clear
-        var areaValid = true
-        for dx in -(spawnerStruct.width div 2) .. (spawnerStruct.width div 2):
-          for dy in -(spawnerStruct.height div 2) .. (spawnerStruct.height div 2):
-            let checkPos = targetPos + ivec2(dx, dy)
-            if checkPos.x >= 0 and checkPos.x < MapWidth and 
-               checkPos.y >= 0 and checkPos.y < MapHeight:
-              if not env.isEmpty(checkPos) or env.terrain[checkPos.x][checkPos.y] == Water:
-                areaValid = false
-                break
-          if not areaValid:
-            break
-        
-        if areaValid:
-          # Clear terrain within the spawner area
-          for dx in -(spawnerStruct.width div 2) .. (spawnerStruct.width div 2):
-            for dy in -(spawnerStruct.height div 2) .. (spawnerStruct.height div 2):
-              let clearPos = targetPos + ivec2(dx, dy)
-              if clearPos.x >= 0 and clearPos.x < MapWidth and 
-                 clearPos.y >= 0 and clearPos.y < MapHeight:
-                if env.terrain[clearPos.x][clearPos.y] != Water:
-                  env.terrain[clearPos.x][clearPos.y] = Empty
-          
-          # Add the spawner
-          env.add(Thing(
-            kind: Spawner,
-            pos: targetPos,
-            cooldown: 0,
-            homeSpawner: targetPos  # A spawner is its own home
-          ))
-          
-          # Find an empty position adjacent to the spawner for initial clippy
-          let nearbyPositions = env.findEmptyPositionsAround(targetPos, 1)
-          if nearbyPositions.len > 0:
-            env.add(createClippy(nearbyPositions[0], targetPos, r))
-          
-          placed = true
-          break
+    var targetPos: IVec2
     
-    # Fall back to random placement if position is blocked
-    if not placed:
-      # Simple random placement fallback
-      var fallbackPos = r.randomEmptyPos(env)
+    for attempt in 0 ..< 200:
+      targetPos = r.randomEmptyPos(env)
+      # Keep within borders allowing spawner bounds
+      if targetPos.x < MapBorder + spawnerStruct.width div 2 or
+         targetPos.x >= MapWidth - MapBorder - spawnerStruct.width div 2 or
+         targetPos.y < MapBorder + spawnerStruct.height div 2 or
+         targetPos.y >= MapHeight - MapBorder - spawnerStruct.height div 2:
+        continue
       
-      # Try to find a clear area for the spawner
-      for attempt in 0 ..< 20:
-        fallbackPos = r.randomEmptyPos(env)
-        # Check if we have enough space around this position
-        var hasSpace = true
-        for dx in -1 .. 1:
-          for dy in -1 .. 1:
-            let checkPos = fallbackPos + ivec2(dx, dy)
-            if checkPos.x < MapBorder or checkPos.x >= MapWidth - MapBorder or
-               checkPos.y < MapBorder or checkPos.y >= MapHeight - MapBorder or
-               not env.isEmpty(checkPos) or env.terrain[checkPos.x][checkPos.y] == Water:
-              hasSpace = false
-              break
-          if not hasSpace:
+      # Check simple area clear (3x3)
+      var areaValid = true
+      for dx in -(spawnerStruct.width div 2) .. (spawnerStruct.width div 2):
+        for dy in -(spawnerStruct.height div 2) .. (spawnerStruct.height div 2):
+          let checkPos = targetPos + ivec2(dx, dy)
+          if checkPos.x < 0 or checkPos.x >= MapWidth or checkPos.y < 0 or checkPos.y >= MapHeight:
+            areaValid = false
             break
-        
-        if hasSpace:
-          # Clear terrain around the spawner
-          for dx in -1 .. 1:
-            for dy in -1 .. 1:
-              let clearPos = fallbackPos + ivec2(dx, dy)
-              if clearPos.x >= 0 and clearPos.x < MapWidth and 
-                 clearPos.y >= 0 and clearPos.y < MapHeight:
-                if env.terrain[clearPos.x][clearPos.y] != Water:
-                  env.terrain[clearPos.x][clearPos.y] = Empty
-          
-          env.add(Thing(
-            kind: Spawner,
-            pos: fallbackPos,
-            cooldown: 0,
-            homeSpawner: fallbackPos
-          ))
-          
-          let nearbyPositions = env.findEmptyPositionsAround(fallbackPos, 1)
-          if nearbyPositions.len > 0:
-            env.add(createClippy(nearbyPositions[0], fallbackPos, r))
+          if not env.isEmpty(checkPos) or env.terrain[checkPos.x][checkPos.y] == Water:
+            areaValid = false
+            break
+        if not areaValid:
           break
+
+      if not areaValid:
+        continue
+
+      # Enforce min distance from any altar (Euclidean squared)
+      var okDistance = true
+      for ap in altarPositionsNow:
+        let dx = int(targetPos.x) - int(ap.x)
+        let dy = int(targetPos.y) - int(ap.y)
+        if dx*dx + dy*dy < minDist2:
+          okDistance = false
+          break
+      if not okDistance:
+        continue
+
+      # Clear terrain and place spawner
+      for dx in -(spawnerStruct.width div 2) .. (spawnerStruct.width div 2):
+        for dy in -(spawnerStruct.height div 2) .. (spawnerStruct.height div 2):
+          let clearPos = targetPos + ivec2(dx, dy)
+          if clearPos.x >= 0 and clearPos.x < MapWidth and clearPos.y >= 0 and clearPos.y < MapHeight:
+            if env.terrain[clearPos.x][clearPos.y] != Water:
+              env.terrain[clearPos.x][clearPos.y] = Empty
+
+      env.add(Thing(
+        kind: Spawner,
+        pos: targetPos,
+        cooldown: 0,
+        homeSpawner: targetPos
+      ))
+
+      let nearbyPositions = env.findEmptyPositionsAround(targetPos, 1)
+      if nearbyPositions.len > 0:
+        env.add(createClippy(nearbyPositions[0], targetPos, r))
+      placed = true
+      break
+
+    # If we fail to satisfy distance after attempts, place anywhere random
+    if not placed:
+      targetPos = r.randomEmptyPos(env)
+      env.add(Thing(
+        kind: Spawner,
+        pos: targetPos,
+        cooldown: 0,
+        homeSpawner: targetPos
+      ))
+      let nearbyPositions = env.findEmptyPositionsAround(targetPos, 1)
+      if nearbyPositions.len > 0:
+        env.add(createClippy(nearbyPositions[0], targetPos, r))
 
   for i in 0 ..< MapRoomObjectsConverters:
     let pos = r.randomEmptyPos(env)

@@ -76,11 +76,13 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
   # Reserve corners for villages so river doesn't block them
   let reserve = max(8, min(mapWidth, mapHeight) div 10)
   
-  # Start near left edge but away from top/bottom corner reserves
-  var currentPos = toIVec2(
-    mapBorder,
-    r.rand(mapBorder + RiverWidth + reserve .. mapHeight - mapBorder - RiverWidth - reserve)
-  )
+  # Start near left edge and centered vertically (avoid corner reserves)
+  let centerY = mapHeight div 2
+  let span = max(6, mapHeight div 6)
+  var startMin = max(mapBorder + RiverWidth + reserve, centerY - span)
+  var startMax = min(mapHeight - mapBorder - RiverWidth - reserve, centerY + span)
+  if startMin > startMax: swap(startMin, startMax)
+  var currentPos = toIVec2(mapBorder, r.rand(startMin .. startMax))
   
   var hasFork = false
   var forkPoint: IVec2
@@ -90,27 +92,51 @@ proc generateRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: in
         currentPos.y >= mapBorder and currentPos.y < mapHeight - mapBorder:
     riverPath.add(currentPos)
     
-    if not hasFork and riverPath.len > max(20, mapWidth div 8) and r.rand(1.0) < 0.4:
+    if not hasFork and riverPath.len > max(20, mapWidth div 8) and r.rand(1.0) < 0.5:
       hasFork = true
       forkPoint = currentPos
       
-      var secondaryDirection = toIVec2(1, r.sample(@[-1, 1]))  # Flow right and either up or down
+      # Choose direction toward nearest vertical edge so branch reaches top/bottom
+      let towardTop = int(forkPoint.y) - mapBorder
+      let towardBottom = (mapHeight - mapBorder) - int(forkPoint.y)
+      let dirY = (if towardTop < towardBottom: -1 else: 1)
+      var secondaryDirection = toIVec2(1, dirY)  # Right + up or down
       
       var secondaryPos = forkPoint
-      let branchLen = max(30, mapWidth div 6)
-      for i in 0 ..< branchLen:  # Longer secondary branch for wider map
-        secondaryPos.x += 1  # Always move right
-        secondaryPos.y += secondaryDirection.y  # Move in chosen vertical direction
-        if r.rand(1.0) < 0.2:
+      # March until we reach top/bottom bounds (with safety cap)
+      let maxSteps = max(mapWidth * 2, mapHeight * 2)
+      var steps = 0
+      while secondaryPos.y > mapBorder + RiverWidth and secondaryPos.y < mapHeight - mapBorder - RiverWidth and steps < maxSteps:
+        secondaryPos.x += 1
+        # Bias vertical move strongly toward edge, with small meander
+        secondaryPos.y += secondaryDirection.y
+        if r.rand(1.0) < 0.15:
           secondaryPos.y += r.sample(@[-1, 0, 1]).int32
-        
         if secondaryPos.x >= mapBorder and secondaryPos.x < mapWidth - mapBorder and
            secondaryPos.y >= mapBorder and secondaryPos.y < mapHeight - mapBorder:
-          # Avoid carving water in reserved corner areas
           if not inCornerReserve(secondaryPos.x, secondaryPos.y, mapWidth, mapHeight, mapBorder, reserve):
             secondaryPath.add(secondaryPos)
         else:
           break
+        inc steps
+      # Ensure the branch touches the edge vertically with a short vertical run
+      var tip = secondaryPos
+      var pushSteps = 0
+      let maxPush = mapHeight
+      if dirY < 0:
+        while tip.y > mapBorder and pushSteps < maxPush:
+          dec tip.y
+          if tip.x >= mapBorder and tip.x < mapWidth - mapBorder and tip.y >= mapBorder and tip.y < mapHeight - mapBorder:
+            if not inCornerReserve(tip.x, tip.y, mapWidth, mapHeight, mapBorder, reserve):
+              secondaryPath.add(tip)
+          inc pushSteps
+      else:
+        while tip.y < mapHeight - mapBorder and pushSteps < maxPush:
+          inc tip.y
+          if tip.x >= mapBorder and tip.x < mapWidth - mapBorder and tip.y >= mapBorder and tip.y < mapHeight - mapBorder:
+            if not inCornerReserve(tip.x, tip.y, mapWidth, mapHeight, mapBorder, reserve):
+              secondaryPath.add(tip)
+          inc pushSteps
     
     currentPos.x += 1  # Always move right
     if r.rand(1.0) < 0.3:
@@ -226,10 +252,12 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
   
   # Start on the left edge but away from corner reserves
   let reserve = max(8, min(mapWidth, mapHeight) div 10)
-  var currentPos = ivec2(
-    mapBorder.int32,
-    r.rand(mapBorder + RiverWidth + reserve .. mapHeight - mapBorder - RiverWidth - reserve).int32
-  )
+  let centerY = mapHeight div 2
+  let span = max(6, mapHeight div 6)
+  var startMin = max(mapBorder + RiverWidth + reserve, centerY - span)
+  var startMax = min(mapHeight - mapBorder - RiverWidth - reserve, centerY + span)
+  if startMin > startMax: swap(startMin, startMax)
+  var currentPos = ivec2(mapBorder.int32, r.rand(startMin .. startMax).int32)
   
   var hasFork = false
   var forkPoint: IVec2
@@ -240,26 +268,47 @@ proc placeRiver*(terrain: var TerrainGrid, mapWidth, mapHeight, mapBorder: int,
     result.add(currentPos)
     
     # Possible fork (scale with map width)
-    if not hasFork and result.len > max(20, mapWidth div 8) and r.rand(1.0) < 0.4:
+    if not hasFork and result.len > max(20, mapWidth div 8) and r.rand(1.0) < 0.5:
       hasFork = true
       forkPoint = currentPos
       
-      var secondaryDirection = ivec2(1, r.sample(@[-1, 1]).int32)
+      let towardTop = int(forkPoint.y) - mapBorder
+      let towardBottom = (mapHeight - mapBorder) - int(forkPoint.y)
+      let dirY = (if towardTop < towardBottom: -1 else: 1)
+      var secondaryDirection = toIVec2(1, dirY)
       var secondaryPos = forkPoint
-      
-      let branchLen = max(30, mapWidth div 6)
-      for i in 0 ..< branchLen:
+      let maxSteps = max(mapWidth * 2, mapHeight * 2)
+      var steps = 0
+      while secondaryPos.y > mapBorder + RiverWidth and secondaryPos.y < mapHeight - mapBorder - RiverWidth and steps < maxSteps:
         secondaryPos.x += 1
         secondaryPos.y += secondaryDirection.y
-        if r.rand(1.0) < 0.2:
+        if r.rand(1.0) < 0.15:
           secondaryPos.y += r.sample(@[-1, 0, 1]).int32
-        
         if secondaryPos.x >= mapBorder and secondaryPos.x < mapWidth - mapBorder and
            secondaryPos.y >= mapBorder and secondaryPos.y < mapHeight - mapBorder:
           if not inCornerReserve(secondaryPos.x, secondaryPos.y, mapWidth, mapHeight, mapBorder, reserve):
             secondaryPath.add(secondaryPos)
         else:
           break
+        inc steps
+      # Ensure the branch touches the vertical edge
+      var tip = secondaryPos
+      var pushSteps = 0
+      let maxPush = mapHeight
+      if dirY < 0:
+        while tip.y > mapBorder and pushSteps < maxPush:
+          dec tip.y
+          if tip.x >= mapBorder and tip.x < mapWidth - mapBorder and tip.y >= mapBorder and tip.y < mapHeight - mapBorder:
+            if not inCornerReserve(tip.x, tip.y, mapWidth, mapHeight, mapBorder, reserve):
+              secondaryPath.add(tip)
+          inc pushSteps
+      else:
+        while tip.y < mapHeight - mapBorder and pushSteps < maxPush:
+          inc tip.y
+          if tip.x >= mapBorder and tip.x < mapWidth - mapBorder and tip.y >= mapBorder and tip.y < mapHeight - mapBorder:
+            if not inCornerReserve(tip.x, tip.y, mapWidth, mapHeight, mapBorder, reserve):
+              secondaryPath.add(tip)
+          inc pushSteps
     
     # Move primarily right with meandering
     currentPos.x += 1
