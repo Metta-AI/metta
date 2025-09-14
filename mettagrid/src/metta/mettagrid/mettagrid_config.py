@@ -80,6 +80,7 @@ class ActionsConfig(Config):
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
+    move_and_activate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))  # Move-to-use action
 
 
 class GlobalObsConfig(Config):

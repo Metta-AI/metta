@@ -15,6 +15,7 @@
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
+#include "actions/move_and_activate.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
 #include "actions/rotate.hpp"
@@ -101,6 +102,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name == "change_color") {
       _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
+    } else if (action_name == "move_and_activate") {
+      _action_handlers.push_back(std::make_unique<MoveAndActivate>(*action_config, &_game_config));
     } else {
       throw std::runtime_error("Unknown action: " + action_name);
     }
