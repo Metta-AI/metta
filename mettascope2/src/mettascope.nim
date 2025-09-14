@@ -34,7 +34,7 @@ find "/UI/Main":
   onShow:
     # Build the atlas.
     for path in walkDirRec("data/"):
-      if path.endsWith(".png"):
+      if path.endsWith(".png") and "fidget" notin path:
         echo path
         bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
 
