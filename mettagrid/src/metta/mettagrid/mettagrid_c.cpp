@@ -27,6 +27,8 @@
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/converter_config.hpp"
+#include "objects/group_converter.hpp"
+#include "objects/group_converter_config.hpp"
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
@@ -179,6 +181,40 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
+        continue;
+      }
+
+      const GroupConverterConfig* group_converter_config = dynamic_cast<const GroupConverterConfig*>(object_cfg);
+      if (group_converter_config) {
+        // Create GroupConverter using base ConverterConfig fields
+        ConverterConfig base_config(
+          group_converter_config->type_id,
+          "group_converter",
+          {}, // input_resources - managed by recipes
+          {}, // output_resources - managed by recipes
+          group_converter_config->max_output,
+          group_converter_config->max_conversions,
+          group_converter_config->conversion_ticks,
+          group_converter_config->cooldown,
+          0, // initial_resource_count
+          group_converter_config->color
+        );
+
+        GroupConverter* group_converter = new GroupConverter(r, c, base_config);
+
+        // Add all recipes
+        for (const auto& [pattern, recipe] : group_converter_config->recipes) {
+          GroupConverter::Recipe cpp_recipe(
+            recipe.input_resources,
+            recipe.output_resources
+          );
+          group_converter->add_recipe(pattern, cpp_recipe);
+        }
+
+        _grid->add_object(group_converter);
+        _stats->incr("objects." + cell);
+        group_converter->set_event_manager(_event_manager.get());
+        group_converter->stats.set_environment(this);
         continue;
       }
 
@@ -923,6 +959,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   bind_agent_config(m);
   bind_converter_config(m);
+  bind_group_converter_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);

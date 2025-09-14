@@ -1,4 +1,5 @@
 from typing import Any, Literal, Optional
+from enum import Enum
 
 from pydantic import ConfigDict, Field, model_validator
 
@@ -8,6 +9,19 @@ from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 # ===== Python Configuration Models =====
+
+
+class Direction(Enum):
+    """Direction enumeration for recipe construction."""
+    N = "N"
+    NE = "Ne"  # Northeast
+    E = "E"
+    SE = "Se"  # Southeast
+    S = "S"
+    SW = "Sw"  # Southwest
+    W = "W"
+    NW = "Nw"  # Northwest
+    ANY = "Any"  # Special case for any position
 
 
 class StatsRewards(Config):
@@ -119,6 +133,106 @@ class ConverterConfig(Config):
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
+
+
+class GroupConverterRecipe(Config):
+    """Recipe configuration for GroupConverter."""
+
+    input_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, int] = Field(default_factory=dict)
+
+    @staticmethod
+    def _direction_to_bit(direction: str) -> int:
+        """Convert direction string to bit position (0-7)."""
+        direction_map = {
+            "N": 0,   # North (bit 0)
+            "Ne": 1,  # Northeast (bit 1)
+            "E": 2,   # East (bit 2)
+            "Se": 3,  # Southeast (bit 3)
+            "S": 4,   # South (bit 4)
+            "Sw": 5,  # Southwest (bit 5)
+            "W": 6,   # West (bit 6)
+            "Nw": 7   # Northwest (bit 7)
+        }
+        return direction_map.get(direction, -1)
+
+    @staticmethod
+    def _recipe_to_pattern(recipe: list[str | Direction]) -> int:
+        """Convert recipe list to binary pattern (0-255)."""
+        pattern = 0
+        for item in recipe:
+            if isinstance(item, Direction):
+                direction = item.value
+            else:
+                direction = str(item)
+
+            if direction == "Any":
+                # "Any" means all 8 positions - set all bits
+                pattern = 0xFF  # 11111111 in binary = 255
+                break
+
+            bit_pos = GroupConverterRecipe._direction_to_bit(direction)
+            if bit_pos >= 0:
+                pattern |= (1 << bit_pos)
+
+        return pattern
+
+    @staticmethod
+    def make(
+        recipe: list[str | Direction],
+        consumes: list[tuple[str, int]] = None,
+        produces: list[tuple[str, int]] = None
+    ) -> tuple[int, "GroupConverterRecipe"]:
+        """
+        Create a recipe configuration from directional positions.
+
+        Args:
+            recipe: List of directions ("N", "Ne", "E", "Se", "S", "Sw", "W", "Nw", "Any")
+                   or Direction enum values indicating required agent positions
+            consumes: List of (resource_name, quantity) tuples for input resources
+            produces: List of (resource_name, quantity) tuples for output resources
+
+        Returns:
+            Tuple of (pattern, GroupConverterRecipe) where pattern is the binary key
+
+        Example:
+            # Heart recipe requiring agents at N, E, S, W positions
+            pattern, recipe = GroupConverterRecipe.make(
+                recipe=["N", "E", "S", "W"],
+                consumes=[("rare_earth", 10), ("trapped_helium", 10), ("mercury", 10)],
+                produces=[("heart", 1)]
+            )
+        """
+        if consumes is None:
+            consumes = []
+        if produces is None:
+            produces = []
+
+        # Convert to pattern
+        pattern = GroupConverterRecipe._recipe_to_pattern(recipe)
+
+        # Convert resource lists to dictionaries
+        input_resources = {name: qty for name, qty in consumes}
+        output_resources = {name: qty for name, qty in produces}
+
+        recipe_config = GroupConverterRecipe(
+            input_resources=input_resources,
+            output_resources=output_resources
+        )
+
+        return pattern, recipe_config
+
+
+class GroupConverterConfig(Config):
+    """Group converter configuration for multi-agent recipe systems like nano-assembler."""
+
+    type_id: int = Field(default=0, ge=0, le=255)
+    max_output: int = Field(ge=-1, default=-1)
+    max_conversions: int = Field(default=-1)
+    conversion_ticks: int = Field(ge=0, default=10)
+    cooldown: int = Field(ge=0, default=0)
+    color: int = Field(default=0, ge=0, le=255)
+    recipes: dict[int, GroupConverterRecipe] = Field(default_factory=dict)
 
 
 class GameConfig(Config):
