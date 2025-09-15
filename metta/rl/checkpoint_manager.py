@@ -8,7 +8,6 @@ import torch
 from metta.agent.mocks import MockAgent
 from metta.mettagrid.util.file import WandbURI, local_copy
 from metta.rl.wandb import (
-    expand_wandb_uri,
     get_wandb_checkpoint_metadata,
     load_policy_from_wandb_uri,
     upload_checkpoint_as_artifact,
@@ -61,8 +60,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
         return path.stem if path.suffix else path.name, 0
 
     if uri.startswith("wandb://"):
-        expanded_uri = expand_wandb_uri(uri)
-        metadata = get_wandb_checkpoint_metadata(expanded_uri)
+        metadata = get_wandb_checkpoint_metadata(uri)  # No expansion needed
         if metadata:
             return metadata["run_name"], metadata["epoch"]
         # Fallback: parse artifact name from URI

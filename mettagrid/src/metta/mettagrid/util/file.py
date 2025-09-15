@@ -34,12 +34,7 @@ from wandb.errors import CommError
 #  Globals                                                                     #
 # --------------------------------------------------------------------------- #
 
-def _get_wandb_entity() -> str:
-    """Get WANDB_ENTITY, checking environment variable dynamically."""
-    return os.getenv("WANDB_ENTITY") or ""
-
-# Keep for backward compatibility, but use the function internally
-WANDB_ENTITY: str = _get_wandb_entity()
+# WANDB_ENTITY no longer needed - entities are specified in URIs
 GOOGLE_DRIVE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_DRIVE_CREDENTIALS_FILE", "~/.config/gcloud/credentials.json")
 GOOGLE_DRIVE_TOKEN_FILE: str = os.getenv("GOOGLE_DRIVE_TOKEN_FILE", "~/.config/gcloud/token.json")
 
@@ -261,15 +256,13 @@ def is_public_uri(url: str | None) -> bool:
 class WandbURI:
     """Parsed representation of a W&B artifact URI.
 
-    Supports both formats:
-    - wandb://project/artifact:version (uses environment WANDB_ENTITY)
-    - wandb://entity/project/artifact:version (entity from URI)
+    Only supports full format: wandb://entity/project/artifact:version
     """
 
+    entity: str
     project: str
     artifact_path: str
     version: str = "latest"
-    entity: Optional[str] = None
 
     # ---------- factory ---------- #
     @classmethod
@@ -284,54 +277,36 @@ class WandbURI:
             path_part, version = body, "latest"
 
         if "/" not in path_part:
-            raise ValueError("Malformed W&B URI – expected wandb://<project>/<artifact_path> or wandb://<entity>/<project>/<artifact_path>")
+            raise ValueError("Malformed W&B URI – expected wandb://entity/project/artifact:version")
 
         parts = path_part.split("/")
-        if len(parts) == 2:
-            # Format: wandb://project/artifact:version
-            project, artifact_path = parts
-            entity = None
-        elif len(parts) >= 3:
-            # Format: wandb://entity/project/artifact/...:version
-            entity = parts[0]
-            project = parts[1]
-            artifact_path = "/".join(parts[2:])
-        else:
-            raise ValueError("Malformed W&B URI – expected wandb://<project>/<artifact_path> or wandb://<entity>/<project>/<artifact_path>")
+        if len(parts) < 3:
+            raise ValueError(
+                "W&B URI must be fully specified: wandb://entity/project/artifact:version\n"
+                "Short formats are no longer supported. Use the full format with entity."
+            )
 
-        if not artifact_path:
-            raise ValueError("Artifact path must be non-empty")
+        entity = parts[0]
+        project = parts[1]
+        artifact_path = "/".join(parts[2:])
 
-        return cls(project, artifact_path, version, entity)
+        if not entity or not project or not artifact_path:
+            raise ValueError("Entity, project, and artifact path must all be non-empty")
+
+        return cls(entity, project, artifact_path, version)
 
     # ---------- helpers ---------- #
     def qname(self) -> str:
         """`entity/project/artifact_path:version` – accepted by `wandb.Api().artifact()`."""
-        # Use entity from URI if provided, otherwise fall back to environment variable
-        if self.entity:
-            entity = self.entity
-        else:
-            entity = _get_wandb_entity()  # Use dynamic lookup
-            if not entity:
-                raise ValueError(
-                    f"No wandb entity specified. Either:\n"
-                    f"1. Use full URI format: wandb://your-entity/{self.project}/{self.artifact_path}:{self.version}\n"
-                    f"2. Set WANDB_ENTITY environment variable: export WANDB_ENTITY=your-entity"
-                )
-        return f"{entity}/{self.project}/{self.artifact_path}:{self.version}"
+        return f"{self.entity}/{self.project}/{self.artifact_path}:{self.version}"
 
     def http_url(self) -> str:
         """Human-readable URL for this artifact version."""
-        entity = self.entity or _get_wandb_entity()  # Use dynamic lookup
-        if not entity:
-            raise ValueError("Cannot create HTTP URL without wandb entity")
-        return f"https://wandb.ai/{entity}/{self.project}/artifacts/{self.artifact_path}/{self.version}"
+        return f"https://wandb.ai/{self.entity}/{self.project}/artifacts/{self.artifact_path}/{self.version}"
 
     # pretty print
     def __str__(self) -> str:  # noqa: D401 (keep dunder)
-        if self.entity:
-            return f"wandb://{self.entity}/{self.project}/{self.artifact_path}:{self.version}"
-        return f"wandb://{self.project}/{self.artifact_path}:{self.version}"
+        return f"wandb://{self.entity}/{self.project}/{self.artifact_path}:{self.version}"
 
 
 def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
@@ -345,7 +320,7 @@ def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
 
 
 @contextmanager
-def wandb_export_context(project: str, entity: str | None = None) -> wandb.Run:
+def wandb_export_context(project: str, entity: str) -> wandb.Run:
     """
     Context manager that ensures a wandb run exists for artifact exports.
     TODO: Remove this after switching to using wandb_context
@@ -371,7 +346,7 @@ def wandb_export_context(project: str, entity: str | None = None) -> wandb.Run:
         # Create a temporary run
         run = wandb.init(
             project=project,
-            entity=entity or _get_wandb_entity(),
+            entity=entity,
             job_type="file-export",
             name="file-export",
             settings=wandb.Settings(
@@ -415,8 +390,7 @@ def upload_file_to_wandb(uri, local_file: str, name: str) -> None:
         )
 
     try:
-        entity = _get_wandb_entity()
-        with wandb_export_context(uri.project, entity) as run:
+        with wandb_export_context(uri.project, uri.entity) as run:
             # Create and log the artifact
             artifact = wandb.Artifact(uri.artifact_path, type="file")
             artifact.add_file(local_file, name=name)

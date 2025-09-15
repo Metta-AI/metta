@@ -108,56 +108,23 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     return None
 
 
-def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
-    """Expand short wandb URI formats to full format.
-
-    Handles both short and full wandb URI formats:
-    - "wandb://run/my_run_name" -> "wandb://metta/model/my_run_name:latest"
-    - "wandb://run/my_run_name:v5" -> "wandb://metta/model/my_run_name:v5"
-    - "wandb://sweep/sweep_name" -> "wandb://metta/sweep_model/sweep_name:latest"
-    """
-    if not uri.startswith("wandb://"):
-        return uri
-
-    path = uri[len("wandb://") :]
-
-    if path.startswith("run/"):
-        run_name = path[4:]
-        if ":" in run_name:
-            run_name, version = run_name.rsplit(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{default_project}/model/{run_name}:{version}"
-
-    elif path.startswith("sweep/"):
-        sweep_name = path[6:]
-        if ":" in sweep_name:
-            sweep_name, version = sweep_name.rsplit(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{default_project}/sweep_model/{sweep_name}:{version}"
-
-    # Already in full format or unrecognized pattern
-    return uri
+# expand_wandb_uri function removed - only full URIs supported now
 
 
 def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:
-    """Load policy from wandb URI (handles both short and full formats).
+    """Load policy from wandb URI.
 
-    Accepts:
-    - Short format: "wandb://run/my-run"
-    - Full format: "wandb://project/type/artifact:version"
+    Expects full format: "wandb://entity/project/artifact:version"
 
     Raises:
-        ValueError: If URI is not a wandb:// URI
+        ValueError: If URI is not a wandb:// URI or not in full format
         FileNotFoundError: If no .pt files found in artifact
     """
     if not wandb_uri.startswith("wandb://"):
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
-    expanded_uri = expand_wandb_uri(wandb_uri)
-    logger.info(f"Loading policy from wandb URI: {expanded_uri}")
-    uri = WandbURI.parse(expanded_uri)
+    logger.info(f"Loading policy from wandb URI: {wandb_uri}")
+    uri = WandbURI.parse(wandb_uri)
     qname = uri.qname()
 
     # Load artifact
