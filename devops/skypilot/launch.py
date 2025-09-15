@@ -274,7 +274,7 @@ Examples:
 
     display_job_summary(
         job_name=run_id,
-        cmd=f"{args.module_path} (args: {filtered_args}",
+        cmd=f"{args.module_path} (args: {filtered_args})",
         task_args=[],  # We're showing args differently now
         commit_hash=commit_hash,
         git_ref=args.git_ref,
