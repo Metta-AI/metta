@@ -282,14 +282,11 @@ class WandbURI:
             project = parts[1]
             artifact_path = "/".join(parts[2:])
         elif len(parts) == 2:
-            # Short format expects WANDB_ENTITY to be configured explicitly.
+            # 2-part format: use WANDB_ENTITY if set; otherwise default to 'metta-research'
+            # Note: Do not import from metta.* here; mettagrid must remain decoupled.
             project = parts[0]
             artifact_path = parts[1]
-            entity = os.getenv("WANDB_ENTITY")
-            if not entity:
-                raise ValueError(
-                    "Malformed W&B URI – expected wandb://entity/project/artifact:version or set WANDB_ENTITY"
-                )
+            entity = os.getenv("WANDB_ENTITY", "metta-research")
         else:
             raise ValueError("Malformed W&B URI – expected wandb://entity/project/artifact:version")
 
