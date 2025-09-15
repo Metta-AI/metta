@@ -177,6 +177,12 @@ class MettaGridEnv(MettaGridPufferBase):
             infos["reward_estimates"][f"worst_case_optimal_diff_{self.mg_config.label}"] = (
                 self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
             )
+            infos["reward_estimates"][f"best_case_optimal_diff_overall"] = (
+                self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
+            )
+            infos["reward_estimates"][f"worst_case_optimal_diff_overall"] = (
+                self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
+            )
 
         self._update_label_completions(moving_avg_window)
 
