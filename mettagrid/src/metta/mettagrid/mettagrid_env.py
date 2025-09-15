@@ -171,17 +171,23 @@ class MettaGridEnv(MettaGridPufferBase):
         # If reward estimates are set, plot them compared to the mean reward
         if self.mg_config.game.reward_estimates:
             infos["reward_estimates"] = {}
-            infos["reward_estimates"]["diff_from_efficient_optimal"] = (
+            infos["reward_estimates"][f"best_case_optimal_diff_{self.mg_config.label}"] = (
                 self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
             )
-            infos["reward_estimates"]["diff_from_inefficient_optimal"] = (
+            infos["reward_estimates"][f"worst_case_optimal_diff_{self.mg_config.label}"] = (
+                self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
+            )
+            infos["reward_estimates"][f"best_case_optimal_diff_overall"] = (
+                self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
+            )
+            infos["reward_estimates"][f"worst_case_optimal_diff_overall"] = (
                 self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
             )
 
         self._update_label_completions(moving_avg_window)
 
         # only plot label completions once we have a full moving average window, to prevent initial bias
-        if len(self._label_completions["completed_tasks"]) == moving_avg_window:
+        if len(self._label_completions["completed_tasks"]) >= 100:
             infos["label_completions"] = self._label_completions["completion_rates"]
 
         if self.mg_config.label not in self.per_label_rewards:
