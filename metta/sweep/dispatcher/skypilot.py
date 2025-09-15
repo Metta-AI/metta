@@ -53,23 +53,18 @@ class SkypilotDispatcher(Dispatcher):
         # Add metadata fields as args (used for evaluation jobs)
         for key, value in job.metadata.items():
             all_args.append(f"{key}={value}")
+
+        # Add all collected args
         if all_args:
             cmd_parts.extend(all_args)
 
-        # Collect all overrides (from both overrides and config)
-        all_overrides = []
-
-        # Add explicit overrides
+        # Add explicit overrides (from job.overrides dict)
         for key, value in job.overrides.items():
-            all_overrides.append(f"{key}={value}")
+            cmd_parts.append(f"{key}={value}")
 
-        # Add config from optimizer as additional overrides
+        # Add config from optimizer as additional args
         for key, value in job.config.items():
-            all_overrides.append(f"{key}={value}")
-
-        # Add all overrides
-        if all_overrides:
-            cmd_parts.extend(all_overrides)
+            cmd_parts.append(f"{key}={value}")
 
         # Extract trial portion for cleaner display (like LocalDispatcher)
         display_id = get_display_id(job.run_id)

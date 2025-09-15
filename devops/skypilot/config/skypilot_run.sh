@@ -33,7 +33,6 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
 echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
-echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency

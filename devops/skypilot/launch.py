@@ -25,11 +25,14 @@ from metta.tools.utils.auto_config import auto_run_name
 logger = logging.getLogger("launch.py")
 
 
-def _validate_run_tool(module_path: str, tool_args: list) -> None:
+def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> None:
     """Validate that run.py can successfully create a tool config with the given arguments."""
-    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
-    run_cmd.extend(tool_args)
+    # Build the run.py command
+    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, f"run={run_id}", "--dry-run"]
 
+    # Add args if provided (run= is already included in filtered_args)
+    if filtered_args:
+        run_cmd.extend(filtered_args)
     try:
         subprocess.run(run_cmd, capture_output=True, text=True, check=True)
         print("[VALIDATION] ✅ Configuration validation successful")
@@ -211,7 +214,7 @@ Examples:
     assert commit_hash
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
-    _validate_run_tool(args.module_path, filtered_args)
+    _validate_run_tool(args.module_path, run_id, filtered_args)
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
 
@@ -220,7 +223,6 @@ Examples:
         METTA_RUN_ID=run_id,
         METTA_MODULE_PATH=args.module_path,
         METTA_ARGS=" ".join(filtered_args),
-        METTA_OVERRIDES="",  # empty for backwards compatibility
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
@@ -272,7 +274,7 @@ Examples:
 
     display_job_summary(
         job_name=run_id,
-        cmd=f"{args.module_path} (args: {filtered_args}, overrides: {args.overrides})",
+        cmd=f"{args.module_path} (args: {filtered_args}",
         task_args=[],  # We're showing args differently now
         commit_hash=commit_hash,
         git_ref=args.git_ref,

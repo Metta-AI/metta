@@ -471,7 +471,7 @@ class TestDispatcherComparison:
     """Test that SkypilotDispatcher and LocalDispatcher build identical command portions."""
 
     def test_command_equivalence_basic(self, basic_training_job):
-        """Test that both dispatchers build the same args/overrides for basic job."""
+        """Test that both dispatchers build the same args for basic job."""
         from metta.sweep import LocalDispatcher
 
         with patch("subprocess.Popen") as mock_popen:
