@@ -72,6 +72,36 @@ torch.set_float32_matmul_precision("high")
 logger = getRankAwareLogger(__name__)
 
 
+def distributed_barrier(description=""):
+    """Simple barrier wrapper with timeout warnings."""
+    if not torch.distributed.is_initialized():
+        return
+    import threading
+    import time
+
+    start = time.time()
+    done = threading.Event()
+
+    def _barrier():
+        torch.distributed.barrier()
+        done.set()
+
+    threading.Thread(target=_barrier, daemon=True).start()
+
+    warned = [False, False]  # Track 10s, 100s warnings
+    while not done.wait(1.0):
+        elapsed = time.time() - start
+        if elapsed > 400:
+            logger.error(f"Barrier '{description}' timeout {elapsed:.0f}s - continuing!")
+            return
+        elif elapsed > 100 and not warned[1]:
+            logger.warning(f"Barrier '{description}' very slow: {elapsed:.0f}s")
+            warned[1] = True
+        elif elapsed > 10 and not warned[0]:
+            logger.warning(f"Barrier '{description}' slow: {elapsed:.0f}s")
+            warned[0] = True
+
+
 def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:
     """Helper to update training run status to 'failed' when training encounters an error."""
     if stats_client and stats_run_id:
@@ -185,7 +215,7 @@ def train(
 
     # Ensure all ranks have created/loaded their policy before continuing
     if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        distributed_barrier("after policies created/loaded")
 
     policy: PolicyAgent = policy_agent
 
@@ -198,9 +228,9 @@ def train(
     if torch.distributed.is_initialized():
         if torch_dist_cfg.is_master:
             logger.info("Initializing DistributedDataParallel")
-        torch.distributed.barrier()
+        distributed_barrier("before DDP wrapper")
         policy = wrap_agent_distributed(policy, device)
-        torch.distributed.barrier()
+        distributed_barrier("after DDP wrapper")
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
@@ -451,7 +481,7 @@ def train(
 
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+                distributed_barrier("after training phase")
 
             if not torch_dist_cfg.is_master:
                 # Only master needs to do bookkeeping
@@ -629,7 +659,7 @@ def train(
 
         # All ranks wait until training is complete before closing vecenv
         if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+            distributed_barrier("before closing vecenv")
     except:
         _update_training_status_on_failure(stats_client, stats_tracker.stats_run_id, logger)
         raise
