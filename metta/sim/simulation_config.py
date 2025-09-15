@@ -1,6 +1,6 @@
 # metta/sim/simulation_config.py
 
-from typing import Optional
+from typing import Any, Optional, Union
 
 from pydantic import Field
 
@@ -12,7 +12,7 @@ class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
     name: str = Field(description="Name of the simulation")
-    env: MettaGridConfig
+    env: Union[MettaGridConfig, Any]
 
     # Core simulation config
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)

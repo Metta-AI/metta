@@ -114,3 +114,7 @@ mettascope2/dist/
 mettascope2/data/fidget/
 recipe_test_jobs.json
 cluster_test_jobs.json
+# Unignore specific mettascope2 resources we want tracked
+!/mettascope2/data/resources/
+!/mettascope2/data/resources/spear.png
+!/mettascope2/data/resources/wood.png

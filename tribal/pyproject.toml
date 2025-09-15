@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metta-tribal"
+version = "0.1.0"
+description = "High-performance tribal environment for multi-agent RL"
+authors = [{ name = "Metta Team", email = "team@metta-ai.com" }]
+requires-python = "==3.11.7"
+license = "MIT"
+readme = "README.md"
+urls = { Homepage = "https://github.com/Metta-AI/metta", Repository = "https://github.com/Metta-AI/metta" }
+
+dependencies = [
+  "numpy>=1.26.4,<2",
+  "pydantic>=2.11.5",
+  "gymnasium==0.29.1",
+  "mettagrid",
+  "metta-common"
+]
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1.401",
+  "pytest>=8.3.3",
+  "pytest-cov>=6.1.1",
+  "pytest-xdist>=3.8.0",
+  "pytest-benchmark>=5.1.0",
+  "ruff>=0.11.13",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["metta.tribal"]
+
+[tool.setuptools.package-data]
+"metta" = ["__init__.py"]
+"metta.tribal" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["metta.tribal"]

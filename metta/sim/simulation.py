@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+
+# Import TribalGridEnv from the new location
 import time
 import uuid
 from dataclasses import dataclass
@@ -27,6 +29,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
+from metta.tribal import TribalGridEnv
 
 SYNTHETIC_EVAL_PREFIX = "eval/"
 
@@ -117,8 +120,12 @@ class Simulation:
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
         driver_env = self._vecenv.driver_env  # type: ignore
-        metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
-        assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
+        grid_env = getattr(driver_env, "_env", driver_env)
+        # Accept MettaGridEnv and TribalGridEnv (both have compatible interfaces)
+        assert isinstance(grid_env, (MettaGridEnv, TribalGridEnv)), (
+            f"Expected MettaGridEnv or TribalGridEnv, got {type(grid_env)}"
+        )
+        metta_grid_env = grid_env  # Keep the same variable name for compatibility
 
         # Initialize policy to environment
         self._policy.eval()  # Set to evaluation mode for simulation
@@ -494,6 +501,7 @@ class Simulation:
                 "max_steps": env.max_steps,
                 "map_size": [env.height, env.width],
                 "file_name": "live_play",
+                "objects": [],  # Add empty objects for frontend validation
                 "steps": [],
             }
         if len(self._replay_writer.episodes) != 1:
