@@ -9,7 +9,7 @@ from tensordict import TensorDict
 
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
-from metta.rl.system_config import SystemConfig
+
 
 
 class VanillaTorchPolicy(torch.nn.Module):
@@ -64,12 +64,11 @@ def test_vanilla_policy_fails_without_mixin():
             self.feature_normalizations = {}
 
     # Create configs
-    system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig({"clip_range": 0})
 
     # Create MettaAgent with vanilla policy (no mixin)
     vanilla_policy = VanillaTorchPolicy()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=vanilla_policy)
+    agent = MettaAgent(MinimalEnv(), agent_cfg, policy=vanilla_policy)
 
     # Test that initialization FAILS without required methods
     features = {
@@ -97,12 +96,11 @@ def test_metta_agent_with_mixin_policy():
             self.feature_normalizations = {}
 
     # Create configs
-    system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig({"clip_range": 0})
 
     # Create MettaAgent with mixin-enhanced policy
     mixin_policy = VanillaPolicyWithMixin()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=mixin_policy)
+    agent = MettaAgent(MinimalEnv(), agent_cfg, policy=mixin_policy)
 
     # Test that initialization works
     features = {
@@ -167,12 +165,11 @@ def test_training_mode_learns_new_features():
             self.feature_normalizations = {}
 
     # Create configs
-    system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig({"clip_range": 0})
 
     # Create MettaAgent with mixin-enhanced policy
     mixin_policy = VanillaPolicyWithMixin()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=mixin_policy)
+    agent = MettaAgent(MinimalEnv(), agent_cfg, policy=mixin_policy)
 
     # Initial features
     features = {
@@ -244,11 +241,10 @@ def test_mixin_provides_all_required_methods():
             self.single_action_space = gym.spaces.Discrete(10)
             self.feature_normalizations = {}
 
-    system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig({"clip_range": 1.0})
 
     policy = PolicyUsingMixinFeatures()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=policy)
+    agent = MettaAgent(MinimalEnv(), agent_cfg, policy=policy)
 
     # Initialize environment
     features = {"test": {"id": 1, "type": "scalar"}}

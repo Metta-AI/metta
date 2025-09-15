@@ -181,7 +181,7 @@ def train(
         else:
             policy_agent = checkpoint_manager.load_agent(epoch=checkpoint_epoch, device=device)
     else:
-        policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+        policy_agent = MettaAgent(metta_grid_env, agent_cfg)
 
     # Ensure all ranks have created/loaded their policy before continuing
     if torch.distributed.is_initialized():
@@ -267,6 +267,8 @@ def train(
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
     # Set up monitoring (master only)
+    # ?? failed for mh running locally
+    '''
     if torch_dist_cfg.is_master:
         logger.info("Starting training")
         memory_monitor, system_monitor = setup_monitoring(
@@ -275,7 +277,8 @@ def train(
             timer=timer,
         )
     else:
-        memory_monitor, system_monitor = None, None
+        '''
+    memory_monitor, system_monitor = None, None
 
     # Set up wandb metrics (master only)
     if wandb_run and torch_dist_cfg.is_master:

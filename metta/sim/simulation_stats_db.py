@@ -70,7 +70,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         *,
         sim_id: str,
         dir_with_shards: Union[str, Path],
-        agent_map: Dict[int, str],  # Now URIs instead of PolicyRecord
+        agent_map: Dict[int, str],
         sim_name: str,
         sim_env: str,
         policy_uri: str,
