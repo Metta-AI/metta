@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 from tensordict import TensorDict
+from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.common.config.config import Config
 
@@ -46,6 +47,9 @@ class LSTMResetConfig(Config):
     in_key: str = "encoded_obs"
     out_key: str = "hidden"
 
+    def instantiate(self):
+        return LSTMReset(config=self)
+
 
 class LSTMReset(nn.Module):
     """
@@ -62,6 +66,7 @@ class LSTMReset(nn.Module):
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
         self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers)
+        self.lstm_train_step = LstmTrainStep(self.net)
 
         for name, param in self.net.named_parameters():
             if "bias" in name:
@@ -69,10 +74,8 @@ class LSTMReset(nn.Module):
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
-        # self.lstm_h: Dict[int, torch.Tensor] = {}
-        # self.lstm_c: Dict[int, torch.Tensor] = {}
-        self.lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
-        self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
+        self.register_buffer("lstm_h", torch.empty(self.num_layers, 0, self.hidden_size))
+        self.register_buffer("lstm_c", torch.empty(self.num_layers, 0, self.hidden_size))
 
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
@@ -85,12 +88,12 @@ class LSTMReset(nn.Module):
             # self.lstm_c = {}
             self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
         # Clear any existing states to handle batch size mismatches
-        self.lstm_h.clear()
-        self.lstm_c.clear()
+        # self.lstm_h.clear()
+        # self.lstm_c.clear()
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict):
-        latent = td[self._sources[0]["name"]]  # → (batch * TT, hidden_size)
+        latent = td[self.config.in_key]  # → (batch * TT, hidden_size)
 
         TT = 1
         B = td.batch_size.numel()
@@ -113,11 +116,7 @@ class LSTMReset(nn.Module):
         dones = td.get("dones", None)
         truncateds = td.get("truncateds", None)
         if dones is not None and truncateds is not None:
-            if dones.max() > 0:
-                breakpoint()
-            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)  # av check if this is right in TT !=1
-            if TT != 1:
-                breakpoint()
+            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
         else:
             # we're in eval
             reset_mask = torch.ones(1, B, 1, device=latent.device)
@@ -131,8 +130,9 @@ class LSTMReset(nn.Module):
                 # we haven't allocated states for these envs (ie the very first epoch or rollout)
                 h_0 = torch.zeros(self.num_layers, num_allocated_envs, self.hidden_size, device=latent.device)
                 c_0 = torch.zeros(self.num_layers, num_allocated_envs, self.hidden_size, device=latent.device)
-                self.lstm_h = torch.cat([self.lstm_h, h_0.detach()], dim=1)
-                self.lstm_c = torch.cat([self.lstm_c, c_0.detach()], dim=1)
+                device = self.lstm_h.device
+                self.lstm_h = torch.cat([self.lstm_h, h_0.detach()], dim=1).to(device)
+                self.lstm_c = torch.cat([self.lstm_c, c_0.detach()], dim=1).to(device)
 
             h_0 = self.lstm_h[:, training_env_ids]
             c_0 = self.lstm_c[:, training_env_ids]
@@ -152,7 +152,7 @@ class LSTMReset(nn.Module):
             #     # self.train_input_lstm_c = torch.cat([self.train_input_lstm_c, c_0.detach()], dim=1)
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
-        if self.reset_in_training and TT != 1:
+        if TT != 1:
             # self.iter = -1
             # self.burn_in = 0
 
@@ -174,7 +174,7 @@ class LSTMReset(nn.Module):
             hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask)
 
         else:
-            hidden, (h_n, c_n) = self.lstm(latent, (h_0, c_0))
+            hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
             self.lstm_h[:, training_env_ids] = h_n.detach()
             self.lstm_c[:, training_env_ids] = c_n.detach()
 
@@ -188,6 +188,22 @@ class LSTMReset(nn.Module):
         """Run the JIT-scripted LSTM training step."""
         reset_mask = reset_mask.view(1, latent.size(1), -1, 1)  # Shape: [1, B, TT, 1]
         return self.lstm_train_step(latent, h_t, c_t, reset_mask)
+
+    def get_agent_experience_spec(self) -> Composite:
+        return Composite(
+            {
+                "lstm_h": UnboundedDiscrete(
+                    shape=torch.Size([self.num_layers, self.hidden_size]),
+                    dtype=torch.float32,
+                ),
+                "lstm_c": UnboundedDiscrete(
+                    shape=torch.Size([self.num_layers, self.hidden_size]),
+                    dtype=torch.float32,
+                ),
+                "dones": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+                "truncateds": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            }
+        )
 
     def get_memory(self):
         return self.lstm_h, self.lstm_c

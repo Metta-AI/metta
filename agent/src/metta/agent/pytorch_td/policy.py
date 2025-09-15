@@ -83,6 +83,7 @@ class Policy(nn.Module):
         device: torch.device,
         is_training: bool = None,
     ):
+        self.to(device)
         logs = []
         for _, value in self.layers.items():
             if hasattr(value, "initialize_to_environment"):
@@ -109,13 +110,16 @@ class Policy(nn.Module):
         return self._total_params
 
     def get_agent_experience_spec(self) -> Composite:
-        # av change this to cycle through layers and get the spec from each layer
-        return Composite(
+        spec = Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-            truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
             # training_env_ids=UnboundedDiscrete(shape=torch.Size([1]), dtype=torch.long),
         )
+
+        for layer in self.layers.values():
+            if hasattr(layer, "get_agent_experience_spec"):
+                spec.update(layer.get_agent_experience_spec())
+
+        return spec
 
     def attach_replay_buffer(self, experience: Experience):
         """Losses expect to find a replay buffer in the policy."""
