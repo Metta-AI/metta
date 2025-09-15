@@ -25,18 +25,14 @@ from metta.tools.utils.auto_config import auto_run_name
 logger = logging.getLogger("launch.py")
 
 
-def _validate_run_tool(module_path: str, run_id: str, filtered_args: list, overrides: list) -> None:
+def _validate_run_tool(module_path: str, tool_args: list) -> None:
     """Validate that run.py can successfully create a tool config with the given arguments."""
-    # Build the run.py command
     run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
-    run_cmd.extend(filtered_args)
-    run_cmd.extend(overrides)
+    run_cmd.extend(tool_args)
 
     try:
-        # Run the validation command
-        _result = subprocess.run(run_cmd, capture_output=True, text=True, check=True)
+        subprocess.run(run_cmd, capture_output=True, text=True, check=True)
         print("[VALIDATION] ✅ Configuration validation successful")
-
     except subprocess.CalledProcessError as e:
         print(red("[VALIDATION] ❌ Configuration validation failed"))
         if e.stdout:
@@ -44,7 +40,6 @@ def _validate_run_tool(module_path: str, run_id: str, filtered_args: list, overr
         if e.stderr:
             print(red(e.stderr))
         sys.exit(1)
-
     except FileNotFoundError:
         print(red("[VALIDATION] ❌ Could not find run.py or uv command"))
         sys.exit(1)
@@ -89,11 +84,30 @@ def patch_task(
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # New style (recommended):
+  %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
+
+  # Old style (deprecated):
+  %(prog)s experiments.recipes.arena.train --args run=test_123 --overrides trainer.total_timesteps=100000
+
+  # Mix of launch flags and tool args:
+  %(prog)s experiments.recipes.arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+        """,
+    )
+
     parser.add_argument("module_path", help="Module path to run (e.g., experiments.recipes.arena.train)")
+    parser.add_argument("tool_args", nargs="*", help="Arguments in key=value format (same as run_tool.py)")
+
+    # Deprecated but kept for compatibility
+    parser.add_argument("--args", nargs="*", default=[], help="[DEPRECATED] Use positional args instead")
+    parser.add_argument("--overrides", nargs="*", default=[], help="[DEPRECATED] Use positional args instead")
+
+    # Launch-specific flags
     parser.add_argument("--run", type=str, default=None, help="Run ID for the job")
-    parser.add_argument("--args", nargs="*", default=[], help="Arguments to pass to the module")
-    parser.add_argument("--overrides", nargs="*", default=[], help="Overrides to apply to the config")
     parser.add_argument("--git-ref", type=str, default=None)
     parser.add_argument("--gpus", type=int, default=None)
     parser.add_argument("--nodes", type=int, default=None)
@@ -136,26 +150,38 @@ def main():
 
     args = parser.parse_args()
 
-    # Handle run ID - it can come from --run flag or from args as run=value
+    # Combine args from all sources
+    all_tool_args = []
+
+    # Add positional tool args (new style)
+    all_tool_args.extend(args.tool_args)
+
+    # Add deprecated --args if provided
+    if args.args:
+        logger.warning("--args flag is deprecated. Pass arguments directly: launch.py module.path key=value")
+        all_tool_args.extend(args.args)
+
+    # Add deprecated --overrides if provided
+    if args.overrides:
+        logger.warning("--overrides flag is deprecated. Pass arguments directly: launch.py module.path key=value")
+        all_tool_args.extend(args.overrides)
+
+    # Handle run ID extraction
     run_id = args.run
     filtered_args = []
 
-    # Check if run= is in the args and extract it
-    for arg in args.args:
+    for arg in all_tool_args:
         if arg.startswith("run="):
-            if run_id is None:  # Only use if --run wasn't specified
-                run_id = arg[4:]  # Remove 'run=' prefix
-            # Don't add run= to filtered_args - we'll add it back later
+            if run_id is None:
+                run_id = arg[4:]
         else:
             filtered_args.append(arg)
 
-    # If run is still not specified, error out
     if run_id is None:
         run_id = auto_run_name()
         logger.info(f"Using auto-generated run ID: {run_id}")
         logger.info("To specify a run ID, use --run=foo or pass run=foo in --args")
 
-    # Always add run= to the filtered args so it gets passed to run.py
     filtered_args.append(f"run={run_id}")
 
     cd_repo_root()
@@ -183,7 +209,7 @@ def main():
     assert commit_hash
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
-    _validate_run_tool(args.module_path, run_id, filtered_args, args.overrides)
+    _validate_run_tool(args.module_path, filtered_args)
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
 
@@ -192,7 +218,7 @@ def main():
         METTA_RUN_ID=run_id,
         METTA_MODULE_PATH=args.module_path,
         METTA_ARGS=" ".join(filtered_args),
-        METTA_OVERRIDES=" ".join(args.overrides),
+        METTA_OVERRIDES="",  # empty for backwards compatibility
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
