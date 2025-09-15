@@ -66,7 +66,6 @@ class DispatcherType(StrEnum):
 
     LOCAL = "local"  # All jobs run locally
     SKYPILOT = "skypilot"  # All jobs run on Skypilot
-    HYBRID_REMOTE_TRAIN = "hybrid_remote_train"  # Train on Skypilot, evaluate locally
 
 
 class SweepTool(Tool):
@@ -112,19 +111,10 @@ class SweepTool(Tool):
     stats_server_uri: Optional[str] = auto_stats_server_uri()  # Stats server for remote evaluations
 
     # Dispatcher configuration
-    dispatcher_type: DispatcherType = DispatcherType.HYBRID_REMOTE_TRAIN  # Default: train on Skypilot, evaluate locally
+    dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # Default: train on Skypilot, evaluate locally
     capture_output: bool = True  # Capture and stream subprocess output (local only)
 
-    consumed_args: list[str] = [
-        "sweep_name",
-        "max_trials",
-        "recipe_module",
-        "train_entrypoint",
-        "eval_entrypoint",
-        "run",
-    ]
-
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
 
         # Handle sweep_name being passed via cmd line
@@ -200,14 +190,7 @@ class SweepTool(Tool):
             dispatcher = LocalDispatcher(capture_output=self.capture_output)
 
         elif self.dispatcher_type == DispatcherType.SKYPILOT:
-            dispatcher = SkypilotDispatcher()
-            if self.capture_output:
-                logger.warning(
-                    "[SweepOrchestrator] capture_output is not supported for SkypilotDispatcher (fire-and-forget mode)"
-                )
-
-        elif self.dispatcher_type == DispatcherType.HYBRID_REMOTE_TRAIN:
-            # Train on Skypilot, evaluate locally
+            # Train on Skypilot, evaluate locally through the CLI
             dispatcher = RoutingDispatcher(
                 routes={
                     JobTypes.LAUNCH_TRAINING: SkypilotDispatcher(),
