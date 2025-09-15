@@ -14,6 +14,7 @@ import wandb
 from wandb import Artifact
 from wandb.errors import CommError
 
+from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import WandbURI
 
@@ -130,14 +131,26 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     if not path.startswith(("run/", "sweep/")):
         return uri
 
-    # Handle short URI formats - require WANDB_ENTITY
+    # Handle short URI formats - prioritize user's entity over Metta default
     entity = os.getenv("WANDB_ENTITY")
     if not entity:
+        # Try to get default entity from wandb API (external users)
+        try:
+            import wandb
+
+            entity = wandb.Api().default_entity
+        except Exception:
+            pass
+
+    # Final fallback to Metta entity (for Metta internal usage)
+    entity = entity or METTA_WANDB_ENTITY
+    if not entity:
         raise ValueError(
-            f"Short wandb URI '{uri}' requires WANDB_ENTITY environment variable.\n"
-            f"Either:\n"
+            f"Short wandb URI '{uri}' requires WANDB_ENTITY environment variable or wandb login.\n"
+            f"Options:\n"
             f"1. Use full URI: wandb://your-entity/project/artifact:version\n"
-            f"2. Set WANDB_ENTITY: export WANDB_ENTITY=your-entity"
+            f"2. Set WANDB_ENTITY: export WANDB_ENTITY=your-entity\n"
+            f"3. Login to wandb: wandb login (uses your default entity)"
         )
 
     if path.startswith("run/"):
