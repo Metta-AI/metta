@@ -29,34 +29,24 @@ def _validate_run_tool(module_path: str, run_id: str, filtered_args: list, overr
     """Validate that run.py can successfully create a tool config with the given arguments."""
     # Build the run.py command
     run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
+    run_cmd.extend(filtered_args)
+    run_cmd.extend(overrides)
 
-    # Add args if provided (run= is already included in filtered_args)
-    if filtered_args:
-        run_cmd.extend(["--args"] + filtered_args)
-
-    # Add overrides if provided
-    if overrides:
-        run_cmd.extend(["--overrides"] + overrides)
-
-    output = ""
-    success = False
     try:
         # Run the validation command
-        output = subprocess.check_output(run_cmd, text=True)
-        success = True
+        _result = subprocess.run(run_cmd, capture_output=True, text=True, check=True)
         print("[VALIDATION] ✅ Configuration validation successful")
-    except AssertionError as e:
+
+    except subprocess.CalledProcessError as e:
         print(red("[VALIDATION] ❌ Configuration validation failed"))
-        print(red(f"[VALIDATION] {str(e)}"))
-    except FileNotFoundError as e:
+        if e.stdout:
+            print(e.stdout)
+        if e.stderr:
+            print(red(e.stderr))
+        sys.exit(1)
+
+    except FileNotFoundError:
         print(red("[VALIDATION] ❌ Could not find run.py or uv command"))
-        print(red(f"[VALIDATION] {str(e)}"))
-
-    with open("/tmp/run_cmd.txt", "w") as f:
-        f.write(output)
-        logger.info("[VALIDATION] Output saved to /tmp/run_cmd.txt")
-
-    if not success:
         sys.exit(1)
 
 
