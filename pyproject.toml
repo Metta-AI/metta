@@ -73,6 +73,7 @@ dependencies = [
   "pyarrow>=21.0.0",
   "typer>=0.16.0",
   "mcp[cli]>=1.13.1",
+  "lazy-imports>=1.0.1",
 ]
 name = "metta"
 version = "0.1"
