@@ -3,6 +3,8 @@
 invokes the function, and then runs the tool defined by the config."""
 
 import argparse
+import copy
+import functools
 import inspect
 import json
 import logging
@@ -14,7 +16,6 @@ from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
-from rich.logging import RichHandler
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
@@ -93,10 +94,10 @@ def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
     """Parse CLI arguments in key=value format, keeping dotted keys flat."""
     parsed: dict[str, Any] = {}
     for arg in cli_args:
-        clean_arg = arg.lstrip("-")
-        if "=" not in clean_arg:
+        # Unlike earlier versions, we no longer lstrip('-'); args should be plain key=value
+        if "=" not in arg:
             raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
-        key, value = clean_arg.split("=", 1)
+        key, value = arg.split("=", 1)
         parsed[key] = parse_value(value)
     return parsed
 
@@ -116,12 +117,7 @@ def nestify(flat: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for k, v in flat.items():
         parts = k.split(".")
-        node: dict[str, Any] = {}
-        cur = node
-        for p in parts[:-1]:
-            cur[p] = {}
-            cur = cur[p]
-        cur[parts[-1]] = v
+        node = functools.reduce(lambda acc, p: {p: acc}, reversed(parts), v)
         deep_merge(out, node)
     return out
 
@@ -195,8 +191,10 @@ Rules:
   - Dotted keys (a.b.c) are configuration paths and will be nested and validated.
   - Exact parameter names are function arguments for factory functions.
   - Values: true/false, null/none, JSON containers {...}/[...], or int/float/string.
+  - Tool args are plain key=value tokens. If you need to pass flags to the runner, use them
+    before `--`. Put tool args after `--` if there is any ambiguity.
 
-This tool automatically determines which arguments are meant for the tool
+This script automatically determines which arguments are meant for the tool
 constructor/function vs configuration overrides based on introspection.
         """,
     )
@@ -207,24 +205,26 @@ constructor/function vs configuration overrides based on introspection.
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
 
-    # Use parse_known_args to capture option-like tokens that aren't recognized
+    # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
 
-    # Combine positional args with any unknown option-like tokens (supports --key=value without --)
-    all_args = (known_args.args or []) + unknown_args
-
-    # Initialize
+    # Initialize logging and environment
     init_logging()
     init_mettagrid_system_environment()
-
-    # Configure rich logging
     console = Console()
-    logging.basicConfig(
-        level="INFO",
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler(console=console, rich_tracebacks=True)],
-    )
+
+    # Enforce: unknown long options (starting with '-') are considered runner flags and not tool args.
+    # Require users to separate with `--` if they want to pass after runner options.
+    dash_unknowns = [a for a in unknown_args if a.startswith("-")]
+    if dash_unknowns:
+        console.print(
+            "[red]Error:[/red] Unknown runner option(s): "
+            + ", ".join(dash_unknowns)
+            + "\nUse `--` to separate runner options from tool args, e.g.:\n"
+            + f"  {os.path.basename(sys.argv[0])} {known_args.make_tool_cfg_path} -- trainer.total_timesteps=100000"
+        )
+        return 2
+    all_args = (known_args.args or []) + unknown_args
 
     # Exit on ctrl+c with proper exit code
     signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))  # 130 = interrupted by Ctrl-C
@@ -274,13 +274,33 @@ constructor/function vs configuration overrides based on introspection.
                 console.print(f"\n[cyan]Creating {func_name}:[/cyan]")
 
             for name, p in sig.parameters.items():
-                if name == "self":
-                    continue
-
                 # Prefer nested group if provided (e.g., param 'trainer' and CLI has 'trainer.*')
                 if name in nested_cli:
-                    raw = nested_cli[name]
-                    val = type_parse(raw, p.annotation)
+                    provided = nested_cli[name]
+
+                    # If the parameter has a default dict or BaseModel, start from it and merge overrides.
+                    base: Any | None = None
+                    if p.default is not inspect._empty:
+                        default_val = p.default
+                        if isinstance(default_val, dict) and isinstance(provided, dict):
+                            base = copy.deepcopy(default_val)
+                            deep_merge(base, provided)
+                        elif isinstance(default_val, BaseModel) and isinstance(provided, dict):
+                            base = default_val.model_copy(update=provided, deep=True)
+
+                    data = base if base is not None else provided
+
+                    # If annotated as a Pydantic model class, validate against it.
+                    ann = p.annotation
+                    try:
+                        if inspect.isclass(ann) and issubclass(ann, BaseModel):
+                            val = ann.model_validate(data)
+                        else:
+                            val = type_parse(data, ann)
+                    except Exception:
+                        # Fall back to raw data; better to surface error downstream than to crash here.
+                        val = data
+
                     func_kwargs[name] = val
 
                     # Determine which keys actually contributed to nested_cli[name]
@@ -289,7 +309,6 @@ constructor/function vs configuration overrides based on introspection.
                         consumed_keys.add(name)
 
                     # Mark all dotted keys that start with this parameter name as consumed
-                    # These are the keys that were actually used to build the nested structure
                     for k in cli_args.keys():
                         if k.startswith(name + "."):
                             consumed_keys.add(k)
@@ -314,6 +333,17 @@ constructor/function vs configuration overrides based on introspection.
 
             # For invoke(), send just the function args as strings
             func_args_for_invoke = {k: str(v) for k, v in func_kwargs.items()}
+    except TypeError as e:
+        # Provide a nicer hint when someone passes an unbound method (missing self/cls)
+        msg = str(e)
+        hint = ""
+        if ("missing" in msg and "positional argument" in msg) and (" self" in msg or " cls" in msg):
+            hint = (
+                "\n[yellow]Hint:[/yellow] It looks like an unbound method was passed. "
+                "Pass the Tool subclass itself or a factory function that doesn't require 'self'/'cls'."
+            )
+        console.print(f"[red]Error creating tool configuration:[/red] {e}{hint}")
+        return 1
     except Exception as e:
         console.print(f"[red]Error creating tool configuration:[/red] {e}")
         return 1

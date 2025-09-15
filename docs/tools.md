@@ -5,27 +5,27 @@ essential functionality for training, evaluation, visualization, and development
 
 ## Quick Reference Table
 
-| Category     | Tool                  | Purpose                    | GPU Required | Database Access |
+| Category          | Tool                                    | Purpose                                       | GPU Required | Database Access |
 | ----------------- | --------------------------------------- | --------------------------------------------- | ------------ | --------------- |
-| **Training**   | `run.py experiments.recipes.*.train`  | Train policies with recipe configurations   | ✓      | Optional    |
-|          | `sweep_init.py`             | Initialize hyperparameter sweep experiments  | ✗      | ✗        |
-|          | `sweep_eval.py`             | Evaluate policies from sweep runs       | ✓      | ✗        |
-| **Evaluation**  | `run.py experiments.recipes.*.evaluate` | Run policy evaluation with recipe system   | ✓      | ✓        |
-|          | `run.py experiments.recipes.*.analyze` | Analyze evaluation results with recipes    | ✗      | ✓        |
-| **Visualization** | `run.py experiments.recipes.*.play`   | Interactive gameplay via recipe system    | ✗      | ✗        |
-|          | `run.py experiments.recipes.*.replay`  | Generate replay files via recipe system    | ✓      | ✗        |
-|          | `renderer.py`              | Real-time ASCII/Miniscope rendering (legacy) | ✓      | ✗        |
-|          | `dashboard.py`             | Generate dashboard data for web visualization | ✗      | ✓        |
-| **Map Tools**   | `map/gen.py`              | Generate maps from configuration files    | ✗      | ✗        |
-|          | `map/gen_scene.py`           | Generate maps from scene templates      | ✗      | ✗        |
-|          | `map/view.py`              | View stored maps in various formats      | ✗      | ✗        |
-|          | `map/normalize_ascii_map.py`      | Normalize ASCII map characters        | ✗      | ✗        |
-|          | `map/normalize_scene_patterns.py`    | Normalize WFC/ConvChain patterns       | ✗      | ✗        |
-| **Utilities**   | `validate_config.py`          | Validate and print Hydra configurations    | ✗      | ✗        |
-|          | `stats_duckdb_cli.py`          | Interactive DuckDB CLI for stats analysis   | ✗      | ✓        |
-|          | `upload_map_imgs.py`          | Upload map images to S3            | ✗      | ✗        |
-|          | `dump_src.py`              | Dump source files for LLM context       | ✗      | ✗        |
-|          | `autotune.py`              | Auto-tune vectorization parameters      | ✗      | ✗        |
+| **Training**      | `run.py experiments.recipes.*.train`    | Train policies with recipe configurations     | ✓            | Optional        |
+|                   | `sweep_init.py`                         | Initialize hyperparameter sweep experiments   | ✗            | ✗               |
+|                   | `sweep_eval.py`                         | Evaluate policies from sweep runs             | ✓            | ✗               |
+| **Evaluation**    | `run.py experiments.recipes.*.evaluate` | Run policy evaluation with recipe system      | ✓            | ✓               |
+|                   | `run.py experiments.recipes.*.analyze`  | Analyze evaluation results with recipes       | ✗            | ✓               |
+| **Visualization** | `run.py experiments.recipes.*.play`     | Interactive gameplay via recipe system        | ✗            | ✗               |
+|                   | `run.py experiments.recipes.*.replay`   | Generate replay files via recipe system       | ✓            | ✗               |
+|                   | `renderer.py`                           | Real-time ASCII/Miniscope rendering (legacy)  | ✓            | ✗               |
+|                   | `dashboard.py`                          | Generate dashboard data for web visualization | ✗            | ✓               |
+| **Map Tools**     | `map/gen.py`                            | Generate maps from configuration files        | ✗            | ✗               |
+|                   | `map/gen_scene.py`                      | Generate maps from scene templates            | ✗            | ✗               |
+|                   | `map/view.py`                           | View stored maps in various formats           | ✗            | ✗               |
+|                   | `map/normalize_ascii_map.py`            | Normalize ASCII map characters                | ✗            | ✗               |
+|                   | `map/normalize_scene_patterns.py`       | Normalize WFC/ConvChain patterns              | ✗            | ✗               |
+| **Utilities**     | `validate_config.py`                    | Validate and print Hydra configurations       | ✗            | ✗               |
+|                   | `stats_duckdb_cli.py`                   | Interactive DuckDB CLI for stats analysis     | ✗            | ✓               |
+|                   | `upload_map_imgs.py`                    | Upload map images to S3                       | ✗            | ✗               |
+|                   | `dump_src.py`                           | Dump source files for LLM context             | ✗            | ✗               |
+|                   | `autotune.py`                           | Auto-tune vectorization parameters            | ✗            | ✗               |
 
 ## Tool Execution
 
@@ -228,21 +228,21 @@ programmatic processing
 
 ```json
 {
- "simulation_suite": "navigation",
- "policies": [
-  {
-   "policy_uri": "wandb://run/abc123",
-   "checkpoints": [
+  "simulation_suite": "navigation",
+  "policies": [
     {
-     "name": "checkpoint_1000",
-     "uri": "wandb://...",
-     "metrics": {
-      "reward_avg": 15.3
-     }
+      "policy_uri": "wandb://run/abc123",
+      "checkpoints": [
+        {
+          "name": "checkpoint_1000",
+          "uri": "wandb://...",
+          "metrics": {
+            "reward_avg": 15.3
+          }
+        }
+      ]
     }
-   ]
-  }
- ]
+  ]
 }
 ```
 
@@ -460,20 +460,20 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # Generate and display a single map
-./tools/map/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
 
 # Save map to file
-./tools/map/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
 
 # Generate 100 maps to S3
-./tools/map/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
 
 # Override generation parameters
-./tools/map/gen.py configs/env/mettagrid/maps/base.yaml "width=50 height=50 density=0.7"
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/base.yaml "width=50 height=50 density=0.7"
 
 # Different display modes
-./tools/map/gen.py map_config.yaml --show-mode=ascii # Terminal display
-./tools/map/gen.py map_config.yaml --show-mode=PIL  # Image popup
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=ascii # Terminal display
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=PIL  # Image popup
 ```
 
 ### map/gen_scene.py
@@ -765,7 +765,7 @@ GROUP BY policy_name, episode;
 
 ```bash
 # 1. Generate a new map
-./tools/map/gen.py configs/env/mettagrid/maps/template.yaml \
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/template.yaml \
   --output-uri=./my_map.yaml "seed=42"
 
 # 2. View and iterate
