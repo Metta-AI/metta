@@ -93,7 +93,10 @@ def make_rich_monitor_table(runs: List[RunInfo], score_metric: str = "env_agent/
         if run.summary and score_metric in run.summary:
             score_value = run.summary[score_metric]
             if score_value is not None:
-                score_str = f"{score_value:.3f}"
+                if isinstance(score_value, (int, float)):
+                    score_str = f"{score_value:.3f}"
+                else:
+                    score_str = str(score_value)
             else:
                 score_str = "N/A"
         else:
