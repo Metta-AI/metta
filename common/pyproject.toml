@@ -14,7 +14,7 @@ urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com
 dependencies = ["rich>=14.1", "wandb>=0.21.2"]
 
 [project.scripts]
-tool = "metta.common.tool.run_tool:main"
+tool = "metta.common.tool.run_tool:cli_entry"
 
 [dependency-groups]
 dev = [
