@@ -172,8 +172,10 @@ Examples:
 
     for arg in all_tool_args:
         if arg.startswith("run="):
-            if run_id is None:
-                run_id = arg[4:]
+            # Extract the run ID
+            new_run_id = arg[4:]
+            if run_id is not None and new_run_id != run_id:
+                raise ValueError(f"Conflicting run IDs specified: '{run_id}' and '{new_run_id}'")
         else:
             filtered_args.append(arg)
 
