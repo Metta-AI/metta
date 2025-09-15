@@ -1,0 +1,58 @@
+# Example configuration for training with contrastive loss
+# This shows how to configure both PPO and contrastive losses
+
+# Basic trainer configuration
+total_timesteps: 10000000
+batch_size: 65536
+minibatch_size: 8192
+update_epochs: 1
+bptt_horizon: 64
+
+# Loss configuration
+losses:
+  loss_configs:
+    # PPO loss (main policy gradient loss)
+    ppo:
+      clip_coef: 0.1
+      ent_coef: 0.01
+      vf_coef: 0.5
+      gamma: 0.99
+      gae_lambda: 0.95
+      max_grad_norm: 0.5
+      norm_adv: true
+      clip_vloss: true
+
+    # Contrastive loss (auxiliary representation learning)
+    contrastive:
+      temperature: 0.07        # Temperature for similarity scaling
+      contrastive_coef: 0.1    # Weight of contrastive loss in total loss
+      embedding_dim: 128       # Dimension of learned embeddings
+      use_projection_head: true # Whether to use projection layer
+
+# Optimizer configuration
+optimizer:
+  type: adam
+  learning_rate: 0.0003
+  beta1: 0.9
+  beta2: 0.999
+  weight_decay: 0.0
+
+# Environment configuration
+curriculum:
+  envs:
+    - name: arena
+      num_agents: 24
+      max_steps: 1000
+      obs_width: 11
+      obs_height: 11
+
+# Checkpointing
+checkpoint:
+  checkpoint_interval: 10
+  wandb_checkpoint_interval: 10
+
+# Evaluation
+evaluation:
+  evaluate_interval: 50
+  evaluate_local: true
+  evaluate_remote: false
