@@ -75,7 +75,6 @@ class ActionsConfig(Config):
     move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
-    place_box: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
@@ -105,14 +104,6 @@ class WallConfig(Config):
 
     type_id: int
     swappable: bool = Field(default=False)
-
-
-class BoxConfig(Config):
-    """Python box configuration."""
-
-    type_id: int = Field(default=0, ge=0, le=255)
-    # We don't allow setting of returned_resources -- it should always match
-    # the consumed_resources by place_box.
 
 
 class ConverterConfig(Config):
@@ -160,7 +151,7 @@ class GameConfig(Config):
     agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
-    objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)
+    objects: dict[str, ConverterConfig | WallConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.

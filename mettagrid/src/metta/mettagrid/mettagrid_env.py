@@ -137,13 +137,15 @@ class MettaGridEnv(MettaGridPufferBase):
         self._label_completions["completed_tasks"].append(label)
 
         # moving average of the completion rates
-        self._label_completions["completion_rates"] = {t : 0 for t in set(self._label_completions["completed_tasks"])}
+        self._label_completions["completion_rates"] = {t: 0 for t in set(self._label_completions["completed_tasks"])}
         for t in self._label_completions["completed_tasks"]:
             self._label_completions["completion_rates"][t] += 1
-        self._label_completions["completion_rates"] = {t : self._label_completions["completion_rates"][t] / len(self._label_completions["completed_tasks"]) for t in self._label_completions["completion_rates"]}
+        self._label_completions["completion_rates"] = {
+            t: self._label_completions["completion_rates"][t] / len(self._label_completions["completed_tasks"])
+            for t in self._label_completions["completion_rates"]
+        }
 
-
-    def _process_episode_completion(self, infos: Dict[str, Any]) -> None:
+    def _process_episode_completion(self, infos: Dict[str, Any], moving_avg_window: int = 500, alpha=0.9) -> None:
         """Process episode completion - stats, etc."""
         self.timer.start("process_episode_stats")
 
@@ -176,14 +178,18 @@ class MettaGridEnv(MettaGridPufferBase):
                 self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
             )
 
-        self._update_label_completions()
-        infos["label_completions"] = self._label_completions["completion_rates"]
+        self._update_label_completions(moving_avg_window)
+
+        # only plot label completions once we have a full moving average window, to prevent initial bias
+        if len(self._label_completions["completed_tasks"]) == moving_avg_window:
+            infos["label_completions"] = self._label_completions["completion_rates"]
 
         if self.mg_config.label not in self.per_label_rewards:
             self.per_label_rewards[self.mg_config.label] = 0
         self.per_label_rewards[self.mg_config.label] += episode_rewards.mean()
-        infos["per_label_rewards"] = self.per_label_rewards
-
+        infos["per_label_rewards"] = (
+            alpha * self.per_label_rewards[self.mg_config.label] + (1 - alpha) * episode_rewards.mean()
+        )
 
         # Add attributes
         attributes: Dict[str, Any] = {
