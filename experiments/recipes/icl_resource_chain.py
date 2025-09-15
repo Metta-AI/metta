@@ -344,14 +344,16 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     )
 
 
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+def replay(env: Optional[MettaGridConfig] = None, policy_uri: Optional[str] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
+    # Default to the research policy if none specified
+    default_policy_uri = "wandb://metta-research/metta/model/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19:v50"
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
             name="in_context_resource_chain",
         ),
-        policy_uri="wandb://run/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19:v50",
+        policy_uri=policy_uri or default_policy_uri,
     )
 
 

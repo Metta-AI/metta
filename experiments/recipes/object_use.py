@@ -223,7 +223,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     )
 
 
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+def replay(env: Optional[MettaGridConfig] = None, policy_uri: Optional[str] = None) -> ReplayTool:
     """Create a replay tool for object use."""
     eval_env = env or make_mettagrid()
     return ReplayTool(
@@ -231,6 +231,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
             env=eval_env,
             name="object_use",
         ),
+        policy_uri=policy_uri,
     )
 
 
