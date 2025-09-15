@@ -44,6 +44,11 @@ class SkypilotSetup(SetupModule):
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         # TODO: check if the sdk version from outside of this uv environment matches the latest version.
         # It's possible that the user's `sky` is not the same as the one installed by the uv environment we are in.
+
+        if not get_saved_settings().user_type.is_softmax:
+            info("SkyPilot is only supported for Softmax users. Skipping...")
+            return
+
         info("Setting up SkyPilot...")
 
         # In CI/test environments or non-interactive mode, avoid interactive login flows altogether
@@ -65,37 +70,39 @@ class SkypilotSetup(SetupModule):
                     info("You can complete it later with: gh auth login")
 
         connected_as = self.check_connected_as()
-        if connected_as == self.softmax_url:
-            info("SkyPilot is already configured for a softmax user. Skipping authentication.")
-        elif connected_as == "configured":
-            info("SkyPilot is already configured for external use. Skipping authentication.")
-        else:
-            # Need to authenticate skypilot.
-            if get_saved_settings().user_type.is_softmax:
-                try:
-                    # Temporarily block Ctrl+C for parent process during script execution
-                    # This is necessary because `sky api login` flow requires ctrl+c before the token can be pasted.
+        if connected_as == self.softmax_url and not force:
+            info("""
+            SkyPilot is already configured for a softmax user. Skipping authentication.
+            You can force re-authentication with --force.
+            """)
+            return
+        try:
+            # Temporarily block Ctrl+C for parent process during script execution
+            # This is necessary because `sky api login` flow requires ctrl+c before the token can be pasted.
 
-                    # Note: it's important to pass lambda, not `signal.SIG_IGN`, otherwise ctrl+c would be blocked even
-                    # in the child process.
-                    original_sigint_handler = signal.signal(signal.SIGINT, lambda signum, frame: None)
+            # Note: it's important to pass lambda, not `signal.SIG_IGN`, otherwise ctrl+c would be blocked even
+            # in the child process.
+            original_sigint_handler = signal.signal(signal.SIGINT, lambda signum, frame: None)
 
-                    self.run_command(["bash", "./devops/skypilot/install.sh"], capture_output=False)
-                    success("SkyPilot installed")
-                finally:
-                    signal.signal(signal.SIGINT, original_sigint_handler)
-            else:
-                info("""
-                    To use SkyPilot with your own AWS account:
-                    1. Ensure AWS credentials are configured
-                    2. Authenticate with uv run sky api login
-                """)
+            self.run_command(["bash", "./devops/skypilot/install.sh"], capture_output=False)
+            success("SkyPilot installed")
+        finally:
+            signal.signal(signal.SIGINT, original_sigint_handler)
+
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        return (
+            # SkypilotSetup.install only implements authenticating with softmax
+            get_saved_settings().user_type.is_softmax
+            # If the connection is unhealthy, force installing will not help
+            and self.check_connected_as() != f"{self.softmax_url} (unhealthy)"
+        )
 
     def check_connected_as(self) -> str | None:
-        if not self.check_installed():
-            return None
-
         if get_saved_settings().user_type.is_softmax:
+            if not self._check_gh_auth():
+                return None
+
             try:
                 result = subprocess.run(["uv", "run", "--active", "sky", "api", "info"], capture_output=True, text=True)
 
@@ -108,11 +115,4 @@ class SkypilotSetup(SetupModule):
                 return None
             except Exception:
                 return None
-        else:
-            try:
-                result = subprocess.run(["uv", "run", "--active", "sky", "check"], capture_output=True, text=True)
-                if result.returncode == 0:
-                    return "configured"
-                return None
-            except Exception:
-                return None
+        return None

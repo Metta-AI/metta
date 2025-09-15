@@ -112,7 +112,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
             resource_names=["heart"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
+                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -149,7 +149,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             resource_names=["heart", "ore_red", "battery_red"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
+                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -173,7 +173,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
 
 
 def make_icl_resource_chain(
-    num_agents: int, max_steps, game_objects: dict, map_builder_objects: dict
+    num_agents: int, max_steps, game_objects: dict, map_builder_objects: dict, width: int = 6, height: int = 6
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -184,7 +184,7 @@ def make_icl_resource_chain(
             map_builder=MapGen.Config(
                 instances=num_agents,
                 instance_map=PerimeterInContextMapBuilder.Config(
-                    agents=1, width=6, height=6, objects=map_builder_objects
+                    agents=1, width=width, height=height, objects=map_builder_objects
                 ),
             ),
             actions=ActionsConfig(

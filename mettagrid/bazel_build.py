@@ -23,6 +23,7 @@ from setuptools.build_meta import (
     prepare_metadata_for_build_editable,
     prepare_metadata_for_build_wheel,
 )
+from setuptools.dist import Distribution
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -50,6 +51,7 @@ def _run_bazel_build() -> None:
         "bazel",
         "build",
         f"--config={config}",
+        "--verbose_failures",
         "//:mettagrid_c",
     ]
 
@@ -57,7 +59,10 @@ def _run_bazel_build() -> None:
     result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
 
     if result.returncode != 0:
-        print(f"Bazel build failed:\n{result.stderr}", file=sys.stderr)
+        print("Bazel build failed. STDERR:", file=sys.stderr)
+        print(result.stderr, file=sys.stderr)
+        print("Bazel build STDOUT:", file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
         raise RuntimeError("Bazel build failed")
 
     # Copy the built extension to the package directory
@@ -90,7 +95,14 @@ def _run_bazel_build() -> None:
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     """Build a wheel, compiling the C++ extension with Bazel first."""
     _run_bazel_build()
-    return _build_wheel(wheel_directory, config_settings, metadata_directory)
+    # Ensure wheel is tagged as non-pure (platform-specific) since we bundle a native extension
+    # Setuptools/wheel derive purity from Distribution.has_ext_modules(). Monkeypatch to force True.
+    original_has_ext_modules = Distribution.has_ext_modules
+    try:
+        Distribution.has_ext_modules = lambda self: True  # type: ignore[assignment]
+        return _build_wheel(wheel_directory, config_settings, metadata_directory)
+    finally:
+        Distribution.has_ext_modules = original_has_ext_modules
 
 
 def build_editable(wheel_directory, config_settings=None, metadata_directory=None):

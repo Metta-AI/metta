@@ -2,7 +2,11 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumConfig,
+    CurriculumAlgorithmConfig,
+)
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.mettagrid.builder import empty_converters
 from metta.mettagrid.builder.envs import make_icl_resource_chain
@@ -62,6 +66,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_sinks: list[int] = Field(
             default_factory=list, description="Number of sinks to sample from"
         )
+        room_sizes: list[str] = Field(
+            default=["6x6"], description="Room size to sample from"
+        )
+        max_steps: int = Field(default=256, description="Episode length")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
         super().__init__(config)
@@ -85,7 +93,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         rng: random.Random,
     ):
         converter_name = self._choose_converter_name(
-            self.converter_types, cfg.used_objects, rng
+            self.converter_types, set(cfg.used_objects), rng
         )
         cfg.used_objects.append(converter_name)
         cfg.converters.append(converter_name)
@@ -105,7 +113,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
     def _add_sink(self, cfg: _BuildCfg, rng: random.Random):
         sink_name = self._choose_converter_name(
-            self.converter_types, cfg.used_objects, rng
+            self.converter_types, set(cfg.used_objects), rng
         )
         cfg.used_objects.append(sink_name)
         sink = self.converter_types[sink_name].copy()
@@ -117,10 +125,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.map_builder_objects[sink_name] = 1
 
     def _make_env_cfg(
-        self, resource_chain, num_sinks, rng, max_steps=256
+        self, resources, num_sinks, width, height, avg_hop, rng, max_steps=256
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
-        resource_chain = ["nothing"] + list(resource_chain) + ["heart"]
+        resource_chain = ["nothing"] + list(resources) + ["heart"]
 
         chain_length = len(resource_chain)
 
@@ -133,28 +141,139 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         # longer episodes for longer chains
         if len(cfg.used_objects) > 4:
-            max_steps = 512
+            max_steps = self.config.max_steps * 2
 
-        cooldown = 6 * (chain_length - 1)
+        cooldown = avg_hop * (chain_length - 1)
 
         for obj in cfg.converters:
-            cfg.game_objects[obj].cooldown = cooldown
+            cfg.game_objects[obj].cooldown = int(cooldown)
 
         return make_icl_resource_chain(
             num_agents=24,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
             map_builder_objects=cfg.map_builder_objects,
+            width=width,
+            height=height,
         )
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        chain_length = rng.choice(self.config.chain_lengths)
+        num_resources = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
-        resource_chain = rng.sample(self.resource_types, chain_length)
+        resources = rng.sample(self.resource_types, num_resources)
+        room_size = rng.choice(self.config.room_sizes)
 
-        icl_env = self._make_env_cfg(resource_chain, num_sinks, rng=rng)
+        # by default, use a 6x6 room - to reproduce existing results
+        if room_size == "6x6":
+            width, height = 6, 6
+        else:
+            if room_size == "small":
+                size_range = (5, 8)
+            elif room_size == "medium":
+                size_range = (8, 12)
+            elif room_size == "large":
+                size_range = (12, 15)
+
+            width, height = (
+                rng.randint(size_range[0], size_range[1]),
+                rng.randint(size_range[0], size_range[1]),
+            )
+
+        max_steps = self.config.max_steps
+
+        avg_hop = (width + height) / 2
+
+        # optimal reward estimates for the task, to be used in evaluation
+        most_efficient_optimal_reward, least_efficient_optimal_reward = (
+            self._estimate_max_rewards(num_resources, num_sinks, max_steps, avg_hop)
+        )
+
+        icl_env = self._make_env_cfg(
+            resources,
+            num_sinks,
+            width=width,
+            height=height,
+            avg_hop=avg_hop,
+            max_steps=max_steps,
+            rng=rng,
+        )
+
+        icl_env.game.reward_estimates = {
+            "most_efficient_optimal_reward": most_efficient_optimal_reward,
+            "least_efficient_optimal_reward": least_efficient_optimal_reward,
+        }
+
+        icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{room_size}"
 
         return icl_env
+
+    def _estimate_max_rewards(
+        self,
+        num_resources: int,
+        num_sinks: int,
+        max_steps: int,
+        avg_hop: float,
+    ) -> tuple[float, float]:
+        """
+        Returns (most_efficient_reward, least_efficient_reward).
+
+        Updates vs prior:
+          * Each converter interaction = 2 actions (put + get).
+          * Both scenarios include average hop distance between perimeter objects.
+          * Per-heart cycle time is the bottleneck of either converter cooldown or the
+            movement+interaction cost to traverse the whole chain again.
+
+        Definitions:
+          - num_resources: number of *intermediate* resources between "nothing" and "heart".
+          - n_converters = chain_length + 1 (edges: nothing->r1, ..., r_k->heart).
+          - cooldown = avg_hop * n_converters (as set in _make_env_cfg).
+        """
+        # Number of converters in the chain (nothing->r1, ..., r_k->heart)
+        n_converters = num_resources + 1
+        total_objects = n_converters + num_sinks
+
+        # Mirror _make_env_cfg’s episode-length extension
+        effective_max_steps = max_steps * 2 if total_objects > 4 else max_steps
+
+        # Converter cooldown applied uniformly
+        cooldown = avg_hop * n_converters
+
+        # Cost per attempt at any object = move there + (put + get)
+        step_per_attempt = avg_hop + 2
+
+        # Cost to traverse the *correct* chain once (movement + interactions at each stage)
+        correct_chain_traverse_cost = n_converters * step_per_attempt
+
+        # One full production cycle after the first heart is limited by either cooldown
+        # or the time to traverse the chain again (including moving between stages).
+        per_heart_cycle = max(cooldown, correct_chain_traverse_cost)
+
+        def hearts_after(first_heart_steps: float) -> float:
+            if first_heart_steps > effective_max_steps:
+                return 0
+            remaining = effective_max_steps - first_heart_steps
+            return 1 + (remaining // per_heart_cycle)
+
+        # ---------- Most efficient ----------
+        # Immediately discover the correct chain; still pay average hop + (put+get) at each stage.
+        best_first_heart_steps = correct_chain_traverse_cost
+        most_efficient = hearts_after(best_first_heart_steps)
+
+        # ---------- Least efficient ----------
+        #   1. Find the first converter: (converters + sinks) attempts
+        #   2. Find all sinks: ~(converters + 2 * sinks) attempts
+        #      (every time you find a sink, you need to go get an item again)
+        #   3. Find the right pattern: ~converters * (converters - 1) attempts
+        find_first_converter_cost = (n_converters + num_sinks) * step_per_attempt
+        find_all_sinks_cost = (n_converters + 2 * num_sinks) * step_per_attempt
+        find_right_pattern_cost = n_converters * (n_converters - 1) * step_per_attempt
+
+        worst_first_heart_steps = (
+            find_first_converter_cost + find_all_sinks_cost + find_right_pattern_cost
+        )
+        least_efficient = hearts_after(worst_first_heart_steps)
+
+        return int(most_efficient), int(least_efficient)
 
 
 def make_mettagrid() -> MettaGridConfig:
@@ -166,15 +285,36 @@ def make_mettagrid() -> MettaGridConfig:
     return task_generator.get_task(0)
 
 
-def make_curriculum() -> CurriculumConfig:
+def make_curriculum(
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+) -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
+        room_sizes=["small"],
     )
-    return CurriculumConfig(task_generator=task_generator_cfg)
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,  # Enable bidirectional learning progress by default
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=3,
+            progress_smoothing=0.1,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+
+    return CurriculumConfig(
+        task_generator=task_generator_cfg,
+        algorithm_config=algorithm_config,
+    )
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
         make_icl_resource_chain_eval_suite,
@@ -182,7 +322,8 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
@@ -210,7 +351,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
             env=eval_env,
             name="in_context_resource_chain",
         ),
-        policy_uri="wandb://run/georgedeane.operant_conditioning.in_context_learning.all.0.1_progress_smoothing.08-19:v50",
+        policy_uri="wandb://run/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19:v50",
     )
 
 

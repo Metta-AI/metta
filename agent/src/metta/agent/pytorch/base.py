@@ -76,6 +76,18 @@ class LSTMWrapper(nn.Module):
         if env_id in self.lstm_c:
             del self.lstm_c[env_id]
 
+    def on_new_training_run(self):
+        self.reset_memory()
+
+    def on_rollout_start(self):
+        self.reset_memory()
+
+    def on_train_mb_start(self):
+        self.reset_memory()
+
+    def on_eval_start(self):
+        self.reset_memory()
+
     def _manage_lstm_state(self, td, B, TT, device):
         """Manage LSTM state with automatic reset and detachment.
 
