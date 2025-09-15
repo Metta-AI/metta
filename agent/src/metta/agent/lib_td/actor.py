@@ -92,6 +92,36 @@ class ActorKey(nn.Module):
             bound = 1 / math.sqrt(self.embed_dim)
             nn.init.uniform_(self.bias, -bound, bound)
 
+    def forward(self, td: TensorDict):
+        query = td[self.query_key]  # Shape: [B*TT, embed_dim]
+        action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
+
+        # Compute scores
+        scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
+
+        # Add bias
+        biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
+
+        td[self.out_key] = biased_scores
+        return td
+
+
+class ActionProbsConfig(Config):
+    in_key: str = "logits"
+
+    def instantiate(self):
+        return ActionProbs(config=self)
+
+
+class ActionProbs(nn.Module):
+    """
+    Computes action scores based on a query and action embeddings (keys).
+    """
+
+    def __init__(self, config: Optional[ActionProbsConfig] = None):
+        super().__init__()
+        self.config = config or ActionProbsConfig()
+
     def initialize_to_environment(
         self,
         features: dict[str, dict],
@@ -105,34 +135,22 @@ class ActorKey(nn.Module):
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
 
-        # Generate full action names
-        self.active_action_names = [
-            f"{name}_{i}"
-            for name, max_param in zip(action_names, action_max_params, strict=False)
-            for i in range(max_param + 1)
-        ]
-        self.num_active_actions = len(self.active_action_names)
+        self.action_index_tensor = torch.tensor(
+            [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
+            device=device,
+            dtype=torch.int32,
+        )
 
-    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None):
-        query = td[self.query_key]  # Shape: [B*TT, embed_dim]
-        action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
-
-        # Compute scores
-        scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
-
-        # Add bias
-        biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
-
-        td[self.out_key] = biased_scores
+    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if action is None:
-            self.forward_inference(td, biased_scores)
+            return self.forward_inference(td)
         else:
-            self.forward_training(td, action, biased_scores)
-        return td
+            return self.forward_training(td, action)
 
-    def forward_inference(self, td: TensorDict, logits_list: torch.Tensor) -> TensorDict:
+    def forward_inference(self, td: TensorDict) -> TensorDict:
+        logits = td[self.config.in_key]
         """Forward pass for inference mode with action sampling."""
-        log_probs = F.log_softmax(logits_list, dim=-1)
+        log_probs = F.log_softmax(logits, dim=-1)
         action_probs = torch.exp(log_probs)
 
         actions = torch.multinomial(action_probs, num_samples=1).view(-1)
@@ -147,10 +165,11 @@ class ActorKey(nn.Module):
 
         return td
 
-    def forward_training(self, td: TensorDict, action: torch.Tensor, logits_list: torch.Tensor) -> TensorDict:
+    def forward_training(self, td: TensorDict, action: torch.Tensor) -> TensorDict:
         """Forward pass for training mode with proper TD reshaping."""
         # CRITICAL: ComponentPolicy expects the action to be flattened already during training
         # The TD should be reshaped to match the flattened batch dimension
+        logits = td[self.config.in_key]
         if action.dim() == 3:  # (B, T, A) -> (BT, A)
             batch_size_orig, time_steps, A = action.shape
             action = action.view(batch_size_orig * time_steps, A)
@@ -158,7 +177,7 @@ class ActorKey(nn.Module):
             if td.batch_dims > 1:
                 td = td.reshape(td.batch_size.numel())
 
-        action_log_probs = F.log_softmax(logits_list, dim=-1)
+        action_log_probs = F.log_softmax(logits, dim=-1)
         action_probs = torch.exp(action_log_probs)
 
         action_logit_index = self._convert_action_to_logit_index(action)

@@ -77,7 +77,8 @@ def create_agent(
 
     if config.policy_config is not None:
         if hasattr(config.policy_config, "instantiate"):
-            return config.policy_config.instantiate(env=env, obs_meta=obs_meta)
+            policy = config.policy_config.instantiate(env=env, obs_meta=obs_meta)
+            return policy
         else:
             raise AttributeError(
                 f"Provided policy config {type(config.policy_config).__name__} does not have an 'instantiate' \

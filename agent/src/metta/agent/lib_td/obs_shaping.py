@@ -152,12 +152,12 @@ class ObsAttrValNorm(nn.Module):
         self._feature_normalizations = list(obs_meta["feature_normalizations"])
         self._max_embeds = 256
 
-    def _update_norm_factors(self):
+    def _update_norm_factors(self, device: torch.device):
         # Create a tensor for feature normalizations
         # We need to handle the case where attr_idx might be 0 (padding) or larger than defined normalizations.
         # Assuming max attr_idx is 256 (same as attr_embeds size - 1 for padding_idx).
         # Initialize with 1.0 to avoid division by zero for unmapped indices.
-        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
+        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32, device=device)
         for i, val in enumerate(self._feature_normalizations):
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
                 norm_tensor[i] = val
@@ -165,17 +165,6 @@ class ObsAttrValNorm(nn.Module):
                 raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
         self.register_buffer("_norm_factors", norm_tensor)
         return None
-
-    def forward(self, td: TensorDict) -> TensorDict:
-        observations = td[self.in_key]
-
-        attr_indices = observations[..., 1].long()
-        norm_factors = self._norm_factors[attr_indices]
-        observations = observations.clone()
-        observations[..., 2] = observations[..., 2] / norm_factors
-
-        td[self.out_key] = observations
-        return td
 
     def initialize_to_environment(
         self,
@@ -188,8 +177,19 @@ class ObsAttrValNorm(nn.Module):
         self._feature_normalizations = {
             props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
         }
-        self._update_norm_factors()
+        self._update_norm_factors(device)
         return None
+
+    def forward(self, td: TensorDict) -> TensorDict:
+        observations = td[self.in_key]
+
+        attr_indices = observations[..., 1].long()
+        norm_factors = self._norm_factors[attr_indices]
+        observations = observations.clone()
+        observations[..., 2] = observations[..., 2] / norm_factors
+
+        td[self.out_key] = observations
+        return td
 
 
 class ObsShaperTokensConfig(Config):

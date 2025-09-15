@@ -11,7 +11,7 @@ from metta.common.config.config import Config
 class ObsLatentAttnConfig(Config):
     feat_dim: int
     out_dim: int
-    in_key: str = "obs_attr_val_norm"
+    in_key: str = "obs_attr_embed_fourier"
     out_key: str = "obs_latent_attn"
     use_mask: bool = True
     num_query_tokens: int = 10

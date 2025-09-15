@@ -1,7 +1,7 @@
 import logging
 
 from metta.agent.lib_td.action import ActionEmbeddingConfig
-from metta.agent.lib_td.actor import ActorKeyConfig, ActorQueryConfig
+from metta.agent.lib_td.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.lib_td.lstm import LSTMConfig
 from metta.agent.lib_td.misc import MLPConfig
 from metta.agent.lib_td.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfig
@@ -27,6 +27,7 @@ class ViTLSTMConfig(Config):
     action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig()
     actor_query_config: ActorQueryConfig = ActorQueryConfig()
     actor_key_config: ActorKeyConfig = ActorKeyConfig()
+    action_probs_config: ActionProbsConfig = ActionProbsConfig()
 
     def instantiate(self, env, obs_meta: dict):
         return Policy(env, obs_meta, config=self)

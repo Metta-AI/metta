@@ -41,25 +41,39 @@ class Policy(nn.Module):
                 continue
 
             if attr == "obs_shaper_config":
-                self.layers[attr] = value.instantiate(obs_meta)
+                self.layers["obs_shaper"] = value.instantiate(obs_meta)
             else:
+                if "_config" in attr:
+                    attr = attr.replace("_config", "")  # not critical but makes it easier to read
                 self.layers[attr] = value.instantiate()
+
+        assert "obs_shaper" in self.layers, "obs_shaper_config must be in the policy's config"
+
+        # finish with a special layer for action probs becaues its forward needs old actions to be passed in
+        # we could replace this by adding old_actions to the td
+        self.action_probs = self.config.action_probs_config.instantiate()
 
         self.network = TensorDictSequential(self.layers, inplace=True)
 
-        # A dummy forward pass to initialize any lazy modules (e.g. nn.LazyLinear).
-        with torch.no_grad():
-            dummy_batch_size = [2, 200]
-            dummy_td = TensorDict(
-                {
-                    "env_obs": torch.zeros(*dummy_batch_size, 3, dtype=torch.uint8),
-                },
-                batch_size=dummy_batch_size,
-            )
-            self.network(dummy_td)
+        # av fix this
+        # # A dummy forward pass to initialize any lazy modules (e.g. nn.LazyLinear).
+        # with torch.no_grad():
+        #     dummy_batch_size = [2, 200]
+        #     dummy_td = TensorDict(
+        #         {
+        #             "env_obs": torch.zeros(*dummy_batch_size, 3, dtype=torch.uint8),
+        #         },
+        #         batch_size=dummy_batch_size,
+        #     )
+        #     self.network(dummy_td)
 
-    def forward(self, td: TensorDict):
-        return self.network(td)
+    def forward(self, td: TensorDict, action: torch.Tensor = None):
+        self.network(td)
+        self.action_probs(td, action)
+        td["values"] = td[
+            "values"
+        ].flatten()  # could update Experience to not need this line but  need to update ppo.py
+        return td
 
     def initialize_to_environment(
         self,
@@ -76,6 +90,8 @@ class Policy(nn.Module):
                     value.initialize_to_environment(features, action_names, action_max_params, device, is_training)
                 )
 
+        self.action_probs.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+
         for log in logs:
             if log is not None:
                 log_on_master(log)
@@ -87,7 +103,9 @@ class Policy(nn.Module):
 
     @property
     def total_params(self):
-        self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        # self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        self._total_params = 42  # av fix this
+        # lazy linear params can't be counted. can't make a dummy fwd pass due to need for initalization to env call.
         return self._total_params
 
     def get_agent_experience_spec(self) -> Composite:
@@ -95,9 +113,8 @@ class Policy(nn.Module):
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
             dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-            actions=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            last_actions=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
             truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            # training_env_ids=UnboundedDiscrete(shape=torch.Size([1]), dtype=torch.long),
         )
 
     def attach_replay_buffer(self, experience: Experience):

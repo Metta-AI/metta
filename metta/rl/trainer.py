@@ -180,6 +180,7 @@ def train(
             policy_agent = checkpoint_manager.load_agent(epoch=checkpoint_epoch, device=device)
     else:
         policy_agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+        policy_agent = policy_agent.policy  # av this line
 
     # Ensure all ranks have created/loaded their policy before continuing
     if torch.distributed.is_initialized():
@@ -373,6 +374,8 @@ def train(
                                 policy(td)
                             # Store experience since no loss did it
                             experience.store(data_td=td, env_id=training_env_id)
+
+                        # av add burn in
 
                         actions = td["actions"]
 

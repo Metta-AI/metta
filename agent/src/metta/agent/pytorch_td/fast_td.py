@@ -10,7 +10,14 @@ from torch import nn
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.lib_td.action import ActionEmbedding, ActionEmbeddingConfig
-from metta.agent.lib_td.actor import ActorKey, ActorKeyConfig, ActorQuery, ActorQueryConfig
+from metta.agent.lib_td.actor import (
+    ActionProbs,
+    ActionProbsConfig,
+    ActorKey,
+    ActorKeyConfig,
+    ActorQuery,
+    ActorQueryConfig,
+)
 from metta.agent.lib_td.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.lib_td.lstm import LSTM, LSTMConfig
 from metta.agent.lib_td.obs_shaping import ObsShaperBoxConfig
@@ -31,6 +38,7 @@ class FastConfig(Config):
     action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig()
     actor_query_config: ActorQueryConfig = ActorQueryConfig()
     actor_key_config: ActorKeyConfig = ActorKeyConfig()
+    action_probs_config: ActionProbsConfig = ActionProbsConfig()
     wants_td: bool = True
 
     def instantiate(self, env, obs_meta: dict):
@@ -84,6 +92,7 @@ class FastPolicy(nn.Module):
         self.actor_query = ActorQuery(config=config.actor_query_config)
         config.actor_key_config.embed_dim = config.action_embedding_config.embedding_dim
         self.actor_key = ActorKey(config=config.actor_key_config)
+        self.action_probs = ActionProbs(config=config.action_probs_config)
 
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
         self.cnn_encoder(td)
@@ -93,7 +102,8 @@ class FastPolicy(nn.Module):
         self.actor_1(td)
         self.action_embeddings(td)
         self.actor_query(td)
-        self.actor_key(td, action)
+        self.actor_key(td)
+        self.action_probs(td, action)
         td["values"] = td["values"].flatten()
 
         return td
