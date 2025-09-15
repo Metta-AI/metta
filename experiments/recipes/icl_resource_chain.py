@@ -355,7 +355,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
@@ -365,6 +365,6 @@ def evaluate(
     simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
         simulations=simulations,
-        policy_uris=[policy_uri],
+        policy_uris=["wandb://run/george.icl.reproduce.4gpus.09-12"],
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
