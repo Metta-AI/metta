@@ -34,10 +34,13 @@ from wandb.errors import CommError
 #  Globals                                                                     #
 # --------------------------------------------------------------------------- #
 
+
 # WANDB_ENTITY for backward compatibility with short URIs
 def _get_wandb_entity() -> str:
     """Get WANDB_ENTITY, checking environment variable dynamically."""
     return os.getenv("WANDB_ENTITY") or ""
+
+
 GOOGLE_DRIVE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_DRIVE_CREDENTIALS_FILE", "~/.config/gcloud/credentials.json")
 GOOGLE_DRIVE_TOKEN_FILE: str = os.getenv("GOOGLE_DRIVE_TOKEN_FILE", "~/.config/gcloud/token.json")
 

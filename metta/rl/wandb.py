@@ -127,11 +127,13 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
 
     path = uri[len("wandb://") :]
 
-    # Check if it's already a full URI (has 3+ parts: entity/project/artifact)
-    if "/" in path:
-        parts = path.split(":")[0].split("/")  # Remove version for counting
-        if len(parts) >= 3:
-            return uri  # Already full format, pass through
+    # Check for known short URI patterns first
+    if path.startswith(("run/", "sweep/")):
+        # This is definitely a short URI - need WANDB_ENTITY for expansion
+        pass  # Continue to expansion logic below
+    else:
+        # Not a known short format, assume it's already a full URI
+        return uri
 
     # Handle short URI formats - need WANDB_ENTITY
     entity = os.getenv("WANDB_ENTITY")
