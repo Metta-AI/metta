@@ -17,8 +17,9 @@ from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
+from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.file import WANDB_ENTITY, WandbURI
+from metta.mettagrid.util.file import WandbURI
 from metta.rl.checkpoint_manager import CheckpointManager, expand_wandb_uri, key_and_version
 from metta.rl.system_config import SystemConfig
 from metta.rl.wandb import upload_checkpoint_as_artifact
@@ -146,20 +147,20 @@ class TestWandbURIHandling:
 
     def test_wandb_uri_expansion(self):
         """Test wandb URI expansion functionality."""
-        # Test short run format
+        # Test short run format - should use METTA_WANDB_ENTITY fallback
         short_uri = "wandb://run/my-experiment"
         expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta/model/my-experiment:latest"
+        assert expanded == "wandb://metta-research/metta/model/my-experiment:latest"
 
         # Test short run format with version
         short_uri = "wandb://run/my-experiment:v10"
         expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta/model/my-experiment:v10"
+        assert expanded == "wandb://metta-research/metta/model/my-experiment:v10"
 
         # Test short sweep format
         short_uri = "wandb://sweep/my-sweep"
         expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta/sweep_model/my-sweep:latest"
+        assert expanded == "wandb://metta-research/metta/sweep_model/my-sweep:latest"
 
         # Test full format (should remain unchanged)
         full_uri = "wandb://entity/project/model/artifact:v1"
@@ -193,8 +194,8 @@ class TestWandbURIHandling:
         uri = "wandb://run/experiment_1"
         metadata = CheckpointManager.get_policy_metadata(uri)
 
-        # Should call with expanded URI
-        mock_get_metadata.assert_called_once_with("wandb://metta/model/experiment_1:latest")
+        # Should call with expanded URI using METTA_WANDB_ENTITY
+        mock_get_metadata.assert_called_once_with("wandb://metta-research/metta/model/experiment_1:latest")
 
         assert metadata["run_name"] == "experiment_1"
         assert metadata["epoch"] == 25
@@ -471,7 +472,7 @@ class TestWandbArtifactFormatting:
             # Most importantly: verify that qname() uses the configured entity
             # and doesn't create double entity paths
             qname = parsed_uri.qname()
-            expected_qname = f"{WANDB_ENTITY}/{expected_project}/{expected_artifact_path}:{expected_version}"
+            expected_qname = f"{METTA_WANDB_ENTITY}/{expected_project}/{expected_artifact_path}:{expected_version}"
             assert qname == expected_qname
 
             # Ensure no double entity issue (this was the original bug)

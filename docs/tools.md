@@ -32,9 +32,9 @@ essential functionality for training, evaluation, visualization, and development
 The main entry point is `./tools/run.py` which uses the recipe system for all major operations:
 
 ```bash
-./tools/run.py experiments.recipes.arena.train --args run=my_experiment  # Training
-./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/my_experiment  # Evaluation
-./tools/run.py experiments.recipes.arena.play --args policy_uri=wandb://run/my_experiment  # Interactive play
+./tools/run.py experiments.recipes.arena.train run=my_experiment # Training
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/my_experiment # Evaluation
+./tools/run.py experiments.recipes.arena.play policy_uri=wandb://run/my_experiment # Interactive play
 ```
 
 ## Training Tools
@@ -62,16 +62,16 @@ The tool integrates with:
 
 ```bash
 # Basic arena training
-./tools/run.py experiments.recipes.arena.train --args run=my_experiment
+./tools/run.py experiments.recipes.arena.train run=my_experiment
 
 # Navigation training
-./tools/run.py experiments.recipes.navigation.train --args run=my_experiment
+./tools/run.py experiments.recipes.navigation.train run=my_experiment
 
 # Training with custom parameters
-./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides trainer.total_timesteps=1000000
+./tools/run.py experiments.recipes.arena.train run=my_experiment trainer.total_timesteps=1000000
 
 # Training with specific device and wandb settings
-./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides system.device=cpu wandb.enabled=false
+./tools/run.py experiments.recipes.arena.train run=my_experiment system.device=cpu wandb.enabled=false
 ```
 
 **Key Features**:
@@ -204,16 +204,16 @@ programmatic processing
 
 ```bash
 # Evaluate a single policy
-./tools/run.py experiments.recipes.navigation.evaluate --args policy_uri=wandb://run/experiment_001
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://run/experiment_001
 
 # Evaluate with arena recipe
-./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/experiment_001
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/experiment_001
 
 # Evaluate with specific policy from file
-./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=file://./train_dir/my_run/checkpoints
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints
 
 # Evaluate with wandb artifact
-./tools/run.py experiments.recipes.navigation.evaluate --args policy_uri=wandb://team/project/model:v0
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://team/project/model:v0
 ```
 
 **Key Features**:
@@ -273,13 +273,13 @@ performance metrics, and learning progress.
 
 ```bash
 # Analyze arena evaluation results
-./tools/run.py experiments.recipes.arena.analyze --args eval_db_uri=./train_dir/eval_experiment/stats.db
+./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval_experiment/stats.db
 
 # Analyze navigation evaluation results
-./tools/run.py experiments.recipes.navigation.analyze --args eval_db_uri=./train_dir/eval_experiment/stats.db
+./tools/run.py experiments.recipes.navigation.analyze eval_db_uri=./train_dir/eval_experiment/stats.db
 
 # Analyze with specific evaluation database
-./tools/run.py experiments.recipes.arena.analyze --args eval_db_uri=wandb://artifacts/navigation_db
+./tools/run.py experiments.recipes.arena.analyze eval_db_uri=wandb://artifacts/navigation_db
 ```
 
 **Dependencies**:
@@ -345,13 +345,13 @@ environments with support for multiple rendering backends.
 
 ```bash
 # Generate replay for a policy
-./tools/run.py experiments.recipes.arena.replay --args policy_uri=wandb://run/abc123
+./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/abc123
 
 # Generate replay with navigation environment
-./tools/run.py experiments.recipes.navigation.replay --args policy_uri=wandb://run/abc123
+./tools/run.py experiments.recipes.navigation.replay policy_uri=wandb://run/abc123
 
 # Generate replay from local checkpoint
-./tools/run.py experiments.recipes.arena.replay --args policy_uri=file://./train_dir/my_run/checkpoints
+./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_run/checkpoints
 ```
 
 **Key Features**:
@@ -372,10 +372,10 @@ environments with support for multiple rendering backends.
 ./tools/run.py experiments.recipes.arena.play
 
 # Interactive play with specific policy
-./tools/run.py experiments.recipes.arena.play --args policy_uri=wandb://run/my_experiment
+./tools/run.py experiments.recipes.arena.play policy_uri=wandb://run/my_experiment
 
 # Interactive navigation environment
-./tools/run.py experiments.recipes.navigation.play --args policy_uri=file://./checkpoints
+./tools/run.py experiments.recipes.navigation.play policy_uri=file://./checkpoints
 ```
 
 **Key Features**:
@@ -460,20 +460,20 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # Generate and display a single map
-./tools/map/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
 
 # Save map to file
-./tools/map/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
 
 # Generate 100 maps to S3
-./tools/map/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
 
 # Override generation parameters
-./tools/map/gen.py configs/env/mettagrid/maps/base.yaml --overrides "width=50 height=50 density=0.7"
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/base.yaml "width=50 height=50 density=0.7"
 
 # Different display modes
-./tools/map/gen.py map_config.yaml --show-mode=ascii  # Terminal display
-./tools/map/gen.py map_config.yaml --show-mode=PIL    # Image popup
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=ascii # Terminal display
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=PIL  # Image popup
 ```
 
 ### map/gen_scene.py
@@ -487,7 +487,7 @@ This tool creates game maps using different generation algorithms including:
 ./tools/map/gen_scene.py scenes/wfc/blob.yaml 32 32
 
 # With overrides
-./tools/map/gen_scene.py scenes/convchain/maze.yaml 64 64 --overrides "seed=42"
+./tools/map/gen_scene.py scenes/convchain/maze.yaml 64 64 "seed=42"
 
 # Different display mode
 ./tools/map/gen_scene.py scenes/test/grid.yaml 16 16 --show-mode=ascii
@@ -732,16 +732,16 @@ GROUP BY policy_name, episode;
 
 ```bash
 # 1. Train a policy
-./tools/run.py experiments.recipes.navigation.train --args run=nav_experiment_001
+./tools/run.py experiments.recipes.navigation.train run=nav_experiment_001
 
 # 2. Evaluate the trained policy
-./tools/run.py experiments.recipes.navigation.evaluate --args policy_uri=wandb://run/nav_experiment_001
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://run/nav_experiment_001
 
 # 3. Analyze results
-./tools/run.py experiments.recipes.navigation.analyze --args eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
+./tools/run.py experiments.recipes.navigation.analyze eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
 
 # 4. Interactive play with trained policy
-./tools/run.py experiments.recipes.navigation.play --args policy_uri=wandb://run/nav_experiment_001
+./tools/run.py experiments.recipes.navigation.play policy_uri=wandb://run/nav_experiment_001
 ```
 
 ### Hyperparameter Sweep Workflow
@@ -749,7 +749,7 @@ GROUP BY policy_name, episode;
 ```bash
 # 1. Initialize sweep
 ./tools/sweep_init.py sweep_name=hyperparam_search_001 \
-    sweep_params=configs/sweep/navigation_sweep.yaml
+  sweep_params=configs/sweep/navigation_sweep.yaml
 
 # 2. Training happens automatically via recipe system
 
@@ -758,15 +758,15 @@ GROUP BY policy_name, episode;
 
 # 4. Interactive play with best policy
 ./tools/run.py experiments.recipes.arena.play \
-    --args policy_uri="wandb://sweep/hyperparam_search_001:best"
+   policy_uri="wandb://sweep/hyperparam_search_001:best"
 ```
 
 ### Map Development Workflow
 
 ```bash
 # 1. Generate a new map
-./tools/map/gen.py configs/env/mettagrid/maps/template.yaml \
-    --output-uri=./my_map.yaml --overrides "seed=42"
+./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/template.yaml \
+  --output-uri=./my_map.yaml "seed=42"
 
 # 2. View and iterate
 ./tools/map/view.py ./my_map.yaml
@@ -795,17 +795,17 @@ Key environment variables used by tools:
 
 ```bash
 # Use CPU for testing
-./tools/run.py experiments.recipes.arena.train --args run=cpu_test --overrides system.device=cpu
+./tools/run.py experiments.recipes.arena.train run=cpu_test system.device=cpu
 
 # Reduce training time for quick testing
-./tools/run.py experiments.recipes.arena.train --args run=quick_test --overrides trainer.total_timesteps=10000
+./tools/run.py experiments.recipes.arena.train run=quick_test trainer.total_timesteps=10000
 ```
 
 ### Database Access
 
 ```bash
 # For local testing without external services
-./tools/run.py experiments.recipes.arena.train --args run=local_test --overrides wandb.enabled=false system.device=cpu
+./tools/run.py experiments.recipes.arena.train run=local_test wandb.enabled=false system.device=cpu
 ```
 
 ## Best Practices
