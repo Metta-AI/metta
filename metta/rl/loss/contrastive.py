@@ -1,10 +1,14 @@
 # metta/rl/loss/contrastive.py
+from typing import Any
+
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous
+from torchrl.data import Composite
 
+from metta.agent.metta_agent import PolicyAgent
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.base_loss import BaseLoss
 from metta.rl.trainer_state import TrainerState
 
@@ -38,8 +42,7 @@ class ContrastiveLoss(BaseLoss):
         # Add projection head if needed
         if self.loss_cfg.use_projection_head:
             self.projection_head = torch.nn.Linear(
-                self.policy.policy.components["encoder"].output_dim,
-                self.embedding_dim
+                self.policy.policy.components["encoder"].output_dim, self.embedding_dim
             ).to(device)
         else:
             self.projection_head = None

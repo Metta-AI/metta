@@ -6,6 +6,7 @@ from pydantic import Field
 from metta.agent.metta_agent import PolicyAgent
 from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.loss.contrastive_config import ContrastiveConfig
 from metta.rl.loss.ppo_config import PPOConfig
 
 
@@ -15,11 +16,7 @@ class LossSchedule(Config):
 
 
 class LossConfig(Config):
-    loss_configs: Dict[str, Any] = Field(
-        default={
-            "ppo": PPOConfig(),
-        }
-    )
+    loss_configs: Dict[str, Any] = Field(default={"ppo": PPOConfig(), "contrastive": ContrastiveConfig()})
 
     def init_losses(
         self,
