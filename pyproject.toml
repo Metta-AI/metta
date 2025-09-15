@@ -3,11 +3,20 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["metta", "experiments", "devops", "mettascope", "cogweb", "codebot"]
+packages = [
+  "metta",
+  "experiments",
+  "devops",
+  "mettascope",
+  "cogweb",
+  "codebot",
+  "softmax",
+]
 py-modules = []
 
 [project]
 dependencies = [
+  "asana>=5.0.0,<6",
   "boto3>=1.38.32",
   "colorama>=0.4.6",
   "cpplint>=2.0.2",
@@ -73,7 +82,7 @@ dependencies = [
   "pyarrow>=21.0.0",
   "typer>=0.16.0",
   "mcp[cli]>=1.13.1",
-  "lazy-imports>=1.0.1",
+  "asana>=5.2.1",
 ]
 name = "metta"
 version = "0.1"
@@ -153,6 +162,7 @@ metta-common = { workspace = true }
 metta-agent = { workspace = true }
 gitta = { workspace = true }
 codebot = { workspace = true }
+softmax = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]
