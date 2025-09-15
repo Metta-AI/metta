@@ -9,7 +9,10 @@ from metta.common.config.config import Config
 
 
 class ObsLatentAttnConfig(Config):
+    feat_dim: int
     out_dim: int
+    in_key: str = "obs_attr_val_norm"
+    out_key: str = "obs_latent_attn"
     use_mask: bool = True
     num_query_tokens: int = 10
     num_heads: int = 4
@@ -19,6 +22,9 @@ class ObsLatentAttnConfig(Config):
     v_dim: Optional[int] = None
     mlp_ratio: float = 4.0
     use_cls_token: bool = False
+
+    def instantiate(self):
+        return ObsLatentAttn(config=self)
 
 
 class ObsLatentAttn(nn.Module):
@@ -92,7 +98,7 @@ class ObsLatentAttn(nn.Module):
             self._out_tensor_shape = [self._out_dim]
 
         # we expect input shape to be [B, M, feat_dim] where we don't know M
-        self._feat_dim = self._in_tensor_shapes[0][1]
+        self._feat_dim = self.config.feat_dim
 
         if self._query_token_dim is None:
             self._query_token_dim = self._feat_dim
@@ -203,14 +209,17 @@ class ObsLatentAttn(nn.Module):
 
 
 class ObsSelfAttnConfig(Config):
-    in_key: str
-    out_key: str
     feat_dim: int
+    in_key: str = "obs_latent_attn"
+    out_key: str = "encoded_obs"
     out_dim: int = 128
     use_mask: bool = False
     num_layers: int = 4
     num_heads: int = 8
-    use_cls_token: bool = False
+    use_cls_token: bool = True
+
+    def instantiate(self):
+        return ObsSelfAttn(config=self)
 
 
 class ObsSelfAttn(nn.Module):

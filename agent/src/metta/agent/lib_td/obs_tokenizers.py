@@ -13,6 +13,9 @@ class ObsAttrCoordEmbedConfig(Config):
     out_key: str = "obs_attr_coord_embed"
     attr_embed_dim: int
 
+    def instantiate(self):
+        return ObsAttrCoordEmbed(config=self)
+
 
 class ObsAttrCoordEmbed(nn.Module):
     """Embeds attr index as, separately embeds coords, then adds them together. Finally concatenate attr value to the
@@ -69,14 +72,28 @@ class ObsAttrCoordEmbed(nn.Module):
 
 
 class ObsAttrEmbedFourierConfig(Config):
+    attr_embed_dim: int = 12
+    num_freqs: int = 6
     in_key: str = "obs_attr_val_norm"
     out_key: str = "obs_attr_embed_fourier"
-    attr_embed_dim: int
-    num_freqs: int = 6
+
+    def instantiate(self):
+        return ObsAttrEmbedFourier(config=self)
 
 
 class ObsAttrEmbedFourier(nn.Module):
-    """An alternate to ObsAttrCoordEmbed that concatenates attr embeds w coord representation as Fourier features."""
+    """An alternate to ObsAttrCoordEmbed that concatenates attr embeds w coord representation as Fourier features.
+
+    The output feature dimension is calculated as:
+    `output_dim = attr_embed_dim + (4 * num_freqs) + 1`
+
+    Where:
+    - `attr_embed_dim` is the dimension of the attribute embedding.
+    - `num_freqs` is the number of frequencies for the Fourier features. The coordinate
+      representation dimension is `4 * num_freqs` because we have sin and cos for
+      both x and y coordinates for each frequency.
+    - `1` is for the scalar attribute value that is concatenated at the end.
+    """
 
     def __init__(self, config: Optional[ObsAttrEmbedFourierConfig] = None) -> None:
         super().__init__()
@@ -156,9 +173,12 @@ class ObsAttrEmbedFourier(nn.Module):
 
 
 class ObsAttrCoordValueEmbedConfig(Config):
+    attr_embed_dim: int = 12
     in_key: str = "obs_attr_val_norm"
     out_key: str = "obs_attr_coord_value_embed"
-    attr_embed_dim: int
+
+    def instantiate(self):
+        return ObsAttrCoordValueEmbed(config=self)
 
 
 class ObsAttrCoordValueEmbed(nn.Module):

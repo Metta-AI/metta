@@ -87,8 +87,8 @@ class MettaAgent(nn.Module):
             self.policy = self.policy.to(self.device)
             self.policy.device = self.device
 
-        self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
+        # self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        # logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""

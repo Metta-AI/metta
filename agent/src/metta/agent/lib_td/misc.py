@@ -133,7 +133,7 @@ class Swish(nn.Module):
         return x * torch.sigmoid(self.beta * x)
 
 
-class ResNetMLP(nn.module):
+class ResNetMLP(nn.Module):
     """
     Applies a residual dense connection to the incoming data: y = x + F(x)
     Input and output shapes are the same. To scale, you need to create an initial and/or final linear layer separately
@@ -152,7 +152,7 @@ class ResNetMLP(nn.module):
 
         self.residual_layers = nn.Sequential(*[ResidualBlock(hidden_size) for _ in range(self._num_blocks)])
 
-    def _forward(self, td: TensorDict):
+    def forward(self, td: TensorDict):
         x = td[self.config.in_key]
         x = self.residual_layers(x)
         td[self.config.out_key] = x

@@ -1,8 +1,10 @@
 import logging
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from tensordict.nn import TensorDictSequential
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.common.config.config import Config
@@ -28,19 +30,33 @@ class Policy(nn.Module):
     def __init__(self, env, obs_meta: dict, config: Config = None):
         super().__init__()
         self.config = config
-        self.layers = nn.ModuleDict()
-        for attr, value in self.config.model_config.items():
-            if attr == "obs_shaper":
-                self.layers[attr] = value.instantiate(obs_meta)
-            else:
-                self.layers[attr] = value.instantiate()
-
-        self.network = nn.TensorDictSequential(self.layers)
-
         self.wants_td = True
         self.action_space = env.single_action_space
         self.out_width = obs_meta["obs_width"]
         self.out_height = obs_meta["obs_height"]
+
+        self.layers = OrderedDict()
+        for attr, value in self.config:
+            if not isinstance(value, Config):
+                continue
+
+            if attr == "obs_shaper_config":
+                self.layers[attr] = value.instantiate(obs_meta)
+            else:
+                self.layers[attr] = value.instantiate()
+
+        self.network = TensorDictSequential(self.layers, inplace=True)
+
+        # A dummy forward pass to initialize any lazy modules (e.g. nn.LazyLinear).
+        with torch.no_grad():
+            dummy_batch_size = [2, 200]
+            dummy_td = TensorDict(
+                {
+                    "env_obs": torch.zeros(*dummy_batch_size, 3, dtype=torch.uint8),
+                },
+                batch_size=dummy_batch_size,
+            )
+            self.network(dummy_td)
 
     def forward(self, td: TensorDict):
         return self.network(td)
