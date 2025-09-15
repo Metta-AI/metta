@@ -34,7 +34,10 @@ from wandb.errors import CommError
 #  Globals                                                                     #
 # --------------------------------------------------------------------------- #
 
-# WANDB_ENTITY no longer needed - entities are specified in URIs
+# WANDB_ENTITY for backward compatibility with short URIs
+def _get_wandb_entity() -> str:
+    """Get WANDB_ENTITY, checking environment variable dynamically."""
+    return os.getenv("WANDB_ENTITY") or ""
 GOOGLE_DRIVE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_DRIVE_CREDENTIALS_FILE", "~/.config/gcloud/credentials.json")
 GOOGLE_DRIVE_TOKEN_FILE: str = os.getenv("GOOGLE_DRIVE_TOKEN_FILE", "~/.config/gcloud/token.json")
 
@@ -256,7 +259,8 @@ def is_public_uri(url: str | None) -> bool:
 class WandbURI:
     """Parsed representation of a W&B artifact URI.
 
-    Only supports full format: wandb://entity/project/artifact:version
+    Supports full format: wandb://entity/project/artifact:version
+    Note: Short formats should be expanded via expand_wandb_uri() before parsing
     """
 
     entity: str

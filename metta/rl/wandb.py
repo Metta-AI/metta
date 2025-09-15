@@ -108,23 +108,78 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     return None
 
 
-# expand_wandb_uri function removed - only full URIs supported now
+def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
+    """Expand short wandb URI formats to full format.
+
+    Handles both short and full wandb URI formats:
+    - "wandb://run/my_run_name" -> "wandb://ENTITY/metta/model/my_run_name:latest" (if WANDB_ENTITY set)
+    - "wandb://run/my_run_name:v5" -> "wandb://ENTITY/metta/model/my_run_name:v5" (if WANDB_ENTITY set)
+    - "wandb://sweep/sweep_name" -> "wandb://ENTITY/metta/sweep_model/sweep_name:latest" (if WANDB_ENTITY set)
+    - Full URIs pass through unchanged
+
+    Raises:
+        ValueError: If short URI is used but WANDB_ENTITY is not set
+    """
+    import os
+
+    if not uri.startswith("wandb://"):
+        return uri
+
+    path = uri[len("wandb://") :]
+
+    # Check if it's already a full URI (has 3+ parts: entity/project/artifact)
+    if "/" in path:
+        parts = path.split(":")[0].split("/")  # Remove version for counting
+        if len(parts) >= 3:
+            return uri  # Already full format, pass through
+
+    # Handle short URI formats - need WANDB_ENTITY
+    entity = os.getenv("WANDB_ENTITY")
+    if not entity:
+        raise ValueError(
+            f"Short wandb URI '{uri}' requires WANDB_ENTITY environment variable.\n"
+            f"Either:\n"
+            f"1. Use full URI: wandb://your-entity/project/artifact:version\n"
+            f"2. Set WANDB_ENTITY: export WANDB_ENTITY=your-entity"
+        )
+
+    if path.startswith("run/"):
+        run_name = path[4:]
+        if ":" in run_name:
+            run_name, version = run_name.rsplit(":", 1)
+        else:
+            version = "latest"
+        return f"wandb://{entity}/{default_project}/model/{run_name}:{version}"
+
+    elif path.startswith("sweep/"):
+        sweep_name = path[6:]
+        if ":" in sweep_name:
+            sweep_name, version = sweep_name.rsplit(":", 1)
+        else:
+            version = "latest"
+        return f"wandb://{entity}/{default_project}/sweep_model/{sweep_name}:{version}"
+
+    # Unrecognized short format
+    return uri
 
 
 def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:
-    """Load policy from wandb URI.
+    """Load policy from wandb URI (handles both short and full formats).
 
-    Expects full format: "wandb://entity/project/artifact:version"
+    Accepts:
+    - Short format: "wandb://run/my-run" (requires WANDB_ENTITY environment variable)
+    - Full format: "wandb://entity/project/artifact:version"
 
     Raises:
-        ValueError: If URI is not a wandb:// URI or not in full format
+        ValueError: If URI is not a wandb:// URI or short URI used without WANDB_ENTITY
         FileNotFoundError: If no .pt files found in artifact
     """
     if not wandb_uri.startswith("wandb://"):
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
-    logger.info(f"Loading policy from wandb URI: {wandb_uri}")
-    uri = WandbURI.parse(wandb_uri)
+    expanded_uri = expand_wandb_uri(wandb_uri)
+    logger.info(f"Loading policy from wandb URI: {expanded_uri}")
+    uri = WandbURI.parse(expanded_uri)
     qname = uri.qname()
 
     # Load artifact
