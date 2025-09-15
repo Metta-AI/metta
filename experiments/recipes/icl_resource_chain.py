@@ -178,11 +178,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_sinks = rng.choice(self.config.num_sinks)
         resources = rng.sample(self.resource_types, num_resources)
         room_size = rng.choice(self.config.room_sizes)
-        obstacle_type = rng.choice(self.config.obstacle_types)
-        density = rng.choice(self.config.densities)
-
-        print(f"obstacle_type: {obstacle_type}, density: {density}")
-        print()
+        obstacle_type = rng.choice(self.config.obstacle_types) if len(self.config.obstacle_types) > 0 else None
+        density = rng.choice(self.config.densities) if len(self.config.densities) > 0 else None
         # by default, use a 6x6 room - to reproduce existing results
         if room_size == "6x6":
             width, height = 6, 6
@@ -306,7 +303,6 @@ def make_mettagrid() -> MettaGridConfig:
         obstacle_types=["cross"],
         densities=["dense"],
     )
-    print(task_generator_cfg)
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
     return task_generator.get_task(0)
 
