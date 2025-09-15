@@ -180,7 +180,7 @@ Examples:
     if run_id is None:
         run_id = auto_run_name()
         logger.info(f"Using auto-generated run ID: {run_id}")
-        logger.info("To specify a run ID, use --run=foo or pass run=foo in --args")
+        logger.info("To specify a run ID, use --run foo or pass run=foo directly as a positional argument")
 
     filtered_args.append(f"run={run_id}")
 
