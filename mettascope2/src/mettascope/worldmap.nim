@@ -1,5 +1,5 @@
 import
-  std/[strformat], math,
+  std/[strformat, math],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays
 
