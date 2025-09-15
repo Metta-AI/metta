@@ -1,9 +1,8 @@
 """Data models for sweep orchestration."""
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from enum import StrEnum, auto
-import time
 from typing import Any
 
 
@@ -27,14 +26,14 @@ class JobDefinition:
 
 
 class JobStatus(StrEnum):
-    PENDING = auto()  # Initialized but not started
-    IN_TRAINING = auto()
-    TRAINING_DONE_NO_EVAL = auto()
-    IN_EVAL = auto()
-    EVAL_DONE_NOT_COMPLETED = auto()
-    COMPLETED = auto()
-    STALE = auto()
-    FAILED = auto()  # Job failed during training or evaluation
+    PENDING = "PENDING"  # Initialized but not started
+    IN_TRAINING = "IN TRAINING"
+    TRAINING_DONE_NO_EVAL = "TRAINING DONE (NO EVAL)"
+    IN_EVAL = "IN EVAL"
+    EVAL_DONE_NOT_COMPLETED = "COMPLETED (NPE)"
+    COMPLETED = "COMPLETED"
+    STALE = "STALE"
+    FAILED = "FAILED"  # Job failed during training or evaluation
 
 
 class SweepStatus(StrEnum):
@@ -82,7 +81,9 @@ class RunInfo:
 
     @property
     def status(self) -> JobStatus:
-        time_since_last_updated = datetime.now() - self.last_updated_at if self.last_updated_at else timedelta(seconds=0)
+        time_since_last_updated = (
+            datetime.now() - self.last_updated_at if self.last_updated_at else timedelta(seconds=0)
+        )
         if not self.has_failed and not self.has_completed_training and time_since_last_updated > timedelta(seconds=600):
             return JobStatus.STALE
         if self.has_failed:

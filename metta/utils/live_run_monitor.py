@@ -35,7 +35,7 @@ from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from metta.sweep.models import RunInfo
+from metta.sweep.models import RunInfo, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -43,21 +43,21 @@ logger = logging.getLogger(__name__)
 DISPLAY_LIMIT = 10
 
 
-def _get_status_color(status: str) -> str:
+def _get_status_color(status: JobStatus) -> str:
     """Get color for run status."""
-    if status == "COMPLETED":
+    if status == JobStatus.COMPLETED or status == JobStatus.EVAL_DONE_NOT_COMPLETED:
         return "bright_blue"
-    elif status == "IN_TRAINING":
+    elif status == JobStatus.IN_TRAINING:
         return "bright_green"
-    elif status == "PENDING":
+    elif status == JobStatus.PENDING:
         return "bright_black"
-    elif status == "TRAINING_DONE_NO_EVAL":
-        return "bright_yellow"
-    elif status == "IN_EVAL":
+    elif status == JobStatus.TRAINING_DONE_NO_EVAL:
+        return "green"
+    elif status == JobStatus.IN_EVAL:
         return "bright_cyan"
-    elif status == "FAILED":
+    elif status == JobStatus.FAILED:
         return "bright_red"
-    elif status == "STALE":
+    elif status == JobStatus.STALE:
         return "bright_black"
     else:
         return "white"
@@ -99,9 +99,9 @@ def make_rich_monitor_table(runs: List[RunInfo]) -> Table:
         cost_str = f"${run.cost:.2f}" if run.cost else "$0.00"
 
         # Status with color
-        status_name = run.status.name if hasattr(run.status, "name") else str(run.status)
-        status_color = _get_status_color(status_name)
-        status_text = Text(status_name, style=status_color)
+        status = run.status
+        status_color = _get_status_color(status)
+        status_text = Text(status.value, style=status_color)
 
         table.add_row(
             run_id_text,
