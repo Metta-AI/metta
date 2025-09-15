@@ -162,8 +162,8 @@ metta configure    # Reconfigure for a different profile
 #### Additional installation options
 
 ```
-./install.sh --profile=softmax   # For Softmax employees
-./install.sh --profile=external  # For external collaborators
+./install.sh --profile softmax   # For Softmax employees
+./install.sh --profile external  # For external collaborators
 ./install.sh --help             # Show all available options
 ```
 
@@ -276,8 +276,8 @@ Run your task:
 
 Notes:
 
-- Tasks can also be Tool classes (subclasses of `metta.common.config.tool.Tool`). The runner will construct them with
-  `--args` and then apply `--overrides`.
+- Tasks can also be Tool classes (subclasses of `metta.common.tool.Tool`). The runner will construct them with `--args`
+  and then apply `--overrides`.
 - Use `--dry-run` while developing to see the exact configuration your task produces.
 
 ### Setting up Weights & Biases for Personal Use
@@ -375,8 +375,8 @@ We support agent architectures without using the MettaAgent system:
 
 - Implement your agent class under `metta/agent/src/metta/agent/pytorch/my_agent.py`. See
   `metta/agent/src/metta/agent/pytorch/fast.py` for an example.
-- Register it in `metta/agent/src/metta/agent/pytorch/agent_mapper.py` by adding an entry to `agent_classes` with a key
-  name (e.g., `"my_agent"`).
+- Register it in `metta/agent/src/metta/agent/agent_config.py` by adding an entry to `AGENT_REGISTRY` with a key name
+  (e.g., `"my_agent"`).
 - Select it at runtime using the runner and an override on the agent config name:
   ```bash
   ./tools/run.py experiments.recipes.arena.train --overrides policy_architecture.name=pytorch/my_agent

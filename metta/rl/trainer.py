@@ -605,7 +605,6 @@ def train(
                                 agent_step=agent_step,
                                 epoch=epoch,
                                 wandb_run=wandb_run,
-                                metric_prefix="training_eval",
                                 step_metric_key="metric/epoch",
                                 epoch_metric_key="metric/epoch",
                             )

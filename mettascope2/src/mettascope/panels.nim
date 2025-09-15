@@ -1,12 +1,8 @@
 import
-  vmath, bumpy, windy, boxy, chroma,
-  common, utils
+  vmath, bumpy, windy, boxy, chroma, fidget2, fidget2/[hybridrender, common],
+  common, math
 
 const HeaderSize = 30
-
-proc rect*(rect: IRect): Rect =
-  Rect(x: rect.x.float32, y: rect.y.float32, w: rect.w.float32,
-      h: rect.h.float32)
 
 proc updateMouse*(panel: Panel) =
   let box = Rect(
@@ -16,7 +12,8 @@ proc updateMouse*(panel: Panel) =
     h: panel.rect.h.float32
   )
 
-  panel.hasMouse = (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
+  panel.hasMouse =
+    (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
     (mouseCaptured and mouseCapturedPanel == panel)
 
 proc beginPanAndZoom*(panel: Panel) =
@@ -39,30 +36,26 @@ proc beginPanAndZoom*(panel: Panel) =
     panel.pos += panel.vel
 
     if window.scrollDelta.y != 0:
-      when defined(emscripten):
-        let scrollK = 0.0003
-      else:
-        let scrollK = 0.03
-      panel.zoomVel = window.scrollDelta.y * scrollK
-    else:
-      panel.zoomVel *= 0.8
-
-    let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    panel.zoom += panel.zoomVel
-    panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
-    let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    let newAt = newMat.inverse() * window.mousePos.vec2
-    let oldAt = oldMat.inverse() * window.mousePos.vec2
-    panel.pos -= (oldAt - newAt).xy * (panel.zoom*panel.zoom)
-
-    #let area = panel.scrollArea * panel.zoom
-    #let x = panel.rect.x / 2
-    #let y = panel.rect.y / 2
-    #panel.pos = vec2(
-    #  clamp(panel.pos.x, area.x - x, area.x + area.w + x),
-    #  clamp(panel.pos.y, area.y - y, area.y + area.h + y))
+      # Apply zoom at focal point (mouse position) with consistent sensitivity.
+      let localMousePos = window.mousePos.vec2 - panel.rect.xy.vec2
+      let zoomSensitivity = 0.005
+      
+      let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
+          panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let oldWorldPoint = oldMat.inverse() * localMousePos
+      
+      # Apply zoom with multiplicative scaling.
+      # keeps zoom consistent when zoomed far out or zoomed far in.
+      let zoomFactor = pow(1.0 - zoomSensitivity, window.scrollDelta.y)
+      panel.zoom *= zoomFactor
+      panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
+      
+      let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
+          panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let newWorldPoint = newMat.inverse() * localMousePos
+      
+      # Adjust pan position to keep the same world point under the mouse.
+      panel.pos += (newWorldPoint - oldWorldPoint) * (panel.zoom*panel.zoom)
 
   bxy.translate(panel.pos)
   bxy.scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
@@ -92,6 +85,11 @@ proc endDraw*(panel: Panel) =
 
 proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
+  let newPos = vec2(area.rect.x.float32, area.rect.y.float32)
+  if newPos != area.node.position:
+    area.node.dirty = true
+    area.node.position = newPos
+
   for num, panel in area.panels:
     if num == area.selectedPanelNum:
       panel.rect.x = area.rect.x
@@ -104,59 +102,42 @@ proc updatePanelsSizes*(area: Area) =
       panel.rect.w = 0
       panel.rect.h = 0
 
+    let newPos = vec2(panel.rect.x.float32, panel.rect.y.float32)
+    let newSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
+    if newPos != panel.node.position or newSize != panel.node.size:
+      panel.node.dirty = true
+      panel.node.position = newPos
+      panel.node.size = newSize
+
   for subarea in area.areas:
     updatePanelsSizes(subarea)
 
-proc drawFrame*(area: Area) =
-  # Draw the frame of the area.
+proc select*(area: Area, name: string) =
+  ## Selects the panel with the given name.
+  for i, panel in area.panels:
+    if panel.name == name:
+      # Hide previous panel.
+      area.panels[area.selectedPanelNum].node.visible = false
+      let prevName = area.panels[area.selectedPanelNum].name
+      area.node.children[area.selectedPanelNum].setVariant("State", "Default")
 
-  # Draw the header ribbon background.
-  bxy.saveTransform()
-  bxy.translate(vec2(area.rect.x.float32, area.rect.y.float32))
-  bxy.drawRect(
-    rect = Rect(
-      x: 0,
-      y: 0,
-      w: area.rect.w.float32,
-      h: HeaderSize.float32
-    ),
-    color = color(0, 0, 0, 1)
-  )
-
-  var x = 10.0
-  for num, panel in area.panels:
-    let width = measureText(panel.name, 16).x + 20
-    let panelBox = Rect(
-      x: x.float32,
-      y: 2,
-      w: width,
-      h: HeaderSize.float32 - 4
-    )
-    var color = parseHtmlColor("#282D35")
-    if num == area.selectedPanelNum:
-      color = parseHtmlColor("#43526A")
-
-    if window.boxyMouse.vec2.overlaps(panelBox):
-      color = parseHtmlColor("#FF0000")
-      if window.buttonPressed[MouseLeft]:
-        area.selectedPanelNum = num
-
-    bxy.drawRect(
-      rect = panelBox,
-      color = color
-    )
-    bxy.drawText(
-      panel.name,
-      translate(vec2(x.float32 + 5, 4)),
-      typeface,
-      panel.name,
-      16,
-      color(1, 1, 1, 1)
-    )
-
-    x += width + 10
-
-  bxy.restoreTransform()
+      # Show new panel.
+      area.selectedPanelNum = i
+      panel.node.visible = true
+      area.node.children[area.selectedPanelNum].setVariant("State", "Selected")
+      break
 
   for subarea in area.areas:
-    drawFrame(subarea)
+    select(subarea, name)
+
+proc add*(area: Area, other: Area) =
+  ## Adds an area to the current area.
+  if area.panels.len > 0:
+    raise newException(Exception, "Area already has panels, can't have both panels and areas")
+  area.areas.add(other)
+
+proc add*(area: Area, panel: Panel) =
+  ## Adds a panel to the current area.
+  if area.areas.len > 0:
+    raise newException(Exception, "Area already has areas, can't have both panels and areas")
+  area.panels.add(panel)

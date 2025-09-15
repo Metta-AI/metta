@@ -110,21 +110,20 @@ class TestActionOrdering:
         # Action order should remain the same despite different config order
         assert action_names1 == action_names2, "Action order should be deterministic"
 
-        # Verify the expected order
-        assert action_names1 == ["get_items", "move", "noop", "rotate"]
+        # Verify the expected order (put_items is now enabled by default)
+        assert action_names1 == ["get_items", "move", "noop", "put_items", "rotate"]
 
     def test_action_indices_consistency(self, basic_config, simple_map):
         """Test that action indices remain consistent."""
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         action_names = env.action_names()
 
-        # Verify indices
+        # Verify indices (put_items is now enabled by default)
+        assert action_names.index("get_items") == 0
         assert action_names.index("move") == 1
         assert action_names.index("noop") == 2
-        assert action_names.index("rotate") == 3
-
-        # get_items is always present even if not explicitly configured
-        assert action_names.index("get_items") == 0
+        assert action_names.index("put_items") == 3
+        assert action_names.index("rotate") == 4
 
 
 class TestActionValidation:
@@ -394,8 +393,8 @@ class TestSpecialActions:
         # Attack should be present
         assert "attack" in action_names
 
-        # Check the expected order (attack comes before other actions)
-        expected_actions = ["attack", "get_items", "move", "noop", "rotate"]
+        # Check the expected order (attack comes before other actions, put_items is enabled by default)
+        expected_actions = ["attack", "get_items", "move", "noop", "put_items", "rotate"]
         assert action_names == expected_actions
 
     def test_swap_action_registration(self, basic_config, simple_map):

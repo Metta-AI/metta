@@ -3,6 +3,8 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
@@ -39,10 +41,13 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    arena_env: Optional[MettaGridConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
-    # make a set of training tasks for the arena
     arena_tasks = cc.bucketed(arena_env)
 
     for item in ["ore_red", "battery_red", "laser", "armor"]:
@@ -59,7 +64,17 @@ def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumCo
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return CurriculumConfig(task_generator=arena_tasks)
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,  # Enable bidirectional learning progress by default
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=5,  # More slices for arena complexity
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+
+    return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
@@ -75,10 +90,14 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     ]
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(
@@ -108,6 +127,43 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     simulations = simulations or make_evals()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
+    )
+
+
+def evaluate_in_sweep(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    """Evaluation function optimized for sweep runs.
+
+    Uses 10 episodes per simulation with a 4-minute time limit to get
+    reliable results quickly during hyperparameter sweeps.
+    """
+    if simulations is None:
+        # Create sweep-optimized versions of the standard evaluations
+        basic_env = make_mettagrid()
+        basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+        combat_env = basic_env.model_copy()
+        combat_env.game.actions.attack.consumed_resources["laser"] = 1
+
+        simulations = [
+            SimulationConfig(
+                name="arena/basic",
+                env=basic_env,
+                num_episodes=10,  # 10 episodes for statistical reliability
+                max_time_s=240,  # 4 minutes max per simulation
+            ),
+            SimulationConfig(
+                name="arena/combat",
+                env=combat_env,
+                num_episodes=10,
+                max_time_s=240,
+            ),
+        ]
+
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
