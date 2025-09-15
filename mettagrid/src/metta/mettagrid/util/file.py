@@ -34,11 +34,6 @@ from wandb.errors import CommError
 #  Globals                                                                     #
 # --------------------------------------------------------------------------- #
 
-
-# Short URI expansion is now handled in metta.rl.wandb.expand_wandb_uri()
-# WandbURI only handles already-expanded full URIs
-
-
 GOOGLE_DRIVE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_DRIVE_CREDENTIALS_FILE", "~/.config/gcloud/credentials.json")
 GOOGLE_DRIVE_TOKEN_FILE: str = os.getenv("GOOGLE_DRIVE_TOKEN_FILE", "~/.config/gcloud/token.json")
 
@@ -258,11 +253,7 @@ def is_public_uri(url: str | None) -> bool:
 
 @dataclass(frozen=True, slots=True)
 class WandbURI:
-    """Parsed representation of a W&B artifact URI.
-
-    Supports full format: wandb://entity/project/artifact:version
-    Note: Short formats should be expanded via expand_wandb_uri() before parsing
-    """
+    """Parsed representation of a W&B artifact URI."""
 
     entity: str
     project: str
@@ -287,13 +278,11 @@ class WandbURI:
         parts = path_part.split("/")
 
         if len(parts) >= 3:
-            # Full format: wandb://entity/project/artifact:version
             entity = parts[0]
             project = parts[1]
             artifact_path = "/".join(parts[2:])
         elif len(parts) == 2:
-            # Legacy 2-part format - assume entity is implicit
-            # This should have been expanded by expand_wandb_uri() already
+            # Legacy 2-part format - requires WANDB_ENTITY
             project = parts[0]
             artifact_path = parts[1]
             entity = os.getenv("WANDB_ENTITY")

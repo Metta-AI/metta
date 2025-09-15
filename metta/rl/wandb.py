@@ -126,11 +126,9 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
 
     path = uri[len("wandb://") :]
 
-    # Return full URIs unchanged
     if not path.startswith(("run/", "sweep/")):
         return uri
 
-    # Handle short URI formats - require WANDB_ENTITY to be explicit
     entity = os.getenv("WANDB_ENTITY")
     if not entity:
         raise ValueError(
@@ -140,7 +138,6 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
             f"2. Set WANDB_ENTITY: export WANDB_ENTITY=your-entity"
         )
 
-    # Parse version from artifact name
     if path.startswith("run/"):
         run_name = path[4:]
         if ":" in run_name:
