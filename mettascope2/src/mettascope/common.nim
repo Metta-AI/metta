@@ -26,7 +26,7 @@ type
 
     pos*: Vec2
     vel*: Vec2
-    zoom*: float32 = 10
+    zoom*: float32 = 50
     zoomVel*: float32
     minZoom*: float32 = 5
     maxZoom*: float32 = 100

@@ -19,18 +19,20 @@ proc updateMouse*(panel: Panel) =
   panel.hasMouse = (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
     (mouseCaptured and mouseCapturedPanel == panel)
 
+  if panel.hasMouse and window.buttonPressed[MouseLeft]:
+    mouseCaptured = true
+    mouseCapturedPanel = panel
+
 proc beginPanAndZoom*(panel: Panel) =
   ## Pan and zoom the map.
 
+  updateMouse(panel)
   bxy.saveTransform()
 
-  updateMouse(panel)
-
+  let center = vec2(panel.rect.w.float32 / 2, panel.rect.h.float32 / 2)
+  let pos = translate(panel.pos)
+  let ofs = translate(center)
   if panel.hasMouse:
-    if window.buttonPressed[MouseLeft]:
-      mouseCaptured = true
-      mouseCapturedPanel = panel
-
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
       panel.vel = window.mouseDelta.vec2
     else:
@@ -40,22 +42,30 @@ proc beginPanAndZoom*(panel: Panel) =
 
     if window.scrollDelta.y != 0:
       when defined(emscripten):
-        let scrollK = 0.0003
+        let scrollK = 0.00008
       else:
-        let scrollK = 0.03
+        let scrollK = 0.008
       panel.zoomVel = window.scrollDelta.y * scrollK
     else:
       panel.zoomVel *= 0.8
 
-    let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    panel.zoom += panel.zoomVel
-    panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
-    let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    let newAt = newMat.inverse() * window.mousePos.vec2
-    let oldAt = oldMat.inverse() * window.mousePos.vec2
-    panel.pos -= (oldAt - newAt).xy * (panel.zoom*panel.zoom)
+    # Screen space to panel space (centered)
+    let mousePos = window.mousePos.vec2 -
+      (vec2(panel.rect.x.float32, panel.rect.y.float32) + center)
+
+    # Panel space to scroll space (pan and zoom)
+    let oldZoom = panel.zoom
+    panel.zoom *= 1.0 + panel.zoomVel
+    panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom) # TODO from size
+
+    let newZoom = panel.zoom
+    let old = (ofs * scale(vec2(oldZoom))) * pos
+    let mat = (ofs * scale(vec2(newZoom))) * pos
+    let before = old * mousePos
+    let after = mat * mousePos
+    #let before = panel.pos + mousePos / oldZoom
+    #let after = panel.pos + mousePos / newZoom
+    panel.pos += before - after
 
     #let area = panel.scrollArea * panel.zoom
     #let x = panel.rect.x / 2
@@ -63,9 +73,10 @@ proc beginPanAndZoom*(panel: Panel) =
     #panel.pos = vec2(
     #  clamp(panel.pos.x, area.x - x, area.x + area.w + x),
     #  clamp(panel.pos.y, area.y - y, area.y + area.h + y))
-
-  bxy.translate(panel.pos)
-  bxy.scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+    bxy.setTransform(mat)
+  else:
+    #bxy.setTransform((ofs * scale(vec2(panel.zoom)) * pos).inverse())
+    bxy.setTransform(ofs * scale(vec2(panel.zoom)) * pos)
 
 proc endPanAndZoom*(panel: Panel) =
   bxy.restoreTransform()

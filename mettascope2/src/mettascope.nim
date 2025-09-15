@@ -3,7 +3,7 @@ import std/[random, os, times, strformat, strutils],
   mettascope/[replays, common, panels, utils, header, footer, timeline,
   worldmap, minimap, agenttable, agenttraces, envconfig]
 
-window = newWindow("MettaScope in Nim", ivec2(1280, 800))
+window = newWindow("MettaScope in Nim", ivec2(1280, 800)*2)
 makeContextCurrent(window)
 
 when not defined(emscripten):

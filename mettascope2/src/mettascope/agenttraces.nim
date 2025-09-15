@@ -42,7 +42,7 @@ proc drawAgentTraces*(panel: Panel) =
             agentId < replay.agents.len:
           step = newStep
           selection = replay.agents[agentId]
-          centerAt(worldMapPanel, selection)
+          centerAt(panels[WorldMap], selection)
 
       lastClickTime = currentTime
       lastClickPos = mousePos
