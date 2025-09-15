@@ -17,8 +17,8 @@ MEMORY_BUDGET = 2064384 * 256  # ~528M tokens
 #   - minibatch_size % bptt_horizon == 0
 #   - (batch_size // bptt_horizon) % (minibatch_size // bptt_horizon) == 0
 CONFIGS: List[Tuple[int, int, str]] = [
-    #    (128, 4128768, "h128"),  # 2x batch size for 0.5x horizon
-    #    (256, 2064384, "h256"),  # baseline
+    (128, 4128768, "h128"),  # 2x batch size for 0.5x horizon
+    (256, 2064384, "h256"),  # baseline
     (512, 1032192, "h512"),  # 0.5x batch size for 2x horizon
     # For 1024, adjust to nearest multiple that works with default minibatch (16384) → 524288
     (1024, 524288, "h1024"),
