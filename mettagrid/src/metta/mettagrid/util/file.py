@@ -34,7 +34,12 @@ from wandb.errors import CommError
 #  Globals                                                                     #
 # --------------------------------------------------------------------------- #
 
-WANDB_ENTITY: str = os.getenv("WANDB_ENTITY") or ""
+def _get_wandb_entity() -> str:
+    """Get WANDB_ENTITY, checking environment variable dynamically."""
+    return os.getenv("WANDB_ENTITY") or ""
+
+# Keep for backward compatibility, but use the function internally
+WANDB_ENTITY: str = _get_wandb_entity()
 GOOGLE_DRIVE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_DRIVE_CREDENTIALS_FILE", "~/.config/gcloud/credentials.json")
 GOOGLE_DRIVE_TOKEN_FILE: str = os.getenv("GOOGLE_DRIVE_TOKEN_FILE", "~/.config/gcloud/token.json")
 
@@ -306,7 +311,7 @@ class WandbURI:
         if self.entity:
             entity = self.entity
         else:
-            entity = WANDB_ENTITY
+            entity = _get_wandb_entity()  # Use dynamic lookup
             if not entity:
                 raise ValueError(
                     f"No wandb entity specified. Either:\n"
@@ -317,7 +322,7 @@ class WandbURI:
 
     def http_url(self) -> str:
         """Human-readable URL for this artifact version."""
-        entity = self.entity or WANDB_ENTITY
+        entity = self.entity or _get_wandb_entity()  # Use dynamic lookup
         if not entity:
             raise ValueError("Cannot create HTTP URL without wandb entity")
         return f"https://wandb.ai/{entity}/{self.project}/artifacts/{self.artifact_path}/{self.version}"
@@ -340,7 +345,7 @@ def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
 
 
 @contextmanager
-def wandb_export_context(project: str, entity: str = WANDB_ENTITY) -> wandb.Run:
+def wandb_export_context(project: str, entity: str | None = None) -> wandb.Run:
     """
     Context manager that ensures a wandb run exists for artifact exports.
     TODO: Remove this after switching to using wandb_context
@@ -366,7 +371,7 @@ def wandb_export_context(project: str, entity: str = WANDB_ENTITY) -> wandb.Run:
         # Create a temporary run
         run = wandb.init(
             project=project,
-            entity=entity,
+            entity=entity or _get_wandb_entity(),
             job_type="file-export",
             name="file-export",
             settings=wandb.Settings(
@@ -410,7 +415,8 @@ def upload_file_to_wandb(uri, local_file: str, name: str) -> None:
         )
 
     try:
-        with wandb_export_context(uri.project, WANDB_ENTITY) as run:
+        entity = _get_wandb_entity()
+        with wandb_export_context(uri.project, entity) as run:
             # Create and log the artifact
             artifact = wandb.Artifact(uri.artifact_path, type="file")
             artifact.add_file(local_file, name=name)
