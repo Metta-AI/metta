@@ -21,12 +21,6 @@ class LstmTrainStep(nn.Module):
         c_t: torch.Tensor,
         reset_mask: torch.Tensor,
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        """Only run when self.reset_in_training is true ie you're asking to unroll the LSTM in time."""
-        # latent is (TT, B, input_size)
-        # h_0 is (num_layers, B, input_size)
-        # c_0 is (num_layers, B, input_size)
-        # reset_mask is (1, B, TT, 1)
-
         outputs = []
         for t in range(latent.size(0)):
             latent_t = latent[t].unsqueeze(0)
@@ -54,7 +48,15 @@ class LSTMResetConfig(Config):
 class LSTMReset(nn.Module):
     """
     LSTM layer that resets cell states when the episode is done or truncated in both inference and training. The file
-    lstm.py only resets state in inference.
+    lstm.py only resets state in inference but runs much faster because it doesn't need to unroll the LSTM state as in
+    the class above, LstmTrainStep.
+
+    The layer leaves the choice of whether to use burn-in in the trainer loop to get to a stable LSTM state to the
+    trainer.
+
+    It also gets the correct cell state at the start of a segment during training by reading from the replay buffer.
+    This has the limitation that the state gets more and more stale with more and more minibatches. However, it's a
+    limitation imposed by prioritized experience replay - it doesn't let us pull from segments in temporal order.
     """
 
     def __init__(self, config: Optional[LSTMResetConfig] = None):
@@ -82,14 +84,9 @@ class LSTMReset(nn.Module):
         self.__dict__.update(state)
         # Reset hidden states when loading from checkpoint to avoid batch size mismatch
         if not hasattr(self, "lstm_h"):
-            # self.lstm_h = {}
             self.lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
         if not hasattr(self, "lstm_c"):
-            # self.lstm_c = {}
             self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
-        # Clear any existing states to handle batch size mismatches
-        # self.lstm_h.clear()
-        # self.lstm_c.clear()
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict):
@@ -100,12 +97,6 @@ class LSTMReset(nn.Module):
         if td["bptt"][0] != 1:
             TT = td["bptt"][0]
         B = B // TT
-
-        # segment_ids = td.get("segment_ids", None)
-
-        # if segment_ids is None:
-        #     # then we are in eval or similar. we just need indices for storing memory for the batch
-        #     segment_ids = torch.arange(B, device=latent.device)
 
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is None:
@@ -122,8 +113,6 @@ class LSTMReset(nn.Module):
             reset_mask = torch.ones(1, B, 1, device=latent.device)
 
         if TT == 1:
-            # self.iter += 1
-            # # if segment_ids.max() >= self.lstm_h.size(1):
             self.max_num_envs = training_env_ids.max() + 1
             if self.max_num_envs > self.lstm_h.size(1):
                 num_allocated_envs = self.max_num_envs - self.lstm_h.size(1)
@@ -141,36 +130,13 @@ class LSTMReset(nn.Module):
             td["lstm_h"] = h_0.permute(1, 0, 2).detach()
             td["lstm_c"] = c_0.permute(1, 0, 2).detach()
 
-            # td["check_seg_id"] = segment_ids
-            # td["check_env_id"] = training_env_ids
-
-            # if self.burn_in < 2 * self.training_TT:
-            #     self.burn_in += 1
-            # elif self.iter % self.training_TT == 0:
-            #     pass
-            #     # self.train_input_lstm_h = torch.cat([self.train_input_lstm_h, h_0.detach()], dim=1)
-            #     # self.train_input_lstm_c = torch.cat([self.train_input_lstm_c, c_0.detach()], dim=1)
-
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
         if TT != 1:
-            # self.iter = -1
-            # self.burn_in = 0
-
-            # segment_ids = segment_ids.reshape(B, TT)[:, 0]
-            # training_env_ids = training_env_ids.reshape(B, TT)[:, 0]
-            # check_seg_id = td["check_seg_id"].reshape(B, TT)[:, 0]
-            # check_env_id = td["check_env_id"].reshape(B, TT)[:, 0]
-
-            # if check_seg_id != segment_ids or check_env_id != training_env_ids:
-            #     breakpoint()
-
             h_0 = td["lstm_h"]
             c_0 = td["lstm_c"]
             h_0 = rearrange(h_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
             c_0 = rearrange(c_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
 
-            # h_0 = self.train_input_lstm_h[:, segment_ids]
-            # c_0 = self.train_input_lstm_c[:, segment_ids]
             hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask)
 
         else:
@@ -213,4 +179,5 @@ class LSTMReset(nn.Module):
         self.lstm_h, self.lstm_c = memory[0], memory[1]
 
     def reset_memory(self):
-        pass
+        self.lstm_h.clear()
+        self.lstm_c.clear()
