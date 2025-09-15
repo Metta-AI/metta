@@ -6,18 +6,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
 import typer
+from lazy_imports import LazyModule
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from metta.common.util.fs import get_repo_root
-from metta.setup.components.base import SetupModuleStatus
-from metta.setup.local_commands import app as local_app
-from metta.setup.symlink_setup import app as symlink_app
-from metta.setup.tools.book import app as book_app
-from metta.setup.utils import debug, error, info, success, warning
+imports = LazyModule(
+    "from metta.common.util.fs import get_repo_root",
+    "from metta.setup.utils import import_all_modules_from_subpackage, header, info, prompt_choice",
+    "from metta.setup.utils import success, warning, error, debug",
+    "from metta.setup.profiles import UserType, PROFILE_DEFINITIONS",
+    "from metta.setup.saved_settings import get_saved_settings",
+    "from metta.setup.registry import get_all_modules",
+    name="metta.setup.metta_cli_imports",
+)
 
 if TYPE_CHECKING:
+    from metta.setup.components.base import SetupModuleStatus
     from metta.setup.registry import SetupModule
 
 PYTHON_TEST_FOLDERS = [
@@ -33,7 +38,7 @@ PYTHON_TEST_FOLDERS = [
 
 class MettaCLI:
     def __init__(self):
-        self.repo_root: Path = get_repo_root()
+        self.repo_root: Path = imports.get_repo_root()
         self._components_initialized = False
 
     def _init_all(self):
@@ -41,72 +46,61 @@ class MettaCLI:
         if self._components_initialized:
             return
 
-        from metta.setup.utils import import_all_modules_from_subpackage
-
-        import_all_modules_from_subpackage("metta.setup", "components")
+        imports.import_all_modules_from_subpackage("metta.setup", "components")
         self._components_initialized = True
 
     def setup_wizard(self, non_interactive: bool = False):
-        from metta.setup.profiles import UserType
-        from metta.setup.saved_settings import get_saved_settings
-        from metta.setup.utils import header, info, prompt_choice, success
+        imports.header("Welcome to Metta!\n\n")
+        imports.info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
 
-        header("Welcome to Metta!\n\n")
-        info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
-
-        saved_settings = get_saved_settings()
+        saved_settings = imports.get_saved_settings()
         if saved_settings.exists():
-            info("Current configuration:")
-            info(f"Profile: {saved_settings.user_type.value}")
-            info(f"Mode: {'custom' if saved_settings.is_custom_config else 'profile'}")
-            info("\nEnabled components:")
+            imports.info("Current configuration:")
+            imports.info(f"Profile: {saved_settings.user_type.value}")
+            imports.info(f"Mode: {'custom' if saved_settings.is_custom_config else 'profile'}")
+            imports.info("\nEnabled components:")
             components = saved_settings.get_components()
             for comp, settings in components.items():
                 if settings.get("enabled"):
-                    success(f"  + {comp}")
-            info("\n")
+                    imports.success(f"  + {comp}")
+            imports.info("\n")
 
-        choices = [(ut, ut.get_description()) for ut in UserType]
+        choices = [(ut, ut.get_description()) for ut in imports.UserType]
 
         current_user_type = saved_settings.user_type if saved_settings.exists() else None
 
-        result = prompt_choice(
+        result = imports.prompt_choice(
             "Select configuration:",
             choices,
             current=current_user_type,
             non_interactive=non_interactive,
         )
 
-        if result == UserType.CUSTOM:
+        if result == imports.UserType.CUSTOM:
             self._custom_setup(non_interactive=non_interactive)
         else:
             saved_settings.apply_profile(result)
-            success(f"\nConfigured as {result.value} user.")
-        info("\nRun 'metta install' to set up your environment.")
+            imports.success(f"\nConfigured as {result.value} user.")
+        imports.info("\nRun 'metta install' to set up your environment.")
 
     def _custom_setup(self, non_interactive: bool = False):
-        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-        from metta.setup.registry import get_all_modules
-        from metta.setup.saved_settings import get_saved_settings
-        from metta.setup.utils import prompt_choice
-
-        user_type = prompt_choice(
+        user_type = imports.prompt_choice(
             "Select base profile for custom configuration:",
-            [(ut, ut.get_description()) for ut in UserType if ut != UserType.CUSTOM],
-            default=UserType.EXTERNAL,
+            [(ut, ut.get_description()) for ut in imports.UserType if ut != imports.UserType.CUSTOM],
+            default=imports.UserType.EXTERNAL,
             non_interactive=non_interactive,
         )
 
-        saved_settings = get_saved_settings()
+        saved_settings = imports.get_saved_settings()
         saved_settings.setup_custom_profile(user_type)
 
-        info("\nCustomize components:")
-        all_modules = get_all_modules()
+        imports.info("\nCustomize components:")
+        all_modules = imports.get_all_modules()
 
         for module in all_modules:
             current_enabled = saved_settings.is_component_enabled(module.name)
 
-            enabled = prompt_choice(
+            enabled = imports.prompt_choice(
                 f"Enable {module.name} ({module.description})?",
                 [(True, "Yes"), (False, "No")],
                 default=current_enabled,
@@ -115,13 +109,16 @@ class MettaCLI:
             )
 
             profile_default = (
-                PROFILE_DEFINITIONS.get(user_type, {}).get("components", {}).get(module.name, {}).get("enabled", False)
+                imports.PROFILE_DEFINITIONS.get(user_type, {})
+                .get("components", {})
+                .get(module.name, {})
+                .get("enabled", False)
             )
             if enabled != profile_default:
                 saved_settings.set(f"components.{module.name}.enabled", enabled)
 
-        success("\nCustom configuration saved.")
-        info("\nRun 'metta install' to set up your environment.")
+        imports.success("\nCustom configuration saved.")
+        imports.info("\nRun 'metta install' to set up your environment.")
 
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
@@ -155,50 +152,42 @@ def cmd_configure(
     """Configure Metta settings."""
     if component:
         if profile:
-            error("Cannot configure a component and a profile at the same time.")
+            imports.error("Cannot configure a component and a profile at the same time.")
             raise typer.Exit(1)
         configure_component(component)
     elif profile:
-        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-        from metta.setup.saved_settings import get_saved_settings
-
-        selected_user_type = UserType(profile)
-        if selected_user_type in PROFILE_DEFINITIONS:
-            saved_settings = get_saved_settings()
+        selected_user_type = imports.UserType(profile)
+        if selected_user_type in imports.PROFILE_DEFINITIONS:
+            saved_settings = imports.get_saved_settings()
             saved_settings.apply_profile(selected_user_type)
-            success(f"Configured as {selected_user_type.value} user.")
+            imports.success(f"Configured as {selected_user_type.value} user.")
         else:
-            error(f"Unknown profile: {profile}")
+            imports.error(f"Unknown profile: {profile}")
             raise typer.Exit(1)
     else:
         cli.setup_wizard(non_interactive=non_interactive)
 
 
 def configure_component(component_name: str):
-    from metta.setup.registry import get_all_modules
-    from metta.setup.utils import error, info
-
-    modules = get_all_modules()
+    modules = imports.get_all_modules()
     module_map = {m.name: m for m in modules}
 
     if not (module := module_map.get(component_name)):
-        error(f"Unknown component: {component_name}")
-        info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+        imports.error(f"Unknown component: {component_name}")
+        imports.info(f"Available components: {', '.join(sorted(module_map.keys()))}")
         raise typer.Exit(1)
 
     options = module.get_configuration_options()
     if not options:
-        info(f"Component '{component_name}' has no configuration options.")
+        imports.info(f"Component '{component_name}' has no configuration options.")
         return
     module.configure()
 
 
 def _get_selected_modules(components: list[str] | None = None) -> list["SetupModule"]:
-    from metta.setup.registry import get_all_modules
-
     return [
         m
-        for m in get_all_modules()
+        for m in imports.get_all_modules()
         if (components is not None and m.name in components) or (components is None and m.is_enabled())
     ]
 
@@ -215,14 +204,12 @@ def cmd_install(
     if not no_clean:
         cmd_clean()
 
-    from metta.setup.saved_settings import get_saved_settings
-
     # A profile must exist before installing. If installing in non-interactive mode,
     # the target profile must be specified with --profile. If in interactive mode and
     # no profile is specified, the setup wizard will be run.
-    profile_exists = get_saved_settings().exists()
+    profile_exists = imports.get_saved_settings().exists()
     if non_interactive and not profile_exists and not profile:
-        error("Must specify a profile if installing in non-interactive mode without an existing one.")
+        imports.error("Must specify a profile if installing in non-interactive mode without an existing one.")
         raise typer.Exit(1)
     elif profile or not profile_exists:
         cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
@@ -235,23 +222,23 @@ def cmd_install(
     modules = _get_selected_modules(limited_components)
 
     if not modules:
-        info("No modules to install.")
+        imports.info("No modules to install.")
         return
 
-    info(f"\nInstalling {len(modules)} components...\n")
+    imports.info(f"\nInstalling {len(modules)} components...\n")
 
     for module in modules:
-        info(f"[{module.name}] {module.description}")
+        imports.info(f"[{module.name}] {module.description}")
 
         if module.install_once and module.check_installed() and not force:
-            debug("  -> Already installed, skipping (use --force to reinstall)\n")
+            imports.debug("  -> Already installed, skipping (use --force to reinstall)\n")
             continue
 
         try:
             module.install(non_interactive=non_interactive)
             print()
         except Exception as e:
-            error(f"  Error: {e}\n")
+            imports.error(f"  Error: {e}\n")
 
     if not non_interactive and check_status:
         cmd_status(components=components, non_interactive=non_interactive)
@@ -269,11 +256,11 @@ def cmd_status(
 
     modules = _get_selected_modules(components if components else None)
     if not modules:
-        warning("No modules to check.")
+        imports.warning("No modules to check.")
         return
 
     modules_by_name = {m.name: m for m in modules}
-    module_status: dict[str, SetupModuleStatus] = {}
+    module_status: dict[str, "SetupModuleStatus"] = {}
 
     console = Console()
     with Progress(
@@ -351,14 +338,12 @@ def cmd_run(
     component: Annotated[str, typer.Argument(help="Component to run command for")],
     args: Annotated[Optional[list[str]], typer.Argument(help="Arguments to pass to the component")] = None,
 ):
-    from metta.setup.registry import get_all_modules
-
-    modules = get_all_modules()
+    modules = imports.get_all_modules()
     module_map = {m.name: m for m in modules}
 
     if not (module := module_map.get(component)):
-        error(f"Unknown component: {component}")
-        info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+        imports.error(f"Unknown component: {component}")
+        imports.info(f"Available components: {', '.join(sorted(module_map.keys()))}")
         raise typer.Exit(1)
 
     module.run(args or [])
@@ -368,14 +353,14 @@ def cmd_run(
 def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
     build_dir = cli.repo_root / "build"
     if build_dir.exists():
-        info("  Removing root build directory...")
+        imports.info("  Removing root build directory...")
         shutil.rmtree(build_dir)
 
     mettagrid_dir = cli.repo_root / "mettagrid"
     for build_name in ["build-debug", "build-release"]:
         build_path = mettagrid_dir / build_name
         if build_path.exists():
-            info(f"  Removing mettagrid/{build_name}...")
+            imports.info(f"  Removing mettagrid/{build_name}...")
             shutil.rmtree(build_path)
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
@@ -386,7 +371,7 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
         try:
             subprocess.run(cmd, cwd=str(cli.repo_root), check=True)
         except subprocess.CalledProcessError as e:
-            warning(f"  Cleanup script failed: {e}")
+            imports.warning(f"  Cleanup script failed: {e}")
 
 
 @app.command(name="lint", help="Run linting and formatting")
@@ -422,7 +407,7 @@ def cmd_lint(
 
     for cmd in cmds:
         try:
-            info(f"Running: {' '.join(cmd)}")
+            imports.info(f"Running: {' '.join(cmd)}")
             subprocess.run(cmd, cwd=cli.repo_root, check=True)
         except subprocess.CalledProcessError as e:
             raise typer.Exit(e.returncode) from e
@@ -430,7 +415,7 @@ def cmd_lint(
 
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
 def cmd_ci():
-    info("Running Python tests...")
+    imports.info("Running Python tests...")
     python_test_cmd = [
         "uv",
         "run",
@@ -443,12 +428,12 @@ def cmd_ci():
 
     try:
         subprocess.run(python_test_cmd, cwd=cli.repo_root, check=True)
-        success("Python tests passed!")
+        imports.success("Python tests passed!")
     except subprocess.CalledProcessError as e:
-        error("Python tests failed!")
+        imports.error("Python tests failed!")
         raise typer.Exit(e.returncode) from e
 
-    info("\nBuilding and running C++ tests...")
+    imports.info("\nBuilding and running C++ tests...")
     mettagrid_dir = cli.repo_root / "mettagrid"
 
     try:
@@ -456,12 +441,12 @@ def cmd_ci():
         subprocess.run(["cmake", "--build", "build-release"], cwd=mettagrid_dir, check=True)
         build_dir = mettagrid_dir / "build-release"
         subprocess.run(["ctest", "-L", "benchmark", "--output-on-failure"], cwd=build_dir, check=True)
-        success("C++ tests passed!")
+        imports.success("C++ tests passed!")
     except subprocess.CalledProcessError as e:
-        error("C++ tests failed!")
+        imports.error("C++ tests failed!")
         raise typer.Exit(e.returncode) from e
 
-    success("\nAll CI tests passed!")
+    imports.success("\nAll CI tests passed!")
 
 
 @app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
@@ -512,7 +497,7 @@ def cmd_tool(
 ):
     tool_path = cli.repo_root / "tools" / f"{tool_name}.py"
     if not tool_path.exists():
-        error(f"Error: Tool '{tool_name}' not found at {tool_path}")
+        imports.error(f"Error: Tool '{tool_name}' not found at {tool_path}")
         raise typer.Exit(1)
 
     cmd = [str(tool_path)] + (ctx.args or [])
@@ -536,18 +521,18 @@ def cmd_go(ctx: typer.Context):
     import webbrowser
 
     if not ctx.args:
-        error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
-        info("\nCommon shortcuts:")
-        info("  g    - GitHub")
-        info("  w    - Weights & Biases")
-        info("  o    - Observatory")
-        info("  d    - Datadog")
+        imports.error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
+        imports.info("\nCommon shortcuts:")
+        imports.info("  g    - GitHub")
+        imports.info("  w    - Weights & Biases")
+        imports.info("  o    - Observatory")
+        imports.info("  d    - Datadog")
         return
 
     shortcut = ctx.args[0]
     url = f"https://home.softmax-research.net/{shortcut}"
 
-    info(f"Opening {url}...")
+    imports.info(f"Opening {url}...")
     webbrowser.open(url)
 
 
@@ -557,12 +542,12 @@ def cmd_report_env_details():
     """Report environment details."""
     import gitta
 
-    info(f"UV Project Directory: {cli.repo_root}")
-    info(f"Metta CLI Working Directory: {Path.cwd()}")
+    imports.info(f"UV Project Directory: {cli.repo_root}")
+    imports.info(f"Metta CLI Working Directory: {Path.cwd()}")
     if branch := gitta.get_current_branch():
-        info(f"Git Branch: {branch}")
+        imports.info(f"Git Branch: {branch}")
     if commit := gitta.get_current_commit():
-        info(f"Git Commit: {commit}")
+        imports.info(f"Git Commit: {commit}")
 
 
 @app.command(name="clip", help="Copy subsets of codebase for LLM contexts", context_settings={"allow_extra_args": True})
@@ -573,17 +558,19 @@ def cmd_clip(ctx: typer.Context):
     try:
         subprocess.run(cmd, cwd=cli.repo_root, check=False)
     except FileNotFoundError:
-        error("Error: Command not found: codeclip")
-        info("Run: metta install codebot")
+        imports.error("Error: Command not found: codeclip")
+        imports.info("Run: metta install codebot")
         raise typer.Exit(1) from None
 
 
-app.add_typer(local_app, name="local")
-app.add_typer(book_app, name="book")
-app.add_typer(symlink_app, name="symlink-setup")
-
-
 def main() -> None:
+    from metta.setup.local_commands import app as local_app
+    from metta.setup.symlink_setup import app as symlink_app
+    from metta.setup.tools.book import app as book_app
+
+    app.add_typer(local_app, name="local")
+    app.add_typer(book_app, name="book")
+    app.add_typer(symlink_app, name="symlink-setup")
     app()
 
 
