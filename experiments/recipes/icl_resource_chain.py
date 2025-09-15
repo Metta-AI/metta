@@ -8,6 +8,7 @@ from metta.mettagrid.config import empty_converters
 from metta.mettagrid.config.envs import make_icl_resource_chain
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
+from metta.rl.periodic_reset_env import PeriodicResetConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -61,6 +62,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
         )
         num_sinks: list[int] = Field(
             default_factory=list, description="Number of sinks to sample from"
+        )
+        trials_per_episode: list[int] = Field(
+            default_factory=lambda: [1],
+            description="Number of trials per episode to sample from",
         )
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
@@ -117,8 +122,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.map_builder_objects[sink_name] = 1
 
     def _make_env_cfg(
-        self, resource_chain, num_sinks, rng, max_steps=256
-    ) -> MettaGridConfig:
+        self, resource_chain, num_sinks, trials_per_episode, rng, max_steps=256
+    ) -> tuple[MettaGridConfig, PeriodicResetConfig]:
         cfg = _BuildCfg()
         resource_chain = ["nothing"] + list(resource_chain) + ["heart"]
 
@@ -140,19 +145,33 @@ class ConverterChainTaskGenerator(TaskGenerator):
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = cooldown
 
-        return make_icl_resource_chain(
+        env_cfg = make_icl_resource_chain(
             num_agents=24,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
             map_builder_objects=cfg.map_builder_objects,
         )
 
+        periodic_reset_cfg = PeriodicResetConfig(
+            number_of_trials_in_episode=trials_per_episode,
+            episode_length=max_steps,
+        )
+
+        return env_cfg, periodic_reset_cfg
+
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         chain_length = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
+        trials_per_episode = rng.choice(self.config.trials_per_episode)
         resource_chain = rng.sample(self.resource_types, chain_length)
 
-        icl_env = self._make_env_cfg(resource_chain, num_sinks, rng=rng)
+        icl_env, periodic_reset_cfg = self._make_env_cfg(
+            resource_chain, num_sinks, trials_per_episode, rng=rng
+        )
+
+        # Store the periodic reset config in the environment config for later retrieval
+        # We'll add this as a custom attribute that can be accessed by the trainer
+        icl_env._periodic_reset_config = periodic_reset_cfg
 
         return icl_env
 
@@ -161,6 +180,7 @@ def make_mettagrid() -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[6],
         num_sinks=[2],
+        trials_per_episode=[1],  # Default to single trial for simple testing
     )
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
     return task_generator.get_task(0)
@@ -170,6 +190,7 @@ def make_curriculum() -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
+        trials_per_episode=[1, 2, 4, 8],  # Different numbers of trials per episode
     )
     return CurriculumConfig(task_generator=task_generator_cfg)
 

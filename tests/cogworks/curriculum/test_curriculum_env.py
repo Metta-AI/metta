@@ -126,7 +126,7 @@ class TestCurriculumEnv:
             assert wrapper._current_task is not initial_task
             assert initial_task._num_completions > 0
             if termination_type == "full_termination":
-                mock_env.set_env_config.assert_called_once_with(wrapper._current_task.get_env_cfg())
+                mock_env.set_mg_config.assert_called_once_with(wrapper._current_task.get_env_cfg())
 
     @pytest.mark.parametrize(
         "rewards,expected_mean",
@@ -167,7 +167,7 @@ class TestCurriculumEnv:
 
         # Task should have been completed with mean reward
         assert initial_task._num_completions == initial_completions + 1
-        assert abs(initial_task._total_score - 0.85) < 1e-10  # (0.8 + 0.9) / 2
+        assert abs(initial_task._total_score - expected_mean) < 1e-10
 
         # Should have gotten a new task
         assert wrapper._current_task is not initial_task

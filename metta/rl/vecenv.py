@@ -11,6 +11,7 @@ from metta.common.util.log_config import init_logging
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.periodic_reset_env import PeriodicResetConfig, PeriodicResetEnv
 
 logger = logging.getLogger("vecenv")
 
@@ -25,14 +26,23 @@ def make_env_func(
     is_serial: bool = False,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
+    periodic_reset_config: Optional[PeriodicResetConfig] = None,
     **kwargs,
 ):
     if not is_serial:
         # Running in a new process, so we need to reinitialize logging
         init_logging(run_dir=run_dir)
 
+    # Get the current task and check for periodic reset config
+    current_task = curriculum.get_task()
+    env_cfg = current_task.get_env_cfg()
+
+    # Extract periodic reset config if it exists
+    task_periodic_reset_config = getattr(env_cfg, "_periodic_reset_config", None)
+    final_periodic_reset_config = periodic_reset_config or task_periodic_reset_config
+
     env = MettaGridEnv(
-        curriculum.get_task().get_env_cfg(),
+        env_cfg,
         render_mode=render_mode,
         stats_writer=stats_writer,
         replay_writer=replay_writer,
@@ -40,6 +50,10 @@ def make_env_func(
     )
     set_buffers(env, buf)
     env = CurriculumEnv(env, curriculum)
+
+    # Add periodic reset wrapper if configured
+    if final_periodic_reset_config is not None:
+        env = PeriodicResetEnv(env, final_periodic_reset_config)
 
     return env
 
@@ -56,6 +70,7 @@ def make_vecenv(
     replay_writer: ReplayWriter | None = None,
     is_training: bool = False,
     run_dir: str | None = None,
+    periodic_reset_config: Optional[PeriodicResetConfig] = None,
     **kwargs,
 ) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
@@ -80,6 +95,7 @@ def make_vecenv(
         "is_training": is_training,
         "is_serial": is_serial,
         "run_dir": run_dir,
+        "periodic_reset_config": periodic_reset_config,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,
