@@ -110,16 +110,13 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     )
 
 
-def replay(
-    env: Optional[MettaGridConfig] = None, policy_uri: Optional[str] = None
-) -> ReplayTool:
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
             name="navigation",
         ),
-        policy_uri=policy_uri,
     )
 
 
