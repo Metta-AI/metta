@@ -14,7 +14,6 @@ import wandb
 from wandb import Artifact
 from wandb.errors import CommError
 
-from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import WandbURI
 
@@ -114,8 +113,8 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format.
 
     Handles both short and full wandb URI formats:
-    - "wandb://run/my_run_name" -> "wandb://ENTITY/metta/model/my_run_name:latest" (if WANDB_ENTITY set)
-    - "wandb://run/my_run_name:v5" -> "wandb://ENTITY/metta/model/my_run_name:v5" (if WANDB_ENTITY set)
+    - "wandb://run/my_run_name" -> "wandb://ENTITY/metta/my_run_name:latest" (if WANDB_ENTITY set)
+    - "wandb://run/my_run_name:v5" -> "wandb://ENTITY/metta/my_run_name:v5" (if WANDB_ENTITY set)
     - "wandb://sweep/sweep_name" -> "wandb://ENTITY/metta/sweep_model/sweep_name:latest" (if WANDB_ENTITY set)
     - Full URIs pass through unchanged
 
@@ -131,53 +130,34 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     if not path.startswith(("run/", "sweep/")):
         return uri
 
-    # Handle short URI formats - prioritize user's entity over Metta default
+    # Handle short URI formats - require WANDB_ENTITY to be explicit
     entity = os.getenv("WANDB_ENTITY")
     if not entity:
-        # Try to get default entity from wandb API (external users)
-        try:
-            import wandb
-
-            entity = wandb.Api().default_entity
-        except Exception:
-            pass
-
-    # Final fallback to Metta entity (for Metta internal usage)
-    entity = entity or METTA_WANDB_ENTITY
-    if not entity:
         raise ValueError(
-            f"Short wandb URI '{uri}' requires WANDB_ENTITY environment variable or wandb login.\n"
-            f"Options:\n"
+            f"Short wandb URI '{uri}' requires WANDB_ENTITY environment variable.\n"
+            f"Either:\n"
             f"1. Use full URI: wandb://your-entity/project/artifact:version\n"
-            f"2. Set WANDB_ENTITY: export WANDB_ENTITY=your-entity\n"
-            f"3. Login to wandb: wandb login (uses your default entity)"
+            f"2. Set WANDB_ENTITY: export WANDB_ENTITY=your-entity"
         )
 
+    # Parse version from artifact name
     if path.startswith("run/"):
-        return _expand_run_uri(path[4:], entity, default_project)
+        run_name = path[4:]
+        if ":" in run_name:
+            run_name, version = run_name.rsplit(":", 1)
+        else:
+            version = "latest"
+        return f"wandb://{entity}/{default_project}/{run_name}:{version}"
 
     if path.startswith("sweep/"):
-        return _expand_sweep_uri(path[6:], entity, default_project)
+        sweep_name = path[6:]
+        if ":" in sweep_name:
+            sweep_name, version = sweep_name.rsplit(":", 1)
+        else:
+            version = "latest"
+        return f"wandb://{entity}/{default_project}/sweep_model/{sweep_name}:{version}"
 
     return uri
-
-
-def _expand_run_uri(run_name: str, entity: str, project: str) -> str:
-    """Expand run URI format."""
-    if ":" in run_name:
-        run_name, version = run_name.rsplit(":", 1)
-    else:
-        version = "latest"
-    return f"wandb://{entity}/{project}/model/{run_name}:{version}"
-
-
-def _expand_sweep_uri(sweep_name: str, entity: str, project: str) -> str:
-    """Expand sweep URI format."""
-    if ":" in sweep_name:
-        sweep_name, version = sweep_name.rsplit(":", 1)
-    else:
-        version = "latest"
-    return f"wandb://{entity}/{project}/sweep_model/{sweep_name}:{version}"
 
 
 def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:

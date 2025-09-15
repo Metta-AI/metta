@@ -1,9 +1,8 @@
 import os
 import re
 import subprocess
-from pathlib import Path
 
-from metta.common.util.constants import METTA_ENV_FILE, METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
@@ -78,8 +77,6 @@ class WandbSetup(SetupModule):
         try:
             subprocess.run(["wandb", "login"], check=True)
             success("W&B configured successfully")
-            # Set WANDB_ENTITY environment variable for softmax users
-            self._set_wandb_entity_env()
         except subprocess.CalledProcessError:
             warning("W&B login failed. You can run 'wandb login' manually later.")
 
@@ -100,34 +97,9 @@ class WandbSetup(SetupModule):
     def can_remediate_connected_status_with_install(self) -> bool:
         return True
 
-    def _set_wandb_entity_env(self) -> None:
-        """Set WANDB_ENTITY environment variable for softmax users."""
-        saved_settings = get_saved_settings()
-        if not saved_settings.user_type.is_softmax:
-            return
-
-        # Set environment variable in current session
-        os.environ["WANDB_ENTITY"] = METTA_WANDB_ENTITY
-
-        # Persist to METTA_ENV_FILE for future sessions
-        env_file = Path(METTA_ENV_FILE())
-        env_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Check if WANDB_ENTITY is already set in the file
-        env_content = ""
-        if env_file.exists():
-            env_content = env_file.read_text()
-
-        if "WANDB_ENTITY=" not in env_content:
-            with env_file.open("a") as f:
-                f.write(f"\nexport WANDB_ENTITY={METTA_WANDB_ENTITY}\n")
-            info(f"Set WANDB_ENTITY={METTA_WANDB_ENTITY} in environment")
-
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()
         if saved_settings.user_type.is_softmax:
-            # Ensure WANDB_ENTITY is set for softmax users
-            self._set_wandb_entity_env()
             return dict(
                 enabled=True,
                 project=METTA_WANDB_PROJECT,
