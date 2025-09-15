@@ -273,8 +273,9 @@ run_cmd() {
 
   start_monitors
 
-  wait "$CMD_PID"
+  wait -n "$CMD_PID" 2>/dev/null || wait "$CMD_PID"
   CMD_EXIT=$?
+  echo "[INFO] process exited with code $CMD_EXIT"
 
   if [[ ! -f "$TERMINATION_REASON_FILE" ]] || [[ ! -s "$TERMINATION_REASON_FILE" ]]; then
     if [[ "$IS_MASTER" == "true" ]]; then
