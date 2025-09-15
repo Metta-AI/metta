@@ -35,10 +35,8 @@ from wandb.errors import CommError
 # --------------------------------------------------------------------------- #
 
 
-# WANDB_ENTITY for backward compatibility with short URIs
-def _get_wandb_entity() -> str:
-    """Get WANDB_ENTITY, checking environment variable dynamically."""
-    return os.getenv("WANDB_ENTITY") or ""
+# Short URI expansion is now handled in metta.rl.wandb.expand_wandb_uri()
+# WandbURI only handles already-expanded full URIs
 
 
 GOOGLE_DRIVE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_DRIVE_CREDENTIALS_FILE", "~/.config/gcloud/credentials.json")
@@ -287,18 +285,28 @@ class WandbURI:
             raise ValueError("Malformed W&B URI – expected wandb://entity/project/artifact:version")
 
         parts = path_part.split("/")
-        if len(parts) < 3:
-            raise ValueError(
-                "W&B URI must be fully specified: wandb://entity/project/artifact:version\n"
-                "Short formats are no longer supported. Use the full format with entity."
-            )
 
-        entity = parts[0]
-        project = parts[1]
-        artifact_path = "/".join(parts[2:])
+        if len(parts) >= 3:
+            # Full format: wandb://entity/project/artifact:version
+            entity = parts[0]
+            project = parts[1]
+            artifact_path = "/".join(parts[2:])
+        elif len(parts) == 2:
+            # Legacy 2-part format - assume entity is implicit
+            # This should have been expanded by expand_wandb_uri() already
+            project = parts[0]
+            artifact_path = parts[1]
+            entity = os.getenv("WANDB_ENTITY")
+            if not entity:
+                raise ValueError(
+                    f"2-part wandb URI '{uri}' requires WANDB_ENTITY environment variable.\n"
+                    f"Consider using full format: wandb://your-entity/{project}/{artifact_path}:{version}"
+                )
+        else:
+            raise ValueError("Malformed W&B URI – expected wandb://entity/project/artifact:version")
 
-        if not entity or not project or not artifact_path:
-            raise ValueError("Entity, project, and artifact path must all be non-empty")
+        if not project or not artifact_path:
+            raise ValueError("Project and artifact path must be non-empty")
 
         return cls(entity, project, artifact_path, version)
 
