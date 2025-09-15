@@ -179,5 +179,5 @@ class LSTMReset(nn.Module):
         self.lstm_h, self.lstm_c = memory[0], memory[1]
 
     def reset_memory(self):
-        self.lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
-        self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
+        self.lstm_h.fill_(0)
+        self.lstm_c.fill_(0)
