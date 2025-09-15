@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 import time
 import weakref
@@ -120,22 +121,16 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     Raises:
         ValueError: If short URI is used but WANDB_ENTITY is not set
     """
-    import os
-
     if not uri.startswith("wandb://"):
         return uri
 
     path = uri[len("wandb://") :]
 
-    # Check for known short URI patterns first
-    if path.startswith(("run/", "sweep/")):
-        # This is definitely a short URI - need WANDB_ENTITY for expansion
-        pass  # Continue to expansion logic below
-    else:
-        # Not a known short format, assume it's already a full URI
+    # Return full URIs unchanged
+    if not path.startswith(("run/", "sweep/")):
         return uri
 
-    # Handle short URI formats - need WANDB_ENTITY
+    # Handle short URI formats - require WANDB_ENTITY
     entity = os.getenv("WANDB_ENTITY")
     if not entity:
         raise ValueError(
@@ -146,23 +141,30 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
         )
 
     if path.startswith("run/"):
-        run_name = path[4:]
-        if ":" in run_name:
-            run_name, version = run_name.rsplit(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{entity}/{default_project}/model/{run_name}:{version}"
+        return _expand_run_uri(path[4:], entity, default_project)
 
-    elif path.startswith("sweep/"):
-        sweep_name = path[6:]
-        if ":" in sweep_name:
-            sweep_name, version = sweep_name.rsplit(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{entity}/{default_project}/sweep_model/{sweep_name}:{version}"
+    if path.startswith("sweep/"):
+        return _expand_sweep_uri(path[6:], entity, default_project)
 
-    # Unrecognized short format
     return uri
+
+
+def _expand_run_uri(run_name: str, entity: str, project: str) -> str:
+    """Expand run URI format."""
+    if ":" in run_name:
+        run_name, version = run_name.rsplit(":", 1)
+    else:
+        version = "latest"
+    return f"wandb://{entity}/{project}/model/{run_name}:{version}"
+
+
+def _expand_sweep_uri(sweep_name: str, entity: str, project: str) -> str:
+    """Expand sweep URI format."""
+    if ":" in sweep_name:
+        sweep_name, version = sweep_name.rsplit(":", 1)
+    else:
+        version = "latest"
+    return f"wandb://{entity}/{project}/sweep_model/{sweep_name}:{version}"
 
 
 def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:
