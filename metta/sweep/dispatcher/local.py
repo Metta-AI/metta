@@ -96,7 +96,6 @@ class LocalDispatcher:
 
         # Add all args with --args flag
         if all_args:
-            cmd_parts.append("--args")
             cmd_parts.extend(all_args)
 
         # Collect all overrides (from both overrides and config)
@@ -110,9 +109,8 @@ class LocalDispatcher:
         for key, value in job.config.items():
             all_overrides.append(f"{key}={value}")
 
-        # Add all overrides with --overrides flag
+        # Add all overrides
         if all_overrides:
-            cmd_parts.append("--overrides")
             cmd_parts.extend(all_overrides)
 
         # Extract trial portion for cleaner display

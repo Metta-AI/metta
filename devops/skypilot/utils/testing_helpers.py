@@ -107,7 +107,6 @@ class SkyPilotTestLauncher:
             "devops/skypilot/launch.py",
             *base_args,
             module,
-            "--args",
             f"run={run_name}",
             *extra_args,
         ]

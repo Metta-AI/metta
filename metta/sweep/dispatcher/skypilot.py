@@ -53,10 +53,7 @@ class SkypilotDispatcher(Dispatcher):
         # Add metadata fields as args (used for evaluation jobs)
         for key, value in job.metadata.items():
             all_args.append(f"{key}={value}")
-
-        # Add all args with --args flag
         if all_args:
-            cmd_parts.append("--args")
             cmd_parts.extend(all_args)
 
         # Collect all overrides (from both overrides and config)
@@ -70,9 +67,8 @@ class SkypilotDispatcher(Dispatcher):
         for key, value in job.config.items():
             all_overrides.append(f"{key}={value}")
 
-        # Add all overrides with --overrides flag
+        # Add all overrides
         if all_overrides:
-            cmd_parts.append("--overrides")
             cmd_parts.extend(all_overrides)
 
         # Extract trial portion for cleaner display (like LocalDispatcher)

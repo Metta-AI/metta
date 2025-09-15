@@ -261,8 +261,7 @@ def my_train(run: str = "local.me.1") -> TrainTool:
 Run your task:
 
 ```bash
-# Arguments are automatically classified - no need for --args or --overrides
-./tools/run.py experiments.user.my_tasks.my_train run=local.me.2 \
+\./tools/run.py experiments.user.my_tasks.my_train run=local.me.2 \
   system.device=cpu wandb.enabled=false
 ```
 
