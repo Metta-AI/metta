@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { viewConfigRoute } from "@/lib/routes";
+
 import { listMettagridCfgsMetadata } from "../../lib/api";
 
 export default async function EnvsPage() {
@@ -17,7 +19,7 @@ export default async function EnvsPage() {
                 return (
                   <li key={cfg.path}>
                     <Link
-                      href={`/mettagrid-cfgs/view?path=${cfg.path}`}
+                      href={viewConfigRoute(cfg.path)}
                       className="text-blue-600 hover:text-blue-800 hover:underline"
                     >
                       {cfg.path}

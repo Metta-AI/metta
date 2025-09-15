@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { JsonAsYaml } from "@/components/JsonAsYaml";
+import { configsRoute } from "@/lib/routes";
 
 import { getMettagridCfgFile } from "../../../lib/api";
 import { MapSection } from "./MapSection";
@@ -22,7 +23,7 @@ export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
     <div className="p-4">
       <div className="mb-4">
         <Link
-          href="/mettagrid-cfgs"
+          href={configsRoute()}
           className="text-blue-600 hover:text-blue-800 hover:underline"
         >
           ← Back to MettaGrid configs list
@@ -39,12 +40,12 @@ export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
         </span>
         <span className="text-xl text-gray-400"> {cfg.metadata.kind}</span>
       </h1>
-      {(cfg.metadata.kind === "map" ||
+      {(cfg.metadata.kind === "MettaGrid" ||
         cfg.metadata.kind === "env" ||
         cfg.metadata.kind === "curriculum") && <MapSection cfg={cfg} />}
       <section className="mb-8">
         <h2 className="mb-4 text-xl font-bold">Config</h2>
-        <JsonAsYaml json={cfg.cfg as Record<string, unknown>} />
+        <JsonAsYaml json={cfg.config as Record<string, unknown>} />
       </section>
     </div>
   );

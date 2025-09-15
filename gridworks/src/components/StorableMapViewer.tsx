@@ -6,6 +6,7 @@ import { FC, useCallback, useMemo, useState } from "react";
 import { FilterItem, parseFilterParam } from "@/app/stored-maps/dir/params";
 import { SceneTree, StorableMap } from "@/lib/api";
 import { MettaGrid } from "@/lib/MettaGrid";
+import { viewStoredMapRoute } from "@/lib/routes";
 
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
 import { JsonAsYaml } from "./JsonAsYaml";
@@ -160,7 +161,7 @@ export const StorableMapViewer: FC<{
           window.location.pathname !== "/stored-maps/view" && (
             <Link
               className="text-blue-500 hover:underline"
-              href={`/stored-maps/view?map=${url}`}
+              href={viewStoredMapRoute(url)}
               target="_blank"
             >
               Permalink

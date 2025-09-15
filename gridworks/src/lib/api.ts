@@ -94,39 +94,35 @@ const mettagridCfgFileMetadataSchema = z.object({
 
 const mettagridCfgFileSchema = z.object({
   metadata: mettagridCfgFileMetadataSchema,
-  cfg: z.unknown(),
+  config: z.unknown(),
 });
 
 export type MettagridCfgFile = z.infer<typeof mettagridCfgFileSchema>;
 
 const mettagridCfgsMetadataSchema = z.object({
-  env: z.array(mettagridCfgFileMetadataSchema).optional(),
-  curriculum: z.array(mettagridCfgFileMetadataSchema).optional(),
-  map: z.array(mettagridCfgFileMetadataSchema).optional(),
-  unknown: z.array(mettagridCfgFileMetadataSchema).optional(),
+  MettaGrid: z.array(mettagridCfgFileMetadataSchema).optional(),
+  Simulation: z.array(mettagridCfgFileMetadataSchema).optional(),
+  "List[Simulation]": z.array(mettagridCfgFileMetadataSchema).optional(),
 });
 
 type MettagridCfgsMetadata = z.infer<typeof mettagridCfgsMetadataSchema>;
 
 export async function listMettagridCfgsMetadata(): Promise<MettagridCfgsMetadata> {
-  return await fetchApi(
-    `${API_URL}/mettagrid-cfgs`,
-    mettagridCfgsMetadataSchema
-  );
+  return await fetchApi(`${API_URL}/configs`, mettagridCfgsMetadataSchema);
 }
 
 export async function getMettagridCfgFile(
   path: string
 ): Promise<MettagridCfgFile> {
   return await fetchApi(
-    `${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`,
+    `${API_URL}/configs/get?path=${encodeURIComponent(path)}`,
     mettagridCfgFileSchema
   );
 }
 
 export async function getMettagridCfgMap(path: string): Promise<StorableMap> {
   return await fetchApi(
-    `${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`,
+    `${API_URL}/configs/get-map?path=${encodeURIComponent(path)}`,
     storableMapSchema
   );
 }
