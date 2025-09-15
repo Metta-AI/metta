@@ -315,6 +315,8 @@ def make_curriculum(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
         room_sizes=["small"],
+        obstacle_types=["square", "cross", "L"],
+        densities=["", "balanced", "sparse", "dense"],
     )
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
