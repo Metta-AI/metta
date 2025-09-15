@@ -13,7 +13,7 @@ from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 
-class ImprovedPolicy(nn.Module):
+class GatedTransformerXLPolicy(nn.Module):
     def __init__(
         self,
         env,
@@ -168,7 +168,7 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
     ):
         mixin_params = self.extract_mixin_params(kwargs)
         if policy is None:
-            policy = ImprovedPolicy(
+            policy = GatedTransformerXLPolicy(
                 env,
                 input_size=input_size,
                 hidden_size=hidden_size,

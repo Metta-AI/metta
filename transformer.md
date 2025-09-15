@@ -244,7 +244,7 @@ Standard in Transformer-XL variants for better sequence modeling.
 ### Architecture Details
 
 ```python
-class Policy(nn.Module):
+class ConvolutionalTransformerPolicy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128, n_heads=8, 
                  n_layers=6, d_ff=512, max_seq_len=256, dropout=0.1,
                  use_causal_mask=True, use_gating=True)
@@ -323,7 +323,7 @@ def initialize_memory(self, batch_size: int) -> dict:
 ### Architecture Details
 
 ```python
-class ImprovedPolicy(nn.Module):
+class GatedTransformerXLPolicy(nn.Module):
     def __init__(self, env, input_size=256, hidden_size=256, n_heads=8,
                  n_layers=6, d_ff=1024, max_seq_len=256, memory_len=64,
                  dropout=0.1, use_causal_mask=True, use_gating=True)
@@ -527,14 +527,14 @@ class TransformerModule:
 
 ### pytorch/transformer
 - **Main file**: `agent/src/metta/agent/pytorch/transformer.py`
-- **Policy class**: `Policy` 
+- **Policy class**: `ConvolutionalTransformerPolicy` 
 - **Agent class**: `Transformer`
 - **Memory**: None
 - **Lines of code**: ~212
 
 ### pytorch/transformer_improved  
 - **Main file**: `agent/src/metta/agent/pytorch/transformer_improved.py`
-- **Policy class**: `ImprovedPolicy`
+- **Policy class**: `GatedTransformerXLPolicy`
 - **Agent class**: `TransformerImproved` 
 - **Memory**: Full GTrXL implementation
 - **Lines of code**: ~294 (includes memory logic)

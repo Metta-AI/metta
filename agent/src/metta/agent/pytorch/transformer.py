@@ -17,7 +17,7 @@ from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 logger = logging.getLogger(__name__)
 
 
-class Policy(nn.Module):
+class ConvolutionalTransformerPolicy(nn.Module):
     def __init__(
         self,
         env,
@@ -167,7 +167,7 @@ class Transformer(PyTorchAgentMixin, TransformerWrapper):
     ):
         mixin_params = self.extract_mixin_params(kwargs)
         if policy is None:
-            policy = Policy(
+            policy = ConvolutionalTransformerPolicy(
                 env,
                 input_size=input_size,
                 hidden_size=hidden_size,
