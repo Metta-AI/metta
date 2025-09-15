@@ -13,7 +13,6 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from metta.agent.agent_config import AgentConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -92,11 +91,13 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 
 def train(
-    curriculum: Optional[CurriculumConfig] = None, agent: Optional[str] = None
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(
@@ -109,11 +110,7 @@ def train(
         ),
     )
 
-    policy_architecture = None
-    if agent:
-        policy_architecture = AgentConfig(name=agent)
-
-    return TrainTool(trainer=trainer_cfg, policy_architecture=policy_architecture)
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
