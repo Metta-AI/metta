@@ -204,6 +204,7 @@ constructor/function vs configuration overrides based on introspection.
     )
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
+    parser.add_argument("--dry-run", action="store_true", help="Validate configuration without running the tool")
 
     # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
@@ -383,6 +384,16 @@ constructor/function vs configuration overrides based on introspection.
             except Exception as e:
                 console.print(f"[red]Error applying override {key}={value}:[/red] {e}")
                 return 1
+
+    # ----------------------------------------------------------------------------------
+    # Dry run check - exit here if --dry-run flag is set
+    # ----------------------------------------------------------------------------------
+    if known_args.dry_run:
+        console.print("\n[bold green]✅ Configuration validation successful[/bold green]")
+        if known_args.verbose:
+            console.print(f"[dim]Tool type: {type(tool_cfg).__name__}[/dim]")
+            console.print(f"[dim]Module: {known_args.make_tool_cfg_path}[/dim]")
+        return 0
 
     # ----------------------------------------------------------------------------------
     # Seed & Run
