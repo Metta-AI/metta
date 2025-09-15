@@ -249,17 +249,17 @@ run_cmd() {
   # Build the command as an array
   local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
-  # Add --args if METTA_ARGS is not empty
+  # Add all arguments directly (no --args or --overrides flags)
   if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(--args)
     cmd+=(${METTA_ARGS}) # split on spaces
   fi
 
-  # Add --overrides if METTA_OVERRIDES is not empty
+  # METTA_OVERRIDES is now empty for backwards compatibility
+  # but check it just in case for older jobs
   if [ -n "${METTA_OVERRIDES:-}" ]; then
-    cmd+=(--overrides)
     cmd+=(${METTA_OVERRIDES}) # split on spaces
   fi
+
   echo "[INFO] Running command: ${cmd[*]}"
 
   # Use process substitution so $! is the trainer (not tee)
