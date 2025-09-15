@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Source the log helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/log_helpers.sh"
+
 # Required environment variables
 : "${WRAPPER_PID:?Missing WRAPPER_PID}"
 : "${MAX_RUNTIME_HOURS:?Missing MAX_RUNTIME_HOURS}"
@@ -15,7 +19,7 @@ RESTART_CHECK_INTERVAL=${RESTART_CHECK_INTERVAL:-30}
 
 # Only run on first attempt
 if [ "$RESTART_COUNT" -ne 0 ]; then
-  echo "[INFO] Job restart monitor: skipping (RESTART_COUNT=$RESTART_COUNT)"
+  log_info "Job restart monitor: skipping (RESTART_COUNT=$RESTART_COUNT)"
   exit 0
 fi
 
@@ -24,17 +28,17 @@ remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
 force_restart_delay=$(awk "BEGIN {print int(${remaining_at_start} * 0.5)}")
 
 if [ "$force_restart_delay" -le 0 ]; then
-  echo "[INFO] Job restart monitor: skipping (No time remains!)"
+  log_info "Job restart monitor: skipping (No time remains!)"
   exit 0
 fi
 
-echo "[INFO] Test Job Restart monitor started!"
-echo "     ↳ restarting after: ${force_restart_delay}"
-echo "[INFO] Checking every ${RESTART_CHECK_INTERVAL} seconds"
+log_info "Test Job Restart monitor started!"
+log_info "     ↳ restarting after: ${force_restart_delay}"
+log_info "Checking every ${RESTART_CHECK_INTERVAL} seconds"
 
 while true; do
   if [ -s "$CLUSTER_STOP_FILE" ]; then
-    echo "[INFO] Cluster stop detected, test job restart monitor exiting"
+    log_info "Cluster stop detected, test job restart monitor exiting"
     break
   fi
 
@@ -46,13 +50,13 @@ while true; do
   if [ $remaining -gt 0 ]; then
     elapsed_min=$((elapsed / 60))
     remaining_min=$((remaining / 60))
-    echo "[INFO] Test Job Restart Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining until job restart test"
+    log_info "Test Job Restart Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining until job restart test"
   else
-    echo "[INFO] Test Job Restart limit reached - terminating process group"
+    log_info "Test Job Restart limit reached - terminating process group"
     echo "force_restart_test" > "$TERMINATION_REASON_FILE"
     kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
     break
   fi
 done
 
-echo "[INFO] Test Job Restart monitor exiting"
+log_info "Test Job Restart monitor exiting"

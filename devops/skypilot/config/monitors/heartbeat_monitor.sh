@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Source the log helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/log_helpers.sh"
+
 # Required environment variables
 : "${WRAPPER_PID:?Missing WRAPPER_PID}"
 : "${HEARTBEAT_FILE:?Missing HEARTBEAT_FILE}"
@@ -11,30 +15,30 @@ set -euo pipefail
 
 HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
 
-echo "[INFO] Heartbeat monitor started!"
-echo "     ↳ heartbeat file: ${HEARTBEAT_FILE}"
-echo "     ↳ heartbeat timeout: ${HEARTBEAT_TIMEOUT} seconds"
-echo "     ↳ start time: ${START_TIME}"
-echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
+log_info "Heartbeat monitor started!"
+log_info "     ↳ heartbeat file: ${HEARTBEAT_FILE}"
+log_info "     ↳ heartbeat timeout: ${HEARTBEAT_TIMEOUT} seconds"
+log_info "     ↳ start time: ${START_TIME}"
+log_info "Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 
 # Write initial heartbeat using START_TIME
 mkdir -p "$(dirname "$HEARTBEAT_FILE")"
 echo "$START_TIME" > "$HEARTBEAT_FILE"
-echo "[INFO] Initial heartbeat written with start time: $START_TIME"
+log_info "Initial heartbeat written with start time: $START_TIME"
 
 LAST_HEARTBEAT_TIME=$(stat -c %Y "$HEARTBEAT_FILE" 2> /dev/null || stat -f %m "$HEARTBEAT_FILE" 2> /dev/null)
 HEARTBEAT_COUNT=0
 
 stop_cluster() {
   local msg="$1"
-  echo "[ERROR] Heartbeat timeout! $msg"
+  log_error "Heartbeat timeout! $msg"
   echo "heartbeat_timeout" > "$TERMINATION_REASON_FILE"
   kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
 }
 
 while true; do
   if [ -s "$CLUSTER_STOP_FILE" ]; then
-    echo "[INFO] Cluster stop detected, heartbeat monitor exiting"
+    log_info "Cluster stop detected, heartbeat monitor exiting"
     break
   fi
 
@@ -49,7 +53,7 @@ while true; do
 
     # Print status occasionally
     if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
-      echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
+      log_info "Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
     fi
   fi
 
@@ -60,4 +64,4 @@ while true; do
   fi
 done
 
-echo "[INFO] Heartbeat monitor exiting"
+log_info "Heartbeat monitor exiting"

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Source the log helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/log_helpers.sh"
+
 # Required environment variables
 : "${WRAPPER_PID:?Missing WRAPPER_PID}"
 : "${MAX_RUNTIME_HOURS:?Missing MAX_RUNTIME_HOURS}"
@@ -14,7 +18,7 @@ TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
 
 # Function to handle timeout termination
 handle_timeout_termination() {
-  echo "[INFO] Timeout limit reached - terminating process group"
+  log_info "Timeout limit reached - terminating process group"
   echo "max_runtime_reached" > "$TERMINATION_REASON_FILE"
   kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
 }
@@ -24,20 +28,20 @@ remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
 
 if [ "$remaining_at_start" -le 0 ]; then
   handle_timeout_termination
-  echo "[INFO] Timeout monitor exiting after ensuring shutdown"
+  log_info "Timeout monitor exiting after ensuring shutdown"
   exit 0
 fi
 
-echo "[INFO] Timeout monitor started!"
-echo "     ↳ max runtime hours: ${MAX_RUNTIME_HOURS}"
-echo "     ↳ max runtime seconds: ${max_seconds}"
-echo "     ↳ accumulated runtime: ${ACCUMULATED_RUNTIME}"
-echo "     ↳ remaining runtime: ${remaining_at_start}"
-echo "[INFO] Checking every ${TIMEOUT_CHECK_INTERVAL} seconds"
+log_info "Timeout monitor started!"
+log_info "     ↳ max runtime hours: ${MAX_RUNTIME_HOURS}"
+log_info "     ↳ max runtime seconds: ${max_seconds}"
+log_info "     ↳ accumulated runtime: ${ACCUMULATED_RUNTIME}"
+log_info "     ↳ remaining runtime: ${remaining_at_start}"
+log_info "Checking every ${TIMEOUT_CHECK_INTERVAL} seconds"
 
 while true; do
   if [ -s "$CLUSTER_STOP_FILE" ]; then
-    echo "[INFO] Cluster stop detected, timeout monitor exiting"
+    log_info "Cluster stop detected, timeout monitor exiting"
     break
   fi
 
@@ -51,11 +55,11 @@ while true; do
   if [ $remaining -gt 0 ]; then
     elapsed_min=$((elapsed / 60))
     remaining_min=$((remaining / 60))
-    echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
+    log_info "Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
   else
     handle_timeout_termination
     break
   fi
 done
 
-echo "[INFO] Timeout monitor exiting"
+log_info "Timeout monitor exiting"
