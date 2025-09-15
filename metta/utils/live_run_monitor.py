@@ -35,7 +35,7 @@ from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from metta.sweep.models import RunInfo, JobStatus
+from metta.sweep.models import JobStatus, RunInfo
 
 logger = logging.getLogger(__name__)
 
