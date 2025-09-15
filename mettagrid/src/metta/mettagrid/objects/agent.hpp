@@ -77,8 +77,6 @@ public:
         steps_without_motion(0),
         event_manager(event_manager_ptr),
         inventory_list(config.resource_loss_prob.empty() ? InventoryList() : InventoryList(event_manager_ptr, rng_ptr, config.resource_loss_prob)) {
-        steps_without_motion(0) {
-    populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
 
     // Store the initial inventory config for later initialization
