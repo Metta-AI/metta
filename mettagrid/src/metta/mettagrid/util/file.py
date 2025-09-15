@@ -282,15 +282,12 @@ class WandbURI:
             project = parts[1]
             artifact_path = "/".join(parts[2:])
         elif len(parts) == 2:
-            # Legacy 2-part format - requires WANDB_ENTITY
+            # 2-part format: assume default entity if WANDB_ENTITY is not set
+            from metta.common.util.constants import METTA_WANDB_ENTITY  # local import to avoid cycles
+
             project = parts[0]
             artifact_path = parts[1]
-            entity = os.getenv("WANDB_ENTITY")
-            if not entity:
-                raise ValueError(
-                    f"2-part wandb URI '{uri}' requires WANDB_ENTITY environment variable.\n"
-                    f"Consider using full format: wandb://your-entity/{project}/{artifact_path}:{version}"
-                )
+            entity = os.getenv("WANDB_ENTITY", METTA_WANDB_ENTITY)
         else:
             raise ValueError("Malformed W&B URI – expected wandb://entity/project/artifact:version")
 

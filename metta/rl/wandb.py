@@ -14,6 +14,7 @@ import wandb
 from wandb import Artifact
 from wandb.errors import CommError
 
+from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import WandbURI
 
@@ -113,13 +114,21 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     """Expand short wandb URI formats to full format.
 
     Handles both short and full wandb URI formats:
-    - "wandb://run/my_run_name" -> "wandb://ENTITY/metta/my_run_name:latest" (if WANDB_ENTITY set)
-    - "wandb://run/my_run_name:v5" -> "wandb://ENTITY/metta/my_run_name:v5" (if WANDB_ENTITY set)
-    - "wandb://sweep/sweep_name" -> "wandb://ENTITY/metta/sweep_model/sweep_name:latest" (if WANDB_ENTITY set)
+    - "wandb://run/my_run_name" ->
+      "wandb://ENTITY/metta/model/my_run_name:latest"
+      (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
+    - "wandb://run/my_run_name:v5" ->
+      "wandb://ENTITY/metta/model/my_run_name:v5"
+      (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
+    - "wandb://sweep/sweep_name" ->
+      "wandb://ENTITY/metta/sweep_model/sweep_name:latest"
+      (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
     - Full URIs pass through unchanged
 
-    Raises:
-        ValueError: If short URI is used but WANDB_ENTITY is not set
+    Notes:
+        For short URIs (run/..., sweep/...), the entity defaults to
+        the current environment `WANDB_ENTITY` or falls back to
+        `METTA_WANDB_ENTITY`.
     """
     if not uri.startswith("wandb://"):
         return uri
@@ -129,14 +138,8 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
     if not path.startswith(("run/", "sweep/")):
         return uri
 
-    entity = os.getenv("WANDB_ENTITY")
-    if not entity:
-        raise ValueError(
-            f"Short wandb URI '{uri}' requires WANDB_ENTITY environment variable.\n"
-            f"Either:\n"
-            f"1. Use full URI: wandb://your-entity/project/artifact:version\n"
-            f"2. Set WANDB_ENTITY: export WANDB_ENTITY=your-entity"
-        )
+    # Default entity: respect WANDB_ENTITY if set; otherwise assume METTA_WANDB_ENTITY
+    entity = os.getenv("WANDB_ENTITY", METTA_WANDB_ENTITY)
 
     if path.startswith("run/"):
         run_name = path[4:]
@@ -144,7 +147,7 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
             run_name, version = run_name.rsplit(":", 1)
         else:
             version = "latest"
-        return f"wandb://{entity}/{default_project}/{run_name}:{version}"
+        return f"wandb://{entity}/{default_project}/model/{run_name}:{version}"
 
     if path.startswith("sweep/"):
         sweep_name = path[6:]
@@ -161,11 +164,11 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     """Load policy from wandb URI (handles both short and full formats).
 
     Accepts:
-    - Short format: "wandb://run/my-run" (requires WANDB_ENTITY environment variable)
+    - Short format: "wandb://run/my-run" (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
     - Full format: "wandb://entity/project/artifact:version"
 
     Raises:
-        ValueError: If URI is not a wandb:// URI or short URI used without WANDB_ENTITY
+        ValueError: If URI is not a wandb:// URI
         FileNotFoundError: If no .pt files found in artifact
     """
     if not wandb_uri.startswith("wandb://"):
