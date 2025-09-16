@@ -1,5 +1,5 @@
 apiService:
-  image: berkeleyskypilot/skypilot:0.10.2
+  image: berkeleyskypilot/skypilot:0.10.3
   config: |
     jobs:
       bucket: s3://skypilot-jobs/
