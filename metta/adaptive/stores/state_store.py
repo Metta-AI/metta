@@ -40,10 +40,10 @@ class FileStateStore(StateStore):
     def put(self, namespace: str, key: str, value: dict) -> None:
         path = self._path(namespace, key)
         os.makedirs(os.path.dirname(path), exist_ok=True)
+
         # Ensure value is JSON serializable; fall back to str for unknown types
         def _default(obj: Any) -> str:
             return str(obj)
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(value, f, ensure_ascii=False, indent=2, default=_default)
-

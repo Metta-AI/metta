@@ -65,11 +65,7 @@ class AdaptiveController:
                     has_data = True  # Skip first fetch because WandB will just timeout.
 
                 # 1.0 Load scheduler state on first data fetch if supported
-                if (
-                    not loaded_state
-                    and self.state_store is not None
-                    and isinstance(self.scheduler, SchedulerWithState)
-                ):
+                if not loaded_state and self.state_store is not None and isinstance(self.scheduler, SchedulerWithState):
                     try:
                         if self.scheduler.should_load_from_store(runs):  # type: ignore[attr-defined]
                             self.scheduler.load_from_store(self.state_store, self.experiment_id)  # type: ignore[attr-defined]
@@ -83,20 +79,17 @@ class AdaptiveController:
                 if runs and self.on_eval_completed is not None:
                     for run in runs:
                         try:
-                            summary_dict = run.summary if isinstance(run.summary, dict) else {}
-                            already_processed = bool(
-                                summary_dict.get("adaptive/post_eval_processed", False)
-                            )
+                            summary_dict = run.summary or {}
+                            already_processed = bool(summary_dict.get("adaptive/post_eval_processed", False))
                             if run.has_been_evaluated and not already_processed:
-                                logger.info(
-                                    f"[AdaptiveController] Running on_eval_completed for {run.run_id}"
+                                logger.info(f"[AdaptiveController] Running on_eval_completed for {run.run_id}")
+
+                                retry_function(
+                                    lambda r=run, rs=runs: self.on_eval_completed(r, self.store, rs),
+                                    max_retries=3,
+                                    initial_delay=1.0,
+                                    max_delay=30.0,
                                 )
-
-                                def _invoke(r: RunInfo = run, rs: list[RunInfo] = runs) -> None:
-                                    assert self.on_eval_completed is not None
-                                    self.on_eval_completed(r, self.store, rs)
-
-                                retry_function(_invoke, max_retries=3, initial_delay=1.0, max_delay=30.0)
 
                                 processed_at = datetime.utcnow().isoformat()
                                 self.store.update_run_summary(
@@ -106,14 +99,8 @@ class AdaptiveController:
                                         "adaptive/post_eval_processed_at": processed_at,
                                     },
                                 )
-
-                                if isinstance(run.summary, dict):
-                                    run.summary["adaptive/post_eval_processed"] = True
-                                    run.summary["adaptive/post_eval_processed_at"] = processed_at
                         except Exception as e:
-                            logger.error(
-                                f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}"
-                            )
+                            logger.error(f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}")
 
                 # 1.b Save scheduler state after processing eval completions (if supported)
                 if self.state_store is not None and isinstance(self.scheduler, SchedulerWithState):
@@ -137,10 +124,7 @@ class AdaptiveController:
                 new_jobs = self.scheduler.schedule(runs, available_training_slots)
 
                 if not new_jobs:
-                    # No new jobs, but check if experiment is complete before waiting
-                    if self.scheduler.is_experiment_complete(runs):
-                        logger.info("[AdaptiveController] No new jobs and scheduler reports experiment complete")
-                        break
+                    # No new jobs, wait before next check
                     time.sleep(self.config.monitoring_interval)
                     continue
 
