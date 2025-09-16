@@ -12,6 +12,8 @@ WORKDIR /workspace/metta
 
 RUN bash ./devops/tools/install-system.sh
 
+RUN brew install kubectl
+
 RUN bash install.sh --profile softmax-docker --non-interactive
 
 # Pre-build all packages to avoid OOM during container startup
