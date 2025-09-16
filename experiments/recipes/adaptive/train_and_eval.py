@@ -15,7 +15,9 @@ def train_and_eval(
     max_trials: int = 3,
     gpus: int = 4,
     experiment_id: str = "train_eval_poc",
-    train_overrides: dict[str, Any] | None = None,  # Trainer overrides
+    experiment_id: str = "train_eval_poc",
+    dispatcher_type: str = "skypilot",  # "local" or "skypilot"
+    resume: bool = False,  # Resume from existing experiment
     dispatcher_type: str = "skypilot",  # "local" or "skypilot"
     resume: bool = False,  # Resume from existing experiment
 ) -> AdaptiveTool:
