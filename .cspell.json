@@ -149,6 +149,7 @@
     "libnccl",
     "lognormal",
     "logratio",
+    "lookback",
     "lowent",
     "macbook",
     "makereport",

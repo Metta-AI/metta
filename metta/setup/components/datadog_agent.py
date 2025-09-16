@@ -2,11 +2,10 @@ import os
 import platform
 import subprocess
 
-import boto3
-
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import error, info, success, warning
+from softmax.aws.secrets_manager import get_secret
 
 
 @register_module
@@ -43,20 +42,8 @@ class DatadogAgentSetup(SetupModule):
             # systemctl not available
             return False
 
-    def _get_dd_api_key(self) -> str:
-        api_key = os.environ.get("DD_API_KEY")
-        if api_key:
-            return api_key
-
-        client = boto3.client("secretsmanager", region_name="us-east-1")
-        try:
-            secret_json = client.get_secret_value(SecretId="datadog/api-key")
-        except client.exceptions.ResourceNotFoundException as e:
-            raise Exception("Datadog API key not found in AWS Secrets Manager.") from e
-
-        if not (secret := secret_json.get("SecretString")):
-            raise Exception("Datadog API key not found in datadog/api-key secret.")
-        return secret
+    def _get_dd_api_key(self) -> str | None:
+        return os.environ.get("DD_API_KEY") or get_secret("datadog/api-key")
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Getting Datadog API key...")
@@ -69,7 +56,9 @@ class DatadogAgentSetup(SetupModule):
 
         # Set environment variables for the install script
         env = os.environ.copy()
-        env["DD_API_KEY"] = api_key
+        if api_key:
+            env["DD_API_KEY"] = api_key
+
         env["DD_SITE"] = os.environ.get("DD_SITE", "datadoghq.com")
         env["DD_VERSION"] = os.environ.get("DD_VERSION", os.environ.get("METTA_GIT_REF", "unknown"))
         env["DD_TRACE_ENABLED"] = os.environ.get("DD_TRACE_ENABLED", "true")
