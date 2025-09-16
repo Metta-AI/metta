@@ -37,7 +37,7 @@ class TestAdaptiveController:
     @pytest.fixture
     def config(self):
         """Basic adaptive config."""
-        return AdaptiveConfig(max_trials=5, max_parallel=2, monitoring_interval=1)
+        return AdaptiveConfig(max_parallel=2, monitoring_interval=1)
 
     @pytest.fixture
     def controller(self, mock_scheduler, mock_dispatcher, mock_store, config):
