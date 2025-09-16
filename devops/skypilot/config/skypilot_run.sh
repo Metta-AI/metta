@@ -273,7 +273,10 @@ run_cmd() {
 
   start_monitors
 
-  wait -n "$CMD_PID" 2>/dev/null || wait "$CMD_PID"
+  while kill -0 "$CMD_PID" 2>/dev/null; do
+      sleep 1
+  done
+  wait "$CMD_PID" 2>/dev/null
   CMD_EXIT=$?
   echo "[INFO] Process with PID: $CMD_PID exited with code $CMD_EXIT"
 
