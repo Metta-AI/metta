@@ -94,6 +94,7 @@
     "evals",
     "excinfo",
     "exitstatus",
+    "fastmcp",
     "filterwarnings",
     "FINDPYTHON",
     "finfo",
