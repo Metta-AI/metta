@@ -178,11 +178,11 @@ builds its configuration, and runs it. The current available tasks are:
 
 - **experiments.recipes.arena.train**: Train on the arena curriculum
 
-  `./tools/run.py experiments.recipes.arena.train --args run=my_experiment`
+  `./tools/run.py experiments.recipes.arena.train run=my_experiment`
 
 - **experiments.recipes.navigation.train**: Train on the navigation curriculum
 
-  `./tools/run.py experiments.recipes.navigation.train --args run=my_experiment`
+  `./tools/run.py experiments.recipes.navigation.train run=my_experiment`
 
 - **experiments.recipes.arena.play**: Play in the browser
 
@@ -190,46 +190,37 @@ builds its configuration, and runs it. The current available tasks are:
 
 - **experiments.recipes.arena.replay**: Replay a single episode from a saved policy
 
-  `./tools/run.py experiments.recipes.arena.replay --overrides policy_uri=wandb://run/local.alice.1`
+  `./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1`
 
 - **experiments.recipes.arena.evaluate**: Evaluate a policy on the arena eval suite
 
-  `./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/local.alice.1`
+  `./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1`
 
-- Dry-run version, e.g. Print the resolved config without executing it
-
-  `./tools/run.py experiments.recipes.arena.train --args run=my_experiment --dry-run`
 
 ### Runner arguments
 
 Use the runner like this:
 
 ```bash
-./tools/run.py <task_name> [--args key=value ...] [--overrides path.to.field=value ...] [--dry-run]
+./tools/run.py <task_name> [key=value ...] [--verbose]
 ```
 
-- `task_name`: a Python-style path to a task (for example, `experiments.recipes.arena.train`).
-- `--args`: name=value pairs passed to the task function (these become constructor args of the Tool it returns).
-  - Types: integers (`42`), floats (`0.1`), booleans (`true/false`), and strings.
-  - Multiple args: add more pairs separated by spaces.
-  - Example: `--args run=local.alice.1`
-- `--overrides`: update fields inside the returned Tool configuration using dot paths.
-  - Common fields: `system.device=cpu`, `wandb.enabled=false`, `trainer.total_timesteps=100000`,
-    `trainer.rollout_workers=4`, `policy_uri=wandb://run/<name>` (for replay/eval).
-  - Multiple overrides: add more pairs separated by spaces.
-  - Example: `--overrides system.device=cpu wandb.enabled=false`
-- `--dry-run`: print the fully-resolved configuration as JSON and exit without running.
+The runner automatically classifies arguments:
+- **Function arguments**: Arguments that match parameters of your task function
+- **Configuration overrides**: Arguments that match fields in the Tool configuration (supports nested paths with dots)
 
-Quick examples:
+Examples:
 
 ```bash
-# Faster local run on CPU, less logging
-./tools/run.py experiments.recipes.arena.train \
-  --args run=local.alice.1 \
-  --overrides system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
+# The runner automatically identifies 'run' as a function arg and the rest as overrides
+./tools/run.py experiments.recipes.arena.train run=local.alice.1 \
+  system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
 
-# Evaluate a specific policy URI on the arena suite
-./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/local.alice.1
+# Evaluate a specific policy URI
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1
+
+# Use --verbose to see how arguments are classified
+./tools/run.py experiments.recipes.arena.train run=test --verbose
 ```
 
 Tips:
@@ -270,15 +261,16 @@ def my_train(run: str = "local.me.1") -> TrainTool:
 Run your task:
 
 ```bash
-./tools/run.py experiments.user.my_tasks.my_train --args run=local.me.2 \
-  --overrides system.device=cpu wandb.enabled=false
+./tools/run.py experiments.user.my_tasks.my_train run=local.me.2 \
+  system.device=cpu wandb.enabled=false
 ```
 
 Notes:
 
-- Tasks can also be Tool classes (subclasses of `metta.common.tool.Tool`). The runner will construct them with `--args`
-  and then apply `--overrides`.
-- Use `--dry-run` while developing to see the exact configuration your task produces.
+- Tasks can also be Tool classes (subclasses of `metta.common.tool.Tool`)
+- The runner automatically determines which arguments go to the function vs configuration overrides
+- Use `--verbose` to see how arguments are being classified
+- If an argument doesn't match either category, you'll get a helpful error message
 
 ### Setting up Weights & Biases for Personal Use
 
@@ -299,7 +291,7 @@ To use WandB with your personal account:
 Now you can run training with your personal WandB config:
 
 ```
-./tools/run.py experiments.recipes.arena.train --args run=local.yourname.123 --overrides wandb.enabled=true wandb.entity=<your_user>
+./tools/run.py experiments.recipes.arena.train run=local.yourname.123 wandb.enabled=true wandb.entity=<your_user>
 ```
 
 ## Visualizing a Model
@@ -326,7 +318,7 @@ Optional overrides:
 ### Replay a single episode
 
 ```
-./tools/run.py experiments.recipes.arena.replay --overrides policy_uri=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
 ```
 
 ### Evaluating a Model
@@ -343,13 +335,13 @@ If you want to run evaluation post-training to compare different policies, you c
 Evaluate a policy against the arena eval suite:
 
 ```
-./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1
 ```
 
 Evaluate on the navigation eval suite (provide the policy URI):
 
 ```
-./tools/run.py experiments.recipes.navigation.eval --overrides policy_uris=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.navigation.eval policy_uris=wandb://run/local.alice.1
 ```
 
 ### Specifying your agent architecture
@@ -366,7 +358,7 @@ To use `MettaAgent` with a non-default architecture config:
 - (Optional): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
 - Run with the configuration file of your choice:
   ```bash
-  ./tools/run.py experiments.recipes.arena.train --overrides policy_architecture.agent_config=my_agent
+  ./tools/run.py experiments.recipes.arena.train policy_architecture.agent_config=my_agent
   ```
 
 #### Defining your own PyTorch agent
@@ -379,7 +371,7 @@ We support agent architectures without using the MettaAgent system:
   (e.g., `"my_agent"`).
 - Select it at runtime using the runner and an override on the agent config name:
   ```bash
-  ./tools/run.py experiments.recipes.arena.train --overrides policy_architecture.name=pytorch/my_agent
+  ./tools/run.py experiments.recipes.arena.train policy_architecture.name=pytorch/my_agent
   ```
 
 Further updates to support bringing your own agent are coming soon.
@@ -399,12 +391,11 @@ pytest
 
 | Task                        | Command                                                                                                |
 | --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Train (arena)               | `./tools/run.py experiments.recipes.arena.train --args run=my_experiment`                              |
-| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train --args run=my_experiment`                         |
+| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                              |
+| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                         |
 | Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                        |
-| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay --overrides policy_uri=wandb://run/local.alice.1`     |
-| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/local.alice.1`        |
-| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval --overrides policy_uris=wandb://run/local.alice.1` |
-| Dry-run (print config)      | `./tools/run.py experiments.recipes.arena.train --args run=my_experiment --dry-run`                    |
+| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1`     |
+| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1`        |
+| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=wandb://run/local.alice.1` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.
