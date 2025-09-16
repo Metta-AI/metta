@@ -1,5 +1,8 @@
 import warnings
+from typing import Optional
 
+import gymnasium as gym
+import numpy as np
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
@@ -23,25 +26,84 @@ class ObsTokenPadStrip(nn.Module):
     dense tokens than the average sequence so there is room for improvement by computing attention over ragged tensors.
     """
 
-    def __init__(self, obs_meta: dict, in_key: str = "env_obs", out_key: str = "obs_token_pad_strip") -> None:
+    def __init__(self, env, in_key: str = "env_obs", out_key: str = "obs_token_pad_strip") -> None:
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
-        self._obs_shape = obs_meta["obs_space"]
+        self.obs_space = gym.spaces.Dict(
+            {
+                "grid_obs": env.single_observation_space,
+                "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(0,), dtype=np.int32),
+            }
+        )
+        self._obs_shape = list(self.obs_space)
         # Initialize feature remapping as identity by default
         self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
 
-    def update_feature_remapping(self, feature_id_remap: torch.Tensor):
-        """
-        Update the feature ID remapping table.
+    def initialize_to_environment(
+        self,
+        env,
+        device,
+    ) -> str:
+        # Build feature mappings
+        features = env.get_observation_features()
+        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
+        self.feature_normalizations = {
+            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
+        }
 
-        Args:
-            feature_id_remap: A 256-element tensor where index is new_id and value is original_id
-        """
-        self.register_buffer("feature_id_remap", feature_id_remap.to(self.feature_id_remap.device))
-        identity = torch.arange(256, dtype=torch.uint8, device=self.feature_id_remap.device)
-        self._remapping_active = not torch.equal(self.feature_id_remap, identity)
+        if not hasattr(self, "original_feature_mapping"):
+            self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
+            return f"Stored original feature mapping with {len(self.original_feature_mapping)} features"
+        else:
+            # Re-initialization - create remapping for agent portability
+            UNKNOWN_FEATURE_ID = 255
+            self.feature_id_remap = {}
+            unknown_features = []
+
+            for name, props in features.items():
+                new_id = props["id"]
+                if name in self.original_feature_mapping:
+                    # Remap known features to their original IDs
+                    original_id = self.original_feature_mapping[name]
+                    if new_id != original_id:
+                        self.feature_id_remap[new_id] = original_id
+                elif not self.training:
+                    # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
+                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                    unknown_features.append(name)
+                else:
+                    # In training mode, learn new features
+                    self.original_feature_mapping[name] = new_id
+
+            if self.feature_id_remap:
+                # Apply the remapping
+                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID, device)
+                return (
+                    f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
+                )
+            else:
+                return "No feature remapping created"
+
+    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int, device: torch.device):
+        """Apply feature remapping to policy for agent portability across environments."""
+        # Build complete remapping tensor
+        remap_tensor = torch.arange(256, dtype=torch.uint8, device=device)
+
+        # Apply explicit remappings
+        for new_id, original_id in self.feature_id_remap.items():
+            remap_tensor[new_id] = original_id
+
+        # Map unused feature IDs to UNKNOWN
+        current_feature_ids = {props["id"] for props in features.values()}
+        for feature_id in range(256):
+            if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
+                remap_tensor[feature_id] = unknown_id
+
+        self.register_buffer("feature_id_remap", remap_tensor.to(self.feature_id_remap.device))
+        identity = torch.arange(256, dtype=torch.uint8, device=remap_tensor.device)
+        self._remapping_active = not torch.equal(remap_tensor, identity)
 
     def forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
@@ -79,84 +141,39 @@ class ObsTokenPadStrip(nn.Module):
         td["obs_mask"] = obs_mask
         return td
 
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device,
-        is_training: bool = None,
-    ) -> str:
-        # Build feature mappings
-        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
-        self.feature_normalizations = {
-            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
-        }
-
-        if not hasattr(self, "original_feature_mapping"):
-            self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-            return f"Stored original feature mapping with {len(self.original_feature_mapping)} features"
-        else:
-            # Re-initialization - create remapping for agent portability
-            UNKNOWN_FEATURE_ID = 255
-            self.feature_id_remap = {}
-            unknown_features = []
-
-            for name, props in features.items():
-                new_id = props["id"]
-                if name in self.original_feature_mapping:
-                    # Remap known features to their original IDs
-                    original_id = self.original_feature_mapping[name]
-                    if new_id != original_id:
-                        self.feature_id_remap[new_id] = original_id
-                elif not is_training:
-                    # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
-                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
-                    unknown_features.append(name)
-                else:
-                    # In training mode, learn new features
-                    self.original_feature_mapping[name] = new_id
-
-            if self.feature_id_remap:
-                # Apply the remapping
-                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID, device)
-                return (
-                    f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
-                )
-            else:
-                return "No feature remapping created"
-
-    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int, device: torch.device):
-        """Apply feature remapping to policy for agent portability across environments."""
-        # Build complete remapping tensor
-        remap_tensor = torch.arange(256, dtype=torch.uint8, device=device)
-
-        # Apply explicit remappings
-        for new_id, original_id in self.feature_id_remap.items():
-            remap_tensor[new_id] = original_id
-
-        # Map unused feature IDs to UNKNOWN
-        current_feature_ids = {props["id"] for props in features.values()}
-        for feature_id in range(256):
-            if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
-                remap_tensor[feature_id] = unknown_id
-
 
 class ObsAttrValNorm(nn.Module):
     """Normalizes attr values based on the attr index."""
 
-    def __init__(self, obs_meta: dict, in_key: str = "obs_token_pad_strip", out_key: str = "obs_attr_val_norm") -> None:
+    def __init__(self, env, in_key: str = "obs_token_pad_strip", out_key: str = "obs_attr_val_norm") -> None:
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
-        self._feature_normalizations = list(obs_meta["feature_normalizations"])
         self._max_embeds = 256
+        self._feature_normalizations = self._set_feature_normalizations(env)
 
-    def _update_norm_factors(self, device: torch.device):
+    def initialize_to_environment(
+        self,
+        env,
+        device,
+    ) -> None:
+        self._set_feature_normalizations(env, device)
+
+    def _set_feature_normalizations(self, env, device: Optional[torch.device] = None):
+        features = env.get_observation_features()
+        self._feature_normalizations = {
+            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
+        }
+        self._update_norm_factors(device)
+        return None
+
+    def _update_norm_factors(self, device: Optional[torch.device] = None):
         # Create a tensor for feature normalizations
         # We need to handle the case where attr_idx might be 0 (padding) or larger than defined normalizations.
         # Assuming max attr_idx is 256 (same as attr_embeds size - 1 for padding_idx).
         # Initialize with 1.0 to avoid division by zero for unmapped indices.
+        if device is None:
+            device = "cpu"  # assume that the policy is sent to device after its built for the first time.
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32, device=device)
         for i, val in enumerate(self._feature_normalizations):
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
@@ -164,20 +181,6 @@ class ObsAttrValNorm(nn.Module):
             else:
                 raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
         self.register_buffer("_norm_factors", norm_tensor)
-        return None
-
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device,
-        is_training: bool = None,
-    ) -> None:
-        self._feature_normalizations = {
-            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
-        }
-        self._update_norm_factors(device)
         return None
 
     def forward(self, td: TensorDict) -> TensorDict:
@@ -196,30 +199,25 @@ class ObsShaperTokensConfig(Config):
     in_key: str = "env_obs"
     out_key: str = "obs_attr_val_norm"
 
-    def instantiate(self, obs_meta: dict):
-        return ObsShaperTokens(obs_meta, in_key=self.in_key, out_key=self.out_key)
+    def instantiate(self, env):
+        return ObsShaperTokens(env, in_key=self.in_key, out_key=self.out_key)
 
 
 class ObsShaperTokens(nn.Module):
-    def __init__(self, obs_meta: dict, in_key: str = "env_obs", out_key: str = "obs_attr_val_norm") -> None:
+    def __init__(self, env, in_key: str = "env_obs", out_key: str = "obs_attr_val_norm") -> None:
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
-        self.token_pad_striper = ObsTokenPadStrip(obs_meta, in_key=self.in_key)
-        self.attr_val_normer = ObsAttrValNorm(obs_meta, out_key=self.out_key)
+        self.token_pad_striper = ObsTokenPadStrip(env, in_key=self.in_key)
+        self.attr_val_normer = ObsAttrValNorm(env, out_key=self.out_key)
 
     def initialize_to_environment(
         self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
+        env,
         device,
-        is_training: bool = None,
     ) -> str:
-        log = self.token_pad_striper.initialize_to_environment(
-            features, action_names, action_max_params, device, is_training
-        )
-        self.attr_val_normer.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+        log = self.token_pad_striper.initialize_to_environment(env, device)
+        self.attr_val_normer.initialize_to_environment(env, device)
         return log
 
     def forward(self, td: TensorDict) -> TensorDict:
@@ -251,16 +249,20 @@ class ObsTokenToBoxShaper(nn.Module):
     new information.
     """
 
-    def __init__(self, obs_meta: dict, in_key="env_obs", out_key="box_obs"):
+    def __init__(self, env, in_key="env_obs", out_key="box_obs"):
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
-        self._obs_shape = list(obs_meta["obs_space"])  # make sure no Omegaconf types are used in forward passes
-        # These let us know the grid size from which tokens are being computed, and thus the shape of the box
-        # observation.
-        self.out_width = obs_meta["obs_width"]
-        self.out_height = obs_meta["obs_height"]
-        self.num_layers = max(obs_meta["feature_normalizations"].keys()) + 1
+        self.obs_space = gym.spaces.Dict(
+            {
+                "grid_obs": env.single_observation_space,
+                "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(0,), dtype=np.int32),
+            }
+        )
+        self._obs_shape = list(self.obs_space)
+        self.out_width = env.obs_width
+        self.out_height = env.obs_height
+        self.num_layers = max(env.feature_normalizations.keys()) + 1
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
 
     def forward(self, td: TensorDict):
@@ -334,11 +336,11 @@ class ObservationNormalizer(nn.Module):
     magnitudes from dominating the learning process.
     """
 
-    def __init__(self, feature_normalizations, in_key="box_obs", out_key="obs_normalizer"):
+    def __init__(self, env, in_key="box_obs", out_key="obs_normalizer"):
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
-        self._initialize_to_environment(feature_normalizations)
+        self._initialize_to_environment(env.feature_normalizations)
 
     def forward(self, td: TensorDict):
         td[self.out_key] = td[self.in_key] / self.obs_norm
@@ -346,15 +348,12 @@ class ObservationNormalizer(nn.Module):
 
     def initialize_to_environment(
         self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
+        env,
         device,
-        is_training: bool = None,
     ) -> None:
-        self._initialize_to_environment(features)
+        self._initialize_to_environment(env.feature_normalizations, device)
 
-    def _initialize_to_environment(self, features: dict[str, dict]):
+    def _initialize_to_environment(self, features: dict[str, dict], device: Optional[torch.device] = None):
         self.feature_normalizations = features
         obs_norm = torch.ones(max(self.feature_normalizations.keys()) + 1, dtype=torch.float32)
         for i, val in self.feature_normalizations.items():
@@ -362,37 +361,32 @@ class ObservationNormalizer(nn.Module):
         obs_norm = obs_norm.view(1, len(self.feature_normalizations), 1, 1)
 
         self.register_buffer("obs_norm", obs_norm)
+        if device:
+            self.obs_norm = self.obs_norm.to(device)
 
 
 class ObsShaperBoxConfig(Config):
     in_key: str = "env_obs"
     out_key: str = "obs_normalizer"
 
-    def instantiate(self, obs_meta: dict):
-        return ObsShaperBox(obs_meta, in_key=self.in_key, out_key=self.out_key)
+    def instantiate(self, env):
+        return ObsShaperBox(env, in_key=self.in_key, out_key=self.out_key)
 
 
 class ObsShaperBox(nn.Module):
-    def __init__(self, obs_meta: dict, in_key: str = "env_obs", out_key: str = "box_obs") -> None:
+    def __init__(self, env, in_key: str = "env_obs", out_key: str = "box_obs") -> None:
         super().__init__()
-        self.obs_meta = obs_meta
         self.in_key = in_key
         self.out_key = out_key
-        self.feature_normalizations = obs_meta["feature_normalizations"]
-        self.token_to_box_shaper = ObsTokenToBoxShaper(self.obs_meta, in_key=self.in_key)
-        self.observation_normalizer = ObservationNormalizer(self.feature_normalizations, out_key=self.out_key)
+        self.token_to_box_shaper = ObsTokenToBoxShaper(env, in_key=self.in_key)
+        self.observation_normalizer = ObservationNormalizer(env, out_key=self.out_key)
 
     def initialize_to_environment(
         self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
+        env,
         device,
-        is_training: bool = None,
     ) -> None:
-        self.observation_normalizer.initialize_to_environment(
-            features, action_names, action_max_params, device, is_training
-        )
+        self.observation_normalizer.initialize_to_environment(env, device)
 
     def forward(self, td: TensorDict):
         td = self.token_to_box_shaper(td)

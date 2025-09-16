@@ -74,10 +74,10 @@ class MettaAgent(nn.Module):
         if policy is None:
             policy = create_agent(
                 config=policy_architecture_cfg,
-                obs_space=self.obs_space,
-                obs_width=self.obs_width,
-                obs_height=self.obs_height,
-                feature_normalizations=self.feature_normalizations,
+                # obs_space=self.obs_space,
+                # obs_width=self.obs_width,
+                # obs_height=self.obs_height,
+                # feature_normalizations=self.feature_normalizations,
                 env=env,
             )
             logger.info(f"Using agent: {policy_architecture_cfg.name}")

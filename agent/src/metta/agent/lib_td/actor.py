@@ -23,6 +23,8 @@ class ActorQuery(nn.Module):
     """
     Takes a state rep from the core, projects it to a hidden state via a linear layer and nonlinearity, then passes it
     through what's supposed to represent a query matrix.
+
+    Uses a lazy linear for the input
     """
 
     def __init__(self, config: Optional[ActorQueryConfig] = None):
@@ -124,13 +126,11 @@ class ActionProbs(nn.Module):
 
     def initialize_to_environment(
         self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
+        env,
         device,
-        is_training: bool = None,
     ) -> None:
         # Compute action tensors for efficient indexing
+        action_max_params = env.max_action_args
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )

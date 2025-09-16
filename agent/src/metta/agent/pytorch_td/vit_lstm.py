@@ -29,5 +29,5 @@ class ViTLSTMConfig(Config):
     actor_key_config: ActorKeyConfig = ActorKeyConfig()
     action_probs_config: ActionProbsConfig = ActionProbsConfig()
 
-    def instantiate(self, env, obs_meta: dict):
-        return Policy(env, obs_meta, config=self)
+    def instantiate(self, env):
+        return Policy(env, config=self)

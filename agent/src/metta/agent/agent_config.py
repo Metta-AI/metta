@@ -57,10 +57,10 @@ AGENT_REGISTRY = {
 
 def create_agent(
     config: AgentConfig,
-    obs_space=None,
-    obs_width=None,
-    obs_height=None,
-    feature_normalizations=None,
+    # obs_space=None,
+    # obs_width=None,
+    # obs_height=None,
+    # feature_normalizations=None,
     env=None,
 ):
     """Create an agent instance from configuration."""
@@ -68,16 +68,16 @@ def create_agent(
     # registry. Agent config objects must therefore have an `instantiate` method.
 
     # package obs information
-    obs_meta = {
-        "obs_space": obs_space,
-        "obs_width": obs_width,
-        "obs_height": obs_height,
-        "feature_normalizations": feature_normalizations,
-    }
+    # obs_meta = {
+    #     "obs_space": obs_space,
+    #     "obs_width": obs_width,
+    #     "obs_height": obs_height,
+    #     "feature_normalizations": feature_normalizations,
+    # }
 
     if config.policy_config is not None:
         if hasattr(config.policy_config, "instantiate"):
-            policy = config.policy_config.instantiate(env=env, obs_meta=obs_meta)
+            policy = config.policy_config.instantiate(env=env)
             return policy
         else:
             raise AttributeError(
@@ -103,10 +103,10 @@ def create_agent(
         )
     else:
         return AgentClass(
-            obs_space=obs_space,
-            obs_width=obs_width,
-            obs_height=obs_height,
-            feature_normalizations=feature_normalizations,
+            # obs_space=obs_space,
+            # obs_width=obs_width,
+            # obs_height=obs_height,
+            # feature_normalizations=feature_normalizations,
             config={
                 "clip_range": config.clip_range,
                 "analyze_weights_interval": config.analyze_weights_interval,

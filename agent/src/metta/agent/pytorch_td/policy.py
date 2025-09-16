@@ -8,7 +8,6 @@ from tensordict.nn import TensorDictSequential
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.common.config.config import Config
-from metta.rl.experience import Experience
 
 logger = logging.getLogger("metta_agent")
 
@@ -22,18 +21,15 @@ class Policy(nn.Module):
     """Generic policy builder for use with configs.
 
     Requirements of your configs:
-        - Must have an 'obs_shaper' attribute and it should have an instantiate method that takes an obs_meta dict.
+        - Must have an 'obs_shaper' attribute and it should have an instantiate method that takes an env.
         - Must have an 'instantiate' method that uses itself as the config to instantiate the layer.
         - Must be in the order the network is to be executed.
     """
 
-    def __init__(self, env, obs_meta: dict, config: Config = None):
+    def __init__(self, env, config: Config = None):
         super().__init__()
         self.config = config
         self.wants_td = True
-        self.action_space = env.single_action_space
-        self.out_width = obs_meta["obs_width"]
-        self.out_height = obs_meta["obs_height"]
 
         self.layers = OrderedDict()
         for attr, value in self.config:
@@ -41,7 +37,7 @@ class Policy(nn.Module):
                 continue
 
             if attr == "obs_shaper_config":
-                self.layers["obs_shaper"] = value.instantiate(obs_meta)
+                self.layers["obs_shaper"] = value.instantiate(env)
             else:
                 if "_config" in attr:
                     attr = attr.replace("_config", "")  # not critical but makes it easier to read
@@ -77,21 +73,17 @@ class Policy(nn.Module):
 
     def initialize_to_environment(
         self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
+        env,
         device: torch.device,
-        is_training: bool = None,
     ):
         self.to(device)
         logs = []
         for _, value in self.layers.items():
             if hasattr(value, "initialize_to_environment"):
-                logs.append(
-                    value.initialize_to_environment(features, action_names, action_max_params, device, is_training)
-                )
-
-        self.action_probs.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+                logs.append(value.initialize_to_environment(env, device))
+        if hasattr(self, "action_probs"):
+            if hasattr(self.action_probs, "initialize_to_environment"):
+                self.action_probs.initialize_to_environment(env, device)
 
         for log in logs:
             if log is not None:
@@ -112,7 +104,6 @@ class Policy(nn.Module):
     def get_agent_experience_spec(self) -> Composite:
         spec = Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            # training_env_ids=UnboundedDiscrete(shape=torch.Size([1]), dtype=torch.long),
         )
 
         for layer in self.layers.values():
@@ -120,10 +111,3 @@ class Policy(nn.Module):
                 spec.update(layer.get_agent_experience_spec())
 
         return spec
-
-    def attach_replay_buffer(self, experience: Experience):
-        """Losses expect to find a replay buffer in the policy."""
-        self.replay = experience
-
-
-# av need Distributed Metta Agent class to wrap this

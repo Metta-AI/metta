@@ -55,13 +55,12 @@ class ActionEmbedding(nn.Module):
 
     def initialize_to_environment(
         self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
+        env,
         device,
-        is_training: bool = None,
     ) -> None:
         # Generate full action names
+        action_names = env.action_names
+        action_max_params = env.max_action_args
         action_names = [
             f"{name}_{i}"
             for name, max_param in zip(action_names, action_max_params, strict=False)
