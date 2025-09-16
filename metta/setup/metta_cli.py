@@ -12,7 +12,11 @@ from rich.table import Table
 
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
+from metta.setup.local_commands import app as local_app
+from metta.setup.symlink_setup import app as symlink_app
+from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
+from metta.utils.live_run_monitor import app as run_monitor_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -575,16 +579,13 @@ def cmd_clip(ctx: typer.Context):
         raise typer.Exit(1) from None
 
 
-def main() -> None:
-    from metta.setup.local_commands import app as local_app
-    from metta.setup.symlink_setup import app as symlink_app
-    from metta.setup.tools.book import app as book_app
-    from metta.utils.live_run_monitor import app as run_monitor_app
+app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
+app.add_typer(local_app, name="local")
+app.add_typer(book_app, name="book")
+app.add_typer(symlink_app, name="symlink-setup")
 
-    app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
-    app.add_typer(local_app, name="local")
-    app.add_typer(book_app, name="book")
-    app.add_typer(symlink_app, name="symlink-setup")
+
+def main() -> None:
     app()
 
 
