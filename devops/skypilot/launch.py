@@ -28,7 +28,7 @@ logger = logging.getLogger("launch.py")
 def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> None:
     """Validate that run.py can successfully create a tool config with the given arguments."""
     # Build the run.py command
-    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, f"run={run_id}", "--dry-run"]
+    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
 
     # Add args if provided (run= is already included in filtered_args)
     if filtered_args:
