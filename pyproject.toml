@@ -16,7 +16,6 @@ py-modules = []
 
 [project]
 dependencies = [
-  "asana>=5.0.0,<6",
   "boto3>=1.38.32",
   "colorama>=0.4.6",
   "cpplint>=2.0.2",
@@ -83,7 +82,6 @@ dependencies = [
   "pyarrow>=21.0.0",
   "typer>=0.16.0",
   "mcp[cli]>=1.13.1",
-  "asana>=5.2.1",
 ]
 name = "metta"
 version = "0.1"
