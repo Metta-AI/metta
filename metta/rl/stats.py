@@ -173,10 +173,8 @@ def process_training_stats(
     overview = {}
 
     # Calculate average reward from environment stats
-    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
-    if task_reward_values:
-        mean_reward = sum(task_reward_values) / len(task_reward_values)
-        overview["reward"] = mean_reward
+    if "rewards" in experience_stats:
+        overview["reward"] = experience_stats["rewards"]
 
     return {
         "mean_stats": mean_stats,
