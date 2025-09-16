@@ -1,10 +1,46 @@
 import
-  std/[strformat],
-  boxy, vmath, windy, fidget2/[hybridrender, common],
+  std/[times, math, strformat],
+  boxy, vmath, windy, fidget2, fidget2/[hybridrender, common],
   common, panels, sim, actions, utils
 
 const
   BgColor = parseHtmlColor("#1D1D1D")
+
+  # Visual layout constants for the timeline scrubber.
+  ScrubberLeft = 16f
+  ScrubberTop = 34f
+  ScrubberHeight = 16f
+  ScrubberMargin = 16f
+  # Keep this in sync with agenttraces trace width.
+  TraceWidth = (0.54f / 2.0f)
+
+var
+  # Drag state.
+  scrubberActive = false
+  minimapActive = false
+  # Double click detection.
+  lastClickTimeT: float64 = 0.0
+  lastClickPosT: Vec2 = vec2(0, 0)
+  clickIntervalT = 0.3 # seconds
+  clickDistanceT = 10.0 # pixels
+
+  # Figma nodes within GlobalTimeline
+  nodesBound = false
+  nodeTimeline: Node
+  nodeTimelineReadout: Node
+  nodeStepCounter: Node
+  nodeScrubberBg: Node
+  nodeScrubber: Node
+
+proc bindTimelineNodes() =
+  if nodesBound or globalTimelinePanel.isNil or globalTimelinePanel.node.isNil:
+    return
+  nodeTimeline = globalTimelinePanel.node
+  nodeTimelineReadout = nodeTimeline.find("**/TimelineReadout")
+  nodeStepCounter = nodeTimeline.find("**/#step-counter")
+  nodeScrubberBg = nodeTimeline.find("**/ScrubberBg")
+  nodeScrubber = nodeTimeline.find("**/Scrubber")
+  nodesBound = true
 
 proc playControls*() =
   if window.buttonPressed[KeySpace]:
@@ -36,3 +72,181 @@ proc playControls*() =
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
     echo "step: ", step
+
+proc getStepFromX(localX, panelWidth: float32): int =
+  ## Maps a local X coordinate within the timeline panel to a replay step.
+  if replay.isNil or replay.maxSteps <= 0:
+    return 0
+  # Prefer figma scrubber geometry
+  var trackLeft = ScrubberLeft
+  var scrubberWidth = max(0f, panelWidth - ScrubberMargin * 2)
+  if nodeScrubberBg != nil:
+    trackLeft = nodeScrubberBg.position.x
+    scrubberWidth = nodeScrubberBg.size.x
+  let rel = clamp(localX - trackLeft, 0f, scrubberWidth)
+  let fullSteps = max(1, replay.maxSteps - 1)
+  result = int(floor((rel / scrubberWidth) * float32(replay.maxSteps)))
+  result = clamp(result, 0, replay.maxSteps - 1)
+
+proc onScrubberChange(localX, panelWidth: float32) =
+  ## Updates global step based on local X.
+  let s = getStepFromX(localX, panelWidth)
+  step = s
+  stepFloat = step.float32
+
+proc centerTracesOnStep(targetStep: int) =
+  ## Recenters the Agent Traces panel on the given step.
+  if agentTracesPanel.isNil:
+    return
+  let zoom2 = agentTracesPanel.zoom * agentTracesPanel.zoom
+  let worldX = targetStep.float32 * TraceWidth
+  agentTracesPanel.pos.x = agentTracesPanel.rect.w.float32 / 2.0f - zoom2 * worldX
+
+proc onTraceMinimapChange(localX, panelWidth: float32) =
+  ## Pans the traces viewport based on local X.
+  let s = getStepFromX(localX, panelWidth)
+  centerTracesOnStep(s)
+
+proc drawViewportMinimap(panel: Panel) =
+  ## Draws the current Agent Traces viewport rectangle on the timeline.
+  if agentTracesPanel.isNil or replay.isNil or replay.maxSteps <= 1:
+    return
+  let fullSteps = max(1, replay.maxSteps - 1)
+  let scrubberWidth = max(0f, panel.rect.w.float32 - ScrubberMargin * 2)
+  let zoom2 = agentTracesPanel.zoom * agentTracesPanel.zoom
+  if zoom2 <= 0.00001f:
+    return
+  # Leftmost visible world X in traces panel.
+  let worldXLeft = (-agentTracesPanel.pos.x) / zoom2
+  let visibleWorldW = agentTracesPanel.rect.w.float32 / zoom2
+  let startStep = max(0.0f, worldXLeft / TraceWidth)
+  let stepsVisible = max(1.0f, visibleWorldW / TraceWidth)
+  let tracesX = (startStep / float32(fullSteps)) * scrubberWidth
+  let tracesW = (stepsVisible / float32(fullSteps)) * scrubberWidth
+  # Draw a light rectangle indicating the viewport coverage.
+  bxy.drawRect(
+    rect(
+      ScrubberLeft + tracesX - 1,
+      0,
+      tracesW + 2,
+      64
+    ),
+    color(1, 1, 1, 0.12)
+  )
+
+proc drawFrozenMarkers(panel: Panel) =
+  ## Draws tick marks for the start of frozen states along the scrubber.
+  if replay.isNil or replay.maxSteps <= 1:
+    return
+  var scrubberWidth = max(0f, panel.rect.w.float32 - ScrubberMargin * 2)
+  var trackLeft = ScrubberLeft
+  if nodeScrubberBg != nil:
+    trackLeft = nodeScrubberBg.position.x
+    scrubberWidth = nodeScrubberBg.size.x
+  let fullSteps = max(1, replay.maxSteps - 1)
+  for agent in replay.agents:
+    var prevFrozen = false
+    for j in 0 ..< replay.maxSteps:
+      let isFrozen = (agent.isFrozen.len > j) and agent.isFrozen[j]
+      if isFrozen and (not prevFrozen):
+        let x = trackLeft + (float32(j) / float32(fullSteps)) * scrubberWidth
+        bxy.drawRect(rect(x - 1, ScrubberTop - 10, 2, 8), color(1, 1, 1, 1))
+      prevFrozen = isFrozen
+
+proc trackRect(panel: Panel): Rect =
+  ## Track rectangle in panel-local coordinates.
+  if nodeScrubberBg != nil:
+    return Rect(x: nodeScrubberBg.position.x, y: nodeScrubberBg.position.y,
+                w: nodeScrubberBg.size.x, h: nodeScrubberBg.size.y)
+  return Rect(x: ScrubberLeft, y: ScrubberTop,
+              w: max(0f, panel.rect.w.float32 - ScrubberMargin * 2),
+              h: ScrubberHeight)
+
+proc updateFigmaScrubber() =
+  ## Updates figma nodes (#step-counter text and scrubber thumb position).
+  if replay.isNil or not nodesBound:
+    return
+  if nodeStepCounter != nil:
+    nodeStepCounter.text = $step
+    nodeStepCounter.dirty = true
+  if nodeScrubberBg != nil and nodeScrubber != nil and replay.maxSteps > 1:
+    let fullSteps = max(1, replay.maxSteps - 1)
+    let progress = clamp(step.float32 / fullSteps.float32, 0f, 1f)
+    let trackLeft = nodeScrubberBg.position.x
+    let trackWidth = nodeScrubberBg.size.x
+    let thumbW = nodeScrubber.size.x
+    let newX = trackLeft + progress * max(0f, trackWidth - thumbW)
+    if abs(nodeScrubber.position.x - newX) > 0.1f:
+      nodeScrubber.position = vec2(newX, nodeScrubber.position.y)
+      nodeScrubber.dirty = true
+
+proc drawTimeline*(panel: Panel) =
+  ## Draws the global timeline with scrubber, minimap, and markers, and handles input.
+  if replay.isNil:
+    return
+
+  bindTimelineNodes()
+
+  # Handle mouse interactions.
+  updateMouse(panel)
+  let localMouse = window.mousePos.vec2 - panel.rect.xy.vec2
+
+  if panel.hasMouse:
+    if window.buttonPressed[MouseLeft]:
+      let tr = trackRect(panel)
+      let isScrubberY = (localMouse.y > tr.y) and (localMouse.y < tr.y + tr.h)
+      mouseCaptured = true
+      mouseCapturedPanel = panel
+      scrubberActive = isScrubberY
+      minimapActive = not isScrubberY
+      if scrubberActive:
+        onScrubberChange(localMouse.x, panel.rect.w.float32)
+      else:
+        onTraceMinimapChange(localMouse.x, panel.rect.w.float32)
+
+    if mouseCaptured and mouseCapturedPanel == panel and window.buttonDown[MouseLeft]:
+      if scrubberActive:
+        onScrubberChange(localMouse.x, panel.rect.w.float32)
+      elif minimapActive:
+        onTraceMinimapChange(localMouse.x, panel.rect.w.float32)
+
+    if window.buttonReleased[MouseLeft]:
+      scrubberActive = false
+      minimapActive = false
+      if mouseCaptured and mouseCapturedPanel == panel:
+        mouseCaptured = false
+        mouseCapturedPanel = nil
+
+    # Double-click detection to center traces on step.
+    if window.buttonPressed[MouseLeft]:
+      let currentTime = epochTime()
+      let isClick = dist(localMouse, lastClickPosT) < clickDistanceT
+      if currentTime - lastClickTimeT < clickIntervalT and isClick:
+        let s = getStepFromX(localMouse.x, panel.rect.w.float32)
+        centerTracesOnStep(s)
+      lastClickTimeT = currentTime
+      lastClickPosT = localMouse
+
+  # If figma track exists, do not draw custom scrubber; just update nodes.
+  if nodeScrubberBg == nil:
+    let scrubberWidth = max(0f, panel.rect.w.float32 - ScrubberMargin * 2)
+    bxy.drawRect(
+      rect(ScrubberLeft, ScrubberTop, scrubberWidth, ScrubberHeight),
+      color(0.5, 0.5, 0.5, 0.5)
+    )
+    if replay.maxSteps > 1:
+      let fullSteps = max(1, replay.maxSteps - 1)
+      let w = (scrubberWidth * step.float32) / float32(fullSteps)
+      bxy.drawRect(
+        rect(ScrubberLeft, ScrubberTop, w, ScrubberHeight),
+        color(1, 1, 1, 1)
+      )
+
+  # Draw trace viewport minimap window.
+  drawViewportMinimap(panel)
+
+  # Draw frozen event markers.
+  drawFrozenMarkers(panel)
+
+  # Drive figma scrubber state (thumb position and step text).
+  updateFigmaScrubber()
