@@ -52,19 +52,21 @@ def exists(path: str) -> bool:
     """
     parsed = ParsedURI.parse(path)
 
-    if parsed.scheme == "s3" and parsed.bucket and parsed.key:
+    if parsed.scheme == "s3":
+        bucket, key = parsed.require_s3()
         try:
-            boto3.client("s3").head_object(Bucket=parsed.bucket, Key=parsed.key)
+            boto3.client("s3").head_object(Bucket=bucket, Key=key)
             return True
         except ClientError as e:
             if e.response["Error"]["Code"] in {"404", "403", "NoSuchKey"}:
                 return False
             raise
 
-    if parsed.scheme == "wandb" and parsed.wandb is not None:
+    if parsed.scheme == "wandb":
+        wandb_uri = parsed.require_wandb()
         api = wandb.Api()
         try:
-            api.artifact(parsed.wandb.qname())
+            api.artifact(wandb_uri.qname())
             return True
         except CommError:
             return False
@@ -93,18 +95,20 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
 
     parsed = ParsedURI.parse(path)
 
-    if parsed.scheme == "s3" and parsed.bucket and parsed.key:
+    if parsed.scheme == "s3":
+        bucket, key = parsed.require_s3()
         try:
-            boto3.client("s3").put_object(Body=data, Bucket=parsed.bucket, Key=parsed.key, ContentType=content_type)
+            boto3.client("s3").put_object(Body=data, Bucket=bucket, Key=key, ContentType=content_type)
             logger.info("Wrote %d B → %s", len(data), http_url(parsed.canonical))
             return
         except NoCredentialsError as e:  # pragma: no cover - environment dependent
             logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
             raise e
 
-    if parsed.scheme == "wandb" and parsed.wandb is not None:
-        upload_bytes_to_wandb(parsed.wandb, data, name=parsed.wandb.artifact_path.split("/")[-1])
-        logger.info("Wrote %d B → %s", len(data), parsed.wandb.http_url())
+    if parsed.scheme == "wandb":
+        wandb_uri = parsed.require_wandb()
+        upload_bytes_to_wandb(wandb_uri, data, name=wandb_uri.artifact_path.split("/")[-1])
+        logger.info("Wrote %d B → %s", len(data), wandb_uri.http_url())
         return
 
     if parsed.scheme == "gdrive":
@@ -130,14 +134,16 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
 
     parsed = ParsedURI.parse(path)
 
-    if parsed.scheme == "s3" and parsed.bucket and parsed.key:
-        boto3.client("s3").upload_file(local_file, parsed.bucket, parsed.key, ExtraArgs={"ContentType": content_type})
+    if parsed.scheme == "s3":
+        bucket, key = parsed.require_s3()
+        boto3.client("s3").upload_file(local_file, bucket, key, ExtraArgs={"ContentType": content_type})
         logger.info("Uploaded %s → %s (size %d B)", local_file, parsed.canonical, os.path.getsize(local_file))
         return
 
-    if parsed.scheme == "wandb" and parsed.wandb is not None:
-        upload_file_to_wandb(parsed.wandb, local_file, name=parsed.wandb.artifact_path)
-        logger.info("Uploaded %s → %s (size %d B)", local_file, parsed.wandb, os.path.getsize(local_file))
+    if parsed.scheme == "wandb":
+        wandb_uri = parsed.require_wandb()
+        upload_file_to_wandb(wandb_uri, local_file, name=wandb_uri.artifact_path)
+        logger.info("Uploaded %s → %s (size %d B)", local_file, wandb_uri, os.path.getsize(local_file))
         return
 
     if parsed.scheme == "gdrive":
@@ -169,29 +175,31 @@ def read(path: str) -> bytes:
 
     parsed = ParsedURI.parse(path)
 
-    if parsed.scheme == "s3" and parsed.bucket and parsed.key:
+    if parsed.scheme == "s3":
+        bucket, key = parsed.require_s3()
         try:
-            body = boto3.client("s3").get_object(Bucket=parsed.bucket, Key=parsed.key)["Body"].read()
+            body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
             logger.info("Read %d B from %s", len(body), parsed.canonical)
             return body
         except NoCredentialsError:  # pragma: no cover - environment dependent
             logger.error("AWS credentials not found -- have you run devops/aws/setup_sso.py?")
             raise
 
-    if parsed.scheme == "wandb" and parsed.wandb is not None:
+    if parsed.scheme == "wandb":
+        wandb_uri = parsed.require_wandb()
         api = wandb.Api()
-        artifact = api.artifact(parsed.wandb.qname())
+        artifact = api.artifact(wandb_uri.qname())
         with tempfile.TemporaryDirectory(prefix="wandb_dl_") as tmp:
             local_dir = artifact.download(root=tmp)
             files = list(Path(local_dir).iterdir())
             if not files:
-                raise FileNotFoundError(f"No files inside W&B artifact {parsed.wandb}")
+                raise FileNotFoundError(f"No files inside W&B artifact {wandb_uri}")
             if len(files) > 1:
                 raise ValueError(
-                    f"Expected exactly one file inside W&B artifact {parsed.wandb}, got {len(files)}: {files}"
+                    f"Expected exactly one file inside W&B artifact {wandb_uri}, got {len(files)}: {files}"
                 )
             data = files[0].read_bytes()
-            logger.info("Read %d B from %s", len(data), parsed.wandb)
+            logger.info("Read %d B from %s", len(data), wandb_uri)
             return data
 
     if parsed.scheme == "file" and parsed.local_path is not None:

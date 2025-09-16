@@ -94,6 +94,20 @@ class ParsedURI:
             raise ValueError(f"URI '{self.raw}' does not refer to a local file path")
         return self.local_path
 
+    def require_s3(self) -> tuple[str, str]:
+        if self.scheme != "s3" or not self.bucket or not self.key:
+            raise ValueError(f"URI '{self.raw}' is not an s3:// path")
+        return self.bucket, self.key
+
+    def require_wandb(self) -> WandbURI:
+        if self.scheme != "wandb" or self.wandb is None:
+            raise ValueError(f"URI '{self.raw}' is not a wandb:// artifact")
+        return self.wandb
+
+    def is_remote(self) -> bool:
+        """Return True if the URI references a remote resource."""
+        return self.scheme in {"s3", "wandb", "gdrive", "http"}
+
     @classmethod
     def parse(cls, value: str) -> "ParsedURI":
         if not value:
