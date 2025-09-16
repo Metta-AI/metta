@@ -66,6 +66,9 @@ class ForagingTaskGenerator(TaskGenerator):
         Produces a hub of heart-creating converters and outside resource deposits.
         """
 
+        # Agents per environment (supports multi-agent via MapGen multi-instances)
+        num_agents: int = Field(default=24)
+
         # Map size per instance
         width: int = Field(default=13)
         height: int = Field(default=13)
@@ -107,7 +110,7 @@ class ForagingTaskGenerator(TaskGenerator):
 
         # Map builder options
         hub_layout: str = Field(default="grid")
-        hub_box_radius: int = Field(default=1)
+        hub_box_radius: int = Field(default=2)
         outside_min_radius: int = Field(default=3)
         outside_max_radius: int = Field(default=5)
         border_width: int = Field(default=0)
@@ -209,7 +212,8 @@ class ForagingTaskGenerator(TaskGenerator):
 
         # Build env with MapGen + ForagingMapBuilder
         map_builder = MapGen.Config(
-            instances=1,
+            # Use num_agents to replicate single-agent instances across the grid
+            num_agents=self.config.num_agents,
             instance_map=ForagingMapBuilder.Config(
                 width=self.config.width,
                 height=self.config.height,
@@ -226,10 +230,23 @@ class ForagingTaskGenerator(TaskGenerator):
             ),
         )
 
+        # Ensure required actions are explicitly enabled for interaction
+        from metta.mettagrid.mettagrid_config import (
+            ActionsConfig,
+            ActionConfig,
+        )  # local import to avoid cycles
+
+        actions = ActionsConfig(
+            move=ActionConfig(enabled=True),
+            put_items=ActionConfig(enabled=True),
+            get_items=ActionConfig(enabled=True),
+        )
+
         game = GameConfig(
             max_steps=self.config.max_steps,
-            num_agents=1,
+            num_agents=self.config.num_agents,
             objects=objects,
+            actions=actions,
         )
 
         # Inventory configuration

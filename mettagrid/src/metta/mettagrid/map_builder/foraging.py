@@ -44,6 +44,9 @@ class ForagingMapBuilder(MapBuilder):
         # Whether to place the agent at the exact center
         center_agent: bool = True
 
+        # Keep at least this Manhattan radius around the agent empty to avoid trapping
+        agent_safe_radius: int = 1
+
     def __init__(self, config: Config):
         self._config = config
         self._rng = np.random.default_rng(self._config.seed)
@@ -59,12 +62,14 @@ class ForagingMapBuilder(MapBuilder):
         center_r, center_c = self._center()
         positions: list[tuple[int, int]] = []
         R = max(1, self._config.hub_box_radius)
+        safe_r = max(0, self._config.agent_safe_radius)
 
         if self._config.hub_layout == "grid":
             for dr in range(-R, R + 1):
                 for dc in range(-R, R + 1):
                     rr, cc = center_r + dr, center_c + dc
-                    if (dr == 0 and dc == 0) or not self._in_bounds(rr, cc):
+                    # avoid center and the safe ring around it
+                    if (abs(dr) + abs(dc) <= safe_r) or not self._in_bounds(rr, cc):
                         continue
                     positions.append((rr, cc))
         elif self._config.hub_layout == "ring":
@@ -73,14 +78,15 @@ class ForagingMapBuilder(MapBuilder):
                 dc = R - abs(dr)
                 for sdc in (-dc, dc):
                     rr, cc = center_r + dr, center_c + sdc
-                    if (dr == 0 and sdc == 0) or dc == 0 or not self._in_bounds(rr, cc):
+                    # avoid center and the safe ring
+                    if (abs(dr) + abs(sdc) <= safe_r) or dc == 0 or not self._in_bounds(rr, cc):
                         continue
                     positions.append((rr, cc))
             for dc in range(-R, R + 1):
                 dr = R - abs(dc)
                 for sdr in (-dr, dr):
                     rr, cc = center_r + sdr, center_c + dc
-                    if (sdr == 0 and dc == 0) or dr == 0 or not self._in_bounds(rr, cc):
+                    if (abs(sdr) + abs(dc) <= safe_r) or dr == 0 or not self._in_bounds(rr, cc):
                         continue
                     positions.append((rr, cc))
             # Deduplicate
@@ -93,14 +99,14 @@ class ForagingMapBuilder(MapBuilder):
                     (center_r, center_c + d),
                     (center_r, center_c - d),
                 ):
-                    if self._in_bounds(rr, cc):
+                    if self._in_bounds(rr, cc) and d > safe_r:
                         positions.append((rr, cc))
         else:
             # Fallback to grid
             for dr in range(-R, R + 1):
                 for dc in range(-R, R + 1):
                     rr, cc = center_r + dr, center_c + dc
-                    if (dr == 0 and dc == 0) or not self._in_bounds(rr, cc):
+                    if (abs(dr) + abs(dc) <= safe_r) or not self._in_bounds(rr, cc):
                         continue
                     positions.append((rr, cc))
 
