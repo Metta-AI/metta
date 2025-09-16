@@ -5,8 +5,8 @@ from pathlib import Path
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import info
-from softmax.asana.app_authenticate import login
-from softmax.atlas.server import (
+from metta.softmax.asana.app_authenticate import login
+from metta.softmax.atlas.server import (
     SOFTMAX_ATLAS_ASANA_APP,
     SOFTMAX_ATLAS_NAME,
     get_atlas_asana_client,
@@ -25,6 +25,9 @@ class SoftmaxAtlasSetup(SetupModule):
     def description(self) -> str:
         return f"MCP server supporting {SOFTMAX_ATLAS_NAME} in the Claude desktop app."
 
+    def dependencies(self) -> list[str]:
+        return ["aws"]
+
     def _check_asana_app_authenticated(self) -> bool:
         try:
             get_atlas_asana_client()
@@ -33,7 +36,7 @@ class SoftmaxAtlasSetup(SetupModule):
         return True
 
     def check_installed(self) -> bool:
-        return self._check_mcp_server_installed()  # and self._check_asana_app_authenticated()
+        return self._check_mcp_server_installed() and self._check_asana_app_authenticated()
 
     def _check_mcp_server_installed(self) -> bool:
         desktop_config_path = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
@@ -45,7 +48,6 @@ class SoftmaxAtlasSetup(SetupModule):
         return True
 
     def _install_mcp_server(self) -> None:
-        # Install server using editable install of the softmax package only
         subprocess.run(
             [
                 "uv",
@@ -54,7 +56,13 @@ class SoftmaxAtlasSetup(SetupModule):
                 "install",
                 "--with-editable",
                 str(self.repo_root / "softmax"),
-                "./softmax/atlas/server.py",
+                "--env-var",
+                "AWS_PROFILE=softmax",
+                "--env-var",
+                "AWS_SDK_LOAD_CONFIG=1",
+                "--env-var",
+                "AWS_REGION=us-east-1",
+                str(self.repo_root / "softmax/src/metta/softmax/atlas/server.py"),
             ],
             cwd=self.repo_root,
         )
@@ -67,9 +75,7 @@ class SoftmaxAtlasSetup(SetupModule):
         info(f"{SOFTMAX_ATLAS_ASANA_APP} installed successfully. You can use it within the Claude desktop app.")
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        # if not self._check_asana_app_authenticated() or force:
-        #     self._install_asana_app(non_interactive=non_interactive, force=force)
-        print("installing mcp server")
+        if not self._check_asana_app_authenticated() or force:
+            self._install_asana_app(non_interactive=non_interactive, force=force)
         if force or not self._check_mcp_server_installed():
-            print("doing installing")
             self._install_mcp_server()

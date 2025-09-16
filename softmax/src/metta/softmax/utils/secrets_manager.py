@@ -30,11 +30,8 @@ def create_secret(
     secret_value: dict[str, Any],
     *,
     allow_overwrite: bool = False,
-) -> str:
-    """Create a secret or overwrite its current value.
-
-    Stores the value as SecretString containing JSON. Returns the secret ARN.
-    """
+) -> dict:
+    """Create a secret (JSON value) or overwrite its current value."""
     client = boto3.client("secretsmanager")
 
     params: dict[str, Any] = {
@@ -49,5 +46,4 @@ def create_secret(
             raise
 
         put_params: dict[str, Any] = {"SecretId": secret_name, "SecretString": json.dumps(secret_value)}
-        resp = client.put_secret_value(**put_params)
-        return resp.get("ARN") or resp.get("Name") or secret_name
+        return client.put_secret_value(**put_params)

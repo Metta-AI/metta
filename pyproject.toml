@@ -33,6 +33,7 @@ dependencies = [
   "jmespath>=1.0.1",
   "matplotlib>=3.10.3",
   "metta-app-backend",
+  "metta-softmax",
   "mettagrid",
   "metta-agent",
   "metta-common",
@@ -153,16 +154,17 @@ members = [
   "experiments",
   "gitta",
   "codebot",
+  "softmax",
 ]
 
 [tool.uv.sources]
 metta-app-backend = { workspace = true }
 mettagrid = { workspace = true }
 metta-common = { workspace = true }
+metta-softmax = { workspace = true }
 metta-agent = { workspace = true }
 gitta = { workspace = true }
 codebot = { workspace = true }
-softmax = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]

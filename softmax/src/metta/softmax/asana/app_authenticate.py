@@ -17,7 +17,7 @@ import yaml
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
-from softmax.utils.secrets_manager import get_secret
+from metta.softmax.utils.secrets_manager import get_secret
 
 ASANA_AUTH_URL = "https://app.asana.com/-/oauth_authorize"
 ASANA_TOKEN_URL = "https://app.asana.com/-/oauth_token"
