@@ -151,27 +151,20 @@ class AttackActionConfig(ActionConfig):
     ) -> None: ...
     defense_resources: dict[int, int]
 
-class PutItemsActionConfig(ActionConfig):
+class ItemsActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, int] = {},
-        priority: int = 1,
+        priority: int = 0,
         auto_execute: bool = False,
         facing_required: bool = True,
     ) -> None: ...
     facing_required: bool
 
-class GetItemsActionConfig(ActionConfig):
-    def __init__(
-        self,
-        required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, int] = {},
-        priority: int = 2,
-        auto_execute: bool = False,
-        facing_required: bool = True,
-    ) -> None: ...
-    facing_required: bool
+# Type aliases for backwards compatibility
+PutItemsActionConfig = ItemsActionConfig
+GetItemsActionConfig = ItemsActionConfig
 
 class ChangeGlyphActionConfig(ActionConfig):
     def __init__(

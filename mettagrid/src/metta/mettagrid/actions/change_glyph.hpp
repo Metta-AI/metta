@@ -13,11 +13,11 @@
 struct ChangeGlyphActionConfig : public ActionConfig {
   const ObservationType number_of_glyphs;
 
-  ChangeGlyphActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources = {},
-                          const std::map<InventoryItem, InventoryQuantity>& consumed_resources = {},
-                          unsigned char priority = 0,
-                          bool auto_execute = false,
-                          const ObservationType number_of_glyphs = 4)
+  ChangeGlyphActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
+                          const std::map<InventoryItem, InventoryQuantity>& consumed_resources,
+                          unsigned char priority,
+                          bool auto_execute,
+                          const ObservationType number_of_glyphs)
       : ActionConfig(required_resources, consumed_resources, priority, auto_execute),
         number_of_glyphs(number_of_glyphs) {}
 };
@@ -51,10 +51,10 @@ inline void bind_change_glyph_action_config(py::module& m) {
                     unsigned char,
                     bool,
                     const int>(),
-           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("priority") = 0,
-           py::arg("auto_execute") = false,
+           py::arg("required_resources"),
+           py::arg("consumed_resources"),
+           py::arg("priority"),
+           py::arg("auto_execute"),
            py::arg("number_of_glyphs"))
       .def_readonly("number_of_glyphs", &ChangeGlyphActionConfig::number_of_glyphs);
 }

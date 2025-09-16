@@ -5,9 +5,8 @@ from metta.mettagrid.mettagrid_c import BoxConfig as CppBoxConfig
 from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
-from metta.mettagrid.mettagrid_c import GetItemsActionConfig as CppGetItemsActionConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
-from metta.mettagrid.mettagrid_c import PutItemsActionConfig as CppPutItemsActionConfig
+from metta.mettagrid.mettagrid_c import ItemsActionConfig as CppItemsActionConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import AgentConfig, BoxConfig, ConverterConfig, GameConfig, WallConfig
 
@@ -220,6 +219,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 for k, v in (action_config.get("required_resources") or action_config["consumed_resources"]).items()
                 if k in resource_name_to_id
             },
+            "priority": action_config.get("priority", 0),
+            "auto_execute": action_config.get("auto_execute", False),
         }
 
         if action_name == "attack":
@@ -238,7 +239,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             }
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
         elif action_name == "put_items":
-            # Extract the specific parameters needed for PutItemsActionConfig
+            # Extract the specific parameters needed for ItemsActionConfig
             put_items_params = {
                 "required_resources": action_cpp_params.get("required_resources", {}),
                 "consumed_resources": action_cpp_params.get("consumed_resources", {}),
@@ -246,9 +247,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 "auto_execute": action_cpp_params.get("auto_execute", False),
                 "facing_required": action_config.get("facing_required", True),
             }
-            actions_cpp_params[action_name] = CppPutItemsActionConfig(**put_items_params)
+            actions_cpp_params[action_name] = CppItemsActionConfig(**put_items_params)
         elif action_name == "get_items":
-            # Extract the specific parameters needed for GetItemsActionConfig
+            # Extract the specific parameters needed for ItemsActionConfig
             get_items_params = {
                 "required_resources": action_cpp_params.get("required_resources", {}),
                 "consumed_resources": action_cpp_params.get("consumed_resources", {}),
@@ -256,7 +257,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 "auto_execute": action_cpp_params.get("auto_execute", False),
                 "facing_required": action_config.get("facing_required", True),
             }
-            actions_cpp_params[action_name] = CppGetItemsActionConfig(**get_items_params)
+            actions_cpp_params[action_name] = CppItemsActionConfig(**get_items_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 

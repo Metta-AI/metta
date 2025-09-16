@@ -61,17 +61,21 @@ class AttackActionConfig(ActionConfig):
     priority: int = Field(default=3, ge=0, le=255)  # Attack priority = 3
 
 
-class PutItemsActionConfig(ActionConfig):
-    """Put items action configuration."""
+class ItemsActionConfig(ActionConfig):
+    """Base items action configuration."""
 
     facing_required: bool = Field(default=True)
+
+
+class PutItemsActionConfig(ItemsActionConfig):
+    """Put items action configuration."""
+
     priority: int = Field(default=1, ge=0, le=255)  # Put priority = 1
 
 
-class GetItemsActionConfig(ActionConfig):
+class GetItemsActionConfig(ItemsActionConfig):
     """Get items action configuration."""
 
-    facing_required: bool = Field(default=True)
     priority: int = Field(default=2, ge=0, le=255)  # Get priority = 2
 
 

@@ -56,14 +56,14 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
       false,                                         // auto_execute (default)
       4);                                            // number_of_glyphs
 
-  std::shared_ptr<PutItemsActionConfig> put_items_cfg = std::make_shared<PutItemsActionConfig>(
+  std::shared_ptr<ItemsActionConfig> put_items_cfg = std::make_shared<ItemsActionConfig>(
       std::map<InventoryItem, InventoryQuantity>(),  // required_resources
       std::map<InventoryItem, InventoryQuantity>(),  // consumed_resources
       1,                                             // priority (default)
       false,                                         // auto_execute (default)
       true);                                         // facing_required (default)
 
-  std::shared_ptr<GetItemsActionConfig> get_items_cfg = std::make_shared<GetItemsActionConfig>(
+  std::shared_ptr<ItemsActionConfig> get_items_cfg = std::make_shared<ItemsActionConfig>(
       std::map<InventoryItem, InventoryQuantity>(),  // required_resources
       std::map<InventoryItem, InventoryQuantity>(),  // consumed_resources
       2,                                             // priority (default)

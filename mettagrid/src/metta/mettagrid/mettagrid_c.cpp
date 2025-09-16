@@ -84,17 +84,17 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   for (const auto& [action_name, action_config] : game_config.actions) {
     if (action_name == "put_items") {
-      auto put_items_config = std::dynamic_pointer_cast<const PutItemsActionConfig>(action_config);
+      auto put_items_config = std::dynamic_pointer_cast<const ItemsActionConfig>(action_config);
       if (!put_items_config) {
-        throw std::runtime_error("Expected PutItemsActionConfig for put_items action");
+        throw std::runtime_error("Expected ItemsActionConfig for put_items action");
       }
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*put_items_config));
     } else if (action_name == "place_box") {
       _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config));
     } else if (action_name == "get_items") {
-      auto get_items_config = std::dynamic_pointer_cast<const GetItemsActionConfig>(action_config);
+      auto get_items_config = std::dynamic_pointer_cast<const ItemsActionConfig>(action_config);
       if (!get_items_config) {
-        throw std::runtime_error("Expected GetItemsActionConfig for get_items action");
+        throw std::runtime_error("Expected ItemsActionConfig for get_items action");
       }
       _action_handlers.push_back(std::make_unique<GetOutput>(*get_items_config));
     } else if (action_name == "noop") {
@@ -501,10 +501,7 @@ void MettaGrid::_step(Actions actions) {
     unsigned char current_priority = _max_action_priority - offset;
 
     for (const auto& agent_idx : agent_indices) {
-      // Skip if agent already executed a successful action
-      if (_action_success[agent_idx]) {
-        continue;
-      }
+      // Auto-execute actions now run for all agents, regardless of primary action success
 
       for (size_t action_idx = 0; action_idx < _num_action_handlers; action_idx++) {
         auto& handler = _action_handlers[action_idx];

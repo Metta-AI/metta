@@ -13,21 +13,10 @@
 #include "objects/converter.hpp"
 #include "types.hpp"
 
-struct PutItemsActionConfig : public ActionConfig {
-  bool facing_required;
-
-  PutItemsActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources = {},
-                       const std::map<InventoryItem, InventoryQuantity>& consumed_resources = {},
-                       unsigned char priority = 1,
-                       bool auto_execute = false,
-                       bool facing_required = true)
-      : ActionConfig(required_resources, consumed_resources, priority, auto_execute),
-        facing_required(facing_required) {}
-};
 
 class PutRecipeItems : public ActionHandler {
 public:
-  explicit PutRecipeItems(const PutItemsActionConfig& cfg)
+  explicit PutRecipeItems(const ItemsActionConfig& cfg)
       : ActionHandler(cfg, "put_items"), _facing_required(cfg.facing_required) {}
 
   unsigned char max_arg() const override {
@@ -81,18 +70,8 @@ private:
 namespace py = pybind11;
 
 inline void bind_put_items_action_config(py::module& m) {
-  py::class_<PutItemsActionConfig, ActionConfig, std::shared_ptr<PutItemsActionConfig>>(m, "PutItemsActionConfig")
-      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, InventoryQuantity>&,
-                    unsigned char,
-                    bool,
-                    bool>(),
-           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("priority") = 1,
-           py::arg("auto_execute") = false,
-           py::arg("facing_required") = true)
-      .def_readwrite("facing_required", &PutItemsActionConfig::facing_required);
+  // Alias for backwards compatibility - ItemsActionConfig is already bound in action_handler.hpp
+  m.attr("PutItemsActionConfig") = m.attr("ItemsActionConfig");
 }
 
 #endif  // ACTIONS_PUT_RECIPE_ITEMS_HPP_
