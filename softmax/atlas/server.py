@@ -4,7 +4,7 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-from softmax.asana.app_authenticate import get_authenticated_asana_client
+from softmax.asana.app_authenticate import get_authenticated_asana_client  # noqa: E402
 
 SOFTMAX_ATLAS_NAME = "Softmax Atlas"
 SOFTMAX_ATLAS_ASANA_APP = "atlas"

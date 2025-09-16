@@ -21,7 +21,6 @@ from softmax.utils.secrets_manager import get_secret
 
 ASANA_AUTH_URL = "https://app.asana.com/-/oauth_authorize"
 ASANA_TOKEN_URL = "https://app.asana.com/-/oauth_token"
-TOKENS_PATH = Path.home() / ".metta" / "asana_tokens.yaml"
 
 
 class _LocalAsanaTokens:

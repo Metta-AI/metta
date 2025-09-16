@@ -9,7 +9,6 @@ from softmax.asana.app_authenticate import login
 from softmax.atlas.server import (
     SOFTMAX_ATLAS_ASANA_APP,
     SOFTMAX_ATLAS_NAME,
-    SOFTMAX_ATLAS_SERVER_PATH,
     get_atlas_asana_client,
 )
 
@@ -34,7 +33,7 @@ class SoftmaxAtlasSetup(SetupModule):
         return True
 
     def check_installed(self) -> bool:
-        return self._check_mcp_server_installed() and self._check_asana_app_authenticated()
+        return self._check_mcp_server_installed()  # and self._check_asana_app_authenticated()
 
     def _check_mcp_server_installed(self) -> bool:
         desktop_config_path = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
@@ -46,7 +45,19 @@ class SoftmaxAtlasSetup(SetupModule):
         return True
 
     def _install_mcp_server(self) -> None:
-        subprocess.run(["uv", "run", "mcp", "install", SOFTMAX_ATLAS_SERVER_PATH])
+        # Install server using editable install of the softmax package only
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "mcp",
+                "install",
+                "--with-editable",
+                str(self.repo_root / "softmax"),
+                "./softmax/atlas/server.py",
+            ],
+            cwd=self.repo_root,
+        )
         info(f"{SOFTMAX_ATLAS_NAME} installed successfully. You can use it within the Claude desktop app.")
 
     def _install_asana_app(self, non_interactive: bool = False, force: bool = False) -> None:
@@ -56,7 +67,9 @@ class SoftmaxAtlasSetup(SetupModule):
         info(f"{SOFTMAX_ATLAS_ASANA_APP} installed successfully. You can use it within the Claude desktop app.")
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        if not self._check_asana_app_authenticated() or force:
-            self._install_asana_app(non_interactive=non_interactive, force=force)
-        if not self._check_mcp_server_installed() or force:
+        # if not self._check_asana_app_authenticated() or force:
+        #     self._install_asana_app(non_interactive=non_interactive, force=force)
+        print("installing mcp server")
+        if force or not self._check_mcp_server_installed():
+            print("doing installing")
             self._install_mcp_server()

@@ -578,6 +578,18 @@ def cmd_clip(ctx: typer.Context):
         raise typer.Exit(1) from None
 
 
+@app.command(
+    name="uv",
+    help="Run uv commands in the project environment",
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
+)
+def cmd_uv(ctx: typer.Context):
+    cmd = ["uv"]
+    if ctx.args:
+        cmd.extend(ctx.args)
+    subprocess.run(cmd, cwd=cli.repo_root, check=False)
+
+
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
