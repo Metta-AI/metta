@@ -29,7 +29,7 @@ class ReplayTool(Tool):
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         # Create simulation using CheckpointManager integration
         sim = Simulation.create(
             sim_config=self.sim,
