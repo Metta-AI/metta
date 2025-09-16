@@ -16,6 +16,7 @@ from .protocols import (
     StateStore,
     Store,
 )
+from .utils import make_monitor_table
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +62,25 @@ class AdaptiveController:
                 # 1. Get current state
                 if has_data:
                     time.sleep(self.config.monitoring_interval)
-                    runs = self.store.fetch_runs(filters={"group": self.experiment_id})
+                    try:
+                        runs = self.store.fetch_runs(filters={"group": self.experiment_id})
+                    except:
+                        raise ValueError("Error when fetching WandB runs")
                 else:
                     runs = []
                     has_data = True  # Skip first fetch because WandB will just timeout.
+
+                # Display monitoring table every interval
+                if runs:
+                    table_lines = make_monitor_table(
+                        runs=runs,
+                        title="Run Status Table",
+                        logger_prefix="[AdaptiveController]",
+                        include_score=True,
+                        truncate_run_id=True,
+                    )
+                    for line in table_lines:
+                        logger.info(line)
 
                 # 1.0 Load scheduler state on first data fetch if supported
                 if not loaded_state and self.state_store is not None and isinstance(self.scheduler, SchedulerWithState):
