@@ -3,7 +3,6 @@
 import asyncio
 import os
 import secrets
-import sys
 import threading
 import time
 import webbrowser
@@ -83,6 +82,17 @@ class AsanaOAuthCLI:
         self.error = None
         self.server_started = threading.Event()
         self.auth_completed = threading.Event()
+        # Runtime handles for graceful shutdown
+        self._server = None
+        self._server_thread = None
+
+    def _request_shutdown(self) -> None:
+        """Signal the uvicorn server to shut down if it's running."""
+        try:
+            if self._server is not None:
+                self._server.should_exit = True  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def create_app(self) -> FastAPI:
         app = FastAPI(title="Asana OAuth Callback Server")
@@ -97,6 +107,7 @@ class AsanaOAuthCLI:
                 if error := params.get("error"):
                     self.error = f"Error from Asana: {error}"
                     self.auth_completed.set()
+                    self._request_shutdown()
                     return HTMLResponse(content=self._error_html(self.error), status_code=400)
 
                 # Get code and state
@@ -106,23 +117,27 @@ class AsanaOAuthCLI:
                 if not code:
                     self.error = "No authorization code received"
                     self.auth_completed.set()
+                    self._request_shutdown()
                     return HTMLResponse(content=self._error_html(self.error), status_code=400)
 
                 # Verify state for CSRF protection
                 if state != self.state:
                     self.error = "Invalid state parameter (CSRF protection)"
                     self.auth_completed.set()
+                    self._request_shutdown()
                     return HTMLResponse(content=self._error_html(self.error), status_code=400)
 
                 # Store the code
                 self.code = code
                 self.auth_completed.set()
+                self._request_shutdown()
 
                 return HTMLResponse(content=self._success_html())
 
             except Exception as e:
                 self.error = f"Callback error: {str(e)}"
                 self.auth_completed.set()
+                self._request_shutdown()
                 return HTMLResponse(content=self._error_html(str(e)), status_code=500)
 
         return app
@@ -181,7 +196,9 @@ class AsanaOAuthCLI:
         """Build the Asana authorization URL"""
         # Define scopes your app needs
         scopes = [
-            "default",  # Basic API access
+            "tasks:read",  # Basic API access
+            "projects:read",  # Basic API access
+            "users:read",  # Basic API access
             "openid",  # OpenID Connect
             "email",  # User email
             "profile",  # User profile
@@ -223,12 +240,13 @@ class AsanaOAuthCLI:
             app = self.create_app()
             config = uvicorn.Config(
                 app=app,
-                host="127.0.0.1",
+                host="localhost",
                 port=port,
                 log_level="error",  # Suppress uvicorn logs
                 access_log=False,
             )
             server = uvicorn.Server(config)
+            self._server = server
 
             # Signal that server is ready
             self.server_started.set()
@@ -260,8 +278,8 @@ class AsanaOAuthCLI:
             self.state = secrets.token_urlsafe(16)
 
             # Start server in background thread
-            server_thread = threading.Thread(target=self._run_server, args=(port,), daemon=True)
-            server_thread.start()
+            self._server_thread = threading.Thread(target=self._run_server, args=(port,), daemon=True)
+            self._server_thread.start()
 
             # Wait for server to start
             if not self.server_started.wait(timeout=10):
@@ -280,6 +298,11 @@ class AsanaOAuthCLI:
             print("Waiting for authorization...")
             if not self.auth_completed.wait(timeout=timeout):
                 raise Exception(f"Authentication timed out after {timeout} seconds")
+
+            # Ensure server is shutting down
+            self._request_shutdown()
+            if self._server_thread and self._server_thread.is_alive():
+                self._server_thread.join(timeout=5)
 
             # Check for errors
             if self.error:
@@ -366,12 +389,9 @@ def login(name: str, force: bool = False, timeout: int = 300) -> None:
     if cli.has_saved_tokens() and not force:
         print(f"Found existing tokens for client {cli.client_id}")
         print("  Use --force to get new tokens")
-        sys.exit(0)
 
     print(f"Authenticating with Asana (client: {cli.client_id})")
     if cli.authenticate(timeout=timeout):
         print("Authentication successful!")
-        sys.exit(0)
     else:
         print("Authentication failed!")
-        sys.exit(1)
