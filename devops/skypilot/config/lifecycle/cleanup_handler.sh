@@ -28,6 +28,7 @@ cleanup() {
 
     # Print debug report before cleanup
     print_job_debug_report
+    sleep 0.1
 
     # Master-only: Handle notifications and status updates
     if [[ "$IS_MASTER" == "true" ]]; then
