@@ -294,6 +294,7 @@ class TransformerModule(nn.Module):
             attn_mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mlen)
         else:
             attn_mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1)
+        attn_mask = attn_mask.unsqueeze(-1)
 
         for layer_id, layer in enumerate(self.layers):
             mem_layer = mems[layer_id] if mems is not None else None

@@ -351,7 +351,6 @@ class TransformerNvidiaPolicy(nn.Module):
     ) -> None:
         super().__init__()
         self.hidden_size = hidden_size
-        self.input_size = input_size
         self.is_continuous = False
         self.action_space = env.single_action_space
         self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
@@ -367,7 +366,7 @@ class TransformerNvidiaPolicy(nn.Module):
 
         self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(self.flattened_size, 256)
-        self.encoded_obs = nn.Linear(256, input_size)
+        self.encoded_obs = nn.Linear(256, hidden_size)
 
         nn.init.orthogonal_(self.cnn1.weight, 1.0)
         nn.init.zeros_(self.cnn1.bias)
@@ -424,8 +423,9 @@ class TransformerNvidiaPolicy(nn.Module):
     def network_forward(self, inputs: Tensor) -> Tensor:
         x = inputs / self.max_vec
         x = F.relu(self.cnn2(F.relu(self.cnn1(x))))
-        x = F.relu(self.encoded_obs(F.relu(self.fc1(self.flatten(x)))))
-        return x
+        x = F.relu(self.fc1(self.flatten(x)))
+        x = self.encoded_obs(x)
+        return F.relu(x)
 
     def encode_observations(self, observations: Tensor, state: Optional[dict] = None) -> Tensor:
         if observations.dim() == 4:

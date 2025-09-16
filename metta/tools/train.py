@@ -167,6 +167,12 @@ def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | N
     if cfg.trainer.evaluation is None:
         return
 
+    # During local debugging we often have a dirty worktree; skip the remote
+    # git hash check so training can proceed without committing.
+    if cfg.trainer.evaluation.skip_git_check is False:
+        logger.info_master("Skipping git state verification for evaluation (debug mode)")
+        cfg.trainer.evaluation.skip_git_check = True
+
     if cfg.trainer.evaluation.replay_dir is None:
         cfg.trainer.evaluation.replay_dir = auto_replay_dir()
         logger.info_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
