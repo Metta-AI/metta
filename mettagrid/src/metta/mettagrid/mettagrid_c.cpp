@@ -497,10 +497,17 @@ void MettaGrid::_step(Actions actions) {
   }
 
   // Process auto_execute actions (highest to lowest priority)
+  std::set<size_t> agents_with_auto_action;  // Track agents that already executed an auto action
+
   for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
     unsigned char current_priority = _max_action_priority - offset;
 
     for (const auto& agent_idx : agent_indices) {
+      // Skip agents that have already executed an auto action
+      if (agents_with_auto_action.count(agent_idx)) {
+        continue;
+      }
+
       // Auto-execute actions now run for all agents, regardless of primary action success
 
       for (size_t action_idx = 0; action_idx < _num_action_handlers; action_idx++) {
@@ -516,6 +523,7 @@ void MettaGrid::_step(Actions actions) {
         bool success = handler->handle_action(agent->id, 0);
         if (success) {
           _action_success[agent_idx] = true;
+          agents_with_auto_action.insert(agent_idx);  // Mark this agent as having executed an auto action
           break;  // Only execute one auto action per agent per step
         }
       }
