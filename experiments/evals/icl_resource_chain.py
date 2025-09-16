@@ -75,3 +75,4 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
             name="in_context_learning/chain_length5_2sink",
             env=make_icl_resource_chain_eval_env(5, 2),
         ),
+    ]
