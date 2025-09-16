@@ -7,7 +7,7 @@ import sys
 import time
 from datetime import datetime
 
-from devops.skypilot.notifications.notification import NotificationManager
+from devops.skypilot.notifications import Notifier
 from devops.skypilot.utils.job_config import JobConfig
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -71,8 +71,8 @@ def test_scenario(scenario: str) -> tuple[bool, str]:
         job_config = create_test_job_config(scenario)
         logger.info(f"Using GITHUB_SHA: {job_config.metta_git_ref}")
 
-        manager = NotificationManager(job_config)
-        manager.log_config()
+        notifier = Notifier(job_config)
+        notifier.log_config()
 
         # Map scenarios to termination reasons
         termination_reasons = {
@@ -87,7 +87,7 @@ def test_scenario(scenario: str) -> tuple[bool, str]:
         termination_reason = termination_reasons.get(scenario, scenario)
 
         # Send notifications
-        results = manager.send_notifications(termination_reason)
+        results = notifier.send_notifications(termination_reason)
 
         # Format results summary
         if results:
