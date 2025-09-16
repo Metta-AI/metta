@@ -18,7 +18,7 @@ class TestAdaptiveIntegration:
     def test_controller_scheduler_store_integration(self):
         """Test that controller, scheduler, and store work together."""
         # Setup components
-        config = AdaptiveConfig(max_trials=2, max_parallel=1, monitoring_interval=0.1)
+        config = AdaptiveConfig(max_parallel=1, monitoring_interval=0.1)
         scheduler_config = TrainAndEvalConfig(max_trials=2, experiment_id="integration_test")
         scheduler = TrainAndEvalScheduler(scheduler_config)
 
@@ -55,7 +55,7 @@ class TestAdaptiveIntegration:
             scheduler_type=SchedulerType.TRAIN_AND_EVAL,
             scheduler_config=scheduler_config,
             dispatcher_type=DispatcherType.LOCAL,
-            config=AdaptiveConfig(max_trials=1, max_parallel=1),
+            config=AdaptiveConfig(max_parallel=1),
             experiment_id="tool_test",
         )
 
@@ -73,7 +73,7 @@ class TestAdaptiveIntegration:
         eval_hook = Mock()
         dispatch_hook = Mock()
 
-        config = AdaptiveConfig(max_trials=1, max_parallel=1, monitoring_interval=0.1)
+        config = AdaptiveConfig(max_parallel=1, monitoring_interval=0.1)
         scheduler_config = TrainAndEvalConfig(max_trials=1, experiment_id="hook_test")
         scheduler = TrainAndEvalScheduler(scheduler_config)
 
@@ -139,7 +139,7 @@ class TestAdaptiveIntegration:
             scheduler_type=SchedulerType.TRAIN_AND_EVAL,
             scheduler_config=scheduler_config,
             dispatcher_type=DispatcherType.LOCAL,
-            config=AdaptiveConfig(max_trials=1),
+            config=AdaptiveConfig(),
             experiment_id="agnostic_test",
             on_eval_completed=None,  # No hooks
             on_job_dispatch=None,
@@ -184,12 +184,12 @@ class TestAdaptiveSmoke:
     def test_adaptive_config_validation(self):
         """Smoke test: AdaptiveConfig validation works."""
         # Valid config should not raise
-        config = AdaptiveConfig(max_trials=5, max_parallel=2, monitoring_interval=60)
+        config = AdaptiveConfig(max_parallel=2, monitoring_interval=60)
         config.validate()
 
         # Invalid configs should raise
         with pytest.raises(ValueError):
-            AdaptiveConfig(max_trials=0).validate()
+            AdaptiveConfig(max_parallel=0).validate()
 
         with pytest.raises(ValueError):
             AdaptiveConfig(max_parallel=0).validate()

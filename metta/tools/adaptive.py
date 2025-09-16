@@ -16,7 +16,15 @@ from pydantic import Field
 
 from metta.adaptive.adaptive_config import AdaptiveConfig
 from metta.adaptive.adaptive_controller import AdaptiveController
-from metta.adaptive.stores import FileStateStore
+from metta.adaptive.dispatcher import LocalDispatcher
+from metta.adaptive.dispatcher.skypilot import SkypilotDispatcher
+from metta.adaptive.protocols import ExperimentState
+from metta.adaptive.schedulers.batched_synced import (
+    BatchedSyncedOptimizingScheduler,
+    BatchedSyncedSchedulerConfig,
+)
+from metta.adaptive.schedulers.train_and_eval import TrainAndEvalConfig, TrainAndEvalScheduler
+from metta.adaptive.stores import FileStateStore, WandbStore
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
@@ -68,7 +76,6 @@ class AdaptiveTool(Tool):
 
     def invoke(self, args):
         """Run the adaptive experiment."""
-        from metta.adaptive.stores import WandbStore
 
         # Apply CLI args to configuration (minimal, common ones)
         if "experiment_id" in args:
@@ -88,12 +95,6 @@ class AdaptiveTool(Tool):
             self.dispatcher_type = DispatcherType(args["dispatcher_type"])  # type: ignore[arg-type]
 
         # Apply minimal CLI overrides directly to typed scheduler config
-        try:
-            from metta.adaptive.schedulers.batched_synced import BatchedSyncedSchedulerConfig
-            from metta.adaptive.schedulers.train_and_eval import TrainAndEvalConfig
-        except Exception:
-            TrainAndEvalConfig = object  # type: ignore[assignment]
-            BatchedSyncedSchedulerConfig = object  # type: ignore[assignment]
 
         if self.scheduler_type == SchedulerType.TRAIN_AND_EVAL:
             if not isinstance(self.scheduler_config, TrainAndEvalConfig):
@@ -171,28 +172,16 @@ class AdaptiveTool(Tool):
     def _create_scheduler(self):
         """Create scheduler instance based on scheduler_type."""
         # Optional: validate scheduler_state implements ExperimentState protocol
-        try:
-            from metta.adaptive.protocols import ExperimentState as _ExperimentStateProto
-        except Exception:
-            _ExperimentStateProto = object  # type: ignore[assignment]
-
-        if self.scheduler_state is not None and not isinstance(self.scheduler_state, _ExperimentStateProto):
+        if self.scheduler_state is not None and not isinstance(self.scheduler_state, ExperimentState):
             raise ValueError("scheduler_state must implement ExperimentState protocol (model_dump/model_validate)")
 
         if self.scheduler_type == SchedulerType.TRAIN_AND_EVAL:
-            from metta.adaptive.schedulers.train_and_eval import TrainAndEvalConfig, TrainAndEvalScheduler
-
             if not isinstance(self.scheduler_config, TrainAndEvalConfig):
                 raise ValueError("scheduler_config must be a TrainAndEvalConfig instance for TRAIN_AND_EVAL")
 
             return TrainAndEvalScheduler(self.scheduler_config, state=self.scheduler_state)
 
         if self.scheduler_type == SchedulerType.BATCHED_SYNCED:
-            from metta.adaptive.schedulers.batched_synced import (
-                BatchedSyncedOptimizingScheduler,
-                BatchedSyncedSchedulerConfig,
-            )
-
             if not isinstance(self.scheduler_config, BatchedSyncedSchedulerConfig):
                 raise ValueError("scheduler_config must be a BatchedSyncedSchedulerConfig instance for BATCHED_SYNCED")
 
@@ -204,13 +193,9 @@ class AdaptiveTool(Tool):
     def _create_dispatcher(self):
         """Create dispatcher instance based on dispatcher_type."""
         if self.dispatcher_type == DispatcherType.LOCAL:
-            from metta.adaptive.dispatcher import LocalDispatcher
-
             return LocalDispatcher(capture_output=self.capture_output)
 
         elif self.dispatcher_type == DispatcherType.SKYPILOT:
-            from metta.adaptive.dispatcher.skypilot import SkypilotDispatcher
-
             # SkypilotDispatcher handles both train jobs (via launch.py) and eval jobs (via ./tools/run.py)
             dispatcher = SkypilotDispatcher()
             logger.info("[AdaptiveTool] Using Skypilot for both training and evaluation")
