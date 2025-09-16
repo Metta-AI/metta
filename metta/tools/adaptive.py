@@ -218,4 +218,3 @@ class AdaptiveTool(Tool):
 
         else:
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
-
