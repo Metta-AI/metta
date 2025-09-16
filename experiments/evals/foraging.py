@@ -28,10 +28,10 @@ def make_foraging_eval_env(
 
 def make_foraging_eval_suite() -> List[SimulationConfig]:
     sims: list[SimulationConfig] = []
-    for num_converters in [2, 3, 4]:
-        for carry in [1, 2]:
-            for cooldowns in ([0], [5], [10], [0, 5, 10]):
-                for rmin, rmax in [(2, 3), (3, 6)]:
+    for num_converters in [2, 10]:
+        for carry in [1]:
+            for cooldowns in ([0], [10]):
+                for rmin, rmax in [(2, 2), (6, 6)]:
                     name = f"foraging/n{num_converters}_carry{carry}_cd{'-'.join(map(str, cooldowns))}_r{rmin}-{rmax}"
                     sims.append(
                         SimulationConfig(
