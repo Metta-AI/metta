@@ -6,7 +6,8 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.mettagrid.util.file import WandbURI, local_copy
+from metta.mettagrid.util.file import local_copy
+from metta.mettagrid.util.uri import ParsedURI
 from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb_uri, upload_checkpoint_as_artifact
 
 logger = logging.getLogger(__name__)
@@ -25,54 +26,45 @@ class PolicyMetadata(TypedDict, total=False):
     score: float
 
 
-def _parse_uri_path(uri: str, scheme: str) -> str:
-    """Extract path from URI, removing the scheme prefix.
-    "file:///tmp/model.pt" -> "/tmp/model.pt"
-    "wandb://entity/project/artifact:v1" -> "entity/project/artifact:v1"
-    """
-    prefix = f"{scheme}://"
-    return uri[len(prefix) :] if uri.startswith(prefix) else uri
-
-
 def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI.
     "file:///tmp/my_run__e5__s100__t60__sc5000.pt" -> ("my_run", 5)
     "s3://bucket/my_run__e10__s200__t120__sc8000.pt" -> ("my_run", 10)
     "mock://test_agent" -> ("test_agent", 0)
     """
-    if uri.startswith("file://"):
-        path = Path(_parse_uri_path(uri, "file"))
-        if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
-            return parse_checkpoint_filename(path.name)[:2]
+    parsed = ParsedURI.parse(uri)
 
-        # Handle directory URIs by finding the latest checkpoint inside
+    if parsed.scheme == "file" and parsed.local_path is not None:
+        path = parsed.local_path
+        if path.is_file():
+            if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
+                return parse_checkpoint_filename(path.name)[:2]
+            return (path.stem if path.suffix else path.name, 0)
+
         if path.is_dir():
             checkpoint_file = _find_latest_checkpoint_in_dir(path)
             if checkpoint_file and is_valid_checkpoint_filename(checkpoint_file.name):
                 return parse_checkpoint_filename(checkpoint_file.name)[:2]
-            elif checkpoint_file:
+            if checkpoint_file:
                 return checkpoint_file.stem, 0
+        return (path.stem if path.suffix else path.name, 0)
 
-        return path.stem if path.suffix else path.name, 0
-
-    if uri.startswith("wandb://"):
-        wandb_uri = WandbURI.parse(uri)
-        metadata = get_wandb_checkpoint_metadata(str(wandb_uri))
+    if parsed.scheme == "wandb" and parsed.wandb is not None:
+        metadata = get_wandb_checkpoint_metadata(parsed.canonical)
         if metadata:
             return metadata["run_name"], metadata["epoch"]
-        # Fallback: parse artifact name from URI
-        artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
+        artifact_name = parsed.wandb.artifact_path.split("/")[-1].split(":")[0]
         return artifact_name, 0
 
-    if uri.startswith("s3://"):
-        filename = uri.split("/")[-1]
+    if parsed.scheme == "s3" and parsed.key:
+        filename = Path(parsed.key).name
         if filename.endswith(".pt") and is_valid_checkpoint_filename(filename):
             return parse_checkpoint_filename(filename)[:2]
         path = Path(filename)
-        return path.stem if path.suffix else path.name, 0
+        return (path.stem if path.suffix else path.name, 0)
 
-    if uri.startswith("mock://"):
-        return _parse_uri_path(uri, "mock"), 0
+    if parsed.scheme == "mock":
+        return (parsed.path or "mock"), 0
 
     return "unknown", 0
 
@@ -152,25 +144,25 @@ class CheckpointManager:
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device = "cpu"):
         """Load a policy from a URI (file://, wandb://, s3://, or mock://)."""
-        if uri.startswith("file://"):
-            path = Path(_parse_uri_path(uri, "file"))
+        parsed = ParsedURI.parse(uri)
+
+        if parsed.scheme == "file" and parsed.local_path is not None:
+            path = parsed.local_path
             if path.is_dir():
-                # Find latest checkpoint in directory
                 checkpoint_file = _find_latest_checkpoint_in_dir(path)
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
                 return torch.load(checkpoint_file, weights_only=False, map_location=device)
-            # Load specific file
             return torch.load(path, weights_only=False, map_location=device)
 
-        if uri.startswith("s3://"):
-            with local_copy(uri) as local_path:
+        if parsed.scheme == "s3":
+            with local_copy(parsed.canonical) as local_path:
                 return torch.load(local_path, weights_only=False, map_location=device)
 
-        if uri.startswith("wandb://"):
-            return load_policy_from_wandb_uri(uri, device=device)
+        if parsed.scheme == "wandb":
+            return load_policy_from_wandb_uri(parsed.canonical, device=device)
 
-        if uri.startswith("mock://"):
+        if parsed.scheme == "mock":
             return MockAgent()
 
         raise ValueError(f"Invalid URI: {uri}")
@@ -178,10 +170,8 @@ class CheckpointManager:
     @staticmethod
     def normalize_uri(uri: str) -> str:
         """Convert paths to file:// URIs. Keep other URI schemes as-is."""
-        if uri.startswith(("file://", "s3://", "mock://", "wandb://")):
-            return uri
-        # Assume it's a file path - convert to URI
-        return f"file://{Path(uri).resolve()}"
+        parsed = ParsedURI.parse(uri)
+        return parsed.canonical
 
     @staticmethod
     def get_policy_metadata(uri: str) -> PolicyMetadata:
@@ -191,8 +181,9 @@ class CheckpointManager:
         metadata: PolicyMetadata = {"run_name": run_name, "epoch": epoch, "uri": normalized_uri, "original_uri": uri}
 
         # Add extra metadata for file:// URIs with valid checkpoint filenames
-        if normalized_uri.startswith("file://"):
-            path = Path(_parse_uri_path(normalized_uri, "file"))
+        parsed = ParsedURI.parse(normalized_uri)
+        if parsed.scheme == "file" and parsed.local_path is not None:
+            path = parsed.local_path
             if path.is_file() and is_valid_checkpoint_filename(path.name):
                 _, _, agent_step, total_time, score = parse_checkpoint_filename(path.name)
                 metadata["agent_step"] = agent_step

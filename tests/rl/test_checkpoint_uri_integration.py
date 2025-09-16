@@ -19,7 +19,7 @@ from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.file import WandbURI
+from metta.mettagrid.util.uri import WandbURI
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
 from metta.rl.system_config import SystemConfig
 from metta.rl.wandb import get_wandb_checkpoint_metadata, upload_checkpoint_as_artifact

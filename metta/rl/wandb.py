@@ -15,7 +15,7 @@ from wandb import Artifact
 from wandb.errors import CommError
 
 from metta.common.wandb.wandb_context import WandbRun
-from metta.mettagrid.util.file import WandbURI
+from metta.mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
@@ -96,11 +96,16 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
         return None
 
     try:
-        uri = WandbURI.parse(wandb_uri)
+        parsed = ParsedURI.parse(wandb_uri)
     except ValueError as exc:
         raise ValueError(
             "Invalid W&B URI. Use fully-qualified form `wandb://entity/project/artifact_path:version`."
         ) from exc
+
+    if parsed.scheme != "wandb" or parsed.wandb is None:
+        raise ValueError("Invalid W&B URI. Use fully-qualified form `wandb://entity/project/artifact_path:version`.")
+
+    uri = parsed.wandb
     try:
         artifact: Artifact = _create_wandb_api().artifact(uri.qname())
     except (CommError, TimeoutError) as exc:
@@ -139,13 +144,19 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
     try:
-        uri = WandbURI.parse(wandb_uri)
+        parsed = ParsedURI.parse(wandb_uri)
     except ValueError as exc:
         raise ValueError(
             f"Invalid W&B URI '{wandb_uri}'. Use fully-qualified form `wandb://entity/project/artifact_path:version`."
         ) from exc
 
-    canonical_uri = str(uri)
+    if parsed.scheme != "wandb" or parsed.wandb is None:
+        raise ValueError(
+            f"Invalid W&B URI '{wandb_uri}'. Use fully-qualified form `wandb://entity/project/artifact_path:version`."
+        )
+
+    uri = parsed.wandb
+    canonical_uri = parsed.canonical
     logger.info(f"Loading policy from wandb URI: {canonical_uri}")
     qname = uri.qname()
 
