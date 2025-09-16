@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Orchestrator for sending notifications to multiple platforms."""
+"""Notifier for sending notifications to multiple platforms."""
 
 from devops.skypilot.notifications.discord import send_discord_notification
 from devops.skypilot.notifications.github import send_github_status

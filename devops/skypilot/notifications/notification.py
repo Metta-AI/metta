@@ -156,6 +156,6 @@ class NotificationManager:
 
     def send_notifications(self, termination_reason: str) -> dict[str, bool]:
         """Send notifications based on termination reason."""
-        from devops.skypilot.notifications.orchestrator import send_notifications
+        from devops.skypilot.notifications.notifier import send_notifications
 
         return send_notifications(termination_reason, self.job_config)
