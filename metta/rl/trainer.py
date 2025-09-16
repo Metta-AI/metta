@@ -346,6 +346,8 @@ def train(
     )
     try:
         while agent_step < trainer_cfg.total_timesteps:
+            distributed_barrier(f"on agent_step {agent_step}")
+
             steps_before = agent_step
             trainer_state.agent_step = agent_step
             trainer_state.epoch = epoch

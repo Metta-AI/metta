@@ -62,3 +62,56 @@ log_debug() {
         log "DEBUG" "$1"
     fi
 }
+
+print_job_debug_report() {
+    echo "[DEBUG] ========== JOB DEBUG REPORT =========="
+    echo "[DEBUG] Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "[DEBUG] Script PID: $$"
+    echo "[DEBUG] CMD_PID: ${CMD_PID:-'not set'}"
+    echo "[DEBUG] CMD_PGID: ${CMD_PGID:-'not set'}"
+
+    # Check current job status
+    echo "[DEBUG] Current job table:"
+    jobs -l 2>&1 || echo "  No jobs found"
+
+    # Check all background jobs
+    echo "[DEBUG] Background job PIDs:"
+    jobs -p 2>&1 || echo "  No background jobs"
+
+    # Check process group if we have PGID
+    if [[ -n "${CMD_PGID:-}" ]]; then
+        echo "[DEBUG] Process group ${CMD_PGID} members:"
+        ps -eo pid,ppid,pgid,state,etime,cmd | grep "^\s*[0-9]\+\s\+[0-9]\+\s\+${CMD_PGID}" 2>&1 || echo "  No processes found in group"
+    fi
+
+    # Check for any child processes of this script
+    echo "[DEBUG] Child processes of script (PID $$):"
+    ps --ppid $$ -o pid,ppid,pgid,state,etime,cmd 2>&1 || echo "  No child processes found"
+
+    # Check for zombie processes
+    echo "[DEBUG] Zombie processes:"
+    ps aux | grep " <defunct>" | grep -v grep || echo "  No zombie processes found"
+
+    # Check for processes matching the module name
+    if [[ -n "${METTA_MODULE_PATH:-}" ]]; then
+        local module_name=$(basename "${METTA_MODULE_PATH}")
+        echo "[DEBUG] Processes matching module '$module_name':"
+        ps aux | grep "$module_name" | grep -v grep || echo "  No matching processes found"
+    fi
+
+    # Check monitor processes if they exist
+    echo "[DEBUG] Monitor processes:"
+    ps aux | grep -E "(monitor_gpu|monitor_memory|cluster_stop_monitor)" | grep -v grep || echo "  No monitor processes found"
+
+    # System resource state
+    echo "[DEBUG] System state:"
+    echo "  Load average: $(uptime | awk -F'load average:' '{print $2}')"
+    echo "  Memory usage:"
+    free -h | sed 's/^/    /'
+
+    # Check for any processes that might be holding resources
+    echo "[DEBUG] Top 5 CPU consuming processes:"
+    ps aux --sort=-%cpu | head -6 | tail -5 | sed 's/^/  /'
+
+    echo "[DEBUG] ========== END DEBUG REPORT =========="
+}

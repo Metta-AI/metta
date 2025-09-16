@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# cleanup_handler.sh - Modular cleanup functionality for sk_train_run
 
 set -euo pipefail
+
+# Source the log helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../monitors/log_helpers.sh"
 
 # Required environment variables (should be exported by parent script)
 : "${IS_MASTER:?Missing IS_MASTER}"
@@ -16,38 +19,45 @@ set -euo pipefail
 : "${EXIT_NCCL_TEST_FAILURE:?Missing EXIT_NCCL_TEST_FAILURE}"
 
 cleanup() {
-  # Capture the actual exit code that triggered the trap
-  CMD_EXIT=${CMD_EXIT:-$?}
+    # Capture the actual exit code that triggered the trap
+    CMD_EXIT=${CMD_EXIT:-$?}
 
-  # Read termination reason
-  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || echo "")
-  echo "[INFO] Termination reason: $TERMINATION_REASON"
+    # Read termination reason
+    TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || echo "")
+    log_info "Termination reason: $TERMINATION_REASON"
 
-  # Master-only: Handle notifications and status updates
-  if [[ "$IS_MASTER" == "true" ]]; then
-    print_final_summary
-    # Force flush stdout to ensure summary is written
-    exec 1>&1
+    # Print debug report before cleanup
+    print_job_debug_report
 
-    handle_master_cleanup
-  fi
+    # Master-only: Handle notifications and status updates
+    if [[ "$IS_MASTER" == "true" ]]; then
+        print_final_summary
+        # Force flush stdout to ensure summary is written
+        exec 1>&1
+        handle_master_cleanup
+    fi
 
-  # Set the final exit code for the script
-  determine_final_exit_code
+    # Set the final exit code for the script
+    determine_final_exit_code
 
-  sleep 1
+    # Final debug check
+    log_debug "Final cleanup state check:"
+    log_debug "Any remaining jobs:"
+    jobs -l 2>&1 | sed 's/^/  /' || echo "  No jobs"
 
-  # Override the process exit code from within the EXIT trap.
-  # Note: calling `exit` inside an EXIT trap does not recurse the trap.
-  echo "exit code ${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
-  exit "${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
+    sleep 1
+
+    # Override the process exit code from within the EXIT trap.
+    # Note: calling `exit` inside an EXIT trap does not recurse the trap.
+    log_info "final exit code: ${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
+    exit "${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
 }
 
 handle_master_cleanup() {
   case "${TERMINATION_REASON}" in
 
     "heartbeat_timeout")
-      echo "[ERROR] Job terminated due to heartbeat timeout"
+      log_error "Job terminated due to heartbeat timeout"
       export GITHUB_STATUS_STATE="failure"
       export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
       bash ./devops/skypilot/config/observability/send_discord_notification.sh \
@@ -55,14 +65,14 @@ handle_master_cleanup() {
       ;;
 
     "max_runtime_reached")
-      echo "[INFO] Job terminated due to max runtime limit"
+      log_info "Job terminated due to max runtime limit"
       export GITHUB_STATUS_STATE="success"
       export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
       CMD_EXIT=0
       ;;
 
     "force_restart_test")
-      echo "[INFO] Job restarting for test purposes"
+      log_info "Job restarting for test purposes"
       export GITHUB_STATUS_STATE="pending"
       export GITHUB_STATUS_DESCRIPTION="Forced a restart test in run #${RESTART_COUNT}"
       CMD_EXIT=1
@@ -70,7 +80,7 @@ handle_master_cleanup() {
       ;;
 
     "job_completed")
-      echo "[SUCCESS] Job completed successfully"
+      log_info "SUCCESS: Job completed successfully"
       export GITHUB_STATUS_STATE="success"
       export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
       CMD_EXIT=0
@@ -79,12 +89,12 @@ handle_master_cleanup() {
     "")
       # Default fallback if no termination reason was written
       if [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
-        echo "[SUCCESS] Job completed successfully (fallback)"
+        log_info "SUCCESS: Job completed successfully (fallback)"
         export TERMINATION_REASON="job_completed"
         export GITHUB_STATUS_STATE="success"
         export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
       else
-        echo "[ERROR] Job failed with exit code $CMD_EXIT (no termination reason)"
+        log_error "Job failed with exit code $CMD_EXIT (no termination reason)"
         export TERMINATION_REASON="exit_code_${CMD_EXIT}"
         export GITHUB_STATUS_STATE="failure"
         export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
@@ -93,14 +103,14 @@ handle_master_cleanup() {
 
     *)
       if [[ $CMD_EXIT -eq $EXIT_NCCL_TEST_FAILURE ]]; then
-        echo "[ERROR] Job failed during NCCL tests"
+        log_error "Job failed during NCCL tests"
         export GITHUB_STATUS_STATE="error"
         export GITHUB_STATUS_DESCRIPTION="NCCL tests failed - GPU communication issue"
         export TERMINATION_REASON="nccl_test_failure"
         bash ./devops/skypilot/config/observability/send_discord_notification.sh \
           "⚠️" "SkyPilot Job NCCL Config Error" "${GITHUB_STATUS_DESCRIPTION}"
       else
-        echo "[ERROR] Job failed with exit code $CMD_EXIT (reason: $TERMINATION_REASON)"
+        log_error "Job failed with exit code $CMD_EXIT (reason: $TERMINATION_REASON)"
         export GITHUB_STATUS_STATE="failure"
         export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
         export TERMINATION_REASON="exit_code_${CMD_EXIT}"
@@ -114,17 +124,16 @@ handle_master_cleanup() {
   uv run devops/skypilot/config/observability/set_github_status.py "$GITHUB_STATUS_STATE" "$GITHUB_STATUS_DESCRIPTION"
 }
 
-
 print_final_summary() {
-  echo "[SUMMARY] ===== Job Summary ====="
-  echo "[SUMMARY] Metta Run ID: ${METTA_RUN_ID}"
-  echo "[SUMMARY] Skypilot Task ID: ${SKYPILOT_TASK_ID}"
-  echo "[SUMMARY] Restart Count: ${RESTART_COUNT}"
-  echo "[SUMMARY] Exit code: ${CMD_EXIT}"
-  echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
-  echo "[SUMMARY] ======================"
+  log_info "===== Job Summary ====="
+  log_info "Metta Run ID: ${METTA_RUN_ID}"
+  log_info "Skypilot Task ID: ${SKYPILOT_TASK_ID}"
+  log_info "Restart Count: ${RESTART_COUNT}"
+  log_info "Exit code: ${CMD_EXIT}"
+  log_info "Termination reason: ${TERMINATION_REASON:-unknown}"
+  log_info "======================"
 
-  echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
+  log_info "RUN: Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
 }
 
 determine_final_exit_code() {
@@ -132,10 +141,10 @@ determine_final_exit_code() {
     || [[ "${TERMINATION_REASON}" == "job_completed" ]] \
     || [[ "${TERMINATION_REASON}" == "job_failed" ]] \
     || [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
-    echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
+    log_info "Will exit with code 0 to prevent SkyPilot restart"
     FINAL_EXIT_CODE=0
   else
-    echo "[INFO] Will exit with code: $CMD_EXIT"
+    log_info "Will exit with code: $CMD_EXIT"
     FINAL_EXIT_CODE=$CMD_EXIT
   fi
 }
