@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 import pytest
 import torch
 from tensordict import TensorDict
+from wandb.errors import CommError
 
 import metta.mettagrid.builder.envs as eb
 from metta.agent.agent_config import AgentConfig
@@ -22,7 +23,7 @@ from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import WandbURI
 from metta.rl.checkpoint_manager import CheckpointManager, expand_wandb_uri, key_and_version
 from metta.rl.system_config import SystemConfig
-from metta.rl.wandb import upload_checkpoint_as_artifact
+from metta.rl.wandb import get_wandb_checkpoint_metadata, upload_checkpoint_as_artifact
 
 
 @pytest.fixture
@@ -200,6 +201,15 @@ class TestWandbURIHandling:
         assert metadata["run_name"] == "experiment_1"
         assert metadata["epoch"] == 25
         assert metadata["original_uri"] == uri  # Original short form preserved
+
+    def test_get_wandb_metadata_handles_comm_error(self):
+        """Ensure network issues when fetching metadata do not raise."""
+        with patch("metta.rl.wandb._create_wandb_api") as mock_api:
+            mock_api.return_value.artifact.side_effect = CommError("timeout")
+
+            metadata = get_wandb_checkpoint_metadata("wandb://entity/project/model/run:v1")
+
+        assert metadata is None
 
     def test_wandb_key_and_version_extraction(self):
         """Test extracting key and version from wandb URIs."""
@@ -497,10 +507,30 @@ class TestWandbArtifactFormatting:
                     checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
                 )
 
-                # Always returns :latest for simplicity and reliability
-                assert result == "wandb://metta/test-artifact:v1"
+                # Always returns qualified artifact URI for simplicity and reliability
+                assert result == "wandb://metta-research/metta/test-artifact:v1"
                 assert result.startswith("wandb://"), "Should start with wandb://"
 
                 # Verify the artifact upload happened
                 mock_run.log_artifact.assert_called_once_with(mock_artifact)
                 mock_artifact.wait.assert_called_once()
+
+    def test_upload_checkpoint_handles_comm_error(self):
+        """Uploading failures should be logged but not raise."""
+
+        mock_artifact = Mock()
+        mock_artifact.wait = Mock()
+
+        mock_run = Mock()
+        mock_run.project = "metta"
+        mock_run.log_artifact.side_effect = CommError("timeout")
+
+        with patch("wandb.Artifact", return_value=mock_artifact):
+            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
+                result = upload_checkpoint_as_artifact(
+                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
+                )
+
+        assert result is None
+        mock_run.log_artifact.assert_called_once()
+        mock_artifact.wait.assert_not_called()
