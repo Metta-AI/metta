@@ -204,7 +204,7 @@ constructor/function vs configuration overrides based on introspection.
     )
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
-    parser.add_argument("--dry-run", action="store_true", help="Validate configuration without running the tool")
+    parser.add_argument("--dry-run", action="store_true", help="Validate the args and exit")
 
     # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
@@ -404,7 +404,11 @@ constructor/function vs configuration overrides based on introspection.
     console.print("\n[bold green]Running tool...[/bold green]\n")
 
     try:
-        result = tool_cfg.invoke(func_args_for_invoke)
+        if known_args.dry_run:
+            console.print("[bold green]Dry run: exiting[/bold green]")
+            result = 0
+        else:
+            result = tool_cfg.invoke(func_args_for_invoke)
     except KeyboardInterrupt:
         return 130  # Interrupted by Ctrl-C
     except Exception:
