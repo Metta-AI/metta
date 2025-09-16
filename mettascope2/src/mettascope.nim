@@ -94,7 +94,7 @@ find "/UI/Main":
     bottomArea.node.children[0].find("title").text = "Agent Traces"
     bottomArea.node.children[1].find("title").text = "Env Config"
     bottomArea.node.children[2].remove()
-
+    
 
     thisNode.addChild(bottomArea.node)
     rootArea.add(bottomArea)
@@ -129,11 +129,13 @@ find "/UI/Main":
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
 
+    echo "Loaded!"
     loaded = true
 
   onFrame:
     if not loaded:
       return
+    echo "onFrame"
 
     playControls()
 
