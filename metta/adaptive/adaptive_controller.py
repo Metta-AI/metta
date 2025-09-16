@@ -8,7 +8,7 @@ from typing import Callable, Optional
 from metta.common.util.retry import retry_function
 
 from .adaptive_config import AdaptiveConfig
-from .models import JobStatus, JobTypes, RunInfo
+from .models import JobDefinition, JobStatus, JobTypes, RunInfo
 from .protocols import (
     Dispatcher,
     ExperimentScheduler,
@@ -35,6 +35,7 @@ class AdaptiveController:
         store: Store,
         config: AdaptiveConfig,
         on_eval_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
+        on_job_dispatch: Optional[Callable[[JobDefinition, Store], None]] = None,
         state_store: Optional[StateStore] = None,
     ):
         self.experiment_id = experiment_id
@@ -43,6 +44,7 @@ class AdaptiveController:
         self.store = store
         self.config = config
         self.on_eval_completed = on_eval_completed
+        self.on_job_dispatch = on_job_dispatch
         self.state_store = state_store
 
         # Job tracking by (run_id, job_type) to handle train/eval jobs with same run_id
@@ -169,6 +171,13 @@ class AdaptiveController:
                         # Mark eval jobs as started in store
                         elif job.type == JobTypes.LAUNCH_EVAL:
                             self.store.update_run_summary(job.run_id, {"has_started_eval": True})
+
+                        # Call job dispatch hook if provided (after wandb initialization)
+                        if self.on_job_dispatch is not None:
+                            try:
+                                self.on_job_dispatch(job, self.store)
+                            except Exception as e:
+                                logger.error(f"[AdaptiveController] on_job_dispatch failed for {job.run_id}: {e}")
 
                         logger.info(
                             f"[AdaptiveController] Dispatched {job.run_id} ({job.type}) (dispatch_id: {dispatch_id})"

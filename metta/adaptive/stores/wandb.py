@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class WandbStore:
-    """WandB implementation of sweep store."""
+    """WandB implementation of adaptive experiment store."""
 
     # WandB run states
     # TODO We shuold probably just put this into a string enum
@@ -40,8 +40,8 @@ class WandbStore:
                 project=self.project,
                 id=run_id,  # Use run_id as the WandB run ID
                 name=run_id,  # Also use run_id as the display name
-                group=group,  # Group by sweep_id for organization
-                tags=tags or [],  # Tag as sweep run if part of a sweep
+                group=group,  # Group by experiment_id for organization
+                tags=tags or [],  # Tag runs for organization
                 reinit=True,  # Allow reinitializing if run exists
                 resume="allow",  # Allow resuming existing runs
             )
@@ -72,9 +72,7 @@ class WandbStore:
 
         # Convert filters to WandB format
         wandb_filters = {}
-        if "sweep_id" in filters:
-            wandb_filters["group"] = filters["sweep_id"]
-        elif "group" in filters:
+        if "group" in filters:
             wandb_filters["group"] = filters["group"]
 
         # Handle name filter (regex pattern)

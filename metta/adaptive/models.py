@@ -1,4 +1,4 @@
-"""Data models for sweep orchestration."""
+"""Data models for adaptive experiment orchestration."""
 
 from dataclasses import dataclass, field
 from datetime import datetime

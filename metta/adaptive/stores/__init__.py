@@ -1,4 +1,4 @@
-"""Store implementations for sweep/adaptive orchestration."""
+"""Store implementations for adaptive experiment orchestration."""
 
 from .state_store import FileStateStore
 from .wandb import WandbStore
