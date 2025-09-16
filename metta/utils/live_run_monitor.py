@@ -30,7 +30,6 @@ from datetime import datetime
 from typing import Annotated, List, Optional
 
 import typer
-import wandb
 from rich.console import Console, Group
 from rich.live import Live
 from rich.table import Table
@@ -487,9 +486,18 @@ def cli(
             raise typer.Exit(0) from None
         return
 
-    if not wandb.api.api_key:
-        typer.echo("Error: WandB API key not found. Please run 'wandb login' first.")
-        raise typer.Exit(1)
+    # Validate WandB access
+    try:
+        import wandb  # noqa: F401
+
+        if not wandb.api.api_key:
+            typer.echo("Error: WandB API key not found. Please run 'wandb login' first.")
+            raise typer.Exit(1)
+    except ImportError:
+        typer.echo("Error: WandB not installed. Please install with 'pip install wandb'.")
+        raise typer.Exit(1) from None
+    except Exception as e:
+        typer.echo(f"Warning: Could not validate WandB credentials: {e}")
 
     try:
         live_monitor_runs(
