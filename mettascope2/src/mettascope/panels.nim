@@ -16,6 +16,62 @@ proc updateMouse*(panel: Panel) =
     (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
     (mouseCaptured and mouseCapturedPanel == panel)
 
+proc clampMapPan*(panel: Panel) =
+  ## Clamp pan so the world map remains at least partially visible.
+  if replay.isNil:
+    return
+
+  let zoomScale = panel.zoom * panel.zoom
+  if zoomScale <= 0:
+    return
+
+  # Map bounds in world units (tiles), assuming tiles span [i-0.5, i+0.5].
+  let
+    mapMinX = -0.5f
+    mapMinY = -0.5f
+    mapMaxX = replay.mapSize[0].float32 - 0.5f
+    mapMaxY = replay.mapSize[1].float32 - 0.5f
+
+  let
+    mapWidth = mapMaxX - mapMinX
+    mapHeight = mapMaxY - mapMinY
+
+  # View half-size in world units.
+  let
+    rectW = panel.rect.w.float32
+    rectH = panel.rect.h.float32
+    viewHalfW = rectW / (2.0f * zoomScale)
+    viewHalfH = rectH / (2.0f * zoomScale)
+
+  # Current view center in world units given screen-space pan.
+  var
+    cx = (rectW / 2.0f - panel.pos.x) / zoomScale
+    cy = (rectH / 2.0f - panel.pos.y) / zoomScale
+
+  # Require a minimum number of on-screen pixels of the map to remain visible.
+  # Scale with panel size so small panels are not over-clamped.
+  let minVisiblePixels = min(500.0f, min(rectW, rectH) * 0.5f)
+  let minVisibleWorld = minVisiblePixels / zoomScale
+
+  # Do not require more visibility than half the map size.
+  let
+    maxVisibleUnitsX = min(minVisibleWorld, mapWidth / 2.0f)
+    maxVisibleUnitsY = min(minVisibleWorld, mapHeight / 2.0f)
+
+  # Clamp the center so some of the map stays visible horizontally and vertically.
+  let
+    minCenterX = mapMinX + maxVisibleUnitsX - viewHalfW
+    maxCenterX = mapMaxX - maxVisibleUnitsX + viewHalfW
+    minCenterY = mapMinY + maxVisibleUnitsY - viewHalfH
+    maxCenterY = mapMaxY - maxVisibleUnitsY + viewHalfH
+
+  cx = cx.clamp(minCenterX, maxCenterX)
+  cy = cy.clamp(minCenterY, maxCenterY)
+
+  # Recompute screen-space pan from clamped world-space center.
+  panel.pos.x = rectW / 2.0f - cx * zoomScale
+  panel.pos.y = rectH / 2.0f - cy * zoomScale
+
 proc beginPanAndZoom*(panel: Panel) =
   ## Pan and zoom the map.
 
@@ -56,6 +112,8 @@ proc beginPanAndZoom*(panel: Panel) =
       
       # Adjust pan position to keep the same world point under the mouse.
       panel.pos += (newWorldPoint - oldWorldPoint) * (panel.zoom*panel.zoom)
+
+  clampMapPan(panel)
 
   bxy.translate(panel.pos)
   bxy.scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
