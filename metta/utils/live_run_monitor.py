@@ -63,7 +63,7 @@ def _get_status_color(status: JobStatus) -> str:
         return "white"
 
 
-def make_rich_monitor_table(runs: List[RunInfo]) -> Table:
+def make_rich_monitor_table(runs: List[RunInfo], score_metric: str = "env_agent/heart.get") -> Table:
     """Create rich table for run monitoring."""
 
     # Create table
@@ -89,9 +89,16 @@ def make_rich_monitor_table(runs: List[RunInfo]) -> Table:
         else:
             progress_str = "N/A"
 
-        # Format score
-        if run.observation and run.observation.score is not None:
-            score_str = f"{run.observation.score:.3f}"
+        # Format score from run.summary
+        if run.summary and score_metric in run.summary:
+            score_value = run.summary[score_metric]
+            if score_value is not None:
+                if isinstance(score_value, (int, float)):
+                    score_str = f"{score_value:.3f}"
+                else:
+                    score_str = str(score_value)
+            else:
+                score_str = "N/A"
         else:
             score_str = "N/A"
 
@@ -114,7 +121,13 @@ def make_rich_monitor_table(runs: List[RunInfo]) -> Table:
     return table
 
 
-def create_run_banner(group: Optional[str], name_filter: Optional[str], runs: List[RunInfo], display_limit: int = 10):
+def create_run_banner(
+    group: Optional[str],
+    name_filter: Optional[str],
+    runs: List[RunInfo],
+    display_limit: int = 10,
+    score_metric: str = "env_agent/heart.get",
+):
     """Create a banner with run information."""
 
     # Calculate runtime from earliest run created_at
@@ -176,13 +189,13 @@ def create_run_banner(group: Optional[str], name_filter: Optional[str], runs: Li
 
     # First line with fetch/display info
     line1 = RichText(
-        f"🔄 LIVE RUN MONITOR: {filter_desc} | Fetched: {total_runs} runs, displaying at most {display_limit} runs. "
+        f"🔄 LIVE RUN MONITOR: {filter_desc} | Fetched: {total_runs} runs, "
+        f"displaying at most {display_limit} runs | Score: {score_metric}. "
     )
     line1.append("Use --help to change limits.", style="dim")
 
     # Cost line with warning
     cost_line = RichText(f"💰 Total Cost: ${total_cost:.2f} ")
-    cost_line.append("(Warning: cost is shown for a L4:4 instance until cost monitoring is fixed)", style="orange3")
 
     banner_lines = [
         line1,
@@ -208,6 +221,7 @@ def live_monitor_runs(
     clear_screen: bool = True,
     display_limit: int = 10,
     fetch_limit: int = 50,
+    score_metric: str = "env_agent/heart.get",
 ) -> None:
     """Live monitor runs with rich terminal display.
 
@@ -256,10 +270,10 @@ def live_monitor_runs(
                 return Text(warning_msg, style="bright_yellow")
 
             # Create banner using all fetched runs for accurate statistics
-            banner = create_run_banner(group, name_filter, all_runs, display_limit)
+            banner = create_run_banner(group, name_filter, all_runs, display_limit, score_metric)
 
             # Create table
-            table = make_rich_monitor_table(runs)
+            table = make_rich_monitor_table(runs, score_metric)
 
             # Create a renderable group
             display = Group(
@@ -312,7 +326,7 @@ def live_monitor_runs_test(
     """Test mode for live run monitoring with mock data."""
     from datetime import datetime, timedelta
 
-    from metta.sweep.models import JobStatus, Observation, RunInfo
+    from metta.sweep.models import JobStatus, RunInfo
 
     console = Console()
 
@@ -327,22 +341,22 @@ def live_monitor_runs_test(
             # Vary the status
             if i < 2:
                 status = JobStatus.COMPLETED
-                observation = Observation(score=0.85 + i * 0.05, cost=4.50 + i, suggestion={})
+                summary = {"env_agent/heart.get": 0.85 + i * 0.05}
                 current_steps = 1000000000
                 total_timesteps = 1000000000
             elif i < 4:
                 status = JobStatus.IN_TRAINING
-                observation = None
+                summary = {"env_agent/heart.get": 0.75 + i * 0.05}
                 current_steps = 500000000 + i * 100000000
                 total_timesteps = 1000000000
             elif i < 6:
                 status = JobStatus.PENDING
-                observation = None
+                summary = None
                 current_steps = None
                 total_timesteps = None
             else:
                 status = JobStatus.FAILED
-                observation = None
+                summary = None
                 current_steps = None
                 total_timesteps = None
 
@@ -353,7 +367,7 @@ def live_monitor_runs_test(
                 has_started_eval=status == JobStatus.COMPLETED,
                 has_been_evaluated=status == JobStatus.COMPLETED,
                 has_failed=status == JobStatus.FAILED,
-                observation=observation,
+                summary=summary,
                 cost=4.50 + i if status != JobStatus.PENDING else 0.0,
                 created_at=base_time + timedelta(minutes=i * 15),
                 current_steps=current_steps,
@@ -438,6 +452,12 @@ The monitor will display a live table with color-coded statuses:
     parser.add_argument(
         "--display-limit", type=int, default=10, help="Maximum number of runs to display in table (default: 10)"
     )
+    parser.add_argument(
+        "--score-metric",
+        type=str,
+        default="env_agent/heart.get",
+        help="Metric key in run.summary to use for score (default: env_agent/heart.get)",
+    )
 
     args = parser.parse_args()
 
@@ -494,6 +514,7 @@ The monitor will display a live table with color-coded statuses:
             clear_screen=not args.no_clear,
             display_limit=args.display_limit,
             fetch_limit=args.fetch_limit,
+            score_metric=args.score_metric,
         )
     except KeyboardInterrupt:
         print("\nMonitoring stopped by user.")
