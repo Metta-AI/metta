@@ -63,10 +63,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
             default_factory=list, description="Number of sinks to sample from"
         )
         width_range: tuple[int, int] = Field(
-            default=(5, 12), description="Width range to sample from"
+            default=(5, 6), description="Width range to sample from"
         )
         height_range: tuple[int, int] = Field(
-            default=(5, 12), description="Height range to sample from"
+            default=(5, 6), description="Height range to sample from"
         )
         max_steps: int = Field(default=256, description="Episode length")
 
@@ -160,8 +160,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_resources = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
         resources = rng.sample(self.resource_types, num_resources)
-        width = rng.randint(self.config.width_range[0], self.config.width_range[1])
-        height = rng.randint(self.config.height_range[0], self.config.height_range[1])
+        # width = rng.randint(self.config.width_range[0], self.config.width_range[1])
+        # height = rng.randint(self.config.height_range[0], self.config.height_range[1])
+        width = 6
+        height = 6
         max_steps = self.config.max_steps
 
         avg_hop = (width + height) / 2
@@ -268,8 +270,8 @@ def make_curriculum() -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
-        width_range=(5, 12),
-        height_range=(5, 12),
+        width_range=(5, 6),
+        height_range=(5, 6),
     )
     return CurriculumConfig(task_generator=task_generator_cfg)
 
