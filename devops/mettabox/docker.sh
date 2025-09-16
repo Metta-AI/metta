@@ -29,9 +29,8 @@ build() {
 # Function for testing Docker image
 # Need this on ubuntu for x11: xhost +local:docker
 test() {
-  # Authenticate with ECR before pulling
-  echo "Authenticating with ECR..."
-  aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${registry}
+  # Note: AWS ECR credentials should be provided externally before running this script
+  # Example: aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${registry}
 
   # Check if a Docker container with the same name already exists
   if [ "$(docker ps -aq -f name=^/${name})" ]; then
