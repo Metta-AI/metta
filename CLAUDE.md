@@ -203,7 +203,7 @@ All tools are now run through `./tools/run.py` with recipe functions:
    # Run evaluation
    uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
 
-   # Using wandb artifact
+   # Using a remote S3 checkpoint
    uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/my-training-run__e12__s6000__t360__sc9100.pt
    ```
 

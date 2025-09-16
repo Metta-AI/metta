@@ -212,7 +212,7 @@ programmatic processing
 # Evaluate with specific policy from file
 ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints
 
-# Evaluate with wandb artifact
+# Evaluate using a remote checkpoint stored on S3
 ./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://team-checkpoints/project/model_v0.pt
 ```
 

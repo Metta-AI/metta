@@ -34,6 +34,7 @@ from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
 from metta.common.util.log_config import init_logging
+from metta.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
 
@@ -160,12 +161,10 @@ class SimTaskExecutor(AbstractTaskExecutor):
         simulations_json = json.dumps(simulations)
         simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
 
-        wandb_entity = os.environ.get("WANDB_ENTITY")
-        wandb_project = os.environ.get("WANDB_PROJECT", "metta")
-        if not wandb_entity:
-            raise RuntimeError("WANDB_ENTITY must be set to construct a W&B policy URI")
-
-        policy_uri = f"wandb://{wandb_entity}/{wandb_project}/model/{policy_name}:latest"
+        policy_uri = task.attributes.get("policy_uri") or policy_name
+        normalized = CheckpointManager.normalize_uri(policy_uri)
+        if not normalized.startswith(("file://", "s3://")):
+            raise RuntimeError(f"Unsupported policy URI '{policy_uri}'. Expected an s3:// or file:// checkpoint path.")
 
         cmd = [
             "uv",
@@ -173,7 +172,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "tools/run.py",
             "experiments.evals.run.eval",
             "--args",
-            f"policy_uri={policy_uri}",
+            f"policy_uri={normalized}",
             f"simulations_json_base64={simulations_base64}",
             "--overrides",
             f"eval_task_id={str(task.id)}",
