@@ -1,6 +1,10 @@
 name: "Test SkyPilot Notifications"
 
 on:
+  push:
+    branches:
+      - robb/0911-test-notifications
+
   workflow_dispatch:
     inputs:
       scenario:
