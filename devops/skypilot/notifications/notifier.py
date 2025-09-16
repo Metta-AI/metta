@@ -2,7 +2,7 @@
 import re
 import signal
 from dataclasses import dataclass
-from typing import Dict, Literal, Optional
+from typing import Literal
 
 from devops.skypilot.notifications.discord import send_discord_notification
 from devops.skypilot.notifications.github import set_github_status
@@ -57,11 +57,11 @@ class NotificationConfig:
     send_github: bool = True
 
 
-def get_notification_config(termination_reason: str, job_config: JobConfig) -> Optional[NotificationConfig]:
+def get_notification_config(termination_reason: str, job_config: JobConfig) -> NotificationConfig | None:
     """Map termination reason to notification configuration."""
 
     # Static notification mappings
-    notification_map: Dict[str, NotificationConfig] = {
+    notification_map: dict[str, NotificationConfig] = {
         "heartbeat_timeout": NotificationConfig(
             title="🚨 SkyPilot Job Heartbeat Timeout",
             description=f"Job failed - no heartbeat for {job_config.heartbeat_timeout} seconds",
@@ -103,7 +103,7 @@ def get_notification_config(termination_reason: str, job_config: JobConfig) -> O
     return notification_map.get(termination_reason)
 
 
-def send_notifications(termination_reason: str, job_config: JobConfig) -> Dict[str, bool]:
+def send_notifications(termination_reason: str, job_config: JobConfig) -> dict[str, bool]:
     """Send notifications based on termination reason."""
     if not job_config.is_master:
         logger.debug("Skipping notifications on non-master node")
