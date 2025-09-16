@@ -221,13 +221,13 @@ def evaluate(policy_uri: str) -> SimTool:
 #     env = arena.make_env()
 #     env.game.max_steps = 100
 #     cfg = arena.replay(env)
-#     # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
+#     # cfg.policy_uri = "wandb://metta-research/metta/model/daveey.combat.lpsm.8x4:latest"
 #     return cfg
 
 
 # def evaluate(run: str = "local.alex.1") -> SimTool:
-#     cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
+#     cfg = arena.evaluate(policy_uri=f"wandb://metta-research/metta/model/{run}:latest")
 
 #     # If your run doesn't exist, try this:
-#     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
+#     # cfg = arena.evaluate(policy_uri="wandb://metta-research/metta/model/daveey.combat.lpsm.8x4:latest")
 #     return cfg

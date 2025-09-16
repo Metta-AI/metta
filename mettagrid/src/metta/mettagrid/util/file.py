@@ -273,22 +273,21 @@ class WandbURI:
             path_part, version = body, "latest"
 
         if "/" not in path_part:
-            raise ValueError("Malformed W&B URI – expected wandb://entity/project/artifact:version")
+            raise ValueError(
+                "Malformed W&B URI. Expected fully-qualified form: wandb://entity/project/artifact_path:version"
+            )
 
         parts = path_part.split("/")
 
-        if len(parts) >= 3:
-            entity = parts[0]
-            project = parts[1]
-            artifact_path = "/".join(parts[2:])
-        elif len(parts) == 2:
-            # 2-part format: use WANDB_ENTITY if set; otherwise default to 'metta-research'
-            # Note: Do not import from metta.* here; mettagrid must remain decoupled.
-            project = parts[0]
-            artifact_path = parts[1]
-            entity = os.getenv("WANDB_ENTITY", "metta-research")
-        else:
-            raise ValueError("Malformed W&B URI – expected wandb://entity/project/artifact:version")
+        if len(parts) < 3:
+            raise ValueError(
+                "Malformed W&B URI. Expected `wandb://entity/project/artifact_path:version`. "
+                "Example: wandb://my-entity/metta/model/run-name:latest"
+            )
+
+        entity = parts[0]
+        project = parts[1]
+        artifact_path = "/".join(parts[2:])
 
         if not project or not artifact_path:
             raise ValueError("Project and artifact path must be non-empty")

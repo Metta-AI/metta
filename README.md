@@ -190,11 +190,11 @@ builds its configuration, and runs it. The current available tasks are:
 
 - **experiments.recipes.arena.replay**: Replay a single episode from a saved policy
 
-  `./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1`
+  `./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://metta-research/metta/model/local.alice.1:latest`
 
 - **experiments.recipes.arena.evaluate**: Evaluate a policy on the arena eval suite
 
-  `./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1`
+  `./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://metta-research/metta/model/local.alice.1:latest`
 
 
 ### Runner arguments
@@ -217,7 +217,7 @@ Examples:
   system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
 
 # Evaluate a specific policy URI
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://metta-research/metta/model/local.alice.1:latest
 
 # Use --verbose to see how arguments are classified
 ./tools/run.py experiments.recipes.arena.train run=test --verbose
@@ -314,12 +314,12 @@ Optional overrides:
 
 - `policy_uri=<path>`: Use a specific policy for NPC agents.
   - Local checkpoints: `file://./train_dir/<run>/checkpoints`
-  - WandB artifacts: `wandb://run/<run_name>`
+  - WandB artifacts: `wandb://ENTITY/PROJECT/model/<run_name>:version`
 
 ### Replay a single episode
 
 ```
-./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://metta-research/metta/model/local.alice.1:latest
 ```
 
 ### Evaluating a Model
@@ -336,13 +336,13 @@ If you want to run evaluation post-training to compare different policies, you c
 Evaluate a policy against the arena eval suite:
 
 ```
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://metta-research/metta/model/local.alice.1:latest
 ```
 
 Evaluate on the navigation eval suite (provide the policy URI):
 
 ```
-./tools/run.py experiments.recipes.navigation.eval policy_uris=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.navigation.eval policy_uris=wandb://metta-research/metta/model/local.alice.1:latest
 ```
 
 ### Specifying your agent architecture
@@ -395,8 +395,8 @@ pytest
 | Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                              |
 | Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                         |
 | Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                        |
-| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1`     |
-| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1`        |
-| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=wandb://run/local.alice.1` |
+| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://metta-research/metta/model/local.alice.1:latest`     |
+| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://metta-research/metta/model/local.alice.1:latest`        |
+| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=wandb://metta-research/metta/model/local.alice.1:latest` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

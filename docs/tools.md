@@ -33,8 +33,8 @@ The main entry point is `./tools/run.py` which uses the recipe system for all ma
 
 ```bash
 ./tools/run.py experiments.recipes.arena.train run=my_experiment # Training
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/my_experiment # Evaluation
-./tools/run.py experiments.recipes.arena.play policy_uri=wandb://run/my_experiment # Interactive play
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://metta-research/metta/model/my_experiment:latest # Evaluation
+./tools/run.py experiments.recipes.arena.play policy_uri=wandb://metta-research/metta/model/my_experiment:latest # Interactive play
 ```
 
 ## Training Tools
@@ -204,10 +204,10 @@ programmatic processing
 
 ```bash
 # Evaluate a single policy
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://run/experiment_001
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://metta-research/metta/model/experiment_001:latest
 
 # Evaluate with arena recipe
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/experiment_001
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://metta-research/metta/model/experiment_001:latest
 
 # Evaluate with specific policy from file
 ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints
@@ -231,7 +231,7 @@ programmatic processing
   "simulation_suite": "navigation",
   "policies": [
     {
-      "policy_uri": "wandb://run/abc123",
+      "policy_uri": "wandb://metta-research/metta/model/abc123:latest",
       "checkpoints": [
         {
           "name": "checkpoint_1000",
@@ -325,7 +325,7 @@ environments with support for multiple rendering backends.
 ./tools/renderer.py renderer_job.policy_type=random
 
 # Visualize trained policy
-./tools/renderer.py renderer_job.policy_type=trained policy_uri="wandb://run/experiment"
+./tools/renderer.py renderer_job.policy_type=trained policy_uri="wandb://metta-research/metta/model/experiment:latest"
 
 # Custom environment with multiple agents
 ./tools/renderer.py env=mettagrid/multiagent renderer_job.num_agents=4
@@ -345,10 +345,10 @@ environments with support for multiple rendering backends.
 
 ```bash
 # Generate replay for a policy
-./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/abc123
+./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://metta-research/metta/model/abc123:latest
 
 # Generate replay with navigation environment
-./tools/run.py experiments.recipes.navigation.replay policy_uri=wandb://run/abc123
+./tools/run.py experiments.recipes.navigation.replay policy_uri=wandb://metta-research/metta/model/abc123:latest
 
 # Generate replay from local checkpoint
 ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_run/checkpoints
@@ -372,7 +372,7 @@ environments with support for multiple rendering backends.
 ./tools/run.py experiments.recipes.arena.play
 
 # Interactive play with specific policy
-./tools/run.py experiments.recipes.arena.play policy_uri=wandb://run/my_experiment
+./tools/run.py experiments.recipes.arena.play policy_uri=wandb://metta-research/metta/model/my_experiment:latest
 
 # Interactive navigation environment
 ./tools/run.py experiments.recipes.navigation.play policy_uri=file://./checkpoints
@@ -735,13 +735,13 @@ GROUP BY policy_name, episode;
 ./tools/run.py experiments.recipes.navigation.train run=nav_experiment_001
 
 # 2. Evaluate the trained policy
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://run/nav_experiment_001
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://metta-research/metta/model/nav_experiment_001:latest
 
 # 3. Analyze results
 ./tools/run.py experiments.recipes.navigation.analyze eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
 
 # 4. Interactive play with trained policy
-./tools/run.py experiments.recipes.navigation.play policy_uri=wandb://run/nav_experiment_001
+./tools/run.py experiments.recipes.navigation.play policy_uri=wandb://metta-research/metta/model/nav_experiment_001:latest
 ```
 
 ### Hyperparameter Sweep Workflow

@@ -37,7 +37,9 @@ class WandbConfig(Config):
 
     @property
     def uri(self):
-        return f"wandb://run/{self.run_id}"
+        if not self.run_id:
+            raise ValueError("run_id is required to build a W&B URI")
+        return f"wandb://{self.entity}/{self.project}/run/{self.run_id}:latest"
 
 
 class WandbContext:

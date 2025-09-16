@@ -160,13 +160,20 @@ class SimTaskExecutor(AbstractTaskExecutor):
         simulations_json = json.dumps(simulations)
         simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
 
+        wandb_entity = os.environ.get("WANDB_ENTITY")
+        wandb_project = os.environ.get("WANDB_PROJECT", "metta")
+        if not wandb_entity:
+            raise RuntimeError("WANDB_ENTITY must be set to construct a W&B policy URI")
+
+        policy_uri = f"wandb://{wandb_entity}/{wandb_project}/model/{policy_name}:latest"
+
         cmd = [
             "uv",
             "run",
             "tools/run.py",
             "experiments.evals.run.eval",
             "--args",
-            f"policy_uri=wandb://run/{policy_name}",
+            f"policy_uri={policy_uri}",
             f"simulations_json_base64={simulations_base64}",
             "--overrides",
             f"eval_task_id={str(task.id)}",

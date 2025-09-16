@@ -14,7 +14,6 @@ import wandb
 from wandb import Artifact
 from wandb.errors import CommError
 
-from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import WandbURI
 
@@ -96,7 +95,12 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     if not wandb_uri.startswith("wandb://"):
         return None
 
-    uri = WandbURI.parse(wandb_uri)
+    try:
+        uri = WandbURI.parse(wandb_uri)
+    except ValueError as exc:
+        raise ValueError(
+            "Invalid W&B URI. Use fully-qualified form `wandb://entity/project/artifact_path:version`."
+        ) from exc
     try:
         artifact: Artifact = _create_wandb_api().artifact(uri.qname())
     except (CommError, TimeoutError) as exc:
@@ -120,73 +124,29 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
     return None
 
 
-def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
-    """Expand short wandb URI formats to full format.
-
-    Handles both short and full wandb URI formats:
-    - "wandb://run/my_run_name" ->
-      "wandb://ENTITY/metta/model/my_run_name:latest"
-      (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
-    - "wandb://run/my_run_name:v5" ->
-      "wandb://ENTITY/metta/model/my_run_name:v5"
-      (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
-    - "wandb://sweep/sweep_name" ->
-      "wandb://ENTITY/metta/sweep_model/sweep_name:latest"
-      (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
-    - Full URIs pass through unchanged
-
-    Notes:
-        For short URIs (run/..., sweep/...), the entity defaults to
-        the current environment `WANDB_ENTITY` or falls back to
-        `METTA_WANDB_ENTITY`.
-    """
-    if not uri.startswith("wandb://"):
-        return uri
-
-    path = uri[len("wandb://") :]
-
-    if not path.startswith(("run/", "sweep/")):
-        return uri
-
-    # Default entity: respect WANDB_ENTITY if set; otherwise assume METTA_WANDB_ENTITY
-    entity = os.getenv("WANDB_ENTITY", METTA_WANDB_ENTITY)
-
-    if path.startswith("run/"):
-        run_name = path[4:]
-        if ":" in run_name:
-            run_name, version = run_name.rsplit(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{entity}/{default_project}/model/{run_name}:{version}"
-
-    elif path.startswith("sweep/"):
-        sweep_name = path[6:]
-        if ":" in sweep_name:
-            sweep_name, version = sweep_name.rsplit(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{entity}/{default_project}/sweep_model/{sweep_name}:{version}"
-
-    return uri
-
-
 def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:
-    """Load policy from wandb URI (handles both short and full formats).
+    """Load a policy from a canonical wandb URI.
 
-    Accepts:
-    - Short format: "wandb://run/my-run" (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
-    - Full format: "wandb://entity/project/artifact:version"
+    Args:
+        wandb_uri: Fully-qualified URI in the form
+            `wandb://entity/project/artifact_path:version`.
 
     Raises:
-        ValueError: If URI is not a wandb:// URI
-        FileNotFoundError: If no .pt files found in artifact
+        ValueError: If the URI is not a well-formed wandb:// URI
+        FileNotFoundError: If no checkpoint files are found in the artifact
     """
     if not wandb_uri.startswith("wandb://"):
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 
-    expanded_uri = expand_wandb_uri(wandb_uri)
-    logger.info(f"Loading policy from wandb URI: {expanded_uri}")
-    uri = WandbURI.parse(expanded_uri)
+    try:
+        uri = WandbURI.parse(wandb_uri)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid W&B URI '{wandb_uri}'. Use fully-qualified form `wandb://entity/project/artifact_path:version`."
+        ) from exc
+
+    canonical_uri = str(uri)
+    logger.info(f"Loading policy from wandb URI: {canonical_uri}")
     qname = uri.qname()
 
     # Load artifact

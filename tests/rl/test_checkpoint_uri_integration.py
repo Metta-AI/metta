@@ -18,10 +18,9 @@ from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
-from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import WandbURI
-from metta.rl.checkpoint_manager import CheckpointManager, expand_wandb_uri, key_and_version
+from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
 from metta.rl.system_config import SystemConfig
 from metta.rl.wandb import get_wandb_checkpoint_metadata, upload_checkpoint_as_artifact
 
@@ -146,44 +145,28 @@ class TestFileURIHandling:
 class TestWandbURIHandling:
     """Test wandb:// URI format handling and compatibility."""
 
-    def test_wandb_uri_expansion(self):
-        """Test wandb URI expansion functionality."""
-        # Test short run format - should use METTA_WANDB_ENTITY fallback
-        short_uri = "wandb://run/my-experiment"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/model/my-experiment:latest"
+    def test_wandb_uri_requires_canonical_format(self):
+        """Short or ambiguous URIs should fail immediately."""
+        with pytest.raises(ValueError):
+            WandbURI.parse("wandb://run/my-experiment")
 
-        # Test short run format with version
-        short_uri = "wandb://run/my-experiment:v10"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/model/my-experiment:v10"
-
-        # Test short sweep format
-        short_uri = "wandb://sweep/my-sweep"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/sweep_model/my-sweep:latest"
-
-        # Test full format (should remain unchanged)
-        full_uri = "wandb://entity/project/model/artifact:v1"
-        expanded = expand_wandb_uri(full_uri)
-        assert expanded == full_uri
+        with pytest.raises(ValueError):
+            CheckpointManager.load_from_uri("wandb://run/my-experiment")
 
     @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
-    def test_wandb_uri_loading(self, mock_load_wandb, mock_policy):
-        """Test wandb URI loading - expansion now happens inside load_policy_from_wandb_uri."""
+    def test_wandb_uri_loading_with_canonical_form(self, mock_load_wandb, mock_policy):
+        """Canonical URIs pass straight through to the loader."""
         mock_load_wandb.return_value = mock_policy
 
-        # Test that the URI is passed as-is (expansion happens inside load_policy_from_wandb_uri)
-        uri = "wandb://run/my-experiment"
+        uri = "wandb://metta-research/metta/model/my-experiment:latest"
         loaded_policy = CheckpointManager.load_from_uri(uri)
 
         assert type(loaded_policy).__name__ == type(mock_policy).__name__
-        # Verify the original URI was passed (expansion happens inside the function)
-        mock_load_wandb.assert_called_once_with("wandb://run/my-experiment", device="cpu")
+        mock_load_wandb.assert_called_once_with(uri, device="cpu")
 
     @patch("metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata")
     def test_wandb_metadata_extraction(self, mock_get_metadata):
-        """Test metadata extraction from wandb URIs."""
+        """Test metadata extraction from canonical wandb URIs."""
         mock_get_metadata.return_value = {
             "run_name": "experiment_1",
             "epoch": 25,
@@ -192,15 +175,14 @@ class TestWandbURIHandling:
             "score": 0.95,
         }
 
-        uri = "wandb://run/experiment_1"
+        uri = "wandb://metta-research/metta/model/experiment_1:latest"
         metadata = CheckpointManager.get_policy_metadata(uri)
 
-        # Should call with expanded URI using METTA_WANDB_ENTITY
-        mock_get_metadata.assert_called_once_with("wandb://metta-research/metta/model/experiment_1:latest")
+        mock_get_metadata.assert_called_once_with(uri)
 
         assert metadata["run_name"] == "experiment_1"
         assert metadata["epoch"] == 25
-        assert metadata["original_uri"] == uri  # Original short form preserved
+        assert metadata["original_uri"] == uri
 
     def test_get_wandb_metadata_handles_comm_error(self):
         """Ensure network issues when fetching metadata do not raise."""
@@ -213,20 +195,20 @@ class TestWandbURIHandling:
 
     def test_wandb_key_and_version_extraction(self):
         """Test extracting key and version from wandb URIs."""
+        canonical = "wandb://metta-research/metta/model/test:latest"
         with patch(
             "metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata", return_value={"run_name": "test", "epoch": 5}
         ):
-            key, version = key_and_version("wandb://run/test")
+            key, version = key_and_version(canonical)
             assert key == "test"
             assert version == 5
 
     @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
     def test_wandb_error_handling(self, mock_load_wandb):
         """Test wandb URI error handling."""
-        # Test network error
         mock_load_wandb.side_effect = RuntimeError("Network error")
 
-        uri = "wandb://run/test"
+        uri = "wandb://metta-research/metta/model/test:latest"
         with pytest.raises(RuntimeError, match="Network error"):
             CheckpointManager.load_from_uri(uri)
 
@@ -277,10 +259,10 @@ class TestURIUtilities:
         assert result.startswith("file://")
         assert result.endswith("/path/to/checkpoint.pt")
 
-        # Test wandb URI passthrough (expansion happens in wandb.py now)
-        wandb_short = "wandb://run/test"
-        normalized = CheckpointManager.normalize_uri(wandb_short)
-        assert normalized == "wandb://run/test"  # Should be unchanged
+        # Test wandb URI passthrough (canonical URIs remain unchanged)
+        wandb_uri = "wandb://metta-research/metta/model/test:latest"
+        normalized = CheckpointManager.normalize_uri(wandb_uri)
+        assert normalized == wandb_uri
 
         # Test already normalized URIs remain unchanged
         file_uri = "file:///path/to/checkpoint.pt"
@@ -465,16 +447,35 @@ class TestWandbArtifactFormatting:
 
         # Test various wandb:// URI formats to ensure they parse correctly
         test_cases = [
-            ("wandb://metta/relh.policy-cull.902.1:v0", "metta", "relh.policy-cull.902.1", "v0"),
-            ("wandb://test-project/my-artifact:latest", "test-project", "my-artifact", "latest"),
-            ("wandb://another-project/artifact-name:v42", "another-project", "artifact-name", "v42"),
+            (
+                "wandb://metta-research/metta/model/relh.policy-cull.902.1:v0",
+                "metta-research",
+                "metta",
+                "model/relh.policy-cull.902.1",
+                "v0",
+            ),
+            (
+                "wandb://demo-org/projects/model/my-artifact:latest",
+                "demo-org",
+                "projects",
+                "model/my-artifact",
+                "latest",
+            ),
+            (
+                "wandb://sample-entity/qa/artifacts/artifact-name:v42",
+                "sample-entity",
+                "qa",
+                "artifacts/artifact-name",
+                "v42",
+            ),
         ]
 
-        for wandb_uri, expected_project, expected_artifact_path, expected_version in test_cases:
+        for wandb_uri, expected_entity, expected_project, expected_artifact_path, expected_version in test_cases:
             # Parse the URI
             parsed_uri = WandbURI.parse(wandb_uri)
 
             # Verify components are extracted correctly
+            assert parsed_uri.entity == expected_entity
             assert parsed_uri.project == expected_project
             assert parsed_uri.artifact_path == expected_artifact_path
             assert parsed_uri.version == expected_version
@@ -482,7 +483,7 @@ class TestWandbArtifactFormatting:
             # Most importantly: verify that qname() uses the configured entity
             # and doesn't create double entity paths
             qname = parsed_uri.qname()
-            expected_qname = f"{METTA_WANDB_ENTITY}/{expected_project}/{expected_artifact_path}:{expected_version}"
+            expected_qname = f"{expected_entity}/{expected_project}/{expected_artifact_path}:{expected_version}"
             assert qname == expected_qname
 
             # Ensure no double entity issue (this was the original bug)

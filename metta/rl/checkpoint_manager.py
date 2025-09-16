@@ -7,12 +7,7 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.mettagrid.util.file import WandbURI, local_copy
-from metta.rl.wandb import (
-    expand_wandb_uri,
-    get_wandb_checkpoint_metadata,
-    load_policy_from_wandb_uri,
-    upload_checkpoint_as_artifact,
-)
+from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb_uri, upload_checkpoint_as_artifact
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +28,7 @@ class PolicyMetadata(TypedDict, total=False):
 def _parse_uri_path(uri: str, scheme: str) -> str:
     """Extract path from URI, removing the scheme prefix.
     "file:///tmp/model.pt" -> "/tmp/model.pt"
-    "wandb://project/artifact:v1" -> "project/artifact:v1"
+    "wandb://entity/project/artifact:v1" -> "entity/project/artifact:v1"
     """
     prefix = f"{scheme}://"
     return uri[len(prefix) :] if uri.startswith(prefix) else uri
@@ -61,12 +56,11 @@ def key_and_version(uri: str) -> tuple[str, int]:
         return path.stem if path.suffix else path.name, 0
 
     if uri.startswith("wandb://"):
-        expanded_uri = expand_wandb_uri(uri)
-        metadata = get_wandb_checkpoint_metadata(expanded_uri)
+        wandb_uri = WandbURI.parse(uri)
+        metadata = get_wandb_checkpoint_metadata(str(wandb_uri))
         if metadata:
             return metadata["run_name"], metadata["epoch"]
         # Fallback: parse artifact name from URI
-        wandb_uri = WandbURI.parse(expanded_uri)
         artifact_name = wandb_uri.artifact_path.split("/")[-1].split(":")[0]
         return artifact_name, 0
 

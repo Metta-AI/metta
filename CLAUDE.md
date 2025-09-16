@@ -204,7 +204,7 @@ All tools are now run through `./tools/run.py` with recipe functions:
    uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
 
    # Using wandb artifact
-   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/my-training-run
+   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://metta-research/metta/model/my-training-run:latest
    ```
 
 3. **Analysis**: Analyze evaluation results
@@ -221,7 +221,7 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 5. **View Replays**: Watch recorded gameplay
    ```bash
-   uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
+   uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://metta-research/metta/model/local.alice.1:latest
    ```
 
 #### Visualization Tools
@@ -295,7 +295,7 @@ uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpo
 uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
+uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://metta-research/metta/model/local.alice.1:latest
 ```
 
 #### Configuration System

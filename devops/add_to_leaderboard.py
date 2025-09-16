@@ -12,7 +12,7 @@ from wandb.errors import CommError
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 
 
-def check_policy_exists(run_name: str) -> bool:
+def check_policy_exists(entity: str, project: str, run_name: str) -> bool:
     """
     Check if a policy exists in WANDB.
 
@@ -24,12 +24,12 @@ def check_policy_exists(run_name: str) -> bool:
     """
     try:
         api = wandb.Api()
-        run = api.run(f"metta-research/metta/{run_name}")
+        run = api.run(f"{entity}/{project}/{run_name}")
         print(f"✅ Policy found: {run.id} (state: {run.state})")
         return True
     except CommError as e:
         if "404" in str(e):
-            print(f"❌ Policy not found: metta-research/metta/{run_name}")
+            print(f"❌ Policy not found: {entity}/{project}/{run_name}")
         else:
             print(f"❌ WANDB API error: {e}")
         return False
@@ -71,19 +71,21 @@ Examples:
 """,
     )
 
-    parser.add_argument("--run", required=True, help="Your run name (e.g., b.$USER.test_run)")
+    parser.add_argument("--run", required=True, help="Your run artifact name (e.g., b.$USER.test_run)")
+    parser.add_argument("--entity", default="metta-research", help="W&B entity containing the artifact")
+    parser.add_argument("--project", default="metta", help="W&B project containing the artifact")
 
     # Capture additional arguments for Hydra
     args, additional_args = parser.parse_known_args()
 
-    wandb_path = f"wandb://run/{args.run}"
-    print(f"Adding policy to eval leaderboard with run name: {args.run}")
+    wandb_path = f"wandb://{args.entity}/{args.project}/model/{args.run}:latest"
+    print(f"Adding policy to eval leaderboard with artifact URI: {wandb_path}")
 
     if additional_args:
         print(f"Additional arguments: {' '.join(additional_args)}")
 
     # Step 1: Verify policy exists on WANDB
-    if not check_policy_exists(args.run):
+    if not check_policy_exists(args.entity, args.project, args.run):
         print("\n💡 If this is expected (e.g., policy stored elsewhere), use --skip-check")
         sys.exit(1)
     print("✅ Policy verification passed")
