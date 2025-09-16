@@ -44,7 +44,7 @@ RECIPES = {
 # Test condition - normal completion with short training
 TEST_CONDITION = TestCondition(
     name="Normal Completion",
-    extra_args=["--overrides", "trainer.total_timesteps=50000"],
+    extra_args=["trainer.total_timesteps=50000"],
     description="Exit normally after 50k timesteps",
     ci=False,
 )

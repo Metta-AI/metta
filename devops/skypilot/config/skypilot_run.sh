@@ -33,7 +33,6 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
 echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
-echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency
@@ -249,15 +248,9 @@ run_cmd() {
   # Build the command as an array
   local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
-  # Add all arguments directly (no --args or --overrides flags)
+  # Add args if METTA_ARGS is not empty
   if [ -n "${METTA_ARGS:-}" ]; then
     cmd+=(${METTA_ARGS}) # split on spaces
-  fi
-
-  # METTA_OVERRIDES is now empty for backwards compatibility
-  # but check it just in case for older jobs
-  if [ -n "${METTA_OVERRIDES:-}" ]; then
-    cmd+=(${METTA_OVERRIDES}) # split on spaces
   fi
 
   echo "[INFO] Running command: ${cmd[*]}"
