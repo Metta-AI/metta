@@ -3,6 +3,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from metta.softmax.asana.app_authenticate import get_asana_client
+from softmax.src.metta.softmax.utils import memoize
 
 SOFTMAX_ATLAS_NAME = "Softmax Atlas"
 SOFTMAX_ATLAS_ASANA_APP = "atlas"
@@ -11,6 +12,7 @@ ASANA_ATLAS_PROJECT_GID = "1211363606493626"  # Atlas Prompts
 mcp = FastMCP(SOFTMAX_ATLAS_NAME)
 
 
+@memoize(max_age=60)
 def _fetch_roles_from_asana() -> list[dict[str, Any]]:
     client = get_asana_client(SOFTMAX_ATLAS_ASANA_APP)
     roles: list[dict[str, Any]] = []
