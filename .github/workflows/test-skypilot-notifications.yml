@@ -3,14 +3,14 @@ name: "Test SkyPilot Notifications"
 on:
   workflow_dispatch:
     inputs:
-      test_scenario:
-        description: "Which notification scenario to test"
-        required: true
-        default: "job_completed"
+      scenario:
+        description: "Scenario to test (leave empty for random)"
+        required: false
         type: choice
         options:
+          - "" # Random
           - job_completed
-          - job_failed
+          - job_failed_137
           - heartbeat_timeout
           - nccl_tests_failed
           - rapid_restarts
@@ -58,27 +58,14 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_TEST_HOOK }}
           GITHUB_PAT: ${{ secrets.METTA_STATUS_PAT }}
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          WANDB_ENTITY: "metta-research"
-          WANDB_PROJECT: "metta"
-          TEST_SCENARIO: ${{ github.event.inputs.test_scenario }}
-          GITHUB_SHA: ${{ steps.get_main_sha.outputs.main_sha }}
+          GITHUB_SHA: ${{ github.sha }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          TEST_SCENARIO: ${{ inputs.scenario }}
         run: |
-          uv run .github/scripts/skypilot_notifications_test.py
+          python .github/scripts/test_notifications.py
 
-      - name: Create summary
+      - name: Summary
         if: always()
         run: |
-          echo "## 🔔 Notification Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "🔗 [View main commit](https://github.com/${GITHUB_REPOSITORY}/commit/${{ steps.get_main_sha.outputs.main_sha }})" >> $GITHUB_STEP_SUMMARY
-
-
-          if [ -f "/tmp/notification_test_results.md" ]; then
-            cat /tmp/notification_test_results.md >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ No test results found" >> $GITHUB_STEP_SUMMARY
-          fi
+          cat /tmp/test_summary.md >> $GITHUB_STEP_SUMMARY
