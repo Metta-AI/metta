@@ -70,7 +70,6 @@ proc getStepFromX(localX, panelWidth: float32): int =
   ## Maps a local X coordinate within the timeline panel to a replay step.
   if replay.isNil or replay.maxSteps <= 0:
     return 0
-  # Prefer figma scrubber geometry
   var
     trackLeft = nodeScrubberBg.position.x
     scrubberWidth = nodeScrubberBg.size.x
@@ -150,8 +149,8 @@ proc trackRect(panel: Panel): Rect =
   return Rect(x: nodeScrubberBg.position.x, y: nodeScrubberBg.position.y,
               w: nodeScrubberBg.size.x, h: nodeScrubberBg.size.y)
 
-proc updateFigmaScrubber() =
-  ## Updates figma nodes to act like a video playbar:
+proc updateScrubber() =
+  ## Timeline should act like a video playbar:
   ## - Scrubber is a filled bar from left to current step.
   ## - Step number is centered over the current end.
   if replay.isNil or not nodesBound:
@@ -250,13 +249,10 @@ proc drawTimeline*(panel: Panel) =
       lastClickTimeT = currentTime
       lastClickPosT = localMouse
 
-  # All scrubber drawing is handled by Figma nodes.
-
   # Draw trace viewport minimap window and frozen markers as an overlay in panel space.
   panel.beginDraw()
   drawViewportMinimap(panel)
   drawFrozenMarkers(panel)
   panel.endDraw()
 
-  # Drive figma scrubber state (thumb position and step text).
-  updateFigmaScrubber()
+  updateScrubber()
