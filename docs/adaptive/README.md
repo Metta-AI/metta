@@ -5,16 +5,13 @@ This guide shows how to run adaptive experiments (single run train→eval and hy
 ## Quick Start
 
 - Train & Eval (adaptive)
-  - `uv run ./tools/run.py experiments.recipes.adaptive.train_and_eval --args dispatcher_type=skypilot max_trials=3 gpus=4`
-  - Local instead of Skypilot: `--args dispatcher_type=local`
+  - `uv run ./tools/run.py experiments.recipes.adaptive.train_and_eval dispatcher_type=skypilot max_trials=3 gpus=4`
+  - Local instead of Skypilot: `dispatcher_type=local`
 
-- PPO Sweep (adaptive)
-  - `uv run ./tools/run.py experiments.sweeps.adaptive.ppo --args max_trials=10 batch_size=4 gpus=1`
-  - Local eval + Skypilot train is the default; switch to local by passing `dispatcher_type=local` in the entry point if needed.
-
-Notes
+Notes:
 - W&B must be configured; AdaptiveTool uses your WandB config (auto if not set explicitly).
-- Stats server is optional for these recipes.
+- Arguments are automatically classified as function parameters vs configuration overrides.
+- No more `--args` or `--overrides` flags needed.
 
 ## Recipes
 
@@ -23,14 +20,7 @@ Notes
   - What it does: trains a series of runs and evaluates each when training completes.
   - Scheduler config: `TrainAndEvalConfig` (typed)
     - Fields (common): `recipe_module`, `train_entrypoint`, `eval_entrypoint`, `max_trials`, `gpus`, `experiment_id`, `train_overrides`
-  - Typical run: `uv run ./tools/run.py experiments.recipes.adaptive.train_and_eval --args max_trials=3 gpus=4`
-
-- PPO Sweep (batched synced)
-  - Entry point: `experiments.sweeps.adaptive.ppo`
-  - What it does: batched synchronous Bayesian optimization with the Protein optimizer.
-  - Scheduler config: `BatchedSyncedSchedulerConfig` (typed)
-    - Fields (common): `recipe_module`, `train_entrypoint`, `eval_entrypoint`, `max_trials`, `batch_size`, `gpus`, `experiment_id`, `train_overrides` (plus optional `eval_overrides`, `stats_server_uri`)
-  - Typical run: `uv run ./tools/run.py experiments.sweeps.adaptive.ppo --args max_trials=10 batch_size=4 gpus=1`
+  - Typical run: `uv run ./tools/run.py experiments.recipes.adaptive.train_and_eval max_trials=3 gpus=4`
 
 ## Reference — Scheduler Configs (typed)
 
@@ -57,7 +47,7 @@ Both configs are Pydantic models (subclass of Config) and serialize cleanly via 
 ## Deep Dive — How it all fits together
 
 - Entry point builds a typed scheduler config and returns an `AdaptiveTool`:
-  - Example: `experiments.sweeps.adaptive.ppo` builds `BatchedSyncedSchedulerConfig` and `ProteinConfig`, then returns an `AdaptiveTool` with `scheduler_type=BATCHED_SYNCED` and those configs.
+  - Example: `experiments.recipes.adaptive.train_and_eval` builds `TrainAndEvalConfig` and returns an `AdaptiveTool` with `scheduler_type=TRAIN_AND_EVAL` and the config.
 
 - AdaptiveTool wires components and runs the controller:
   - Creates the scheduler from your typed config (type-checked), builds the dispatcher (local or Skypilot), and creates a W&B store.
@@ -65,7 +55,7 @@ Both configs are Pydantic models (subclass of Config) and serialize cleanly via 
 
 - Controller loop (simple and resilient):
   - Fetches all runs for the experiment from W&B (with retries).
-  - Runs `on_eval_completed` early for any run with completed eval that hasn’t been post-processed. This hook is idempotent using namespaced flags:
+  - Runs `on_eval_completed` for any run with completed eval that hasn't been post-processed. This hook is idempotent using namespaced flags:
     - `adaptive/post_eval_processed = True`
     - `adaptive/post_eval_processed_at = <timestamp>`
   - The default sweep hook writes normalized results into summary:
@@ -75,14 +65,14 @@ Both configs are Pydantic models (subclass of Config) and serialize cleanly via 
   - Computes available training slots based on `config.max_parallel` and current pending/in-training runs.
   - Calls `scheduler.schedule(runs, available_training_slots)` to get new jobs.
   - Dispatches jobs:
-    - Local: `uv run ./tools/run.py <recipe> --args key=val --overrides key=val`
-    - Skypilot: `<SKYPILOT_LAUNCH_PATH> [--gpus N] [--nodes M] <recipe> --args ... --overrides ...`
+    - Local: `uv run ./tools/run.py <recipe> key=val key2=val2`
+    - Skypilot: `<SKYPILOT_LAUNCH_PATH> [--gpus N] [--nodes M] <recipe> key=val key2=val2`
   - Updates store for new training runs (initializes run, writes suggestion), or marks eval started.
   - Loops until `scheduler.is_experiment_complete(runs)` returns True.
 
 - Job definition (single-source of truth):
-  - `args`: dict of function args passed via `--args` (training uses `run`, `group`; eval uses `policy_uri`)
-  - `overrides`: dict of config overrides passed via `--overrides` (includes suggestions for sweeps)
+  - `args`: dict of function args passed directly (training uses `run`, `group`; eval uses `policy_uri`)
+  - `overrides`: dict of config overrides passed directly (includes suggestions for sweeps)
   - Dispatchers do not invent args from metadata; everything is explicit and formed in utils/schedulers.
 
 - Schedulers (two included):
@@ -91,12 +81,17 @@ Both configs are Pydantic models (subclass of Config) and serialize cleanly via 
 
 - Store (W&B) resiliency:
   - `init_run`, `fetch_runs`, `update_run_summary` are wrapped with exponential backoff retries.
-  - The controller’s hook invocation also uses retries before setting the processed flag.
+  - The controller's hook invocation also uses retries before setting the processed flag.
+
+- State management:
+  - Optional `StateStore` (FileStateStore) persists scheduler state for resumption.
+  - Schedulers implementing `SchedulerWithState` can load/save state automatically.
 
 ## Tips & Patterns
 
-- Minimal CLI overrides
-  - The entry point constructs the typed scheduler config; only a few common knobs (max_trials, batch_size, gpus, entrypoints) are optionally overridable via `--args` to avoid config sprawl.
+- Automatic argument classification
+  - The runner automatically determines which arguments go to the function vs configuration overrides based on introspection.
+  - Function parameters become function arguments, Tool fields become configuration overrides.
 
 - Resource sweeping
   - Use the `gpus` field in your typed config to sweep resource allocation across runs.
@@ -120,4 +115,3 @@ Both configs are Pydantic models (subclass of Config) and serialize cleanly via 
   - `observation/suggestion` (persisted at training dispatch)
 
 These conventions keep schedulers stateless and make experiments easy to reason about from summaries alone.
-
