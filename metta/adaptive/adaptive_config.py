@@ -11,8 +11,7 @@ class AdaptiveConfig:
     Contains only the essential settings - no nested hierarchies or unused fields.
     """
 
-    # Core experiment limits
-    max_trials: int = 100
+    # Core resource limits
     max_parallel: int = 1
 
     # Execution settings
@@ -25,8 +24,6 @@ class AdaptiveConfig:
 
     def validate(self) -> None:
         """Validate configuration values"""
-        if self.max_trials <= 0:
-            raise ValueError("max_trials must be positive")
         if self.max_parallel <= 0:
             raise ValueError("max_parallel must be positive")
         if self.monitoring_interval <= 0:
