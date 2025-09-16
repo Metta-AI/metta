@@ -1,10 +1,8 @@
-import functools
 from typing import Any
 
-import httpx
 from mcp.server.fastmcp import FastMCP
 
-from metta.softmax.asana.app_authenticate import get_authenticated_asana_client  # noqa: E402
+from metta.softmax.asana.app_authenticate import get_asana_client
 
 SOFTMAX_ATLAS_NAME = "Softmax Atlas"
 SOFTMAX_ATLAS_ASANA_APP = "atlas"
@@ -14,7 +12,7 @@ mcp = FastMCP(SOFTMAX_ATLAS_NAME)
 
 
 def _fetch_roles_from_asana() -> list[dict[str, Any]]:
-    client = get_atlas_asana_client()
+    client = get_asana_client(SOFTMAX_ATLAS_ASANA_APP)
     roles: list[dict[str, Any]] = []
     fields = "name,notes,permalink_url"
     params: dict[str, Any] = {"opt_fields": fields, "limit": 100}
@@ -41,11 +39,6 @@ def _fetch_roles_from_asana() -> list[dict[str, Any]]:
             break
 
     return roles
-
-
-@functools.cache
-def get_atlas_asana_client() -> httpx.Client:
-    return get_authenticated_asana_client(SOFTMAX_ATLAS_ASANA_APP)
 
 
 @mcp.tool("list_roles")

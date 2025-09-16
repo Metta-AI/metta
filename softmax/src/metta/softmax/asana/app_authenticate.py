@@ -336,7 +336,7 @@ class AsanaOAuthCLI:
         return False
 
 
-def get_authenticated_asana_client(app_name: str) -> httpx.Client:
+def get_asana_client(app_name: str) -> httpx.Client:
     """Return an authenticated httpx.Client for Asana using the latest token for the requested app.
     - Loads app credentials from AWS Secrets Manager at secret name 'asana/atlas_app'.
     - Refreshes tokens if expired using refresh_token.
@@ -379,7 +379,6 @@ def get_authenticated_asana_client(app_name: str) -> httpx.Client:
         headers={"Authorization": f"Bearer {access_token}"},
         timeout=30.0,
     )
-    client.get("/users/me").raise_for_status()
     return client
 
 

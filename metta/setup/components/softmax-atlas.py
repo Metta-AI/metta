@@ -9,8 +9,8 @@ from metta.softmax.asana.app_authenticate import login
 from metta.softmax.atlas.server import (
     SOFTMAX_ATLAS_ASANA_APP,
     SOFTMAX_ATLAS_NAME,
-    get_atlas_asana_client,
 )
+from softmax.src.metta.softmax.asana.app_authenticate import get_asana_client
 
 
 @register_module
@@ -30,7 +30,8 @@ class SoftmaxAtlasSetup(SetupModule):
 
     def _check_asana_app_authenticated(self) -> bool:
         try:
-            get_atlas_asana_client()
+            client = get_asana_client(SOFTMAX_ATLAS_ASANA_APP)
+            client.get("/users/me").raise_for_status()
         except Exception:
             return False
         return True
