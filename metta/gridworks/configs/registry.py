@@ -33,7 +33,6 @@ def check_return_type(return_type: str) -> ConfigMakerKind | None:
     # normalize
     return_type = re.sub(r"\blist\b", "List", return_type)
     if return_type in get_args(ConfigMakerKind):
-        print(return_type)
         return cast(ConfigMakerKind, return_type)
 
     return None
@@ -124,7 +123,7 @@ class ConfigMakerRegistry:
             [(node.lineno - 1, node.col_offset + 4) for node in function_defs],
         )
 
-        for node, hover_result in zip(function_defs, hover_results, strict=False):
+        for node, hover_result in zip(function_defs, hover_results, strict=True):
             # Create full module path
             rel_file_path = file_path.relative_to(get_repo_root())
             module_path = str(rel_file_path.with_suffix("")).replace("/", ".")

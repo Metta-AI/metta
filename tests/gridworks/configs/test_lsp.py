@@ -8,7 +8,7 @@ from metta.gridworks.configs.lsp import LSPClient
 @fixture
 def lsp_client():
     client = LSPClient()
-    yield LSPClient()
+    yield client
     client.shutdown()
 
 

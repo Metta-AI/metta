@@ -22,11 +22,11 @@ class LSPClient:
     documentation, etc.).
     """
 
-    id: int = 0
-    unprocessed_responses: dict[int, dict] = {}
-
     def __init__(self):
         root = pathlib.Path(".").resolve()
+
+        self.id = 0
+        self.unprocessed_responses: dict[int, dict] = {}
 
         self.server = subprocess.Popen(
             ["pyright-langserver", "--stdio"],
