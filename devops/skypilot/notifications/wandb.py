@@ -4,77 +4,84 @@ import time
 
 from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.log_config import getRankAwareLogger
+from metta.common.util.retry import retry_function
 from metta.common.wandb.utils import send_wandb_alert
 
 logger = getRankAwareLogger(__name__)
 
 
-class WandbAlertNotifier:
-    def send_alert(self, state: str, description: str, job_config: JobConfig) -> bool:
-        if not job_config.enable_wandb_alerts:
-            logger.debug("W&B alerts disabled")
-            return False
+def send_wandb_notification(title: str, description: str, job_config: JobConfig) -> bool:
+    if not job_config.enable_wandb_notification:
+        logger.debug("W&B alerts disabled")
+        return False
 
-        # Map states to emojis and titles
-        state_info = {
-            "success": ("✅", "Job Completed Successfully"),
-            "failure": ("❌", "Job Failed"),
-            "error": ("🔧", "Job Configuration Error"),
-            "pending": ("🔄", "Job Restarting"),
-            "timeout": ("🚨", "Job Timeout"),
-        }
+    # Extract and validate required fields
+    run_id = job_config.metta_run_id or ""
+    project = job_config.wandb_project or ""
+    entity = job_config.wandb_entity or ""
+    start_time = job_config.start_time
+    total_nodes = job_config.total_nodes
+    task_id = job_config.skypilot_task_id
 
-        # Check if heartbeat timeout (special case)
-        if "heartbeat" in description:
-            emoji, title = state_info["timeout"]
-        else:
-            emoji, title = state_info.get(state, ("❓", "Job Status Unknown"))
+    if not all([title, description, run_id, project, entity]):
+        logger.warning(
+            f"Skipping W&B alert - missing params: "
+            f"title={bool(title)}, desc={bool(description)}, "
+            f"run_id={bool(run_id)}, project={bool(project)}, "
+            f"entity={bool(entity)}"
+        )
+        return False
 
-        logger.info(f"Sending W&B alert: {title}")
-
+    # Calculate runtime if available
+    runtime_str = ""
+    if start_time and start_time != 0:
         try:
-            # Validate required fields
-            required_fields = {
-                "metta_run_id": job_config.metta_run_id,
-                "wandb_project": job_config.wandb_project,
-                "wandb_entity": job_config.wandb_entity,
-            }
+            current_time = int(time.time())
+            duration = current_time - start_time
+            hours = duration // 3600
+            minutes = (duration % 3600) // 60
+            runtime_str = f"{hours}h {minutes}m"
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid start_time: {start_time}")
 
-            missing_fields = [k for k, v in required_fields.items() if not v]
-            if missing_fields:
-                logger.error(f"Cannot send W&B alert - missing fields: {', '.join(missing_fields)}")
-                return False
+    # Build alert content
+    alert_text_parts = [description]
 
-            # Build alert text
-            alert_text = description
+    if runtime_str:
+        alert_text_parts.append(f"Runtime: {runtime_str}")
 
-            # Add runtime info if available
-            if job_config.start_time and job_config.start_time != 0:
-                try:
-                    current_time = int(time.time())
-                    duration = current_time - job_config.start_time
-                    hours = duration // 3600
-                    minutes = (duration % 3600) // 60
-                    alert_text += f"\nRuntime: {hours}h {minutes}m"
-                except (ValueError, TypeError):
-                    pass
+    alert_text_parts.extend([f"Nodes: {total_nodes}", f"Task ID: {task_id or 'N/A'}"])
 
-            # Add additional context
-            alert_text += f"\nNodes: {job_config.total_nodes}"
-            alert_text += f"\nTask ID: {job_config.skypilot_task_id or 'N/A'}"
+    alert_text = "\n".join(alert_text_parts)
 
-            # Send the alert
-            send_wandb_alert(
-                title=f"{emoji} {title}",
+    # Log detailed alert info before sending
+    logger.info(
+        f"Sending W&B alert:\n"
+        f"  title       = {title}\n"
+        f"  description = {description}\n"
+        f"  run_id      = {run_id}\n"
+        f"  project     = {project}\n"
+        f"  entity      = {entity}\n"
+        f"  nodes       = {total_nodes}\n"
+        f"  runtime     = {runtime_str or 'N/A'}"
+    )
+
+    try:
+        retry_function(
+            lambda: send_wandb_alert(
+                title=title,
                 text=alert_text,
-                run_id=job_config.metta_run_id or "",
-                project=job_config.wandb_project or "",
-                entity=job_config.wandb_entity or "",
-            )
+                run_id=run_id,
+                project=project,
+                entity=entity,
+            ),
+            max_retries=3,
+            initial_delay=2.0,
+            max_delay=30.0,
+        )
+        logger.info(f"✅ Successfully sent W&B alert: {title}")
+        return True
 
-            logger.info(f"W&B alert sent successfully: {title}")
-            return True
-
-        except Exception as e:
-            logger.error(f"W&B alert error: {e}", exc_info=True)
-            return False
+    except Exception as e:
+        logger.error(f"W&B alert failed: {e}")
+        return False
