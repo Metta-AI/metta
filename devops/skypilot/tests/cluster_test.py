@@ -23,7 +23,7 @@ NODE_CONFIGS = [1, 2, 4]
 TEST_CONDITIONS = {
     "normal_completion": TestCondition(
         name="Normal Completion",
-        extra_args=["--overrides", "trainer.total_timesteps=50000"],
+        extra_args=["trainer.total_timesteps=50000"],
         description="Exit normally after training completes",
         ci=False,
     ),
