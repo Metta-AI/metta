@@ -10,7 +10,6 @@
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
-#include "objects/box.hpp"
 #include "objects/converter.hpp"
 #include "types.hpp"
 
@@ -27,24 +26,21 @@ public:
 protected:
   bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
     Converter* converter = nullptr;
-    Box* box = nullptr;
 
     if (_facing_required) {
-      // Original behavior: must be facing the converter/box
+      // Original behavior: must be facing the converter
       GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
       target_loc.layer = GridLayer::ObjectLayer;
       converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
-      box = dynamic_cast<Box*>(_grid->object_at(target_loc));
     } else {
-      // New behavior: can be next to the converter/box in cardinal directions only
+      // New behavior: can be next to the converter in cardinal directions only
       converter = _grid->next_to<Converter>(actor->location, GridLayer::ObjectLayer);
-      box = _grid->next_to<Box>(actor->location, GridLayer::ObjectLayer);
     }
 
-    if (!converter && !box) {
+    if (!converter) {
       return false;
     }
-    // If converter, get output from converter
+    // Get output from converter
     if (converter) {
       if (!converter->inventory_is_accessible()) {
         return false;
@@ -68,32 +64,6 @@ protected:
         }
       }
       return resources_taken;
-    }
-
-    // If box, pick up box if allowed
-    if (box) {
-      if (actor->agent_id == box->creator_agent_id) {
-        // Creator cannot open their own box
-        return false;
-      }
-      // If the creator of the box is an agent, return blue battery to creator and penalize creator
-      if (box->creator_agent_id != 255) {
-        Agent* creator = dynamic_cast<Agent*>(_grid->object(box->creator_agent_object_id));
-        if (!creator) {
-          return false;
-        }
-        // Return required resources to create box to creator inventory
-        for (const auto& [item, amount] : box->returned_resources) {
-          if (amount > 0) {
-            creator->update_inventory(item, amount);
-          }
-        }
-      }
-
-      // Reward the agent for opening the box and teleport back to top-left corner
-      _grid->ghost_move_object(box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
-      actor->stats.add("box.opened", 1.0f);
-      return true;
     }
     return false;
   }

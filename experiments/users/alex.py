@@ -71,7 +71,6 @@ def make_env(num_agents: int = 24) -> EnvConfig:
         ),
         swap=ActionConfig(enabled=True),
         # These were disabled in old config
-        place_box=ActionConfig(enabled=False),
         change_color=ActionConfig(enabled=False),
         change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
     )
