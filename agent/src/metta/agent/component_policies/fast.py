@@ -73,10 +73,7 @@ class Fast(ComponentPolicy):
                 nonlinearity="nn.Tanh",
             ),
             "_value_": Linear(
-                name="_value_",
-                nn_params=NNParams(out_features=1),
-                sources=["critic_1"],
-                nonlinearity=None
+                name="_value_", nn_params=NNParams(out_features=1), sources=["critic_1"], nonlinearity=None
             ),
             "actor_1": Linear(
                 name="actor_1",

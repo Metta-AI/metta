@@ -53,7 +53,6 @@ class TrainingEnvironmentConfig(Config):
     """Random seed for environment"""
 
 
-
 @dataclass
 class EnvironmentMetaData:
     obs_width: int
@@ -158,7 +157,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         # Initialize environment with seed
         self._vecenv.async_reset(cfg.seed)
-
 
         self._meta_data = EnvironmentMetaData(
             obs_width=self._vecenv.driver_env.obs_width,

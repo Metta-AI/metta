@@ -7,7 +7,6 @@ from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.util.weights_analysis import analyze_weights
-from metta.rl.trainer_state import TrainerState
 
 
 @dataclass
@@ -21,9 +20,8 @@ class NNParams:
     num_layers: Optional[int] = None
 
     def to_dict(self) -> dict:
-        return {
-            k: v for k, v in self.__dict__.items() if v is not None
-        }
+        return {k: v for k, v in self.__dict__.items() if v is not None}
+
 
 class LayerBase(nn.Module):
     """The base class for components that make up the Metta agent. All components
@@ -59,15 +57,14 @@ class LayerBase(nn.Module):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy."""
 
-    def __init__(self, name: str, sources: list[str] | None = None,
-                 nn_params: NNParams | None = None):
+    def __init__(self, name: str, sources: list[str] | None = None, nn_params: NNParams | None = None):
         super().__init__()
 
         # Extract name from cfg if not provided directly
         self._name = name
         self._nn_params = nn_params or NNParams()
         self._source_component_names = sources or []
-        self._source_components: dict[str, "LayerBase"] = {} # xcxc
+        self._source_components: dict[str, "LayerBase"] = {}  # xcxc
         self._in_tensor_shapes: list[torch.Size] = []
         self._out_tensor_shape: torch.Size = torch.Size([])
 
@@ -83,8 +80,7 @@ class LayerBase(nn.Module):
         if self._ready:
             return
 
-        self._in_tensor_shapes = [
-            c._out_tensor_shape for c in source_components.values()]
+        self._in_tensor_shapes = [c._out_tensor_shape for c in source_components.values()]
         self._source_components = source_components
         self._initialize()
         self._ready = True
@@ -138,6 +134,7 @@ class LayerBase(nn.Module):
 
     def src_component_name(self, index: int = 0) -> str:
         return list(self._source_components.values())[index].name
+
 
 class ParamLayer(LayerBase):
     """

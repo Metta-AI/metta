@@ -38,11 +38,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("MettaGridCore")
 
+
 @dataclass
 class ObsFeature:
     id: int
     normalization: float
     name: str
+
+
 class MettaGridCore:
     """
     Core MettaGrid functionality without any training features.
@@ -282,9 +285,8 @@ class MettaGridCore:
         features = {}
         for feature_name, feature_info in feature_spec.items():
             feature = ObsFeature(
-                id=int(feature_info["id"]),
-                normalization=feature_info["normalization"],
-                name=feature_name)
+                id=int(feature_info["id"]), normalization=feature_info["normalization"], name=feature_name
+            )
             features[feature_name] = feature
 
         return features

@@ -94,8 +94,9 @@ class Loss:
         the scheduling logic."""
         return
 
-    def train(self, shared_loss_data: TensorDict,
-              env_id: slice, epoch: int, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
+    def train(
+        self, shared_loss_data: TensorDict, env_id: slice, epoch: int, mb_idx: int
+    ) -> tuple[Tensor, TensorDict, bool]:
         """Repeatedly called training steps until the total number of minibatches (set in cfg) is reached.
         Compute loss and write any shared minibatch data needed by other losses."""
         if not self._should_run_train(epoch):

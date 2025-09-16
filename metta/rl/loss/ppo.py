@@ -139,9 +139,9 @@ class PPO(Loss):
         return
 
     # BaseLoss calls this method
-    def run_train(self,
-                  shared_loss_data: TensorDict,
-                  env_id: slice, epoch: int, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
+    def run_train(
+        self, shared_loss_data: TensorDict, env_id: slice, epoch: int, mb_idx: int
+    ) -> tuple[Tensor, TensorDict, bool]:
         """This is the PPO algorithm training loop."""
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
         self.policy.on_train_mb_start()
@@ -156,7 +156,8 @@ class PPO(Loss):
         # On the first minibatch of the update epoch, compute advantages and sampling params
         if mb_idx == 0:
             self.advantages, self.anneal_beta = self._on_first_mb(
-                epoch, self.trainer_cfg.total_timesteps, self.trainer_cfg.batch_size)
+                epoch, self.trainer_cfg.total_timesteps, self.trainer_cfg.batch_size
+            )
 
         # Then sample from the buffer (this happens at every minibatch)
         minibatch, indices, prio_weights = self._sample_minibatch(

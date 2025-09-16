@@ -13,10 +13,10 @@ from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.collections import duplicates
-from metta.rl.trainer_state import TrainerState
 from metta.rl.training.training_environment import EnvironmentMetaData
 
 logger = logging.getLogger(__name__)
+
 
 class ComponentPolicy(nn.Module, Policy):
     """
@@ -47,7 +47,6 @@ class ComponentPolicy(nn.Module, Policy):
         all_names = [c._name for c in self._components.values() if hasattr(c, "_name")]
         if duplicate_names := duplicates(all_names):
             raise ValueError(f"Duplicate component names found: {duplicate_names}")
-
 
         # Compute action tensors for efficient indexing
         self._cum_action_max_params = torch.cumsum(
@@ -171,11 +170,9 @@ class ComponentPolicy(nn.Module, Policy):
         cumulative_sum = self._cum_action_max_params[action_type_numbers]
         return action_type_numbers + cumulative_sum + action_params
 
-    def _convert_logit_index_to_action(
-        self, action_logit_index: torch.Tensor) -> torch.Tensor:
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
         return self._action_index_tensor[action_logit_index]
-
 
     def initialize_to_environment(self, full_action_names: list[str], device):
         """Initialize components to the environment with the given action names."""

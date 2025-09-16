@@ -45,7 +45,7 @@ class FastDynamics(ComponentPolicy):
             ),
             "cnn2": Conv2d(
                 name="cnn2",
-                    nn_params=NNParams(out_channels=64, kernel_size=3, stride=1, padding=0),
+                nn_params=NNParams(out_channels=64, kernel_size=3, stride=1, padding=0),
                 sources=[{"name": "cnn1"}],
                 **self._agent_attributes,
             ),

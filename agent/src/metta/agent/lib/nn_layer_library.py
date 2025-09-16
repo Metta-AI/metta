@@ -56,6 +56,7 @@ class Bilinear(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
+
     def _make_net(self):
         assert self._nn_params.out_features is not None
         assert len(self._in_tensor_shapes) == 2
@@ -158,12 +159,14 @@ class Embedding(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, name: str,
-                 num_embeddings: int,
-                 embedding_dim: int,
-                 sources: list[str] | None = None,
-                 nn_params: NNParams | None = None,
-                 ):
+    def __init__(
+        self,
+        name: str,
+        num_embeddings: int,
+        embedding_dim: int,
+        sources: list[str] | None = None,
+        nn_params: NNParams | None = None,
+    ):
         super().__init__(name, sources, nn_params)
         self._num_embeddings = num_embeddings
         self._embedding_dim = embedding_dim

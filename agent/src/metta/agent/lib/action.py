@@ -29,14 +29,15 @@ class ActionEmbedding(nn_layer_library.Embedding):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self,
-                 name: str,
-                 embedding_dim: int,
-                 num_embeddings: int,
-                 sources: list[str] | None = None,
-                 nn_params: NNParams | None = None,
-                 initialization: str | None = "max_0_01",
-                 ):
+    def __init__(
+        self,
+        name: str,
+        embedding_dim: int,
+        num_embeddings: int,
+        sources: list[str] | None = None,
+        nn_params: NNParams | None = None,
+        initialization: str | None = "max_0_01",
+    ):
         super().__init__(name, embedding_dim, num_embeddings, sources, nn_params)
         self._reserved_action_embeds = {}
         self.num_actions = 0
@@ -68,7 +69,9 @@ class ActionEmbedding(nn_layer_library.Embedding):
                 self._reserved_action_embeds[action_name] = embedding_index  # update this component's known embeddings
 
         self.active_indices = torch.tensor(
-            [self._reserved_action_embeds[action_name] for action_name in env_metadata.action_names], device=device, dtype=torch.long
+            [self._reserved_action_embeds[action_name] for action_name in env_metadata.action_names],
+            device=device,
+            dtype=torch.long,
         )
         self.num_actions = len(self.active_indices)
 

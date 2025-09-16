@@ -160,7 +160,8 @@ class CoreTrainingLoop:
 
                 for _loss_name, loss_obj in self.losses.items():
                     loss_val, shared_loss_mb_data, stop_update_epoch = loss_obj.train(
-                        shared_loss_mb_data, training_env_id, epoch, mb_idx)
+                        shared_loss_mb_data, training_env_id, epoch, mb_idx
+                    )
                     total_loss = total_loss + loss_val
 
                 # Backward pass
