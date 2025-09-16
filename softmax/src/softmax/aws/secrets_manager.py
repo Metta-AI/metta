@@ -3,22 +3,20 @@ from typing import Any
 
 import boto3
 
+from metta.common.util.constants import METTA_AWS_REGION
 from softmax.utils import memoize
 
 
 @memoize(max_age=60 * 60)
 def get_secretsmanager_secret(secret_name: str, require_exists: bool = True) -> str | None:
-    """Fetch a secret value from AWS Secrets Manager as JSON.
-
-    Always expects SecretString to contain JSON. Raises ValueError if not JSON.
-    """
-    client = boto3.client("secretsmanager")
+    """Fetch a secret value from AWS Secrets Manager"""
+    client = boto3.client("secretsmanager", region_name=METTA_AWS_REGION)
     try:
         resp = client.get_secret_value(SecretId=secret_name)
-    except Exception:
+    except Exception as e:
         if not require_exists:
             return None
-        return None
+        raise e
 
     if "SecretString" in resp and resp["SecretString"] is not None:
         try:
@@ -36,15 +34,14 @@ def create_secretsmanager_secret(
     allow_overwrite: bool = False,
 ) -> dict:
     """Create a secret (JSON value) or overwrite its current value."""
-    client = boto3.client("secretsmanager")
+    client = boto3.client("secretsmanager", region_name=METTA_AWS_REGION)
 
     params: dict[str, Any] = {
         "Name": secret_name,
         "SecretString": json.dumps(secret_value),
     }
     try:
-        resp = client.create_secret(**params)
-        return resp["ARN"]
+        return client.create_secret(**params)
     except client.exceptions.ResourceExistsException:
         if not allow_overwrite:
             raise
