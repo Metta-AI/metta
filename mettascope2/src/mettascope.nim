@@ -94,7 +94,7 @@ find "/UI/Main":
     bottomArea.node.children[0].find("title").text = "Agent Traces"
     bottomArea.node.children[1].find("title").text = "Env Config"
     bottomArea.node.children[2].remove()
-    
+
 
     thisNode.addChild(bottomArea.node)
     rootArea.add(bottomArea)
@@ -123,7 +123,6 @@ find "/UI/Main":
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
-    # Render the global timeline.
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
       timeline.drawTimeline(globalTimelinePanel)
@@ -135,7 +134,6 @@ find "/UI/Main":
   onFrame:
     if not loaded:
       return
-    echo "onFrame"
 
     playControls()
 
@@ -153,23 +151,7 @@ find "/UI/Main":
 
     if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
       fitFullMap(worldMapPanel)
-
-    # Keep global panels' rects in sync with their Figma nodes.
-    if not globalTimelinePanel.isNil:
-      globalTimelinePanel.rect.x = globalTimelinePanel.node.position.x.int32
-      globalTimelinePanel.rect.y = globalTimelinePanel.node.position.y.int32
-      globalTimelinePanel.rect.w = globalTimelinePanel.node.size.x.int32
-      globalTimelinePanel.rect.h = globalTimelinePanel.node.size.y.int32
-    if not globalHeaderPanel.isNil:
-      globalHeaderPanel.rect.x = globalHeaderPanel.node.position.x.int32
-      globalHeaderPanel.rect.y = globalHeaderPanel.node.position.y.int32
-      globalHeaderPanel.rect.w = globalHeaderPanel.node.size.x.int32
-      globalHeaderPanel.rect.h = globalHeaderPanel.node.size.y.int32
-    if not globalFooterPanel.isNil:
-      globalFooterPanel.rect.x = globalFooterPanel.node.position.x.int32
-      globalFooterPanel.rect.y = globalFooterPanel.node.position.y.int32
-      globalFooterPanel.rect.w = globalFooterPanel.node.size.x.int32
-      globalFooterPanel.rect.h = globalFooterPanel.node.size.y.int32
+      
 
 startFidget(
   figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",

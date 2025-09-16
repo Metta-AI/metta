@@ -221,6 +221,12 @@ proc drawTimeline*(panel: Panel) =
 
   bindTimelineNodes()
 
+  # Update the panel rect to match the node.
+  panel.rect.x = panel.node.position.x.int32
+  panel.rect.y = panel.node.position.y.int32
+  panel.rect.w = panel.node.size.x.int32
+  panel.rect.h = panel.node.size.y.int32
+
   # Handle mouse interactions.
   updateMouse(panel)
   let localMouse = window.mousePos.vec2 - panel.rect.xy.vec2
