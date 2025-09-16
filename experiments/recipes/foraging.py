@@ -232,8 +232,8 @@ class ForagingTaskGenerator(TaskGenerator):
 
         # Ensure required actions are explicitly enabled for interaction
         from metta.mettagrid.mettagrid_config import (
-            ActionsConfig,
             ActionConfig,
+            ActionsConfig,
         )  # local import to avoid cycles
 
         actions = ActionsConfig(
