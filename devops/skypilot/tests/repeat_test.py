@@ -20,7 +20,7 @@ from metta.common.util.text_styles import bold, cyan, yellow
 # Configuration
 DEFAULT_NUM_REPEATS = 1
 BASE_MODULE = "experiments.recipes.icl_resource_chain.train"
-BASE_ARGS = ["--no-spot", "--gpus=4", "--torch-crash-test"]
+BASE_ARGS = ["--no-spot", "--gpus=4"]
 RUN_PREFIX = "icl.smallrooms.test"
 
 
