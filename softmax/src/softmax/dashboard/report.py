@@ -123,7 +123,6 @@ def sync_dashboard(
         return
 
     configuration = _datadog_configuration()
-    print(configuration.api_key)
     dashboard_body = DashboardModel(**payload)
 
     with ApiClient(configuration) as api_client:

@@ -4,18 +4,31 @@ from typing import Any, Iterable
 
 from softmax.dashboard.registry import get_metric_goals
 
+_GRID_COLUMNS = 12
 _DASHBOARD_COLUMNS = 2
-_WIDGET_WIDTH = 12
 _WIDGET_HEIGHT = 6
+
+
+def _widget_width() -> int:
+    if _DASHBOARD_COLUMNS < 1:
+        raise ValueError("_DASHBOARD_COLUMNS must be at least one")
+
+    width = _GRID_COLUMNS // _DASHBOARD_COLUMNS
+    if width == 0:
+        msg = f"_DASHBOARD_COLUMNS {_DASHBOARD_COLUMNS} exceeds grid width {_GRID_COLUMNS}"
+        raise ValueError(msg)
+
+    return width
 
 
 def _widget_layout(index: int) -> dict[str, int]:
     row = index // _DASHBOARD_COLUMNS
     col = index % _DASHBOARD_COLUMNS
+    width = _widget_width()
     return {
-        "x": col * _WIDGET_WIDTH,
+        "x": col * width,
         "y": row * _WIDGET_HEIGHT,
-        "width": _WIDGET_WIDTH,
+        "width": width,
         "height": _WIDGET_HEIGHT,
     }
 
