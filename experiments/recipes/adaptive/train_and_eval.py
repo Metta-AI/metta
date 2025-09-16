@@ -15,11 +15,9 @@ def train_and_eval(
     max_trials: int = 3,
     gpus: int = 4,
     experiment_id: str = "train_eval_poc",
-    experiment_id: str = "train_eval_poc",
     dispatcher_type: str = "skypilot",  # "local" or "skypilot"
     resume: bool = False,  # Resume from existing experiment
-    dispatcher_type: str = "skypilot",  # "local" or "skypilot"
-    resume: bool = False,  # Resume from existing experiment
+    total_timesteps: int = 2000000000,  # 2B default
 ) -> AdaptiveTool:
     """Create simple train-and-eval adaptive experiment for PoC.
 
@@ -66,7 +64,7 @@ def train_and_eval(
         gpus=gpus,
         experiment_id=experiment_id,
         train_overrides={
-            "trainer.total_timesteps": 500000000,
+            "trainer.total_timesteps": total_timesteps,
         },
     )
 
