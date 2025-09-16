@@ -41,9 +41,18 @@ class ContrastiveLoss(BaseLoss):
 
         # Add projection head if needed
         if self.loss_cfg.use_projection_head:
-            self.projection_head = torch.nn.Linear(
-                self.policy.policy.components["encoder"].output_dim, self.embedding_dim
-            ).to(device)
+            # Try to get encoder output dim, fallback to value dimension
+            try:
+                input_dim = self.policy.policy.components["encoder"].output_dim
+                print(f"Using encoder output_dim: {input_dim}")
+            except (KeyError, AttributeError):
+                # Fallback: use value dimension (typically 1) or a reasonable default
+                input_dim = getattr(self.policy.policy.components.get("value", None), "output_dim", 1)
+                if input_dim == 1:
+                    # If value is 1D, use a reasonable default based on policy architecture
+                    input_dim = 256  # Reasonable default for policy representations
+                print(f"Using fallback input_dim: {input_dim}")
+            self.projection_head = torch.nn.Linear(input_dim, self.embedding_dim).to(device)
         else:
             self.projection_head = None
 
@@ -79,13 +88,20 @@ class ContrastiveLoss(BaseLoss):
 
     def _get_embeddings(self, policy_td: TensorDict) -> Tensor:
         """Extract embeddings from policy output."""
-        # This depends on your policy architecture
-        # Example: get encoder output
+        # Try different possible embedding sources in order of preference
         if "encoder_output" in policy_td:
             return policy_td["encoder_output"]
+        elif "hidden_state" in policy_td:
+            return policy_td["hidden_state"]
+        elif "features" in policy_td:
+            return policy_td["features"]
         else:
-            # Fallback: use value or logits as embeddings
-            return policy_td["value"].squeeze(-1)
+            # Fallback: use value as embeddings (expand to reasonable dimension)
+            value = policy_td["value"].squeeze(-1)  # Remove last dimension if it's 1
+            if value.dim() == 1:
+                # If 1D, repeat to create a reasonable embedding dimension
+                value = value.unsqueeze(-1).expand(-1, self.embedding_dim)
+            return value
 
     def _compute_contrastive_loss(self, embeddings: Tensor, minibatch: TensorDict) -> Tensor:
         """Compute the actual contrastive loss."""
