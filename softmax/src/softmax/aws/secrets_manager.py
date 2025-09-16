@@ -1,10 +1,17 @@
-import json
-from typing import Any
+from typing import Any, Literal, overload
 
 import boto3
 
 from metta.common.util.constants import METTA_AWS_REGION
 from softmax.utils import memoize
+
+
+@overload
+def get_secretsmanager_secret(secret_name: str, require_exists: Literal[True] = True) -> str: ...
+
+
+@overload
+def get_secretsmanager_secret(secret_name: str, require_exists: Literal[False]) -> str | None: ...
 
 
 @memoize(max_age=60 * 60)
@@ -38,7 +45,7 @@ def create_secretsmanager_secret(
 
     params: dict[str, Any] = {
         "Name": secret_name,
-        "SecretString": json.dumps(secret_value),
+        "SecretString": secret_value,
     }
     try:
         return client.create_secret(**params)
@@ -46,5 +53,5 @@ def create_secretsmanager_secret(
         if not allow_overwrite:
             raise
 
-        put_params: dict[str, Any] = {"SecretId": secret_name, "SecretString": json.dumps(secret_value)}
+        put_params: dict[str, Any] = {"SecretId": secret_name, "SecretString": secret_value}
         return client.put_secret_value(**put_params)
