@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env uv run python3
 """Test script for SkyPilot notifications system."""
 
 import logging
@@ -6,18 +6,9 @@ import os
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 
-this_file = Path(__file__).resolve()
-project_root = this_file.parents[2]
-
-if not (project_root / "pyproject.toml").is_file():
-    raise RuntimeError(f"Project root validation failed: {project_root}")
-
-sys.path.insert(0, str(project_root))
-
-from devops.skypilot.notifications.notification import NotificationManager  # noqa: E402
-from devops.skypilot.utils.job_config import JobConfig  # noqa: E402
+from devops.skypilot.notifications.notification import NotificationManager
+from devops.skypilot.utils.job_config import JobConfig
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
