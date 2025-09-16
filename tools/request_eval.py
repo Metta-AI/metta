@@ -5,7 +5,6 @@ import argparse
 import asyncio
 import uuid
 
-import wandb
 from bidict import bidict
 from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
@@ -18,8 +17,6 @@ from metta.common.util.collections import group_by
 from metta.common.util.constants import (
     DEV_OBSERVATORY_FRONTEND_URL,
     DEV_STATS_SERVER_URI,
-    METTA_WANDB_ENTITY,
-    METTA_WANDB_PROJECT,
     PROD_OBSERVATORY_FRONTEND_URL,
     PROD_STATS_SERVER_URI,
 )
@@ -37,24 +34,11 @@ class EvalRequest(BaseModel):
 
     git_hash: str | None = None
 
-    wandb_project: str = Field(default="")
-    wandb_entity: str = Field(default="")
-
     allow_duplicates: bool = Field(default=False)
     dry_run: bool = Field(default=False)
 
     @model_validator(mode="after")
     def validate(self) -> "EvalRequest":
-        if not self.wandb_entity:
-            if wandb.api.default_entity:
-                self.wandb_entity = wandb.api.default_entity
-
-        if not self.wandb_project:
-            if self.wandb_entity == METTA_WANDB_ENTITY:
-                self.wandb_project = METTA_WANDB_PROJECT
-
-        assert self.wandb_project, "wandb_project must be set"
-        assert self.wandb_entity, "wandb_entity must be set"
         return self
 
 
@@ -206,7 +190,7 @@ def main():
         help="""Direct policy checkpoint URI. Can be specified multiple times for multiple policies.
         Supported formats:
         - file://path/to/checkpoint.pt
-        - wandb://entity/project/artifact:version
+        - s3://bucket/path/run__e10__s5000__t300__sc8000.pt
         - s3://bucket/path/to/checkpoint.pt""",
         required=True,
     )
@@ -216,18 +200,6 @@ def main():
         type=str,
         default=PROD_STATS_SERVER_URI,
         help="URI for the stats server",
-    )
-
-    parser.add_argument(
-        "--wandb-project",
-        type=str,
-        help="Wandb project name",
-    )
-
-    parser.add_argument(
-        "--wandb-entity",
-        type=str,
-        help="Wandb entity name",
     )
 
     parser.add_argument(
@@ -256,8 +228,6 @@ def main():
         policies=args.policies,
         stats_server_uri=args.stats_server_uri,
         git_hash=args.git_hash,
-        wandb_project=args.wandb_project,
-        wandb_entity=args.wandb_entity,
         allow_duplicates=args.allow_duplicates,
         dry_run=args.dry_run,
     )

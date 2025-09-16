@@ -1,7 +1,6 @@
 """Consolidated tests for URI handling and checkpoint integration.
 
-Tests all URI formats (file, wandb, s3), real environment integration,
-end-to-end workflows, and cross-format compatibility.
+Tests file and S3 URI formats plus real environment integration.
 """
 
 import tempfile
@@ -11,7 +10,6 @@ from unittest.mock import Mock, patch
 import pytest
 import torch
 from tensordict import TensorDict
-from wandb.errors import CommError
 
 import metta.mettagrid.builder.envs as eb
 from metta.agent.agent_config import AgentConfig
@@ -19,10 +17,8 @@ from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.uri import WandbURI
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
 from metta.rl.system_config import SystemConfig
-from metta.rl.wandb import get_wandb_checkpoint_metadata, upload_checkpoint_as_artifact
 
 
 @pytest.fixture
@@ -142,77 +138,6 @@ class TestFileURIHandling:
             CheckpointManager.load_from_uri(uri)
 
 
-class TestWandbURIHandling:
-    """Test wandb:// URI format handling and compatibility."""
-
-    def test_wandb_uri_requires_canonical_format(self):
-        """Short or ambiguous URIs should fail immediately."""
-        with pytest.raises(ValueError):
-            WandbURI.parse("wandb://run/my-experiment")
-
-        with pytest.raises(ValueError):
-            CheckpointManager.load_from_uri("wandb://run/my-experiment")
-
-    @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
-    def test_wandb_uri_loading_with_canonical_form(self, mock_load_wandb, mock_policy):
-        """Canonical URIs pass straight through to the loader."""
-        mock_load_wandb.return_value = mock_policy
-
-        uri = "wandb://metta-research/metta/model/my-experiment:latest"
-        loaded_policy = CheckpointManager.load_from_uri(uri)
-
-        assert type(loaded_policy).__name__ == type(mock_policy).__name__
-        mock_load_wandb.assert_called_once_with(uri, device="cpu")
-
-    @patch("metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata")
-    def test_wandb_metadata_extraction(self, mock_get_metadata):
-        """Test metadata extraction from canonical wandb URIs."""
-        mock_get_metadata.return_value = {
-            "run_name": "experiment_1",
-            "epoch": 25,
-            "agent_step": 12500,
-            "total_time": 750,
-            "score": 0.95,
-        }
-
-        uri = "wandb://metta-research/metta/model/experiment_1:latest"
-        metadata = CheckpointManager.get_policy_metadata(uri)
-
-        mock_get_metadata.assert_called_once_with(uri)
-
-        assert metadata["run_name"] == "experiment_1"
-        assert metadata["epoch"] == 25
-        assert metadata["original_uri"] == uri
-
-    def test_get_wandb_metadata_handles_comm_error(self):
-        """Ensure network issues when fetching metadata do not raise."""
-        with patch("metta.rl.wandb._create_wandb_api") as mock_api:
-            mock_api.return_value.artifact.side_effect = CommError("timeout")
-
-            metadata = get_wandb_checkpoint_metadata("wandb://entity/project/model/run:v1")
-
-        assert metadata is None
-
-    def test_wandb_key_and_version_extraction(self):
-        """Test extracting key and version from wandb URIs."""
-        canonical = "wandb://metta-research/metta/model/test:latest"
-        with patch(
-            "metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata", return_value={"run_name": "test", "epoch": 5}
-        ):
-            key, version = key_and_version(canonical)
-            assert key == "test"
-            assert version == 5
-
-    @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
-    def test_wandb_error_handling(self, mock_load_wandb):
-        """Test wandb URI error handling."""
-        mock_load_wandb.side_effect = RuntimeError("Network error")
-
-        uri = "wandb://metta-research/metta/model/test:latest"
-        with pytest.raises(RuntimeError, match="Network error"):
-            CheckpointManager.load_from_uri(uri)
-
-
 class TestS3URIHandling:
     """Test s3:// URI format handling."""
 
@@ -258,11 +183,6 @@ class TestURIUtilities:
         result = CheckpointManager.normalize_uri("/path/to/checkpoint.pt")
         assert result.startswith("file://")
         assert result.endswith("/path/to/checkpoint.pt")
-
-        # Test wandb URI passthrough (canonical URIs remain unchanged)
-        wandb_uri = "wandb://metta-research/metta/model/test:latest"
-        normalized = CheckpointManager.normalize_uri(wandb_uri)
-        assert normalized == wandb_uri
 
         # Test already normalized URIs remain unchanged
         file_uri = "file:///path/to/checkpoint.pt"
@@ -437,101 +357,3 @@ class TestEndToEndWorkflows:
             metadata = CheckpointManager.get_policy_metadata(uri)
             assert metadata["run_name"] == "cross_test"
             assert metadata["epoch"] == 5
-
-
-class TestWandbArtifactFormatting:
-    """Test wandb artifact URI formatting to prevent double entity issues."""
-
-    def test_wandb_uri_parsing_prevents_double_entity(self):
-        """Test that WandB URIs are parsed correctly without double entity issues."""
-
-        # Test various wandb:// URI formats to ensure they parse correctly
-        test_cases = [
-            (
-                "wandb://metta-research/metta/model/relh.policy-cull.902.1:v0",
-                "metta-research",
-                "metta",
-                "model/relh.policy-cull.902.1",
-                "v0",
-            ),
-            (
-                "wandb://demo-org/projects/model/my-artifact:latest",
-                "demo-org",
-                "projects",
-                "model/my-artifact",
-                "latest",
-            ),
-            (
-                "wandb://sample-entity/qa/artifacts/artifact-name:v42",
-                "sample-entity",
-                "qa",
-                "artifacts/artifact-name",
-                "v42",
-            ),
-        ]
-
-        for wandb_uri, expected_entity, expected_project, expected_artifact_path, expected_version in test_cases:
-            # Parse the URI
-            parsed_uri = WandbURI.parse(wandb_uri)
-
-            # Verify components are extracted correctly
-            assert parsed_uri.entity == expected_entity
-            assert parsed_uri.project == expected_project
-            assert parsed_uri.artifact_path == expected_artifact_path
-            assert parsed_uri.version == expected_version
-
-            # Most importantly: verify that qname() uses the configured entity
-            # and doesn't create double entity paths
-            qname = parsed_uri.qname()
-            expected_qname = f"{expected_entity}/{expected_project}/{expected_artifact_path}:{expected_version}"
-            assert qname == expected_qname
-
-            # Ensure no double entity issue (this was the original bug)
-            parts = qname.split("/")
-            assert len(parts) == 3, f"qname should have exactly 3 parts, got: {qname}"
-
-    def test_upload_checkpoint_returns_latest_uri(self):
-        """Test that upload_checkpoint_as_artifact always returns latest URI for simplicity."""
-
-        mock_artifact = Mock()
-        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
-        mock_artifact.version = "v1"
-        mock_artifact.wait = Mock()
-
-        mock_run = Mock()
-        mock_run.project = "metta"
-        mock_run.log_artifact = Mock()
-
-        with patch("wandb.Artifact", return_value=mock_artifact):
-            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
-                result = upload_checkpoint_as_artifact(
-                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
-                )
-
-                # Always returns qualified artifact URI for simplicity and reliability
-                assert result == "wandb://metta-research/metta/test-artifact:v1"
-                assert result.startswith("wandb://"), "Should start with wandb://"
-
-                # Verify the artifact upload happened
-                mock_run.log_artifact.assert_called_once_with(mock_artifact)
-                mock_artifact.wait.assert_called_once()
-
-    def test_upload_checkpoint_handles_comm_error(self):
-        """Uploading failures should be logged but not raise."""
-
-        mock_artifact = Mock()
-        mock_artifact.wait = Mock()
-
-        mock_run = Mock()
-        mock_run.project = "metta"
-        mock_run.log_artifact.side_effect = CommError("timeout")
-
-        with patch("wandb.Artifact", return_value=mock_artifact):
-            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
-                result = upload_checkpoint_as_artifact(
-                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
-                )
-
-        assert result is None
-        mock_run.log_artifact.assert_called_once()
-        mock_artifact.wait.assert_not_called()

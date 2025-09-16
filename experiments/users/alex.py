@@ -162,7 +162,7 @@ def train() -> TrainTool:
         total_timesteps=10_000_000_000,  # 10B instead of default 50B
         checkpoint=CheckpointConfig(
             checkpoint_interval=50,  # 50 instead of default 5
-            wandb_checkpoint_interval=50,  # 50 instead of default 5
+            remote_prefix="s3://my-bucket/policies",
         ),
         evaluation=EvaluationConfig(
             simulations=make_evals(env_cfg),

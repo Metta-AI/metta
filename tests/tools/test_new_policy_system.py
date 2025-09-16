@@ -84,14 +84,13 @@ class TestNewPolicySystem:
             "file://./checkpoints/model.pt",
             "file:///absolute/path/model.pt",
             "s3://bucket/path/model.pt",
-            "wandb://project/artifact:version",
             "mock://test_policy",
         ]
 
         for uri in uri_formats:
             assert "://" in uri, f"URI {uri} missing protocol separator"
             protocol = uri.split("://")[0]
-            assert protocol in ["file", "s3", "wandb", "mock"], f"Unknown protocol {protocol}"
+            assert protocol in ["file", "s3", "mock"], f"Unknown protocol {protocol}"
 
     def test_simulation_stats_integration(self):
         """Test that simulations integrate with the stats system."""

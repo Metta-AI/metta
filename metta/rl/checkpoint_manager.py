@@ -6,9 +6,8 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.mettagrid.util.file import local_copy
+from metta.mettagrid.util.file import local_copy, write_file
 from metta.mettagrid.util.uri import ParsedURI
-from metta.rl.wandb import get_wandb_checkpoint_metadata, load_policy_from_wandb_uri, upload_checkpoint_as_artifact
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +35,9 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
     if parsed.scheme == "file" and parsed.local_path is not None:
         path = parsed.local_path
-        if path.is_file():
-            if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
-                return parse_checkpoint_filename(path.name)[:2]
-            return (path.stem if path.suffix else path.name, 0)
+
+        if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
+            return parse_checkpoint_filename(path.name)[:2]
 
         if path.is_dir():
             checkpoint_file = _find_latest_checkpoint_in_dir(path)
@@ -47,14 +45,8 @@ def key_and_version(uri: str) -> tuple[str, int]:
                 return parse_checkpoint_filename(checkpoint_file.name)[:2]
             if checkpoint_file:
                 return checkpoint_file.stem, 0
-        return (path.stem if path.suffix else path.name, 0)
 
-    if parsed.scheme == "wandb" and parsed.wandb is not None:
-        metadata = get_wandb_checkpoint_metadata(parsed.canonical)
-        if metadata:
-            return metadata["run_name"], metadata["epoch"]
-        artifact_name = parsed.wandb.artifact_path.split("/")[-1].split(":")[0]
-        return artifact_name, 0
+        return (path.stem if path.suffix else path.name, 0)
 
     if parsed.scheme == "s3" and parsed.key:
         filename = Path(parsed.key).name
@@ -121,7 +113,13 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
 class CheckpointManager:
     """Checkpoint manager with filename-embedded metadata and LRU cache."""
 
-    def __init__(self, run: str = "default", run_dir: str = "./train_dir", cache_size: int = 3):
+    def __init__(
+        self,
+        run: str = "default",
+        run_dir: str = "./train_dir",
+        cache_size: int = 3,
+        remote_prefix: str | None = None,
+    ):
         # Validate run name
         if not run or not run.strip():
             raise ValueError("Run name cannot be empty")
@@ -136,6 +134,14 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
+        self._remote_prefix = None
+        if remote_prefix:
+            parsed = ParsedURI.parse(remote_prefix)
+            if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
+                raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
+            # Remove trailing slash from prefix for deterministic joins
+            key_prefix = parsed.key.rstrip("/")
+            self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
@@ -143,7 +149,9 @@ class CheckpointManager:
 
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device = "cpu"):
-        """Load a policy from a URI (file://, wandb://, s3://, or mock://)."""
+        """Load a policy from a URI (file://, s3://, or mock://)."""
+        if uri.startswith(("http://", "https://", "ftp://", "gs://")):
+            raise ValueError(f"Invalid URI: {uri}")
         parsed = ParsedURI.parse(uri)
 
         if parsed.scheme == "file" and parsed.local_path is not None:
@@ -158,9 +166,6 @@ class CheckpointManager:
         if parsed.scheme == "s3":
             with local_copy(parsed.canonical) as local_path:
                 return torch.load(local_path, weights_only=False, map_location=device)
-
-        if parsed.scheme == "wandb":
-            return load_policy_from_wandb_uri(parsed.canonical, device=device)
 
         if parsed.scheme == "mock":
             return MockAgent()
@@ -186,6 +191,13 @@ class CheckpointManager:
             path = parsed.local_path
             if path.is_file() and is_valid_checkpoint_filename(path.name):
                 _, _, agent_step, total_time, score = parse_checkpoint_filename(path.name)
+                metadata["agent_step"] = agent_step
+                metadata["total_time"] = total_time
+                metadata["score"] = score
+        if parsed.scheme == "s3" and parsed.key:
+            filename = Path(parsed.key).name
+            if filename.endswith(".pt") and is_valid_checkpoint_filename(filename):
+                _, _, agent_step, total_time, score = parse_checkpoint_filename(filename)
                 metadata["agent_step"] = agent_step
                 metadata["total_time"] = total_time
                 metadata["score"] = score
@@ -236,9 +248,10 @@ class CheckpointManager:
             result["stopwatch_state"] = state["stopwatch_state"]
         return result
 
-    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any], wandb_run=None) -> str:
-        """Save agent checkpoint to disk and optionally to wandb.
-        Returns URI of saved checkpoint (file:// for local, wandb:// if uploaded to wandb).
+    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
+        """Save agent checkpoint to disk and upload to remote storage if configured.
+
+        Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         agent_step = metadata.get("agent_step", 0)
@@ -252,26 +265,10 @@ class CheckpointManager:
 
         torch.save(agent, checkpoint_path)
 
-        # Upload to wandb if run is provided
-        wandb_uri = None
-        if wandb_run and metadata.get("upload_to_wandb", True):
-            # For final checkpoint, append "_final" to distinguish it
-            name = self.run_name + "_final" if metadata.get("is_final", False) else self.run_name
-
-            wandb_metadata = {
-                "run_name": self.run_name,
-                "epoch": epoch,
-                "agent_step": agent_step,
-                "total_time": total_time,
-                "score": metadata.get("score", 0.0),
-            }
-
-            wandb_uri = upload_checkpoint_as_artifact(
-                checkpoint_path=str(checkpoint_path),
-                artifact_name=name,
-                metadata=wandb_metadata,
-                wandb_run=wandb_run,
-            )
+        remote_uri = None
+        if self._remote_prefix:
+            remote_uri = f"{self._remote_prefix}/{filename}"
+            write_file(remote_uri, str(checkpoint_path))
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
         if existing_files:
@@ -282,11 +279,9 @@ class CheckpointManager:
             for key in keys_to_remove:
                 self._cache.pop(key, None)
 
-        # Return wandb URI if uploaded, otherwise return local file URI
-        if wandb_uri:
-            return wandb_uri
-        else:
-            return f"file://{checkpoint_path.resolve()}"
+        if remote_uri:
+            return remote_uri
+        return f"file://{checkpoint_path.resolve()}"
 
     def save_trainer_state(
         self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
@@ -310,6 +305,8 @@ class CheckpointManager:
         metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
         checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
+        if self._remote_prefix:
+            return [f"{self._remote_prefix}/{path.name}" for path in selected_files]
         return [f"file://{path.resolve()}" for path in selected_files]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:

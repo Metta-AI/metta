@@ -121,7 +121,11 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
-    checkpoint_manager = CheckpointManager(run=cfg.run, run_dir=cfg.run_dir)
+    checkpoint_manager = CheckpointManager(
+        run=cfg.run,
+        run_dir=cfg.run_dir,
+        remote_prefix=cfg.trainer.checkpoint.remote_prefix,
+    )
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
         cfg = _minimize_config_for_debugging(cfg)
@@ -200,7 +204,6 @@ def _minimize_config_for_debugging(cfg: TrainTool) -> TrainTool:
     cfg.trainer.async_factor = 1
     cfg.trainer.forward_pass_minibatch_target_size = min(cfg.trainer.forward_pass_minibatch_target_size, 4)
     cfg.trainer.checkpoint.checkpoint_interval = min(cfg.trainer.checkpoint.checkpoint_interval, 10)
-    cfg.trainer.checkpoint.wandb_checkpoint_interval = min(cfg.trainer.checkpoint.wandb_checkpoint_interval, 10)
     cfg.trainer.bptt_horizon = min(cfg.trainer.bptt_horizon, 8)
     if cfg.trainer.evaluation:
         cfg.trainer.evaluation.evaluate_interval = min(cfg.trainer.evaluation.evaluate_interval, 10)

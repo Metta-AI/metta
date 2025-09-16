@@ -63,6 +63,22 @@ class TestBasicSaveLoad:
         assert "actions" in output
         assert output["actions"].shape[0] == 1
 
+    def test_remote_prefix_upload(self, temp_run_dir, mock_agent):
+        metadata = {"agent_step": 123, "total_time": 10, "score": 0.5}
+        manager = CheckpointManager(run="test_run", run_dir=temp_run_dir, remote_prefix="s3://bucket/checkpoints")
+
+        expected_filename = "test_run__e3__s123__t10__sc5000.pt"
+        expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
+
+        with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
+            remote_uri = manager.save_agent(mock_agent, epoch=3, metadata=metadata)
+
+        assert remote_uri == expected_remote
+        mock_write.assert_called_once()
+        remote_arg, local_arg = mock_write.call_args[0]
+        assert remote_arg == expected_remote
+        assert Path(local_arg).name == expected_filename
+
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent):
         epochs_data = [
             (1, {"agent_step": 1000, "total_time": 30, "score": 0.5}),

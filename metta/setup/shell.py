@@ -22,7 +22,7 @@ def help_configs() -> None:
     info('cfg = load_cfg("train_job.yaml", ["trainer.curriculum=/env/mettagrid/arena/advanced"])')
     success("# Load checkpoints:")
     info('policy = CheckpointManager.load_from_uri("file://./train_dir/my_run/checkpoints")')
-    info('policy = CheckpointManager.load_from_uri("wandb://project/artifact:version")')
+    info('policy = CheckpointManager.load_from_uri("s3://bucket/path/to/checkpoint.pt")')
     success("# Create checkpoint manager:")
     info('cm = CheckpointManager(run="my_run", run_dir="./train_dir")')
 

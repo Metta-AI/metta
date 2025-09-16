@@ -2,20 +2,14 @@ from __future__ import annotations
 
 import logging
 import os
-import tempfile
 import time
 import weakref
-from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 
-import torch
 import torch.nn as nn
 import wandb
-from wandb import Artifact
-from wandb.errors import CommError
 
 from metta.common.wandb.wandb_context import WandbRun
-from metta.mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
@@ -84,150 +78,3 @@ def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     num_params = sum(p.numel() for p in policy.parameters())
     if wandb_run.summary:
         wandb_run.summary["model/total_parameters"] = num_params
-
-
-def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
-    """Extract checkpoint metadata from a wandb artifact.
-
-    Returns a dict with keys: run_name, epoch, agent_step, total_time, score
-    or None if metadata cannot be extracted.
-    """
-    if not wandb_uri.startswith("wandb://"):
-        return None
-
-    try:
-        parsed = ParsedURI.parse(wandb_uri)
-    except ValueError as exc:
-        raise ValueError(
-            "Invalid W&B URI. Use fully-qualified form `wandb://entity/project/artifact_path:version`."
-        ) from exc
-
-    if parsed.scheme != "wandb" or parsed.wandb is None:
-        raise ValueError("Invalid W&B URI. Use fully-qualified form `wandb://entity/project/artifact_path:version`.")
-
-    uri = parsed.wandb
-    try:
-        artifact: Artifact = _create_wandb_api().artifact(uri.qname())
-    except (CommError, TimeoutError) as exc:
-        logger.warning(f"Failed to load W&B artifact metadata for {uri.qname()}: {exc}")
-        return None
-    metadata = artifact.metadata
-
-    if metadata is None:
-        return None
-
-    # Check if we have all required fields
-    required_fields = ["run_name", "epoch", "agent_step", "total_time", "score"]
-    if all(field in metadata for field in required_fields):
-        return {
-            "run_name": f"{metadata['run_name']}:{artifact.version}",
-            "epoch": metadata["epoch"],
-            "agent_step": metadata["agent_step"],
-            "total_time": metadata["total_time"],
-            "score": metadata["score"],
-        }
-    return None
-
-
-def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:
-    """Load a policy from a canonical wandb URI.
-
-    Args:
-        wandb_uri: Fully-qualified URI in the form
-            `wandb://entity/project/artifact_path:version`.
-
-    Raises:
-        ValueError: If the URI is not a well-formed wandb:// URI
-        FileNotFoundError: If no checkpoint files are found in the artifact
-    """
-    if not wandb_uri.startswith("wandb://"):
-        raise ValueError(f"Not a wandb URI: {wandb_uri}")
-
-    try:
-        parsed = ParsedURI.parse(wandb_uri)
-    except ValueError as exc:
-        raise ValueError(
-            f"Invalid W&B URI '{wandb_uri}'. Use fully-qualified form `wandb://entity/project/artifact_path:version`."
-        ) from exc
-
-    if parsed.scheme != "wandb" or parsed.wandb is None:
-        raise ValueError(
-            f"Invalid W&B URI '{wandb_uri}'. Use fully-qualified form `wandb://entity/project/artifact_path:version`."
-        )
-
-    uri = parsed.wandb
-    canonical_uri = parsed.canonical
-    logger.info(f"Loading policy from wandb URI: {canonical_uri}")
-    qname = uri.qname()
-
-    # Load artifact
-    try:
-        logger.debug(f"Loading artifact: {qname}")
-        artifact = _create_wandb_api().artifact(qname)
-    except CommError as e:
-        raise ValueError(f"Artifact not found: {qname}") from e
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        artifact_dir = Path(temp_dir)
-        artifact.download(root=str(artifact_dir))
-
-        # Load model.pt
-        model_file = artifact_dir / "model.pt"
-        if not model_file.exists():
-            # Fallback to any .pt file
-            policy_files = list(artifact_dir.rglob("*.pt"))
-            if not policy_files:
-                raise FileNotFoundError(f"No .pt files in artifact {wandb_uri}")
-            model_file = policy_files[0]
-
-        return torch.load(model_file, map_location=device, weights_only=False)
-
-
-# Minimal Wandb Artifact Upload Functions
-
-
-def upload_checkpoint_as_artifact(
-    checkpoint_path: str,
-    artifact_name: str,
-    artifact_type: str = "model",
-    metadata: Optional[dict] = None,
-    wandb_run: Optional[WandbRun] = None,
-    additional_files: Optional[list[str]] = None,
-) -> Optional[str]:
-    """Upload a checkpoint file to wandb as an artifact."""
-    # Use provided run or get current run
-    run = wandb_run or wandb.run
-    if run is None:
-        logger.warning("No wandb run active, cannot upload artifact")
-        return None
-
-    # Prepare metadata
-    artifact_metadata = metadata.copy() if metadata else {}
-
-    # Create artifact (wandb supports dots in names)
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type, metadata=artifact_metadata)
-
-    # Add checkpoint file as model.pt
-    artifact.add_file(checkpoint_path, name="model.pt")
-
-    # Add any additional files
-    if additional_files:
-        for file_path in additional_files:
-            if Path(file_path).exists():
-                artifact.add_file(file_path)
-            else:
-                logger.warning(f"Additional file not found: {file_path}")
-
-    # Log artifact to run
-    try:
-        run.log_artifact(artifact)
-        artifact.wait()
-    except (CommError, TimeoutError) as exc:
-        logger.warning(f"Failed to upload checkpoint artifact {artifact_name} to WandB: {exc}")
-        return None
-
-    # qualified_name already contains entity/project/path:version
-    wandb_uri = f"wandb://{artifact.qualified_name}"
-    logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
-
-    return wandb_uri
