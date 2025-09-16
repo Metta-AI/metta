@@ -122,6 +122,9 @@ find "/UI/Main":
     bottomArea.rect = irect(0, rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, rootArea.rect.w, (rootArea.rect.h.float32 * 0.25).int)
     rootArea.updatePanelsSizes()
 
+    if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
+      fitFullMap(worldMapPanel)
+
 startFidget(
   figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
   windowTitle = "MetaScope V2",

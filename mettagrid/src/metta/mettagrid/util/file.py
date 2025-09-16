@@ -34,7 +34,6 @@ from wandb.errors import CommError
 #  Globals                                                                     #
 # --------------------------------------------------------------------------- #
 
-WANDB_ENTITY: str = os.getenv("WANDB_ENTITY", "metta-research")
 GOOGLE_DRIVE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_DRIVE_CREDENTIALS_FILE", "~/.config/gcloud/credentials.json")
 GOOGLE_DRIVE_TOKEN_FILE: str = os.getenv("GOOGLE_DRIVE_TOKEN_FILE", "~/.config/gcloud/token.json")
 
@@ -256,6 +255,7 @@ def is_public_uri(url: str | None) -> bool:
 class WandbURI:
     """Parsed representation of a W&B artifact URI."""
 
+    entity: str
     project: str
     artifact_path: str
     version: str = "latest"
@@ -273,26 +273,40 @@ class WandbURI:
             path_part, version = body, "latest"
 
         if "/" not in path_part:
-            raise ValueError("Malformed W&B URI – expected wandb://<project>/<artifact_path>[:<version>]")
+            raise ValueError("Malformed W&B URI – expected wandb://entity/project/artifact:version")
 
-        project, artifact_path = path_part.split("/", 1)
-        if not artifact_path:
-            raise ValueError("Artifact path must be non-empty")
+        parts = path_part.split("/")
 
-        return cls(project, artifact_path, version)
+        if len(parts) >= 3:
+            entity = parts[0]
+            project = parts[1]
+            artifact_path = "/".join(parts[2:])
+        elif len(parts) == 2:
+            # 2-part format: use WANDB_ENTITY if set; otherwise default to 'metta-research'
+            # Note: Do not import from metta.* here; mettagrid must remain decoupled.
+            project = parts[0]
+            artifact_path = parts[1]
+            entity = os.getenv("WANDB_ENTITY", "metta-research")
+        else:
+            raise ValueError("Malformed W&B URI – expected wandb://entity/project/artifact:version")
+
+        if not project or not artifact_path:
+            raise ValueError("Project and artifact path must be non-empty")
+
+        return cls(entity, project, artifact_path, version)
 
     # ---------- helpers ---------- #
     def qname(self) -> str:
         """`entity/project/artifact_path:version` – accepted by `wandb.Api().artifact()`."""
-        return f"{WANDB_ENTITY}/{self.project}/{self.artifact_path}:{self.version}"
+        return f"{self.entity}/{self.project}/{self.artifact_path}:{self.version}"
 
     def http_url(self) -> str:
         """Human-readable URL for this artifact version."""
-        return f"https://wandb.ai/{WANDB_ENTITY}/{self.project}/artifacts/{self.artifact_path}/{self.version}"
+        return f"https://wandb.ai/{self.entity}/{self.project}/artifacts/{self.artifact_path}/{self.version}"
 
     # pretty print
     def __str__(self) -> str:  # noqa: D401 (keep dunder)
-        return f"wandb://{self.project}/{self.artifact_path}:{self.version}"
+        return f"wandb://{self.entity}/{self.project}/{self.artifact_path}:{self.version}"
 
 
 def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
@@ -306,7 +320,7 @@ def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
 
 
 @contextmanager
-def wandb_export_context(project: str, entity: str = WANDB_ENTITY) -> wandb.Run:
+def wandb_export_context(project: str, entity: str) -> wandb.Run:
     """
     Context manager that ensures a wandb run exists for artifact exports.
     TODO: Remove this after switching to using wandb_context
@@ -376,7 +390,7 @@ def upload_file_to_wandb(uri, local_file: str, name: str) -> None:
         )
 
     try:
-        with wandb_export_context(uri.project, WANDB_ENTITY) as run:
+        with wandb_export_context(uri.project, uri.entity) as run:
             # Create and log the artifact
             artifact = wandb.Artifact(uri.artifact_path, type="file")
             artifact.add_file(local_file, name=name)

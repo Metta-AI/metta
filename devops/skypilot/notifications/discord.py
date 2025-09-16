@@ -1,97 +1,96 @@
 #!/usr/bin/env python3
 
-
-import os
 import time
 from datetime import datetime
 
 from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.discord import send_to_discord
 from metta.common.util.log_config import getRankAwareLogger
+from metta.common.util.retry import retry_function
 
 logger = getRankAwareLogger(__name__)
 
 
-class DiscordNotifier:
-    def send_notification(
-        self, emoji: str, title: str, status_msg: str, job_config: JobConfig, additional_info: str = ""
-    ) -> bool:
-        if not job_config.discord_webhook_url:
-            logger.debug("Discord notifications disabled - no webhook URL")
-            return False
+def send_discord_notification(title: str, status_msg: str, job_config: JobConfig) -> bool:
+    if not job_config.enable_discord_notification:
+        logger.debug("Discord notifications disabled")
+        return False
 
-        logger.info(f"Sending Discord notification: {title}")
+    # Extract and validate required fields
+    webhook_url = job_config.discord_webhook_url or ""
+    repository = job_config.github_repository
+    git_ref = job_config.metta_git_ref
+    run_id = job_config.metta_run_id
+    total_nodes = job_config.total_nodes
+    start_time = job_config.start_time
 
+    if not all([title, status_msg, webhook_url, repository, git_ref]):
+        logger.warning(
+            f"Skipping Discord notification - missing params: "
+            f"title={bool(title)}, status={bool(status_msg)}, "
+            f"webhook={'set' if webhook_url else 'missing'}, repo={bool(repository)}, "
+            f"git_ref={bool(git_ref)}"
+        )
+        return False
+
+    # Calculate runtime if available
+    runtime_str = ""
+    if start_time and start_time != 0:
         try:
-            # Validate required fields
-            required_fields = {
-                "github_repository": job_config.github_repository,
-                "metta_git_ref": job_config.metta_git_ref,
-                "metta_run_id": job_config.metta_run_id,
-                "total_nodes": job_config.total_nodes,
-                "job_metadata_dir": job_config.job_metadata_dir,
-            }
+            current_time = int(time.time())
+            duration = current_time - start_time
+            hours = duration // 3600
+            minutes = (duration % 3600) // 60
+            runtime_str = f"{hours}h {minutes}m"
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid start_time: {start_time}")
 
-            missing_fields = [k for k, v in required_fields.items() if not v]
-            if missing_fields:
-                logger.error(f"Cannot send Discord notification - missing fields: {', '.join(missing_fields)}")
-                return False
+    # Build message content
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-            # Calculate runtime if start_time is provided
-            runtime_msg = ""
-            if job_config.start_time and job_config.start_time != 0:
-                try:
-                    current_time = int(time.time())
-                    duration = current_time - job_config.start_time
-                    hours = duration // 3600
-                    minutes = (duration % 3600) // 60
-                    runtime_msg = f"**Runtime**: {hours}h {minutes}m"
-                except (ValueError, TypeError):
-                    logger.warning(f"Invalid start_time: {job_config.start_time}")
+    message_parts = [
+        f"**{title}**",
+        "",
+        f"**Repository**: {repository}",
+        f"**Git Ref**: {git_ref}",
+        f"**Run ID**: {run_id or 'N/A'}",
+        f"**Status**: {status_msg}",
+    ]
 
-            # Build Discord message
-            message_parts = [
-                f"{emoji} **{title}**",
-                "",
-                f"**Repository**: {job_config.github_repository}",
-                f"**Git Ref**: {job_config.metta_git_ref}",
-                f"**Run ID**: {job_config.metta_run_id or 'N/A'}",
-                f"**Status**: {status_msg}",
-            ]
+    if runtime_str:
+        message_parts.append(f"**Runtime**: {runtime_str}")
 
-            if runtime_msg:
-                message_parts.append(runtime_msg)
+    message_parts.extend(
+        [
+            f"**Time**: {timestamp}",
+            f"**Nodes**: {total_nodes}",
+        ]
+    )
 
-            message_parts.extend(
-                [
-                    f"**Time**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
-                    f"**Nodes**: {job_config.total_nodes}",
-                ]
-            )
+    content = "\n".join(message_parts)
 
-            if additional_info:
-                message_parts.extend(["", additional_info])
+    # Log detailed notification info before sending
+    logger.info(
+        f"Sending Discord notification:\n"
+        f"  title       = {title}\n"
+        f"  status      = {status_msg}\n"
+        f"  repository  = {repository}\n"
+        f"  git_ref     = {git_ref}\n"
+        f"  run_id      = {run_id or 'N/A'}\n"
+        f"  nodes       = {total_nodes}\n"
+        f"  runtime     = {runtime_str or 'N/A'}"
+    )
 
-            discord_content = "\n".join(message_parts)
+    try:
+        retry_function(
+            lambda: send_to_discord(webhook_url=webhook_url, content=content, suppress_embeds=True),
+            max_retries=3,
+            initial_delay=2.0,
+            max_delay=30.0,
+        )
+        logger.info(f"✅ Successfully sent Discord notification: {title}")
+        return True
 
-            # Save to file for debugging
-            if job_config.job_metadata_dir:
-                discord_message_path = os.path.join(job_config.job_metadata_dir, "discord_message.txt")
-                with open(discord_message_path, "w") as f:
-                    f.write(discord_content)
-
-            # Send notification
-            success = send_to_discord(
-                webhook_url=job_config.discord_webhook_url, content=discord_content, suppress_embeds=True
-            )
-
-            if success:
-                logger.info(f"Discord notification sent successfully: {title}")
-            else:
-                logger.warning(f"Discord notification failed: {title}")
-
-            return success
-
-        except Exception as e:
-            logger.error(f"Discord notification error: {e}", exc_info=True)
-            return False
+    except Exception as e:
+        logger.error(f"Discord notification failed: {e}")
+        return False
