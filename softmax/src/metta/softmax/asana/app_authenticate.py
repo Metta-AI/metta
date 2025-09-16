@@ -306,8 +306,10 @@ class AsanaOAuthCLI:
             # Ensure server is shutting down
             self._request_shutdown()
             if self._server_thread and self._server_thread.is_alive():
-                self._server_thread.join(timeout=5)
-
+                if self._server:
+                    asyncio.run(self._server.shutdown())
+                # Wait for the thread to terminate
+                self._server_thread.join()
             # Check for errors
             if self.error:
                 raise Exception(self.error)
