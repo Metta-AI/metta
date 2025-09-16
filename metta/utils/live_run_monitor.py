@@ -23,13 +23,14 @@ Usage:
     ./metta/util/live_run_monitor.py  # Monitor last 10 runs (fetch 50, display 10)
 """
 
-import argparse
 import logging
 import sys
 import time
 from datetime import datetime
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
+import typer
+import wandb
 from rich.console import Console, Group
 from rich.live import Live
 from rich.table import Table
@@ -41,6 +42,14 @@ logger = logging.getLogger(__name__)
 
 # Display limit for runs
 DISPLAY_LIMIT = 10
+
+# Typer application for CLI usage
+app = typer.Typer(
+    help="Live run monitor with rich terminal display.",
+    no_args_is_help=False,
+    rich_markup_mode="rich",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 
 
 def _get_status_color(status: JobStatus) -> str:
@@ -413,116 +422,94 @@ def live_monitor_runs_test(
         raise
 
 
-def main():
-    """CLI entry point for live run monitoring."""
-    parser = argparse.ArgumentParser(
-        description="Live monitor runs with rich terminal display",
-        epilog="""
-Examples:
-  %(prog)s --group my_group_name
-  %(prog)s --name-filter "axel.*"
-  %(prog)s --group my_group --name-filter "experiment.*"
-  %(prog)s --refresh 15 --entity myteam --project myproject
-  %(prog)s --fetch-limit 100 --display-limit 20  # Fetch more, display more
-  %(prog)s  # Monitor last 10 runs (fetch 50, display 10)
-
-The monitor will display a live table with color-coded statuses:
-  - Completed runs (blue)
-  - In training runs (green)
-  - Pending runs (gray)
-  - Training done, no eval (orange)
-  - Failed runs (red)
-        """,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument("--group", "-g", help="WandB group to monitor (optional)")
-    parser.add_argument("--name-filter", help="Regex filter for run names (e.g., 'axel.*')")
-    parser.add_argument("--refresh", "-r", type=int, default=30, help="Refresh interval in seconds (default: 30)")
-    parser.add_argument(
-        "--entity", "-e", type=str, default="metta-research", help="WandB entity (default: metta-research)"
-    )
-    parser.add_argument("--project", "-p", type=str, default="metta", help="WandB project (default: metta)")
-    parser.add_argument(
-        "--test", action="store_true", help="Run in test mode with mock data (no WandB connection required)"
-    )
-    parser.add_argument("--no-clear", action="store_true", help="Don't clear screen, append output instead")
-    parser.add_argument(
-        "--fetch-limit", type=int, default=50, help="Maximum number of runs to fetch from WandB (default: 50)"
-    )
-    parser.add_argument(
-        "--display-limit", type=int, default=10, help="Maximum number of runs to display in table (default: 10)"
-    )
-    parser.add_argument(
-        "--score-metric",
-        type=str,
-        default="env_agent/heart.get",
-        help="Metric key in run.summary to use for score (default: env_agent/heart.get)",
-    )
-
-    args = parser.parse_args()
-
-    # Validate refresh interval
-    if args.refresh < 1:
-        print("Error: Refresh interval must be at least 1 second")
-        sys.exit(1)
-
-    # Validate limits
-    if args.fetch_limit < 1:
-        print("Error: Fetch limit must be at least 1")
-        sys.exit(1)
-    if args.display_limit < 1:
-        print("Error: Display limit must be at least 1")
-        sys.exit(1)
-    if args.display_limit > args.fetch_limit:
-        print("Warning: Display limit is greater than fetch limit, some runs may not be shown")
-        print(f"  Fetch limit: {args.fetch_limit}, Display limit: {args.display_limit}")
-
-    # Test mode with mock data
-    if args.test:
-        try:
-            live_monitor_runs_test(
-                group=args.group or "test_group",
-                refresh_interval=args.refresh,
-                clear_screen=not args.no_clear,
-                display_limit=args.display_limit,
-            )
-        except KeyboardInterrupt:
-            print("\nTest monitoring stopped by user.")
-            sys.exit(0)
+@app.callback(invoke_without_command=True)
+def cli(
+    ctx: typer.Context,
+    group: Annotated[str | None, typer.Option("--group", "-g", help="WandB group to monitor (optional)")] = None,
+    name_filter: Annotated[
+        str | None, typer.Option("--name-filter", help="Regex filter for run names (e.g., 'axel.*')")
+    ] = None,
+    refresh: Annotated[int, typer.Option("--refresh", "-r", help="Refresh interval in seconds (default: 30)")] = 30,
+    entity: Annotated[
+        str, typer.Option("--entity", "-e", help="WandB entity (default: metta-research)")
+    ] = "metta-research",
+    project: Annotated[str, typer.Option("--project", "-p", help="WandB project (default: metta)")] = "metta",
+    test: Annotated[
+        bool, typer.Option("--test", help="Run in test mode with mock data (no WandB connection required)")
+    ] = False,
+    no_clear: Annotated[bool, typer.Option("--no-clear", help="Don't clear screen, append output instead")] = False,
+    fetch_limit: Annotated[
+        int, typer.Option("--fetch-limit", help="Maximum number of runs to fetch from WandB (default: 50)")
+    ] = 50,
+    display_limit: Annotated[
+        int, typer.Option("--display-limit", help="Maximum number of runs to display in table (default: 10)")
+    ] = 10,
+    score_metric: Annotated[
+        str,
+        typer.Option(
+            "--score-metric",
+            help="Metric key in run.summary to use for score (default: env_agent/heart.get)",
+        ),
+    ] = "env_agent/heart.get",
+) -> None:
+    """Default command for the live run monitor app."""
+    # If a subcommand is provided, do nothing here
+    if ctx.invoked_subcommand:
         return
 
-    # Validate WandB access
-    try:
-        import wandb
+    # Validate refresh interval
+    if refresh < 1:
+        typer.echo("Error: Refresh interval must be at least 1 second")
+        raise typer.Exit(1)
 
-        if not wandb.api.api_key:
-            print("Error: WandB API key not found. Please run 'wandb login' first.")
-            sys.exit(1)
-    except ImportError:
-        print("Error: WandB not installed. Please install with 'pip install wandb'.")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Warning: Could not validate WandB credentials: {e}")
+    # Validate limits
+    if fetch_limit < 1:
+        typer.echo("Error: Fetch limit must be at least 1")
+        raise typer.Exit(1)
+    if display_limit < 1:
+        typer.echo("Error: Display limit must be at least 1")
+        raise typer.Exit(1)
+    if display_limit > fetch_limit:
+        typer.echo("Warning: Display limit is greater than fetch limit, some runs may not be shown")
+        typer.echo(f"  Fetch limit: {fetch_limit}, Display limit: {display_limit}")
+
+    # Test mode with mock data
+    if test:
+        try:
+            live_monitor_runs_test(
+                group=group or "test_group",
+                refresh_interval=refresh,
+                clear_screen=not no_clear,
+                display_limit=display_limit,
+            )
+        except KeyboardInterrupt:
+            typer.echo("\nTest monitoring stopped by user.")
+            raise typer.Exit(0) from None
+        return
+
+    if not wandb.api.api_key:
+        typer.echo("Error: WandB API key not found. Please run 'wandb login' first.")
+        raise typer.Exit(1)
 
     try:
         live_monitor_runs(
-            group=args.group,
-            name_filter=args.name_filter,
-            refresh_interval=args.refresh,
-            entity=args.entity,
-            project=args.project,
-            clear_screen=not args.no_clear,
-            display_limit=args.display_limit,
-            fetch_limit=args.fetch_limit,
-            score_metric=args.score_metric,
+            group=group,
+            name_filter=name_filter,
+            refresh_interval=refresh,
+            entity=entity,
+            project=project,
+            clear_screen=not no_clear,
+            display_limit=display_limit,
+            fetch_limit=fetch_limit,
+            score_metric=score_metric,
         )
     except KeyboardInterrupt:
-        print("\nMonitoring stopped by user.")
-        sys.exit(0)
+        typer.echo("\nMonitoring stopped by user.")
+        raise typer.Exit(0) from None
     except Exception as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+        typer.echo(f"Error: {e}")
+        raise typer.Exit(1) from e
 
 
 if __name__ == "__main__":
-    main()
+    app()
