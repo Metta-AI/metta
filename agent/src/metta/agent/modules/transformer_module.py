@@ -119,7 +119,7 @@ class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
     ) -> torch.Tensor:
         qlen, rlen, batch_size = content.size(0), rel_pos.size(0), content.size(1)
 
-        if mems is not None and mems.numel() > 0:
+        if mems is not None:
             cat = torch.cat([mems, content], dim=0)
             if self.pre_lnorm:
                 w_heads = self.qkv_net(self.layer_norm(cat))
@@ -143,15 +143,15 @@ class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
         r_head_k = r_head_k.view(rlen, self.n_head, self.d_head)
 
         rw_head_q = w_head_q + r_w_bias
-        AC = torch.einsum("ibnd,jbnd->ijbn", rw_head_q, w_head_k)
+        AC = torch.einsum("ibnd,jbnd->ijbn", (rw_head_q, w_head_k))
 
         rr_head_q = w_head_q + r_r_bias
-        BD = torch.einsum("ibnd,jnd->ijbn", rr_head_q, r_head_k)
+        BD = torch.einsum("ibnd,jnd->ijbn", (rr_head_q, r_head_k))
         BD = self._rel_shift(BD)
 
         attn_score = (AC + BD) * self.scale
 
-        if attn_mask is not None and attn_mask.any():
+        if attn_mask is not None and attn_mask.any().item():
             if attn_mask.dim() == 2:
                 attn_score = (
                     attn_score.float().masked_fill(attn_mask[None, :, :, None], float("-inf")).type_as(attn_score)
@@ -162,7 +162,7 @@ class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
         attn_prob = F.softmax(attn_score, dim=1)
         attn_prob = self.dropatt(attn_prob)
 
-        attn_vec = torch.einsum("ijbn,jbnd->ibnd", attn_prob, w_head_v)
+        attn_vec = torch.einsum("ijbn,jbnd->ibnd", (attn_prob, w_head_v))
         attn_vec = attn_vec.contiguous().view(qlen, batch_size, self.n_head * self.d_head)
 
         attn_out = self.o_net(attn_vec)
@@ -218,10 +218,17 @@ class TransformerModule(nn.Module):
         dropout: float = 0.1,
         dropatt: float = 0.1,
         pre_lnorm: bool = True,
+        same_length: bool = False,
+        clamp_len: int = -1,
+        ext_len: int = 0,
+        attn_type: int = 0,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
             raise ValueError("d_model must be divisible by n_heads")
+
+        if attn_type != 0:
+            raise NotImplementedError("Only relative positional attention (attn_type=0) is supported.")
 
         self.d_model = d_model
         self.n_heads = n_heads
@@ -229,7 +236,10 @@ class TransformerModule(nn.Module):
         self.max_seq_len = max_seq_len
         self.memory_len = memory_len
         self.pre_lnorm = pre_lnorm
-        self.clamp_len = max_seq_len
+        self.same_length = same_length
+        self.clamp_len = clamp_len
+        self.ext_len = ext_len
+        self.attn_type = attn_type
 
         d_head = d_model // n_heads
 
@@ -251,7 +261,6 @@ class TransformerModule(nn.Module):
                 for _ in range(n_layers)
             ]
         )
-        self.final_norm = nn.LayerNorm(d_model)
         nn.init.normal_(self.r_w_bias, mean=0.0, std=0.02)
         nn.init.normal_(self.r_r_bias, mean=0.0, std=0.02)
 
@@ -267,60 +276,92 @@ class TransformerModule(nn.Module):
         device = inputs.device
         dtype = inputs.dtype
 
-        mems = None
-        if memory is not None and memory.get("hidden_states"):
-            candidate = [m.to(device) for m in memory["hidden_states"] if isinstance(m, torch.Tensor)]
-            if len(candidate) == self.n_layers:
-                mems = candidate
-                if mems[0].size(1) != batch_size:
-                    mems = [m[:, :batch_size].contiguous() for m in mems]
-        else:
-            mems = [torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype) for _ in range(self.n_layers)]
-        if not mems or len(mems) != self.n_layers:
-            mems = [torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype) for _ in range(self.n_layers)]
-
-        mlen = mems[0].size(0) if mems else 0
+        mems = self._prepare_memory(memory, batch_size, device, dtype)
+        mlen = mems[0].size(0) if mems is not None else 0
         klen = mlen + seq_len
+
+        if self.same_length:
+            all_ones = torch.ones(seq_len, klen, device=device, dtype=torch.bool)
+            mask_len = klen - self.memory_len
+            if mask_len > 0:
+                mask_shift_len = seq_len - mask_len
+            else:
+                mask_shift_len = seq_len
+            attn_mask = torch.triu(all_ones, diagonal=1 + mlen) | torch.tril(all_ones, diagonal=-mask_shift_len)
+        else:
+            attn_mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mlen)
+        attn_mask = attn_mask[:, :, None]
+
         pos_seq = torch.arange(klen - 1, -1, -1.0, device=device, dtype=dtype)
         if self.clamp_len > 0:
             pos_seq = pos_seq.clamp(max=float(self.clamp_len))
-        pos_emb = self.pos_emb(pos_seq, batch_size=None)
+        pos_emb = self.pos_emb(pos_seq)
         pos_emb = self.drop(pos_emb)
 
         core_out = self.drop(inputs)
         hiddens: List[torch.Tensor] = [core_out]
 
-        if mlen > 0:
-            attn_mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mlen)
-        else:
-            attn_mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1)
-        attn_mask = attn_mask.unsqueeze(-1)
-
         for layer_id, layer in enumerate(self.layers):
-            mem_layer = mems[layer_id] if mems is not None else None
+            mem_layer = None if mems is None else mems[layer_id]
             core_out = layer(core_out, pos_emb, self.r_w_bias, self.r_r_bias, attn_mask, mem_layer)
             hiddens.append(core_out)
 
-        output = self.final_norm(core_out)
+        core_out = self.drop(core_out)
         new_memory = self._update_memory(hiddens, mems, seq_len)
-        return output, {"hidden_states": new_memory}
+        return core_out, {"hidden_states": new_memory}
+
+    def _prepare_memory(
+        self,
+        memory: Optional[Dict[str, List[torch.Tensor]]],
+        batch_size: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> Optional[List[torch.Tensor]]:
+        if self.memory_len <= 0 or memory is None:
+            return None
+
+        stored = memory.get("hidden_states") if isinstance(memory, dict) else None
+        if not stored:
+            return None
+
+        mems: List[torch.Tensor] = []
+        for tensor in stored:
+            if tensor is None:
+                mems.append(torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype))
+                continue
+            mem = tensor.to(device=device, dtype=dtype)
+            if mem.size(1) != batch_size:
+                mem = mem[:, :batch_size].contiguous()
+            mems.append(mem)
+
+        if len(mems) != self.n_layers:
+            return None
+        return mems
 
     def _update_memory(
         self,
         hiddens: List[torch.Tensor],
-        mems: List[torch.Tensor],
+        mems: Optional[List[torch.Tensor]],
         qlen: int,
     ) -> Optional[List[torch.Tensor]]:
         if self.memory_len <= 0:
             return None
 
-        new_mems: List[torch.Tensor] = []
+        batch_size = hiddens[0].size(1)
+        device = hiddens[0].device
+        dtype = hiddens[0].dtype
+
+        if mems is None or len(mems) != self.n_layers:
+            mems = [torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype) for _ in range(self.n_layers)]
+
         with torch.no_grad():
-            end_idx = mems[0].size(0) + qlen
+            mlen = mems[0].size(0)
+            end_idx = mlen + max(0, qlen - self.ext_len)
             beg_idx = max(0, end_idx - self.memory_len)
-            for layer_idx in range(1, len(hiddens)):
-                prev_mem = mems[layer_idx - 1]
-                cat = torch.cat([prev_mem, hiddens[layer_idx]], dim=0)
+            new_mems = []
+            for layer_idx in range(self.n_layers):
+                prev_mem = mems[layer_idx]
+                cat = torch.cat([prev_mem, hiddens[layer_idx + 1]], dim=0)
                 new_mems.append(cat[beg_idx:end_idx].detach())
         return new_mems
 
