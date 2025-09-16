@@ -27,6 +27,10 @@ class _LocalAsanaTokens:
     yaml_file: Path = config_dir / "asana_tokens.yaml"
 
     @classmethod
+    def load_token(cls, client_id: str) -> dict[str, Any] | None:
+        return cls.load_tokens().get(client_id)
+
+    @classmethod
     def load_tokens(cls) -> dict[str, Any]:
         cls.config_dir.mkdir(parents=True, exist_ok=True)
         if cls.yaml_file.exists():
@@ -121,7 +125,7 @@ class AsanaOAuthCLI:
                     return HTMLResponse(content=self._error_html(self.error), status_code=400)
 
                 # Verify state for CSRF protection
-                if state != self.state:
+                if not secrets.compare_digest(state or "", self.state or ""):
                     self.error = "Invalid state parameter (CSRF protection)"
                     self.auth_completed.set()
                     self._request_shutdown()
@@ -344,9 +348,7 @@ def get_asana_client(app_name: str) -> httpx.Client:
     creds = get_secret(f"asana/{app_name}_app")
     client_id = creds["client_id"]
     client_secret = creds["client_secret"]
-    tokens = _LocalAsanaTokens.load_tokens()
-
-    record: dict[str, Any] | None = tokens.get(client_id)
+    record = _LocalAsanaTokens.load_token(client_id)
     if record is None:
         raise RuntimeError(f"No saved tokens for client_id {client_id}. Run atlas_login.py to authenticate.")
 
@@ -369,7 +371,10 @@ def get_asana_client(app_name: str) -> httpx.Client:
             payload = resp.json()
 
         _LocalAsanaTokens.save_token(client_id, payload)
-        access_token = _LocalAsanaTokens.load_tokens()[client_id]["access_token"]
+        record = _LocalAsanaTokens.load_token(client_id)
+        if record is None:
+            raise RuntimeError(f"No saved tokens for client_id {client_id}. Run atlas_login.py to authenticate.")
+        access_token = record["access_token"]
 
     if not access_token:
         raise RuntimeError("Failed to acquire Asana access token. Re-run atlas_login.py")

@@ -47,8 +47,7 @@ def list_roles() -> dict:
 
 
 @mcp.tool("start_role")
-def start_role(role_id: str, context: dict[str, Any]) -> str:
-    """Initialize a role with the provided context."""
+def start_role(role_id: str) -> str:
     roles = _fetch_roles_from_asana()
     role = next((r for r in roles if r["id"] == role_id), None)
 

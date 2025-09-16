@@ -231,21 +231,6 @@ wheels = [
 ]
 
 [[package]]
-name = "asana"
-version = "5.2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "certifi" },
-    { name = "python-dateutil" },
-    { name = "six" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/35/31/5804e7e540226695fff8e7181c7f9c056fc21cfba0b2df1b69b294b55045/asana-5.2.1.tar.gz", hash = "sha256:149da37c83c7c2bb94b5c8a6f619f03f1d5573fa33a26bd1a01ab8c7d228bc79", size = 123898, upload-time = "2025-08-12T23:14:41.21Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/12/1233dfd5fc9d87d60565175ff4d1f2eef8e2f7afe1a57d114cc88311f193/asana-5.2.1-py3-none-any.whl", hash = "sha256:54cb0b8219ea4584eea592dad7e62a113c905989ed225f97ce61d15f0678294b", size = 196407, upload-time = "2025-08-12T23:14:39.822Z" },
-]
-
-[[package]]
 name = "asttokens"
 version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1914,7 +1899,6 @@ source = { editable = "." }
 dependencies = [
     { name = "altair" },
     { name = "anywidget" },
-    { name = "asana" },
     { name = "bidict" },
     { name = "boto3" },
     { name = "codebot" },
@@ -1999,8 +1983,6 @@ dev = [
 requires-dist = [
     { name = "altair", specifier = ">=5.5.0" },
     { name = "anywidget", specifier = ">=0.9.18" },
-    { name = "asana", specifier = ">=5.0.0,<6" },
-    { name = "asana", specifier = ">=5.2.1" },
     { name = "bidict", specifier = ">=0.23.1" },
     { name = "boto3", specifier = ">=1.38.32" },
     { name = "codebot", editable = "codebot" },
