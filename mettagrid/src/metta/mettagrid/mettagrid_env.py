@@ -170,13 +170,13 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # If reward estimates are set, plot them compared to the mean reward
         if self.mg_config.game.reward_estimates:
-            infos["reward_estimates"] = {}
-            infos["reward_estimates"][f"best_case_optimal_diff_{self.mg_config.label}"] = (
-                self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
-            )
-            infos["reward_estimates"][f"worst_case_optimal_diff_{self.mg_config.label}"] = (
-                self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
-            )
+            # infos["reward_estimates"] = {}
+            # infos["reward_estimates"][f"best_case_optimal_diff_{self.mg_config.label}"] = (
+            #     self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
+            # )
+            # infos["reward_estimates"][f"worst_case_optimal_diff_{self.mg_config.label}"] = (
+            #     self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
+            # )
             infos["reward_estimates"][f"best_case_optimal_diff_overall"] = (
                 self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
             )
@@ -193,8 +193,11 @@ class MettaGridEnv(MettaGridPufferBase):
         if self.mg_config.label not in self.per_label_rewards:
             self.per_label_rewards[self.mg_config.label] = 0
         self.per_label_rewards[self.mg_config.label] += episode_rewards.mean()
-        infos["per_label_rewards"] = self.per_label_rewards[self.mg_config.label]
 
+
+        infos["per_label_rewards"][self.mg_config.label] = self.per_label_rewards[self.mg_config.label]
+        #     alpha * self.per_label_rewards[self.mg_config.label] + (1 - alpha) * episode_rewards.mean()
+        # )
         # Add attributes
         attributes: Dict[str, Any] = {
             "seed": self._current_seed,
