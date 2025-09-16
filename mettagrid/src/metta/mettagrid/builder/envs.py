@@ -151,7 +151,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             resource_names=["heart", "ore_red", "battery_red"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=GetItemsActionConfig(),
             ),
             agent=AgentConfig(
