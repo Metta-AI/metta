@@ -166,6 +166,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
         resources = rng.sample(self.resource_types, num_resources)
         width = rng.randint(self.config.width_range[0], self.config.width_range[1])
         height = rng.randint(self.config.height_range[0], self.config.height_range[1])
+        width = 6
+        height = 6
         max_steps = self.config.max_steps
 
         avg_hop = (width + height) / 2
