@@ -246,6 +246,9 @@ run_cmd() {
 
   export START_TIME=$(date +%s)
 
+  # Enable job control for reliable process group management
+  set -m
+
   # Build the command as an array
   local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
@@ -262,13 +265,11 @@ run_cmd() {
 
   echo "[INFO] Running command: ${cmd[*]}"
 
-  # Use process substitution so $! is the trainer (not tee)
-  setsid "${cmd[@]}" &
+  # Start in background - automatically gets new process group with -m
+  "${cmd[@]}" &
   export CMD_PID=$!
+  export CMD_PGID=$CMD_PID  # With -m, background jobs are group leaders
 
-  sleep 1
-
-  export CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2> /dev/null | tr -d ' ')
   echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
 
   start_monitors
@@ -276,9 +277,11 @@ run_cmd() {
   while kill -0 "$CMD_PID" 2>/dev/null; do
       sleep 1
   done
-  wait "$CMD_PID" 2>/dev/null
+  wait "$CMD_PID"
   CMD_EXIT=$?
   echo "[INFO] Process with PID: $CMD_PID exited with code $CMD_EXIT"
+
+  set +m
 
   if [[ ! -f "$TERMINATION_REASON_FILE" ]] || [[ ! -s "$TERMINATION_REASON_FILE" ]]; then
     if [[ "$IS_MASTER" == "true" ]]; then
