@@ -585,6 +585,7 @@ def main() -> None:
     app.add_typer(local_app, name="local")
     app.add_typer(book_app, name="book")
     app.add_typer(symlink_app, name="symlink-setup")
+    app()
 
 
 if __name__ == "__main__":

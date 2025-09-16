@@ -27,7 +27,7 @@ import logging
 import sys
 import time
 from datetime import datetime
-from typing import Annotated, List, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 import typer
 from rich.console import Console, Group
@@ -35,7 +35,8 @@ from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from metta.sweep.models import JobStatus, RunInfo
+if TYPE_CHECKING:
+    from metta.sweep.models import JobStatus, RunInfo
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,10 @@ app = typer.Typer(
 )
 
 
-def _get_status_color(status: JobStatus) -> str:
+def _get_status_color(status: "JobStatus") -> str:
     """Get color for run status."""
+    from metta.sweep.models import JobStatus
+
     if status == JobStatus.COMPLETED or status == JobStatus.EVAL_DONE_NOT_COMPLETED:
         return "bright_blue"
     elif status == JobStatus.IN_TRAINING:
@@ -71,7 +74,7 @@ def _get_status_color(status: JobStatus) -> str:
         return "white"
 
 
-def make_rich_monitor_table(runs: List[RunInfo], score_metric: str = "env_agent/heart.get") -> Table:
+def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agent/heart.get") -> Table:
     """Create rich table for run monitoring."""
 
     # Create table
@@ -132,7 +135,7 @@ def make_rich_monitor_table(runs: List[RunInfo], score_metric: str = "env_agent/
 def create_run_banner(
     group: Optional[str],
     name_filter: Optional[str],
-    runs: List[RunInfo],
+    runs: list["RunInfo"],
     display_limit: int = 10,
     score_metric: str = "env_agent/heart.get",
 ):
