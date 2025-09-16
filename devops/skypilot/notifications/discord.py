@@ -17,7 +17,7 @@ def send_discord_notification(title: str, status_msg: str, job_config: JobConfig
         return False
 
     # Extract and validate required fields
-    webhook_url = job_config.discord_webhook_url
+    webhook_url = job_config.discord_webhook_url or ""
     repository = job_config.github_repository
     git_ref = job_config.metta_git_ref
     run_id = job_config.metta_run_id
@@ -32,9 +32,6 @@ def send_discord_notification(title: str, status_msg: str, job_config: JobConfig
             f"git_ref={bool(git_ref)}"
         )
         return False
-
-    # type hint
-    assert webhook_url
 
     # Calculate runtime if available
     runtime_str = ""

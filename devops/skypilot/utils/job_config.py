@@ -71,6 +71,6 @@ def log_job_config(jc: JobConfig):
     logger.info(f"  - MAX_RUNTIME_HOURS: {jc.max_runtime_hours or 'NOT SET'}")
     logger.info(f"  - RESTART_COUNT: {jc.restart_count}")
     logger.info(f"  - TEST_NCCL: {jc.test_nccl}")
-    logger.info(f"  - DISCORD_ENABLED: {jc.enable_discord_notification}")
+    logger.info(f"  - DISCORD_NOTIFICATION_ENABLED: {jc.enable_discord_notification}")
     logger.info(f"  - GITHUB_STATUS_ENABLED: {jc.enable_github_status}")
-    logger.info(f"  - WANDB_ALERTS_ENABLED: {jc.enable_wandb_notification}")
+    logger.info(f"  - WANDB_NOTIFICATION_ENABLED: {jc.enable_wandb_notification}")

@@ -16,9 +16,9 @@ def send_wandb_notification(title: str, description: str, job_config: JobConfig)
         return False
 
     # Extract and validate required fields
-    run_id = job_config.metta_run_id
-    project = job_config.wandb_project
-    entity = job_config.wandb_entity
+    run_id = job_config.metta_run_id or ""
+    project = job_config.wandb_project or ""
+    entity = job_config.wandb_entity or ""
     start_time = job_config.start_time
     total_nodes = job_config.total_nodes
     task_id = job_config.skypilot_task_id
@@ -31,11 +31,6 @@ def send_wandb_notification(title: str, description: str, job_config: JobConfig)
             f"entity={bool(entity)}"
         )
         return False
-
-    # type hints
-    assert run_id
-    assert project
-    assert entity
 
     # Calculate runtime if available
     runtime_str = ""

@@ -17,7 +17,7 @@ def set_github_status(
         return False
 
     # Extract and validate required fields
-    commit_sha = job_config.metta_git_ref
+    commit_sha = job_config.metta_git_ref or ""
     token = job_config.github_pat
     context = job_config.github_status_context
 
@@ -28,9 +28,6 @@ def set_github_status(
             f"sha={bool(commit_sha)}, token={'set' if token else 'missing'}"
         )
         return False
-
-    # type hint
-    assert commit_sha
 
     # Validate full SHA format
     if len(commit_sha) < 40:
