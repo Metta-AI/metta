@@ -3,8 +3,11 @@ from typing import Any
 
 import boto3
 
+from softmax.utils import memoize
 
-def get_secret(secret_name: str, require_exists: bool = True) -> str | None:
+
+@memoize(max_age=60 * 60)
+def get_secretsmanager_secret(secret_name: str, require_exists: bool = True) -> str | None:
     """Fetch a secret value from AWS Secrets Manager as JSON.
 
     Always expects SecretString to contain JSON. Raises ValueError if not JSON.
@@ -26,7 +29,7 @@ def get_secret(secret_name: str, require_exists: bool = True) -> str | None:
     raise ValueError("Expected SecretString with JSON content")
 
 
-def create_secret(
+def create_secretsmanager_secret(
     secret_name: str,
     secret_value: str,
     *,

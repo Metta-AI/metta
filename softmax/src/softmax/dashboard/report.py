@@ -12,7 +12,8 @@ from datadog_api_client.v2.model.metric_point import MetricPoint
 from datadog_api_client.v2.model.metric_series import MetricSeries
 
 from metta.common.datadog.config import datadog_config
-from softmax.aws.secrets_manager import get_secret
+from metta.common.util.log_config import init_logging
+from softmax.aws.secrets_manager import get_secretsmanager_secret
 from softmax.dashboard.registry import collect_metrics
 
 
@@ -65,13 +66,14 @@ app = typer.Typer(help="Collect dashboard metrics and optionally push them to Da
 def report(
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Skip Datadog submission and print metrics."),
 ) -> None:
+    init_logging()
     metrics = collect_metrics()
 
     if dry_run or not metrics:
         typer.echo(json.dumps(metrics, indent=2, sort_keys=True))
         return
 
-    api_key = get_secret("datadog/api_key")
+    api_key = get_secretsmanager_secret("datadog/api_key")
     if not api_key:
         raise RuntimeError("Datadog API key not found")
     payload = _build_series_payload(metrics, tags=_base_tags())

@@ -8,14 +8,14 @@ def memoize(max_age: int = 60):
         cache_time = {}
 
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs):
             key = str(args) + str(kwargs)
             current_time = time.time()
 
             if key in cache and current_time - cache_time[key] < max_age:
                 return cache[key]
 
-            result = await func(*args, **kwargs)
+            result = func(*args, **kwargs)
             cache[key] = result
             cache_time[key] = current_time
             return result

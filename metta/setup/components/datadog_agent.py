@@ -5,7 +5,7 @@ import subprocess
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import error, info, success, warning
-from softmax.aws.secrets_manager import get_secret
+from softmax.aws.secrets_manager import get_secretsmanager_secret
 
 
 @register_module
@@ -43,7 +43,7 @@ class DatadogAgentSetup(SetupModule):
             return False
 
     def _get_dd_api_key(self) -> str | None:
-        return os.environ.get("DD_API_KEY") or get_secret("datadog/api-key")
+        return os.environ.get("DD_API_KEY") or get_secretsmanager_secret("datadog/api-key")
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Getting Datadog API key...")
