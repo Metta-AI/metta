@@ -489,18 +489,11 @@ def cli(
             raise typer.Exit(0) from None
         return
 
-    # Validate WandB access
-    try:
-        import wandb  # noqa: F401
+    import wandb
 
-        if not wandb.api.api_key:
-            typer.echo("Error: WandB API key not found. Please run 'wandb login' first.")
-            raise typer.Exit(1)
-    except ImportError:
-        typer.echo("Error: WandB not installed. Please install with 'pip install wandb'.")
-        raise typer.Exit(1) from None
-    except Exception as e:
-        typer.echo(f"Warning: Could not validate WandB credentials: {e}")
+    if not wandb.api.api_key:
+        typer.echo("Error: WandB API key not found. Please run 'wandb login' first.")
+        raise typer.Exit(1)
 
     try:
         live_monitor_runs(
