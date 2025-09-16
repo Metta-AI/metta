@@ -42,20 +42,13 @@ class EvalRequest(BaseModel):
         return self
 
 
-def validate_and_normalize_policy_uri(policy_uri: str) -> tuple[str, dict] | None:
+def validate_and_normalize_policy_uri(policy_uri: str) -> str | None:
     """Validate that a policy URI is accessible and return normalized URI with metadata."""
     try:
-        # Normalize URI using CheckpointManager
         normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-
-        # Get metadata to verify the checkpoint exists
-        metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-
-        # Quick validation that we can load the policy
         agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
         del agent
-
-        return normalized_uri, metadata
+        return normalized_uri
     except Exception as e:
         warning(f"Skipping invalid or inaccessible policy {policy_uri}: {e}")
         return None
@@ -73,26 +66,18 @@ async def _create_remote_eval_tasks(
     info(f"Validating {len(request.policies)} policy URIs...")
 
     # Validate and normalize all policy URIs
-    valid_policies = []
+    policy_uris: list[str] = []
     for policy_uri in request.policies:
         result = validate_and_normalize_policy_uri(policy_uri)
         if result:
-            normalized_uri, metadata = result
-            valid_policies.append(
-                {
-                    "uri": normalized_uri,
-                    "original_uri": policy_uri,
-                }
-            )
+            policy_uris.append(result)
 
-    if not valid_policies:
+    if not policy_uris:
         warning("No valid policies found")
         return
 
     # Register policies with stats server
-    policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(
-        stats_client, [(p["uri"], None) for p in valid_policies]
-    )
+    policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(stats_client, [(uri, None) for uri in policy_uris])
 
     if not policy_ids:
         warning("Failed to register policies with stats server")
@@ -125,8 +110,7 @@ async def _create_remote_eval_tasks(
 
     # Create task requests
     task_requests = []
-    for policy in valid_policies:
-        policy_uri = policy["uri"]
+    for policy_uri in policy_uris:
         policy_id = policy_ids.get(policy_uri)
         if policy_id is None:
             warning(f"Policy '{policy_uri}' not found in policy_ids mapping, skipping")
@@ -149,7 +133,7 @@ async def _create_remote_eval_tasks(
         warning("No new tasks to create (all would be duplicates)")
         return
 
-    info(f"Creating {len(task_requests)} evaluation tasks for {len(valid_policies)} policies...")
+    info(f"Creating {len(task_requests)} evaluation tasks for {len(policy_uris)} policies...")
     if request.dry_run:
         info("Dry run, not creating tasks")
         return
