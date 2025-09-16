@@ -1,7 +1,9 @@
 #ifdef METTA_WITH_RAYLIB
 #include "hermes.hpp"
+#include "hermes_assets.hpp"
 
 #include <raylib.h>
+
 #include <chrono>
 #include <format>
 #include <string>
@@ -156,8 +158,6 @@ struct Hermes {
   bool initialized : 1;
 
   // Asset resources (lazily loaded on first render)
-  std::unordered_map<std::string, HermesSprites::Sprite> sprite_lookup;
-  std::vector<Rectangle> sprites;
   HermesSprites sprite_atlas;
   Texture2D sprite_sheet;
 
@@ -261,10 +261,10 @@ static void DrawWalls(Hermes& ctx) {
   }
 
   for (auto node : ctx.buckets[ctx.types.wall]) {
-    Draw(ctx, ctx.sprites[ctx.sprite_atlas.wall[node.index]], TileRect(node));
+    Draw(ctx, hermes_sprites[ctx.sprite_atlas.wall[node.index]], TileRect(node));
   }
 
-  auto fill_sprite = ctx.sprites[ctx.sprite_atlas.wall[WallTile_Fill]];
+  auto fill_sprite = hermes_sprites[ctx.sprite_atlas.wall[WallTile_Fill]];
   for (auto cell : ctx.wall_fills) {
     auto pos = TileRect(cell);
     pos.x += TILE_SIZE / 2;
@@ -286,7 +286,7 @@ static void DrawObjects(Hermes& ctx) {
   for (const auto& bucket : ctx.buckets) {
     auto type_id = t++;
     if (type_id != ctx.types.wall && type_id != ctx.types.agent && ctx.show(type_id)) {
-      auto sprite = ctx.sprites[ctx.sprite_atlas.objects[type_id]];
+      auto sprite = hermes_sprites[ctx.sprite_atlas.objects[type_id]];
       for (auto node : bucket) {
         Draw(ctx, sprite, Position(node));
       }
@@ -307,7 +307,7 @@ static void DrawAgents(Hermes& ctx) {
              static_cast<uint8_t>(fmodf(node.index * static_cast<float>(M_E), 1.0f) * 0xFF),
              static_cast<uint8_t>(fmodf(node.index * static_cast<float>(M_SQRT2), 1.0f) * 0xFF),
              0xFF};
-    Draw(ctx, ctx.sprites[sprite], Position(node), 0, color);
+    Draw(ctx, hermes_sprites[sprite], Position(node), 0, color);
   }
 }
 
@@ -352,12 +352,12 @@ static void DrawActions(Hermes& ctx) {
         auto pos = Position(node);
         pos.x += ofs.x * TILE_SIZE / 2;
         pos.y += ofs.y * TILE_SIZE / 2;
-        Draw(ctx, ctx.sprites[ctx.sprite_atlas.actions[action]], pos, rot);
+        Draw(ctx, hermes_sprites[ctx.sprite_atlas.actions[action]], pos, rot);
       }
     }
   }
 
-  auto sprite = ctx.sprites[ctx.sprite_atlas.frozen];
+  auto sprite = hermes_sprites[ctx.sprite_atlas.frozen];
   const auto& agents = ctx.buckets[ctx.types.agent];
   for (auto agent_id : ctx.frozen_agents) {
     auto node = agents[agent_id];
@@ -372,7 +372,7 @@ static void DrawSelection(Hermes& ctx) {
 
   auto loc = ctx.selection->location;
   HermesNode node = {.cell = {.x = loc.r, .y = loc.c}};
-  Draw(ctx, ctx.sprites[ctx.sprite_atlas.selection], Position(node));
+  Draw(ctx, hermes_sprites[ctx.sprite_atlas.selection], Position(node));
 }
 
 static void DrawInventory(Hermes& ctx) {
@@ -388,7 +388,7 @@ static void DrawInventory(Hermes& ctx) {
   };
 
   auto draw = [&ctx, &dst](size_t item_id, float scale = 8) {
-    auto sprite = ctx.sprites[ctx.sprite_atlas.items[item_id]];
+    auto sprite = hermes_sprites[ctx.sprite_atlas.items[item_id]];
     dst.width = sprite.width / scale;
     dst.height = sprite.height / scale;
     Draw(ctx, sprite, dst);
@@ -450,7 +450,7 @@ static void DrawRewards(Hermes& ctx) {
   }
 
   auto node_id = 0u;
-  auto sprite = ctx.sprites[ctx.sprite_atlas.reward];
+  auto sprite = hermes_sprites[ctx.sprite_atlas.reward];
   auto width = sprite.width / 8;
   auto height = sprite.height / 8;
   for (auto node : ctx.buckets[ctx.types.agent]) {
@@ -524,7 +524,7 @@ static void DrawGrid(Hermes& ctx) {
   Rectangle pos = {0, 0, TILE_SIZE, TILE_SIZE};
   auto grid_width = ctx.grid->width;
   auto grid_height = ctx.grid->height;
-  auto grid_sprite = ctx.sprites[ctx.sprite_atlas.grid];
+  auto grid_sprite = hermes_sprites[ctx.sprite_atlas.grid];
   for (auto y = 0; y < grid_height; y++) {
     pos.y = y * TILE_SIZE;
     for (auto x = 0; x < grid_width; x++) {
@@ -925,7 +925,7 @@ static void Hermes_Cache(Hermes& ctx) {
   for (const auto& name : type_names) {
     HermesSprites::Sprite sprite = 0;
     if (!name.empty()) {
-      sprite = ctx.sprite_lookup[std::format("objects/{}.png"sv, name)];
+      sprite = hermes_sprite_lookup[std::format("objects/{}.png"sv, name)];
       HERMES_DBG("Object: {} = Sprite {}", name, sprite);
 
       if (name == "agent"sv) {
@@ -959,8 +959,8 @@ static void Hermes_Cache(Hermes& ctx) {
 #undef ACTION
 
     auto file = std::format("actions/icons/{}.png", name);
-    ctx.sprite_atlas.actions[action_id++] = ctx.sprite_lookup[file];
-    HERMES_DBG("Action: {} = Sprite {}", name, ctx.sprite_lookup[file]);
+    ctx.sprite_atlas.actions[action_id++] = hermes_sprite_lookup[file];
+    HERMES_DBG("Action: {} = Sprite {}", name, hermes_sprite_lookup[file]);
   }
 
   // Map inventory item names to sprite indices.
@@ -970,8 +970,8 @@ static void Hermes_Cache(Hermes& ctx) {
   auto item_id = 0u;
   for (const auto& name : item_names) {
     auto file = std::format("resources/{}.png", name);
-    ctx.sprite_atlas.items[item_id++] = ctx.sprite_lookup[file];
-    HERMES_DBG("Inventory: {} = Sprite {}", name, ctx.sprite_lookup[file]);
+    ctx.sprite_atlas.items[item_id++] = hermes_sprite_lookup[file];
+    HERMES_DBG("Inventory: {} = Sprite {}", name, hermes_sprite_lookup[file]);
   }
 
   // Setup buckets for each object type.
@@ -1068,9 +1068,7 @@ static void Hermes_Setup(Hermes& ctx) {
 
   // Query the environment through our helper python module.
   auto hermes_py = py::module::import("metta.mettagrid.renderer.hermes");
-  auto asset_path = hermes_py.attr("get_asset_path")().cast<std::string>();
   auto config_path = hermes_py.attr("get_config_path")().cast<std::string>();
-  HERMES_DBG("Asset path: {}", asset_path);
   HERMES_DBG("Config file: {}", config_path);
 
   // Load the user file, if it exists, to preserve configuration across sessions.
@@ -1094,58 +1092,39 @@ static void Hermes_Setup(Hermes& ctx) {
   SetTargetFPS(60);
 
   // Sprite sheet texture.
-  ctx.sprite_sheet = LoadTexture(std::format("{}/atlas.png"sv, asset_path).c_str());
+  ctx.sprite_sheet = LoadTextureFromMemory(hermes_sprite_sheet, sizeof(hermes_sprite_sheet));
   GenTextureMipmaps(&ctx.sprite_sheet);
   SetTextureFilter(ctx.sprite_sheet, TEXTURE_FILTER_TRILINEAR);
   SetTextureWrap(ctx.sprite_sheet, TEXTURE_WRAP_CLAMP);
 
-  // Sprite sheet atlas and lookup.
-  auto builtins = py::module::import("builtins");
-  auto json = py::module::import("json");
-  auto config = json.attr("load")(builtins.attr("open")(std::format("{}/atlas.json", asset_path), "r"sv));
-
-  auto num_sprites = py::len(config);
-  ctx.sprite_lookup.reserve(num_sprites);
-  ctx.sprites.reserve(num_sprites);
-
-  for (auto& [key, value] : config.cast<py::dict>()) {
-    auto name = key.cast<std::string>();
-    auto sprite = value.cast<py::list>();
-    ctx.sprite_lookup[name] = static_cast<HermesSprites::Sprite>(ctx.sprites.size());
-    ctx.sprites.emplace_back(Rectangle{.x = sprite[0].cast<float>(),
-                                       .y = sprite[1].cast<float>(),
-                                       .width = sprite[2].cast<float>(),
-                                       .height = sprite[3].cast<float>()});
-  }
-
 #if HERMES_DEBUG
   std::vector<std::string> keys;
-  keys.reserve(ctx.sprite_lookup.size());
-  for (const auto& kv : ctx.sprite_lookup) keys.push_back(kv.first);
+  keys.reserve(hermes_sprite_lookup.size());
+  for (const auto& kv : hermes_sprite_lookup) keys.push_back(kv.first);
   std::sort(keys.begin(), keys.end());
   for (const auto& k : keys)
     HERMES_DBG(
-        "Sprite: {} ({}x{})", k, ctx.sprites[ctx.sprite_lookup[k]].width, ctx.sprites[ctx.sprite_lookup[k]].height);
+        "Sprite: {} ({}x{})", k, hermes_sprites[hermes_sprite_lookup[k]].width, hermes_sprites[hermes_sprite_lookup[k]].height);
 #endif
 
   // Predefined sprites.
   auto agent_sprite = [&ctx](std::string_view suffix, Orientation orientation) {
     auto file = std::format("agents/agent.{}.png"sv, suffix);
-    ctx.sprite_atlas.agent[orientation] = ctx.sprite_lookup[file];
-    HERMES_DBG("Agent {} = {}", suffix, ctx.sprite_lookup[file]);
+    ctx.sprite_atlas.agent[orientation] = hermes_sprite_lookup[file];
+    HERMES_DBG("Agent {} = {}", suffix, hermes_sprite_lookup[file]);
   };
 
   auto wall_sprite = [&ctx](std::string_view suffix, WallTile tile) {
     auto file = std::format("objects/wall.{}.png"sv, suffix);
-    ctx.sprite_atlas.wall[tile] = ctx.sprite_lookup[file];
-    HERMES_DBG("Wall {} = {}", suffix, ctx.sprite_lookup[file]);
+    ctx.sprite_atlas.wall[tile] = hermes_sprite_lookup[file];
+    HERMES_DBG("Wall {} = {}", suffix, hermes_sprite_lookup[file]);
   };
 
   agent_sprite("n", Orientation::North);
   agent_sprite("s", Orientation::South);
   agent_sprite("w", Orientation::West);
   agent_sprite("e", Orientation::East);
-  ctx.sprite_atlas.frozen = ctx.sprite_lookup["agents/frozen.png"];
+  ctx.sprite_atlas.frozen = hermes_sprite_lookup["agents/frozen.png"];
 
   wall_sprite("0", WallTile_0);
   wall_sprite("e", WallTile_E);
@@ -1165,11 +1144,11 @@ static void Hermes_Setup(Hermes& ctx) {
   wall_sprite("nwse", WallTile_N | WallTile_W | WallTile_S | WallTile_E);
   wall_sprite("fill", WallTile_Fill);
 
-  ctx.sprite_atlas.grid = ctx.sprite_lookup["view/grid.png"];
-  ctx.sprite_atlas.halo = ctx.sprite_lookup["effects/halo.png"];
-  ctx.sprite_atlas.reward = ctx.sprite_lookup["resources/reward.png"];
-  ctx.sprite_atlas.selection = ctx.sprite_lookup["selection.png"];
-  ctx.sprite_atlas.converting = ctx.sprite_lookup["actions/converting.png"];
+  ctx.sprite_atlas.grid = hermes_sprite_lookup["view/grid.png"];
+  ctx.sprite_atlas.halo = hermes_sprite_lookup["effects/halo.png"];
+  ctx.sprite_atlas.reward = hermes_sprite_lookup["resources/reward.png"];
+  ctx.sprite_atlas.selection = hermes_sprite_lookup["selection.png"];
+  ctx.sprite_atlas.converting = hermes_sprite_lookup["actions/converting.png"];
 
   // Scene initialization.
   constexpr auto min_width = 400;
