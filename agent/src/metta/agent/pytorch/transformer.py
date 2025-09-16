@@ -28,8 +28,6 @@ class ConvolutionalTransformerPolicy(nn.Module):
         d_ff: int = 512,
         max_seq_len: int = 256,
         dropout: float = 0.1,
-        use_causal_mask: bool = True,
-        use_gating: bool = True,
     ):
         super().__init__()
         self.hidden_size = hidden_size
@@ -59,8 +57,8 @@ class ConvolutionalTransformerPolicy(nn.Module):
             max_seq_len=max_seq_len,
             memory_len=16,
             dropout=dropout,
-            use_causal_mask=use_causal_mask,
-            use_gating=use_gating,
+            dropatt=dropout,
+            pre_lnorm=True,
         )
 
         self.critic = nn.Sequential(
@@ -161,8 +159,6 @@ class Transformer(PyTorchAgentMixin, TransformerWrapper):
         d_ff: int = 512,
         max_seq_len: int = 256,
         dropout: float = 0.1,
-        use_causal_mask: bool = True,
-        use_gating: bool = True,
         **kwargs,
     ):
         mixin_params = self.extract_mixin_params(kwargs)
@@ -176,8 +172,6 @@ class Transformer(PyTorchAgentMixin, TransformerWrapper):
                 d_ff=d_ff,
                 max_seq_len=max_seq_len,
                 dropout=dropout,
-                use_causal_mask=use_causal_mask,
-                use_gating=use_gating,
             )
         super().__init__(env, policy, hidden_size)
         self.init_mixin(**mixin_params)

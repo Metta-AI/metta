@@ -1,4 +1,9 @@
-# GTrXL (Gated Transformer-XL) Architecture Reference
+# Transformer-XL Architecture Reference
+
+> **Note:** The current `pytorch/transformer_improved` agent now mirrors the original
+> Transformer-XL implementation from [kimiyoung/transformer-xl](https://github.com/kimiyoung/transformer-xl)
+> and no longer applies the additional GRU-style gating that earlier revisions used.
+> Historical notes on GTrXL remain below for context when comparing design choices.
 
 ## Paper Summary
 **Title**: "Stabilizing Transformers for Reinforcement Learning"  
@@ -214,7 +219,7 @@ Standard in Transformer-XL variants for better sequence modeling.
 - **Better initialization**: Proper weight initialization for stability
 
 ### 3. Updated Architecture Parameters
-- **Added memory_len=64**: Standard GTrXL memory length
+- **Added memory_len=64**: Standard Transformer-XL memory length
 - **Maintained all existing parameters**: Backward compatible with current configurations
 - **Enhanced documentation**: Clear GTrXL-specific comments and docstrings
 
@@ -246,8 +251,7 @@ Standard in Transformer-XL variants for better sequence modeling.
 ```python
 class ConvolutionalTransformerPolicy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128, n_heads=8, 
-                 n_layers=6, d_ff=512, max_seq_len=256, dropout=0.1,
-                 use_causal_mask=True, use_gating=True)
+                 n_layers=6, d_ff=512, max_seq_len=256, dropout=0.1)
 ```
 
 #### Key Components
@@ -270,8 +274,7 @@ self._transformer = TransformerModule(
     max_seq_len=max_seq_len,   # Default: 256
     # NO MEMORY_LEN PARAMETER
     dropout=dropout,
-    use_causal_mask=use_causal_mask,
-    use_gating=use_gating,
+    dropout=dropout,
 )
 ```
 
@@ -318,15 +321,15 @@ def initialize_memory(self, batch_size: int) -> dict:
 
 ---
 
-## pytorch/transformer_improved (GTrXL Implementation)
+## pytorch/transformer_improved (Transformer-XL Implementation)
 
 ### Architecture Details
 
 ```python
-class GatedTransformerXLPolicy(nn.Module):
+class TransformerXLPolicy(nn.Module):
     def __init__(self, env, input_size=256, hidden_size=256, n_heads=8,
                  n_layers=6, d_ff=1024, max_seq_len=256, memory_len=64,
-                 dropout=0.1, use_causal_mask=True, use_gating=True)
+                 dropout=0.1)
 ```
 
 #### Key Components
@@ -349,8 +352,7 @@ self._transformer = TransformerModule(
     max_seq_len=max_seq_len,   # Default: 256
     memory_len=memory_len,     # NEW: Default: 64
     dropout=dropout,
-    use_causal_mask=use_causal_mask,
-    use_gating=use_gating,
+    dropout=dropout,
 )
 ```
 
@@ -375,7 +377,7 @@ self.actor = nn.Sequential(
 **4. Simplified Action Decoding**
 ```python
 def decode_actions(self, hidden: torch.Tensor, batch_size: int = None) -> tuple:
-    """Standard GTrXL action/value decoding."""
+    """Standard Transformer-XL action/value decoding."""
     # Direct computation - much simpler
     values = self.critic(hidden).squeeze(-1)           # (B,)
     full_logits = self.actor(hidden)                   # (B, 100)
@@ -383,7 +385,7 @@ def decode_actions(self, hidden: torch.Tensor, batch_size: int = None) -> tuple:
     return logits, values
 ```
 
-**5. GTrXL Memory Interface**
+**5. Transformer-XL Memory Interface**
 ```python
 def transformer(self, hidden: torch.Tensor, terminations=None, memory=None):
     return self._transformer(hidden, memory)  # Returns (output, new_memory)
@@ -467,7 +469,7 @@ class TransformerModule:
 | Hidden size | 128 | **256** |
 | Feed-forward | 512 | **1024** |
 | Memory mechanism | ❌ None | ✅ **64-step memory** |
-| Gating | ✅ GTrXL gating | ✅ GTrXL gating |
+| Relative attention | ✅ Transformer-XL core | ✅ Transformer-XL core + memory |
 | Pre-normalization | ✅ Yes | ✅ Yes |
 | **Memory capacity** | Single sequence | **Multi-sequence** |
 
@@ -496,7 +498,7 @@ class TransformerModule:
 | Action decoding | Complex einsum operations | Simple matrix multiplies |
 | Memory overhead | Lower | Higher (memory storage) |
 | Forward pass complexity | Bilinear complexity | Linear complexity |
-| Training stability | Good | **Better** (GTrXL memory) |
+| Training stability | Good | **Better** (memory reuse) |
 
 ---
 
@@ -508,7 +510,7 @@ class TransformerModule:
 - **Legacy compatibility** needed
 - **Simpler tasks** not requiring long-term memory
 
-### When to Use pytorch/transformer_improved (GTrXL)
+### When to Use pytorch/transformer_improved (Transformer-XL)
 - **Long-term dependencies** required
 - **Complex sequential tasks** (navigation, planning)
 - **Higher capacity** needed
@@ -534,7 +536,7 @@ class TransformerModule:
 
 ### pytorch/transformer_improved  
 - **Main file**: `agent/src/metta/agent/pytorch/transformer_improved.py`
-- **Policy class**: `GatedTransformerXLPolicy`
+- **Policy class**: `TransformerXLPolicy`
 - **Agent class**: `TransformerImproved` 
 - **Memory**: Full GTrXL implementation
 - **Lines of code**: ~294 (includes memory logic)

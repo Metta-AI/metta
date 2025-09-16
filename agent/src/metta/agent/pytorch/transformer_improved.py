@@ -1,4 +1,4 @@
-"""GTrXL (Gated Transformer-XL) agent implementation for reinforcement learning."""
+"""Transformer-XL agent implementation for reinforcement learning."""
 
 from typing import Optional
 
@@ -13,7 +13,7 @@ from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 
-class GatedTransformerXLPolicy(nn.Module):
+class TransformerXLPolicy(nn.Module):
     def __init__(
         self,
         env,
@@ -25,8 +25,6 @@ class GatedTransformerXLPolicy(nn.Module):
         max_seq_len: int = 256,
         memory_len: int = 64,
         dropout: float = 0.1,
-        use_causal_mask: bool = True,
-        use_gating: bool = True,
     ):
         super().__init__()
         self.hidden_size = hidden_size
@@ -64,8 +62,8 @@ class GatedTransformerXLPolicy(nn.Module):
             max_seq_len=max_seq_len,
             memory_len=memory_len,
             dropout=dropout,
-            use_causal_mask=use_causal_mask,
-            use_gating=use_gating,
+            dropatt=dropout,
+            pre_lnorm=True,
         )
 
         self.critic = nn.Sequential(
@@ -162,13 +160,11 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
         max_seq_len: int = 256,
         memory_len: int = 64,
         dropout: float = 0.1,
-        use_causal_mask: bool = True,
-        use_gating: bool = True,
         **kwargs,
     ):
         mixin_params = self.extract_mixin_params(kwargs)
         if policy is None:
-            policy = GatedTransformerXLPolicy(
+            policy = TransformerXLPolicy(
                 env,
                 input_size=input_size,
                 hidden_size=hidden_size,
@@ -178,8 +174,6 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
                 max_seq_len=max_seq_len,
                 memory_len=memory_len,
                 dropout=dropout,
-                use_causal_mask=use_causal_mask,
-                use_gating=use_gating,
             )
         super().__init__(env, policy, hidden_size)
         self.init_mixin(**mixin_params)
