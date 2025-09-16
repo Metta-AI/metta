@@ -21,6 +21,7 @@ class TrainAndEvalConfig(Config):
     gpus: int = 1
     experiment_id: str = "train_eval_poc"
     train_overrides: dict[str, Any] = {}
+    stats_server_uri: str | None = None
 
 
 class TrainAndEvalScheduler:
@@ -50,6 +51,7 @@ class TrainAndEvalScheduler:
                     experiment_id=self.config.experiment_id,
                     recipe_module=self.config.recipe_module,
                     eval_entrypoint=self.config.eval_entrypoint,
+                    stats_server_uri=self.config.stats_server_uri,
                 )
                 jobs.append(eval_job)
                 logger.info(f"[TrainAndEvalScheduler] Creating eval job for {run.run_id}")
@@ -68,6 +70,7 @@ class TrainAndEvalScheduler:
                 train_entrypoint=self.config.train_entrypoint,
                 train_overrides=self.config.train_overrides,
                 gpus=self.config.gpus,
+                stats_server_uri=self.config.stats_server_uri,
             )
             jobs.append(training_job)
             available_training_slots -= 1

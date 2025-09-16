@@ -28,7 +28,7 @@ from metta.adaptive.stores import FileStateStore, WandbStore
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
-from metta.tools.utils.auto_config import auto_wandb_config
+from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ class AdaptiveTool(Tool):
 
     # Standard tool configuration
     wandb: WandbConfig = Field(default_factory=auto_wandb_config, description="W&B configuration")
+    stats_server_uri: Optional[str] = Field(default_factory=auto_stats_server_uri, description="Stats server for remote evaluations")
     experiment_id: Optional[str] = Field(default=None, description="Experiment identifier (used as W&B group)")
     run_dir: Optional[str] = Field(default=None, description="Directory where configs/logs are written")
     scheduler_state: Any | None = Field(default=None, description="Typed ExperimentState instance (optional)")
@@ -179,11 +180,19 @@ class AdaptiveTool(Tool):
             if not isinstance(self.scheduler_config, TrainAndEvalConfig):
                 raise ValueError("scheduler_config must be a TrainAndEvalConfig instance for TRAIN_AND_EVAL")
 
+            # Inject stats_server_uri from AdaptiveTool into scheduler config
+            if hasattr(self.scheduler_config, 'stats_server_uri'):
+                self.scheduler_config.stats_server_uri = self.stats_server_uri
+
             return TrainAndEvalScheduler(self.scheduler_config, state=self.scheduler_state)
 
         if self.scheduler_type == SchedulerType.BATCHED_SYNCED:
             if not isinstance(self.scheduler_config, BatchedSyncedSchedulerConfig):
                 raise ValueError("scheduler_config must be a BatchedSyncedSchedulerConfig instance for BATCHED_SYNCED")
+
+            # Inject stats_server_uri from AdaptiveTool into scheduler config
+            if hasattr(self.scheduler_config, 'stats_server_uri'):
+                self.scheduler_config.stats_server_uri = self.stats_server_uri
 
             return BatchedSyncedOptimizingScheduler(self.scheduler_config, state=self.scheduler_state)
 
