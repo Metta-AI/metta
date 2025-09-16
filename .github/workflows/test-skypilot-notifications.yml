@@ -10,7 +10,9 @@ on:
         type: choice
         options:
           - job_completed
-          - job_failed
+          - job_failed_137
+          - job_failed_1
+          - job_failed_255
           - heartbeat_timeout
           - nccl_tests_failed
           - rapid_restarts
