@@ -1,11 +1,12 @@
 # Adaptive Experiments — Recipe Book
 
-This guide shows how to run adaptive experiments (single run train→eval and hyperparameter sweeps) and gives a friendly deep dive into how the pieces fit together.
+This guide shows how to run adaptive experiments (single run train→eval and hyperparameter sweeps) with clean protocol-based architecture.
 
 ## Quick Start
 
 - Train & Eval (adaptive)
-  - `uv run ./tools/run.py experiments.recipes.adaptive.train_and_eval dispatcher_type=skypilot max_trials=3 gpus=4`
+  - `uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment` (uses TrainTool)
+  - For adaptive experiments: Use `AdaptiveTool` with `scheduler_type=train_and_eval max_trials=3 gpus=4`
   - Local instead of Skypilot: `dispatcher_type=local`
 
 Notes:
@@ -62,7 +63,7 @@ Both configs are Pydantic models (subclass of Config) and serialize cleanly via 
     - `observation/score`: taken from your Protein metric (or `evaluator/eval_arena/score` fallback)
     - `observation/cost`: derived from runtime if no cost exists
     - `observation/suggestion`: persisted at training dispatch time
-  - Computes available training slots based on `config.max_parallel` and current pending/in-training runs.
+  - Computes available training slots based on `config.max_parallel` and current pending/in-training runs. Note: `max_trials` is owned by scheduler config, not controller config.
   - Calls `scheduler.schedule(runs, available_training_slots)` to get new jobs.
   - Dispatches jobs:
     - Local: `uv run ./tools/run.py <recipe> key=val key2=val2`
