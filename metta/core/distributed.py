@@ -2,7 +2,7 @@
 
 import logging
 import os
-
+from datetime import timedelta
 import torch
 
 from metta.mettagrid.config import Config
@@ -29,7 +29,7 @@ def setup_torch_distributed(device: str) -> TorchDistributedConfig:
     distributed = False
 
     if "LOCAL_RANK" in os.environ and device.startswith("cuda"):
-        torch.distributed.init_process_group(backend="nccl")
+        torch.distributed.init_process_group(backend="nccl", timeout=timedelta(hours=1))
 
         torch.cuda.set_device(device)
         distributed = True
