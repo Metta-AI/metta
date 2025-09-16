@@ -90,6 +90,7 @@ const mettagridCfgFileMetadataSchema = z.object({
   absolute_path: z.string(),
   path: z.string(),
   kind: z.string(),
+  line: z.number(),
 });
 
 const mettagridCfgFileSchema = z.object({
@@ -99,11 +100,10 @@ const mettagridCfgFileSchema = z.object({
 
 export type MettagridCfgFile = z.infer<typeof mettagridCfgFileSchema>;
 
-const mettagridCfgsMetadataSchema = z.object({
-  MettaGrid: z.array(mettagridCfgFileMetadataSchema).optional(),
-  Simulation: z.array(mettagridCfgFileMetadataSchema).optional(),
-  "List[Simulation]": z.array(mettagridCfgFileMetadataSchema).optional(),
-});
+const mettagridCfgsMetadataSchema = z.record(
+  z.string(),
+  z.array(mettagridCfgFileMetadataSchema).optional()
+);
 
 type MettagridCfgsMetadata = z.infer<typeof mettagridCfgsMetadataSchema>;
 

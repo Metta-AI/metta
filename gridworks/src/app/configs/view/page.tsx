@@ -33,16 +33,14 @@ export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
         <span>
           <a
             className="hover:underline"
-            href={`cursor://file${cfg.metadata.absolute_path}`}
+            href={`cursor://file${cfg.metadata.absolute_path}:${cfg.metadata.line}`}
           >
             {cfg.metadata.path}
           </a>
         </span>
         <span className="text-xl text-gray-400"> {cfg.metadata.kind}</span>
       </h1>
-      {(cfg.metadata.kind === "MettaGrid" ||
-        cfg.metadata.kind === "env" ||
-        cfg.metadata.kind === "curriculum") && <MapSection cfg={cfg} />}
+      {cfg.metadata.kind === "MettaGridConfig" && <MapSection cfg={cfg} />}
       <section className="mb-8">
         <h2 className="mb-4 text-xl font-bold">Config</h2>
         <JsonAsYaml json={cfg.config as Record<string, unknown>} />
