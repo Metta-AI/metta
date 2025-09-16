@@ -47,7 +47,7 @@ class ExperimentScheduler(Protocol):
 @runtime_checkable
 class Store(Protocol):
     """
-    Single source of truth for all run and sweep state.
+    Single source of truth for all run and experiment state.
     All operations are synchronous with retry logic built in.
     """
 

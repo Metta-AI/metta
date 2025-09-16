@@ -60,12 +60,11 @@ class AdaptiveTool(Tool):
     wandb: WandbConfig = Field(default_factory=auto_wandb_config, description="W&B configuration")
     experiment_id: Optional[str] = Field(default=None, description="Experiment identifier (used as W&B group)")
     run_dir: Optional[str] = Field(default=None, description="Directory where configs/logs are written")
-    # Sweep-specific options
-    enable_sweep_observation_hook: bool = Field(
-        default=True, description="Enable default on_eval_completed to write observation/*"
-    )
-    protein_config: Any | None = Field(default=None, description="ProteinConfig for BATCHED_SYNCED scheduler")
     scheduler_state: Any | None = Field(default=None, description="Typed ExperimentState instance (optional)")
+
+    # Hook configuration
+    on_eval_completed: Optional[Any] = Field(default=None, description="Hook called when evaluation completes")
+    on_job_dispatch: Optional[Any] = Field(default=None, description="Hook called after job dispatch")
 
     def invoke(self, args):
         """Run the adaptive experiment."""
@@ -144,7 +143,6 @@ class AdaptiveTool(Tool):
         dispatcher = self._create_dispatcher()
 
         # Create and run controller
-        on_eval_completed = self._default_sweep_on_eval_completed if self.enable_sweep_observation_hook else None
         # Construct a local file state store rooted at run_dir
         state_store = FileStateStore(self.run_dir)
         controller = AdaptiveController(
@@ -153,7 +151,8 @@ class AdaptiveTool(Tool):
             dispatcher=dispatcher,
             store=store,
             config=self.config,
-            on_eval_completed=on_eval_completed,
+            on_eval_completed=self.on_eval_completed,
+            on_job_dispatch=self.on_job_dispatch,
             state_store=state_store,
         )
 
@@ -231,36 +230,3 @@ class AdaptiveTool(Tool):
         else:
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
 
-    def _default_sweep_on_eval_completed(self, run, store, all_runs) -> None:  # type: ignore[no-redef]
-        """Default hook: write observation/* fields from run summary and runtime.
-
-        - score: from protein metric if available, else evaluator/eval_arena/score
-        - cost: from run.cost if available, else derived from _runtime at $4.6/h
-        - suggestion: pre-written at dispatch time to observation/suggestion
-        """
-        # Determine score metric key
-        metric_key = None
-        if self.protein_config is not None and hasattr(self.protein_config, "metric"):
-            metric_key = self.protein_config.metric
-        if not metric_key:
-            metric_key = "evaluator/eval_arena/score"
-
-        summary = run.summary if isinstance(run.summary, dict) else {}
-        score = summary.get(metric_key)
-        if score is None:
-            raise RuntimeError(f"Missing metric '{metric_key}' in run summary for {run.run_id}")
-
-        # Compute cost
-        cost = getattr(run, "cost", 0.0) or 0.0
-        if not cost:
-            runtime = float(summary.get("_runtime", 0.0)) if isinstance(summary, dict) else 0.0
-            cost_per_hour = 4.6
-            cost = cost_per_hour * (runtime / 3600.0)
-
-        store.update_run_summary(
-            run.run_id,
-            {
-                "observation/score": float(score),
-                "observation/cost": float(cost),
-            },
-        )
