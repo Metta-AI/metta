@@ -80,7 +80,7 @@ handle_master_cleanup() {
       # Default fallback if no termination reason was written
       if [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
         echo "[SUCCESS] Job completed successfully (fallback)"
-        export TERMINATION_REASON="completed"
+        export TERMINATION_REASON="job_completed"
         export GITHUB_STATUS_STATE="success"
         export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
       else
