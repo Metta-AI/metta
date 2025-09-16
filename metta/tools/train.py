@@ -70,6 +70,7 @@ class TrainTool(Tool):
     wandb: WandbConfig = WandbConfig.Unconfigured()
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+    group: Optional[str] = None
 
     context_checkpointer: ContextCheckpointerConfig = Field(default_factory=ContextCheckpointerConfig)
     stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
@@ -125,15 +126,13 @@ class TrainTool(Tool):
                 stats_client.close()
             distributed_helper.cleanup()
 
-    def _configure_run_metadata(self, args: dict[str, str]) -> Optional[str]:
+    def _configure_run_metadata(self, args: dict[str, str]) -> None:
         if "run" in args:
             assert self.run is None, "run cannot be set via args and config"
             self.run = args["run"]
 
         if self.run is None:
             self.run = auto_run_name(prefix="local")
-
-        group_override = args.get("group")
 
         run_dir_path = Path(self.run_dir) if self.run_dir else Path(self.system.data_dir)
         if self.run and run_dir_path.name != self.run:
@@ -143,10 +142,9 @@ class TrainTool(Tool):
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 
-        if group_override:
-            self.wandb.group = group_override
-
-        return group_override
+        # Set group if provided (for sweep support)
+        if self.group:
+            self.wandb.group = self.group
 
     def _prepare_run_directories(self) -> None:
         if self.trainer.checkpoint.remote_prefix is None and self.run is not None:

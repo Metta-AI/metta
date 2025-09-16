@@ -80,19 +80,13 @@ class LocalDispatcher:
         # Build command
         cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
 
-        # Build --args from job.args dict
-        args_list: list[str] = [f"{k}={v}" for k, v in job.args.items()]
-        if args_list:
-            cmd_parts.append("--args")
-            cmd_parts.extend(args_list)
+        # Add all arguments directly (no --args or --overrides flags)
+        # First add job args, then overrides
+        for k, v in job.args.items():
+            cmd_parts.append(f"{k}={v}")
 
-        # Collect overrides from job.overrides only
-        all_overrides: list[str] = [f"{k}={v}" for k, v in job.overrides.items()]
-
-        # Add all overrides with --overrides flag
-        if all_overrides:
-            cmd_parts.append("--overrides")
-            cmd_parts.extend(all_overrides)
+        for k, v in job.overrides.items():
+            cmd_parts.append(f"{k}={v}")
 
         # Extract trial portion for cleaner display
         display_id = get_display_id(job.run_id)

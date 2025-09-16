@@ -77,32 +77,19 @@ class AdaptiveTool(Tool):
         default=None, description="Typed ExperimentState instance (optional)"
     )
 
-    # Commonly consumed args
-    consumed_args: list[str] = Field(
-        default_factory=lambda: [
-            "run",
-            "experiment_id",
-            # Common scheduler knobs
-            "max_trials",
-            "batch_size",
-            "gpus",
-            "recipe_module",
-            "train_entrypoint",
-            "eval_entrypoint",
-            # Optional switches
-            "scheduler_type",
-            "dispatcher_type",
-        ]
-    )
 
-    def invoke(self, args, overrides):
+    def invoke(self, args):
         """Run the adaptive experiment."""
         from metta.adaptive.stores import WandbStore
 
         # Apply CLI args to configuration (minimal, common ones)
         if "experiment_id" in args:
-            assert self.experiment_id is None, "experiment_id cannot be set via args and config"
-            self.experiment_id = args["experiment_id"]
+            # With the new argument system, experiment_id might be set both ways
+            if self.experiment_id is None:
+                self.experiment_id = args["experiment_id"]
+            # If already set and different, that's an error
+            elif self.experiment_id != args["experiment_id"]:
+                raise ValueError(f"experiment_id mismatch: config has '{self.experiment_id}', args has '{args['experiment_id']}'")
 
         # Optional scheduler/dispatcher type overrides via args
         if "scheduler_type" in args:
