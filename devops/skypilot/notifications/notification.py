@@ -4,9 +4,6 @@
 import re
 import time
 
-from devops.skypilot.notifications.discord import send_discord_notification
-from devops.skypilot.notifications.github import send_github_status
-from devops.skypilot.notifications.wandb import send_wandb_notification
 from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.log_config import getRankAwareLogger
 
@@ -159,6 +156,11 @@ class NotificationManager:
 
     def send_notifications(self, termination_reason: str) -> dict[str, bool]:
         """Send notifications based on termination reason."""
+        # Import here to avoid circular imports
+        from devops.skypilot.notifications.discord import send_discord_notification
+        from devops.skypilot.notifications.github import send_github_status
+        from devops.skypilot.notifications.wandb import send_wandb_notification
+
         jc = self.job_config
         if not jc.is_master:
             logger.debug("Skipping notifications on non-master node")
