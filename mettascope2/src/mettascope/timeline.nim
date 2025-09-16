@@ -163,21 +163,53 @@ proc trackRect(panel: Panel): Rect =
               h: ScrubberHeight)
 
 proc updateFigmaScrubber() =
-  ## Updates figma nodes (#step-counter text and scrubber thumb position).
+  ## Updates figma nodes to act like a video playbar:
+  ## - Scrubber is a filled bar from left to current step.
+  ## - Step number is centered over the current end.
   if replay.isNil or not nodesBound:
     return
-  if nodeStepCounter != nil:
-    nodeStepCounter.text = $step
-    nodeStepCounter.dirty = true
-  if nodeScrubberBg != nil and nodeScrubber != nil and replay.maxSteps > 1:
-    let fullSteps = max(1, replay.maxSteps - 1)
-    let progress = clamp(step.float32 / fullSteps.float32, 0f, 1f)
+  # Step counter text and bubble position (move the entire readout frame)
+  if nodeTimelineReadout != nil and nodeScrubberBg != nil:
+    if nodeStepCounter != nil:
+      nodeStepCounter.text = $step
+      nodeStepCounter.dirty = true
+    # Position the bubble centered over the current end of the fill.
+    let bubbleW = nodeTimelineReadout.size.x
     let trackLeft = nodeScrubberBg.position.x
     let trackWidth = nodeScrubberBg.size.x
-    let thumbW = nodeScrubber.size.x
-    let newX = trackLeft + progress * max(0f, trackWidth - thumbW)
-    if abs(nodeScrubber.position.x - newX) > 0.1f:
-      nodeScrubber.position = vec2(newX, nodeScrubber.position.y)
+    var bubbleX = trackLeft
+    if replay.maxSteps > 1:
+      let fullSteps = max(1, replay.maxSteps - 1)
+      let progress = clamp(step.float32 / fullSteps.float32, 0f, 1f)
+      let endX = trackLeft + progress * trackWidth
+      bubbleX = endX - bubbleW * 0.5f
+    # Clamp inside the track.
+    bubbleX = clamp(bubbleX, trackLeft, trackLeft + trackWidth - bubbleW)
+    if abs(nodeTimelineReadout.position.x - bubbleX) > 0.1f:
+      nodeTimelineReadout.position = vec2(bubbleX, nodeTimelineReadout.position.y)
+      nodeTimelineReadout.dirty = true
+  # Scrubber fill width
+  if nodeScrubberBg != nil and nodeScrubber != nil:
+    let trackLeft = nodeScrubberBg.position.x
+    let trackWidth = nodeScrubberBg.size.x
+    var fillW = 0f
+    if replay.maxSteps > 1:
+      let fullSteps = max(1, replay.maxSteps - 1)
+      let progress = clamp(step.float32 / fullSteps.float32, 0f, 1f)
+      fillW = progress * trackWidth
+    # Ensure the scrubber fill is visible at step 0: minimum width ~1px.
+    fillW = max(fillW, 1f)
+    # Anchor left and scale width using node scale to support VECTOR nodes.
+    var changed = false
+    if abs(nodeScrubber.position.x - trackLeft) > 0.1f:
+      nodeScrubber.position = vec2(trackLeft, nodeScrubber.position.y)
+      changed = true
+    let baseW = (if nodeScrubber.origSize.x > 0: nodeScrubber.origSize.x else: max(1f, nodeScrubber.size.x))
+    let scaleX = max(fillW / baseW, 0.001f)
+    if abs(nodeScrubber.scale.x - scaleX) > 0.001f or abs(nodeScrubber.scale.y - 1f) > 0.001f:
+      nodeScrubber.scale = vec2(scaleX, 1f)
+      changed = true
+    if changed:
       nodeScrubber.dirty = true
 
 proc drawTimeline*(panel: Panel) =
