@@ -34,6 +34,7 @@ class TrainTool(Tool):
     run: Optional[str] = None
     run_dir: Optional[str] = None
     stats_server_uri: Optional[str] = auto_stats_server_uri()
+    group: Optional[str] = None
 
     # Policy configuration
     policy_uri: Optional[str] = None
@@ -52,7 +53,6 @@ class TrainTool(Tool):
 
         if self.run is None:
             self.run = auto_run_name(prefix="local")
-        group_override = args.get("group")
 
         # Set run_dir based on run name if not explicitly set
         if self.run_dir is None:
@@ -73,9 +73,9 @@ class TrainTool(Tool):
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 
-        # Override group if provided via args (for sweep support)
-        if group_override:
-            self.wandb.group = group_override
+        # Set group if provided (for sweep support)
+        if self.group:
+            self.wandb.group = self.group
 
         if self.trainer.checkpoint.remote_prefix is None and self.run is not None:
             storage_decision = auto_policy_storage_decision(self.run)
