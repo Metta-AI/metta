@@ -5,12 +5,11 @@ from pathlib import Path
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import error, info
-from metta.softmax.asana.app_authenticate import login
+from metta.softmax.asana.app_authenticate import get_asana_client, login
 from metta.softmax.atlas.server import (
     SOFTMAX_ATLAS_ASANA_APP,
     SOFTMAX_ATLAS_NAME,
 )
-from softmax.src.metta.softmax.asana.app_authenticate import get_asana_client
 
 
 @register_module
