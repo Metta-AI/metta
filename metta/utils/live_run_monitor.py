@@ -342,11 +342,7 @@ def live_monitor_runs_test(
     """Test mode for live run monitoring with mock data."""
     from datetime import datetime, timedelta
 
-<<<<<<< HEAD
-    from metta.sweep.models import JobStatus, RunInfo
-=======
-    from metta.adaptive.models import JobStatus, Observation, RunInfo
->>>>>>> 4c825b365 (Changes)
+    from metta.adaptive.models import JobStatus, RunInfo
 
     console = Console()
 

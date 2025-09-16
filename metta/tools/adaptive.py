@@ -16,6 +16,7 @@ from pydantic import Field
 
 from metta.adaptive.adaptive_config import AdaptiveConfig
 from metta.adaptive.adaptive_controller import AdaptiveController
+from metta.adaptive.stores import FileStateStore
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class SchedulerType(StrEnum):
     """Available scheduler types for adaptive experiments."""
+
     TRAIN_AND_EVAL = "train_and_eval"
     BATCHED_SYNCED = "batched_synced"
 
@@ -41,9 +43,7 @@ class AdaptiveTool(Tool):
     """Simple tool for running adaptive experiments."""
 
     # Core components
-    scheduler_type: SchedulerType = Field(
-        description="Adaptive scheduler type (e.g., train_and_eval, batched_synced)"
-    )
+    scheduler_type: SchedulerType = Field(description="Adaptive scheduler type (e.g., train_and_eval, batched_synced)")
     scheduler_config: Any = Field(
         default_factory=dict,
         description="Typed scheduler config object (e.g., TrainAndEvalConfig or BatchedSyncedSchedulerConfig)",
@@ -54,29 +54,18 @@ class AdaptiveTool(Tool):
     dispatcher_type: DispatcherType = Field(
         default=DispatcherType.SKYPILOT, description="Dispatcher backend (local or skypilot)"
     )
-    capture_output: bool = Field(
-        default=True, description="Capture and stream subprocess output (local only)"
-    )
+    capture_output: bool = Field(default=True, description="Capture and stream subprocess output (local only)")
 
     # Standard tool configuration
     wandb: WandbConfig = Field(default_factory=auto_wandb_config, description="W&B configuration")
-    experiment_id: Optional[str] = Field(
-        default=None, description="Experiment identifier (used as W&B group)"
-    )
-    run_dir: Optional[str] = Field(
-        default=None, description="Directory where configs/logs are written"
-    )
+    experiment_id: Optional[str] = Field(default=None, description="Experiment identifier (used as W&B group)")
+    run_dir: Optional[str] = Field(default=None, description="Directory where configs/logs are written")
     # Sweep-specific options
     enable_sweep_observation_hook: bool = Field(
         default=True, description="Enable default on_eval_completed to write observation/*"
     )
-    protein_config: Any | None = Field(
-        default=None, description="ProteinConfig for BATCHED_SYNCED scheduler"
-    )
-    scheduler_state: Any | None = Field(
-        default=None, description="Typed ExperimentState instance (optional)"
-    )
-
+    protein_config: Any | None = Field(default=None, description="ProteinConfig for BATCHED_SYNCED scheduler")
+    scheduler_state: Any | None = Field(default=None, description="Typed ExperimentState instance (optional)")
 
     def invoke(self, args):
         """Run the adaptive experiment."""
@@ -89,7 +78,9 @@ class AdaptiveTool(Tool):
                 self.experiment_id = args["experiment_id"]
             # If already set and different, that's an error
             elif self.experiment_id != args["experiment_id"]:
-                raise ValueError(f"experiment_id mismatch: config has '{self.experiment_id}', args has '{args['experiment_id']}'")
+                raise ValueError(
+                    f"experiment_id mismatch: config has '{self.experiment_id}', args has '{args['experiment_id']}'"
+                )
 
         # Optional scheduler/dispatcher type overrides via args
         if "scheduler_type" in args:
@@ -121,9 +112,7 @@ class AdaptiveTool(Tool):
 
         if self.scheduler_type == SchedulerType.BATCHED_SYNCED:
             if not isinstance(self.scheduler_config, BatchedSyncedSchedulerConfig):
-                raise ValueError(
-                    "scheduler_config must be a BatchedSyncedSchedulerConfig instance for BATCHED_SYNCED"
-                )
+                raise ValueError("scheduler_config must be a BatchedSyncedSchedulerConfig instance for BATCHED_SYNCED")
             if "max_trials" in args:
                 self.scheduler_config.max_trials = int(args["max_trials"])  # type: ignore[reportAttributeAccessIssue]
             if "batch_size" in args:
@@ -157,7 +146,6 @@ class AdaptiveTool(Tool):
         # Create and run controller
         on_eval_completed = self._default_sweep_on_eval_completed if self.enable_sweep_observation_hook else None
         # Construct a local file state store rooted at run_dir
-        from metta.adaptive.stores import FileStateStore
         state_store = FileStateStore(self.run_dir)
         controller = AdaptiveController(
             experiment_id=experiment_id,
@@ -210,14 +198,10 @@ class AdaptiveTool(Tool):
             if self.protein_config is None:
                 raise ValueError("protein_config must be provided for BATCHED_SYNCED scheduler")
             if not isinstance(self.scheduler_config, BatchedSyncedSchedulerConfig):
-                raise ValueError(
-                    "scheduler_config must be a BatchedSyncedSchedulerConfig instance for BATCHED_SYNCED"
-                )
+                raise ValueError("scheduler_config must be a BatchedSyncedSchedulerConfig instance for BATCHED_SYNCED")
 
             optimizer = ProteinOptimizer(self.protein_config)
-            return BatchedSyncedOptimizingScheduler(
-                self.scheduler_config, optimizer, state=self.scheduler_state
-            )
+            return BatchedSyncedOptimizingScheduler(self.scheduler_config, optimizer, state=self.scheduler_state)
 
         else:
             raise ValueError(f"Unsupported scheduler type: {self.scheduler_type}")
