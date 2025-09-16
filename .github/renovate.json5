@@ -1,0 +1,180 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate configuration for Metta AI uv workspace",
+  
+  // Basic Configuration
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases",
+    ":combinePatchMinorReleases",
+    ":ignoreUnstable",
+    ":prImmediately",
+    ":updateNotScheduled",
+    "helpers:pinGitHubActionsByDigest"
+  ],
+
+  // Repository Settings
+  "timezone": "UTC",
+  "schedule": ["every weekend"],
+  "prCreation": "immediate",
+  "prConcurrentLimit": 3,
+  "branchConcurrentLimit": 10,
+  
+  // Python/uv Configuration
+  "python": {
+    "installPackageJson": true
+  },
+  
+  // Package Rules and Grouping
+  "packageRules": [
+    // Group all pytest-related packages together
+    {
+      "description": "Group pytest ecosystem updates",
+      "matchPackageNames": ["pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "pytest-asyncio", "pytest-testmon"],
+      "groupName": "pytest",
+      "commitMessageTopic": "pytest ecosystem"
+    },
+    
+    // Group core ML/scientific computing packages
+    {
+      "description": "Group core scientific computing packages",
+      "matchPackageNames": ["numpy", "scipy", "pandas", "matplotlib", "torch", "torchrl", "tensordict"],
+      "groupName": "scientific-computing",
+      "commitMessageTopic": "scientific computing packages"
+    },
+    
+    // Group RL ecosystem packages
+    {
+      "description": "Group reinforcement learning packages",
+      "matchPackageNames": ["gymnasium", "pettingzoo", "shimmy", "pufferlib"],
+      "groupName": "rl-ecosystem",
+      "commitMessageTopic": "RL ecosystem"
+    },
+    
+    // Group web framework packages
+    {
+      "description": "Group web framework packages",
+      "matchPackageNames": ["fastapi", "uvicorn", "starlette", "pydantic", "pydantic-settings"],
+      "groupName": "web-framework",
+      "commitMessageTopic": "web framework"
+    },
+    
+    // Group development tools
+    {
+      "description": "Group development tools",
+      "matchPackageNames": ["ruff", "pyright", "black", "isort", "mypy"],
+      "groupName": "dev-tools",
+      "commitMessageTopic": "development tools"
+    },
+    
+    // Group AWS/cloud packages
+    {
+      "description": "Group AWS/cloud packages", 
+      "matchPackageNames": ["boto3", "botocore", "google-api-python-client", "google-auth", "google-auth-oauthlib"],
+      "groupName": "cloud-services",
+      "commitMessageTopic": "cloud services"
+    },
+    
+    // Group Jupyter ecosystem
+    {
+      "description": "Group Jupyter ecosystem",
+      "matchPackageNames": ["jupyter", "jupyterlab", "notebook", "ipywidgets", "ipykernel", "nbconvert"],
+      "groupName": "jupyter",
+      "commitMessageTopic": "Jupyter ecosystem"
+    },
+    
+    // Pin Python version (don't update automatically)
+    {
+      "description": "Pin Python version - require manual review",
+      "matchDepNames": ["python"],
+      "enabled": false
+    },
+    
+    // Handle major version updates more carefully
+    {
+      "description": "Require approval for major version updates",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "stabilityDays": 3
+    },
+    
+    // Auto-merge patch updates for stable packages
+    {
+      "description": "Auto-merge patch updates for stable packages",
+      "matchUpdateTypes": ["patch"],
+      "matchPackageNames": ["rich", "click", "pyyaml", "tabulate", "tqdm", "termcolor"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    
+    // Handle workspace packages specially
+    {
+      "description": "Workspace packages - update together",
+      "matchPackageNames": ["metta-agent", "metta-mettagrid", "metta-common", "metta-app-backend", "codebot", "gitta"],
+      "groupName": "workspace-packages",
+      "commitMessageTopic": "workspace packages",
+      "enabled": false  // These are local packages, don't update
+    }
+  ],
+
+  // Custom Managers for uv
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update Python version in uv.lock",
+      "fileMatch": ["^uv\\.lock$"],
+      "matchStrings": [
+        "requires-python = \"==(?<currentValue>.*?)\""
+      ],
+      "depNameTemplate": "python",
+      "datasourceTemplate": "python-version"
+    }
+  ],
+
+  // Vulnerability Alerts
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"]
+  },
+
+  // Commit Message Configuration
+  "commitMessage": {
+    "prefix": "deps:",
+    "body": "🤖 Generated with [Renovate](https://renovatebot.com)\n\nCo-Authored-By: Renovate Bot <bot@renovatebot.com>"
+  },
+
+  // PR Configuration
+  "prBodyTemplate": "## Summary\n\nThis PR updates dependencies as part of automated dependency management.\n\n## Changes\n\n{{{table}}}\n\n{{{notes}}}\n\n{{{changelogs}}}\n\n---\n🤖 This PR was generated automatically by [Renovate](https://renovatebot.com)",
+
+  // Labels
+  "labels": ["dependencies", "automated"],
+  
+  // Reviewers (optional - customize as needed)
+  // "reviewers": ["team:metta-maintainers"],
+  
+  // Platform-specific settings for GitHub
+  "platform": "github",
+  "repositories": ["Metta-AI/metta"],
+  
+  // Noise Reduction
+  "semanticCommitType": "deps",
+  "semanticCommitScope": null,
+  
+  // Lock file maintenance
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on Monday"],
+    "commitMessageAction": "Lock file maintenance",
+    "branchTopic": "lock-file-maintenance"
+  },
+
+  // Enable experimental features for better uv support
+  "experimentalFeatures": ["uv"],
+  
+  // Specific rules for uv.lock files
+  "uv": {
+    "rangeStrategy": "update-lockfile"
+  }
+}

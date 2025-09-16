@@ -1,0 +1,156 @@
+name: Dependency Validation
+
+on:
+  pull_request:
+    paths:
+      - '**/pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/dependency-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - '**/pyproject.toml'
+      - 'uv.lock'
+
+jobs:
+  validate-dependencies:
+    name: Validate Workspace Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          
+      - name: Set up Python
+        run: uv python install 3.11.7
+        
+      - name: Validate uv.lock is up to date
+        run: |
+          echo "🔍 Checking if uv.lock is synchronized with pyproject.toml files..."
+          uv lock --check
+          
+      - name: Check for dependency conflicts
+        run: |
+          echo "🔍 Resolving dependencies to check for conflicts..."
+          uv sync --frozen --check
+          
+      - name: Validate workspace consistency
+        run: |
+          echo "🔍 Validating workspace package consistency..."
+          
+          # Check that all workspace packages can be installed together
+          uv run python -c "
+          import sys
+          try:
+              # Test imports of all workspace packages
+              import metta.agent
+              import metta.mettagrid
+              import metta.common
+              import metta.app_backend
+              import codebot
+              import gitta
+              print('✅ All workspace packages can be imported successfully')
+          except ImportError as e:
+              print(f'❌ Import error: {e}')
+              sys.exit(1)
+          "
+          
+      - name: Check for duplicate dependencies
+        run: |
+          echo "🔍 Checking for duplicate dependency specifications..."
+          
+          # Create a script to find duplicate dependencies across pyproject.toml files
+          cat > check_duplicates.py << 'EOF'
+          import tomllib
+          import sys
+          from pathlib import Path
+          from collections import defaultdict
+          
+          def extract_deps(toml_data):
+              deps = {}
+              if 'project' in toml_data and 'dependencies' in toml_data['project']:
+                  for dep in toml_data['project']['dependencies']:
+                      # Extract package name (before any version specifier)
+                      pkg_name = dep.split('>=')[0].split('==')[0].split('[')[0].strip()
+                      deps[pkg_name] = dep
+              return deps
+          
+          def main():
+              pyproject_files = list(Path('.').rglob('*/pyproject.toml'))
+              all_deps = defaultdict(dict)
+              
+              for file_path in pyproject_files:
+                  try:
+                      with open(file_path, 'rb') as f:
+                          data = tomllib.load(f)
+                      
+                      deps = extract_deps(data)
+                      for pkg_name, dep_spec in deps.items():
+                          all_deps[pkg_name][str(file_path)] = dep_spec
+                  except Exception as e:
+                      print(f"Warning: Could not parse {file_path}: {e}")
+              
+              # Check for version inconsistencies
+              issues = []
+              for pkg_name, files_specs in all_deps.items():
+                  if len(files_specs) > 1:  # Package appears in multiple files
+                      unique_specs = set(files_specs.values())
+                      if len(unique_specs) > 1:
+                          issues.append(f"❌ {pkg_name}: {dict(files_specs)}")
+                      else:
+                          print(f"✅ {pkg_name}: consistent across {len(files_specs)} files")
+              
+              if issues:
+                  print("\n🚨 Dependency version inconsistencies found:")
+                  for issue in issues:
+                      print(f"  {issue}")
+                  print("\nℹ️ Consider consolidating these dependencies to avoid conflicts")
+                  # Don't fail CI for now, just warn
+                  return 0
+              else:
+                  print("✅ No dependency version inconsistencies found")
+                  return 0
+          
+          if __name__ == "__main__":
+              sys.exit(main())
+          EOF
+          
+          uv run python check_duplicates.py
+          
+      - name: Generate dependency report
+        if: always()
+        run: |
+          echo "📊 Generating dependency report..."
+          
+          echo "## Workspace Packages" > dependency_report.md
+          echo "" >> dependency_report.md
+          ls -la */pyproject.toml | awk '{print "- " $9}' >> dependency_report.md
+          
+          echo "" >> dependency_report.md
+          echo "## Dependency Tree Summary" >> dependency_report.md
+          echo "" >> dependency_report.md
+          echo '```' >> dependency_report.md
+          uv tree --package metta --depth 1 >> dependency_report.md || echo "Could not generate tree" >> dependency_report.md
+          echo '```' >> dependency_report.md
+          
+          echo "" >> dependency_report.md
+          echo "## Lock File Status" >> dependency_report.md
+          echo "" >> dependency_report.md
+          echo "- Lock file entries: $(grep -c '^\[\[package\]\]' uv.lock)" >> dependency_report.md
+          echo "- Python version: $(grep 'requires-python' uv.lock | head -1)" >> dependency_report.md
+          
+          cat dependency_report.md
+          
+      - name: Upload dependency report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-report
+          path: dependency_report.md
+          retention-days: 30
