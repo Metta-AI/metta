@@ -45,7 +45,10 @@ def set_github_status(
         target_url = f"https://wandb.ai/metta-research/metta/runs/{job_config.metta_run_id}"
 
     repo = job_config.github_repository
-    assert repo
+
+    if not repo:
+        logger.error("GitHub repository not configured")
+        return False
 
     # Log detailed payload info before posting
     logger.info(
