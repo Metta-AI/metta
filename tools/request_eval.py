@@ -81,7 +81,6 @@ async def _create_remote_eval_tasks(
             valid_policies.append(
                 {
                     "uri": normalized_uri,
-                    "run_name": metadata.get("run_name", "unknown"),
                     "original_uri": policy_uri,
                 }
             )
@@ -127,10 +126,10 @@ async def _create_remote_eval_tasks(
     # Create task requests
     task_requests = []
     for policy in valid_policies:
-        run_name = policy["run_name"]
-        policy_id = policy_ids.get(run_name)
+        policy_uri = policy["uri"]
+        policy_id = policy_ids.get(policy_uri)
         if policy_id is None:
-            warning(f"Policy '{run_name}' not found in policy_ids mapping, skipping")
+            warning(f"Policy '{policy_uri}' not found in policy_ids mapping, skipping")
             continue
 
         for eval_name in request.evals:
