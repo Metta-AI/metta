@@ -7,7 +7,7 @@ from .adaptive_controller import AdaptiveController
 # Implementations
 from .dispatcher import LocalDispatcher, SkypilotDispatcher
 
-# Models (keep the essential ones)
+# Models (with proper status logic copied from sweep models)
 from .models import JobDefinition, JobStatus, RunInfo
 
 # Protocols

@@ -13,7 +13,7 @@ from typing import Any, List
 from pydantic import Field
 
 from metta.adaptive.models import JobDefinition, JobStatus, Observation, RunInfo
-from metta.adaptive.protocols import ExperimentState, Optimizer
+from metta.adaptive.protocols import ExperimentState
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
 from metta.mettagrid.config import Config
 
