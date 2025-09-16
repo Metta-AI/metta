@@ -176,6 +176,7 @@ Examples:
             new_run_id = arg[4:]
             if run_id is not None and new_run_id != run_id:
                 raise ValueError(f"Conflicting run IDs specified: '{run_id}' and '{new_run_id}'")
+            run_id = new_run_id
         else:
             filtered_args.append(arg)
 
