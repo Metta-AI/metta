@@ -147,6 +147,11 @@ Examples:
         action="store_true",
         help="Run NCCL and job restart tests",
     )
+    parser.add_argument(
+        "--torch-crash-test",
+        action="store_true",
+        help="Enable torch crash test mode (kills torchrun after 60 seconds)",
+    )
 
     args = parser.parse_args()
 
@@ -228,6 +233,7 @@ Examples:
         DISCORD_WEBHOOK_URL=args.discord_webhook_url,
         TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
         TEST_NCCL="true" if args.run_ci_tests else "false",
+        TORCH_CRASH_TEST="true" if args.torch_crash_test else "false",
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}

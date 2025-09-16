@@ -76,6 +76,7 @@ def distributed_barrier(description=""):
     """Simple barrier wrapper with timeout warnings."""
     if not torch.distributed.is_initialized():
         return
+    import math
     import threading
     import time
 
@@ -88,18 +89,15 @@ def distributed_barrier(description=""):
 
     threading.Thread(target=_barrier, daemon=True).start()
 
-    warned = [False, False]  # Track 10s, 100s warnings
+    warned = False  # Track first warning
     while not done.wait(1.0):
         elapsed = time.time() - start
-        if elapsed > 400:
-            logger.error(f"Barrier '{description}' timeout {elapsed:.0f}s - continuing!")
-            return
-        elif elapsed > 100 and not warned[1]:
+        int_elapsed = math.ceil(elapsed)
+        if int_elapsed % 100 == 0:
             logger.warning(f"Barrier '{description}' very slow: {elapsed:.0f}s")
-            warned[1] = True
-        elif elapsed > 10 and not warned[0]:
+        elif int_elapsed > 2 and not warned:
             logger.warning(f"Barrier '{description}' slow: {elapsed:.0f}s")
-            warned[0] = True
+            warned = True
 
 
 def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:
