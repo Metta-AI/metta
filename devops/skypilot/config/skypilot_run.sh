@@ -277,10 +277,23 @@ run_cmd() {
   while kill -0 "$CMD_PID" 2>/dev/null; do
       sleep 1
   done
-  wait "$CMD_PID"
-  CMD_EXIT=$?
+
+  # Process is gone - don't use wait, check job status instead
+  if jobs -l | grep -q "^.*$CMD_PID.*Exit"; then
+      CMD_EXIT=$(jobs -l | grep "$CMD_PID" | sed -n 's/.*Exit \([0-9]*\).*/\1/p')
+      CMD_EXIT=${CMD_EXIT:-1}  # Default to 1 if we can't parse
+  elif jobs -l | grep -q "^.*$CMD_PID.*Done"; then
+      CMD_EXIT=0
+  else
+      # Process is gone but job status unclear - assume failure
+      CMD_EXIT=1
+  fi
+
   echo "[INFO] Process with PID: $CMD_PID exited with code $CMD_EXIT"
 
+  disown "$CMD_PID" 2>/dev/null || true
+
+  # Disable job control
   set +m
 
   if [[ ! -f "$TERMINATION_REASON_FILE" ]] || [[ ! -s "$TERMINATION_REASON_FILE" ]]; then
