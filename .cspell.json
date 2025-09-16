@@ -247,6 +247,8 @@
     "softmax",
     "softmaxed",
     "spacelift",
+    "sparkline",
+    "Sparklines",
     "srcs",
     "sstream",
     "stacksize",
