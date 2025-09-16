@@ -271,30 +271,61 @@ run_cmd() {
   export CMD_PGID=$CMD_PID  # With -m, background jobs are group leaders
 
   echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
+  echo "[DEBUG] Initial job status:"
+  jobs -l
 
   start_monitors
 
+  echo "[DEBUG] Entering monitoring loop..."
+  local LOOP_COUNT=0
   while kill -0 "$CMD_PID" 2>/dev/null; do
+      LOOP_COUNT=$((LOOP_COUNT + 1))
+      if [ $((LOOP_COUNT % 60)) -eq 0 ]; then
+          echo "[DEBUG] Still monitoring PID $CMD_PID after $LOOP_COUNT seconds"
+          echo "[DEBUG] Current job status:"
+          jobs -l
+          echo "[DEBUG] Process tree for PGID $CMD_PGID:"
+          ps -eo pid,pgid,state,cmd | grep "^\s*[0-9]\+\s\+$CMD_PGID" || echo "  No processes found in group"
+      fi
       sleep 1
   done
 
+  echo "[DEBUG] Process $CMD_PID no longer exists"
+  echo "[DEBUG] Final job status after process exit:"
+  jobs -l
+  echo "[DEBUG] All jobs:"
+  jobs -p
+
   # Process is gone - don't use wait, check job status instead
-  if jobs -l | grep -q "^.*$CMD_PID.*Exit"; then
-      CMD_EXIT=$(jobs -l | grep "$CMD_PID" | sed -n 's/.*Exit \([0-9]*\).*/\1/p')
+  echo "[DEBUG] Checking job status for exit code..."
+
+  JOB_STATUS=$(jobs -l 2>/dev/null || echo "")
+  echo "[DEBUG] Raw job status output: '$JOB_STATUS'"
+
+  if echo "$JOB_STATUS" | grep -q "^.*$CMD_PID.*Exit"; then
+      echo "[DEBUG] Found Exit status in job table"
+      CMD_EXIT=$(echo "$JOB_STATUS" | grep "$CMD_PID" | sed -n 's/.*Exit \([0-9]*\).*/\1/p')
       CMD_EXIT=${CMD_EXIT:-1}  # Default to 1 if we can't parse
-  elif jobs -l | grep -q "^.*$CMD_PID.*Done"; then
+      echo "[DEBUG] Parsed exit code: $CMD_EXIT"
+  elif echo "$JOB_STATUS" | grep -q "^.*$CMD_PID.*Done"; then
+      echo "[DEBUG] Found Done status in job table"
       CMD_EXIT=0
   else
-      # Process is gone but job status unclear - assume failure
+      echo "[DEBUG] No clear job status found"
+      # Try alternate job status check
+      echo "[DEBUG] Trying jobs %% ..."
+      jobs %% 2>&1 || echo "[DEBUG] jobs %% failed"
       CMD_EXIT=1
   fi
 
   echo "[INFO] Process with PID: $CMD_PID exited with code $CMD_EXIT"
 
-  disown "$CMD_PID" 2>/dev/null || true
+  echo "[DEBUG] Attempting to disown PID $CMD_PID"
+  disown "$CMD_PID" 2>/dev/null || echo "[DEBUG] disown failed or job already gone"
 
   # Disable job control
   set +m
+  echo "[DEBUG] Job control disabled"
 
   if [[ ! -f "$TERMINATION_REASON_FILE" ]] || [[ ! -s "$TERMINATION_REASON_FILE" ]]; then
     if [[ "$IS_MASTER" == "true" ]]; then
@@ -308,6 +339,7 @@ run_cmd() {
   local DURATION=$((END_TIME - START_TIME))
   echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
 
+  echo "[DEBUG] Returning with exit code: $CMD_EXIT"
   return $CMD_EXIT
 }
 
