@@ -13,6 +13,7 @@ import base64
 import json
 import logging
 import os
+import shutil
 import subprocess
 import uuid
 from abc import ABC, abstractmethod
@@ -143,7 +144,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
             logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
         except Exception as e:
             logger.error(f"Failed to set up versioned checkout: {e}", exc_info=True)
-            os.rmdir(self._versioned_path)
+            if os.path.exists(self._versioned_path):
+                shutil.rmtree(self._versioned_path)
             raise
 
     @trace("worker.execute_task")
