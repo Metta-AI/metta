@@ -226,21 +226,21 @@ proc drawTimeline*(panel: Panel) =
   if panel.hasMouse:
     if window.buttonPressed[MouseLeft]:
       let tr = trackRect(panel)
-      let isScrubberY = (localMouse.y > tr.y) and (localMouse.y < tr.y + tr.h)
+      let inTrack = (localMouse.x >= tr.x and localMouse.x <= tr.x + tr.w and
+                     localMouse.y >= tr.y and localMouse.y <= tr.y + tr.h)
       mouseCaptured = true
       mouseCapturedPanel = panel
-      scrubberActive = isScrubberY
-      minimapActive = not isScrubberY
+      scrubberActive = inTrack
+      minimapActive = false
       if scrubberActive:
         onScrubberChange(localMouse.x, panel.rect.w.float32)
       else:
-        onTraceMinimapChange(localMouse.x, panel.rect.w.float32)
+        # Click within the timeline panel but outside the track: block only.
+        discard
 
     if mouseCaptured and mouseCapturedPanel == panel and window.buttonDown[MouseLeft]:
       if scrubberActive:
         onScrubberChange(localMouse.x, panel.rect.w.float32)
-      elif minimapActive:
-        onTraceMinimapChange(localMouse.x, panel.rect.w.float32)
 
     if window.buttonReleased[MouseLeft]:
       scrubberActive = false
