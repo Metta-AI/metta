@@ -24,6 +24,7 @@ Usage:
 """
 
 import logging
+import os
 import sys
 import time
 from datetime import datetime
@@ -34,6 +35,8 @@ from rich.console import Console, Group
 from rich.live import Live
 from rich.table import Table
 from rich.text import Text
+
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 if TYPE_CHECKING:
     from metta.sweep.models import JobStatus, RunInfo
@@ -427,30 +430,26 @@ def live_monitor_runs_test(
 @app.callback(invoke_without_command=True)
 def cli(
     ctx: typer.Context,
-    group: Annotated[str | None, typer.Option("--group", "-g", help="WandB group to monitor (optional)")] = None,
+    group: Annotated[str | None, typer.Option("--group", "-g", help="WandB group to monitor")] = None,
     name_filter: Annotated[
-        str | None, typer.Option("--name-filter", help="Regex filter for run names (e.g., 'axel.*')")
+        str | None, typer.Option("--name-filter", help=f"Regex filter for run names (e.g., '{os.getenv('USER')}.*')")
     ] = None,
-    refresh: Annotated[int, typer.Option("--refresh", "-r", help="Refresh interval in seconds (default: 30)")] = 30,
-    entity: Annotated[
-        str, typer.Option("--entity", "-e", help="WandB entity (default: metta-research)")
-    ] = "metta-research",
-    project: Annotated[str, typer.Option("--project", "-p", help="WandB project (default: metta)")] = "metta",
+    refresh: Annotated[int, typer.Option("--refresh", "-r", help="Refresh interval in seconds")] = 30,
+    entity: Annotated[str, typer.Option("--entity", "-e", help="WandB entity")] = METTA_WANDB_ENTITY,
+    project: Annotated[str, typer.Option("--project", "-p", help="WandB project")] = METTA_WANDB_PROJECT,
     test: Annotated[
         bool, typer.Option("--test", help="Run in test mode with mock data (no WandB connection required)")
     ] = False,
     no_clear: Annotated[bool, typer.Option("--no-clear", help="Don't clear screen, append output instead")] = False,
-    fetch_limit: Annotated[
-        int, typer.Option("--fetch-limit", help="Maximum number of runs to fetch from WandB (default: 50)")
-    ] = 50,
+    fetch_limit: Annotated[int, typer.Option("--fetch-limit", help="Maximum number of runs to fetch from WandB")] = 50,
     display_limit: Annotated[
-        int, typer.Option("--display-limit", help="Maximum number of runs to display in table (default: 10)")
+        int, typer.Option("--display-limit", help="Maximum number of runs to display in table")
     ] = 10,
     score_metric: Annotated[
         str,
         typer.Option(
             "--score-metric",
-            help="Metric key in run.summary to use for score (default: env_agent/heart.get)",
+            help="Metric key in run.summary to use for score",
         ),
     ] = "env_agent/heart.get",
 ) -> None:
@@ -492,7 +491,7 @@ def cli(
     import wandb
 
     if not wandb.api.api_key:
-        typer.echo("Error: WandB API key not found. Please run 'wandb login' first.")
+        typer.echo("Error: WandB API key not found. Please run 'metta install wandb' first.")
         raise typer.Exit(1)
 
     try:
