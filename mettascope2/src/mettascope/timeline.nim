@@ -5,14 +5,7 @@ import
 
 const
   BgColor = parseHtmlColor("#1D1D1D")
-
-  # Visual layout constants for the timeline scrubber.
-  ScrubberLeft = 16f
-  ScrubberTop = 34f
-  ScrubberHeight = 16f
-  ScrubberMargin = 16f
-  # Keep this in sync with agenttraces trace width.
-  TraceWidth = (0.54f / 2.0f)
+  TraceWidth = 0.54 / 2
 
 var
   # Drag state.
@@ -24,7 +17,7 @@ var
   clickIntervalT = 0.3 # seconds
   clickDistanceT = 10.0 # pixels
 
-  # Figma nodes within GlobalTimeline
+  # Figma nodes within GlobalTimeline.
   nodesBound = false
   nodeTimeline: Node
   nodeTimelineReadout: Node
@@ -78,9 +71,7 @@ proc getStepFromX(localX, panelWidth: float32): int =
   if replay.isNil or replay.maxSteps <= 0:
     return 0
   # Prefer figma scrubber geometry
-  var trackLeft = ScrubberLeft
-  var scrubberWidth = max(0f, panelWidth - ScrubberMargin * 2)
-  if nodeScrubberBg != nil:
+  var
     trackLeft = nodeScrubberBg.position.x
     scrubberWidth = nodeScrubberBg.size.x
   let rel = clamp(localX - trackLeft, 0f, scrubberWidth)
@@ -112,7 +103,8 @@ proc drawViewportMinimap(panel: Panel) =
   if agentTracesPanel.isNil or replay.isNil or replay.maxSteps <= 1:
     return
   let fullSteps = max(1, replay.maxSteps - 1)
-  let scrubberWidth = max(0f, panel.rect.w.float32 - ScrubberMargin * 2)
+  let scrubberWidth = nodeScrubberBg.size.x
+  let scrubberLeft = nodeScrubberBg.position.x
   let zoom2 = agentTracesPanel.zoom * agentTracesPanel.zoom
   if zoom2 <= 0.00001f:
     return
@@ -126,7 +118,7 @@ proc drawViewportMinimap(panel: Panel) =
   # Draw a light rectangle indicating the viewport coverage.
   bxy.drawRect(
     rect(
-      ScrubberLeft + tracesX - 1,
+      scrubberLeft + tracesX - 1,
       0,
       tracesW + 2,
       64
@@ -138,11 +130,9 @@ proc drawFrozenMarkers(panel: Panel) =
   ## Draws tick marks for the start of frozen states along the scrubber.
   if replay.isNil or replay.maxSteps <= 1:
     return
-  var scrubberWidth = max(0f, panel.rect.w.float32 - ScrubberMargin * 2)
-  var trackLeft = ScrubberLeft
-  if nodeScrubberBg != nil:
-    trackLeft = nodeScrubberBg.position.x
-    scrubberWidth = nodeScrubberBg.size.x
+  let scrubberWidth = nodeScrubberBg.size.x
+  let trackLeft = nodeScrubberBg.position.x
+  let trackTop = nodeScrubberBg.position.y
   let fullSteps = max(1, replay.maxSteps - 1)
   for agent in replay.agents:
     var prevFrozen = false
@@ -151,18 +141,14 @@ proc drawFrozenMarkers(panel: Panel) =
       if isFrozen and (not prevFrozen):
         let x = trackLeft + (float32(j) / float32(fullSteps)) * scrubberWidth
         # Draw icon above the scrubber and a small tick on the bar.
-        bxy.drawImage("agents/frozen", vec2(x, ScrubberTop - 22), angle = 0, scale = 1/200)
-        bxy.drawRect(rect(x - 1, ScrubberTop - 10, 2, 8), color(1, 1, 1, 1))
+        bxy.drawImage("agents/frozen", vec2(x, trackTop - 22), angle = 0, scale = 1/200)
+        bxy.drawRect(rect(x - 1, trackTop - 10, 2, 8), color(1, 1, 1, 1))
       prevFrozen = isFrozen
 
 proc trackRect(panel: Panel): Rect =
   ## Track rectangle in panel-local coordinates.
-  if nodeScrubberBg != nil:
-    return Rect(x: nodeScrubberBg.position.x, y: nodeScrubberBg.position.y,
-                w: nodeScrubberBg.size.x, h: nodeScrubberBg.size.y)
-  return Rect(x: ScrubberLeft, y: ScrubberTop,
-              w: max(0f, panel.rect.w.float32 - ScrubberMargin * 2),
-              h: ScrubberHeight)
+  return Rect(x: nodeScrubberBg.position.x, y: nodeScrubberBg.position.y,
+              w: nodeScrubberBg.size.x, h: nodeScrubberBg.size.y)
 
 proc updateFigmaScrubber() =
   ## Updates figma nodes to act like a video playbar:
@@ -171,48 +157,45 @@ proc updateFigmaScrubber() =
   if replay.isNil or not nodesBound:
     return
   # Step counter text and bubble position (move the entire readout frame)
-  if nodeTimelineReadout != nil and nodeScrubberBg != nil:
-    if nodeStepCounter != nil:
-      nodeStepCounter.text = $step
-      nodeStepCounter.dirty = true
-    # Position the bubble centered over the current end of the fill.
-    let bubbleW = nodeTimelineReadout.size.x
-    let trackLeft = nodeScrubberBg.position.x
-    let trackWidth = nodeScrubberBg.size.x
-    var bubbleX = trackLeft
-    if replay.maxSteps > 1:
-      let fullSteps = max(1, replay.maxSteps - 1)
-      let progress = clamp(step.float32 / fullSteps.float32, 0f, 1f)
-      let endX = trackLeft + progress * trackWidth
-      bubbleX = endX - bubbleW * 0.5f
-    # Clamp inside the track.
-    bubbleX = clamp(bubbleX, trackLeft, trackLeft + trackWidth - bubbleW)
-    if abs(nodeTimelineReadout.position.x - bubbleX) > 0.1f:
-      nodeTimelineReadout.position = vec2(bubbleX, nodeTimelineReadout.position.y)
-      nodeTimelineReadout.dirty = true
+  nodeStepCounter.text = $step
+  nodeStepCounter.dirty = true
+  # Position the bubble centered over the current end of the fill.
+  let bubbleW = nodeTimelineReadout.size.x
+  let trackLeft = nodeScrubberBg.position.x
+  let trackWidth = nodeScrubberBg.size.x
+  var bubbleX = trackLeft
+  if replay.maxSteps > 1:
+    let fullSteps = max(1, replay.maxSteps - 1)
+    let progress = clamp(step.float32 / fullSteps.float32, 0f, 1f)
+    let endX = trackLeft + progress * trackWidth
+    bubbleX = endX - bubbleW * 0.5f
+  # Clamp inside the track.
+  bubbleX = clamp(bubbleX, trackLeft, trackLeft + trackWidth - bubbleW)
+  if abs(nodeTimelineReadout.position.x - bubbleX) > 0.1f:
+    nodeTimelineReadout.position = vec2(bubbleX, nodeTimelineReadout.position.y)
+    nodeTimelineReadout.dirty = true
   # Scrubber fill width
-  if nodeScrubberBg != nil and nodeScrubber != nil:
-    let trackLeft = nodeScrubberBg.position.x
-    let trackWidth = nodeScrubberBg.size.x
-    var fillW = 0f
-    if replay.maxSteps > 1:
-      let fullSteps = max(1, replay.maxSteps - 1)
-      let progress = clamp(step.float32 / fullSteps.float32, 0f, 1f)
-      fillW = progress * trackWidth
-    # Ensure the scrubber fill is visible at step 0: minimum width ~1px.
-    fillW = max(fillW, 1f)
-    # Anchor left and scale width using node scale to support VECTOR nodes.
-    var changed = false
-    if abs(nodeScrubber.position.x - trackLeft) > 0.1f:
-      nodeScrubber.position = vec2(trackLeft, nodeScrubber.position.y)
-      changed = true
-    let baseW = (if nodeScrubber.origSize.x > 0: nodeScrubber.origSize.x else: max(1f, nodeScrubber.size.x))
-    let scaleX = max(fillW / baseW, 0.001f)
-    if abs(nodeScrubber.scale.x - scaleX) > 0.001f or abs(nodeScrubber.scale.y - 1f) > 0.001f:
-      nodeScrubber.scale = vec2(scaleX, 1f)
-      changed = true
-    if changed:
-      nodeScrubber.dirty = true
+  let trackLeft2 = nodeScrubberBg.position.x
+  let trackWidth2 = nodeScrubberBg.size.x
+  var fillW = 0f
+  if replay.maxSteps > 1:
+    let fullSteps = max(1, replay.maxSteps - 1)
+    let progress = clamp(step.float32 / fullSteps.float32, 0f, 1f)
+    fillW = progress * trackWidth2
+  # Ensure the scrubber fill is visible at step 0: minimum width ~1px.
+  fillW = max(fillW, 1f)
+  # Anchor left and scale width using node scale to support VECTOR nodes.
+  var changed = false
+  if abs(nodeScrubber.position.x - trackLeft2) > 0.1f:
+    nodeScrubber.position = vec2(trackLeft2, nodeScrubber.position.y)
+    changed = true
+  let baseW = (if nodeScrubber.origSize.x > 0: nodeScrubber.origSize.x else: max(1f, nodeScrubber.size.x))
+  let scaleX = max(fillW / baseW, 0.001f)
+  if abs(nodeScrubber.scale.x - scaleX) > 0.001f or abs(nodeScrubber.scale.y - 1f) > 0.001f:
+    nodeScrubber.scale = vec2(scaleX, 1f)
+    changed = true
+  if changed:
+    nodeScrubber.dirty = true
 
 proc drawTimeline*(panel: Panel) =
   ## Draws the global timeline with scrubber, minimap, and markers, and handles input.
@@ -267,20 +250,7 @@ proc drawTimeline*(panel: Panel) =
       lastClickTimeT = currentTime
       lastClickPosT = localMouse
 
-  # If figma track exists, do not draw custom scrubber; just update nodes.
-  if nodeScrubberBg == nil:
-    let scrubberWidth = max(0f, panel.rect.w.float32 - ScrubberMargin * 2)
-    bxy.drawRect(
-      rect(ScrubberLeft, ScrubberTop, scrubberWidth, ScrubberHeight),
-      color(0.5, 0.5, 0.5, 0.5)
-    )
-    if replay.maxSteps > 1:
-      let fullSteps = max(1, replay.maxSteps - 1)
-      let w = (scrubberWidth * step.float32) / float32(fullSteps)
-      bxy.drawRect(
-        rect(ScrubberLeft, ScrubberTop, w, ScrubberHeight),
-        color(1, 1, 1, 1)
-      )
+  # All scrubber drawing is handled by Figma nodes.
 
   # Draw trace viewport minimap window and frozen markers as an overlay in panel space.
   panel.beginDraw()
