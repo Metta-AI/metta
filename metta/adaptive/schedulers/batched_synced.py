@@ -34,6 +34,7 @@ class BatchedSyncedSchedulerConfig(Config):
     nodes: int = 1
     batch_size: int = 4
     experiment_id: str = "batched_synced"
+    protein_config: Any = Field(description="ProteinConfig for optimization")
 
 
 class BatchedSyncedOptimizingScheduler:
@@ -49,11 +50,12 @@ class BatchedSyncedOptimizingScheduler:
     def __init__(
         self,
         config: BatchedSyncedSchedulerConfig,
-        optimizer: Optimizer,
         state: ExperimentState | None = None,
     ):
+        from metta.adaptive.optimizer.protein import ProteinOptimizer
+
         self.config = config
-        self.optimizer = optimizer
+        self.optimizer = ProteinOptimizer(config.protein_config)
         self.state = state
         logger.info(
             "[BatchedSyncedOptimizingScheduler] Initialized with max_trials=%s, batch_size=%s",
