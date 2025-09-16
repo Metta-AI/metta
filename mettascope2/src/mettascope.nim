@@ -151,7 +151,7 @@ find "/UI/Main":
 
     if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
       fitFullMap(worldMapPanel)
-      
+
 startFidget(
   figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
   windowTitle = "MetaScope V2",
