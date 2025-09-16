@@ -150,6 +150,8 @@ proc drawFrozenMarkers(panel: Panel) =
       let isFrozen = (agent.isFrozen.len > j) and agent.isFrozen[j]
       if isFrozen and (not prevFrozen):
         let x = trackLeft + (float32(j) / float32(fullSteps)) * scrubberWidth
+        # Draw icon above the scrubber and a small tick on the bar.
+        bxy.drawImage("agents/frozen", vec2(x, ScrubberTop - 22), angle = 0, scale = 1/200)
         bxy.drawRect(rect(x - 1, ScrubberTop - 10, 2, 8), color(1, 1, 1, 1))
       prevFrozen = isFrozen
 
@@ -274,11 +276,11 @@ proc drawTimeline*(panel: Panel) =
         color(1, 1, 1, 1)
       )
 
-  # Draw trace viewport minimap window.
+  # Draw trace viewport minimap window and frozen markers as an overlay in panel space.
+  panel.beginDraw()
   drawViewportMinimap(panel)
-
-  # Draw frozen event markers.
   drawFrozenMarkers(panel)
+  panel.endDraw()
 
   # Drive figma scrubber state (thumb position and step text).
   updateFigmaScrubber()
