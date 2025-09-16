@@ -5,7 +5,7 @@ from .adaptive_config import AdaptiveConfig
 from .adaptive_controller import AdaptiveController
 
 # Implementations
-from .dispatcher import LocalDispatcher, RoutingDispatcher, SkypilotDispatcher
+from .dispatcher import LocalDispatcher, SkypilotDispatcher
 
 # Models (keep the essential ones)
 from .models import JobDefinition, JobStatus, RunInfo
@@ -29,6 +29,5 @@ __all__ = [
     # Implementations
     "LocalDispatcher",
     "SkypilotDispatcher",
-    "RoutingDispatcher",
     "WandbStore",
 ]
