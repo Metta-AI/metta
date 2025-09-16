@@ -204,9 +204,22 @@ def local_copy(path: str):
         with local_copy(uri) as p:
             do_something_with(Path(p))
     """
-    if path.startswith(("s3://", "wandb://")):
-        data = read(path)  # existing helper
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".duckdb")
+    if path.startswith("s3://"):
+        data = read(path)
+        tmp = tempfile.NamedTemporaryFile(delete=False)
+        tmp.write(data)
+        tmp.flush()
+        tmp.close()
+        try:
+            yield Path(tmp.name)
+        finally:
+            try:
+                os.remove(tmp.name)
+            except OSError:
+                pass
+    elif path.startswith("wandb://"):
+        data = read(path)
+        tmp = tempfile.NamedTemporaryFile(delete=False)
         tmp.write(data)
         tmp.flush()
         tmp.close()
