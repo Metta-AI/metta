@@ -15,7 +15,7 @@ from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.wandb_context import WandbRun
-from metta.core.distributed import TorchDistributedConfig
+from metta.core.distributed import TorchDistributedConfig, disable_nccl_watchdog, enable_nccl_watchdog
 from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
@@ -585,6 +585,10 @@ def train(
                         evaluate_local = True
                 if evaluate_local:
                     if policy_uri:
+                        logger.warning(
+                            "Local policy evaluation can be inefficient - consider switching to remote evaluation!"
+                        )
+                        disable_nccl_watchdog()
                         evaluation_results = evaluate_policy(
                             checkpoint_uri=policy_uri,
                             simulations=sims,
@@ -594,6 +598,8 @@ def train(
                             stats_epoch_id=stats_tracker.stats_epoch_id,
                             stats_client=stats_client,
                         )
+
+                        enable_nccl_watchdog()
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
                         if wandb_run is not None and evaluation_results.replay_urls:
