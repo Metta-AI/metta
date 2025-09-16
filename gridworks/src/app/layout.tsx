@@ -32,7 +32,7 @@ const TopMenu: FC = () => {
       <Link href="/" className="font-bold">
         Gridworks
       </Link>
-      <TopMenuLink href={configsRoute()}>MettaGrid Configs</TopMenuLink>
+      <TopMenuLink href={configsRoute()}>Config Makers</TopMenuLink>
       <TopMenuLink href={mapEditorRoute()}>Map Editor</TopMenuLink>
       <TopMenuLink href={storedMapsRoute()}>
         Stored Maps (Experimental)

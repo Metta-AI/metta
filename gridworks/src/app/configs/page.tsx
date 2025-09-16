@@ -9,7 +9,7 @@ export default async function EnvsPage() {
 
   return (
     <div className="p-4">
-      <h1 className="mb-4 text-2xl font-bold">MettaGrid Configs</h1>
+      <h1 className="mb-4 text-2xl font-bold">Config Makers</h1>
       {Object.keys(cfgs).map((kind) => {
         return (
           <div key={kind} className="mb-4">
