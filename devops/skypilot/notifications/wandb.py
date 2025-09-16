@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Weights & Biases alert notification platform."""
 
-from devops.skypilot.notifications.utils import format_runtime, get_notification_info
+from devops.skypilot.notifications.notification import format_runtime, get_notification_info
 from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.log_config import getRankAwareLogger

@@ -4,7 +4,7 @@
 import os
 from datetime import datetime
 
-from devops.skypilot.notifications.utils import format_runtime, get_notification_info
+from devops.skypilot.notifications.notification import format_runtime, get_notification_info
 from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 from metta.common.util.discord import send_to_discord

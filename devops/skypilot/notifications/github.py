@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GitHub status notification platform."""
 
-from devops.skypilot.notifications.utils import get_notification_info
+from devops.skypilot.notifications.notification import get_notification_info
 from devops.skypilot.utils.job_config import JobConfig
 from gitta import post_commit_status
 from metta.common.util.constants import (
