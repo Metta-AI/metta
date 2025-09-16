@@ -190,7 +190,7 @@ def make_curriculum() -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
-        trials_per_episode=[1, 2, 4, 8],  # Different numbers of trials per episode
+        trials_per_episode=[1, 2, 3, 4],  # Different numbers of trials per episode
     )
     return CurriculumConfig(task_generator=task_generator_cfg)
 
