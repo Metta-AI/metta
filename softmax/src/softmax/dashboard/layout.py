@@ -34,7 +34,7 @@ def _widget_layout(index: int) -> dict[str, int]:
 
 
 def _query_for_metric(metric_key: str) -> str:
-    return f"avg:metta.{metric_key}{{source:softmax-dashboard,metric:{metric_key},branch:$branch,workflow:$workflow}}"
+    return f"avg:metta.{metric_key}{{source:softmax-dashboard,metric:{metric_key}}}"
 
 
 def _marker_value(comparison: str, target: float) -> str:
@@ -87,10 +87,6 @@ def build_dashboard_definition(
         "description": description,
         "layout_type": "ordered",
         "widgets": widgets,
-        "template_variables": [
-            {"name": "branch", "prefix": "branch", "default": "main"},
-            {"name": "workflow", "prefix": "workflow"},
-        ],
         "notify_list": [],
     }
 
