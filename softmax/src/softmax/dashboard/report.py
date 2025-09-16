@@ -73,7 +73,7 @@ def report(
         typer.echo(json.dumps(metrics, indent=2, sort_keys=True))
         return
 
-    api_key = get_secretsmanager_secret("datadog/api_key")
+    api_key = get_secretsmanager_secret("datadog/api-key")
     if not api_key:
         raise RuntimeError("Datadog API key not found")
     payload = _build_series_payload(metrics, tags=_base_tags())
