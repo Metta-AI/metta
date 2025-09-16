@@ -188,19 +188,15 @@ class AdaptiveTool(Tool):
             return TrainAndEvalScheduler(self.scheduler_config, state=self.scheduler_state)
 
         if self.scheduler_type == SchedulerType.BATCHED_SYNCED:
-            from metta.adaptive.optimizer.protein import ProteinOptimizer
             from metta.adaptive.schedulers.batched_synced import (
                 BatchedSyncedOptimizingScheduler,
                 BatchedSyncedSchedulerConfig,
             )
 
-            if self.protein_config is None:
-                raise ValueError("protein_config must be provided for BATCHED_SYNCED scheduler")
             if not isinstance(self.scheduler_config, BatchedSyncedSchedulerConfig):
                 raise ValueError("scheduler_config must be a BatchedSyncedSchedulerConfig instance for BATCHED_SYNCED")
 
-            optimizer = ProteinOptimizer(self.protein_config)
-            return BatchedSyncedOptimizingScheduler(self.scheduler_config, optimizer, state=self.scheduler_state)
+            return BatchedSyncedOptimizingScheduler(self.scheduler_config, state=self.scheduler_state)
 
         else:
             raise ValueError(f"Unsupported scheduler type: {self.scheduler_type}")
@@ -213,18 +209,11 @@ class AdaptiveTool(Tool):
             return LocalDispatcher(capture_output=self.capture_output)
 
         elif self.dispatcher_type == DispatcherType.SKYPILOT:
-            from metta.adaptive.dispatcher import LocalDispatcher, RoutingDispatcher
             from metta.adaptive.dispatcher.skypilot import SkypilotDispatcher
-            from metta.adaptive.models import JobTypes
 
-            # Train on Skypilot, evaluate locally through the CLI
-            dispatcher = RoutingDispatcher(
-                routes={
-                    JobTypes.LAUNCH_TRAINING: SkypilotDispatcher(),
-                    JobTypes.LAUNCH_EVAL: LocalDispatcher(capture_output=self.capture_output),
-                }
-            )
-            logger.info("[AdaptiveTool] Using hybrid mode: training on Skypilot, evaluation locally")
+            # SkypilotDispatcher handles both train jobs (via launch.py) and eval jobs (via ./tools/run.py)
+            dispatcher = SkypilotDispatcher()
+            logger.info("[AdaptiveTool] Using Skypilot for both training and evaluation")
             return dispatcher
 
         else:
