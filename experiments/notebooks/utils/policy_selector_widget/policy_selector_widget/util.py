@@ -2,8 +2,7 @@
 Utility functions for the Policy Selector Widget
 """
 
-from typing import Any, Dict, List
-
+from typing import Dict, List, Any
 from metta.app_backend.clients.scorecard_client import ScorecardClient
 
 
