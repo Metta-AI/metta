@@ -363,7 +363,7 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or all_room_sizes_curriculum(),
+        curriculum=curriculum or longer_chains(),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
